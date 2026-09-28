@@ -667,9 +667,13 @@ pub enum OffsetFitError {
     /// the carrier's own repair.
     Elevation(KnotAlgebraError),
     /// The run's tolerance could not form the linear band the door
-    /// meters classify against (an absurd ε — see `Band::linear`'s
-    /// error docs). Only the [`Tol`] doors derive a band; the `_at`
-    /// instruments take theirs as an argument.
+    /// meters classify against. Both of `Band::linear`'s arms reach it
+    /// from a tolerance the run's validator admits: an ε within a
+    /// factor K of `f64::MAX`, and a subnormal ε with K near 1 (see
+    /// `Band::linear`'s error docs for the exact region). Only the
+    /// [`Tol`] doors derive a band; the `_at` instruments take theirs
+    /// as an argument. `tests/offset_fit_band_probes.rs` drives
+    /// [`fit_offset`] and [`certify_offset`] here at both arms.
     Band(BandError),
 }
 
@@ -703,7 +707,7 @@ impl From<FitError> for OffsetFitError {
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Meter(e) => write!(f, "the offset surface could not be fitted: {e}"),
+            Self::Meter(e) => write!(f, "the offset surface's meters refused: {e}"),
             Self::PatchBound(e) => write!(f, "{e}"),
             Self::Fit(e) => write!(f, "the offset surface's interpolation refused: {e}"),
             Self::Structure(e) => write!(f, "the offset surface's spline structure refused: {e}"),
@@ -833,7 +837,20 @@ impl core::fmt::Display for OffsetFitError {
                  linear, which a valid surface always allows. There is no way through: \
                  this is a kernel defect; report the face's description"
             ),
-            Self::Band(e) => write!(f, "the offset surface could not be fitted: {e}"),
+            // The carrier's own prose is not rendered: its repairs
+            // (set a positive ε; raise ε or K) are addressed to a
+            // caller choosing a band's thresholds, and a `Tol` caller
+            // already holds a valid tolerance whose derived band
+            // failed anyway. What is true for every arm `Band::linear`
+            // returns is that the run's ε sits at an extreme of the
+            // range, and a less extreme one forms a band at any
+            // admitted K.
+            Self::Band(_) => write!(
+                f,
+                "the offset surface's meters cannot classify at the run's tolerance: it is \
+                 too extreme for the ambiguity band above it to form. Recourse: run at a less \
+                 extreme tolerance"
+            ),
         }
     }
 }
@@ -861,8 +878,71 @@ impl std::error::Error for OffsetFitError {}
 // that scalar, never about a value that could not arrive.
 pub use geom::OffsetCertificate;
 
-/// **The offset fit door**: fit a NURBS approximation of `S + d·n`
-/// over the base's own chart rectangle and certify it.
+// SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
+// `topo/tests/shell_tolerance_chain.rs` reads. Between here and the END
+// sentinel are this module's five PRODUCTION doors, the one site that
+// turns the run's witness into a number, and the numeric-target `_at`
+// routines each door delegates to. No PRODUCTION signature here may
+// take an `f64` epsilon, and the region may hold exactly one `.eps()`
+// read. The `_at` routines are exempt from the first rule and only
+// from it: taking a chosen target is what they are for, they are
+// `#[doc(hidden)]`, and a separate census holds that no production file
+// outside this one reaches one. Do not move a production door out of
+// this region.
+/// **The fit target: the run's ε, read through the [`Tol`] witness**
+/// (D4 ¶1's witness rule; D4 ¶2's ε_precision; the residual O3
+/// ratifies).
+///
+/// The invariant is ONE ε on the chain that reaches this module, the
+/// one the run committed, read only through the witness whichever
+/// function reads it: this one for the fit target, and `Band::linear`
+/// for the meters' band ([`run_band`]). From the shell door down to
+/// here the tolerance travels as the witness and nothing else —
+/// `topo::shell`, the face-replacement doors, `topo::props`'s lane
+/// doors and this module's five production doors all name it in their
+/// signatures — so no caller on the way can name a second epsilon, and
+/// none can do arithmetic on the one the run committed.
+/// `crates/topo/tests/shell_tolerance_chain.rs` pins that this is the
+/// only `.eps()` read in the guarded region.
+fn precision_target(tol: Tol) -> f64 {
+    tol.eps()
+}
+
+/// **The band the door meters classify against**, derived from the same
+/// witness as [`precision_target`]: the run's linear band. A door that
+/// took the band as a second argument would let a caller classify the
+/// limbs at one ε and meter the regularity floor and the collapse reach
+/// at another; deriving it here makes the pair one value.
+fn run_band(tol: Tol) -> Result<Band, OffsetFitError> {
+    Band::linear(tol).map_err(OffsetFitError::Band)
+}
+
+/// **The fit door**, at the run's ε_precision: fit the offset of `base`
+/// at signed distance `d` until the measured residual meets the target,
+/// or refuse typed. The docs of the routine it delegates to
+/// ([`fit_offset_at`]) carry the method, the doors, the bound's
+/// tightness and the refusal ladder; what is stated HERE is only which
+/// target this form uses, because that is the whole difference between
+/// the two.
+///
+/// # Errors
+///
+/// As [`fit_offset_at`], plus [`OffsetFitError::Band`] when the run's
+/// tolerance forms no linear band.
+pub fn fit_offset(
+    base: &NurbsSurface<f64>,
+    d: f64,
+    tol: Tol,
+) -> Result<(NurbsSurface<f64>, OffsetCertificate), OffsetFitError> {
+    fit_offset_at(base, d, precision_target(tol), run_band(tol)?)
+}
+
+/// [`fit_offset`] against a CHOSEN target rather than the run's ε — the
+/// engine as an instrument (module docs, "the numeric-target
+/// instrument"). The method both forms run is documented here.
+///
+/// The method: fit a NURBS approximation of `S + d·n` over the base's
+/// own chart rectangle and certify it.
 ///
 /// Refuses — never degrades — on a patch whose chart normal is not
 /// certifiably non-degenerate, on an offset distance that reaches the
@@ -907,68 +987,6 @@ pub use geom::OffsetCertificate;
 /// bound and the smallest any round reached, and
 /// [`OffsetFitError::BoundNotFinite`] carrying that smallest finite
 /// bound, or none.
-// SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
-// `topo/tests/shell_tolerance_chain.rs` reads. Between here and the END
-// sentinel are this module's five PRODUCTION doors, the one site that
-// turns the run's witness into a number, and the numeric-target `_at`
-// routines each door delegates to. No PRODUCTION signature here may
-// take an `f64` epsilon, and the region may hold exactly one `.eps()`
-// read. The `_at` routines are exempt from the first rule and only
-// from it: taking a chosen target is what they are for, they are
-// `#[doc(hidden)]`, and a separate census holds that no production file
-// outside this one reaches one. Do not move a production door out of
-// this region.
-/// **The fit target, and the ONE place the run's ε is read on the
-/// chain that reaches this module** (D4 ¶1's witness rule; D4 ¶2's
-/// ε_precision; the residual O3 ratifies).
-///
-/// From the shell door down to here the tolerance travels as the [`Tol`]
-/// witness and nothing else — `topo::shell`, the face-replacement
-/// doors, `topo::props`'s lane doors and this module's five production
-/// doors all name the witness in their signatures — so no caller on the
-/// way can name a second epsilon, and none can do arithmetic on the one
-/// the run committed. The value appears for the first time here, and
-/// `crates/topo/tests/shell_tolerance_chain.rs` pins that this is the
-/// only `.eps()` read in the guarded region.
-fn precision_target(tol: Tol) -> f64 {
-    tol.eps()
-}
-
-/// **The band the door meters classify against**, derived from the same
-/// witness as [`precision_target`]: the run's linear band. A door that
-/// took the band as a second argument would let a caller classify the
-/// limbs at one ε and meter the regularity floor and the collapse reach
-/// at another; deriving it here makes the pair one value.
-fn run_band(tol: Tol) -> Result<Band, OffsetFitError> {
-    Band::linear(tol).map_err(OffsetFitError::Band)
-}
-
-/// **The fit door**, at the run's ε_precision: fit the offset of `base`
-/// at signed distance `d` until the measured residual meets the target,
-/// or refuse typed. The docs of the routine it delegates to
-/// ([`fit_offset_at`]) carry the method, the doors, the bound's
-/// tightness and the refusal ladder; what is stated HERE is only which
-/// target this form uses, because that is the whole difference between
-/// the two.
-///
-/// # Errors
-///
-/// As [`fit_offset_at`].
-pub fn fit_offset(
-    base: &NurbsSurface<f64>,
-    d: f64,
-    tol: Tol,
-) -> Result<(NurbsSurface<f64>, OffsetCertificate), OffsetFitError> {
-    fit_offset_at(base, d, precision_target(tol), run_band(tol)?)
-}
-
-/// [`fit_offset`] against a CHOSEN target rather than the run's ε — the
-/// engine as an instrument (module docs, "the numeric-target
-/// instrument").
-///
-/// # Errors
-///
-/// As [`fit_offset`].
 #[doc(hidden)]
 pub fn fit_offset_at(
     base: &NurbsSurface<f64>,
@@ -1152,7 +1170,9 @@ pub fn fit_offset_at(
 /// # Errors
 ///
 /// [`OffsetFitError::Limb`] naming the limb that measured above
-/// tolerance, plus the door meters' and the patch-bound refusals.
+/// tolerance, plus the door meters' and the patch-bound refusals, and
+/// [`OffsetFitError::Band`] when the run's tolerance forms no linear
+/// band.
 pub fn certify_offset(
     base: &NurbsSurface<f64>,
     fit: &NurbsSurface<f64>,
@@ -1167,7 +1187,8 @@ pub fn certify_offset(
 ///
 /// # Errors
 ///
-/// As [`certify_offset`].
+/// As [`certify_offset`], less [`OffsetFitError::Band`]: the band is an
+/// argument here.
 #[doc(hidden)]
 pub fn certify_offset_at(
     base: &NurbsSurface<f64>,
@@ -1232,7 +1253,8 @@ pub fn certify_offset_at(
 /// # Errors
 ///
 /// [`OffsetFitError::WindowUnsupported`] for a window this derivation
-/// does not cover, then whatever [`certify_offset`] refuses.
+/// does not cover, then whatever [`certify_offset`] refuses,
+/// [`OffsetFitError::Band`] included.
 pub fn certify_offset_over(
     description: &geom::SurfaceDescription<f64>,
     fit: &NurbsSurface<f64>,
@@ -1253,7 +1275,8 @@ pub fn certify_offset_over(
 ///
 /// # Errors
 ///
-/// As [`certify_offset_over`].
+/// As [`certify_offset_over`], less [`OffsetFitError::Band`]: the band
+/// is an argument here.
 #[doc(hidden)]
 pub fn certify_offset_over_at(
     description: &geom::SurfaceDescription<f64>,
@@ -1313,8 +1336,9 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 ///
 /// # Errors
 ///
-/// [`OffsetFitError`]: everything [`fit_offset`] refuses, plus
-/// [`certify_offset`]'s limb classifications. A rational fit takes
+/// [`OffsetFitError`]: everything [`fit_offset`] refuses
+/// ([`OffsetFitError::Band`] included), plus [`certify_offset`]'s limb
+/// classifications. A rational fit takes
 /// the same path as a polynomial one — the composite is weighted, so
 /// rationality is not a refusal cause.
 pub fn approx_offset_surface(
@@ -1334,7 +1358,8 @@ pub fn approx_offset_surface(
 ///
 /// # Errors
 ///
-/// As [`approx_offset_surface`].
+/// As [`approx_offset_surface`], less [`OffsetFitError::Band`]: the
+/// band is an argument here.
 #[doc(hidden)]
 pub fn approx_offset_surface_at(
     base: std::sync::Arc<NurbsSurface<f64>>,
@@ -1394,7 +1419,7 @@ fn mint(
 ///
 /// # Errors
 ///
-/// As [`certify_offset_over`].
+/// As [`certify_offset_over`], [`OffsetFitError::Band`] included.
 pub fn recertify_approx(
     approx: &geom::ApproxSurface<f64>,
     tol: Tol,
@@ -1407,7 +1432,8 @@ pub fn recertify_approx(
 ///
 /// # Errors
 ///
-/// As [`recertify_approx`].
+/// As [`recertify_approx`], less [`OffsetFitError::Band`]: the band is
+/// an argument here.
 #[doc(hidden)]
 pub fn recertify_approx_at(
     approx: &geom::ApproxSurface<f64>,
@@ -1531,7 +1557,21 @@ fn seed_params(base: &NurbsSurface<f64>) -> (Vec<f64>, Vec<f64>) {
 /// Every interior point lies strictly inside its own span, so taking
 /// the points below each knot value in turn places each one between
 /// the two ends of the span it came from.
+///
+/// **This rests on `kv` being clamped.** Only then are the distinct
+/// knot values exactly the span ends: the first and last are the
+/// domain's ends, so no span lies outside them. [`KnotVector`] admits
+/// clamped vectors only, and the debug assertion below restates that
+/// premise where it is used.
 fn seed_direction(kv: &KnotVector) -> Vec<f64> {
+    debug_assert_eq!(
+        (
+            kv.knot_runs().next().map(|(t, _)| t),
+            kv.knot_runs().next_back().map(|(t, _)| t)
+        ),
+        (Some(kv.domain().0), Some(kv.domain().1)),
+        "the distinct knot values do not run from the domain's start to its end"
+    );
     let mut interior = equal_split_points(kv, OFFSET_FIT_SEED_PER_SPAN)
         .into_iter()
         .peekable();
@@ -2960,16 +3000,20 @@ mod recourse_tests {
     /// absent from the message a user reads there.
     ///
     /// **The delegating arms are asserted differently.** `Meter`,
-    /// `PatchBound`, `Fit`, `Structure` and `Band` forward a carrier
-    /// that holds an enforcement row of its own, so each is asserted
+    /// `PatchBound`, `Fit` and `Structure` forward a carrier that
+    /// holds an enforcement row of its own, so each is asserted
     /// TRANSITIVELY: the carrier is rendered whole, and its recourse
-    /// survives into the message. `Elevation` does NOT render its carrier: the
+    /// survives into the message.
+    ///
+    /// `Elevation` and `Band` do NOT render their carriers. The
     /// `KnotAlgebraError` a `check_weights` refusal carries is a
     /// `SplineError` whose own repair is addressed to a caller building
     /// a spline, and rendering it would put a second, contradicting
-    /// repair beside the report this arm asks for. So its rows assert
-    /// the opposite: the carrier's prose is absent, the weight the
-    /// report needs is present, and the one recourse is the arm's own.
+    /// repair beside the report this arm asks for. The `BandError`'s
+    /// repairs are addressed to a caller choosing thresholds, and a
+    /// `Tol` caller holds a valid tolerance already. So their rows
+    /// assert the opposite: the carrier's prose is absent, and the one
+    /// recourse is the arm's own.
     ///
     /// **A floor, not a proof**, on the terms `topo`'s
     /// `every_chart_region_arm_names_a_recourse` states: a vocabulary
@@ -2992,8 +3036,7 @@ mod recourse_tests {
             "describe",
             "drop",
             "larger magnitude",
-            "set a",
-            "raise",
+            "less extreme",
         ];
         let meter = MeterError::NormalFloor {
             floor: 0.0,
@@ -3136,15 +3179,13 @@ mod recourse_tests {
                 OffsetFitError::PatchBound(_) => Some(patch_bound.to_string()),
                 OffsetFitError::Fit(_) => Some(fit.to_string()),
                 OffsetFitError::Structure(_) => Some(structure.to_string()),
-                OffsetFitError::Band(b) => Some(b.to_string()),
                 _ => None,
             };
-            // Five of the carriers hold an enforcement row of their own
+            // Four of the carriers hold an enforcement row of their own
             // (`every_meter_error_arm_names_a_recourse`,
             // `every_patch_bound_error_arm_names_a_recourse`,
             // `every_fit_error_arm_names_a_recourse`,
-            // `every_spline_error_arm_names_a_recourse`,
-            // `every_band_error_arm_names_a_recourse`), so those arms
+            // `every_spline_error_arm_names_a_recourse`), so those arms
             // are asserted TRANSITIVELY: the carrier is rendered whole
             // AND its clause survives into the message a caller reads.
             // The carrier's row is what makes that a statement about
@@ -3161,6 +3202,16 @@ mod recourse_tests {
                 assert!(
                     msg.contains("There is no way through") && !msg.contains("Recourse:"),
                     "not exactly the one kernel-defect ending: {msg}"
+                );
+            }
+            if let OffsetFitError::Band(band) = arm {
+                assert!(
+                    !msg.contains(&band.to_string()),
+                    "the carrier's own repairs are rendered: {msg}"
+                );
+                assert!(
+                    msg.contains("Recourse: run at a less extreme tolerance"),
+                    "not exactly the one recourse: {msg}"
                 );
             }
             let lower = msg.to_lowercase();

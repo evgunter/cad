@@ -40,8 +40,9 @@
 //! # This file is on the shell's offset chain
 //!
 //! All three doors take the run's ε as the [`Tol`] witness and no
-//! `f64` epsilon — nor a band beside it: the band the fit's meters read
-//! is derived from the same witness, inside the door — and the SHELL-TOLERANCE-CHAIN census
+//! `f64` epsilon — nor a band beside it: the band the fit's meters
+//! read is derived from the same witness, inside the door — and the
+//! SHELL-TOLERANCE-CHAIN census
 //! (`crates/topo/tests/shell_tolerance_chain.rs`) carries this file
 //! with none declared: an `f64` tolerance parameter or an `.eps()`
 //! read here reds that census and has to be said what it is for.
