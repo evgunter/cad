@@ -14,8 +14,8 @@
 //!   answer would break: two half-bands of one frustum PARTITION their
 //!   wall, a quarter cone holds its quadrant and not the others, the
 //!   mirror nappe and the carrier past the slant window are outside,
-//!   and an apex-closed band beside a sibling, whose own window the
-//!   walk cannot pin, is the honest remainder.
+//!   and the apex-closed bands of one full cone partition their wall
+//!   too, their windows closed at the apex.
 //! - **The C5 gate** read `route(kind, kind).implemented`. A quarter
 //!   cone's wedge cap passes through the apex, which the plane×cone
 //!   arm serves; offset, it no longer does, and the pair cuts a
@@ -204,24 +204,30 @@ fn the_quarter_cone_face_holds_its_quadrant_and_no_other() {
     }
 }
 
-/// **An apex-closed band beside a sibling is the honest remainder.** The
-/// full cone's two bands meet at the apex, where every azimuth lands;
-/// the closed-form walk loses the band's azimuth window there and
-/// reports a full period for a face that covers half of one. The door
-/// cannot pin the band's own window, so it answers `None` — never a
-/// verdict read off the wrong window. The carrier test still runs
-/// FIRST: a point off the cone is `Out` of both bands whatever the
-/// trim can say.
+/// **The apex-closed bands of one full cone partition their wall.**
+/// The two bands meet at the apex, where every azimuth lands; the apex
+/// closure pins each band's own half-period window there, so a carrier
+/// point away from the seam meridians is `In` exactly one band and
+/// `Out` of the other. A walk that read either band as a full period
+/// answers `None` for both (or, group-scoped, `In` for both). The
+/// carrier test still runs FIRST: a point off the cone is `Out` of both
+/// bands whatever the trim can say.
 #[test]
-fn an_apex_closed_band_beside_a_sibling_is_the_honest_remainder() {
+fn the_apex_closed_bands_partition_their_wall() {
     let body = cone();
     let bands = cone_faces(&body);
     assert_eq!(bands.len(), 2);
     for k in 0..6 {
         let phi = 0.1 + f64::from(k) * core::f64::consts::TAU / 6.0;
         let p = at(0.5, 0.5, phi);
+        let verdicts: Vec<_> = bands.iter().map(|&f| contain(&body, f, p)).collect();
+        let count = |v| verdicts.iter().filter(|x| **x == Some(v)).count();
+        assert_eq!(
+            (count(FaceContainment::In), count(FaceContainment::Out)),
+            (1, 1),
+            "phi {phi}: {verdicts:?}"
+        );
         for &f in &bands {
-            assert_eq!(contain(&body, f, p), None, "phi {phi}");
             assert_eq!(
                 contain(&body, f, at(0.5 + 1e-3, 0.5, phi)),
                 Some(FaceContainment::Out)
