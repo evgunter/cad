@@ -71,6 +71,9 @@ ground. The finding is about where a shared fixture lives, which is
 this program's subject and neither of theirs, and S-DUP claims no
 territory by design (`plan.md`). One row rather than two.
 
+## Unparked (2026-09-27)
+
+Ev ruled that the `tests/common` narrowest-home rule governs (see `two-rules-disagree-on-when-a-fixture-leaves-a-suite`, closed). So the four shared items belong in `crates/sweep/tests/common`, and this row is an ordinary fold.
 ## Closed (2026-09-28)
 
 Ev ruled that `tests/common`'s narrowest-home rule governs (see
