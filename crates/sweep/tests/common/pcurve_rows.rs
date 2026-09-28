@@ -1,18 +1,15 @@
 //! **Every stored pcurve row of a body, as text — one instrument, two
 //! readers.** [`rows`] is the bit-for-bit form (`{:?}` of every number
-//! is its shortest round-trip spelling, so equal text is equal bits):
-//! `shell9_probe`, `shell10_r2_dump` and `shell10_scoped_walks` compare
-//! two bodies' rows with it, and [`print_rows`] is the dump form the
-//! corpora (`shell5_r1_dump`, `shell7_dump`, `shell8_dump`,
-//! `shell9_rows`) call on every body they dump, for a base/head diff.
-//! What a suite CHECKS of a body it built, reading stored data and
-//! evaluating nothing, so it routes here beside [`super::cap_rims`]
-//! ([`super`]'s routing rule).
+//! is its shortest round-trip spelling, so equal text is equal bits)
+//! that two bodies' rows are compared by, and [`print_rows`] is the
+//! dump form a corpus prints every body it dumps in, for a base/head
+//! diff. What a suite CHECKS of a body it built, reading stored data
+//! and evaluating nothing, so it routes here beside
+//! [`super::cap_rims`] ([`super`]'s routing rule).
 //!
 //! **How to take that diff, exactly.** `--nocapture` prints from every
 //! test thread into one stream, so two suites' lines interleave and a
-//! line can be split across a write; both SHELL-10 review lanes hit
-//! the same spurious one-line diff that way. Run the corpora with
+//! line can be split across a write. Run the corpora with
 //! `-- --test-threads=1 --nocapture`, filter with a grep ANCHORED at
 //! the tag (`grep -E '^\[rows\]'`, not a bare `[rows]`), then sort and
 //! diff. A diff of one line whose neighbours are identical is this
@@ -26,7 +23,11 @@
 //!   suite's diff is taken over;
 //! - `revert_periodic_wrap`'s `rows`, which keys each row's whole
 //!   `Debug` (certificate included) by its half-edge for that suite's
-//!   own comparisons.
+//!   own comparisons;
+//! - `shell10_r2_probes`' `rows_of`, the rows of ONE solid's faces, for
+//!   a scoped walk's comparison;
+//! - `shell9_r1_probes`' `dump_rows`, a dump under its own `[r1rows]`
+//!   tag with a surface-kind column.
 
 use topo::Body;
 

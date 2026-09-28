@@ -1,12 +1,10 @@
-//! **The rigid poses a re-posed row asks its question at**: the
-//! torax rows' one re-pose ([`torax_pose`]), and the six-pose set
-//! ([`poses`]) the `point_in_solid` suites put every fixture through,
-//! because the pose decides which schedule ray is the first to answer
-//! and a misread face shows at some poses and hides at others.
-//! `pis_arc_capped_poses` and `pis_cut_cavity` walk the set;
-//! `torax_axial` and `spiric_rim` re-pose at the one. What a suite
-//! drives a door WITH, so it routes here beside [`super::charts`]
-//! ([`super`]'s routing rule).
+//! **The rigid poses a re-posed row asks its question at**: the torax
+//! rows' one re-pose ([`torax_pose`]), and the six-pose set ([`poses`])
+//! a `point_in_solid` row puts every fixture through, because the pose
+//! decides which schedule ray is the first to answer and a misread face
+//! shows at some poses and hides at others. What a suite drives a door
+//! WITH, so it routes here beside [`super::charts`] ([`super`]'s
+//! routing rule).
 //!
 //! **Deliberately not absorbed**, and the whole of it: [`super::charts`],
 //! which a pose would join as something a suite drives a door with and

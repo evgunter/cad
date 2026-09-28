@@ -7,12 +7,10 @@
 //! standing on its own outer loop, a chord split of a revolve's wall),
 //! each beside its reverted twin.
 //!
-//! `cert_m2r1_passes` dumps the passes over it, `cert_m2r1_head` pins
-//! the dual's structural half against `f64`'s on it, and
-//! `lane1_r2_probes` walks the shell door's split over it: three
-//! suites whose rows are about each other only while they walk THE
-//! SAME corpus ([`super::cavity`]'s rule). Body authoring, so it routes
-//! here ([`super`]'s routing rule).
+//! Rows that compare the doors across scalars and across door families
+//! are about each other only while they walk THE SAME corpus
+//! ([`super::cavity`]'s rule). Body authoring, so it routes here
+//! ([`super`]'s routing rule).
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //!

@@ -1,16 +1,15 @@
-//! **The `shell` verb's operands** and the two role readers its rows
-//! run over them: the vessel and the tube (a rectangular and an
+//! **The `shell` verb's operands** and the two role readers a shell row
+//! runs over them: the vessel and the tube (a rectangular and an
 //! annular meridian, each revolved a full turn), the hollow box, the
 //! two-void box, and the readers that name a body's shells by the role
 //! the classifier decides.
 //!
-//! `verbs_shell` authored these and every SHELL-5, SHELL-8, SHELL-9
-//! and SHELL-10 suite shells them, so a row in one of those suites and
-//! its twin in `verbs_shell` are about THE SAME BODY ([`super::cavity`]'s
-//! rule): a fixture that moves reddens both at once instead of
-//! splitting the corpus. Body authoring plus readers that evaluate no
-//! surface, so it routes here ([`super`]'s routing rule), as
-//! [`super::latitude_seam`] does for the same reason.
+//! A shell row and its review twin are about THE SAME BODY only while
+//! both build it here ([`super::cavity`]'s rule): a fixture that moves
+//! reddens both at once instead of splitting the corpus. Body authoring
+//! plus readers that evaluate no surface, so it routes here
+//! ([`super`]'s routing rule), as [`super::latitude_seam`] does for the
+//! same reason.
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //!
@@ -21,8 +20,7 @@
 //! - `shell8_common`'s `outer_and_void_of`, the per-SOLID twin of
 //!   [`outer_and_void`] on a multi-solid body — that tree is the SHELL-8
 //!   family's own and is not a `common::` module;
-//! - the polygon prism `verbs_shell` and `shell5_r1_probes` build, which
-//!   is [`sweep::test_support::prism`] over
+//! - the polygon prism, which is [`sweep::test_support::prism`] over
 //!   [`sweep::test_support::corners`] and needs no name here;
 //! - the subtraction the two-void box is cut with, which is
 //!   [`super::cavity::cut`];

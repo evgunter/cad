@@ -117,6 +117,7 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
 #[test]
 fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
     let tol = Tol::witness();
+    // NOT `common::torus_walls::torus_barrel`: its `Interval` twin, the bulge enclosed.
     let c = p2(6.0 / 64.0, 1.0 / 16.0);
     let (lo, hi) = (p2(3.0 / 64.0, 0.0), p2(3.0 / 64.0, 8.0 / 64.0));
     let (u, v) = (lo - c, hi - c);

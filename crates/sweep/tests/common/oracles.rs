@@ -114,9 +114,7 @@ pub fn rounded_box_volume(l: f64, r: f64) -> f64 {
 /// **The volume of a `w × d × h` box**, `w·d·h` — the term every
 /// closed form of a shelled box is a difference of: a wall of
 /// thickness `t` on the `2 × 3 × 4` block is
-/// `box_volume(2, 3, 4) − box_volume(2 − 2t, 3 − 2t, 4 − 2t)`. The
-/// shell suites import it as `v`, the name their prose writes it
-/// under (`V(w, d, h)`).
+/// `box_volume(2, 3, 4) − box_volume(2 − 2t, 3 − 2t, 4 − 2t)`.
 pub fn box_volume(w: f64, d: f64, h: f64) -> f64 {
     w * d * h
 }

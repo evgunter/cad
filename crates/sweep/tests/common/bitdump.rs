@@ -1,38 +1,42 @@
 //! **The reviewer bit-identity dump**: one body written out bit for bit,
-//! and the `BITDUMP_DIR` channel that arms the rows that write it. The
-//! `bitdump` suite's corpus rows and `review_arms2_r1_probes`'
-//! `bitdump_dome_annulus` write through it, and a base/head `diff` of
-//! the files is the verdict (`bitdump`'s own module doc says how to take
-//! it). What a suite reads OFF a body it built, so it routes here beside
-//! [`super::pcurve_rows`] ([`super`]'s routing rule).
+//! and the `BITDUMP_DIR` channel that arms the rows that write it. A
+//! base/head `diff` of the files is the verdict (`bitdump`'s own module
+//! doc says how to take it). What a suite reads OFF a body it built, so
+//! it routes here beside [`super::pcurve_rows`] ([`super`]'s routing
+//! rule).
 //!
-//! **One home, not a copy per row.** A second copy is not a duplicate
-//! that costs lines, it is a corpus row silently blind to whatever the
-//! copy left out: the annulus row's own copy omitted the `props` line,
-//! so it could not have seen a volume, area or pad move at all.
+//! **One home, not a copy per row.** A dump row that writes through a
+//! second copy is silently blind to whatever that copy leaves out, so
+//! every armed row writes through [`dump`].
 //!
 //! **Deliberately not absorbed**, and the whole of it:
-//!
-//! - `shellfix1_bitdump`'s `dump`, a different dump (Euler counts, each
-//!   loop's points and the props as bit patterns) armed by its own
-//!   `SHELLFIX_BITDUMP_DIR`;
-//! - `offd_r1_probes`' `dump`, which is the body's whole `Debug`.
+//! `offd_r1_probes`' `dump`, which is the body's whole `Debug`, compared
+//! for equality between two builds in one run rather than diffed as a
+//! file.
 
 use std::fmt::Write as _;
 
 use geom_core::Tol;
-use topo::Body;
+use topo::readback::euler_counts;
+use topo::{Body, LoopBoundary};
 
 /// Dump one body, bit for bit, in key iteration order (identical
-/// operation sequences produce identical key orders).
+/// operation sequences produce identical key orders): the Euler counts,
+/// every vertex, every edge's carrier, window and description, every
+/// face with each of its loops' points in cycle order, and the mass
+/// properties.
 pub fn dump(body: &Body<f64>) -> String {
     let mut s = String::new();
+    let counts = euler_counts(body);
     let _ = writeln!(
         s,
-        "census V={} E={} F={}",
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count()
+        "census V={} E={} F={} L={} S={} R={}",
+        counts.v,
+        counts.e,
+        counts.f,
+        body.loops().count(),
+        counts.s,
+        counts.r,
     );
     for (k, _) in body.vertices() {
         let p = body
@@ -67,6 +71,22 @@ pub fn dump(body: &Body<f64>) -> String {
             fd.sense,
             fd.rings.len()
         );
+        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+            let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
+                let _ = writeln!(s, "  L {lk:?} empty");
+                continue;
+            };
+            let _ = write!(s, "  L {lk:?}");
+            for he in body.loop_cycle(first).unwrap() {
+                let start = body.get_half_edge(he).unwrap().start;
+                let p = body
+                    .get_vertex(start)
+                    .and_then(|v| body.get_point(v.point))
+                    .unwrap();
+                let _ = write!(s, " ({:?}, {:?}, {:?})", p.x, p.y, p.z);
+            }
+            let _ = writeln!(s);
+        }
     }
     let props = topo::mass_properties(body, Tol::witness()).unwrap();
     let _ = writeln!(

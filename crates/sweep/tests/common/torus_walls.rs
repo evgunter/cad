@@ -1,15 +1,12 @@
 //! **The torus-walled revolves the offset-axial door is measured on**:
 //! the barrel and the teapot's belly (full revolves whose one curved
-//! wall is a meridian arc about a centre OFF the axis), and the tour's
-//! sectioned vessel with the cavity the axial door carves in it (a
-//! partial revolve whose rims mint as spirics).
+//! wall is a meridian arc about a centre OFF the axis), the klein elbow
+//! (a disc swept a quarter turn about an axis off its centre), and the
+//! tour's sectioned vessel with the cavity the axial door carves in it
+//! (a partial revolve whose rims mint as spirics).
 //!
-//! `torax_axial` hollows the barrel and the belly and
-//! `pis_arc_capped_poses` asks `point_in_solid` of them at six poses;
-//! `spiric_rim` reads the vessel cavity's carriers, and
-//! `pis_arc_capped_poses` and `contfp_reads_arcs_on_their_carriers`
-//! walk its spiric-bounded faces. A row in one and its twin in another
-//! are about each other only while they build THE SAME BODY
+//! A row that hollows one of these and a row that asks `point_in_solid`
+//! of it are about each other only while they build THE SAME BODY
 //! ([`super::cavity`]'s rule). Body authoring, so it routes here
 //! ([`super`]'s routing rule).
 //!
@@ -19,7 +16,14 @@
 //!   the same name (an annular meridian about another centre);
 //! - `shell7_dump`'s `torus_vessel`, the tour's torus vessel revolved a
 //!   FULL turn with its band spelled as a bulge — a different body from
-//!   [`vessel_quarter`].
+//!   [`vessel_quarter`];
+//! - `torax_interval`'s barrel, [`torus_barrel`]'s `Interval` twin, whose
+//!   bulge is enclosed in interval arithmetic from the same dyadic
+//!   stations — a generic home would have to carry that enclosure;
+//! - `spiric_rim`'s scalar-generic `vessel_loop` / `vessel_at`, the
+//!   sectioned vessel spelled once for every deciding scalar with its
+//!   band as the exact 3-4-5 bulge `1/2` rather than an arc about its
+//!   centre, which [`vessel_quarter`] keeps because the tour does.
 
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::path::{Open, Start};
@@ -75,6 +79,30 @@ pub fn torus_belly() -> Body<f64> {
         Revolution::Full,
         Tol::witness(),
     )
+}
+
+/// **The klein elbow**: the cross-section `loops` (a disc, or a disc's
+/// two offset circles) revolved a quarter turn backwards about the axis
+/// `x = 1.2` running `−y` — the loop arc of the tour's Klein bottle,
+/// whose spine radius is `1.2`. A disc centred on the sketch origin
+/// makes its wall a torus; the partial turn leaves two planar caps and
+/// the rims between them and the wall.
+pub fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
+    let tol = Tol::witness();
+    let profile = Profile::new(SketchPlane::xy(), loops)
+        .validate(tol)
+        .expect("the elbow's cross-section validates");
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: Point2::new(1.2, 0.0),
+            dir: Vec2::new(0.0, -1.0),
+        },
+        Revolution::Partial(-core::f64::consts::FRAC_PI_2),
+        tol,
+    )
+    .expect("the elbow revolves")
+    .body
 }
 
 /// **The sectioned vessel**: the tour's torus-walled vessel meridian

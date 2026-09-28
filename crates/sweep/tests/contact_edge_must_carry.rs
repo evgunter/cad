@@ -86,7 +86,7 @@ use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
 use crate::common::cavity::skewed_cavity_edges;
-use crate::common::contact_edges::{chart_contact_edges, intrinsic_edges};
+use crate::common::contact_edges::intrinsic_edges;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -628,11 +628,33 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     let out = fillet_edges(&body, &edges, 0.1 * r, tol())
         .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
     assert_eq!(
-        chart_contact_edges(&out.body),
-        6,
-        "the four corner arcs are stored as chart images, beside the vent's two chart edges \
-         (the boolean's)"
+        corner_arc_chart_images(&out),
+        4,
+        "the four corner arcs are stored as chart images"
     );
+}
+
+/// The edges between a blend face and a corner face — the corner balls'
+/// arcs, named by the faces the carve reports — that store a non-seam
+/// chart image. A count over that NAMED set, so an edge the carve did
+/// not make (a boolean's rim on the operand) cannot satisfy it.
+fn corner_arc_chart_images(out: &Filleted<f64>) -> usize {
+    let body = &out.body;
+    let face = |he| body.face_of_half_edge(he).expect("a live half-edge's face");
+    body.edges()
+        .filter(|(_, e)| {
+            let (a, b) = (face(e.he_plus), face(e.he_minus));
+            let corner_arc = (out.blend_faces.contains(&a) && out.corner_faces.contains(&b))
+                || (out.blend_faces.contains(&b) && out.corner_faces.contains(&a));
+            corner_arc
+                && matches!(
+                    body.get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .map(|c| c.description()),
+                    Some(EdgeDescription::Chart(c)) if !c.seam
+                )
+        })
+        .count()
 }
 
 /// **What the rule costs a contact edge on the K stream**: the

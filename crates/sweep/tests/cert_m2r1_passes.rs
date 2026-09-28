@@ -1,9 +1,8 @@
-//! CERT-M2 R1 probe. Dumps the verdicts of the two passes the PR body
-//! claimed byte-identical (`validate_pseudomanifold`, `contact_marks`)
-//! plus `validate_geometric` at the certifying scalars and
-//! `mass_properties` over [`crate::common::cert_corpus`]'s valid and
-//! corrupt bodies at f64 / Dual64 / Interval. Run with `--nocapture`,
-//! grep `M2R1|`.
+//! CERT-M2 R1 probe. Dumps the verdicts of `validate_pseudomanifold`,
+//! `contact_marks` and `validate_geometric` at the certifying scalars,
+//! and `mass_properties`, over [`crate::common::cert_corpus`]'s valid
+//! and corrupt bodies at f64 / Dual64 / Interval, through both door
+//! families. Run with `--nocapture`, grep `M2R1|`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use geom_core::Tol;

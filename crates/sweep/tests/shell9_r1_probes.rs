@@ -124,6 +124,8 @@ fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 /// One line per stored row: half-edge, face, the face's surface kind,
 /// the parameter window and the image — `{:?}` is shortest round-trip,
 /// so equal text is equal bits.
+/// NOT `common::pcurve_rows::print_rows`: its own `[r1rows]` tag and a
+/// surface-kind column this suite's diff reads.
 fn dump_rows(label: &str, body: &Body<f64>) {
     let mut n = 0;
     for (he, cache) in body.pcurves() {

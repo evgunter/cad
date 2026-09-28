@@ -18,14 +18,16 @@
 //! keeps a copy of one apart. What stays independent in the probes is
 //! their derivations, under [`super::oracles`]'s own rule.
 //!
+//! [`skewed_cavity_edges`] is the slim-wedge re-pose of
+//! `blend4_r1_probes`' skewed cavity: its vent and its scale are its
+//! own, so it is a different body from that probe's, and it is here
+//! because more than one suite carves it.
+//!
 //! **Deliberately not absorbed**, and the whole of it:
 //!
 //! - the SQUARE-vented cavity (`blend3_r2_probes::square_vented_cavity`)
 //!   and the SKEWED one (`blend4_r1_probes::skewed_cavity`) — each is
-//!   one probe's own fixture, built from the constructors below. The
-//!   slim-wedge re-pose of the skewed one ([`skewed_cavity_edges`]) is
-//!   here because two suites carve it; its vent and its scale are its
-//!   own, so it is a different body from `blend4_r1_probes`';
+//!   one probe's own fixture, built from the constructors below;
 //! - the corner predicates that are not [`vented_cavity`]'s own.
 //!   [`edges_with_corners`] is the traversal, and it is shared;
 //!   which points count as corners is the caller's fixture value, so
@@ -221,9 +223,9 @@ pub fn skewed_cavity_edges(theta: f64, scale: f64) -> (Body<f64>, Vec<EdgeKey>) 
         (quad[0].y + quad[1].y + quad[2].y + quad[3].y) / 4.0,
     );
     // A narrower vent than `blend4_r1_probes`' (`0.12·sin θ`, not
-    // `0.45·sin θ`): the slimmer poses below leave the cavity's own
-    // walls `0.48·sin θ` clear of it, so the clearance screen answers
-    // for the corner arcs and not for the vent.
+    // `0.45·sin θ`): at the slim skews this pose is carved at, the
+    // cavity's own walls stay `0.48·sin θ` clear of it, so the clearance
+    // screen answers for the corner arcs and not for the vent.
     let vent = rod(
         centroid,
         (theta.sin() * 0.12).min(0.25) * scale,

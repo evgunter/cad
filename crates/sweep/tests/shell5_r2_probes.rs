@@ -15,7 +15,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
 use crate::common::cavity::cut;
-use crate::common::shell_operands::two_void_box;
+use crate::common::shell_operands::{hollow_box, two_void_box};
 use sweep::test_support::{block, brick};
 
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
@@ -384,9 +384,7 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
 #[test]
 fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
     let tol = Tol::witness();
-    let mut body = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, tol)
-        .expect("the box hollows")
-        .body;
+    let mut body = hollow_box();
     let voids = void_shells(&body);
     assert_eq!(voids.len(), 1);
     let minted = body

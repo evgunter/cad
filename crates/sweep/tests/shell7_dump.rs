@@ -6,8 +6,7 @@
 //! crate's own vocabulary and of the tour's two torus vessels, plus
 //! the full-period tori the unit is about. The same file compiled at
 //! the merge base and at the head is diffed line by line; it asserts
-//! nothing beyond "the fixture builds", the diff is the verdict, so
-//! it reads only what both trees of the differential hold.
+//! nothing beyond "the fixture builds"; the diff is the verdict.
 //!
 //! Run with `--no-capture`, grep `[dump]`, diff across trees.
 
@@ -24,7 +23,7 @@ use topo::Body;
 
 use crate::common::bulge;
 use crate::common::charts::hollow_moves;
-use crate::common::torus_walls::{torus_barrel, torus_belly};
+use crate::common::torus_walls::{klein_elbow, torus_barrel, torus_belly};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -176,30 +175,13 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
     )
 }
 
-// ---- verbs_shell's klein elbow ----
+// ---- the klein elbow's cross-sections ----
 
 fn circle_loop(r: f64) -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
     ])
-}
-
-fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), loops)
-        .validate(tol())
-        .expect("the elbow's cross-section validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(1.20, 0.0),
-            dir: Vec2::new(0.0, -1.0),
-        },
-        Revolution::Partial(-FRAC_PI_2),
-        tol(),
-    )
-    .expect("the elbow revolves")
-    .body
 }
 
 // ---- the tour's torus vessels, their meridian spelled with a bulge ----

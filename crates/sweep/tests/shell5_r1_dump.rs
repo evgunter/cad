@@ -4,26 +4,17 @@
 //! (sealed and opened, planar and revolved), so the SAME file compiled
 //! at the merge base and at the PR head can be diffed line by line.
 //! It asserts nothing beyond "the fixture builds"; the diff is the
-//! verdict, so it reads only what both trees of the differential hold.
+//! verdict.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::{corners, prism};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey};
 
 use crate::common::shell_operands::{tube, vessel};
-
-fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a polygon extrudes")
-        .body
-}
 
 fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
@@ -123,17 +114,22 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
 #[test]
 fn r1_dump_single_shell_corpus() {
     let tol = Tol::witness();
-    let boxy = prism(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], 4.0);
+    let boxy = prism(
+        corners(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)]),
+        4.0,
+        Tol::witness(),
+    );
     let ell = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (3.0, 0.0),
             (3.0, 1.0),
             (1.0, 1.0),
             (1.0, 3.0),
             (0.0, 3.0),
-        ],
+        ]),
         2.0,
+        Tol::witness(),
     );
     let vessel = vessel(1.0, 2.0);
     let tube = tube(0.6, 1.0, 2.0);

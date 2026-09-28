@@ -21,7 +21,7 @@ use topo::{
     Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
 
-use crate::common::oracles::box_volume as v;
+use crate::common::oracles::box_volume;
 use crate::common::shell_operands::roles_by_solid;
 use sweep::test_support::{brick, corners, prism};
 
@@ -503,10 +503,10 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     // V(1.9,2.9,3.9)] and [V(1.6,2.6,3.6) hollowed to V(1.5,2.5,3.5)]
     // — each thicken every boundary at `t = 0.01`, giving four thin
     // solids, and the designated ceiling's wall loses its lid.
-    let want = (v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98))
-        + (v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9))
-        + (v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58))
-        + (v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5))
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.98, 2.98, 3.98))
+        + (box_volume(1.92, 2.92, 3.92) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.58, 2.58, 3.58))
+        + (box_volume(1.52, 2.52, 3.52) - box_volume(1.5, 2.5, 3.5))
         - 1.52 * 2.52 * 0.01;
     assert!(
         (props.volume - want).abs() < 1e-12,
@@ -546,7 +546,8 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         roles_by_solid(out)
     );
     let props = topo::mass_properties(out, tol()).expect("props");
-    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5))
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
         - 1.6 * 2.6 * 0.05;
     println!(
         "[e2e] opened volume={} want={want} rim={:?} ring_edges={}",

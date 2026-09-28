@@ -25,35 +25,18 @@ use topo::{Body, ShellError, transform_rigid};
 
 use crate::common::charts::hollow_moves;
 use crate::common::poses::torax_pose;
-use crate::common::torus_walls::{vessel_cavity, vessel_quarter};
+use crate::common::torus_walls::{klein_elbow, vessel_cavity, vessel_quarter};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-/// The klein elbow of `torax_axial`: a disc of radius `r` centred
-/// `R = 1.2` off the axis, revolved a quarter turn.
-fn klein_elbow(r: f64) -> Body<f64> {
-    let profile = Profile::new(
-        SketchPlane::xy(),
-        vec![bulge_loop(vec![
-            (Point2::new(-r, 0.0), 1.0),
-            (Point2::new(r, 0.0), 1.0),
-        ])],
-    )
-    .validate(tol())
-    .expect("the elbow's cross-section validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(1.2, 0.0),
-            dir: Vec2::new(0.0, -1.0),
-        },
-        Revolution::Partial(-core::f64::consts::FRAC_PI_2),
-        tol(),
-    )
-    .expect("the elbow revolves")
-    .body
+/// The klein elbow on a disc of radius `r`.
+fn klein_elbow_of_disc(r: f64) -> Body<f64> {
+    klein_elbow(vec![bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])])
 }
 
 /// Every spiric carrier of a body with its span.
@@ -333,7 +316,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let other = klein_elbow(0.1);
+    let other = klein_elbow_of_disc(0.1);
     let e = topo::union(&cavity, &other, tol()).expect_err("the boolean fence refuses the kind");
     assert!(
         matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
@@ -376,7 +359,7 @@ fn the_census_refusals_through_public_doors() {
 /// such seam and reaches check 7.
 #[test]
 fn the_elbow_stops_at_its_seam_reauthor() {
-    let elbow = klein_elbow(0.275);
+    let elbow = klein_elbow_of_disc(0.275);
     let e = topo::shell(&elbow, 0.05, tol()).expect_err("the equator seams' re-author");
     println!("[spiric] the elbow's door: {e:?}");
     let ShellError::Face { error, .. } = e else {
@@ -578,6 +561,8 @@ mod interval_rows {
     /// The vessel's meridian as a raw loop at any deciding scalar — the
     /// band arc as its bulge (`tan(θ/4) = 1/2`, the 3-4-5 arc), so the
     /// interval and f64 twins are built by one spelling.
+    /// NOT `common::torus_walls::vessel_quarter`: the scalar-generic twin,
+    /// its band an exact bulge rather than an arc about its centre.
     fn vessel_loop<T: geom_core::Real>(iv: &impl Fn(f64) -> T) -> ProfileLoop<T> {
         let p = |x: f64, y: f64| Point2::new(iv(x), iv(y));
         bulge_loop(vec![

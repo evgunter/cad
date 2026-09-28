@@ -21,6 +21,8 @@ use sweep::blend::fillet_edges;
 use sweep::test_support::{ROD_FILLET, ROD_L, extruded, rod_chord_at, rod_creases};
 use topo::{Body, ContactRecords, FaceContainment, FaceKey, ValidationError, contfp};
 
+use crate::common::tilted_cut_cylinder;
+
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -314,24 +316,7 @@ fn a_near_full_arc_is_on_and_off_at_the_bands_own_width() {
     );
 }
 
-/// A disc prism cut by a plane tilted 0.3 rad: the section face is
-/// bounded by two ELLIPSE arcs over two vertices.
-fn cut_cylinder() -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
-    let tall =
-        sweep::test_support::prism(vec![(p2(-1.0, 0.0), 1.0), (p2(1.0, 0.0), 1.0)], 2.5, tol());
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
-    };
-    let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
-    let SplitPart::Body(above) = result.above else {
-        panic!("the part above the cut is a body");
-    };
-    above
-}
-
-/// The section face of [`cut_cylinder`] — the planar face whose edges
+/// The section face of [`tilted_cut_cylinder`] — the planar face whose edges
 /// are ellipses — with its unit normal and its elliptic edges.
 fn section(body: &Body<f64>) -> ((FaceKey, Vec3<f64>), Vec<topo::EdgeKey>) {
     for (k, f) in body.faces() {
@@ -367,7 +352,7 @@ fn section(body: &Body<f64>) -> ((FaceKey, Vec3<f64>), Vec<topo::EdgeKey>) {
 /// never an escalation over a margin nothing metred.
 #[test]
 fn a_point_on_an_ellipse_edge_reads_on_the_boundary() {
-    let body = cut_cylinder();
+    let body = tilted_cut_cylinder(true);
     let (cap, ellipses) = section(&body);
     let mut asked = 0;
     for e in ellipses {
@@ -398,7 +383,7 @@ fn a_point_on_an_ellipse_edge_reads_on_the_boundary() {
 /// the contact and no escalation over a margin nothing metred.
 #[test]
 fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
-    let mut body = cut_cylinder();
+    let mut body = tilted_cut_cylinder(true);
     // At azimuth π/2 the section plane stands at z = 1.25, so the corner
     // (0, 1, 1.25) is on the ellipse; the brick reaches away from the
     // cylinder in x and y and below the cut in z.

@@ -33,7 +33,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::SurfaceKind;
+use geom_brep::{EdgeDescription, SurfaceKind};
 use geom_core::{Band, MarginDiag, Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;
@@ -46,7 +46,7 @@ use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
 use crate::common::cavity::skewed_cavity_edges;
-use crate::common::contact_edges::{chart_contact_edges, intrinsic_edges};
+use crate::common::contact_edges::intrinsic_edges;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -374,6 +374,22 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
 // ---------------------------------------------------------------
 // The corner ball's own arcs on a slim wedge: the EXTENT lever.
 // ---------------------------------------------------------------
+
+/// Edges of a carved body stored as a non-seam chart image — the rule's
+/// UNDER-DETERMINED description, and any other chart-described edge
+/// the body carries (a boolean's rims among them): a whole-body count.
+fn chart_contact_edges(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.description()),
+                Some(EdgeDescription::Chart(c)) if !c.seam
+            )
+        })
+        .count()
+}
 
 /// **The corner ball's arcs reach BOTH non-determinate verdicts at an
 /// ordinary radius, through the public door, with no scaling into

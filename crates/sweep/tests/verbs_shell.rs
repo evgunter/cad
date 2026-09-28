@@ -16,10 +16,11 @@
 use crate::common::approx::band;
 use crate::common::census::{genus_of, rings_of};
 use crate::common::charts::{charts, moves_by};
-use crate::common::oracles::box_volume as v;
+use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{
     hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
 };
+use crate::common::torus_walls::klein_elbow;
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -251,8 +252,8 @@ fn opening_two_faces_gives_two_rims_and_one_shell() {
 
 /// The row-1 closed form: `[V(2,3,4) − V(1.9,2.9,3.9)]` is the outer
 /// wall's term, `[V(1.6,2.6,3.6) − V(1.5,2.5,3.5)]` the void's.
-const OUTER_TERM: fn() -> f64 = || v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
-const INNER_TERM: fn() -> f64 = || v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5);
+const OUTER_TERM: fn() -> f64 = || box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
+const INNER_TERM: fn() -> f64 = || box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5);
 
 /// **The ruled composition.** `shell(shell(block(2,3,4, Tol::witness()), 0.25), 0.05)`:
 /// two solids, four shells, tier 3 green, one `Outer` and one `Void`
@@ -433,7 +434,8 @@ fn two_voids_refuse_across_their_gap_and_build_three_solids_below_it() {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
     let props = topo::mass_properties(out, tol).expect("props");
-    let want = (v(6.0, 4.0, 4.0) - v(5.7, 3.7, 3.7)) + 2.0 * (v(1.5, 2.3, 2.3) - v(1.2, 2.0, 2.0));
+    let want = (box_volume(6.0, 4.0, 4.0) - box_volume(5.7, 3.7, 3.7))
+        + 2.0 * (box_volume(1.5, 2.3, 2.3) - box_volume(1.2, 2.0, 2.0));
     assert!(
         (props.volume - want).abs() <= 1e-12,
         "three walls: got {}, want {want}",
@@ -1006,8 +1008,6 @@ fn the_shell_cost_is_measured_not_asserted() {
 // every run by hand, the loop arc's spine radius, and one arc's sweep.
 const KLEIN_R: f64 = 0.25;
 const KLEIN_WALL: f64 = 0.05;
-const KLEIN_RLOOP: f64 = 1.20;
-const KLEIN_SWEEP_IN: f64 = 0.5 * core::f64::consts::PI;
 
 /// A circle profile loop of radius `r` — two semicircular arcs, the
 /// spelling `profile::circle` produces.
@@ -1016,25 +1016,6 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
     ])
-}
-
-/// Klein's elbow, revolved about the loop-arc axis exactly as the demo
-/// does — built from whichever cross-section loops it is handed.
-fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), loops)
-        .validate(Tol::witness())
-        .expect("the elbow's cross-section validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(KLEIN_RLOOP, 0.0),
-            dir: Vec2::new(0.0, -1.0),
-        },
-        Revolution::Partial(-KLEIN_SWEEP_IN),
-        Tol::witness(),
-    )
-    .expect("the elbow revolves")
-    .body
 }
 
 /// **The `r ± t/2` wall pair — and the wall that stops it retiring.**

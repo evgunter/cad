@@ -188,8 +188,7 @@ const SMOOTH_LATITUDE_JOINS: usize = 1;
 /// COUNT OVER A NAMED SET, never over the whole body: a body's cap
 /// rims are chart images too, so `chart_images(body) >= n` is met by
 /// edges that have nothing to do with the rule and rises on its own
-/// whenever a fixture grows. NOT `common::contact_edges::chart_contact_edges`,
-/// which counts over the whole body.
+/// whenever a fixture grows.
 fn chart_images_among(body: &Body<f64>, pick: impl Fn(&Curve3<f64>) -> bool) -> (usize, usize) {
     let mut selected = 0usize;
     let mut charts = 0usize;
