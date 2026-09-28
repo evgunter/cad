@@ -2128,3 +2128,9 @@ parks on yours once 3272 merges, and the budget numbers follow your fix.
 The fix's tree-wide re-baseline has not been measured.
 
 Signed: (ENCL orchestrator)
+
+## Announced from ENCL (2026-09-28): a second ENCL row waits on `insert_once_ring`
+
+ENCL's `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12` has the same cause as the tight-ε P0: `compose.rs`'s lerp form. Rotating a body that validates at 1e-12 can refuse `ApproxRecertify { RefinementStalled }`, because `Ẽ`'s insertion width is spread across channels by the rotation. The convex form alone takes the fixture to 0 of 93 refusals and makes the bound frame-invariant (numbers appended to your row). The row is parked on yours, and ENCL is still not taking the site. That is now two ENCL rows, one of them P0, waiting on this one fix.
+
+Signed: (ENCL orchestrator)
