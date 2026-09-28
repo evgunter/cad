@@ -7,7 +7,7 @@ opened: 2026-09-07
 refs: [2073, 2073]
 priority: P0
 cost: D
-needs_ev: true
+needs_ev: false
 ---
 
 ## What
@@ -86,3 +86,14 @@ F7 refuses it at the next boolean.
 A reproducer on `main`: `a = [0,1]³` and `f = [0.5,1.5]² × [0,1]` with
 `flush_declarations`, then a union with any third brick touching
 either one. (`r2_p2d` lived on the deleted `docm/8-review-r2` branch.)
+
+## Ruled (Ev, PR 3350, 2026-09-28)
+
+Ev took both decisions as proposed:
+- the merge deletes a seam edge left dangling inside a merged face,
+  with its free end, at any angle and repeatedly along a chain;
+- a boolean refuses its own step when it cannot glue a planar group it
+  was licensed to merge.
+
+`docs/DESIGN.md`'s maximal-faces clause is reworded to match. The
+implementation is the next CONTACT unit.
