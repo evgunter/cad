@@ -73,3 +73,20 @@ same pair is inlined at 10 test sites:
 
 Whether those sites should call `frame` is the same kind of question,
 and it can land in the same unit.
+
+## Evidence from `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere` (2026-09-28)
+
+`app.rs`'s Open… and Save As…, listed above as left out for having a
+gate but no branch, are now **members** of this pattern.
+`platform::NO_CHOOSER_BACKEND`, which that exclusion cites, no longer
+exists: both controls read `no_chooser = self.chooser.unusable()`, an
+`Option<&'static str>`, and `match` on it. The `Some(reason)` arm draws
+`add_enabled(false, Button::new(label)).on_disabled_hover_text(reason)`
+and the `None` arm draws `ui.button(label)`. They have no live hover. That makes them
+one more row for the population table, with reason `Option<&'static
+str>` and live hover none. They are not a new door: consolidating the
+spellings is still this row's job. `app.rs`'s
+`a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control`
+holds both halves for them (live exactly on `None`, and the painted
+hover equals the `Some`), so a consolidation that moves them has a row
+that reds if it splits the gate from the reason.

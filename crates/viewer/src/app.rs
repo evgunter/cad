@@ -1505,12 +1505,14 @@ impl ViewerApp {
             // at all"*. Under a plausibly-present backend a dialog
             // handing back `None` is a genuine cancel, which says
             // nothing.
-            let chooser = self.chooser;
-            if ui
-                .add_enabled(chooser.usable(), egui::Button::new("Open…"))
-                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
-                .clicked()
-            {
+            let no_chooser = self.chooser.unusable();
+            let open = match no_chooser {
+                Some(reason) => ui
+                    .add_enabled(false, egui::Button::new("Open…"))
+                    .on_disabled_hover_text(reason),
+                None => ui.button("Open…"),
+            };
+            if open.clicked() {
                 // Unreachable on wasm — `chooser` is `Absent`
                 // there, so the button is disabled and never
                 // reports a click — but unreachable code still has
@@ -1525,11 +1527,13 @@ impl ViewerApp {
                     ops.push(SessionOp::Open(path));
                 }
             }
-            if ui
-                .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
-                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
-                .clicked()
-            {
+            let save_as = match no_chooser {
+                Some(reason) => ui
+                    .add_enabled(false, egui::Button::new("Save As…"))
+                    .on_disabled_hover_text(reason),
+                None => ui.button("Save As…"),
+            };
+            if save_as.clicked() {
                 // Unreachable on wasm, for the reason the Open…
                 // arm above states.
                 #[cfg(not(target_family = "wasm"))]
@@ -2813,9 +2817,13 @@ mod tests {
         }
 
         /// One frame of the real [`ViewerApp::toolbar_ui`], with the
-        /// pointer where the caller puts it. Answers what was painted
-        /// and what the toolbar asked the session for.
+        /// pointer where the caller puts it. Answers what was painted.
         fn frame(&mut self, pointer: Option<egui::Pos2>) -> Vec<(String, egui::Rect)> {
+            painted_text(&self.shapes(pointer))
+        }
+
+        /// [`Self::frame`]'s drive, answering the shapes themselves.
+        fn shapes(&mut self, pointer: Option<egui::Pos2>) -> Vec<egui::epaint::ClippedShape> {
             self.time += 1.0;
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -2837,7 +2845,28 @@ mod tests {
             // Nothing here paints, so the frame's texture delta is
             // dropped rather than uploaded.
             output.textures_delta.clear();
-            painted_text(&output.shapes)
+            output.shapes
+        }
+
+        /// **Whether the control labelled `label` is drawn live**:
+        /// its label painted in the same ink as `New…`'s, which is
+        /// drawn unconditionally live, rather than in the faded ink
+        /// egui paints a disabled control's label with. Read with
+        /// nothing hovered, so both labels are in their resting ink.
+        ///
+        /// A hover alone cannot tell a live control from a disabled
+        /// one with no reason attached: neither shows anything.
+        fn drawn_live(&mut self, label: &str) -> bool {
+            self.shapes(Some(Self::ELSEWHERE));
+            let landed = crate::pane::headless::landed_in(&self.shapes(Some(Self::ELSEWHERE)));
+            let ink = |wanted: &str| {
+                landed
+                    .iter()
+                    .find(|landed| landed.text == wanted)
+                    .unwrap_or_else(|| panic!("the toolbar draws a control labelled {wanted}"))
+                    .ink
+            };
+            ink(label) == ink("New…")
         }
 
         /// **What the toolbar puts in front of a reader who rests the
@@ -2986,6 +3015,44 @@ mod tests {
                 !shown.contains(&sibling),
                 "the {label} button's reason is about {sibling}: {shown:?}"
             );
+        }
+    }
+
+    /// **A dialog with no backend to open it says why on its own
+    /// control**, in the words `ChooserBackend::unusable` answers —
+    /// and a dialog that can open is drawn live and says nothing.
+    ///
+    /// Read off the painted frame, because the words a reader sees
+    /// exist nowhere else (`painted_text`): a row over
+    /// `ChooserBackend::unusable` alone holds the value and not that
+    /// the two controls gate on it and show it. That the gate and the
+    /// reason come from the same answer is held HERE, not by the type:
+    /// a call site can still split them, and this row is what reds.
+    /// Each backend is planted on the field the toolbar reads, so this
+    /// holds whatever the test box's `PATH` and session bus are.
+    #[test]
+    fn a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control() {
+        use crate::platform::ChooserBackend;
+        let mut toolbar = Toolbar::open();
+        for backend in [
+            ChooserBackend::ZenityPresent,
+            ChooserBackend::PortalPossible,
+            ChooserBackend::Absent,
+        ] {
+            toolbar.app.chooser = backend;
+            for label in ["Open…", "Save As…"] {
+                assert_eq!(
+                    toolbar.drawn_live(label),
+                    backend.unusable().is_none(),
+                    "{label} under {backend:?}: live exactly when the backend is usable"
+                );
+                assert_eq!(
+                    toolbar.reason_shown_on(label).as_deref(),
+                    backend.unusable(),
+                    "{label} under {backend:?}: the hover says the backend's reason, and only \
+                     when it has one"
+                );
+            }
         }
     }
 
