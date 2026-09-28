@@ -2,11 +2,12 @@
 id: the-gather-tie-merge-cannot-tell-a-candidate-carried-twice
 kind: issue
 title: the gather's tie merge cannot tell two pieces of a tie from one candidate carried twice by two sources
-status: open
+status: review
 opened: 2026-09-25
 priority: P3
 cost: M
-design: true
+branch: gather/tie-candidate-identity
+pr: 3389
 ---
 
 Found by the GATHER split-halves lane (`gather/split-halves-tie-merge`),
