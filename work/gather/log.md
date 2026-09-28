@@ -40,3 +40,25 @@ slate.
 Load is 31/30. It is not split: this wave takes about 16 points off the
 dispatchable count, which leaves a slate one session can hold.
 `parallel-node-map-loses-the-funnel-and-the-symbolic-session` is next.
+
+## 2026-09-28 — the name-carrying edge set lands (PR 3321)
+
+`three-walks-over-the-name-carrying-edges` and
+`select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`
+closed on PR 3321. `verbatim_edge` (`names/role.rs`) is the one home
+both editor-core walks read; the compiler holds the three together.
+`SelectRefusal` has an in-crate census beside the enum.
+
+Single STYLE review, verdict mergeable. All four claims held. The
+reviewer mutated the census and confirmed it goes red for a missing
+sample. Fix pass: S1 (the doc no longer says "every walk"), S3 (the
+display-contract comment says what the census covers), S4 (the
+census uses `test_utils::census::set_difference`), S6 (`Intact`
+carries no unused field). No change: S5, S7, S8, S10.
+
+Filed from the review, as classes:
+- `verbatim-edge-is-not-tied-to-the-evaluator` (P1, M). Nothing ties
+  `verbatim_edge` to what `eval/wire.rs` passes through; a runtime
+  guard over the evaluated corpus is possible. The lane's "no runtime
+  test can exist" was corrected in the PR body.
+- STACK's `in-crate-census-hand-writes-the-set-comparison` (P4, E).
