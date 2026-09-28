@@ -2354,15 +2354,19 @@ fn classify_offset_fit(
             last_round: geom_brep::LastRound::Improved,
             ..
         }
-        | O::SampleCapReached { .. } => {
-            (DRIFT, "Recourse: loosen the tolerance, or split the face")
-        }
+        | O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
         O::BudgetExhausted {
             last_round: geom_brep::LastRound::DidNotImprove,
             ..
         }
         | O::RefinementStalled { .. }
-        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, "Recourse: loosen the tolerance"),
+        | O::BoundNotFinite { best: Some(_), .. } => (
+            DRIFT,
+            concat!(
+                "Recourse: loosen the tolerance, ",
+                geom_core::kernel_limit_last_resort!()
+            ),
+        ),
         O::BoundNotFinite { best: None, .. } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",

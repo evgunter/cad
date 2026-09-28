@@ -1046,6 +1046,24 @@ pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 /// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
 pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
+/// The qualifier a refusal at a kernel approximation limit puts on its
+/// one recourse, loosening the tolerance (D4 ¶1 (i)): a fit that stops
+/// improving, or whose bound will not refine, leaves the user no lever
+/// but ε, and the kernel falling short there may be a defect.
+///
+/// **A qualifier, not an ending.** The site writes the lever itself,
+/// with the value its payload gives (`Recourse: loosen the tolerance to
+/// {best} m or more, `), and appends this after a comma, so the value
+/// stays in the one sentence the marker labels. A refusal that names
+/// any other recourse — a geometry lever such as splitting the face —
+/// names that instead, and no loosening at all: this is for the site
+/// that would otherwise name none.
+///
+/// A site that must compose it into a `&'static str` reaches the same
+/// literal through the hidden `geom_core::kernel_limit_last_resort!`
+/// macro.
+pub const KERNEL_LIMIT_LAST_RESORT: &str = crate::kernel_limit_last_resort!();
+
 /// [`KERNEL_DEFECT_ENDING`] as a literal, for `concat!` at a site
 /// whose prose is a `&'static str` (a constant cannot be spliced into
 /// one). The constant is defined through this macro, so the two are
@@ -1055,6 +1073,16 @@ pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_endi
 macro_rules! kernel_defect_ending {
     () => {
         "There is no way through: this is a kernel defect; report it"
+    };
+}
+
+/// [`KERNEL_LIMIT_LAST_RESORT`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! kernel_limit_last_resort {
+    () => {
+        "as a last resort; this refusal may indicate a kernel bug worth reporting"
     };
 }
 

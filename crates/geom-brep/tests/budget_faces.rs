@@ -57,6 +57,7 @@ use geom::NurbsSurface;
 use geom_brep::offset_fit::{
     BestBound, LastRound, OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, fit_offset_at,
 };
+use geom_core::KERNEL_LIMIT_LAST_RESORT;
 
 use crate::shared::fixture::{bumpy_patch, quarter_cylinder};
 use crate::shared::tol::band;
@@ -596,7 +597,9 @@ fn bumpy_at_delta_minus_0_05_keeps_every_faces_payload_invariants() {
 /// Each message names what stopped the loop and the repair the face's
 /// doc claims, and no other: the budget and the cap are told apart by
 /// what they name, the budget's two readings say which one it was, the
-/// repair is sized to the best bound rather than the last, and the two
+/// message reports the best bound rather than the last, a face with a
+/// geometry lever names it and no loosening, a face with none names
+/// loosening to the best bound as the last resort, and the two
 /// not-finite cases send the caller to two different repairs.
 #[test]
 fn each_faces_message_names_its_lever() {
@@ -624,21 +627,21 @@ fn each_faces_message_names_its_lever() {
             "{b}"
         );
         assert!(!b.contains("samples"), "{b}");
-        assert!(b.contains("loosen the tolerance to 0.001 m"), "{b}");
+        assert!(b.contains("best certified error was 0.001 m"), "{b}");
         assert!(!b.contains("0.002"), "the last bound is named: {b}");
     }
     // Splitting the face buys each piece rounds, which is a repair
-    // only while rounds were still paying: the did-not-improve reading
-    // names the tolerance alone. The recourse is compared WHOLE, from
-    // its marker to the end, so no rewording of the clause before it
-    // can hide a split creeping back in.
+    // only while rounds were still paying, and a reading with a
+    // geometry lever advises no loosening. The did-not-improve reading
+    // has no lever but the tolerance, so it names that as the last
+    // resort, with the kernel-bug note. The recourse is compared WHOLE,
+    // from its marker to the end, so no rewording of the clause before
+    // it can hide a split creeping back in, or a loosening.
     let recourse = |m: &str| m.split_once("Recourse: ").map(|(_, r)| r.to_owned());
     assert!(improved.contains("while still improving"), "{improved}");
     assert_eq!(
         recourse(&improved).as_deref(),
-        Some(
-            "loosen the tolerance to 0.001 m or more, or split the face so each piece fits in fewer rounds"
-        ),
+        Some("split the face so each piece fits in fewer rounds"),
         "{improved}"
     );
     assert!(
@@ -647,7 +650,9 @@ fn each_faces_message_names_its_lever() {
     );
     assert_eq!(
         recourse(&flat).as_deref(),
-        Some("loosen the tolerance to 0.001 m or more"),
+        Some(
+            format!("loosen the tolerance to 0.001 m or more, {KERNEL_LIMIT_LAST_RESORT}").as_str()
+        ),
         "{flat}"
     );
     let c = OffsetFitError::SampleCapReached {
@@ -669,8 +674,13 @@ fn each_faces_message_names_its_lever() {
         "{c}"
     );
     assert!(!c.contains("rounds"), "{c}");
-    assert!(c.contains("loosen the tolerance to 0.001 m"), "{c}");
+    assert!(c.contains("best certified error was 0.001 m"), "{c}");
     assert!(!c.contains("0.002"), "the last bound is named: {c}");
+    assert_eq!(
+        recourse(&c).as_deref(),
+        Some("split the face so each piece needs fewer samples"),
+        "{c}"
+    );
     let n = OffsetFitError::BoundNotFinite {
         rounds: 4,
         grid: (25, 17),
@@ -702,7 +712,9 @@ fn each_faces_message_names_its_lever() {
     }
     .to_string();
     assert!(
-        l.contains("Recourse: loosen the tolerance to 0.00032 m or more"),
+        l.contains(&format!(
+            "Recourse: loosen the tolerance to 0.00032 m or more, {KERNEL_LIMIT_LAST_RESORT}"
+        )),
         "the lost bound is not what the repair is sized to: {l}"
     );
     assert!(!l.contains("offset distance"), "{l}");
