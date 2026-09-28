@@ -799,3 +799,26 @@ markers because it did not, and was corrected on top.
     `tol-and-band-travel-as-a-redundant-pair-past-the-offset-fit-doors`.
 
 Style review dispatched on the frozen head.
+
+## PR 3320 review adjudicated (2026-09-28)
+
+(ENCL orchestrator) Style review on `666b4cabca`: APPROVE-WITH-FIXES.
+The seed-grid rewrite and the Tol-only doors are correct. **The fix
+minted its defect one layer up** (S1): `replace_face_offset` still takes
+`(band, tol)`, so one public call now meters its fitted surface at the
+run's band and everything else at the caller's. Taken: close the pair
+at the public `replace_face(s)_offset` (every caller derives `band`
+from `tol`), and at `tier3_local_checks_marked` if the same holds.
+
+Also taken:
+- the `# Errors` docs name `OffsetFitError::Band`;
+- that arm renders one true recourse, instead of `BandError`'s, which
+  misdirects a `Tol` caller;
+- the prefix and doc corrections (S4, S5, S7, S8);
+- a door-level row if a degenerate `Tol` can be minted;
+- the clamped premise stated at `seed_direction`;
+- cosmetic re-wraps.
+
+Appended to PRED's row: the per-crate "derive the run's band at the
+door" wrapper class (S2). Not taken: the projection seed grids (S11),
+since endpoint-inclusive grids are a different concept.
