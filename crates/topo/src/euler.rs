@@ -3181,20 +3181,19 @@ mod tests {
     /// A digon pillow whose second face carries a plane: the smallest
     /// body that can hold a `Chart` or an `Intersection` description.
     fn described_pillow(tol: Tol) -> (Body<f64>, MevCreated, crate::MefCreated) {
-        let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(q(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                q(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
                 tol,
             )
             .unwrap();
         let plane = geom::Surface::Plane {
-            origin: q(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::unit_z(),
             u_ref: geom_core::Vec3::unit_x(),
         };
@@ -3204,7 +3203,10 @@ mod tests {
                     he1: seg.he_plus,
                     he2: seg.he_minus,
                 },
-                geom_brep::EdgeCurveSpec::line_between(q(0.0, 0.0, 0.0), q(1.0, 0.0, 0.0)),
+                geom_brep::EdgeCurveSpec::line_between(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                ),
                 FaceSurface::New(plane),
                 tol,
             )
@@ -3250,26 +3252,28 @@ mod tests {
     #[test]
     fn the_gate_carries_and_refuses_a_line_under_an_intersection_description() {
         let tol = Tol::witness();
-        let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let (mut body, _seg, split) = described_pillow(tol);
         let s_plus = body.get_face(split.face).unwrap().surface;
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
         let s_seed = body.get_face(seed_face).unwrap().surface;
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Plane {
-            origin: q(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::unit_z(),
             u_ref: geom_core::Vec3::unit_x(),
         };
         *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
-            origin: q(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::unit_y(),
             u_ref: geom_core::Vec3::unit_x(),
         };
-        let mut spec = geom_brep::EdgeCurveSpec::line_between(q(0.0, 0.0, 0.0), q(1.0, 0.0, 0.0));
+        let mut spec = geom_brep::EdgeCurveSpec::line_between(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+        );
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
             s1: s_seed,
             s2: s_plus,
-            witness: q(0.5, 0.0, 0.0),
+            witness: Point3::new(0.5, 0.0, 0.0),
         };
         body.set_edge_curve(split.edge, spec, tol).unwrap();
         let hp = body.get_edge(split.edge).unwrap().he_plus;
@@ -3279,10 +3283,12 @@ mod tests {
     #[test]
     fn the_gate_carries_and_refuses_a_line_under_a_chart_description() {
         let tol = Tol::witness();
-        let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let (mut body, _seg, split) = described_pillow(tol);
         let s_plus = body.get_face(split.face).unwrap().surface;
-        let mut spec = geom_brep::EdgeCurveSpec::line_between(q(0.0, 0.0, 0.0), q(1.0, 0.0, 0.0));
+        let mut spec = geom_brep::EdgeCurveSpec::line_between(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+        );
         spec.description = geom_brep::EdgeDescriptionSpec::chart(s_plus);
         body.set_edge_curve(split.edge, spec, tol).unwrap();
         let hp = body.get_edge(split.edge).unwrap().he_plus;
@@ -3636,7 +3642,6 @@ mod tests {
     /// Returns the body and that edge.
     fn m7_8_pillow(tol: Tol) -> (Body<f64>, EdgeKey) {
         use geom_core::spline::KnotVector;
-        let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let (mut body, _seg, split) = described_pillow(tol);
         let s_plus = body.get_face(split.face).unwrap().surface;
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
@@ -3645,28 +3650,31 @@ mod tests {
         let ticks = [-1.0, 0.5, 2.0];
         let control: Vec<_> = ticks
             .iter()
-            .flat_map(|&x| ticks.iter().map(move |&y| q(x, y, 0.0)))
+            .flat_map(|&x| ticks.iter().map(move |&y| Point3::new(x, y, 0.0)))
             .collect();
         let weights = vec![1.0; control.len()];
         let patch = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
         assert!(!patch.is_placeholder());
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Nurbs(std::sync::Arc::new(patch));
         *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
-            origin: q(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::unit_y(),
             u_ref: geom_core::Vec3::unit_x(),
         };
         // The lane's certificate is a hull statement about a control
         // net, so the declared carrier is the chord as a degree-1 spline.
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let chord =
-            geom::NurbsCurve3::new(kv, vec![q(0.0, 0.0, 0.0), q(1.0, 0.0, 0.0)], vec![1.0, 1.0])
-                .unwrap();
+        let chord = geom::NurbsCurve3::new(
+            kv,
+            vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 s1: s_seed,
                 s2: s_plus,
-                witness: q(0.5, 0.0, 0.0),
+                witness: Point3::new(0.5, 0.0, 0.0),
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(chord)),
             param_start: 0.0,

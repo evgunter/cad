@@ -12,8 +12,8 @@
 use crate::common;
 
 use common::{annulus, lift, near_tangent_hole, profile, rect, tangent_hole, tol};
-use geom_core::Tol;
 use geom_core::{Interval, MarginDiag, Real, Sign};
+use geom_core::{Point2, Tol};
 use profile::{LoopRole, ProfileError, RawLoop, SegmentKind};
 
 #[test]
@@ -267,13 +267,13 @@ fn vesica_near_pick_agrees_with_the_f64_lane_at_interval() {
     let f = profile::Open
         .arc_fillet_arc(
             profile::Center {
-                c: common::p2(-1.0, 0.0),
+                c: Point2::new(-1.0, 0.0),
                 winding: profile::ArcSweep::Ccw,
-                p: common::p2(0.0, -s3),
+                p: Point2::new(0.0, -s3),
             },
             0.5f64,
             profile::Center {
-                c: common::p2(1.0, 0.0),
+                c: Point2::new(1.0, 0.0),
                 winding: profile::ArcSweep::Ccw,
                 p: profile::Start,
             },

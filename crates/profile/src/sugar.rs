@@ -1407,20 +1407,16 @@ fn fillet_bulge<T: Real>(t1: Point2<T>, t2: Point2<T>, center: Point2<T>, radius
 mod tests {
     use super::*;
 
-    fn p2(x: f64, y: f64) -> Point2<f64> {
-        Point2::new(x, y)
-    }
-
     #[test]
     fn bulge_from_via_quarter_circle() {
         // Unit-circle quarter arc (1,0) → (0,1) through the apex.
         let b = bulge_from_via(
-            p2(1.0, 0.0),
-            p2(
+            Point2::new(1.0, 0.0),
+            Point2::new(
                 core::f64::consts::FRAC_1_SQRT_2,
                 core::f64::consts::FRAC_1_SQRT_2,
             ),
-            p2(0.0, 1.0),
+            Point2::new(0.0, 1.0),
         );
         assert!((b - (core::f64::consts::FRAC_PI_8).tan()).abs() < 1e-15);
     }
@@ -1433,10 +1429,10 @@ mod tests {
     #[test]
     fn fillet_bulge_major_arc_branch() {
         let radius = 1.5;
-        let center = p2(-0.25, 0.75);
+        let center = Point2::new(-0.25, 0.75);
         let on = |deg: f64| {
             let (s, c) = f64::to_radians(deg).sin_cos();
-            p2(center.x + radius * c, center.y + radius * s)
+            Point2::new(center.x + radius * c, center.y + radius * s)
         };
         // θ swept from t1 to t2 in the `sgn` sense; the pairs straddle π
         // so both signs of σ·(u × w) are exercised.
@@ -1476,7 +1472,7 @@ mod tests {
     /// and the blend circle contains the carrier whole.
     #[test]
     fn tangent_point_flips_across_the_centre_at_a_negative_offset_radius() {
-        let centre = p2(0.3, -0.7);
+        let centre = Point2::new(0.3, -0.7);
         let carrier = ArcCarrier {
             center: centre,
             radius: 0.5,
@@ -1499,7 +1495,7 @@ mod tests {
         // The blend centre sits |ρ| = 1.5 from the carrier centre, which
         // is what an enclosing candidate's offset intersection would
         // deliver.
-        let blend = p2(centre.x + 1.5, centre.y);
+        let blend = Point2::new(centre.x + 1.5, centre.y);
         let t = leg.tangent_point(blend, sgn, radius);
         // On the carrier, at radius R from its centre...
         let on_carrier = (t.x - centre.x).hypot(t.y - centre.y);
@@ -1520,10 +1516,10 @@ mod tests {
         // same bulge. Points on the unit circle at 10° and 80°.
         let at = |deg: f64| {
             let (s, c) = deg.to_radians().sin_cos();
-            p2(c, s)
+            Point2::new(c, s)
         };
-        let b1 = bulge_from_via(p2(1.0, 0.0), at(10.0), p2(0.0, 1.0));
-        let b2 = bulge_from_via(p2(1.0, 0.0), at(80.0), p2(0.0, 1.0));
+        let b1 = bulge_from_via(Point2::new(1.0, 0.0), at(10.0), Point2::new(0.0, 1.0));
+        let b2 = bulge_from_via(Point2::new(1.0, 0.0), at(80.0), Point2::new(0.0, 1.0));
         assert!((b1 - b2).abs() < 1e-14);
     }
 
@@ -1531,10 +1527,18 @@ mod tests {
     fn bulge_from_via_semicircle_and_sign() {
         // Through the lower apex: a counterclockwise semicircle,
         // bulge +1.
-        let b = bulge_from_via(p2(0.0, 0.0), p2(1.0, -1.0), p2(2.0, 0.0));
+        let b = bulge_from_via(
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, -1.0),
+            Point2::new(2.0, 0.0),
+        );
         assert!((b - 1.0).abs() < 1e-15);
         // Mirrored via: clockwise, bulge −1.
-        let b = bulge_from_via(p2(0.0, 0.0), p2(1.0, 1.0), p2(2.0, 0.0));
+        let b = bulge_from_via(
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(2.0, 0.0),
+        );
         assert!((b + 1.0).abs() < 1e-15);
     }
 
@@ -1542,22 +1546,40 @@ mod tests {
     fn bulge_from_via_degenerate_inputs_are_total() {
         // Collinear between: a line.
         assert_eq!(
-            bulge_from_via(p2(0.0, 0.0), p2(1.0, 0.0), p2(2.0, 0.0)),
+            bulge_from_via(
+                Point2::new(0.0, 0.0),
+                Point2::new(1.0, 0.0),
+                Point2::new(2.0, 0.0)
+            ),
             0.0
         );
         // Collinear outside: tan(±π/2) — huge, for validation to
         // reject; never a panic.
-        let b = bulge_from_via(p2(0.0, 0.0), p2(3.0, 0.0), p2(2.0, 0.0));
+        let b = bulge_from_via(
+            Point2::new(0.0, 0.0),
+            Point2::new(3.0, 0.0),
+            Point2::new(2.0, 0.0),
+        );
         assert!(b.abs() > 1e12);
     }
 
     #[test]
     fn bulge_from_center_quarter_arcs_both_ways() {
-        let b = bulge_from_center(p2(1.0, 0.0), p2(0.0, 1.0), p2(0.0, 0.0), ArcSweep::Ccw);
+        let b = bulge_from_center(
+            Point2::new(1.0, 0.0),
+            Point2::new(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+            ArcSweep::Ccw,
+        );
         assert!((b - core::f64::consts::FRAC_PI_8.tan()).abs() < 1e-15);
         // Clockwise from (1,0) to (0,1) is the long way round:
         // θ = −3π/2, bulge = tan(−3π/8).
-        let b = bulge_from_center(p2(1.0, 0.0), p2(0.0, 1.0), p2(0.0, 0.0), ArcSweep::Cw);
+        let b = bulge_from_center(
+            Point2::new(1.0, 0.0),
+            Point2::new(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+            ArcSweep::Cw,
+        );
         assert!((b - (-3.0 * core::f64::consts::FRAC_PI_8).tan()).abs() < 1e-12);
     }
 }

@@ -14,11 +14,8 @@ use crate::{
 use geom_core::Point3;
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
 fn p(x: f64) -> Point3<f64> {
-    pt(x, 0.0, 0.0)
+    Point3::new(x, 0.0, 0.0)
 }
 
 #[test]
@@ -386,10 +383,10 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
 #[test]
 fn tetrahedron_by_ops_with_orientation() {
     let tol = Tol::witness();
-    let a = pt(0.0, 0.0, 0.0);
-    let b = pt(1.0, 0.0, 0.0);
-    let c = pt(0.5, 1.0, 0.0);
-    let d = pt(0.5, 0.3, 1.0);
+    let a = Point3::new(0.0, 0.0, 0.0);
+    let b = Point3::new(1.0, 0.0, 0.0);
+    let c = Point3::new(0.5, 1.0, 0.0);
+    let d = Point3::new(0.5, 0.3, 1.0);
 
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a).unwrap();
@@ -508,13 +505,13 @@ fn triangular_prism_by_ops_with_orientation() {
     let tol = Tol::witness();
     // Bottom A B C at z=0, top A' B' C' at z=1.
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let ab = body
         .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            pt(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
             tol,
         )
         .unwrap();
@@ -524,7 +521,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he1: ab.he_minus,
                 he2: ab.he_minus,
             },
-            pt(0.5, 1.0, 0.0),
+            Point3::new(0.5, 1.0, 0.0),
             tol,
         )
         .unwrap();
@@ -551,7 +548,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he1: ab.he_plus,
                 he2: ab.he_plus,
             },
-            pt(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
             tol,
         )
         .unwrap();
@@ -561,7 +558,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he1: bc.he_plus,
                 he2: bc.he_plus,
             },
-            pt(1.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
             tol,
         )
         .unwrap();
@@ -571,7 +568,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he1: bot.he_plus,
                 he2: bot.he_plus,
             },
-            pt(0.5, 1.0, 1.0),
+            Point3::new(0.5, 1.0, 1.0),
             tol,
         )
         .unwrap();

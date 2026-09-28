@@ -25,8 +25,8 @@
 
 use crate::common;
 
-use common::{annulus, coverage_corpus, p2, profile, rect, rounded_rect, tol};
-use geom_core::{Sign, Tol};
+use common::{annulus, coverage_corpus, profile, rect, rounded_rect, tol};
+use geom_core::{Point2, Sign, Tol};
 use profile::{
     ArcSweep, Center, Decision, DecisionValue, Open, PathError, ProfileLoop, ReplayErrorKind,
     ReplayStructure, StructureRefusalKind, replay, replay_guided, replay_recording,
@@ -47,13 +47,13 @@ fn s3() -> f64 {
 fn vesica_lens(dx: f64) -> Vec<profile::Step<f64>> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-1.0 + dx, 0.0),
+            c: Point2::new(-1.0 + dx, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.0, -s3()),
+            p: Point2::new(0.0, -s3()),
         },
         0.5,
         Center {
-            c: p2(1.0, 0.0),
+            c: Point2::new(1.0, 0.0),
             winding: ArcSweep::Ccw,
             p: profile::Start,
         },
@@ -193,13 +193,13 @@ fn every_entry_verb_installs_the_guide() {
     };
     let angle_first = tail_from_directed(
         Open.angle(0.0)
-            .at(p2(0.0, 0.0), Tol::witness())
+            .at(Point2::new(0.0, 0.0), Tol::witness())
             .expect("Angle then At binds"),
     );
     let toward_first = tail_from_directed(
         Open.toward(1.0, 0.0, Tol::witness())
             .expect("Toward binds at entry")
-            .at(p2(0.0, 0.0), Tol::witness())
+            .at(Point2::new(0.0, 0.0), Tol::witness())
             .expect("then At"),
     );
 
@@ -498,7 +498,7 @@ fn a_lying_step_span_refuses_typed_naming_the_step() {
 #[test]
 fn a_lying_step_span_on_a_carrier_form_refuses_typed() {
     let program = vec![profile::Step::CircleSplit {
-        centre: p2(0.0, 0.0),
+        centre: Point2::new(0.0, 0.0),
         radius: 1.0,
         n: 4,
         phase: 0.0,
@@ -829,7 +829,7 @@ fn a_record_with_an_extra_radius_emission_refuses_at_its_shape() {
 fn a_guided_pass_reproduces_and_checks_an_arrival_carrier_emission() {
     use profile::{ArcSide, Radius, RadiusRole, Start, Sweep};
     let three = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())
         .unwrap()
         .line(4.0, tol())
@@ -849,7 +849,7 @@ fn a_guided_pass_reproduces_and_checks_an_arrival_carrier_emission() {
             tol(),
         )
         .unwrap()
-        .at(p2(2.0, 6.0))
+        .at(Point2::new(2.0, 6.0))
         .toward(-1.0, 0.0, tol())
         .unwrap()
         .line(2.0, tol())

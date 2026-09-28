@@ -19,11 +19,6 @@ use profile::{
     PathError, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
 
-/// A point in the profile frame, from its two coordinates.
-pub fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// **The one accessor**: a refusal's corner entries, in the order the
 /// kernel reported them (nearest the bracketing anchors first), or the
 /// EMPTY SLICE for a refusal that is not the envelope.
@@ -499,15 +494,15 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     let fused = Open
         .arc_fillet(
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             0.5,
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0), Tol::witness())
+        .at(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
@@ -519,7 +514,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     // 2. An endpoint-free sharp leg, ray extension, an arc arrival and
     //    the mid-chain Radius arc extension.
     let walk = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .arc_to(
@@ -533,16 +528,16 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .unwrap()
         .fillet(0.2, Tol::witness())
         .unwrap()
-        .at(p2(4.0, 3.0), Tol::witness())
+        .at(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.25,
             Center {
-                c: p2(2.0, 6.0),
+                c: Point2::new(2.0, 6.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0, 9.0),
+                p: Point2::new(2.0, 9.0),
             },
             Tol::witness(),
         )
@@ -556,7 +551,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(1.0, 4.0), Tol::witness())
+        .at(Point2::new(1.0, 4.0), Tol::witness())
         .unwrap()
         .toward(0.0, -1.0, Tol::witness())
         .unwrap()
@@ -570,7 +565,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //    class), so substituting any other director moves real geometry
     //    and the round-trip reddens on the first vertex it reaches.
     let turned = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .line(3.0, Tol::witness())
@@ -590,24 +585,24 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //    including the one under the entry vertex, which `.to(Start)`
     //    retrims.
     let seam = Open
-        .at(p2(1.5, 0.0))
+        .at(Point2::new(1.5, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .fillet(0.5, Tol::witness())
         .unwrap()
-        .at(p2(3.0, 1.5), Tol::witness())
+        .at(Point2::new(3.0, 1.5), Tol::witness())
         .unwrap()
         .angle(FRAC_PI_2, Tol::witness())
         .unwrap()
         .fillet(0.5, Tol::witness())
         .unwrap()
-        .at(p2(1.5, 3.0), Tol::witness())
+        .at(Point2::new(1.5, 3.0), Tol::witness())
         .unwrap()
         .angle(PI, Tol::witness())
         .unwrap()
         .fillet(0.5, Tol::witness())
         .unwrap()
-        .at(p2(0.0, 1.5), Tol::witness())
+        .at(Point2::new(0.0, 1.5), Tol::witness())
         .unwrap()
         .angle(-FRAC_PI_2, Tol::witness())
         .unwrap()
@@ -618,11 +613,11 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
 
     // 5. The declared tangent joint and the unique tangent arc.
     let tangent_arc = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(2.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(2.0, 0.0), Tol::witness())
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(3.0, 1.0), Tol::witness())
+        .tangent_arc_to(Point2::new(3.0, 1.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -631,27 +626,27 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //    the second through the lattice's own declared-joint
     //    spelling, `.tangent().tangent_arc_to(p)`.
     let subdivided = Open
-        .at(p2(0.0, -0.5))
+        .at(Point2::new(0.0, -0.5))
         .arc_to(
             Bulge {
-                p: p2(0.5, 0.0),
+                p: Point2::new(0.5, 0.0),
                 b: FRAC_PI_8.tan(),
             },
             Tol::witness(),
         )
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(0.0, 0.5), Tol::witness())
+        .tangent_arc_to(Point2::new(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
 
     // 7. The far-end anchor: the arrival side ENDS at its authored point.
     let far_end = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(3.0, 0.0), Tol::witness())
         .unwrap()
-        .line_to(p2(3.0, 1.0), Tol::witness())
+        .line_to(Point2::new(3.0, 1.0), Tol::witness())
         .unwrap()
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
@@ -659,9 +654,9 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(p2(1.0, 3.0), Tol::witness())
+        .to(Point2::new(1.0, 3.0), Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0), Tol::witness())
+        .line_to(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -671,13 +666,13 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     let eye = Open
         .arc_fillet_arc(
             Center {
-                c: p2(-0.5, 0.0),
+                c: Point2::new(-0.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
+                p: Point2::new(0.0, -tip),
             },
             0.25,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -692,14 +687,14 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //    the arriving ray exactly; every other corner is a right
     //    angle, so nothing but the cusp is declared.
     let lune = Open
-        .at(p2(0.0, 4.0))
+        .at(Point2::new(0.0, 4.0))
         .angle(-FRAC_PI_2, Tol::witness())
         .unwrap()
         .line(2.0, Tol::witness())
         .unwrap()
         .turn(FRAC_PI_2, Tol::witness())
         .unwrap()
-        .tangent_arc_to(p2(0.0, 0.0), Tol::witness())
+        .tangent_arc_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .cusp()
         .tangent_arc_to(Start, Tol::witness())
@@ -710,7 +705,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //     authored as a length rather than a swept angle), and the
     //     three-point `Via` leg off the bare point it lands on.
     let mode_legs = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .arc_to(
@@ -724,8 +719,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .unwrap()
         .arc_to(
             Via {
-                q: p2(2.0, 1.5),
-                p: p2(3.0, 0.5),
+                q: Point2::new(2.0, 1.5),
+                p: Point2::new(3.0, 0.5),
             },
             Tol::witness(),
         )
@@ -742,24 +737,24 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //     is the shape the ruling was for, and the only chain here in
     //     which a straight run crosses the seam.
     let subdivided_square = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .line(1.0, Tol::witness())
         .unwrap()
-        .continue_to(p2(2.0, 0.0), Tol::witness())
+        .continue_to(Point2::new(2.0, 0.0), Tol::witness())
         .unwrap()
         .turn(FRAC_PI_2, Tol::witness())
         .unwrap()
         .line(1.0, Tol::witness())
         .unwrap()
-        .continue_to(p2(2.0, 2.0), Tol::witness())
+        .continue_to(Point2::new(2.0, 2.0), Tol::witness())
         .unwrap()
         .turn(FRAC_PI_2, Tol::witness())
         .unwrap()
         .line(1.0, Tol::witness())
         .unwrap()
-        .continue_to(p2(0.0, 2.0), Tol::witness())
+        .continue_to(Point2::new(0.0, 2.0), Tol::witness())
         .unwrap()
         .turn(FRAC_PI_2, Tol::witness())
         .unwrap()
@@ -774,20 +769,20 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //     departure continues the run, and its arrival continues the
     //     entry's first side — and each is checked, never inferred.
     let d_shape = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, Tol::witness())
         .unwrap()
         .line(2.0, Tol::witness())
         .unwrap()
         .arc_to(
             Bulge {
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
                 b: 1.0,
             },
             Tol::witness(),
         )
         .unwrap()
-        .line_to(p2(0.0, -1.0), Tol::witness())
+        .line_to(Point2::new(0.0, -1.0), Tol::witness())
         .unwrap()
         .continue_to(Start.arrives_tangent(), Tol::witness())
         .unwrap();
@@ -798,13 +793,13 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //     CHECKED, so the seam joint carries a declared flag the verify
     //     layer re-checks.
     let stadium = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .line(2.0, Tol::witness())
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), Tol::witness())
+        .tangent_arc_to(Point2::new(2.0, 2.0), Tol::witness())
         .unwrap()
         .tangent()
         .line(2.0, Tol::witness())
@@ -822,7 +817,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //     carry no radius), so without it the guided fence replays
     //     every verb and two of the three roles.
     let radius_arrival = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .line(4.0, Tol::witness())
@@ -842,7 +837,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(2.0, 6.0))
+        .at(Point2::new(2.0, 6.0))
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
         .line(2.0, Tol::witness())
@@ -851,8 +846,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .unwrap();
 
     // 10/11. The complete-loop program forms.
-    let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
-    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
+    let circle = profile::circle(Point2::new(1.0, 2.0), 0.75, Tol::witness()).unwrap();
+    let split = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
 
     vec![
         fused,
@@ -883,7 +878,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
 /// The point `angle` radians round the circle of radius `r` about
 /// `centre`.
 pub fn on_circle(centre: Point2<f64>, r: f64, angle: f64) -> Point2<f64> {
-    p2(centre.x + r * angle.cos(), centre.y + r * angle.sin())
+    Point2::new(centre.x + r * angle.cos(), centre.y + r * angle.sin())
 }
 
 /// **Grid A's authoring** (PR 1895's parameters): the corner at the
@@ -902,8 +897,8 @@ pub fn arc_arc(case: [f64; 8], r: f64) -> Result<ProfileLoop<f64>, PathError<f64
         tau_out,
         delta_out,
     ] = case;
-    let c1 = p2(-r_in * a_in.cos(), -r_in * a_in.sin());
-    let c2 = p2(-r_out * a_out.cos(), -r_out * a_out.sin());
+    let c1 = Point2::new(-r_in * a_in.cos(), -r_in * a_in.sin());
+    let c2 = Point2::new(-r_out * a_out.cos(), -r_out * a_out.sin());
     let head = on_circle(c1, r_in, a_in - tau_in * delta_in);
     let next = on_circle(c2, r_out, a_out + tau_out * delta_out);
     let w = |t: f64| if t > 0.0 { ArcSweep::Ccw } else { ArcSweep::Cw };
@@ -975,14 +970,14 @@ pub fn line_arc(
     ang: f64,
     r: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    Open.at(p2(sx * big_r / 2.0, 0.0))
+    Open.at(Point2::new(sx * big_r / 2.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())?
         .fillet_arc(
             r,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding,
-                p: on_circle(p2(0.0, 0.0), big_r, ang),
+                p: on_circle(Point2::new(0.0, 0.0), big_r, ang),
             },
             Tol::witness(),
         )?

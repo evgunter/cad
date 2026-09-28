@@ -249,7 +249,9 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
-        disposition: Shared, // the facade boundary guards, code and literal views
+        disposition: Shared, // the facade boundary guards, code and literal views; and the
+                             // box-document fixture twin in crates/pncad-py/src/tests.rs,
+                             // raw text between sentinels, compared with its own copy
     },
     Entry {
         path: "crates/profile/tests/all.rs",

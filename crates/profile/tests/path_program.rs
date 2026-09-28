@@ -33,10 +33,6 @@ use profile::{
     ReplayErrorKind, Start, Step, Target, TipState, Verb, replay,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The recorded program of a chain, kept alongside its pinned loop.
 fn program_of(closed: &ClosedLoop<f64>) -> Vec<Step<f64>> {
     closed.program.clone()
@@ -119,15 +115,15 @@ fn the_fused_family_records_and_replays_bit_identically() {
     let closed = Open
         .arc_fillet(
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             0.5,
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0), Tol::witness())
+        .at(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
@@ -166,7 +162,7 @@ fn the_fused_family_records_and_replays_bit_identically() {
     // directed point — recorded and replayed to the bit (`pinned` is
     // the assertion).
     let walk = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .arc_to(
@@ -180,16 +176,16 @@ fn the_fused_family_records_and_replays_bit_identically() {
         .unwrap()
         .fillet(0.2, Tol::witness())
         .unwrap()
-        .at(p2(4.0, 3.0), Tol::witness())
+        .at(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.25,
             Center {
-                c: p2(2.0, 6.0),
+                c: Point2::new(2.0, 6.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0, 9.0),
+                p: Point2::new(2.0, 9.0),
             },
             Tol::witness(),
         )
@@ -203,7 +199,7 @@ fn the_fused_family_records_and_replays_bit_identically() {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(1.0, 4.0), Tol::witness())
+        .at(Point2::new(1.0, 4.0), Tol::witness())
         .unwrap()
         .toward(0.0, -1.0, Tol::witness())
         .unwrap()
@@ -246,15 +242,15 @@ fn the_mid_chain_radius_row_records_and_replays() {
     let closed = Open
         .arc_fillet_arc(
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             0.5,
             Center {
-                c: p2(0.0, 7.0),
+                c: Point2::new(0.0, 7.0),
                 winding: ArcSweep::Cw,
-                p: p2(0.0, 4.0),
+                p: Point2::new(0.0, 4.0),
             },
             Tol::witness(),
         )
@@ -268,7 +264,7 @@ fn the_mid_chain_radius_row_records_and_replays() {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(-2.0, 2.0), Tol::witness())
+        .at(Point2::new(-2.0, 2.0), Tol::witness())
         .unwrap()
         .toward(0.0, -1.0, Tol::witness())
         .unwrap()
@@ -314,13 +310,13 @@ fn the_eye_is_one_fused_step() {
     let closed = Open
         .arc_fillet_arc(
             Center {
-                c: p2(-0.5, 0.0),
+                c: Point2::new(-0.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
+                p: Point2::new(0.0, -tip),
             },
             0.35,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -377,7 +373,7 @@ fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
     use profile::{ArcSide, Sweep};
     let t = Tol::witness();
     let mut prefixes: Vec<Vec<String>> = Vec::new();
-    let path = Open.at(p2(0.0, 0.0));
+    let path = Open.at(Point2::new(0.0, 0.0));
     prefixes.push(rendered(path.recorded()));
     let path = path.angle(0.0, t).unwrap();
     prefixes.push(rendered(path.recorded()));
@@ -394,7 +390,7 @@ fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
     prefixes.push(rendered(path.recorded()));
     let path = path.fillet(0.2, t).unwrap();
     prefixes.push(rendered(path.recorded()));
-    let path = path.at(p2(4.0, 3.0), t).unwrap();
+    let path = path.at(Point2::new(4.0, 3.0), t).unwrap();
     prefixes.push(rendered(path.recorded()));
     let path = path.toward(0.0, 1.0, t).unwrap();
     prefixes.push(rendered(path.recorded()));
@@ -446,7 +442,7 @@ fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
 /// alone.
 #[test]
 fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
-    let closed = profile::circle(p2(1.5, -2.25), 0.75, Tol::witness()).unwrap();
+    let closed = profile::circle(Point2::new(1.5, -2.25), 0.75, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::Circle]);
     assert_eq!(
         closed.program.len(),
@@ -472,7 +468,8 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
 /// (same-carrier identities, exactly `circle`'s posture).
 #[test]
 fn circle_split_is_a_one_step_program_with_structural_seams() {
-    let closed = profile::circle_split(p2(1.0, 0.5), 0.4, 3, 0.25, Tol::witness()).unwrap();
+    let closed =
+        profile::circle_split(Point2::new(1.0, 0.5), 0.4, 3, 0.25, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::CircleSplit]);
     let lowered = pinned(closed);
     assert_eq!(lowered.vertices().len(), 3, "n vertices, n arcs");
@@ -502,16 +499,16 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
 #[test]
 fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
     let _tol = Tol::witness().get();
-    match profile::circle_split(p2(0.0, 0.0), 0.0, 4, 0.0, Tol::witness()) {
+    match profile::circle_split(Point2::new(0.0, 0.0), 0.0, 4, 0.0, Tol::witness()) {
         Err(PathError::NonpositiveCircleRadius { .. }) => {}
         other => panic!("r = 0 must refuse as NonpositiveCircleRadius, got {other:?}"),
     }
-    match profile::circle_split(p2(0.0, 0.0), 1.0, 1, 0.0, Tol::witness()) {
+    match profile::circle_split(Point2::new(0.0, 0.0), 1.0, 1, 0.0, Tol::witness()) {
         Err(PathError::CircleSplitCount { n: 1 }) => {}
         other => panic!("n = 1 must refuse as CircleSplitCount, got {other:?}"),
     }
     // n = 2 is legal — the smallest subdivision, circle's own count.
-    let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
+    let two = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
     assert_eq!(pinned(two).vertices().len(), 2);
 }
 
@@ -534,17 +531,17 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
     use profile::Bulge;
     let q = std::f64::consts::FRAC_PI_8.tan();
     let closed = Open
-        .at(p2(0.0, -0.5))
+        .at(Point2::new(0.0, -0.5))
         .arc_to(
             Bulge {
-                p: p2(0.5, 0.0),
+                p: Point2::new(0.5, 0.0),
                 b: q,
             },
             Tol::witness(),
         )
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(0.0, 0.5), Tol::witness())
+        .tangent_arc_to(Point2::new(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -710,7 +707,7 @@ fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: 
 /// reachable only from a hand-edited or corrupt wire form.
 #[test]
 fn lattice_violations_refuse_as_the_transition_class() {
-    let a = p2(0.0, 0.0);
+    let a = Point2::new(0.0, 0.0);
     // A leading fillet: nothing is bound yet.
     assert_transition(
         &[Step::Fillet { radius: 0.5 }],
@@ -796,7 +793,7 @@ fn lattice_violations_refuse_as_the_transition_class() {
             Step::FilletArc {
                 radius: 0.25,
                 spec: profile::ArcData::Bulge {
-                    target: Target::Point(p2(2.0, 2.0)),
+                    target: Target::Point(Point2::new(2.0, 2.0)),
                     b: 0.5,
                 },
             },
@@ -811,7 +808,11 @@ fn lattice_violations_refuse_as_the_transition_class() {
 /// AFTER the close are the same class, one step past where they stop.
 #[test]
 fn unclosed_trailing_and_empty_programs_are_the_transition_class() {
-    let (a, b, c) = (p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0));
+    let (a, b, c) = (
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+    );
     assert_transition(&[], 0, TipState::Entry, None);
     assert_transition(
         &[Step::At(a), Step::LineTo(Target::Point(b))],
@@ -863,8 +864,8 @@ fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
 
     let unclosed = replay(
         &[
-            Step::At(p2(0.0, 0.0)),
-            Step::LineTo(Target::Point(p2(1.0, 0.0))),
+            Step::At(Point2::new(0.0, 0.0)),
+            Step::LineTo(Target::Point(Point2::new(1.0, 0.0))),
         ],
         Tol::witness(),
     )
@@ -884,16 +885,16 @@ fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
 fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     let square = |r: f64| {
         vec![
-            Step::At(p2(0.0, -1.0)),
+            Step::At(Point2::new(0.0, -1.0)),
             Step::Angle(0.0),
             Step::Fillet { radius: r },
-            Step::At(p2(1.0, 0.0)),
+            Step::At(Point2::new(1.0, 0.0)),
             Step::Angle(std::f64::consts::FRAC_PI_2),
             Step::Fillet { radius: r },
-            Step::At(p2(0.0, 1.0)),
+            Step::At(Point2::new(0.0, 1.0)),
             Step::Angle(std::f64::consts::PI),
             Step::Fillet { radius: r },
-            Step::At(p2(-1.0, 0.0)),
+            Step::At(Point2::new(-1.0, 0.0)),
             Step::Angle(-std::f64::consts::FRAC_PI_2),
             Step::Fillet { radius: r },
             Step::CloseTo,
@@ -912,7 +913,7 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     // The sign gates are the same class, carried straight through.
     match replay(
         &[Step::Circle {
-            centre: p2(0.0, 0.0),
+            centre: Point2::new(0.0, 0.0),
             radius: 0.0,
         }],
         Tol::witness(),
@@ -925,7 +926,7 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     }
     match replay(
         &[
-            Step::At(p2(0.0, 0.0)),
+            Step::At(Point2::new(0.0, 0.0)),
             Step::Angle(0.0),
             Step::Fillet { radius: -1.0 },
         ],
@@ -980,7 +981,7 @@ fn radii(closed: &ClosedLoop<f64>) -> Vec<(usize, RadiusRole, usize)> {
 fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
     use profile::{ArcSide, Center, Radius, Sweep};
     let walk = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .arc_to(
@@ -994,16 +995,16 @@ fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
         .unwrap()
         .fillet(0.2, Tol::witness())
         .unwrap()
-        .at(p2(4.0, 3.0), Tol::witness())
+        .at(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.25,
             Center {
-                c: p2(2.0, 6.0),
+                c: Point2::new(2.0, 6.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0, 9.0),
+                p: Point2::new(2.0, 9.0),
             },
             Tol::witness(),
         )
@@ -1017,7 +1018,7 @@ fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(1.0, 4.0), Tol::witness())
+        .at(Point2::new(1.0, 4.0), Tol::witness())
         .unwrap()
         .toward(0.0, -1.0, Tol::witness())
         .unwrap()
@@ -1063,7 +1064,7 @@ fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
 fn a_fused_step_records_one_emission_per_radius_role() {
     use profile::{ArcSide, Radius, Sweep};
     let three = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .line(4.0, Tol::witness())
@@ -1083,7 +1084,7 @@ fn a_fused_step_records_one_emission_per_radius_role() {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(2.0, 6.0))
+        .at(Point2::new(2.0, 6.0))
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
         .line(2.0, Tol::witness())
@@ -1132,10 +1133,10 @@ fn a_fused_step_records_one_emission_per_radius_role() {
 fn an_arc_no_radius_drew_records_no_emission() {
     use profile::{Bulge, Center};
     let bulged = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .arc_fillet(
             Bulge {
-                p: p2(3.0, 0.0),
+                p: Point2::new(3.0, 0.0),
                 b: 0.2,
             },
             0.2,
@@ -1144,9 +1145,9 @@ fn an_arc_no_radius_drew_records_no_emission() {
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(p2(3.3, 4.0), Tol::witness())
+        .to(Point2::new(3.3, 4.0), Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 4.0), Tol::witness())
+        .line_to(Point2::new(0.0, 4.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -1159,15 +1160,15 @@ fn an_arc_no_radius_drew_records_no_emission() {
         "the bulge spec's arc names no radius; the fillet's own still does"
     );
     let centred = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -1219,15 +1220,15 @@ fn stored_radius(closed: &ClosedLoop<f64>, i: usize) -> Option<f64> {
 fn the_exact_fit_close_records_its_fillet_on_the_closing_segment() {
     use profile::Center;
     let exact = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             1.0,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -1254,15 +1255,15 @@ fn the_exact_fit_close_records_its_fillet_on_the_closing_segment() {
         "and the segment it names is stored at the authored radius, not {got}"
     );
     let inexact = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -1295,15 +1296,15 @@ fn a_via_close_credits_its_fillet_to_the_binder_not_the_closing_step() {
     use profile::Via;
     let h = 2.0_f64.sqrt();
     let closed = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Via {
-                q: p2(h, h),
+                q: Point2::new(h, h),
                 p: Start,
             },
             Tol::witness(),
@@ -1351,7 +1352,7 @@ fn a_via_close_credits_its_fillet_to_the_binder_not_the_closing_step() {
 fn a_radius_bearing_leg_records_its_own_step_at_every_position() {
     use profile::{ArcLen, ArcSide, Sweep};
     let walk = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .arc_to(
@@ -1494,16 +1495,16 @@ fn pieces_of(closed: &ClosedLoop<f64>) -> Vec<(usize, profile::PieceRole)> {
 /// `toward(+y)`, `to (2, 2)`, `line_to(0, 2)`, `line_to(Start)`.
 fn zero_fit_chain(r: f64) -> ClosedLoop<f64> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, t)
         .unwrap()
         .fillet(r, t)
         .unwrap()
         .toward(0.0, 1.0, t)
         .unwrap()
-        .to(p2(2.0, 2.0), t)
+        .to(Point2::new(2.0, 2.0), t)
         .unwrap()
-        .line_to(p2(0.0, 2.0), t)
+        .line_to(Point2::new(0.0, 2.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap()
@@ -1544,7 +1545,7 @@ fn a_leg_a_run_continues_keeps_the_segment() {
     use profile::PieceRole::{Arc, Leg, RunOut};
     let t = Tol::witness();
     let closed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, t)
         .unwrap()
         .line(1.0, t)
@@ -1553,9 +1554,9 @@ fn a_leg_a_run_continues_keeps_the_segment() {
         .unwrap()
         .toward(0.0, 1.0, t)
         .unwrap()
-        .to(p2(2.0, 2.0), t)
+        .to(Point2::new(2.0, 2.0), t)
         .unwrap()
-        .line_to(p2(0.0, 2.0), t)
+        .line_to(Point2::new(0.0, 2.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();
@@ -1573,14 +1574,14 @@ fn a_leg_a_run_continues_keeps_the_segment() {
 fn corner_then()
 -> profile::PartialPath<f64, profile::path::HasPos<profile::path::Plain>, profile::path::HasAng> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, t)
         .unwrap()
         .fillet(1.0, t)
         .unwrap()
         .toward(0.0, 1.0, t)
         .unwrap()
-        .at(p2(2.0, 1.0), t)
+        .at(Point2::new(2.0, 1.0), t)
         .unwrap()
 }
 
@@ -1598,7 +1599,7 @@ fn a_run_out_is_only_a_segment_on_the_arrival_carrier() {
     let straight = corner_then()
         .line(1.0, t)
         .unwrap()
-        .line_to(p2(0.0, 2.0), t)
+        .line_to(Point2::new(0.0, 2.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();
@@ -1608,7 +1609,7 @@ fn a_run_out_is_only_a_segment_on_the_arrival_carrier() {
     );
     pinned(straight);
     let arc = corner_then()
-        .tangent_arc_to(p2(0.0, 2.0), t)
+        .tangent_arc_to(Point2::new(0.0, 2.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();
@@ -1627,10 +1628,10 @@ fn a_fused_verbs_incoming_arc_is_its_run_in() {
     use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
     let t = Tol::witness();
     let closed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .arc_fillet(
             Bulge {
-                p: p2(3.0, 0.0),
+                p: Point2::new(3.0, 0.0),
                 b: 0.2,
             },
             0.2,
@@ -1639,9 +1640,9 @@ fn a_fused_verbs_incoming_arc_is_its_run_in() {
         .unwrap()
         .toward(0.0, 1.0, t)
         .unwrap()
-        .to(p2(3.3, 4.0), t)
+        .to(Point2::new(3.3, 4.0), t)
         .unwrap()
-        .line_to(p2(0.0, 4.0), t)
+        .line_to(Point2::new(0.0, 4.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();
@@ -1658,9 +1659,9 @@ fn a_fused_verbs_incoming_arc_is_its_run_in() {
 fn a_carrier_form_draws_piece_k_for_its_segment_k() {
     use profile::PieceRole::Piece;
     let t = Tol::witness();
-    let circle = profile::circle(p2(0.0, 0.0), 1.0, t).unwrap();
+    let circle = profile::circle(Point2::new(0.0, 0.0), 1.0, t).unwrap();
     assert_eq!(pieces_of(&circle), vec![(0, Piece(0)), (0, Piece(1))]);
-    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 3, 0.0, t).unwrap();
+    let split = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 3, 0.0, t).unwrap();
     assert_eq!(
         pieces_of(&split),
         vec![(0, Piece(0)), (0, Piece(1)), (0, Piece(2))]

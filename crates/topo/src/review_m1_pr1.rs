@@ -25,10 +25,6 @@ fn prov() -> Provenance {
     Provenance::Primordial { op: "e2e-review" }
 }
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 // ---------------------------------------------------------------------
 // Shared external cube builder. Geometry: bottom square z=0 at
 // b0=(0,0,0), b1=(1,0,0), b2=(1,1,0), b3=(0,1,0) (indices CCW viewed
@@ -84,11 +80,11 @@ fn build_cube(tol: Tol) -> Cube {
     let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]; // CCW from above
     let bp: Vec<_> = corners
         .iter()
-        .map(|&(x, y)| body.add_point(pt(x, y, 0.0)))
+        .map(|&(x, y)| body.add_point(Point3::new(x, y, 0.0)))
         .collect();
     let tp: Vec<_> = corners
         .iter()
-        .map(|&(x, y)| body.add_point(pt(x, y, 1.0)))
+        .map(|&(x, y)| body.add_point(Point3::new(x, y, 1.0)))
         .collect();
     let b: Vec<_> = bp
         .iter()
@@ -342,7 +338,7 @@ fn ring_face_body_validates() {
     body.get_solid_mut(solid).unwrap().shells.push(shell);
 
     let lone = |body: &mut Body<f64>, x: f64| {
-        let p = body.add_point(pt(x, 0.0, 0.0));
+        let p = body.add_point(Point3::new(x, 0.0, 0.0));
         body.add_vertex(
             Vertex {
                 point: p,
@@ -479,8 +475,8 @@ fn add_strut_solid(body: &mut Body<f64>, offset: f64, tol: Tol) -> SolidKey {
         prov(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let p0 = body.add_point(pt(offset, 0.0, 0.0));
-    let p1 = body.add_point(pt(offset, 1.0, 0.0));
+    let p0 = body.add_point(Point3::new(offset, 0.0, 0.0));
+    let p1 = body.add_point(Point3::new(offset, 1.0, 0.0));
     let v0 = body.add_vertex(
         Vertex {
             point: p0,
@@ -560,7 +556,7 @@ fn add_strut_solid(body: &mut Body<f64>, offset: f64, tol: Tol) -> SolidKey {
 #[test]
 fn mvfs_skeletal_state_validates_externally() {
     let mut body = Body::<f64>::new();
-    let p = body.add_point(pt(0.0, 0.0, 0.0));
+    let p = body.add_point(Point3::new(0.0, 0.0, 0.0));
     let v = body.add_vertex(
         Vertex {
             point: p,
@@ -644,8 +640,8 @@ fn antiparallelism_preserving_mate_swap_is_caught_by_orbits() {
         prov(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let p0 = body.add_point(pt(0.0, 0.0, 0.0));
-    let p1 = body.add_point(pt(1.0, 0.0, 0.0));
+    let p0 = body.add_point(Point3::new(0.0, 0.0, 0.0));
+    let p1 = body.add_point(Point3::new(1.0, 0.0, 0.0));
     let v0 = body.add_vertex(
         Vertex {
             point: p0,
@@ -868,7 +864,7 @@ fn long_corrupted_chain_terminates() {
     body.get_solid_mut(solid).unwrap().shells.push(shell);
     let vs: Vec<_> = (0..n)
         .map(|i| {
-            let p = body.add_point(pt(i as f64, 0.0, 0.0));
+            let p = body.add_point(Point3::new(i as f64, 0.0, 0.0));
             body.add_vertex(
                 Vertex {
                     point: p,
@@ -1127,7 +1123,7 @@ fn lmev_strut_surgery_sketch_validates() {
 
     // New vertex + edge, two half-edges spliced in before `he`:
     // ... x (ends at v) | a: v->nv | b: nv->v | he (starts at v) ...
-    let np = c.body.add_point(pt(1.0, 0.0, 2.0));
+    let np = c.body.add_point(Point3::new(1.0, 0.0, 2.0));
     let nv = c.body.add_vertex(
         Vertex {
             point: np,
