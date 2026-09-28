@@ -1,0 +1,5 @@
+fork: encl-escalation-recourse (D4 two-tolerance recourse at sites with no declarable object)
+dispatched: 2026-09-28
+protocol: bb10a4cdd4
+byte: 235
+mapping: Fable=A Opus=B
