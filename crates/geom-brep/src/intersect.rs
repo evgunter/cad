@@ -501,8 +501,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// **Cylinder×cylinder is asked with [`RadiusEvidence::Declared`]**,
 /// the most permissive evidence the arm takes. A pose the arm refuses
-/// even then — unequal radii (the declaration contradicted) or skew
-/// axes — is refused under every evidence, so it is not served; a pose
+/// even then — unequal radii (the declaration contradicted, whatever
+/// the axes do) or skew axes — is refused under every evidence, so it
+/// is not served; a pose
 /// it accepts is served only given evidence this question does not
 /// hold, and the consumer's own evidence decides the rest. The answer
 /// is one-sided by construction: it refuses only what the arm refuses
@@ -545,8 +546,9 @@ pub fn route_pose<T: Decide>(
                 Err(SectionError::RadiusDeclarationContradicted) => {
                     Err(SectionError::RoutesToGeneralRung {
                         pair: "cylinder×cylinder",
-                        why: "unequal radii cut a quartic, not the equal-radius pair's \
-                              conics, and the pair's general-rung arm has not retired",
+                        why: "unequal radii are outside every closed form the \
+                              equal-radius arm classifies, and route to the general \
+                              rung, whose cylinder×cylinder arm has not retired",
                     })
                 }
                 other => other.map(drop),
