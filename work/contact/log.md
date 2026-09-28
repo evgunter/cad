@@ -596,6 +596,22 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 
+## 2026-09-28 — CONTACT-7 fix pass in; delta review on the deleted readings
+
+- **The fix pass (`fab37e456`)** answers the dual's union:
+  - the behind-`p` edge skip, with the comb and channel rows and a
+    927-pose sweep (head equals base, 18 named false refusals);
+  - rows killing mutants (a), (c) and (d);
+  - a structural lever guard (`mod metric`, a private `Distance`);
+  - every style item;
+  - the Python suite, 857/857.
+- **Three readings were DELETED with proofs rather than pinned:** (b)
+  and (e), the face-corner reading, and (f), the co-convex guard on the
+  complement test. (f) can only admit more Rests, on the door every
+  consumer reads as proof, so a single delta review checks the proofs
+  by construction and by attack before landing.
+- **Needed before landing:** one more merge of main (59 commits,
+  15 touching `topo` or `geom-brep`).
 ## 2026-09-28 — CONTACT-8 lands
 
 - **The second fix pass**, for the four red `editor-core` rows. The
