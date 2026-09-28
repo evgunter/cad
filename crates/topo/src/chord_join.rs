@@ -1798,6 +1798,117 @@ pub(crate) fn face_azimuth_images<T: Decide>(
     run_azimuth_images(body, surface, face, &halves, band).map(Some)
 }
 
+/// What the apex closure makes of a cone face's outer cycle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ApexClosure<T: Real> {
+    /// The cycle never reaches the apex; every junction is a chart
+    /// point, where the nearest-branch walk is exact.
+    Clear,
+    /// One apex visit and no ring: the lifted loop, closed at the apex.
+    Closed {
+        /// The azimuth hull of the lift.
+        window: (T, T),
+        /// The farthest boundary vertex from the apex, in metres: the
+        /// lever for an angle read off the window.
+        reach: T,
+    },
+    /// Two or more apex visits, or one on a ringed face: no single lift
+    /// describes the face.
+    Open,
+}
+
+/// **The apex closure of a cone face's outer cycle.**
+///
+/// The apex is not a chart point: every azimuth maps to it, so the
+/// nearest-branch pin carries no information across it, and an
+/// apex-closed sector wider than π reads there as a full period. The
+/// face's chart region lies in the lifted half-strip `v ∈ (0, V]` (or
+/// its mirror), and its closure meets `v = 0` — the apex blown up — in
+/// the segment between the incoming and outgoing azimuths. The lifted
+/// boundary is a closed curve, so its net azimuth change is zero, and
+/// the jump at a single apex visit is `J = −Σ Δθ(non-apex edges)`
+/// exactly. The walk realises that by starting at the half-edge that
+/// leaves the apex: every junction it crosses is then a chart point,
+/// pinned by nearest-branch continuity as everywhere else, and the one
+/// junction it does not cross is the apex, whose jump the closure
+/// supplies.
+///
+/// The preconditions are the rule's own: exactly one apex visit (a
+/// cycle through the apex twice bounds two sectors, whose gap no hull
+/// of a single lift can exclude), no ring, and every other boundary
+/// vertex on one nappe.
+///
+/// # Errors
+///
+/// As [`face_azimuth_window`], and
+/// [`SplitJoinError::SectionInvariant`] when `surface` is not a cone.
+pub(crate) fn cone_apex_closure<T: Decide>(
+    body: &Body<T>,
+    surface: &geom::Surface<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<ApexClosure<T>, SplitJoinError> {
+    let geom::Surface::Cone { apex, axis, .. } = *surface else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "the apex closure was asked of a face that is not on a cone",
+        });
+    };
+    let esc = |diag| SplitJoinError::Escalated { face, diag };
+    let fd = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    let crate::entity::LoopBoundary::Cycle { first } = body
+        .get_loop(fd.outer)
+        .ok_or_else(|| corrupt_loop(fd.outer))?
+        .boundary
+    else {
+        return Ok(ApexClosure::Open);
+    };
+    let halves = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
+    let mut leaving = Vec::new();
+    let mut reach = T::zero();
+    let mut nappes = [false; 2];
+    for (i, &he) in halves.iter().enumerate() {
+        let v = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start;
+        let q = vertex_point(body, v)? - apex;
+        let d = q.norm();
+        reach = reach.max(d);
+        if decide("bool_cone_apex_visit", Margin::of(d), band).map_err(esc)? == Sign::Zero {
+            leaving.push(i);
+            continue;
+        }
+        match decide("bool_cone_apex_nappe", Margin::of(q.dot(axis)), band).map_err(esc)? {
+            Sign::Positive => nappes[0] = true,
+            Sign::Negative => nappes[1] = true,
+            Sign::Zero => {}
+        }
+    }
+    let [start] = leaving[..] else {
+        return Ok(if leaving.is_empty() {
+            ApexClosure::Clear
+        } else {
+            ApexClosure::Open
+        });
+    };
+    // A boundary on both nappes meets the apex from two sheets: no one
+    // lift describes it.
+    if !fd.rings.is_empty() || nappes == [true, true] {
+        return Ok(ApexClosure::Open);
+    }
+    let lifted: Vec<HalfEdgeKey> = halves[start..]
+        .iter()
+        .chain(&halves[..start])
+        .copied()
+        .collect();
+    Ok(run_azimuth_images(body, surface, face, &lifted, band)?
+        .into_iter()
+        .map(|image| image.range)
+        .reduce(|(a, b), (lo, hi)| (a.min(lo), b.max(hi)))
+        .map_or(ApexClosure::Open, |window| ApexClosure::Closed {
+            window,
+            reach,
+        }))
+}
+
 /// The run walk behind [`run_azimuth_window`] and
 /// [`face_azimuth_images`]: each charted half-edge's image, its branch
 /// pinned to the previous edge's exit.

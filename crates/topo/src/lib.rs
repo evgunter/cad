@@ -323,6 +323,29 @@ pub mod test_support {
             .collect())
     }
 
+    /// Does `face` describe for the section certificate's W2 — its
+    /// `chart_boundary` answers, or, on a cone face, its apex closure
+    /// closes? The verdict the certificate reads per face.
+    pub fn face_describes<T: geom_brep::PcurveFittedLane>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        band: geom_core::Band,
+    ) -> bool {
+        let Some(surface) = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+        else {
+            return false;
+        };
+        crate::boolean::ChartCache::default().describes(
+            crate::Operand::A,
+            body,
+            face,
+            &surface.clone(),
+            band,
+        )
+    }
+
     /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
     /// planar in-face test, which the ray sweep reaches only through a
     /// hit it decides to take — named here so a row can ask it about a

@@ -730,8 +730,20 @@ pub(crate) fn declares_pair(decls: &BooleanDeclarations, fa: FaceKey, fb: FaceKe
 pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), bool>);
 
 impl ChartCache {
-    /// Does `operand`'s `face` of `body` describe
-    /// ([`crate::pcurves::chart_boundary`] answers `Ok`)?
+    /// Does `operand`'s `face` of `body` describe — does every closed
+    /// curve in its interior lift to a closed curve with zero winding
+    /// (W2's premise)? Yes when [`crate::pcurves::chart_boundary`]
+    /// answers `Ok`, and on a cone face also when the apex closure
+    /// closes ([`crate::chord_join::cone_apex_closure`]: one apex
+    /// visit, no ring) on a window at most a period wide.
+    ///
+    /// The cone clause is sound although `chart_boundary` refuses the
+    /// apex as a singular joint. The apex lies on `∂F`, so `int F`
+    /// excludes it, and `int F` maps homeomorphically onto the interior
+    /// of the lifted region: a bounded region of one sheet of the
+    /// punctured nappe's universal cover, at most a period wide. Every
+    /// closed curve in `int F` therefore lifts to a closed curve with
+    /// zero winding, and no essential component lies in `int F`.
     pub(crate) fn describes<T: geom_brep::PcurveFittedLane>(
         &mut self,
         operand: Operand,
@@ -743,8 +755,38 @@ impl ChartCache {
         *self
             .0
             .entry((operand == Operand::B, face))
-            .or_insert_with(|| crate::pcurves::chart_boundary(body, face, surface, band).is_ok())
+            .or_insert_with(|| {
+                crate::pcurves::chart_boundary(body, face, surface, band).is_ok()
+                    || apex_closure_describes(body, face, surface, band)
+            })
     }
+}
+
+/// The cone clause of [`ChartCache::describes`]: the apex closure
+/// closes, on a window not definitely wider than a period.
+fn apex_closure_describes<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    use crate::chord_join::ApexClosure;
+    if !matches!(surface, geom::Surface::Cone { .. }) {
+        return false;
+    }
+    let Ok(ApexClosure::Closed { window, reach }) =
+        crate::chord_join::cone_apex_closure(body, surface, face, band)
+    else {
+        return false;
+    };
+    matches!(
+        crate::validate::decide(
+            "bool_cone_closure_period",
+            Margin::levered(T::tau() - (window.1 - window.0), reach),
+            band,
+        ),
+        Ok(Sign::Positive | Sign::Zero)
+    )
 }
 
 /// Which path a section scan serves; the two differ in which pairs
@@ -755,9 +797,13 @@ pub(crate) enum SectionPath {
     /// cone face.
     Crossings,
     /// The no-crossings fallback: every pair with a torus, cylinder or
-    /// cone face and no sphere face — a sphere's pairs are the extent
-    /// scan's ([`sphere_extent_scan`]), which runs first and keeps its
-    /// re-cut.
+    /// cone face, except a sphere against a plane, a sphere or a
+    /// cylinder — those are the extent scan's
+    /// ([`sphere_extent_scan`]), which runs first and keeps its re-cut.
+    /// A sphere against a torus or a cone is certified here: neither is
+    /// ever an escape face, so the scan's only question of the pair is
+    /// disjointness, and with no event anywhere "every component
+    /// cleared" is disjointness.
     Fallback,
 }
 
@@ -772,7 +818,9 @@ impl SectionPath {
             Self::Fallback => matches!(s, S::Torus { .. } | S::Cylinder { .. } | S::Cone { .. }),
         };
         let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
-        (curved(x) || curved(y)) && !(self == Self::Fallback && (sphere(x) || sphere(y)))
+        let passed = |s: &geom::Surface<T>| matches!(s, S::Torus { .. } | S::Cone { .. });
+        let scanned = (sphere(x) && !passed(y)) || (sphere(y) && !passed(x));
+        (curved(x) || curved(y)) && !(self == Self::Fallback && scanned)
     }
 
     /// Is `s` a face this path's refusal names?
@@ -1978,7 +2026,9 @@ struct SphereRecut<T: Real> {
 ///   plane face is repairable by a re-chart.
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
-///   ([`section_extent_pass`]), which runs after this scan.
+///   ([`section_extent_pass`]), which runs after this scan. A sphere's
+///   pairs with a torus or cone face are the pass's too: neither is an
+///   escape face, so disjointness is all the scan would ask of them.
 ///
 /// Determinism (D9): face-arena order throughout; the first escape's
 /// normal is the alignment target.
@@ -2267,14 +2317,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             face: yf,
                         });
                     }
+                    // A cone or torus face is never an escape plane, so
+                    // the pair's one question is disjointness, which the
+                    // section pass certifies (`SectionPath::Fallback`).
+                    Some(geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {}
                     // `Approx` joins the no-wired-arm refusal, not the
                     // NURBS lane: the pair-scoped operand gate refuses
                     // it by kind before this scan runs.
-                    Some(
-                        geom::Surface::Cone { .. }
-                        | geom::Surface::Torus { .. }
-                        | geom::Surface::Approx(_),
-                    ) => {
+                    Some(geom::Surface::Approx(_)) => {
                         // REACH FIRST, kind second. This arm asks
                         // whether the ball can escape past THIS face;
                         // a face whose box cannot meet the ball's

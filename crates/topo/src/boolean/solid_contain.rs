@@ -248,19 +248,16 @@ pub enum PointInSolidError {
     /// wrap the azimuth, and its own azimuth window is not definitely
     /// narrower than a period.
     ///
-    /// The cone chart's apex is a junction no azimuth walk crosses —
-    /// every azimuth maps to the tip — so a face bounded by two
-    /// meridians that MEET there has no closed-form window: the walk
-    /// continues in the direction it was going and reports the whole
-    /// period. Two classes answer around that. A face group with no
-    /// azimuth boundary of its own covers every azimuth of its slant
-    /// window, so the window alone trims it exactly; and a face whose
-    /// azimuth window IS definitely narrower than a period is the case
-    /// the walk gets right, trimmed per face. What reaches here is the
-    /// remainder — a ringed cone face, a group whose members disagree
+    /// The cone chart's apex is a junction every azimuth maps to. A
+    /// face group with no azimuth boundary of its own covers every
+    /// azimuth of its slant window, so the window alone trims it; a face
+    /// clear of the apex, or visiting it once with no ring, has a window
+    /// the walk pins, closed at the apex. What reaches here is the
+    /// remainder — a face whose outline passes through the apex twice,
+    /// an apex-closed face with a ring, a group whose members disagree
     /// on their slant window (two bands stacked on one cone, with
-    /// another surface's face between them), or a wrapped window on a
-    /// face whose group does not wrap.
+    /// another surface's face between them), or a window not definitely
+    /// under a period on a face whose group does not wrap.
     PartialConeFace {
         /// The cone face neither class expresses.
         face: FaceKey,
@@ -474,9 +471,10 @@ impl core::fmt::Display for PointInSolidError {
             Self::PartialConeFace { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: one of its cone faces has an \
-                 outline the inside/outside test cannot read (two edges meet at its \
-                 apex, say). The solid itself is fine. Recourse: bound the cone face \
-                 short of a full turn around the axis, or let its faces cover the turn"
+                 outline the inside/outside test cannot read (it passes through the \
+                 apex twice, say). The solid itself is fine. Recourse: split the cone \
+                 face so each piece reaches the apex at most once, or let its faces \
+                 cover the turn"
             ),
             Self::PartialTorusFace { .. } => write!(
                 f,
@@ -1369,16 +1367,11 @@ fn rim_levels<T: Decide>(pieces: &[WallPiece<T>], band: Band) -> Result<usize, I
 ///
 /// # The two classes, and why a cone needs both
 ///
-/// A cone's apex is a junction the azimuth walk cannot cross. The
-/// closed-form window ([`crate::chord_join::face_azimuth_window`])
-/// pins each boundary edge's branch by nearest-branch continuity, and
-/// at an apex-closed face's TIP the two bounding meridians meet at a
-/// point every azimuth maps to — so the walk continues in the
-/// direction it was going and reports a FULL PERIOD for a face that
-/// covers half of one. That is the same singular junction the sphere
-/// chart has at its poles, which is why the sphere arm carries a
-/// closed-GROUP class beside its per-face rectangle. The cone carries
-/// the same pair:
+/// A cone's apex is a junction no nearest-branch walk can cross: every
+/// azimuth maps to it. The per-face window therefore closes the lift
+/// there instead ([`crate::chord_join::cone_apex_closure`]), and the
+/// sphere arm's closed-GROUP class sits beside it for the faces whose
+/// union covers the turn. The cone carries the pair:
 ///
 /// - **the azimuth-WRAPPED group** ([`wrapped_cone_group`]): the faces
 ///   on this cone surface have no azimuth boundary between them and
@@ -1389,9 +1382,10 @@ fn rim_levels<T: Decide>(pieces: &[WallPiece<T>], band: Band) -> Result<usize, I
 ///   root once per member and tie itself into a permanent graze, the
 ///   defect [`FaceGeo::Sphere`] documents.
 /// - **the azimuth-TRIMMED face**: a face whose own window is
-///   definitely narrower than a period, which is exactly the case the
-///   walk gets right. It is served per face, like
-///   [`FaceGeo::SpherePatch`], and is its own representative.
+///   definitely narrower than a period — one clear of the apex, or one
+///   visiting it once with no ring, of any width. It is served per
+///   face, like [`FaceGeo::SpherePatch`], and is its own
+///   representative.
 ///
 /// A face in neither class is [`PointInSolidError::PartialConeFace`]:
 /// the honest remainder, never a window that misstates the face.
@@ -1484,23 +1478,25 @@ pub(super) fn cone_face_trim<T: Decide>(
     Ok((Some(cone_trimmed_window(body, face, v, band)?), v, nappe))
 }
 
-/// The azimuth window of a cone face in the TRIMMED class — the window
-/// the closed-form walk gets right, which is exactly one definitely
-/// narrower than a period. A window a period wide or wider is the apex
-/// junction's wrap, not a face that covers the chart, and the refusal
-/// says so rather than trimming by an angle that means nothing.
+/// The azimuth window of a cone face in the TRIMMED class: the
+/// nearest-branch walk on a face clear of the apex, the apex closure
+/// ([`crate::chord_join::cone_apex_closure`]) on a face that visits it
+/// once. Only a window definitely narrower than a period trims; a face
+/// through the apex twice, or once with a ring, has no single lift.
 ///
 /// # Errors
 ///
 /// [`PointInSolidError::CorruptFace`] for a window the walk cannot
-/// take, [`PointInSolidError::PartialConeFace`] for one not definitely
-/// under a period, [`PointInSolidError::Escalated`] in-band.
+/// take, [`PointInSolidError::PartialConeFace`] for a face with no
+/// single lift or a window not definitely under a period,
+/// [`PointInSolidError::Escalated`] in-band.
 fn cone_trimmed_window<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     v: (T, T),
     band: Band,
 ) -> Result<(T, T), PointInSolidError> {
+    use crate::chord_join::{ApexClosure, SplitJoinError};
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
@@ -1508,10 +1504,18 @@ fn cone_trimmed_window<T: Decide>(
         .get_surface(f.surface)
         .cloned()
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
-        .ok()
-        .flatten()
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let az = match crate::chord_join::cone_apex_closure(body, &surf, face, band) {
+        Ok(ApexClosure::Clear) => crate::chord_join::face_azimuth_window(body, &surf, face, band)
+            .ok()
+            .flatten()
+            .ok_or(PointInSolidError::CorruptFace { face })?,
+        Ok(ApexClosure::Closed { window, .. }) => window,
+        Ok(ApexClosure::Open) => return Err(PointInSolidError::PartialConeFace { face }),
+        Err(SplitJoinError::Escalated { diag, .. }) => {
+            return Err(PointInSolidError::Escalated { face, diag });
+        }
+        Err(_) => return Err(PointInSolidError::CorruptFace { face }),
+    };
     match decide(
         "bool_cone_trim_period",
         Margin::levered(T::tau() - (az.1 - az.0), v.0.abs().max(v.1.abs())),
