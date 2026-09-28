@@ -4,6 +4,8 @@ kind: issue
 title: topo: validate.rs's classify_* functions paraphrase lower crates' Display recourses by hand, and no row compares the two
 status: open
 opened: 2026-09-26
+design: true
+needs_ev: true
 priority: P3
 cost: D
 refs: [3269, 3294]
@@ -54,3 +56,25 @@ this row's first measurement.
 ## Re-homed
 
 2026-09-27, from `work/atrest/` at ATREST's close: the finding is one text spelled by hand in two places (the `classify_*` paraphrases and the lower crates' `Display` recourses), which is S-DUP's charter (CENSUS fits too, but stood at 46.5 of 30). The fix edits `validate.rs`, RESTFRONT's ground; the landing PR announces the seam.
+
+## The question for Ev, and the recommendation
+
+Two designers weighed it independently and recommend the same end state. It generalises what PR 3351 built for certification.
+
+- **One table per type.** Every nested refusal type a classifier renders gets `ending(Reading)`, the sole table of that decision's recourses across the three readings (Build, AtRest, Adopt).
+- **Each reader asks for its own reading.**
+  - Its `Display` renders the payload only.
+  - Build-route wrappers call `render(Reading::Build)`.
+  - `validate`'s classifiers keep their short reason and read `ending(Reading::AtRest)`, owning a recourse only for arms that belong to no decision.
+- **`Reading` moves to `geom-core`,** so `geom-brep`, `topo`, `sweep` and `step-import` can all name it.
+
+**Why not a row comparing the two texts.** The two texts are not meant to agree. Many arms differ on purpose, because the lever differs by reading: at rest, a re-mint or a finite-offset request is a kernel or file defect. So an equality row is wrong where readings differ and unwritable where they agree, and a hand table of expected texts would be a third copy.
+
+**Drift measured.**
+- `classify_contain`'s `ArcLoopUnsupported` has shown wrong advice at rest since 2026-09-26: the variant was redefined and the classifier was not updated. That one arm is fixed now, separately, by PR (b10-b).
+- About ten more arms classify their refusal differently from the type's own text (defect, not-yet, or a lever).
+- Both designers note that the correct text for those arms needs a per-arm ruling, which the follow-up records once in the table.
+
+**Ratified text.** D4 ¶1 (i) (PR 3352) already asks for this: the recourse is an exhaustive match at the decision's site. The one binding sentence that would follow is D4 naming `Reading` as kernel vocabulary.
+
+**Cost.** `Reading` moves into `geom-core`. The follow-up touches `geom-brep`'s `OffsetFitError`, `PropsError` and `PcurveCertifyError`, `topo`'s six own enums, and about 15–20 build-route wrappers. It is reversible one type per PR.
