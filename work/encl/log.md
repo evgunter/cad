@@ -1011,3 +1011,4 @@ class of 65 sites is PRED's row.
     - cross-references between the duplicated fixtures.
   - Declined, and logged as a direction if a second caller appears: a typed pending-escalation value in place of choosing a splice.
   - Fix pass sent back to the lane.
+- 2026-09-28 — Dispatched `kernel-defect-endings-and-repair-labels-have-no-shared-home` (P4) on `encl/kernel-defect-recourse`, Opus, style review. It follows CHROME's refusal standard; the shared constant lands in `geom_core::predicate`, which is PROPS territory, so a seam note will follow at merge.
