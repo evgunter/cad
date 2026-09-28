@@ -1330,7 +1330,7 @@ fn wall_pair_clear<T: Decide>(
         let v0 = p0 - ok;
         let v0p = v0 - ak * v0.dot(ak);
         let bq = v0p.dot(m);
-        let disc = bq * bq - (v0p.dot(v0p) - rk * rk);
+        let disc = bq.powi(2) - (v0p.dot(v0p) - rk.powi(2));
         if !positive("bool_interior_loop_wall_point", Margin::of(disc / rk)) {
             return None;
         }
