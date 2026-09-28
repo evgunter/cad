@@ -554,7 +554,8 @@ pub fn refine_plan_homogeneous(
 /// **The equal-split refinement schedule**: the interior points that
 /// cut every nonempty span of `kv` into `splits` equal pieces — the
 /// `new_knots` a caller hands [`refine_plan`] or
-/// [`refine_plan_homogeneous`] to refine uniformly within spans.
+/// [`refine_plan_homogeneous`] to refine uniformly within spans
+/// ([`equal_split_plan`] is the latter composition).
 ///
 /// A point floating point collapses onto a span end is skipped rather
 /// than inserted: refinement is a tightening, never a correctness
@@ -581,6 +582,23 @@ pub fn equal_split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
         }
     }
     add
+}
+
+/// **The equal-split refinement chain**: the [`refine_plan_homogeneous`]
+/// plans that insert [`equal_split_points`]`(kv, splits)` — every
+/// nonempty span of `kv` cut into `splits` equal pieces, built from
+/// structure alone. One plan per inserted point, so the chain's length
+/// is the insertion count. A caller that needs the refined vector takes
+/// the last plan's knots, or `kv` when the chain is empty.
+///
+/// # Errors
+///
+/// As [`refine_plan`].
+pub fn equal_split_plan(
+    kv: &KnotVector,
+    splits: usize,
+) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
+    refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
 }
 
 /// **Knot merging (Book §5.3), the structure half: per vector, the
@@ -994,6 +1012,26 @@ mod tests {
         assert!(equal_split_points(&kv, 0).is_empty());
     }
 
+    /// The equal-split chain inserts exactly the schedule's points, one
+    /// plan each, and lands on the vector that carries them: its last
+    /// plan's interior is the described interior merged with the
+    /// schedule, written out by hand. An empty schedule is an empty
+    /// chain.
+    #[test]
+    fn equal_split_plan_is_one_plan_per_schedule_point() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let plans = equal_split_plan(&kv, 4).unwrap();
+        assert_eq!(plans.len(), 6);
+        let last = plans.last().expect("six insertions");
+        assert_eq!(
+            last.knots.knots(),
+            [
+                0.0, 0.0, 0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0, 1.0, 1.0
+            ]
+        );
+        assert!(equal_split_plan(&kv, 1).unwrap().is_empty());
+    }
+
     fn apply_chain(plans: &[CurvePlan], x: &[f64]) -> Vec<f64> {
         let mut cur = x.to_vec();
         for plan in plans {
@@ -1064,8 +1102,7 @@ mod tests {
                 .expect("a clamped vector has control points");
             let scale = coeffs.iter().fold(0.0f64, |m, c| m.max(c.abs())).max(1.0);
             for splits in [2usize, 3, 8, 16] {
-                let add = equal_split_points(&kv, splits);
-                let plans = refine_plan_homogeneous(&kv, &add).unwrap();
+                let plans = equal_split_plan(&kv, splits).unwrap();
                 let f64_out = apply_chain(&plans, &coeffs);
                 let mut ring_out = input.clone();
                 for plan in &plans {
@@ -1074,10 +1111,11 @@ mod tests {
                 let tag = format!("p={p} interior={interior:?} splits={splits}");
                 assert_eq!(ring_out.len(), f64_out.len(), "{tag}: extent");
                 // ONE allowance, shared by claims 3 and 4: the width a
-                // non-inflating fold may accumulate over `add.len()`
-                // insertions, in ulps of the coefficient scale.
+                // non-inflating fold may accumulate over `plans.len()`
+                // insertions (one plan per insertion), in ulps of the
+                // coefficient scale.
                 #[allow(clippy::cast_precision_loss)]
-                let ceiling_ulps = 8.0 * (add.len() + 1) as f64;
+                let ceiling_ulps = 8.0 * (plans.len() + 1) as f64;
                 let slack = ceiling_ulps * scale * f64::EPSILON;
                 for (i, r) in ring_out.iter().enumerate() {
                     assert!(r.is_certified(), "{tag}: slot {i} poisoned");
@@ -1101,7 +1139,7 @@ mod tests {
                 }
                 // Claim 4, against the insertion count rather than a
                 // fixed number: a fold that inflated per step would be
-                // exponential in `add.len()` and blow through this.
+                // exponential in `plans.len()` and blow through this.
                 let worst = ring_out
                     .iter()
                     .fold(0.0f64, |m, r| m.max(r.width() / (scale * f64::EPSILON)));
@@ -1110,7 +1148,7 @@ mod tests {
                     "{tag}: widest refined coefficient is {worst:.1} ulps of the \
                      coefficient scale over {} insertions, above the {ceiling_ulps:.0} a \
                      non-inflating fold allows",
-                    add.len()
+                    plans.len()
                 );
             }
         }
@@ -1152,8 +1190,7 @@ mod tests {
             knots.extend_from_slice(interior);
             knots.extend(core::iter::repeat_n(1.0, p + 1));
             let kv = KnotVector::clamped(knots, p).unwrap();
-            let add = equal_split_points(&kv, splits);
-            let plans = refine_plan_homogeneous(&kv, &add).unwrap();
+            let plans = equal_split_plan(&kv, splits).unwrap();
             let mut out: Vec<Interval> = vec![Interval::point(c); kv.control_count()];
             for plan in &plans {
                 out = plan.apply_ring(&out);
@@ -1174,7 +1211,7 @@ mod tests {
                 "constant {c} at p={p}, {} insertions: {outside} of {} slots outside the \
                  degenerate hull, worst excursion {worst:.3e} ({ulps:.2} ulps of the \
                  coefficient)",
-                add.len(),
+                plans.len(),
                 out.len()
             );
             // The finding, asserted in the direction it is true in. An

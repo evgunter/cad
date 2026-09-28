@@ -332,6 +332,16 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     }
     let with_decl = count_undecidable(&declared);
     println!("undeclared: {undeclared} undecidable; declared: {with_decl}");
-    assert_eq!(undeclared, 11, "the PR measured 11 undeclared");
-    assert_eq!(with_decl, 6, "the PR measured 6 under declaration");
+    // The PR measured 11 and 6 face-pair refusals. The census's
+    // instance arm adds one solid-pair refusal to each: the plate and
+    // the boss meet through the curved candidates arm 1 left
+    // unexamined, and a pair that meets is not cleared past them.
+    assert_eq!(
+        undeclared, 12,
+        "11 face pairs undeclared, plus the solid pair"
+    );
+    assert_eq!(
+        with_decl, 7,
+        "6 face pairs under declaration, plus the solid pair"
+    );
 }
