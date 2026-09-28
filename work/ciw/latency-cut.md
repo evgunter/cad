@@ -2,9 +2,9 @@
 id: latency-cut
 kind: unit
 title: Cut the per-PR gate to latency; the nightly holds the rest
-status: open
+status: closed
+closed: 2026-09-28
 opened: 2026-09-28
-needs_ev: true
 ---
 
 

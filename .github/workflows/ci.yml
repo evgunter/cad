@@ -486,7 +486,7 @@ jobs:
   # The one check to read: green when every job that ran passed.
   gate-ok:
     name: gate ok
-    if: always() && github.event_name != 'push'
+    if: always() && !cancelled() && github.event_name != 'push'
     needs: [filter, lint, test, viewer, python, topo-release, mesh-budget, step-import, demos, tools, interval]
     runs-on: ubuntu-latest
     steps:
