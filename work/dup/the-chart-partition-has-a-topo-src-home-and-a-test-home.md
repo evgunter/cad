@@ -2,9 +2,9 @@
 id: the-chart-partition-has-a-topo-src-home-and-a-test-home
 kind: issue
 title: a body's faces grouped by surface key are spelled in topo's shell.rs, in topo's offset_together tests, and in sweep's tests/common
-status: open
+status: closed
 opened: 2026-09-26
-needs_ev: true
+closed: 2026-09-28
 priority: P4
 cost: D
 ---
@@ -84,3 +84,7 @@ Two designers weighed it independently, then read each other's reports. Both now
 If Ev prefers the smaller change, the sound alternative is to keep `ChartMove` and add a structural check that refuses two moves naming one surface key, with the inward door built over it. Both designers agree that this check is owed whenever `ChartMove` survives in any form.
 
 The follow-up is a unit on `shell`'s ground, which owns the offset doors.
+
+## Closed (2026-09-28): Ev's ruling
+
+Ev on PR 3310: *"the recommendation sounds good!"*. The offset doors take the solids plus a rule giving one distance per chart, and a data-shaped "inward by t" door sits over them. The grouping becomes crate-private in the offset module, and no public partition door is added. The work is `work/shell/offset-doors-take-solids-and-a-per-chart-rule.md`.
