@@ -1006,8 +1006,9 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::Invalid),
-            "Recourse: move the geometry so the faces cross at a clearer angle; the margin was \
-             not a number, which may indicate a kernel bug worth reporting",
+            "Recourse: move the geometry so the faces cross at a clearer angle; the margin \
+             could not be read (not a number, or a lever that collapsed), which may indicate a \
+             kernel bug worth reporting",
         ),
         (
             "endpoint",

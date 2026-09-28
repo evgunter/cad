@@ -260,6 +260,7 @@
 use core::fmt;
 
 use geom::Surface;
+use geom_brep::certify::Reading;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 
@@ -862,16 +863,32 @@ pub enum EulerOpError {
     },
 }
 
+impl EulerOpError {
+    /// This refusal's text, a certification refusal's ending read at
+    /// `reading` ([`CertifyError::ending`]): the door that reports the
+    /// refusal decides where it is read. `Display` reads it at
+    /// [`Reading::Build`], the operation that built the edge.
+    #[must_use]
+    pub fn render(&self, reading: Reading) -> String {
+        match self {
+            Self::Certification { error } => {
+                format!("geometry attachment gate: {}", error.render(reading))
+            }
+            Self::RebasedCarrier { edge, error } => format!(
+                "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
+                error.render(reading)
+            ),
+            other => other.to_string(),
+        }
+    }
+}
+
 impl fmt::Display for EulerOpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Certification { error } => {
-                write!(f, "geometry attachment gate: {error}")
+            Self::Certification { .. } | Self::RebasedCarrier { .. } => {
+                f.write_str(&self.render(Reading::Build))
             }
-            Self::RebasedCarrier { edge, error } => write!(
-                f,
-                "re-based edge {edge:?} would keep a carrier its endpoint left: {error}"
-            ),
             Self::RebasedNullEdge { edge } => write!(
                 f,
                 "mev fan: the moved run re-bases one end of null edge {edge:?} and not \

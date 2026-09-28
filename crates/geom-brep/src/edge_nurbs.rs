@@ -184,6 +184,44 @@ pub enum PlaneNurbsRefusal {
     },
 }
 
+impl PlaneNurbsRefusal {
+    /// The ending this refusal's decision gives it, read at `reading`
+    /// ([`recourse`]), or `None` for a refusal that is no decision's
+    /// refused arm. `Display` renders the payload alone, as
+    /// [`crate::CertifyError`]'s does, and the door appends this.
+    ///
+    /// The per-sample transversality is the `Transversality` decision,
+    /// and its definite and undecided arms end alike (D4 ¶1 (iv)); the
+    /// certificate's limb, tube and escalation refusals share the
+    /// certificate's ending.
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        match self {
+            Self::NotTransverse { .. } => Some(recourse(
+                CertCheck::Transversality,
+                RefusedArm::Zero,
+                reading,
+            )),
+            Self::TransversalityEscalated { cause, .. } => Some(recourse(
+                CertCheck::Transversality,
+                RefusedArm::Undecided(cause),
+                reading,
+            )),
+            Self::Limb { .. } | Self::TubeStraddles { .. } => Some(recourse(
+                CertCheck::PlaneNurbsCertificate,
+                RefusedArm::SignCertain,
+                reading,
+            )),
+            Self::Escalated(diag) => Some(recourse(
+                CertCheck::PlaneNurbsCertificate,
+                RefusedArm::Undecided(diag),
+                reading,
+            )),
+            Self::FootPointInconclusive { .. } | Self::PcurveFit | Self::Unsupported { .. } => None,
+        }
+    }
+}
+
 impl core::fmt::Display for PlaneNurbsRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -195,24 +233,16 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 "the foot-point projection did not converge at schedule sample {sample} \
                  (last distance {last_distance:e} m)"
             ),
-            // The transversality decision's two refused arms end alike
-            // (D4 ¶1 (iv)).
             Self::NotTransverse { sample } => write!(
                 f,
                 "the plane and the NURBS wall have coincident tangent planes at interior \
-                 sample {sample}, where the edge's description says they cross. {}",
-                recourse(CertCheck::Transversality, RefusedArm::Zero, Reading::Build)
+                 sample {sample}, where the edge's description says they cross"
             ),
             Self::TransversalityEscalated { sample, cause } => write!(
                 f,
                 "whether the plane and the NURBS wall cross at interior sample {sample} is too \
-                 close to call: {}. {}",
-                cause.payload(),
-                recourse(
-                    CertCheck::Transversality,
-                    RefusedArm::Undecided(cause),
-                    Reading::Build
-                )
+                 close to call: {}",
+                cause.payload()
             ),
             Self::PcurveFit => write!(
                 f,
@@ -237,13 +267,8 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::Escalated(diag) => write!(
                 f,
-                "a plane × NURBS limb margin escalated: {}. {}",
-                diag.payload(),
-                recourse(
-                    CertCheck::PlaneNurbsCertificate,
-                    RefusedArm::Undecided(diag),
-                    Reading::Build
-                )
+                "a plane × NURBS limb margin escalated: {}",
+                diag.payload()
             ),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }

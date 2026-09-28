@@ -6,13 +6,16 @@
 
 use core::fmt;
 
+use geom_brep::certify::Reading;
+
 /// One rung of the D7 edge-adoption ladder, as data: which intensional
 /// interpretation was attempted, and the kernel gate's typed refusal.
 #[derive(Debug)]
 pub struct AdoptionAttempt {
     /// The interpretation attempted.
     pub candidate: AdoptionCandidate,
-    /// The certification/attachment gate's refusal, verbatim.
+    /// The certification/attachment gate's refusal, rendered at the
+    /// adoption reading (`geom_brep::certify::Reading::Adopt`).
     pub refusal: topo::EulerOpError,
 }
 
@@ -420,9 +423,11 @@ impl fmt::Display for StepImportError {
             Self::Topology { id, what } => {
                 write!(f, "step import: entity #{id}: {what}")
             }
-            Self::Assembly { id, source } => {
-                write!(f, "step import: assembling entity #{id}: {source}")
-            }
+            Self::Assembly { id, source } => write!(
+                f,
+                "step import: assembling entity #{id}: {}",
+                source.render(Reading::Adopt)
+            ),
             Self::Adoption { id, attempts } => {
                 write!(
                     f,
@@ -432,7 +437,12 @@ impl fmt::Display for StepImportError {
                     if i > 0 {
                         write!(f, "; ")?;
                     }
-                    write!(f, "{}: {}", attempt.candidate, attempt.refusal)?;
+                    write!(
+                        f,
+                        "{}: {}",
+                        attempt.candidate,
+                        attempt.refusal.render(Reading::Adopt)
+                    )?;
                 }
                 Ok(())
             }

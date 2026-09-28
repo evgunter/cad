@@ -162,7 +162,7 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
     // The two-tolerance shape (D4 ¶1 (iv)): the definite arm ends in the
     // second-order decision's one recourse, the one its in-band sibling
     // ends in, and certification takes no declaration.
-    let msg = format!("{err}");
+    let msg = err.render(geom_brep::certify::Reading::Build);
     assert!(msg.contains("agree to second order"), "{msg}");
     assert!(
         msg.ends_with(

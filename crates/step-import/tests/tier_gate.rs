@@ -393,7 +393,7 @@ const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled ch
      'interval_span_forward' indeterminate";
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
-const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: the start-endpoint residual at \
+const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: the start-endpoint residual at \
      sample 0 definitely exceeds";
 
 /// Every committed STEP file, with the disposition measured at M7-7.

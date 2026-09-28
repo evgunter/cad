@@ -81,7 +81,7 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
         Err(EulerOpError::Certification {
             error:
                 CertifyError::Escalated {
-                    check: CertCheck::ParamSpan | CertCheck::ParamWinding,
+                    check: CertCheck::ParamWinding,
                     ..
                 },
         }) => Disp::Escalate,
