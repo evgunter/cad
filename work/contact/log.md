@@ -389,3 +389,33 @@ Signed: (CONTACT orchestrator)
     declared area contact.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — the touch-analysis designers agree; CONTACT-7 specced
+
+- **First reports**, recorded as delivered:
+  - **A (likely):** a metric separating certificate. Star faces' vertex
+    distances from a plane through the touch point, in metres.
+    Directions only propose planes. A private constructor makes a Rest
+    buildable only by the check. It treats this as two questions, with
+    one shared `VertexStar` for the lanes' orbit loops.
+  - **B (sure):** replace the readings, not the levers. The same metric
+    readings over the finite star, read from the snapshot. The fan is
+    deleted, and the census builds no sectors. It treats this as one
+    question.
+  - Both corrected the brief's premise: `classify_dihedral` is unsigned
+    and edge-levered, so it cannot carry convexity. Both named the
+    boolean `side_code` as a possible sibling, unverified (filed at
+    P2). Neither proposes changing ratified text.
+- **Orchestrator's reconciliation, no further round.** The readings are
+  the same final state. The two differences:
+  - A's structural guard is taken (S4). It is cheap, and it is the only
+    thing that stops a sixth round other than review.
+  - B's home is taken (S2). Under metric readings the census needs no
+    fan, so sharing one would keep the class alive.
+  - Also from A: Crossing is claimed only on decided readings, and
+    arm 2's argument states its 2ε slab.
+- **Not put to Ev.** It is internal to `census.rs`, moves no ratified
+  text, and the designers agree. So it is not a design-fork row.
+- **CONTACT-7** is dispatched with a dual review.
+
+Signed: (CONTACT orchestrator)
