@@ -597,9 +597,9 @@ pub enum CensusUnsupportedCause {
     /// The census asks [`contfp`](crate::boolean::contfp) whether a
     /// vertex, an edge midpoint or a crossing point lies inside a
     /// planar face. Three of that door's arms carry no measured
-    /// quantity at all — an arc-bearing loop no walk expresses, an
-    /// exhausted parity schedule, unwalkable topology — and the census
-    /// used to answer all three with
+    /// quantity at all — a spiric or spline edge within the point's
+    /// reach, an exhausted parity schedule, unwalkable topology — and
+    /// the census used to answer all three with
     /// [`ValidationError::CensusEscalated`] over an
     /// [`Indeterminate`] it MINTED: predicate `pm_census_containment`,
     /// margin [`MarginDiag::Invalid`](geom_core::MarginDiag::Invalid).
@@ -2526,10 +2526,9 @@ fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
         ),
         ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
         ContainError::ArcLoopUnsupported { .. } => (
-            "its boundary is arcs over fewer than three corners, which the check cannot \
-             read as a region",
-            "Recourse: split an arc so the boundary has three corners, or draw the region \
-             as one circle",
+            "its boundary has a spiric or spline edge near a point the check asked about, \
+             which the check cannot yet read across",
+            "Recourse: model the boundary with lines, circles or ellipses",
         ),
     }
 }
@@ -6121,9 +6120,8 @@ pub(crate) fn tier3_local_checks_marked<
     // `point_in_loop_*` and which this arm pools as a fourth consumer
     // the way `boolean::contfp` and the solid-containment sweep
     // already pool; an arc-bearing loop's rows are
-    // `point_in_arc_loop_*`, pooled with `solid_contain`'s in-face
-    // walk. `ring_nesting`'s doc says why the one-circle class gets no
-    // second instrument (`boolean::contain`'s `disc_side`).
+    // `point_in_arc_loop_*`, pooled with `boolean::contfp` and
+    // `solid_contain`'s in-face walk.
     //
     // The queries are the ring's VERTICES, exact whatever curve joins
     // them, so an arc-bearing RING is decided as readily as a
@@ -7070,25 +7068,11 @@ enum RingNestingVerdict {
 /// loop carries and however many vertices it has. On a loop of lines
 /// it is [`crate::splitting::point_in_loop`] unchanged.
 ///
-/// It is also the instrument for a loop of arcs of ONE circle, which
-/// `boolean::contain`'s `disc_side` decides in one radial margin — one
-/// instrument for every class, rather than two dispatched on the
-/// loop's shape. On that class the two share their band: the walk's
-/// only point-level row there is the radial gap
-/// (`point_in_arc_loop_conic_on`, levered at the radius), the same
-/// quantity as `disc_side`'s margin — computed differently, so the two
-/// can part by an ulp at the band's edge, and no further. Every other
-/// row it decides is about one RAY — a schedule member, a vertex's
-/// line, the circle's roots, an arc's ends, trimmed by distance so that
-/// no row compresses near an end — and an in-band margin there abandons
-/// that ray for the next, never the point (the soundness argument is
-/// at the ray loop of [`crate::splitting::containment::point_in_carrier_loop`]). What `disc_side` has over it is
-/// cost and immunity to a graze, and a schedule exhausted is reported,
-/// never guessed. The corpus-wide agreement of the two was measured
-/// once, by an instrument that did not land; what holds it now is
-/// `a_query_near_a_short_arcs_end_is_placed_not_escalated` (the shape
-/// where they once parted) and the disc-class rows here and in
-/// `topo_ring_nesting`.
+/// It is the walk `boolean::contfp` places a point on a face with, so
+/// check 9 and the census read one loop through one instrument. The
+/// one-circle class is held by
+/// `a_query_near_a_short_arcs_end_is_placed_not_escalated` and the
+/// disc-class rows here and in `topo_ring_nesting`.
 ///
 /// **What the walk cannot read**, and what that costs. An outer edge on
 /// a spiric or spline carrier has no crossing row: the walk answers
