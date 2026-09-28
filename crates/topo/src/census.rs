@@ -57,7 +57,7 @@
 //!   vertices all lie outside-or-on clearing only under the arm's
 //!   stated conditions (its header); what the backstop still refuses
 //!   there is a witness the door cannot answer, or a touch the local
-//!   cone analysis cannot certify. The extent gate clears only a pair
+//!   touch analysis cannot certify. The extent gate clears only a pair
 //!   with nothing on record between it and no outer shell of either
 //!   inside the other's reach; a pair that meets is probed and its
 //!   findings read, so half-overlapping cubes whose boundaries meet
@@ -2875,8 +2875,8 @@ pub(crate) enum Undecided {
     Crossing,
     /// Arm 2: an unexamined or escalated finding already stands.
     Unexamined,
-    /// Arm 2: a touch whose two material cones overlap — a crossing
-    /// at a lower-dimensional feature.
+    /// Arm 2: a touch where one material passes into the other — a
+    /// crossing at a lower-dimensional feature.
     MixedTouch,
     /// Arm 2: a touch whose analysis needed a sign in band.
     TouchInBand,
@@ -2987,10 +2987,11 @@ impl Undecided {
                  bounding boxes no longer overlap"
             }
             Self::TouchUnanalysed => {
-                "they touch at a corner that is neither convex nor concave (such as the \
-                 inner corner of an L), and the check cannot yet tell whether they overlap \
-                 there. There is no way through yet for a designed resting contact; \
-                 otherwise move them until their bounding boxes no longer overlap"
+                "they touch where the check cannot read the shape of one of them: a corner \
+                 that is neither convex nor concave (such as the inner corner of an L), or \
+                 a face that folds back on itself at the touch. It cannot yet tell whether \
+                 they overlap there. There is no way through yet for a designed resting \
+                 contact; otherwise move them until their bounding boxes no longer overlap"
             }
             Self::TouchDegenerate => {
                 "they touch where the check's readings of one's faces contradict each \
@@ -4412,11 +4413,12 @@ fn touch_verdict<T: Decide>(
 ///    **Why the clear is sound, on what premises, and what it does not
 ///    cover** is stated once, at the loop below. In short: the probe
 ///    finds any outer shell lying inside the other's material, and
-///    every finding about the pair must be a REST — the two materials'
-///    local cones at the touch point have disjoint interiors
-///    ([`touch_verdict`], the one analysis for every planar touch kind,
-///    [`TouchSite`]). What the analysis cannot certify refuses typed: a
-///    saddle corner neither of its tests separates, a sign in band, an
+///    every finding about the pair must be a REST — the two solids'
+///    stars at the touch point lie within ε of complementary sides of
+///    one plane ([`touch_verdict`], the one analysis for every planar
+///    touch kind, [`TouchSite`]). What the analysis cannot certify
+///    refuses typed: a saddle corner neither of its tests separates, a
+///    sign in band, an
 ///    escalation, and anything a curved face takes part in — arm 1
 ///    refuses a cross-solid pair with a curved side within reach BEFORE
 ///    this arm runs, which is a PRECONDITION of the clear for curved
@@ -5196,8 +5198,8 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             // argument; the module and arm docs point here.
             //
             // Let `U` be the overlap of the two interiors. Where the
-            // boundaries meet in a rest (the two cones there have
-            // disjoint interiors) no point of `U` is near, so if every
+            // boundaries meet in a rest no point of `U` is near (up to
+            // the tolerance below), so if every
             // meeting is a rest, `U`'s boundary splits into points of ∂A
             // inside B and points of ∂B inside A. Each part is open and
             // closed in its own boundary, so it is a union of whole
@@ -5231,6 +5233,29 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             // meeting is arm 1's to refuse first. A pair with nothing on
             // record clears at the gate even beside an escalation, which
             // stands as the body's refusal.
+            //
+            // **What a rest certifies, and so the tolerance of this
+            // argument** ([`touch_verdict`]). A rest reads each face of
+            // both stars through its piece at the touch point `p` — the
+            // part of the face visible from `p` — and certifies that
+            // every point of every piece lies within `zero` of its own
+            // side of one plane through `p` (or of the closure of the
+            // other star's convex complement). So:
+            // - within the ball about `p` that reaches the nearest
+            //   boundary of the pieces read, every point where one
+            //   material enters the other lies within `zero` of the
+            //   separating plane on its own side: a slab at most
+            //   2·`zero` thick, which is coincidence under D4, not
+            //   interference;
+            // - beyond that ball, an overlap deeper than the band is a
+            //   dip of some face below the other solid's boundary.
+            //   Signed distance is affine on a planar face, so the dip
+            //   shows at a vertex of that face, which the material test
+            //   probes, or where the dip's boundary crosses the other
+            //   solid's edges, which stands as a finding or an
+            //   escalation that `blocks` reads.
+            // "No point of `U` is near a rest" above holds in exactly
+            // that sense: `U` near a rest is confined to that slab.
             //
             // What it cannot see: a pair whose ONLY meetings are
             // declared. It is probed, and a declared v-on-f or v-v touch
@@ -5627,6 +5652,56 @@ mod tests {
             "the backstop writes a `what` inline; name an `Undecided` reason instead: \
              {sentences:#?}"
         );
+    }
+
+    /// **The touch analysis levers only its candidates** (S4 of
+    /// `CONTACT-7`'s design). Every sign the analysis decides as a
+    /// verdict is a vertex's signed distance from a plane, in metres;
+    /// a levered reading of directions decides a verdict right wherever
+    /// it is definite and wrong where its Zero is taken as one, which is
+    /// the class five review rounds found one site at a time. This reads
+    /// the analysis's section of this file (from its banner to the
+    /// backstop's header) for a `levered` door and allows exactly one,
+    /// inside [`touch_candidates`], where a Zero only skips a candidate.
+    ///
+    /// It reads the DOOR's name in code, not provenance: a lever spelled
+    /// as a bare product (`x * arm`) passes it, and so does a levered
+    /// reading reached through a call into another module
+    /// ([`geom_brep::classify_material_pairing_as`], whose two uses here
+    /// read a sign of magnitude about 1).
+    #[test]
+    fn the_touch_analysis_levers_only_its_candidates() {
+        use test_utils::source::{balanced_end, code_only};
+        let src = include_str!("census.rs");
+        let code = code_only(src);
+        let start = src
+            .find("// ---- The touch analysis: arm 2's clear, condition 3.")
+            .expect("the touch analysis's banner");
+        let end = start
+            + src[start..]
+                .find("\n/// **The conservative loudness backstop**")
+                .expect("the backstop's header after it");
+        let section = &code[start..end];
+        for anchor in ["\nfn touch_verdict", "\nfn face_piece", "\nmod rest", "\nimpl<T: Decide> Star<T>"] {
+            assert!(section.contains(anchor), "the section holds `{anchor}`");
+        }
+        let at = section
+            .find("\nfn touch_candidates")
+            .expect("the candidate generator");
+        let open = at + section[at..].find('{').expect("its body");
+        let close = balanced_end(section, open).expect("its closing brace");
+        let levers: Vec<usize> = section.match_indices("levered").map(|(i, _)| i).collect();
+        let outside: Vec<&str> = levers
+            .iter()
+            .filter(|&&i| !(open..close).contains(&i))
+            .map(|&i| section[i.saturating_sub(60)..(i + 20).min(section.len())].trim())
+            .collect();
+        assert!(
+            outside.is_empty(),
+            "a levered reading in the touch analysis outside its candidate generator: \
+             {outside:#?}"
+        );
+        assert_eq!(levers.len(), 1, "the candidate generator's one span reading");
     }
 
     /// Two overlapping opposed-sense wall sheets on one cylinder key.
@@ -7491,15 +7566,16 @@ mod tests {
         bracket_only
     }
 
-    /// **A long ray is read at its own length** (the dual review's
+    /// **A long edge is read at its far end** (the dual review's
     /// dipping-sliver probe). A corner rests on the bracket's wall
     /// `x = 1` with a 3 cm edge off the wall and a 0.8 m edge DIPPING
     /// into the bracket by `e` at its far end — 13 and 24 times the
-    /// zero threshold, past the escalation one. Levered at the corner's
-    /// shortest edge the dip would read `e · 0.03 / 0.8`, inside the
-    /// zero band, "on the wall", and the corner would read as a rest
-    /// over material it enters. Read at its own length the dip is
-    /// definite, and neither vertex-on-face touch is a rest.
+    /// zero threshold, past the escalation one. Read as a direction at
+    /// the corner's shortest edge the dip would be `e · 0.03 / 0.8`,
+    /// inside the zero band, "on the wall", and the corner would read as
+    /// a rest over material it enters. Read as the far end's distance
+    /// from the wall the dip is definite, and neither vertex-on-face
+    /// touch is a rest.
     #[test]
     fn a_long_ray_dipping_into_the_other_is_never_a_rest() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -7549,9 +7625,177 @@ mod tests {
         assert!(vf.iter().all(|&v| v == TouchVerdict::InBand), "{vf:?}");
     }
 
-    // ---- The lever rule, pinned per lever (each row goes red if its
-    // lever is read at a chord instead of its face's lever), and the
+    // ---- Far dips, pinned per site where a direction read at a short
+    // chord once hid them (each row goes red if a face is read through
+    // the directions at the touch instead of its piece's vertices), and the
     // cost direction (ordinary rests stay rests).
+
+    /// The placement findings of `body`: every solid-pair refusal and
+    /// interference, rendered.
+    fn placements_of(body: &Body<f64>) -> Vec<String> {
+        crate::validate_pseudomanifold(body, &ContactRecords::default(), Tol::witness())
+            .err()
+            .unwrap_or_default()
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(_),
+                        ..
+                    } | ValidationError::InstanceInterference { .. }
+                )
+            })
+            .map(|e| format!("{e:?}"))
+            .collect()
+    }
+
+    /// The piece's points of the face of `v`'s star whose outward
+    /// normal is `m`.
+    fn piece_at(body: &Body<f64>, v: VertexKey, m: Vec3<f64>) -> Vec<Point3<f64>> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let geo = snapshot(body);
+        let star = Star::vertex(body, &geo, v, band).expect("a planar corner");
+        let face = star
+            .faces
+            .iter()
+            .find(|f| (f.outward - m).norm() < 1e-9)
+            .expect("the face");
+        face.piece.iter().map(|&i| star.verts[i]).collect()
+    }
+
+    /// **A notched bracket rests against the wall, read through its
+    /// piece.** The L-bracket with a notch cut into its leg's end,
+    /// `[0.4, 0.6] × [2.6, 3]`, a block standing against its inner wall
+    /// `x = 1` as in `contact1_touch_cones`. At the leg's corner `(1, 3)`
+    /// the bottom face reaches back across the wall plane `x = 1` (its
+    /// foot runs to `x = 3`) and behind the notch; its piece there holds
+    /// neither — not the foot's far corner, not the corner `(0, 3)` the
+    /// notch shadows — and lies on the bracket's side of the wall. Every
+    /// touch is a rest and the pair clears. Read whole, the face refused
+    /// it.
+    #[test]
+    fn a_notched_bracket_rests_against_the_wall() {
+        let tol = Tol::witness();
+        const NOTCHED: [(f64, f64); 10] = [
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 3.0),
+            (0.6, 3.0),
+            (0.6, 2.6),
+            (0.4, 2.6),
+            (0.4, 3.0),
+            (0.0, 3.0),
+        ];
+        let mut body = crate::test_support_fixtures::prism_z::<f64>(&NOTCHED, 0.0, 1.0, tol).body;
+        let part = crate::test_support_fixtures::brick::<f64>((1.0, 2.5), (1.2, 3.0), (0.0, 1.0), tol);
+        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        let corner = body
+            .vertices
+            .iter()
+            .filter(|(_, v)| (body.points[v.point] - Point3::new(1.0, 3.0, 0.0)).norm() < 1e-9)
+            .map(|(k, _)| k)
+            .find(|&k| {
+                geo_faces(&body, k)
+                    .iter()
+                    .any(|&m| (m - Vec3::new(1.0, 0.0, 0.0)).norm() < 1e-9)
+            })
+            .expect("the bracket's corner");
+        let piece = piece_at(&body, corner, Vec3::new(0.0, 0.0, -1.0));
+        assert!(piece.iter().all(|q| q.x <= 1.0 + 1e-9), "{piece:?}");
+        for hidden in [Point3::new(3.0, 0.0, 0.0), Point3::new(0.0, 3.0, 0.0)] {
+            assert!(
+                piece.iter().all(|&q| (q - hidden).norm() > 1e-9),
+                "{hidden:?} is not seen from the corner: {piece:?}"
+            );
+        }
+        let got = sites(&body);
+        assert!(!got.is_empty());
+        assert!(got.iter().all(|&(_, t)| t.is_rest()), "{got:?}");
+        assert_eq!(placements_of(&body), Vec::<String>::new());
+    }
+
+    /// The outward normals of the faces around vertex `v`.
+    fn geo_faces(body: &Body<f64>, v: VertexKey) -> Vec<Vec3<f64>> {
+        snapshot(body)
+            .vertex_faces
+            .get(&v)
+            .into_iter()
+            .flatten()
+            .filter_map(|&f| crate::face_normal::face_outward_normal(body, f))
+            .map(|m| m.vec())
+            .collect()
+    }
+
+    /// **A holed block rests beside a brick, read through its piece.**
+    /// A block `[0, 4] × [0, 2] × [0, 2]` drilled through by the square
+    /// `[1.5, 2.5] × [0.5, 1.5]`, a brick standing flush against its
+    /// face `x = 0`. At the corner `(0, 0, 2)` the top face's piece
+    /// stops at the hole: the far corner `(4, 2, 2)`, straight behind
+    /// the hole's centre, is not in it, and the hole's corners cast
+    /// windows onto the face's far edges. Every touch is a rest and the
+    /// pair clears.
+    #[test]
+    fn a_holed_block_rests_beside_a_brick() {
+        let tol = Tol::witness();
+        let mut body = crate::test_support_fixtures::holed_block::<f64>(4.0, &[2.0], tol);
+        crate::test_support_fixtures::describe_as_intersections(&mut body, tol);
+        let part = crate::test_support_fixtures::brick::<f64>((-1.0, 0.0), (0.0, 2.0), (0.0, 2.0), tol);
+        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        let corner = body
+            .vertices
+            .iter()
+            .filter(|(_, v)| (body.points[v.point] - Point3::new(0.0, 0.0, 2.0)).norm() < 1e-9)
+            .map(|(k, _)| k)
+            .find(|&k| {
+                geo_faces(&body, k)
+                    .iter()
+                    .any(|&m| (m - Vec3::new(-1.0, 0.0, 0.0)).norm() < 1e-9)
+            })
+            .expect("the holed block's corner");
+        let piece = piece_at(&body, corner, Vec3::new(0.0, 0.0, 1.0));
+        assert!(
+            piece.iter().all(|&q| (q - Point3::new(4.0, 2.0, 2.0)).norm() > 1e-9),
+            "the far corner is behind the hole: {piece:?}"
+        );
+        assert!(
+            piece
+                .iter()
+                .any(|q| (q.x - 4.0).abs() < 1e-9 && q.y > 1e-9 && q.y < 2.0 - 1e-9),
+            "a window on the far edge: {piece:?}"
+        );
+        let got = sites(&body);
+        assert!(!got.is_empty());
+        assert!(got.iter().all(|&(_, t)| t.is_rest()), "{got:?}");
+        assert_eq!(placements_of(&body), Vec::<String>::new());
+    }
+
+    /// **A wall rest off by a band width never rests.** The block
+    /// standing against the bracket's wall, its face on the wall turned
+    /// about its vertical edge at `y = 1.2` so its far corners stand off the wall
+    /// (or into it) by the geometric mean of the band's two thresholds:
+    /// the exact separating plane, `x = 1`, is read in band at those
+    /// corners. The bracket's bottom and top faces reach back across
+    /// that plane. No touch reads as a rest and the pair does not
+    /// clear.
+    #[test]
+    fn a_wall_rest_off_by_a_band_width_never_rests() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let e = (band.zero() * band.escalate()).sqrt();
+        for e in [e, -e] {
+            let body = bracket_and_corner(
+                [1.0, 1.2, 0.0],
+                [1.5, 0.0, 0.0],
+                [e, 1.8, 0.0],
+                [0.0, 0.0, 1.0],
+            );
+            let got = sites(&body);
+            assert!(got.iter().all(|&(_, t)| !t.is_rest()), "{e}: {got:?}");
+            assert!(!placements_of(&body).is_empty(), "{e}: cleared");
+        }
+    }
 
     /// A prism over `profile`, `z` its extrusion, through `map`, into
     /// `body` (a new solid).
@@ -7600,16 +7844,16 @@ mod tests {
             .collect()
     }
 
-    /// **A sector bisector is levered at its face** (the delta review's
-    /// P1). An L-plate, 0.8 m square less a 3 cm notch, rests its
+    /// **A reflex notch is read at its face's far corner** (the delta
+    /// review's P1). An L-plate, 0.8 m square less a 3 cm notch, rests its
     /// reflex notch vertex on the floor; its bottom face is sheared so
     /// the far corner, about 1.09 m from the notch, dips below the floor
     /// by 2 to 24 times the zero threshold. The notch's chords are 3 cm,
-    /// and read at those the dip is a fraction of the band — "on the
-    /// floor". Read at the bottom face's lever it is not, and no touch
-    /// reads as a rest.
+    /// and read as directions at those the dip is a fraction of the band
+    /// — "on the floor". The bottom face's piece at the notch holds the
+    /// far corner, whose distance is not, and no touch reads as a rest.
     #[test]
-    fn a_bisector_is_levered_at_its_face() {
+    fn a_reflex_notch_dipping_far_off_is_never_a_rest() {
         let band = Band::linear(Tol::witness()).unwrap();
         let (s, n) = (0.8, 0.03);
         let prof = [
@@ -7638,12 +7882,12 @@ mod tests {
         }
     }
 
-    /// **A convex corner's rays are levered at their faces** (the delta
+    /// **A convex corner is read at its faces' far vertices** (the delta
     /// review's P5). A plate's 90° tip, 3 cm chords, rests on the floor;
     /// the plate runs 1 m back and its bottom dips toward the back by
     /// 5 to 24 times the zero threshold. No touch reads as a rest.
     #[test]
-    fn a_convex_corner_is_levered_at_its_faces() {
+    fn a_convex_corner_dipping_far_off_is_never_a_rest() {
         let band = Band::linear(Tol::witness()).unwrap();
         let prof = [
             (1.0, 0.5),
@@ -7668,14 +7912,14 @@ mod tests {
         }
     }
 
-    /// **A wedge's in-face ray is levered at its face.** A plate's 3 cm
-    /// front edge lies in the floor; the plate runs 1 m back and its
-    /// bottom dips toward the back by 13 and 24 times the zero
-    /// threshold. Read at the edge's 3 cm the bottom face's in-face ray
-    /// is on the floor; read at the face's lever it dips, and the
-    /// edge-in-face touch is not a rest.
+    /// **An edge in a face is read at its faces' far vertices.** A
+    /// plate's 3 cm front edge lies in the floor; the plate runs 1 m back
+    /// and its bottom dips toward the back by 13 and 24 times the zero
+    /// threshold. Read as a direction at the edge's 3 cm the bottom
+    /// face's in-face direction is on the floor; its piece's far vertices
+    /// dip, and the edge-in-face touch is not a rest.
     #[test]
-    fn a_wedge_in_face_ray_is_levered_at_its_face() {
+    fn an_edge_in_a_face_dipping_far_off_is_never_a_rest() {
         let band = Band::linear(Tol::witness()).unwrap();
         let prof = [(1.0, 0.485), (1.0, 0.515), (0.0, 1.0), (0.0, 0.0)];
         for times in [13.0, 24.0] {
@@ -7922,12 +8166,12 @@ mod tests {
 
     type Pose = (Vec<(f64, f64)>, (f64, f64), fn(f64, f64, f64) -> [f64; 3]);
 
-    /// **Ordinary rests stay rests under the strict levers** (the delta
-    /// review's battery — the cost direction). Each pose, under the
+    /// **Ordinary rests stay rests** (the delta review's battery — the
+    /// cost direction). Each pose, under the
     /// identity and two generic rotations, reads a rest at every touch
     /// site and carries no finding but the undeclared touches.
     #[test]
-    fn ordinary_rests_stay_rests_under_the_face_levers() {
+    fn ordinary_rests_stay_rests() {
         const L: [(f64, f64); 6] = [
             (0.0, 0.0),
             (3.0, 0.0),
@@ -8302,16 +8546,16 @@ mod tests {
         );
     }
 
-    /// **A ray is read at the larger of its two faces' levers.** A
+    /// **A tip tilted about one chord is read at its long face.** A
     /// plate's 90° tip, 3 cm chords, rests on the floor; the bottom face
-    /// is tilted about ONE chord, so only the other chord ray carries
-    /// the dip, 12 times the zero threshold per metre. That ray bounds
-    /// the long bottom face (lever about 1.1 m: decidedly below the
-    /// floor) and a short side face (lever about 5 cm: on the floor);
-    /// read at the side face's lever alone, the tip reads as a rest. Both chords are tried, so whichever of the ray's two
-    /// pieces the chain lists first, the tip is not a rest.
+    /// is tilted about ONE chord, so only the other chord carries the
+    /// dip, 12 times the zero threshold per metre. That chord bounds the
+    /// long bottom face (its far vertices about 1.1 m off: decidedly
+    /// below the floor) and a short side face (about 5 cm: on the
+    /// floor); read at the short side alone, the tip reads as a rest.
+    /// Both chords are tried, and the tip is not a rest either way.
     #[test]
-    fn a_ray_is_read_at_the_larger_of_its_faces() {
+    fn a_tip_tilted_about_one_chord_is_never_a_rest() {
         let band = Band::linear(Tol::witness()).unwrap();
         let phi = 12.0 * band.zero();
         let prof = [

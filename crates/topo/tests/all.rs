@@ -81,6 +81,8 @@ mod cone_apex_cap_body;
 mod contact1_touch_cones;
 #[path = "contact5_gate_and_beam.rs"]
 mod contact5_gate_and_beam;
+#[path = "contact7_touch_sweeps.rs"]
+mod contact7_touch_sweeps;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
