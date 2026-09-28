@@ -978,3 +978,14 @@ class of 65 sites is PRED's row.
   - This answers CHORD's `C23`. After merge I will note it on C23 and the CHORD log and leave the close to CHORD.
   - Filed `domain-uniform-refinement-grid-is-spelled-three-times` (P4/E).
   - Style review dispatched.
+- 2026-09-28 — The PR 3338 style review came back APPROVE-WITH-FIXES.
+  - Bits verified by argument: one plan per point, and no dropped-plan path.
+  - Constants ruling supported by history.
+  - Fixes taken:
+    - patch_bound's "what it prices" drops `mesh::chords`' rational carrier bound, which db570b6835 named and 652f32319c lost;
+    - two wraps;
+    - the filed row gains `knot_aligned_cuts` as a fourth spelling with the sliver-guard precedent, and the control-count cut-off difference;
+    - `equal_split_plan`'s doc states a rule it does not compute.
+  - Declined: the rename and an accessor nit.
+  - C23 is mine to note at merge.
+  - Fix pass sent back to the lane.
