@@ -127,8 +127,7 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 /// two grafts of one source produce two disjoint key ranges. Validity
 /// remains the caller's to establish — this is a raw transplant, and a
 /// multi-solid source's solids are gated by the same at-rest validator
-/// as any other body's: each part on its own when
-/// [`per_part_gate_owed`] says so, then the aggregate.
+/// as any other body's.
 ///
 /// # Errors
 ///
@@ -174,26 +173,20 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 /// geometry. It is skipped as an IDENTITY, never as an exemption: the
 /// aggregate gate still runs, on that same solid.
 ///
-/// **The count is over the aggregate's SOLIDS**, and the two callers
-/// do not mean the same thing by a part:
+/// **The count is over the aggregate's SOLIDS.** Its caller,
+/// `step_import::import_step`, gates each placed instance, which is one
+/// solid, with tier 3; its aggregate gate is tier 3′, the
+/// declared-contact census, which is where the cross-part structure is
+/// checked. Its instance count IS its solid count, and it says why at
+/// the call. A caller that counts something else owes the reason its
+/// count IS the solid count, at the call.
 ///
-/// - `step_import::import_step` gates each placed instance, which is one
-///   solid, with tier 3; its aggregate gate is tier 3′, the
-///   declared-contact census, which is where the cross-part structure
-///   is checked. Its instance count IS its solid count, and it says why
-///   at the call.
-/// - `editor_core::product_recorded` gates each SOURCE body whole, and a
-///   source may carry several solids; its aggregate gate is tier 3,
-///   with the cross-part census left to the assembly gate above it. So
-///   a lone source of several solids is gated twice on the same
-///   geometry, as a part and as the aggregate. Whether that caller
-///   should count its sources instead is an open question
-///   (`work/gather/product-per-part-gate-counts-solids-but-gates-sources.md`).
+/// `editor_core::product_recorded` does not ask: it gates its aggregate
+/// once and re-gates each source only to attribute a refusal.
 ///
-/// A caller that counts something else owes the reason its count IS
-/// the solid count, at the call. The two callers above are held to
-/// consulting this function by a source-reading guard in each crate
-/// (`tests/per_part_gate_policy.rs`); a new caller is held to it by
+/// The caller above is held to consulting this function by a
+/// source-reading guard (`step-import`'s
+/// `tests/per_part_gate_policy.rs`); a new caller is held to it by
 /// convention only.
 #[must_use]
 pub const fn per_part_gate_owed(aggregate_solids: usize) -> bool {

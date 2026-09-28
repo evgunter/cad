@@ -2011,7 +2011,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
         E::Graft { .. } => "graft_refused",
-        E::SolidInvalid { .. } => "solid_invalid",
+        E::RootInvalid { .. } => "root_invalid",
         E::ProductInvalid { .. } => "product_invalid",
         E::Naming { .. } => "product_naming",
         E::ContactLineage { .. } => "contact_lineage",

@@ -1238,6 +1238,10 @@ BOUND_AS = {
     "ProfilePieces": "Doc.pieces",
     "PlacementRuleFault": "EditError.variant",
     "RootFault": "EditError.variant",
+    # What a `RootInvalid` refusal lists, one per failing source body;
+    # the arm crosses as its tag word, its first failing root as
+    # `node`, and every root, output and finding in its message.
+    "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
@@ -3434,7 +3438,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::RootPoisoned": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::SolidInvalid": "ProductError.variant",
+    "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ReadbackError::Dangling": "ReadbackError.variant",
