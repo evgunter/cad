@@ -21,7 +21,7 @@
 //!
 //! Every row NAMES its property in the assertion message, because the
 //! rows share their expensive fixture (the aggregation rule in
-//! `memories/test-suite-cost.md`): `IDENTITY`, `ONE CERTIFICATE`,
+//! implementer-discipline §8): `IDENTITY`, `ONE CERTIFICATE`,
 //! `ONE READ PER FACE`, `ROUND SPLIT`, `PLANTED`, `CONTINUATION BRACKET`.
 //!
 //! # ε, and why the fixture is ε-SCALED
@@ -247,7 +247,7 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 ///
 /// One body, one build, both properties on it: nextest is
 /// process-per-test, so a second row here would rebuild this prism and
-/// re-run its quadrature in full (`memories/test-suite-cost.md`).
+/// re-run its quadrature in full (implementer-discipline §8).
 /// Every assertion therefore NAMES its property — `IDENTITY`,
 /// `ONE CERTIFICATE` — so the message alone says which one broke.
 ///
@@ -634,7 +634,7 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
 /// **That a refusing arm returns no certificate.** The return type
 /// carries it: `Result<SignCertificate<'_, T>, Vec<ValidationError>>` has no
 /// arm that is both an `Err` and a certificate, so asserting it is a
-/// codomain assertion — a deletion, in `memories/test-suite-cost.md`'s
+/// codomain assertion — a deletion, in reviewer-style-lane's
 /// terms. The claim survives where it is a claim: in the type, and in
 /// `validate_geometric_certificate`'s doc.
 #[test]

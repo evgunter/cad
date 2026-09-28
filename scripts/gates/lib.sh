@@ -1,21 +1,9 @@
 #!/usr/bin/env bash
-# lib.sh — shared plumbing for the mirrored discipline gates.
+# lib.sh — shared plumbing for the discipline gates.
 #
-# THE INVARIANT: every gate in this directory has exactly ONE home, and
-# both halves of CI call it — `.github/workflows/ci.yml`'s `discipline`
-# job (one step per gate, keeping the step name the Actions UI shows)
-# and `local-scripts/ci-local.sh`'s `discipline` row. A gate implemented
-# twice drifts: the dual-maintained allowlists produced live drift in
-# BOTH directions (a `separation.rs` entry hosted-only, a
-# `test_support.rs` paragraph stale locally, a `chart_region.rs` entry
-# hosted-only before that), and two gates existed hosted-only with no
-# local mirror at all.
-#
-# Sharing the BODIES is only half of that. The two halves still each
-# name which gates to run, so `gate-roster.sh` closes the other half:
-# it derives the roster from this directory and fails if either half
-# runs a different set. Between them, neither the gate logic nor the
-# gate list is maintained twice.
+# THE INVARIANT: every gate in this directory has exactly ONE home.
+# `.github/workflows/ci.yml`'s `lint` job runs every `*.sh` here except
+# this file, so the roster is the directory and is written nowhere else.
 #
 # WHY `scripts/` AND NOT `local-scripts/`: every workflow job runs
 # `rm -rf local-scripts` right after checkout, so hosted CI cannot read
@@ -25,8 +13,7 @@
 #
 # Each gate script takes `--root DIR` (the tree to scan; default is this
 # repo) and `--selftest` (assert the gate passes a clean fixture and
-# fires on a planted one, then exit). Both halves run `--selftest`
-# before the real pass, the way the sibling python gates do.
+# fires on a planted one, then exit).
 
 # Repo root, derived from this file's location (scripts/gates/lib.sh).
 GATE_REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -1571,11 +1558,9 @@ gate_plant_clean() { gate_plant_clean_sources "$1"; }
 # self-tests passed and none of them could observe it.
 #
 # Running the gate the way CI runs it — a subprocess, through `--root` —
-# makes a diagnosis lost to errexit FAIL the self-test instead. Written
-# by lane F-f in `gate-roster.sh` to be lifted here; lifted with one
-# change, which is that it replaced `gate_selftest_case` rather than
-# sitting beside it. A second helper would have left the blind path in
-# place for the other thirteen gates, which is the finding, not the fix.
+# makes a diagnosis lost to errexit FAIL the self-test instead. It
+# replaces `gate_selftest_case` rather than sitting beside it: a second
+# helper would leave the blind path in place for the other gates.
 #
 # gate_selftest_assert_diagnosed is the second half and it is not
 # cosmetic: `$want` alone can be satisfied by a gate that PRINTS its hit
@@ -1697,10 +1682,9 @@ win.rs:4: }" ]; then
        exit 1 ;;
   esac
   # `gate_main`'s OWN no-self-test guard, and the fixture is not a gate
-  # in this directory. The guard was recorded as unreachable on the
-  # argument that every gate defines a `gate_selftest` and one that did
-  # not would red `gate-roster.sh` — which is an argument about the
-  # DIRECTORY, not about the guard. The guard's subject is anything that
+  # in this directory. Every gate here defines a `gate_selftest`, but
+  # that is a fact about the DIRECTORY, not about the guard. The guard's
+  # subject is anything that
   # sources this file, so six lines of scratch reach it: a `gate`, a
   # `gate_parse_args`, a `gate_main`, and no `gate_selftest`. Written
   # here rather than in one gate because the guard is this file's, so

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # signed-zero-one-home.sh — the negative-zero flush has exactly ONE
-# home. ONE home for the gate too; ci.yml's "signed-zero one home" step
-# and local-scripts/ci-local.sh's discipline row both call this file.
+# home. ONE home for the gate too; ci.yml's `lint` job runs every gate in this directory.
 #
 # `crates/step-import/src/signed_zero.rs` asserts, in its own module
 # doc, that it is the importer's only flush of `-0.0` to `+0.0`. That

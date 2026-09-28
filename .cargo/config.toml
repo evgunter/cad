@@ -8,8 +8,8 @@
 # 2026-09-26: disk on the agents' boxes is the binding constraint). Full
 # DWARF across the aggregated test binaries costs many gigabytes per
 # target dir; line tables keep file:line in backtraces, which is what a
-# failing row is read by. Hosted CI and local-scripts/ci-local.sh already
-# set CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only, and an environment
+# failing row is read by. Hosted CI already sets
+# CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only, and an environment
 # variable still wins over this file, so a debugger session asks for
 # more with CARGO_PROFILE_DEV_DEBUG=full. This file is read for any cargo
 # invoked under the repo, so it also covers the separately rooted

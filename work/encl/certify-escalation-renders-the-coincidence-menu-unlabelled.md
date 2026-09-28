@@ -6,7 +6,6 @@ status: review
 opened: 2026-09-28
 priority: P3
 cost: E
-needs_ev: true
 ---
 
 (ENCL implementer, from the §5 sweep of

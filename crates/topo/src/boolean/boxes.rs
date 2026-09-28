@@ -30,9 +30,10 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **two** of the six doors that read a box from
-//! here; at the other four, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL:
+//! PRUNES. That is **two** of the seven doors that read a box from
+//! here; at four of the other five, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the fifth it is more
+//! exact work:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
@@ -55,6 +56,14 @@
 //!   ball's certified extent CLEARS the face's box, so a bigger box
 //!   turns a separated cyl×sphere pair into
 //!   `FallbackExtentUnsupported`.
+//! - `boolean::ops`'s section certificate (`section_pairs`, on both
+//!   paths) EXAMINES every pair whose two face boxes overlap and
+//!   levers its angular margins by the overlap's diagonal. A bigger
+//!   box sends a separated pair through the exact classification,
+//!   which certifies it apart, and lengthens the lever, which only
+//!   pushes a tilt margin off `Zero` — onto the exact tilted arm or a
+//!   refusal on reach, never onto a parallel reading. A box tighter
+//!   than its face would be the unsound direction.
 //! - `census`'s arm 2 clears an instance pair at its gate on a
 //!   definitely negative margin against a CONTAINING box and sends
 //!   every other pair to the material test, so over-width would cost
@@ -65,10 +74,10 @@
 //!   (`bool4r1_probes::probe_d`).
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The six are not
+//! about a door, and the door has to be named. The seven are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! a seventh door cannot land unargued. **It pins WHERE the doors are
+//! an eighth door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.

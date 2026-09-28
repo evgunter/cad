@@ -25,7 +25,7 @@
 //! silent finite zero through the guided lift (the spec's "never silent
 //! zeros" valve, absent).
 //!
-//! Sweep shape (`memories/test-suite-cost.md`): nothing here samples —
+//! Sweep shape (implementer-discipline §8): nothing here samples —
 //! every row is a witness that can be written down, so all are static
 //! fixtures and no seed appears. Rows whose doc comment says
 //! EVIDENCE-ONLY print or assert a documented behaviour and gate
