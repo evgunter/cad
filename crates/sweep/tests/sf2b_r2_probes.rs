@@ -166,7 +166,7 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
         let faces = cone_faces(&body);
         for signed in [-T, T] {
             let mut work = body.clone();
-            match topo::replace_faces_offset(&mut work, &faces, signed, band(), tol) {
+            match topo::replace_faces_offset(&mut work, &faces, signed, tol) {
                 Ok(()) => panic!(
                     "[r2] per-chart {what} d={signed}: BUILT — the caps' gate stopped standing \
                      in front of the cone chart, which is the measurement this row carries"

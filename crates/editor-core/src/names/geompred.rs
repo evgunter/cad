@@ -529,3 +529,113 @@ pub(crate) fn candidate_matches<T: Decide>(
     }
     Ok(true)
 }
+
+/// **`SelectRefusal`'s variant census**, sited inside the crate
+/// because `#[non_exhaustive]` binds only outside it: here the
+/// census's `match` is wildcard-free and rustc checks it, so a variant
+/// added to the enum stops this crate's test build until it is named
+/// in `CENSUS`. That list is the roster too, and the
+/// test below holds one sample per entry, so the new name is then
+/// declared with no sample and the test reports it.
+///
+/// `tests/display_contract.rs` cannot hold this guarantee (its `match`
+/// must carry a wildcard) and does not need to see this one: its own
+/// roster is welded to its rendering cases there.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod census {
+    use std::collections::BTreeSet;
+
+    use super::*;
+    use crate::names::{CapEnd, EntityKind, RoleSeg};
+
+    test_utils::f6_variants! {
+        /// Every `SelectRefusal` variant, as the wildcard-free `match`
+        /// and the roster at once.
+        pub(super) const CENSUS: SelectRefusal = [
+            InBand,
+            TiedDisagrees,
+            Unreadable,
+            NotADatum,
+            NotALength,
+            PairInBand,
+            BadValue,
+            Band,
+        ];
+    }
+
+    fn name() -> Box<StableName> {
+        Box::new(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(7),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        })
+    }
+
+    fn in_band() -> geom_core::Indeterminate {
+        geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Value(3e-11),
+            band: Band::new(1e-12, 1e-9).expect("zero < escalate"),
+            predicate: Some(SEL_DATUM_DISTANCE),
+        }
+    }
+
+    #[test]
+    fn one_sample_per_variant_each_under_its_own_identifier() {
+        let samples = [
+            SelectRefusal::InBand {
+                name: name(),
+                predicate: SEL_DATUM_DISTANCE,
+                source: in_band(),
+            },
+            SelectRefusal::TiedDisagrees {
+                name: name(),
+                matched: 1,
+                candidates: 3,
+            },
+            SelectRefusal::Unreadable {
+                name: name(),
+                error: InterrogateError::WholeBody,
+            },
+            SelectRefusal::NotADatum {
+                datum: RecipeNodeId(9),
+                found: "a body",
+            },
+            SelectRefusal::NotALength {
+                dim: Dimension::Angle,
+            },
+            SelectRefusal::PairInBand {
+                pair: Box::new((*name(), *name())),
+                predicate: "bool_plane_side_of",
+                source: in_band(),
+            },
+            SelectRefusal::BadValue(crate::expr::EvalError::ContinuousExprInCountEval {
+                found: Dimension::Length,
+            }),
+            SelectRefusal::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
+        ];
+        let read: Vec<String> = samples
+            .iter()
+            .map(test_utils::f6::variant_identifier)
+            .collect();
+        let read: Vec<&str> = read.iter().map(String::as_str).collect();
+        let distinct: BTreeSet<&str> = read.iter().copied().collect();
+        assert_eq!(
+            distinct.len(),
+            read.len(),
+            "two samples are one variant: {read:?}"
+        );
+        if let Some(report) = test_utils::census::set_difference(
+            CENSUS.identifiers(),
+            &read,
+            "the `SelectRefusal` census and its samples disagree",
+            "sampled here and absent from `CENSUS`",
+            "in `CENSUS` with no sample here — add one",
+        ) {
+            panic!("{report}");
+        }
+    }
+}
