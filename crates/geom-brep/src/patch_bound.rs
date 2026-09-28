@@ -97,15 +97,20 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::Interval;
-use geom_core::spline::algebra::equal_split_points;
+use geom_core::spline::algebra::{equal_split_plan, equal_split_points};
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
 /// the per-cell assembly. A CONSTANT (D9: structure, never a
-/// data-dependent iteration) — the `RATIONAL_METER_SPLITS = 16`
-/// precedent of `geom::curves`' rational speed meter, mirrored. Knot
+/// data-dependent iteration), and this arm's own: `geom::curves`'
+/// rational speed meter refines by a count of the same value, but that
+/// count prices one curve bound against the refusal frontier its own
+/// tests pin, while this one prices the per-cell partial hulls every
+/// [`patch_cells`] consumer reads (against the insertion rounding
+/// below), and `mesh::chords`' rational carrier `sup‖C″‖` bound
+/// through [`rational_split_points`]. Neither follows the other. Knot
 /// insertion is evaluation-invariant in ℝ, so it changes no geometry;
 /// it only shrinks every hull the bound is assembled from, which is
 /// what keeps the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized.
@@ -323,11 +328,10 @@ pub fn patch_cells_refined(
 }
 
 /// The refinement schedule of one direction and the knot vector it
-/// lands on: the plan chain that cuts every nonempty span into `splits`
-/// equal pieces, built from STRUCTURE alone
-/// ([`geom_core::spline::algebra::refine_plan_homogeneous`] — the
-/// homogeneous nets this module refines are polynomial, so their weights
-/// are unit).
+/// lands on: [`geom_core::spline::algebra::equal_split_plan`], the plan
+/// chain that cuts every nonempty span into `splits` equal pieces,
+/// built from STRUCTURE alone (the homogeneous nets this module refines
+/// are polynomial, so their weights are unit).
 ///
 /// One schedule, two arithmetics: this is the same plan the `f64`
 /// surface refinement applies through
@@ -344,9 +348,7 @@ fn refine_chain(
     kv: &KnotVector,
     splits: usize,
 ) -> Result<(KnotVector, Vec<CurvePlan>), PatchBoundError> {
-    let plans =
-        geom_core::spline::algebra::refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
-            .map_err(|_| PatchBoundError::RefinementFailed)?;
+    let plans = equal_split_plan(kv, splits).map_err(|_| PatchBoundError::RefinementFailed)?;
     let refined = plans
         .last()
         .map_or_else(|| kv.clone(), |p| p.knots().clone());
