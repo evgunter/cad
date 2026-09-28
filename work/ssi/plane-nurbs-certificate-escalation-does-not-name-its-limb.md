@@ -25,6 +25,18 @@ decision, so the tube's undecided margin should instead name its own
 lever and the tolerance below `m/K`, and a routing by predicate name
 is not allowed.
 
+A second source lands on the same variant. The lane's poisoned-aggregate
+guard (`plane_nurbs_transversality_reported`,
+`geom_core::k_stats::gate_measured` in `plane_nurbs_limbs`,
+`crates/geom-brep/src/edge_nurbs.rs` ~:387) maps a NaN minimum sine to
+`PlaneNurbsRefusal::Escalated`, so certification reports it as
+`PlaneNurbsCertificate` and ends it in the last resort, "loosen the
+tolerance". Every per-sample transversality has already decided
+Positive by then, so no geometry and no tolerance reaches it: a poison
+that survives the fold is a kernel defect, and should end in the
+kernel-defect ending. It needs its own arm (or the limb, as below) for
+the routing to see that.
+
 ## Repair shape
 
 Carry the limb on the certificate's escalation
