@@ -99,7 +99,13 @@
 //! The C5 table is the boundary: an intrinsic description whose pair
 //! `(new kind, neighbour kind)` has no route arm cannot be re-stated,
 //! and the door refuses naming the pair rather than storing a
-//! description nothing can certify. `Approx × anything` has no arm, so a
+//! description nothing can certify. A pair that routes is then asked
+//! about its POSE (`geom_brep::route_pose`): the arms are
+//! configuration-scoped, and an offset can carry the moved surface out
+//! of the configuration its arm serves — a wedge cap through a cone's
+//! apex, moved off it, cuts a hyperbola — so the door refuses that
+//! pose by the arm's own grounds rather than admitting it on the kind
+//! pair's. `Approx × anything` has no arm, so a
 //! fitted face's intrinsically-described boundary is exactly where this
 //! door stops.
 //!
@@ -274,6 +280,27 @@ pub enum ReplaceFaceError<T: Real> {
         kind: SurfaceKind,
         /// The untouched neighbour's kind.
         other_kind: SurfaceKind,
+    },
+    /// **The C5 boundary, asked about the POSE.** The pair has a route
+    /// arm, but that arm is configuration-scoped and the moved surface
+    /// stands against its untouched neighbour in a pose the arm does
+    /// not serve — an offset wedge cap no longer through a cone's apex
+    /// or a torus's axis, say — so the edge cannot be re-stated as an
+    /// intersection of the two either.
+    NeighborPoseUnroutable {
+        /// The edge that cannot be re-described.
+        edge: EdgeKey,
+        /// The replaced face's new surface kind.
+        kind: SurfaceKind,
+        /// The untouched neighbour's kind.
+        other_kind: SurfaceKind,
+        /// Why the pose is not served: the arm's own refusal text
+        /// where it gave one (a general-rung routing, an operand guard
+        /// that fired before the pose was classified), and
+        /// `route_pose`'s statement where the arm's refusal carries no
+        /// text (unequal cylinder radii, a torus off its ring
+        /// convention).
+        why: &'static str,
     },
     /// **The bounded-chart boundary.** A fitted chart covers exactly
     /// its own parameter window, so a boundary edge it does not carry
@@ -600,6 +627,19 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "replace_face_offset: {edge:?} cannot be re-described — {}",
                 geom_brep::intersect::route(*kind, *other_kind).refusal(*kind, *other_kind)
+            ),
+            Self::NeighborPoseUnroutable {
+                edge,
+                kind,
+                other_kind,
+                why,
+            } => write!(
+                f,
+                "replace_face_offset: {edge:?} cannot be re-described — the moved {} stands \
+                 against its {} neighbour in a pose the pair's closed form does not cover: \
+                 {why}",
+                kind.name(),
+                other_kind.name()
             ),
             Self::FittedBoundaryUnsupported { edge, what } => write!(
                 f,
@@ -1367,6 +1407,7 @@ fn mint_offset<T: Decide>(
             None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
             Some(lane) => lane
                 .mint(Arc::clone(base), d, tol)
+                .map(Surface::Approx)
                 .map_err(|error| ReplaceFaceError::Fit { face, error }),
         };
     }
@@ -1375,6 +1416,60 @@ fn mint_offset<T: Decide>(
     // mint is nappe-blind by contract and this call does not re-read it.
     geom_brep::offset_surface(old, d, band)
         .map_err(|error| ReplaceFaceError::Offset { face, error })
+}
+
+/// **The reach a pose is read over** at the C5 gate: an UPPER bound on
+/// how far the edge's carrier stands from either surface's ANCHOR (a
+/// cone's apex, a sphere's or torus's centre, a cylinder's origin; a
+/// plane has none). An arm's angular trilean meters a tilt `θ` as the
+/// locus displacement `θ·extent`, and about an anchor that displacement
+/// is largest at the carrier point farthest from it, so this is the
+/// extent at which the pose question means something for THIS edge.
+///
+/// The bound is per carrier, and never an underestimate — an
+/// underestimated lever would read a tilted pose as served:
+///
+/// - a **line** segment: its endpoints (distance to a point is convex
+///   along a line, so a segment attains its maximum at an end);
+/// - a **circle** or **ellipse**: centre distance plus the (major)
+///   radius, whatever the parameter span — a closed rim, whose two
+///   endpoints coincide, is exactly the case sampling misses;
+/// - a **spiric** (a curve on a torus): centre distance plus `R + r`;
+/// - a **NURBS** carrier: its control points (the convex-hull property
+///   of positive weights).
+///
+/// A cylinder's origin is any point of its axis, so it can overstate
+/// the reach; an overstated lever reads more poses as definitely off
+/// the served class, which refuses rather than admits.
+fn pose_reach<T: Real>(surfaces: [&Surface<T>; 2], carrier: &Curve3<T>, t0: T, t1: T) -> T {
+    let mut reach = T::zero();
+    for s in surfaces {
+        let anchor = match *s {
+            Surface::Cone { apex, .. } => apex,
+            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
+            Surface::Cylinder { origin, .. } => origin,
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => continue,
+        };
+        let far = match carrier {
+            Curve3::Line { origin, dir } => (*origin + *dir * t0 - anchor)
+                .norm()
+                .max((*origin + *dir * t1 - anchor).norm()),
+            Curve3::Circle { center, radius, .. } => (*center - anchor).norm() + radius.abs(),
+            Curve3::Ellipse { center, major, .. } => (*center - anchor).norm() + major.abs(),
+            Curve3::Spiric {
+                center,
+                major_radius,
+                minor_radius,
+                ..
+            } => (*center - anchor).norm() + major_radius.abs() + minor_radius.abs(),
+            Curve3::Nurbs(n) => n
+                .control()
+                .iter()
+                .fold(T::zero(), |m, &p| m.max((p - anchor).norm())),
+        };
+        reach = reach.max(far);
+    }
+    reach
 }
 
 /// The cone offset's `v` shift `d·cot α`; zero on every other kind (no
@@ -1780,14 +1875,46 @@ fn plan_edge<T: Decide>(
             if s1 == old_key || s2 == old_key =>
         {
             let other = if s1 == old_key { s2 } else { s1 };
-            let other_kind =
-                SurfaceKind::of(body.get_surface(other).ok_or(ReplaceFaceError::Corrupt)?);
+            let other_surface = body.get_surface(other).ok_or(ReplaceFaceError::Corrupt)?;
+            let other_kind = SurfaceKind::of(other_surface);
             let kind = SurfaceKind::of(new_surface);
             if !geom_brep::intersect::route(kind, other_kind).implemented {
                 return Err(ReplaceFaceError::NeighborPairUnroutable {
                     edge,
                     kind,
                     other_kind,
+                });
+            }
+            // The kind pair routes; the arm is asked whether it serves
+            // THIS pose — the moved surface against the untouched one,
+            // read over the edge's own reach.
+            let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
+            let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
+                .map_err(|e| match e {
+                geom_brep::SectionError::Escalated(source) => {
+                    ReplaceFaceError::Escalated { source }
+                }
+                // `route_pose` returns only an escalation or a
+                // dispatch naming the wrong arm or seat — this
+                // kernel's own bug, not the body's (its `# Errors`);
+                // every other variant is answered inside it and
+                // never returned.
+                geom_brep::SectionError::WrongLane { .. }
+                | geom_brep::SectionError::RadiusDeclarationContradicted
+                | geom_brep::SectionError::CoaxialDeclarationContradicted
+                | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::BeyondOperandExtent { .. }
+                | geom_brep::SectionError::CoincidentSurfaces
+                | geom_brep::SectionError::DegenerateTorus
+                | geom_brep::SectionError::RoutesToGeneralRung { .. }
+                | geom_brep::SectionError::Carrier(_) => ReplaceFaceError::Corrupt,
+            })?;
+            if !posed.implemented {
+                return Err(ReplaceFaceError::NeighborPoseUnroutable {
+                    edge,
+                    kind,
+                    other_kind,
+                    why: posed.note,
                 });
             }
             let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
@@ -2282,7 +2409,7 @@ mod offset_fit_door_rows {
         let Ok(Surface::Approx(through_door)) = mint(Some(OffsetFitLane::fit())) else {
             panic!("the bowed patch's offset fits at the witness tolerance");
         };
-        let Ok(Surface::Approx(free)) =
+        let Ok(free) =
             geom_brep::approx_offset_surface(Arc::new(crate::fixtures::bowed_patch()), 0.05, tol)
         else {
             panic!("the free function mints the same surface");

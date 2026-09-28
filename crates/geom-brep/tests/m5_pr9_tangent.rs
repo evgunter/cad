@@ -548,3 +548,102 @@ fn a_small_angle_false_tangency_is_decided_at_the_parallelism_band_edge() {
         }
     );
 }
+
+/// The line `(x, 0, z)`, `z ∈ [0, 1]` (extent 1), described as a
+/// tangency of `s1` and `s2`, certified.
+fn certify_line_at(
+    x: f64,
+    s1: Surface<f64>,
+    s2: Surface<f64>,
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let (k1, k2, map) = arena2(s1, s2);
+    let carrier = Curve3::Line {
+        origin: Point3::new(x, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.5),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+}
+
+/// The plane through the line `(x, 0, z)` whose normal is `+x` turned
+/// by `tilt` about `z`.
+fn plane_through_line(x: f64, tilt: f64) -> Surface<f64> {
+    let (sin, cos) = tilt.sin_cos();
+    Surface::Plane {
+        origin: Point3::new(x, 0.0, 0.0),
+        normal: Vec3::new(cos, sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    }
+}
+
+/// **A second-order refusal is renamed only by a DEFINITE first-order
+/// defect, metered at the folded lever arm.** Two planes through one
+/// line, tilted by θ, have `κ_rel = 0` exactly, so the second-order
+/// margin refuses definitely (`NotSecondOrderSeparated`) and no lever
+/// `1/κ_rel` exists; the parallelism defect is read at the folded arm,
+/// here the line's extent `L = 1`, as `sin θ · L`.
+///
+/// - `sin θ · L` inside the band: the first-order reading is no more
+///   definite than the second-order one, which stands.
+/// - `sin θ · L` far past the band: the refusal is the parallelism
+///   defect.
+/// - A cylinder of radius `R = ε` through the line, against a plane
+///   tilted by 0.1 rad: `κ_rel = 1/R`, the folded arm is `R` (not the
+///   extent `L`), the sagitta `R/2` is on the zero side, and
+///   `sin θ · R = 0.1·ε` is too — so the second-order refusal stands,
+///   where levering at the extent (`0.1` m) would read a definite
+///   defect.
+#[test]
+fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let length = 1.0;
+    let osculating = CertifyError::NotSecondOrderSeparated {
+        sample: 1,
+        band: band(),
+    };
+
+    let in_band = ((zero * escalate).sqrt() / length).asin();
+    assert_eq!(
+        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, in_band)).unwrap_err(),
+        osculating,
+        "an in-band first-order reading does not rename the refusal"
+    );
+
+    let definite = (1e3 * zero / length).asin();
+    assert_eq!(
+        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, definite)).unwrap_err(),
+        CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::TangentParallel,
+            sample: 1,
+        },
+        "a definite first-order defect names the refusal"
+    );
+
+    let radius = zero;
+    let tiny = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let tilt: f64 = 0.1;
+    assert!(
+        tilt.sin() * length >= escalate && tilt.sin() * radius <= zero,
+        "the cell separates the folded arm from the extent"
+    );
+    assert_eq!(
+        certify_line_at(radius, tiny, plane_through_line(radius, tilt)).unwrap_err(),
+        osculating,
+        "the defect is levered at the folded arm R, not the extent L"
+    );
+}

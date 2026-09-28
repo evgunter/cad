@@ -4367,8 +4367,13 @@ pub(crate) fn tier3_local_checks<
 ///
 /// The +V invariant reads a volume ENCLOSURE and refuses only on a
 /// definite disagreement, so its verdict on a bracket `[lo, hi]` is
-/// settled as soon as that bracket excludes zero — and refinement only
-/// tightens a bracket, never moves the truth out of it:
+/// settled as soon as that bracket excludes zero, because EVERY
+/// round's bracket contains the true volume. The brackets need not
+/// nest and their widths are not monotone in the round — each round
+/// recomputes its sum from scratch, and the rounding width of its
+/// midpoint sum grows with the cell count (`geom-brep`'s
+/// `last_round_width_lo`) — but containment is all the argument
+/// reads:
 ///
 /// - `hi` definitely negative ⇒ the body's volume is `≤ hi < 0`, and
 ///   no finer round produces an upper end above the volume. REFUSE.

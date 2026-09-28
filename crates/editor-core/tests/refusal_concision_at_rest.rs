@@ -36,7 +36,7 @@
 
 use editor_core::{
     AssemblyError, AtRestFinding, Attribution, DocumentId, EntityKind, MintedDeclaration,
-    ProductError, RecipeNodeId, Relation, RoleSeg, Route, StableName,
+    ProductError, RecipeNodeId, Relation, RoleSeg, Route, SourceFinding, StableName,
 };
 use topo::{ContactClass, FaceKey, ValidationError};
 
@@ -126,9 +126,12 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
         };
         format!("at rest: {refusal}")
     };
-    let product = ProductError::SolidInvalid {
-        node: RecipeNodeId(5),
-        errors: vec![error.clone()],
+    let product = ProductError::RootInvalid {
+        findings: vec![SourceFinding {
+            node: RecipeNodeId(5),
+            output: 0,
+            errors: vec![error.clone()],
+        }],
     };
     let mut out = vec![
         ("unattributed", at_rest(Attribution::Unattributed)),
