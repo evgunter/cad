@@ -366,26 +366,37 @@ fn mass_props_errors() -> Vec<MassPropsError> {
 fn offset_fit_errors() -> Vec<OffsetFitError> {
     use geom_brep::offset_meters::{Meter, MeterError, Refused};
     use geom_brep::patch_bound::PatchBoundError;
+    use geom_brep::recourse::Classified;
+    let zero = |margin| {
+        Refused::Zero(Classified {
+            margin,
+            band: band(),
+        })
+    };
     let mut v = vec![
+        // Both zero-floor stories: a thinness a smaller tolerance
+        // decides, and a floor of exactly zero, which none does.
         OffsetFitError::Meter(MeterError::NormalFloor {
             floor: 1e-9,
-            thinness: 5e-10,
             speed_lever: 2.0,
-            verdict: Refused::Zero { band: band() },
+            verdict: zero(5e-10),
+        }),
+        OffsetFitError::Meter(MeterError::NormalFloor {
+            floor: 0.0,
+            speed_lever: 2.0,
+            verdict: zero(0.0),
         }),
         // Both verdicts: a sign-certain fold, and one inside the zero
         // band, whose ending differs.
         OffsetFitError::Meter(MeterError::CurvatureHeadroom {
             reach: 0.5,
-            headroom: -0.1,
             kappa: (2.0, 0.5),
-            verdict: Refused::Negative,
+            verdict: Refused::Negative { margin: -0.1 },
         }),
         OffsetFitError::Meter(MeterError::CurvatureHeadroom {
             reach: 0.5,
-            headroom: 5e-10,
             kappa: (2.0, 0.5),
-            verdict: Refused::Zero { band: band() },
+            verdict: zero(5e-10),
         }),
         OffsetFitError::Meter(MeterError::Escalated {
             meter: Meter::NormalFloor,

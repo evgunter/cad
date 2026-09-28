@@ -466,11 +466,18 @@ fn a_collapsed_control_row_refuses_at_the_regularity_floor() {
         Err(e @ OffsetFitError::Meter(MeterError::NormalFloor { floor, verdict, .. })) => {
             assert_eq!(floor, 0.0, "a collapsed row left a positive floor");
             // A zero margin is band-decided, and no smaller tolerance
-            // passes it: the lever alone.
-            assert!(matches!(verdict, Refused::Zero { .. }), "{verdict:?}");
+            // passes it: the lever, and the report clause for a face with
+            // no degeneracy to split off.
+            assert!(
+                matches!(verdict, Refused::Zero(c) if c.margin == 0.0),
+                "{verdict:?}"
+            );
             let text = e.to_string();
             assert!(
-                text.ends_with("Recourse: split the face clear of any pole, cusp or pinch"),
+                text.ends_with(
+                    "Recourse: split the face clear of any pole, cusp or pinch; if it has none, \
+                     this may indicate a kernel bug worth reporting"
+                ),
                 "{text}"
             );
         }
@@ -486,19 +493,13 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     // Inward past the sphere's own radius: the offset folds through
     // the centre.
     match fit_offset_at(&base, -1.2 * r, 1e-4, band()) {
-        Err(
-            e @ OffsetFitError::Meter(MeterError::CurvatureHeadroom {
-                reach,
-                headroom,
-                verdict,
-                ..
-            }),
-        ) => {
+        Err(e @ OffsetFitError::Meter(MeterError::CurvatureHeadroom { reach, verdict, .. })) => {
+            let headroom = verdict.margin();
             assert!(headroom <= 0.0, "headroom {headroom} is not a refusal");
             assert!(reach <= r * 1.01, "reach {reach} exceeds r = {r}");
             // Folding by a fifth of the radius is sign-certain: the
             // lever alone, no tolerance.
-            assert_eq!(verdict, Refused::Negative);
+            assert!(matches!(verdict, Refused::Negative { .. }), "{verdict:?}");
             let text = e.to_string();
             assert!(
                 text.ends_with(

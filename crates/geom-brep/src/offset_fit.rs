@@ -2949,7 +2949,7 @@ mod recourse_tests {
     use super::{BestBound, LastRound, OffsetFitError, OffsetLimb};
     use crate::offset_meters::{MeterError, Refused};
     use crate::patch_bound::PatchBoundError;
-    use crate::recourse::Reading;
+    use crate::recourse::{Classified, Reading};
     use geom::curves::fit::FitError;
     use geom_core::spline::{KnotAlgebraError, SplineError};
     use geom_core::{BandError, BandField};
@@ -3000,11 +3000,11 @@ mod recourse_tests {
         ];
         let meter = MeterError::NormalFloor {
             floor: 0.0,
-            thinness: 0.0,
             speed_lever: 1.0,
-            verdict: Refused::Zero {
+            verdict: Refused::Zero(Classified {
+                margin: 0.0,
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
-            },
+            }),
         };
         let patch_bound = PatchBoundError::DegreeZero;
         let fit = FitError::TooFewPoints { have: 1, need: 2 };

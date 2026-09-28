@@ -586,24 +586,28 @@ impl CertCheck {
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
+                at_zero: None,
             }),
             Self::ParamWinding => Ending::Sized(SizedDecision {
                 lever: "move the geometry so this arc stays clearly short of a full turn",
                 size: "arc",
                 passes: SizedPass::NonNegative,
                 stored: StoredDefinite::Contradiction,
+                at_zero: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the faces cross at a clearer angle",
                 size: "angle",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
+                at_zero: None,
             }),
             Self::TangentSecondOrder | Self::TangentTube => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the faces curve apart more clearly where they touch",
                 size: "curvature difference",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
+                at_zero: None,
             }),
             // Exact constructions: the endpoints and witness the kernel
             // placed, the seam and the declared source it restates, the
@@ -4054,7 +4058,8 @@ mod tests {
             ),
             (
                 undecided(CertCheck::Transversality, MarginDiag::Invalid),
-                "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable margin may indicate a kernel bug worth reporting",
+                "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable \
+                 or collapsed margin may indicate a kernel bug worth reporting",
             ),
             (
                 undecided(CertCheck::EndpointStart, MarginDiag::Value(5e-9)),

@@ -1022,7 +1022,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::Invalid),
-            "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable margin may indicate a kernel bug worth reporting",
+            "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable or \
+             collapsed margin may indicate a kernel bug worth reporting",
         ),
         (
             "endpoint",
@@ -1142,22 +1143,31 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
         (
             "invalid",
             escalated(Meter::CurvatureHeadroom, MarginDiag::Invalid),
-            format!("{DISTANCE}; an unreadable margin may indicate a kernel bug worth reporting"),
+            format!(
+                "{DISTANCE}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                 reporting"
+            ),
         ),
     ]
 }
 
 /// The ending of each definite meter sample `topo`'s roster carries, by
 /// its row's arm: a zero verdict with a positive margin inside the zero
-/// band is band-decided and names the tolerance below `m/K`; a
-/// sign-certain fold names the lever alone.
-fn meter_verdicts() -> [(&'static str, String); 3] {
+/// band is band-decided and names the tolerance below `m/K`; a floor of
+/// exactly zero, which no tolerance resolves, names the lever and says a
+/// face with no degeneracy is worth reporting; a sign-certain fold names
+/// the lever alone.
+fn meter_verdicts() -> [(&'static str, String); 4] {
     [
         (
             "Meter/NormalFloor",
             format!(
                 "{SPLIT}, or, if this thinness is intended, tighten the tolerance below 5e-11 m"
             ),
+        ),
+        (
+            "Meter/NormalFloor#2",
+            format!("{SPLIT}; if it has none, this may indicate a kernel bug worth reporting"),
         ),
         ("Meter/CurvatureHeadroom", DISTANCE.to_owned()),
         (
@@ -1233,7 +1243,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     // `BoundNotFinite` and `Limb` each carry two samples (both
     // `LastRound` readings, both `best` cases, both limbs).
     for (arm, samples) in [
-        ("Meter/NormalFloor", 1),
+        ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
         ("Meter/Escalated", 1),
         ("PatchBound/", 7),

@@ -2379,14 +2379,29 @@ fn classify_offset_fit(
         // Each meter's refusal ends as its decision gives its verdict,
         // read at rest: the one table the fit's own message reads.
         O::Meter(m) => {
+            // The lead says what the verdict decided: a zero verdict is
+            // band-decided, so it says "may".
+            use geom_brep::offset_meters::Refused as R;
             let why = match m {
                 M::Escalated { .. } => {
                     "whether this face can be offset is too close to call at this tolerance"
                 }
-                M::NormalFloor { .. } => {
-                    "the face's surface normal degenerates, so it has no offset"
-                }
-                M::CurvatureHeadroom { .. } => "the offset folds over itself on this face",
+                M::NormalFloor {
+                    verdict: R::Zero(_),
+                    ..
+                } => "the face's surface normal may degenerate, so it may have no offset",
+                M::NormalFloor {
+                    verdict: R::Negative { .. },
+                    ..
+                } => "the face's surface normal degenerates, so it has no offset",
+                M::CurvatureHeadroom {
+                    verdict: R::Zero(_),
+                    ..
+                } => "the offset may fold over itself on this face",
+                M::CurvatureHeadroom {
+                    verdict: R::Negative { .. },
+                    ..
+                } => "the offset folds over itself on this face",
             };
             return (why, m.ending(geom_brep::recourse::Reading::AtRest).into());
         }
@@ -12486,21 +12501,26 @@ mod offset_fit_door_rows {
         crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
     }
 
-    /// The checks window ends every meter refusal as the meter's own
-    /// decision gives its verdict at rest, the table the fit's message
-    /// reads too: the lever always; the conditional tighten, valued, on
-    /// a band-decided arm with a positive margin (a zero verdict, or an
-    /// undecided margin); the lever alone on a sign-certain arm and on a
+    /// The checks window renders every meter refusal whole at rest: a
+    /// lead that says what the verdict decided ("may" on a zero
+    /// verdict, which is band-decided), and the ending the meter's own
+    /// decision gives that verdict, the table the fit's message reads
+    /// too — the lever always; the conditional tighten, valued, on a
+    /// band-decided arm with a positive margin; the report clause on a
+    /// zero floor; the lever alone on a sign-certain arm and on a
     /// straddling margin; and a poisoned margin keeps the lever.
     #[test]
-    fn a_meter_escalation_ends_in_its_routed_sentence() {
+    fn a_meter_refusal_renders_whole_at_rest() {
         use geom_brep::OffsetFitError;
         use geom_brep::offset_meters::{Meter, MeterError, Refused};
+        use geom_brep::recourse::Classified;
         use geom_core::{Indeterminate, MarginDiag};
+        const LEAD: &str = "a face's fitted offset surface no longer certifies against the surface it approximates";
         const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
         const DISTANCE: &str =
             "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
         let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = |margin| Refused::Zero(Classified { margin, band });
         let says = |error| {
             ValidationError::ApproxCertification {
                 face: FaceKey::default(),
@@ -12516,6 +12536,7 @@ mod offset_fit_door_rows {
                 predicate: Some(meter.predicate()),
             },
         };
+        let close = "whether this face can be offset is too close to call at this tolerance";
         let wide = MarginDiag::Enclosure {
             lo: -2.0e-9,
             hi: 4.0e-9,
@@ -12524,42 +12545,66 @@ mod offset_fit_door_rows {
             (
                 says(escalated(Meter::NormalFloor, MarginDiag::Value(5.0e-9))),
                 format!(
-                    "{SPLIT}, or, if this thinness is intended, tighten the tolerance below \
-                     5e-10 m"
+                    "{LEAD}: {close}. {SPLIT}, or, if this thinness is intended, tighten the \
+                     tolerance below 5e-10 m"
                 ),
             ),
             (
                 says(escalated(Meter::CurvatureHeadroom, wide)),
-                DISTANCE.to_owned(),
+                format!("{LEAD}: {close}. {DISTANCE}"),
             ),
             (
                 says(escalated(Meter::NormalFloor, MarginDiag::Invalid)),
-                format!("{SPLIT}; an unreadable margin may indicate a kernel bug worth reporting"),
+                format!(
+                    "{LEAD}: {close}. {SPLIT}; an unreadable or collapsed margin may indicate a \
+                     kernel bug worth reporting"
+                ),
             ),
             (
                 says(MeterError::NormalFloor {
-                    floor: 5.0e-10,
-                    thinness: 5.0e-10,
-                    speed_lever: 1.0,
-                    verdict: Refused::Zero { band },
+                    floor: 1.0e-9,
+                    speed_lever: 2.0,
+                    verdict: zero(5.0e-10),
                 }),
                 format!(
-                    "{SPLIT}, or, if this thinness is intended, tighten the tolerance below \
+                    "{LEAD}: the face's surface normal may degenerate, so it may have no offset. \
+                     {SPLIT}, or, if this thinness is intended, tighten the tolerance below \
                      5e-11 m"
+                ),
+            ),
+            (
+                says(MeterError::NormalFloor {
+                    floor: 0.0,
+                    speed_lever: 2.0,
+                    verdict: zero(0.0),
+                }),
+                format!(
+                    "{LEAD}: the face's surface normal may degenerate, so it may have no offset. \
+                     {SPLIT}; if it has none, this may indicate a kernel bug worth reporting"
                 ),
             ),
             (
                 says(MeterError::CurvatureHeadroom {
                     reach: 0.5,
-                    headroom: -0.1,
                     kappa: (2.0, 0.5),
-                    verdict: Refused::Negative,
+                    verdict: zero(5.0e-10),
                 }),
-                DISTANCE.to_owned(),
+                format!(
+                    "{LEAD}: the offset may fold over itself on this face. {DISTANCE}, or, if \
+                     this clearance is intended, tighten the tolerance below 5e-11 m"
+                ),
+            ),
+            (
+                says(MeterError::CurvatureHeadroom {
+                    reach: 0.5,
+                    kappa: (2.0, 0.5),
+                    verdict: Refused::Negative { margin: -0.1 },
+                }),
+                format!("{LEAD}: the offset folds over itself on this face. {DISTANCE}"),
             ),
         ];
-        for (msg, ending) in rows {
-            assert!(msg.ends_with(&format!(". {ending}")), "{msg}");
+        for (msg, want) in rows {
+            assert_eq!(msg, want);
         }
     }
 

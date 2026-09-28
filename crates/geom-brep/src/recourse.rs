@@ -110,6 +110,10 @@ pub struct SizedDecision {
     pub passes: SizedPass,
     /// How its sign-certain arm ends over stored geometry.
     pub stored: StoredDefinite,
+    /// What a zero verdict leaving no size to tighten below may mean
+    /// beyond the lever, where the decision's own metering can reach
+    /// zero on sound geometry: appended to the lever as "; {at_zero}".
+    pub at_zero: Option<&'static str>,
 }
 
 /// Whether a tolerance below `v`'s own size decides `v` passing a sized
@@ -138,8 +142,10 @@ impl SizedDecision {
     ///   that is nonzero and on the side the decision accepts, and with
     ///   no value on a zero arm whose variant carries none. A margin on
     ///   the refused side, at zero, or straddling zero is passed by no
-    ///   smaller tolerance and names the lever alone, and a margin that
-    ///   could not be read keeps the lever and says what it may mean. At
+    ///   smaller tolerance and names the lever alone (and, on a zero
+    ///   verdict, [`SizedDecision::at_zero`] where the decision has
+    ///   one); a margin that could not be read keeps the lever and says
+    ///   what it may mean. At
     ///   adoption no arm names a tolerance ([`Reading::Adopt`]). A
     ///   decided Zero-or-Negative verdict names the lever alone.
     /// - The sign-certain arm names the lever alone at a build. Read
@@ -151,6 +157,7 @@ impl SizedDecision {
             size,
             passes,
             stored,
+            at_zero,
         } = self;
         let alone = || format!("Recourse: {lever}");
         let tighten = |below: Option<f64>| match (reading, below) {
@@ -169,7 +176,11 @@ impl SizedDecision {
             RefusedArm::Zero(Some(Classified { margin, band })) if tightens(margin) => {
                 tighten(Some(margin / k(band)))
             }
-            RefusedArm::Zero(Some(_)) | RefusedArm::ZeroOrNegative => alone(),
+            RefusedArm::Zero(Some(_)) => match at_zero {
+                Some(note) => format!("Recourse: {lever}; {note}"),
+                None => alone(),
+            },
+            RefusedArm::ZeroOrNegative => alone(),
             RefusedArm::SignCertain => match (reading, stored) {
                 (Reading::Build, _) | (Reading::AtRest | Reading::Adopt, StoredDefinite::Lever) => {
                     alone()
@@ -187,7 +198,8 @@ impl SizedDecision {
                     }
                     MarginDiag::Value(_) | MarginDiag::Enclosure { .. } => alone(),
                     MarginDiag::Invalid => format!(
-                        "Recourse: {lever}; an unreadable margin may indicate a kernel bug worth reporting"
+                        "Recourse: {lever}; an unreadable or collapsed margin may indicate a \
+                         kernel bug worth reporting"
                     ),
                 }
             }

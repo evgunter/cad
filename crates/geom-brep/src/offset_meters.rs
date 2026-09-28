@@ -196,17 +196,22 @@ impl Meter {
     /// distance are what it edits.
     fn decision(self) -> SizedDecision {
         match self {
+            // A floor of exactly zero on a face with no pole, cusp or
+            // pinch is the refinement ladder running out of rungs on a
+            // regular patch, not the geometry: worth a report.
             Self::NormalFloor => SizedDecision {
                 lever: "split the face clear of any pole, cusp or pinch",
                 size: "thinness",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
+                at_zero: Some("if it has none, this may indicate a kernel bug worth reporting"),
             },
             Self::CurvatureHeadroom => SizedDecision {
                 lever: "use an offset distance of smaller magnitude, or offset to the other side",
                 size: "clearance",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
+                at_zero: None,
             },
         }
     }
@@ -219,35 +224,44 @@ impl Meter {
     }
 }
 
-/// A meter's decided refusal: the verdict its margin classified as.
+/// A meter's decided refusal: the verdict its margin classified as,
+/// carrying the margin.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Refused {
-    /// Within the zero band of `band` — band-decided: a smaller
-    /// tolerance may decide a positive margin passing.
-    Zero {
-        /// The band that classified the margin.
-        band: Band,
-    },
+    /// Within the zero band — band-decided: a smaller tolerance may
+    /// decide a positive margin passing.
+    Zero(Classified),
     /// Definitely negative — sign-certain.
-    Negative,
+    Negative {
+        /// The classified margin, in metres.
+        margin: f64,
+    },
 }
 
 impl Refused {
-    /// The verdict `sign` gives a refused `margin` at `band`, or `None`
-    /// for the sign the meters pass on.
-    fn of(sign: Sign, band: Band) -> Option<Self> {
+    /// The verdict `sign` gives `margin` at `band`, or `None` for the
+    /// sign the meters pass on.
+    fn of(sign: Sign, margin: f64, band: Band) -> Option<Self> {
         match sign {
             Sign::Positive => None,
-            Sign::Zero => Some(Self::Zero { band }),
-            Sign::Negative => Some(Self::Negative),
+            Sign::Zero => Some(Self::Zero(Classified { margin, band })),
+            Sign::Negative => Some(Self::Negative { margin }),
         }
     }
 
-    /// The refused arm this verdict on `margin` is.
-    fn arm(self, margin: f64) -> RefusedArm<'static> {
+    /// The classified margin, in metres.
+    #[must_use]
+    pub fn margin(self) -> f64 {
         match self {
-            Self::Zero { band } => RefusedArm::Zero(Some(Classified { margin, band })),
-            Self::Negative => RefusedArm::SignCertain,
+            Self::Zero(Classified { margin, .. }) | Self::Negative { margin } => margin,
+        }
+    }
+
+    /// The refused arm this verdict is.
+    fn arm(self) -> RefusedArm<'static> {
+        match self {
+            Self::Zero(classified) => RefusedArm::Zero(Some(classified)),
+            Self::Negative { .. } => RefusedArm::SignCertain,
         }
     }
 }
@@ -270,39 +284,38 @@ pub enum MeterError {
     /// normal turns too far inside, which splitting the face clear of
     /// the degeneracy (a pole, cusp or pinch — a point the user can
     /// see) answers. A regular patch refusing here means
-    /// [`OFFSET_METER_LADDER`] ran out of rungs on it, which splitting
-    /// the face answers too, since the ladder's cells are finer on a
-    /// smaller piece; the payload is what decides a further rung, and it renders
-    /// all three numbers.
+    /// [`OFFSET_METER_LADDER`] ran out of rungs on it, which is why the
+    /// ending of a zero floor says a face with none of those is worth
+    /// reporting; the payload renders the numbers that decide a further
+    /// rung.
     NormalFloor {
         /// The certified lower bound on `‖S_u × S_v‖` (m² per unit
         /// parameter area) — zero when no cell could be certified.
         floor: f64,
-        /// The classified margin: the chart parallelogram's certified
-        /// thinness in metres, `floor / max(sup‖S_u‖, sup‖S_v‖)`.
-        thinness: f64,
         /// The lever the margin divided by, in metres per unit
         /// parameter — the patch's faster chart speed.
         speed_lever: f64,
-        /// The margin's verdict. `thinness` is never negative, so it is
-        /// [`Refused::Zero`] on every input the meter classifies.
+        /// The verdict on the classified margin, the chart
+        /// parallelogram's certified thinness in metres,
+        /// `floor / max(sup‖S_u‖, sup‖S_v‖)`. The thinness is never
+        /// negative, so it is [`Refused::Zero`] on every input the meter
+        /// classifies.
         verdict: Refused,
     },
     /// `offset_curvature_headroom`: `|d|` reaches the patch's
     /// smallest certified curvature radius on the folding side, so
     /// the offset self-intersects (or the bound is too weak to prove
     /// that it does not). The message names `reach`, the distance a
-    /// request must stay strictly inside; `headroom` and `kappa` ride
+    /// request must stay strictly inside; the margin and `kappa` ride
     /// in the payload.
     CurvatureHeadroom {
         /// The certified critical distance on the folding side, in
         /// metres (`+∞` when the patch does not curve that way).
         reach: f64,
-        /// The classified margin `reach − |d|`, in metres.
-        headroom: f64,
         /// The certified principal-curvature range, in 1/m.
         kappa: (f64, f64),
-        /// The margin's verdict.
+        /// The verdict on the classified margin `reach − |d|`, in
+        /// metres.
         verdict: Refused,
     },
     /// A meter escalated: the margin landed in the ambiguity band or
@@ -324,18 +337,18 @@ impl core::fmt::Display for MeterError {
         match self {
             Self::NormalFloor {
                 floor,
-                thinness,
                 speed_lever,
-                ..
+                verdict,
             } => write!(
                 f,
-                "the face's normal cannot be proved non-zero (a chart {thinness} m thin: normal \
+                "the face's normal cannot be proved non-zero (a chart {} m thin: normal \
                  length {floor} m² per unit parameter area over speed {speed_lever} m), so it \
-                 has no offset"
+                 has no offset",
+                verdict.margin()
             ),
             Self::CurvatureHeadroom {
                 reach,
-                verdict: Refused::Negative,
+                verdict: Refused::Negative { .. },
                 ..
             } => write!(
                 f,
@@ -344,7 +357,7 @@ impl core::fmt::Display for MeterError {
             ),
             Self::CurvatureHeadroom {
                 reach,
-                verdict: Refused::Zero { .. },
+                verdict: Refused::Zero(_),
                 ..
             } => write!(
                 f,
@@ -353,7 +366,7 @@ impl core::fmt::Display for MeterError {
             ),
             Self::Escalated { source, .. } => write!(
                 f,
-                "whether the face can be offset is too close to call: {}",
+                "the face's offset is too close to call: {}",
                 source.payload()
             ),
         }
@@ -376,16 +389,9 @@ impl MeterError {
     #[must_use]
     pub fn ending(&self, reading: Reading) -> String {
         let arm = match self {
-            Self::NormalFloor {
-                thinness: margin,
-                verdict,
-                ..
+            Self::NormalFloor { verdict, .. } | Self::CurvatureHeadroom { verdict, .. } => {
+                verdict.arm()
             }
-            | Self::CurvatureHeadroom {
-                headroom: margin,
-                verdict,
-                ..
-            } => verdict.arm(*margin),
             Self::Escalated { source, .. } => RefusedArm::Undecided(source),
         };
         self.meter().recourse(arm, reading)
@@ -704,11 +710,10 @@ pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), Mete
     let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
     let sign = decide(meter.predicate(), margin, band)
         .map_err(|source| MeterError::Escalated { meter, source })?;
-    match Refused::of(sign, band) {
+    match Refused::of(sign, margin.value(), band) {
         None => Ok(()),
         Some(verdict) => Err(MeterError::NormalFloor {
             floor: reg.floor,
-            thinness: margin.value(),
             speed_lever: reg.speed_lever().get(),
             verdict,
         }),
@@ -941,11 +946,10 @@ pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(),
     let meter = Meter::CurvatureHeadroom;
     let sign = decide(meter.predicate(), Margin::of(coll.headroom), band)
         .map_err(|source| MeterError::Escalated { meter, source })?;
-    match Refused::of(sign, band) {
+    match Refused::of(sign, coll.headroom, band) {
         None => Ok(()),
         Some(verdict) => Err(MeterError::CurvatureHeadroom {
             reach: coll.reach,
-            headroom: coll.headroom,
             kappa: (coll.kappa_lo, coll.kappa_hi),
             verdict,
         }),
@@ -963,25 +967,35 @@ mod tests {
     const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
     const DISTANCE: &str =
         "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+    const REPORT: &str = "; if it has none, this may indicate a kernel bug worth reporting";
+    const UNREAD: &str = "; an unreadable or collapsed margin may indicate a kernel bug worth \
+                          reporting";
 
     /// `K = 10`: a margin `m` passes at every tolerance below `m/10`.
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
-    fn floor(thinness: f64, verdict: Refused) -> MeterError {
+    fn zero(margin: f64) -> Refused {
+        Refused::Zero(Classified {
+            margin,
+            band: band(),
+        })
+    }
+
+    /// `floor` is twice the thinness and the lever is 2, so a payload
+    /// that rendered one number for the other would read differently.
+    fn floor(verdict: Refused) -> MeterError {
         MeterError::NormalFloor {
-            floor: thinness,
-            thinness,
-            speed_lever: 1.0,
+            floor: 2.0 * verdict.margin(),
+            speed_lever: 2.0,
             verdict,
         }
     }
 
-    fn headroom(headroom: f64, verdict: Refused) -> MeterError {
+    fn headroom(verdict: Refused) -> MeterError {
         MeterError::CurvatureHeadroom {
             reach: 1e-3,
-            headroom,
             kappa: (-1e3, 0.0),
             verdict,
         }
@@ -1003,30 +1017,31 @@ mod tests {
     /// on every arm; the conditional tighten, valued at `m/K`, only on
     /// a band-decided arm whose margin is positive (a zero verdict
     /// inside the band, or an undecided margin); the lever alone on the
-    /// sign-certain arm, on a margin on the refused side, at zero, and
-    /// straddling zero; and a poisoned margin keeps the lever and says
-    /// what it may mean.
+    /// sign-certain arm, on a margin on the refused side, and straddling
+    /// zero; the report clause on a zero floor, which no tolerance
+    /// resolves; and a poisoned margin keeps the lever and says what it
+    /// may mean.
     #[test]
     fn each_meter_arm_ends_in_its_decisions_recourse() {
-        let zero = Refused::Zero { band: band() };
         let straddle = MarginDiag::Enclosure {
             lo: -2e-9,
             hi: 4e-9,
         };
-        let unread = "; an unreadable margin may indicate a kernel bug worth reporting";
         let rows: [(MeterError, String); 16] = [
             (
-                floor(5e-10, zero),
+                floor(zero(5e-10)),
                 format!(
-                    "{SPLIT}, or, if this thinness is intended, tighten the tolerance below 5e-11 m"
+                    "{SPLIT}, or, if this thinness is intended, tighten the tolerance below \
+                     5e-11 m"
                 ),
             ),
-            (floor(0.0, zero), SPLIT.to_owned()),
-            (floor(0.0, Refused::Negative), SPLIT.to_owned()),
+            (floor(zero(0.0)), format!("{SPLIT}{REPORT}")),
+            (floor(Refused::Negative { margin: -1e-3 }), SPLIT.to_owned()),
             (
                 escalated(Meter::NormalFloor, MarginDiag::Value(5e-9)),
                 format!(
-                    "{SPLIT}, or, if this thinness is intended, tighten the tolerance below 5e-10 m"
+                    "{SPLIT}, or, if this thinness is intended, tighten the tolerance below \
+                     5e-10 m"
                 ),
             ),
             (escalated(Meter::NormalFloor, straddle), SPLIT.to_owned()),
@@ -1036,18 +1051,21 @@ mod tests {
             ),
             (
                 escalated(Meter::NormalFloor, MarginDiag::Invalid),
-                format!("{SPLIT}{unread}"),
+                format!("{SPLIT}{UNREAD}"),
             ),
             (
-                headroom(5e-10, zero),
+                headroom(zero(5e-10)),
                 format!(
                     "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
                      5e-11 m"
                 ),
             ),
-            (headroom(-5e-10, zero), DISTANCE.to_owned()),
-            (headroom(0.0, zero), DISTANCE.to_owned()),
-            (headroom(-1e-4, Refused::Negative), DISTANCE.to_owned()),
+            (headroom(zero(-5e-10)), DISTANCE.to_owned()),
+            (headroom(zero(0.0)), DISTANCE.to_owned()),
+            (
+                headroom(Refused::Negative { margin: -1e-4 }),
+                DISTANCE.to_owned(),
+            ),
             (
                 escalated(Meter::CurvatureHeadroom, MarginDiag::Value(5e-9)),
                 format!(
@@ -1075,7 +1093,7 @@ mod tests {
             ),
             (
                 escalated(Meter::CurvatureHeadroom, MarginDiag::Invalid),
-                format!("{DISTANCE}{unread}"),
+                format!("{DISTANCE}{UNREAD}"),
             ),
         ];
         for (error, want) in rows {
@@ -1089,31 +1107,70 @@ mod tests {
         }
     }
 
-    /// **The ruling's three prohibitions, over every arm and reading.**
-    /// No ending advises lowering or loosening the tolerance; a
-    /// sign-certain arm, or a margin on the refused side or at zero,
-    /// never offers tightening; and a zero verdict, which is
-    /// band-decided, always names its meter's lever.
+    /// Each definite payload pinned whole: the floor, the lever and the
+    /// thinness each render as themselves, and the fold's lead follows
+    /// its verdict.
+    #[test]
+    fn each_meter_payload_renders_its_own_numbers() {
+        let rows = [
+            (
+                floor(zero(5e-10)),
+                "the face's normal cannot be proved non-zero (a chart 0.0000000005 m thin: \
+                 normal length 0.000000001 m² per unit parameter area over speed 2 m), so it \
+                 has no offset",
+            ),
+            (
+                headroom(zero(5e-10)),
+                "the offset distance's magnitude is within tolerance of the face's radius of \
+                 curvature on the side it bends toward (0.001 m), so the offset may fold",
+            ),
+            (
+                headroom(Refused::Negative { margin: -1e-4 }),
+                "the offset distance's magnitude passes the face's radius of curvature on the \
+                 side it bends toward (0.001 m), so the offset folds over itself",
+            ),
+        ];
+        for (error, want) in rows {
+            assert_eq!(error.to_string(), want);
+        }
+    }
+
+    /// **The ruling's prohibitions, over every arm and reading.** No
+    /// ending advises lowering or loosening the tolerance; every ending
+    /// names its meter's lever first; and the tighten appears exactly on
+    /// a band-decided arm whose margin a smaller tolerance passes (a
+    /// zero verdict or an undecided margin, positive), never on a
+    /// sign-certain arm, a margin on the refused side, at zero,
+    /// straddling zero, or poisoned — and never at adoption.
     #[test]
     fn no_meter_ending_lowers_or_tightens_where_the_ruling_forbids() {
-        let zero = Refused::Zero { band: band() };
         let mut rows = Vec::new();
         for meter in [Meter::NormalFloor, Meter::CurvatureHeadroom] {
             let lever = meter.decision().lever;
-            let build = |margin, verdict| match meter {
-                Meter::NormalFloor => floor(margin, verdict),
-                Meter::CurvatureHeadroom => headroom(margin, verdict),
+            let build = |verdict| match meter {
+                Meter::NormalFloor => floor(verdict),
+                Meter::CurvatureHeadroom => headroom(verdict),
             };
             for margin in [5e-10, 1e-10, 0.0, -0.0, -5e-10, -1e-3] {
-                // The zero verdict on a margin that is not positive, and
-                // the negative one on any margin, are refused by every
-                // smaller tolerance.
-                let tightens = margin > 0.0;
-                rows.push((build(margin, zero), lever, tightens));
-                rows.push((build(margin, Refused::Negative), lever, false));
+                rows.push((build(zero(margin)), lever, margin > 0.0));
+                rows.push((build(Refused::Negative { margin }), lever, false));
             }
-            for margin in [MarginDiag::Value(-5e-9), MarginDiag::Value(0.0)] {
-                rows.push((escalated(meter, margin), lever, false));
+            let escalations = [
+                (MarginDiag::Value(5e-9), true),
+                (MarginDiag::Enclosure { lo: 2e-9, hi: 4e-9 }, true),
+                (
+                    MarginDiag::Enclosure {
+                        lo: -2e-9,
+                        hi: 4e-9,
+                    },
+                    false,
+                ),
+                (MarginDiag::Value(-5e-9), false),
+                (MarginDiag::Value(0.0), false),
+                (MarginDiag::Invalid, false),
+            ];
+            for (margin, tightens) in escalations {
+                rows.push((escalated(meter, margin), lever, tightens));
             }
         }
         for (error, lever, tightens) in rows {
@@ -1135,18 +1192,21 @@ mod tests {
         }
     }
 
-    /// Each meter carries its classified verdict: a margin inside the
-    /// zero band refuses as [`Refused::Zero`] with the band, a definitely
-    /// negative one as [`Refused::Negative`], and a positive one passes.
+    /// Each meter carries its classified verdict, margin and band
+    /// together: a margin inside the zero band refuses as
+    /// [`Refused::Zero`], a definitely negative one as
+    /// [`Refused::Negative`], and a positive one passes.
     #[test]
     fn each_meter_carries_its_verdict() {
         let band = band();
+        // A lever of 2 makes the thinness half the floor, so a door that
+        // put one where the other belongs reads differently.
         let reg = |floor| PatchRegularity {
             floor,
-            sup: 1.0,
-            speed_u: SupSpeed::new(1.0),
+            sup: 4.0,
+            speed_u: SupSpeed::new(2.0),
             speed_v: SupSpeed::new(1.0),
-            sine_floor: floor,
+            sine_floor: floor / 2.0,
             cells: 1,
         };
         let coll = |headroom| PatchCollapse {
@@ -1160,19 +1220,26 @@ mod tests {
             | MeterError::CurvatureHeadroom { verdict, .. } => Some(verdict),
             MeterError::Escalated { .. } => None,
         };
-        let zero = Some(Refused::Zero { band });
-        for thinness in [0.0, 5e-10] {
-            let got = offset_normal_floor(&reg(thinness), band).unwrap_err();
-            assert_eq!(verdict(got), zero, "{thinness}");
+        for floor in [0.0, 1e-9] {
+            let got = offset_normal_floor(&reg(floor), band).unwrap_err();
+            assert_eq!(
+                got,
+                MeterError::NormalFloor {
+                    floor,
+                    speed_lever: 2.0,
+                    verdict: zero(floor / 2.0),
+                },
+                "{floor}"
+            );
         }
         assert!(offset_normal_floor(&reg(1.0), band).is_ok());
         for (margin, want) in [
-            (5e-10, zero),
-            (-5e-10, zero),
-            (-1e-3, Some(Refused::Negative)),
+            (5e-10, zero(5e-10)),
+            (-5e-10, zero(-5e-10)),
+            (-1e-3, Refused::Negative { margin: -1e-3 }),
         ] {
             let got = offset_curvature_headroom(&coll(margin), band).unwrap_err();
-            assert_eq!(verdict(got), want, "{margin}");
+            assert_eq!(verdict(got), Some(want), "{margin}");
         }
         assert!(offset_curvature_headroom(&coll(1e-3), band).is_ok());
         let escalation = offset_curvature_headroom(&coll(5e-9), band).unwrap_err();
