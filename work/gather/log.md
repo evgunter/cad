@@ -301,3 +301,7 @@ orientation refusing at reduce is filed on reach.
 ## 2026-09-28 — tier-3′ cost figures cite the series (PR 3378)
 
 `product.rs` and `checks.rs` cite `registry_split` in `docs/perf-data/rebuild-latency/` instead of the stale ~11.4 s / ~250 ms figures, and drop the census-is-quadratic reason the BVH pre-filter retired.
+
+## 2026-09-28 — a tie's candidates keep their identity (PR 3389)
+
+The minter of a tie numbers its candidates, the verbatim carries (split pass-through, `Part`, the product gather) keep the number, and the gather refuses a repeated (name, candidate) pair, which makes the strict collision and the tied one a single rule; the `separated` mark, `Upstream::piece` and `pass_through` retire. No name golden moved. The f64-vs-Interval name corpus now carries a tie through a split and a part, so the candidate numbers are compared across scalars.

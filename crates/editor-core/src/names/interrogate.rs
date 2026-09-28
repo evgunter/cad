@@ -403,7 +403,7 @@ fn read<T: Decide, K: Denoted, R>(
             debug_assert!(
                 false,
                 "the node's table holds a key whose kind is not its name's: \
-                 `NameTable::insert_ref` and `insert_tied_ref` admit a row only at \
+                 every `NameTable` door that seats a row admits it only at \
                  its name's kind"
             );
             Err(kind_mismatch(K::KIND, key.kind()))
@@ -496,10 +496,9 @@ pub(crate) fn value_of<T: Decide>(
 /// readable however few entities answer to it, so narrowing it is no
 /// recourse and `Ambiguous` would be the wrong word for the fault.
 /// The kind is the NAME's, which the table makes every candidate's
-/// kind — `NameTable::insert_ref` and `insert_tied_ref` refuse a row
-/// whose name's kind is not its key's, and they are the only two
-/// writers of a row — so a tie answers this as readily as a unique
-/// row does.
+/// kind — every `NameTable` door that seats a row refuses one whose
+/// name's kind is not its key's — so a tie answers this as readily as
+/// a unique row does.
 ///
 /// `NoSuchName` still outranks it, and the node ladder outranks that:
 /// nothing is said about what a name denotes here until this node has
