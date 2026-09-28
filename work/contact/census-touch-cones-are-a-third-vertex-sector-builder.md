@@ -2,10 +2,11 @@
 id: census-touch-cones-are-a-third-vertex-sector-builder
 kind: issue
 title: The census's touch cones (Cone::vertex) are a second vertex-neighbourhood sector builder beside boolean::sectors::build_sectors and splitting::neighborhood, and a third edge-convexity reader beside classify_dihedral and classify_material_pairing
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P1
 cost: D
+parent: CONTACT-7
 ---
 
 
