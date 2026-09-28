@@ -744,24 +744,30 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     };
     for (o, fk) in &blend_rows {
         let fk = *fk;
-        body.set_face_surface(fk, FaceSurface::New(o.link().blend.surface.clone()))
-            .map_err(|e| op("blend face surface", e))?;
-        body.set_face_sense(fk, band_sense(o.convexity()))
-            .map_err(|e| op("blend face sense", e))?;
+        body.set_face_surface_and_sense(
+            fk,
+            FaceSurface::New(o.link().blend.surface.clone()),
+            band_sense(o.convexity()),
+        )
+        .map_err(|e| op("blend face surface", e))?;
     }
     for (i, c) in corners.iter().enumerate() {
         let fk = corner_faces[i];
-        body.set_face_surface(fk, FaceSurface::New(c.surface.clone()))
-            .map_err(|e| op("corner patch surface", e))?;
-        body.set_face_sense(fk, band_sense(c.convexity))
-            .map_err(|e| op("corner patch sense", e))?;
+        body.set_face_surface_and_sense(
+            fk,
+            FaceSurface::New(c.surface.clone()),
+            band_sense(c.convexity),
+        )
+        .map_err(|e| op("corner patch surface", e))?;
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
-        body.set_face_surface(fk, FaceSurface::New(band_surfaces[i].clone()))
-            .map_err(|e| op("band face surface", e))?;
-        body.set_face_sense(fk, rim.chain.first().convexity.blend_sense())
-            .map_err(|e| op("band face sense", e))?;
+        body.set_face_surface_and_sense(
+            fk,
+            FaceSurface::New(band_surfaces[i].clone()),
+            rim.chain.first().convexity.blend_sense(),
+        )
+        .map_err(|e| op("band face surface", e))?;
     }
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;

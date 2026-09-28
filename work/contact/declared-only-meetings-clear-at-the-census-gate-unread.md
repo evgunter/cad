@@ -53,3 +53,18 @@ The repair is to read each face-pair-backed event through
 `TouchSite::verdict` where the sweeps back it, and to decide what a
 curved declared rest owes until the analysis reads curved cones.
 Cost H.
+
+## Note from CONTACT-7's designers (2026-09-28)
+
+On the declared-only path, `blocks` with `records_on_their_word`
+refuses a record only on `MixedTouch`. So a lenient NON-Crossing
+reading (`Unanalysed` or in band), not just a lenient Rest, clears
+there. Whether the Crossing verdict is complete, never missing a real
+crossing, is therefore load-bearing on this path, and this row's repair
+has to answer it.
+
+Under CONTACT-7's piece reading, a Rest speaks only for the ball
+around the touch point that its pieces cover. Coverage beyond that ball
+rests on the vertex probe and on completeness (every meeting stands as
+a finding). That coverage is exactly what this path takes on the
+records' word.

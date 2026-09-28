@@ -2,10 +2,11 @@
 id: zero-dihedral-conflates-flat-with-slit-in-touch-cones
 kind: issue
 title: The census's touch cones read a Zero dihedral as flat, conflating a 180° seam with a folded 0°/360° slit that classify_material_pairing tells apart
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P3
 cost: E
+parent: CONTACT-7
 ---
 
 
