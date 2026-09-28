@@ -297,3 +297,7 @@ self-overlap. STEP import mints nothing its file did not state: a
 designer pair found no open fork (Ev's ruling on PR 3317 covers it),
 and a round-trip row pins the admission. The shoulder's other
 orientation refusing at reduce is filed on reach.
+
+## 2026-09-28 — tier-3′ cost figures cite the series (PR 3378)
+
+`product.rs` and `checks.rs` cite `registry_split` in `docs/perf-data/rebuild-latency/` instead of the stale ~11.4 s / ~250 ms figures, and drop the census-is-quadratic reason the BVH pre-filter retired.

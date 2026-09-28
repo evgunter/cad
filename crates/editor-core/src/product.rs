@@ -78,24 +78,20 @@
 //! product's body ([`topo::AtRestBody`]), so that gate pays tier 3′'s
 //! census over it and not the local battery a second time.
 //!
-//! **That is a division of labour, not a gap** (#382 closed at M9-2 —
-//! the census reaches the touching/overlap space and nothing in it
-//! validates silently). The gather stays on the local battery because
-//! tier 3′ is quadratic in the aggregate's entities, which a caller
-//! gathering on every edit cannot afford: the heat sink at 160 fins
-//! (161 solids / 991 faces) costs ~11.4 s there — refusing, with 125
-//! findings — where THIS gather costs ~250 ms and the whole check
-//! registry over a subject already gathered costs ~8 ms. The split is
-//! the reason a caller gathers ONCE: the gather, not the resident
-//! above it, is what a landing pays for. (That the doubled gather was
-//! therefore most of the doubled cost is an INFERENCE from those three
-//! numbers, not a fourth measurement: nothing here has timed a landing
-//! before and after.) The figures are a dev-profile wall clock and
-//! machine-dependent; the ones of record are hosted, re-taken by the
-//! `registry split` row of
-//! `crates/editor-core/tests/m4_pr8_latency.rs` on a nightly cron
-//! gated on `main` having moved, and appended to
-//! `docs/perf-data/rebuild-latency/`. What the gather
+//! **That is a division of labour, not a gap**: the census reaches the
+//! touching/overlap space and nothing in it validates silently. The
+//! gather stays on the local battery because the census refuses what a
+//! caller gathering on every edit must still be handed — the corpus
+//! heat sink at 160 fins (161 solids / 991 faces), whose fins meet the
+//! base, refuses there with 125 findings — and because it costs the
+//! same order as the gather itself. The gather, not the registry above
+//! it, is what a landing pays for, which is why a caller gathers ONCE.
+//! The terms are measured over that heat sink, not stated here: the
+//! `registry split` row of `crates/editor-core/tests/m4_pr8_latency.rs`
+//! appends `registry_split.gather_ms`, `checks_ms` (the registry over a
+//! subject already gathered) and `census_ms` (the assembly gate over
+//! the kept verdict) to `docs/perf-data/rebuild-latency/`, on a nightly
+//! cron gated on `main` having moved. What the gather
 //! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
 //! its operands, so every caller of it must establish disjointness —
 //! is discharged by [`crate::checks`]'s separation resident, which
