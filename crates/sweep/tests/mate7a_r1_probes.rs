@@ -168,61 +168,46 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 ///
 /// PR #1477's deviation 1 measured the wall-1 refusal as the stem's
 /// tube wall against the arch's FAR cap, 2.08 m from any contact,
-/// overlapping only because the wall's box was the WHOLE RING. Two
+/// overlapping only because the wall's box was the WHOLE RING. Three
 /// things have moved since: the ring box is gone
-/// (`boolean::boxes`'s `TorusWindow` arm), and the torus is on the
-/// operand gate's KIND roster, so the gate names no pair at all. What
-/// this row re-derives now is: (a) wall 1 is past the gate and stops
-/// at the crossing layer, on the stem's inner-equator seam against the
-/// arch's tube wall — the lily's circle×torus door; (b) the far cap
-/// stands ~2 m clear of the stem wall's exact locus; (c) it is no
-/// longer inside the wall's box either; (d) the weld still has no
+/// (`boolean::boxes`'s `TorusWindow` arm), the torus is on the operand
+/// gate's KIND roster, so the gate names no pair at all, and the
+/// crossing layer has a circle × torus root lane, so the two seams that
+/// cross the other tube's carrier (the stem's inner equator, the arch's
+/// outer equator) are decided rather than refused. What this row
+/// re-derives now is: (a) wall 1 is past the gate AND the crossing
+/// layer, and stops at the join on the plane × torus germ frame; (b)
+/// the far cap stands ~2 m clear of the stem wall's exact locus; (c) it
+/// is no longer inside the wall's box either; (d) the weld still has no
 /// torus×torus contact to declare (tube 0.060 vs 0.052 — the walls
 /// share only the weld plane). No `if let` skip-hazard: the far cap
 /// MUST exist.
 #[test]
-fn p1_wall1_passes_the_gate_and_stops_at_the_stem_seam_against_the_arch_wall() {
+fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     let (s, a) = (stem(), arch());
     let (decls, pairs) = weld_declarations(&s, &a);
     assert_eq!(pairs, 1, "exactly one coplanar cross cap pair at the fork");
 
     let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("the stem glue still refuses, one door further on");
-    let BooleanError::CurvedPierceUnsupported {
-        operand,
-        face,
-        edge,
-        ..
-    } = err
-    else {
-        panic!("wall 1 is no longer the gate's; it stops at the crossing layer: {err:?}");
-    };
-    // **Wall 1 is no longer the operand gate's.** The torus is on the
-    // KIND roster, so the stem glue reaches the crossing layer, and
-    // what it meets there is the lily's door (b): the stem's INNER
-    // equator seam — a circle of radius `STEM_RING − STEM_TUBE` about
-    // the stem's ring centre — against the arch's tube wall, a
-    // circle×torus pair with no root lane, undeclared and so without
-    // the declared cover. The far-cap claims below are geometry and
-    // stand on their own; the pair the gate used to NAME went with the
-    // gate's refusal.
-    assert_eq!(operand, topo::Operand::A, "the stem's edge crosses");
+        .expect_err("the stem glue still refuses, two doors further on");
+    // **Wall 1 is no longer the crossing layer's.** The circle × torus
+    // root lane (`topo::boolean::circle_torus`) certifies that each
+    // seam crosses the other tube's carrier only outside that face's
+    // window, so neither pair is an event; the op reaches the join, whose
+    // germ pair of the stem's weld cap against the arch's wall has no
+    // section frame arm. The far-cap claims below are geometry and
+    // stand on their own.
     assert!(
-        torus_faces(&a).contains(&face),
-        "against the arch's tube wall"
+        matches!(
+            err,
+            BooleanError::GermFrameUnsupported {
+                a_kind: SurfaceKind::Plane,
+                b_kind: SurfaceKind::Torus,
+                ..
+            }
+        ),
+        "wall 1 stops at the join's plane × torus germ frame: {err:?}"
     );
-    let geom::Curve3::Circle { center, radius, .. } = *s
-        .get_edge(edge)
-        .and_then(|e| s.get_curve_geom(e.curve))
-        .and_then(|c| c.certified())
-        .expect("the named edge is the stem's")
-        .carrier()
-    else {
-        panic!("the stem's seam is a circle");
-    };
-    assert!((center - Point3::new(-STEM_RING, 0.0, 0.0)).norm() < 1e-12);
-    assert!((radius - (STEM_RING - STEM_TUBE)).abs() < 1e-12);
-
     let frame = arch_frame();
     let far_cap = plane_faces(&a)
         .into_iter()

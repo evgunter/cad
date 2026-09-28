@@ -1980,23 +1980,23 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    an exact coincident planar contact, the crosslap mate — so
     //    the glue is the M5 S1 declared REST zip if it reaches it.
     //
-    //    The torus is on the operand gate's KIND roster now, so the
-    //    glue is no longer the gate's to refuse. It reaches the
-    //    crossing layer and stops at the circle rung: the stem's inner
-    //    equator seam against the arch's tube wall, a circle×torus pair
-    //    with no root lane and no declaration to cover it — the stem
-    //    glue's door (b) in `work/germ/torus-operand-gate-admission`.
+    //    The torus is on the operand gate's KIND roster, and the
+    //    crossing layer has a circle × torus root lane: the stem's inner
+    //    equator seam and the arch's outer equator seam each cross the
+    //    other tube's carrier only outside that face's window, which
+    //    the roots certify. So the glue reaches the join and stops at
+    //    the germ pair of the stem's weld cap against the arch's wall —
+    //    a plane × torus pair with no section frame arm.
     wall(
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
         crate::booleans::try_union_declared(stem, arch, tol),
-        // The stem's EDGE crossing the arch's wall: the curved-pierce
-        // frontier, not the gate and not the planar weld discs.
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedPierceUnsupported {
-                    operand: Operand::A,
+                BooleanError::GermFrameUnsupported {
+                    a_kind: SurfaceKind::Plane,
+                    b_kind: SurfaceKind::Torus,
                     ..
                 }
             )
@@ -3978,42 +3978,23 @@ mod verbs_gate_r1_probes {
         let glued = crate::booleans::try_union_declared(stem, arch, tol)
             .expect_err("the stem's two arcs still cannot be glued");
         println!("lily wall 1: {glued:?}");
-        // **Wall 1 is past the gate.** The torus is on the KIND roster,
-        // so the stem glue reaches the crossing layer, where the stem's
-        // INNER equator seam — the circle of radius `5 − STEM_R` about
-        // the stem's ring centre — meets the arch's tube wall at the
-        // circle rung: a circle×torus pair with no root lane and no
-        // declaration to cover it. Unconditional: an `if let` here
-        // would go quiet exactly when the refusal's shape changes.
-        let BooleanError::CurvedPierceUnsupported {
-            operand: Operand::A,
-            face,
-            edge,
-            ..
-        } = &glued
-        else {
-            panic!("wall 1 is the stem's seam against the arch's wall: {glued:?}");
-        };
+        // **Wall 1 is past the gate and the crossing layer.** The
+        // circle × torus root lane certifies each seam's crossing of the
+        // other tube's carrier as lying outside that face's window, so
+        // the glue reaches the join, whose germ pair of the stem's weld
+        // cap against the arch's wall (plane × torus) has no section
+        // frame arm. Unconditional: an `if let` here would go quiet
+        // exactly when the refusal's shape changes.
         assert!(
             matches!(
-                arch.get_face(*face)
-                    .and_then(|f| arch.get_surface(f.surface)),
-                Some(Surface::Torus { .. })
+                glued,
+                BooleanError::GermFrameUnsupported {
+                    a_kind: SurfaceKind::Plane,
+                    b_kind: SurfaceKind::Torus,
+                    ..
+                }
             ),
-            "the pierced face is the arch's tube wall: {glued:?}"
-        );
-        let seam = stem
-            .get_edge(*edge)
-            .and_then(|e| stem.get_curve_geom(e.curve))
-            .and_then(|c| c.certified())
-            .map(|c| c.carrier().clone());
-        let Some(pncad::geom::Curve3::Circle { center, radius, .. }) = seam else {
-            panic!("the crossing edge is a circle of the stem: {seam:?}");
-        };
-        assert!((center - pncad::geom_core::Point3::new(-5.0, 0.0, 0.0)).norm() < 1e-12);
-        assert!(
-            (radius - (5.0 - STEM_R)).abs() < 1e-12,
-            "the inner equator: {radius}"
+            "wall 1 stops at the join's plane × torus germ frame: {glued:?}"
         );
         // **The weld itself has no torus contact to declare**, measured
         // off the two loci: the stem tube's end circle has radius
