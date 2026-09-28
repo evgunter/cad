@@ -562,7 +562,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
             // that pair as a mixed touch: no declaration answers for a
             // placement either.
             assert!(
-                ["UndeclaredContact", "UndeclaredCusp", "CensusEscalated"]
+                ["UndeclaredContact", "CensusEscalated"]
                     .iter()
                     .any(|arm| rendered.contains(arm))
                     || matches!(

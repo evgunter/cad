@@ -146,6 +146,12 @@ no unit tags, no milestone or PR archaeology. An argument about how the code
 used to work belongs in the PR description, which is where this repo documents
 the logic of a change.
 
+**Excess commentary is a defect, and cutting it is a drive-by.** When a file
+you are already editing carries comments that restate what the code plainly
+does, argue at length for code that reads for itself, or say the same thing
+twice, delete or shorten them in the same PR. Do not add commentary to justify
+your own change; that argument goes in the PR description.
+
 ## 5. Sweeps
 
 If your unit fixes an instance of a class, say what pattern you swept with and
