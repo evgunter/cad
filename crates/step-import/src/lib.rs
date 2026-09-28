@@ -156,8 +156,8 @@
 //! still exhaust that budget. The at-rest gate below decides each
 //! solid's volume SIGN and admits such a body; what the budget refuses
 //! is the NUMBER, and the import carries that refusal — with the
-//! measured width and the sign-level bracket — on the enclosure it
-//! returns rather than refusing the file.
+//! measured width and the narrowest bracket the measurement held — on
+//! the enclosure it returns rather than refusing the file.
 //!
 //! # The wild (M7-4)
 //!
@@ -581,8 +581,9 @@ pub enum StepImport {
         /// admits that body's native twin; the reader holds no opinion
         /// of its own about which admitted bodies ship (DESIGN import
         /// step 4). What it cannot give is the number, and
-        /// [`topo::TargetUnreached`] says why — with the sign-level
-        /// bracket when the reason is the schedule running out.
+        /// [`topo::TargetUnreached`] says why — with the narrowest
+        /// bracket the gate's certificate or its continuation held,
+        /// when the reason is the schedule running out.
         ///
         /// Its band is `Band::linear` of the import's `tol`, and its
         /// lane is the tier-3′ door's — the `f64` quadrature lane,

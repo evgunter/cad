@@ -383,12 +383,13 @@ fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
 /// target is a length that scales with ε while the schedule's floor is
 /// a property of the part, so a body whose sign is definite may have
 /// no number at this ε. Such a body is VALID, and what the tour
-/// reports for it is the bracket its sign was decided on.
+/// reports for it is the narrowest bracket the certificate or its
+/// continuation held.
 enum Measured {
     /// The reporting-level reading: volume, area, and their pads.
     Number(pncad::topo::MassProperties<f64>),
-    /// The sign-level enclosure: two ends and the area lever, with no
-    /// volume number in it by construction.
+    /// The bracket `TargetUnreached` carries: two ends and the area
+    /// lever, with no volume number in it by construction.
     Bracket(pncad::topo::VolumeEnclosure<f64>),
 }
 
@@ -574,16 +575,17 @@ fn run_body(
             let slack = delta * mesh_area(&mesh);
             assert!(
                 v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,
-                "{label}: mesh signed volume {v_mesh} is outside the certified SIGN-level \
-                 bracket [{}, {}] widened by the chordal slack {slack:e}",
+                "{label}: mesh signed volume {v_mesh} is outside the certified bracket \
+                 [{}, {}] widened by the chordal slack {slack:e}",
                 enclosure.volume_lo,
                 enclosure.volume_hi
             );
             println!(
-                "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3 at SIGN level (tier 3 certified \
-                 the sign; the reporting target 1024·ε is under this body's quadrature floor, \
-                 so it has no volume NUMBER at this ε), A = {:.6} m^2; mesh (delta = {:.0e}): \
-                 {} triangles, V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
+                "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3, certified bracket \
+                 (tier 3 certified the sign; the reporting target 1024·ε is under this \
+                 body's quadrature floor, so it has no volume NUMBER at this ε), \
+                 A = {:.6} m^2; mesh (delta = {:.0e}): {} triangles, \
+                 V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
                 enclosure.volume_lo,
                 enclosure.volume_hi,
                 enclosure.surface_area,

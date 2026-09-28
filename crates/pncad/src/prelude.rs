@@ -631,7 +631,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // so a Python caller who reads it measures the import once instead of
 // twice — and on an admitted body whose volume is not measurable at
 // this ε, reading it raises the measurement refusal with the
-// sign-level bracket (`ImportReport.enclosure`).
+// bracket the measurement held (`ImportReport.enclosure`).
 //
 // **`StepImport::Solid::coherence` is the one field whose type is not
 // step-import's**, and the curated-type rule reaches through it

@@ -1319,7 +1319,9 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 
 /// **The approximating-surface door**: fit the offset of `base` at
 /// signed distance `d`, certify the fit against the description, and
-/// hand back the [`geom::Surface::Approx`] variant that stores both.
+/// hand back the [`geom::ApproxSurface`] that stores both — the payload
+/// of [`geom::Surface::Approx`], so a caller that stores it wraps it and
+/// a caller that reads it needs no variant match.
 ///
 /// The certificate is derived from the STORED pair — the description
 /// that goes into the surface and the fit that goes into the surface —
@@ -1346,7 +1348,7 @@ pub fn approx_offset_surface(
     base: std::sync::Arc<NurbsSurface<f64>>,
     d: f64,
     tol: Tol,
-) -> Result<Surface<f64>, OffsetFitError> {
+) -> Result<std::sync::Arc<geom::ApproxSurface<f64>>, OffsetFitError> {
     let fitted = fit_offset(&base, d, tol)?;
     mint(base, d, fitted, |description, fit, window| {
         certify_offset_over(description, fit, window, tol)
@@ -1372,6 +1374,7 @@ pub fn approx_offset_surface_at(
     mint(base, d, fitted, |description, fit, window| {
         certify_offset_over_at(description, fit, window, tolerance, band)
     })
+    .map(Surface::Approx)
 }
 
 /// The storage step both mint forms share: the spec from the base, `d`
@@ -1387,7 +1390,7 @@ fn mint(
         &NurbsSurface<f64>,
         geom::ApproxWindow,
     ) -> Result<OffsetCertificate, OffsetFitError>,
-) -> Result<Surface<f64>, OffsetFitError> {
+) -> Result<std::sync::Arc<geom::ApproxSurface<f64>>, OffsetFitError> {
     let spec = geom::SurfaceSpec {
         window: geom::ApproxWindow::of(&*base),
         description: geom::SurfaceDescription::Offset { base, d },
@@ -1396,7 +1399,7 @@ fn mint(
     let approx = geom::ApproxSurface::certify(spec, |description, fit, window| {
         certifier(description, fit, window).map(|cert| cert.carrying_rounds(loop_cert.rounds))
     })?;
-    Ok(Surface::Approx(std::sync::Arc::new(approx)))
+    Ok(std::sync::Arc::new(approx))
 }
 
 /// **The re-derivation door** (O5's never-trust posture): re-runs

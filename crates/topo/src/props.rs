@@ -823,6 +823,18 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     ///
     /// [`MassPropsError`], as [`crate::mass_properties`].
     pub fn refine_to_target(self) -> Result<MassProperties<T>, MassPropsError> {
+        self.continue_to_target()
+            .map_err(|unreached| unreached.refusal)
+    }
+
+    /// [`Self::refine_to_target`]'s walk, with what it HELD when it
+    /// refused: the fold of every face's run at the point the walk
+    /// returned ([`ContinuationRefusal::held`]).
+    fn continue_to_target(self) -> Result<MassProperties<T>, ContinuationRefusal<T>> {
+        let hard = |refusal| ContinuationRefusal {
+            refusal,
+            held: None,
+        };
         let Self {
             body,
             band,
@@ -881,24 +893,43 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // slot, in arena order. A slot the map did not cover is decided
         // here instead — that is both the session arm and the tail past
         // `reached`, which the return below never gets to.
+        //
+        // **What a refusal here HOLDS** is the fold of `runs` as the
+        // walk leaves it: every slot before the refusing one at the
+        // round it was resumed to, the refusing slot at its last
+        // completed round, and every slot after it at the round the
+        // certificate held — never a resumption the map took past the
+        // refusing face, because that slot's recordings are dropped
+        // with it and the serial arm never takes it, so reading it
+        // would make the enclosure depend on the pool width. Each run's
+        // enclosure is sound at whatever round it was taken (the lane's
+        // `RoundOutcome` bounds are sound at every round), and the fold
+        // is the sum [`sign_walk`] already takes over faces left at
+        // different rounds — so the held fold is as sound as the
+        // certificate's own.
         let mut decided = decided.into_iter();
-        for run in &mut runs {
+        for slot in 0..runs.len() {
+            let run = &mut runs[slot];
             match decided.next() {
                 Some((Some(resumed), recording)) => {
                     geom_core::k_stats::splice(recording);
-                    *run = resumed?;
+                    *run = resumed.map_err(hard)?;
                 }
                 Some((None, _nothing_recorded)) => {}
                 None => {
                     if let Some(round) = run.open_at {
-                        *run = resume(run.face, round)?;
+                        *run = resume(run.face, round).map_err(hard)?;
                     }
                 }
             }
             if let Some(source) = run.refusal.clone() {
-                return Err(MassPropsError::Face {
+                let refusal = MassPropsError::Face {
                     face: run.face,
                     source,
+                };
+                return Err(ContinuationRefusal {
+                    refusal,
+                    held: Some(fold_runs(&runs).0),
                 });
             }
         }
@@ -924,12 +955,23 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// apart. The schedule running out (a face's
     /// [`PropsError::QuadratureBudget`]) is the case this certificate
     /// exists for: the sign was decided, the body is valid, and its
-    /// volume is not measurable at this ε — so the bracket the check
-    /// decided on is the whole of what the quadrature is entitled to
-    /// say, and it comes back in [`TargetUnreached::bracket`]. Every
-    /// other refusal (an escalated decision, a poisoned bound, a
-    /// degenerate lever — met in a round the check never needed) leaves
-    /// no enclosure a caller may read, and the bracket is `None`.
+    /// volume is not measurable at this ε — so a bracket is the whole
+    /// of what the quadrature is entitled to say, and it comes back in
+    /// [`TargetUnreached::bracket`]. Every other refusal (an escalated
+    /// decision, a poisoned bound, a degenerate lever — met in a round
+    /// the check never needed) leaves no enclosure a caller may read,
+    /// and the bracket is `None`.
+    ///
+    /// **The bracket is the narrower of the two this call held**: the
+    /// certificate's own ([`Self::enclosure`]), and the fold the
+    /// continuation held when it refused — every face up to the
+    /// refusing one at the round it was resumed to, the rest at the
+    /// round the certificate left them. Both are sums of per-face
+    /// enclosures each sound at the round it was taken, so either is a
+    /// sound bracket of the same volume, and "narrower" is read on the
+    /// half-width both carry (`MassProperties::volume_pad`). A tie, or
+    /// a continuation that refused before resuming anything, keeps the
+    /// certificate's.
     ///
     /// This is the one home of that classification: the import reader,
     /// the Python measurement door and the tour ask it here rather than
@@ -940,34 +982,53 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// [`TargetUnreached`], carrying [`Self::refine_to_target`]'s
     /// refusal verbatim.
     pub fn measure(self) -> Result<MassProperties<T>, TargetUnreached<T>> {
-        let sign_level = self.enclosure();
-        self.refine_to_target().map_err(|refusal| {
-            let bracket = matches!(
-                refusal,
-                MassPropsError::Face {
-                    source: PropsError::QuadratureBudget { .. },
-                    ..
+        let sign_level = fold_runs(&self.runs).0;
+        self.continue_to_target()
+            .map_err(|ContinuationRefusal { refusal, held }| {
+                let budget = matches!(
+                    refusal,
+                    MassPropsError::Face {
+                        source: PropsError::QuadratureBudget { .. },
+                        ..
+                    }
+                );
+                let narrowest = held
+                    .filter(|held| held.volume_pad < sign_level.volume_pad)
+                    .unwrap_or(sign_level);
+                TargetUnreached {
+                    refusal,
+                    bracket: budget.then(|| narrowest.enclosure()),
                 }
-            )
-            .then_some(sign_level);
-            TargetUnreached { refusal, bracket }
-        })
+            })
     }
+}
+
+/// [`SignCertificate::continue_to_target`]'s refusal: the refusal
+/// [`SignCertificate::refine_to_target`] reports, and — when it is a
+/// refusal a face's run CARRIED rather than one that left the face with
+/// no enclosure — the fold of every run as the walk left it.
+struct ContinuationRefusal<T: Real> {
+    refusal: MassPropsError,
+    held: Option<MassProperties<T>>,
 }
 
 /// **A volume the continuation could not reach**
 /// ([`SignCertificate::measure`]): the refusal, and — exactly when the
-/// refusal is the schedule running out — the sign-level bracket the
-/// check decided on.
+/// refusal is the schedule running out — the narrowest bracket the
+/// certificate or its continuation held.
 #[derive(Clone, Debug)]
 pub struct TargetUnreached<T: Real> {
     /// The refusal the reporting door makes on the same body, verbatim.
     pub refusal: MassPropsError,
-    /// The bracket the certificate held before the continuation ran,
-    /// `Some` iff `refusal` is a face's
+    /// The narrower of the bracket the certificate held before the
+    /// continuation ran ([`SignCertificate::enclosure`]) and the one the
+    /// continuation held when it refused — so never wider than the
+    /// first, and narrower wherever the continuation refined a face
+    /// before it stopped ([`SignCertificate::measure`] says how it is
+    /// read). `Some` iff `refusal` is a face's
     /// [`PropsError::QuadratureBudget`]: the body's sign is decided and
     /// its volume lies in this bracket, which is as sound as the lane
-    /// it was derived through ([`SignCertificate::enclosure`]).
+    /// it was derived through.
     pub bracket: Option<VolumeEnclosure<T>>,
 }
 
@@ -978,7 +1039,7 @@ impl<T: Real> fmt::Display for TargetUnreached<T> {
         // caller that wants them reads `bracket`.
         fmt::Display::fmt(&self.refusal, f)?;
         if self.bracket.is_some() {
-            f.write_str(" (the volume's sign is decided; its sign-level bracket is kept)")?;
+            f.write_str(" (the volume's sign is decided; its bracket is kept)")?;
         }
         Ok(())
     }

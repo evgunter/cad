@@ -537,14 +537,21 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 }
 
 /// A LATE Err path through the group door (a refusal decided after the
-/// mint and the boundary plan): whole-body Debug still untouched — the
-/// decided-then-mutated clone discipline.
+/// mint, inside the boundary plan): whole-body Debug still untouched —
+/// the decided-then-mutated clone discipline.
+///
+/// **The elbow's cap is also the torus arm's pose witness.** A partial
+/// revolve's torus wall: its planar caps contain the torus axis, which
+/// the plane×torus arm serves (the two meridian circles). Offset, a cap
+/// is parallel to the axis and OFF it, and cuts a spiric quartic the
+/// arm routes to the general rung, so the C5 gate refuses it by the
+/// arm's own grounds while planning the cap's boundary. This row
+/// pinned `ReanchorOffCarrier` at `8.331e-4` m while the gate read only
+/// the kind pair: the moved pose passed as served and the corner gate
+/// one door down caught it. The C5 table's own `plane × torus` note is
+/// held row by row in `intersect_table::route_inventory`.
 #[test]
 fn probe_late_err_leaves_body_untouched() {
-    // A partial revolve's torus wall: replacing a CAP routes plane x
-    // torus through the C5 gate (the arm is implemented), reaches the
-    // per-chart reanchor plan, and refuses THERE — an Err decided even
-    // deeper in the plan than the route gate this row used to stop at.
     let lp = bulge_loop(vec![
         (Point2::new(-0.3, 0.0), 1.0),
         (Point2::new(0.3, 0.0), 1.0),
@@ -576,30 +583,24 @@ fn probe_late_err_leaves_body_untouched() {
     let mut work = elbow.clone();
     let before = format!("{work:?}");
     let e = topo::replace_face_offset(&mut work, cap, -0.05, Tol::witness())
-        .expect_err("the per-chart rim corner leaves its carrier");
-    // The door AND the magnitude are pinned, not just the variant.
-    // This row pinned `NeighborPairUnroutable(Plane, Torus)` until the
-    // C5 arm landed; with the pair routed, the same call proceeds one
-    // door deeper and refuses at the per-chart corner-accumulation
-    // gate: the moved cap's rim vertex, transported by this ONE
-    // chart's own offset alone, stands off the neighbouring edge's
-    // carrier by a real distance — 8.33e-4 m on this elbow, the
-    // corner error the per-chart loop exists to refuse (the
-    // simultaneous axial door has no arm for a partial revolve's rim,
-    // measured in `torax_axial`). Still an Err decided in the plan,
-    // which is the property this probe holds: the body is untouched.
-    //
-    // The old row's OTHER job — holding the C5 table to its own
-    // `plane × torus` note, so a quiet widening would go green — is
-    // rehomed, not dropped: `intersect_table::route_inventory` pins
-    // `(Plane, Torus, Rung::Closed, true)` row by row, and reverting
-    // the flag reds it (verified in this unit's mutation pass).
-    let topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
-        panic!("expected the reanchor refusal, got {e}");
+        .expect_err("the moved cap cuts a spiric");
+    let topo::ReplaceFaceError::NeighborPoseUnroutable {
+        kind,
+        other_kind,
+        why,
+        ..
+    } = e
+    else {
+        panic!("expected the pose refusal, got {e}");
     };
-    assert!(
-        (gap - 8.331019803635142e-4).abs() <= 1e-12,
-        "the corner error is the elbow's own number, got {gap}"
+    assert_eq!(
+        (kind, other_kind),
+        (geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Torus)
     );
-    assert_eq!(before, format!("{work:?}"), "body moved across a late Err");
+    assert!(why.contains("spiric"), "the arm's own grounds, got {why}");
+    assert_eq!(
+        before,
+        format!("{work:?}"),
+        "body moved across the gate's Err"
+    );
 }
