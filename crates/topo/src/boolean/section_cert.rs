@@ -85,8 +85,11 @@
 //! # Premises, each at its site
 //!
 //! - **S**, sweep completeness. It holds with the conic × plane lane
-//!   examining every root (`reduce.rs` `sweep_direction`), not only the
-//!   first.
+//!   (`reduce.rs` `sweep_direction`) examining every root, not only the
+//!   first, and giving a conic that lies in the face's plane the line
+//!   lane's endpoint treatment: its endpoints are recorded or
+//!   certified `Out`, and its interior is evidenced through the
+//!   neighbour faces as a coplanar line's is.
 //! - **The ring torus**, `R > r > 0` (`geom::require_ring_torus`): the
 //!   component counts of the torus arms need genus 1.
 //! - **Event vertices lie on `Σ` within the band**, the posture every
