@@ -205,11 +205,22 @@ fn a_plane_tangent_to_the_tube_refuses_as_a_tangency() {
     assert!(tangent(&s).starts_with("section_torus_plane_"));
 }
 
-/// **A near-axial plane** (`s ≈ 1e-9`) at the tube's top: tangent or
-/// decided, never a wrong class.
+/// A length strictly inside the run's band sliver — past `zero`, short
+/// of `escalate` — where a margin decides neither way, at whatever
+/// eps the run carries.
+fn in_sliver() -> f64 {
+    let b = band();
+    0.5 * (b.zero() + b.escalate())
+}
+
+/// **A near-axial plane** at the tube's top: tangent or decided, never
+/// a wrong class. Its tilt `s` is set so the near-tube margin `s·R` at
+/// `h = r` sits in the band's sliver, so the top circle's pinch refuses
+/// R-tan at every eps; just inside and just outside, both tube circles
+/// are cut or both missed.
 #[test]
 fn a_near_axial_plane_is_decided_or_tangent_never_wrong() {
-    let n = v(1e-9, 0.0, 1.0);
+    let n = v(in_sliver() / 2.0, 0.0, 1.0);
     for (h, want) in [(0.5, None), (0.4, Some(2)), (0.6, Some(0))] {
         let s = classify(&donut(), &plane(p(0.0, 0.0, h), n));
         match (want, &s) {
@@ -386,13 +397,15 @@ fn cylinder_pairs_every_class() {
     assert_eq!(tangent(&s), "section_cylinder_pair_reach");
 }
 
-/// **The `|d₁ × d₂|` decision**: two walls `1e-9` rad off parallel,
-/// offset so the long saddle loop exists, refuse R-tan. Dropping the
-/// decision would call them parallel (rulings, W1) and clear the loop.
+/// **The `|d₁ × d₂|` decision**: two walls whose tilt, levered by the
+/// pair's extent, sits in the band's sliver — neither parallel nor
+/// definitely tilted, at whatever eps the run carries — offset so the
+/// long saddle loop exists, refuse R-tan. A decision that let the
+/// undecided tilt through would classify a loop the band cannot place.
 #[test]
 fn near_parallel_walls_refuse_as_a_tangency() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
-    let b = cylinder(p(1.3, 0.0, 0.0), v(0.0, 1e-9, 1.0), 0.5);
+    let b = cylinder(p(1.3, 0.0, 0.0), v(0.0, in_sliver() / LEVER, 1.0), 0.5);
     assert_eq!(tangent(&classify(&a, &b)), "section_cylinder_axes_tilt");
 }
 
