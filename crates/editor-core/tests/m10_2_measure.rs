@@ -1212,3 +1212,90 @@ fn a_cusp_extrude_document_refuses_at_the_product_gate() {
         "{rendered}"
     );
 }
+
+#[test]
+fn zz_gather_probe_revolve_and_loft_today() {
+    let lune = || {
+        LoopProgram::Chain(vec![
+            ProgramStep::At([len(0.0), len(4.0)]),
+            ProgramStep::Angle(ang(-std::f64::consts::FRAC_PI_2)),
+            ProgramStep::Line(len(2.0)),
+            ProgramStep::Turn(ang(std::f64::consts::FRAC_PI_2)),
+            ProgramStep::TangentArcTo(ProgramTarget::Point([len(0.0), len(0.0)])),
+            ProgramStep::Cusp,
+            ProgramStep::TangentArcTo(ProgramTarget::Start),
+        ])
+    };
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    let crescent = LoopProgram::Chain(vec![
+        ProgramStep::At([len(1.0), len(0.0)]),
+        ProgramStep::Angle(ang(std::f64::consts::FRAC_PI_2)),
+        ProgramStep::TangentArcTo(ProgramTarget::Point([len(h), len(h)])),
+        ProgramStep::Cusp,
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    // revolve
+    let (doc, plane) = mint(
+        &ProfileDoc::empty(DocumentId::derive("probe-rev"), Tol::witness()),
+        xy_frame(),
+    );
+    let (doc, axis) = mint(&doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, profile) = mint(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![crescent],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, rev) = mint(
+        &doc,
+        Node::Revolve {
+            profile,
+            axis,
+            angle: ang(1.0),
+        },
+    );
+    let ev = eval(&doc);
+    eprintln!(
+        "revolve node ok: {}",
+        matches!(ev.result(rev), Some(NodeResult::Ok(_)))
+    );
+    eprintln!(
+        "revolve product: {:?}",
+        editor_core::product(&doc, &ev, Tol::witness()).map(|b| b.solids().count())
+    );
+    // loft
+    let mut doc = ProfileDoc::empty(DocumentId::derive("probe-loft"), Tol::witness());
+    let mut profiles = Vec::new();
+    for z in [0.0, 1.0] {
+        let (d, plane) = mint(&doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (d, p) = mint(
+            &d,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![lune()],
+                ids: Vec::new(),
+            }),
+        );
+        doc = d;
+        profiles.push(p);
+    }
+    let (doc, loft) = mint(
+        &doc,
+        Node::Loft {
+            profiles,
+            v_degree: Expr::count(1),
+        },
+    );
+    let ev = eval(&doc);
+    eprintln!(
+        "loft node: {:?}",
+        ev.result(loft).map(|r| matches!(r, NodeResult::Ok(_)))
+    );
+    eprintln!(
+        "loft product: {:?}",
+        editor_core::product(&doc, &ev, Tol::witness()).map(|b| b.solids().count())
+    );
+}

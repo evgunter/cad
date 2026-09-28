@@ -151,6 +151,8 @@ mod verbs_offc_consumer;
 mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
+#[path = "zz_gather_census_probe.rs"]
+mod zz_gather_census_probe;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
