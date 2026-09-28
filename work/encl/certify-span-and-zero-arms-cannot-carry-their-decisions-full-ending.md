@@ -81,3 +81,13 @@ Split the tube's definite arm as the span's (Zero to
 `NotSecondOrderSeparated`, Negative to a sign-certain arm). Give the
 collapsed-arm gates a `CertCheck` of their own (or carry the gate's
 verdict on the escalation) so `recourse` routes them as themselves.
+
+## Note (from the offset-meters reshape)
+
+The shared table now takes a valued zero arm:
+`geom_brep::recourse::RefusedArm::Zero(Some(Classified { margin, band }))`
+ends in the conditional tighten below `m/K` when `m > 0`, and in the
+lever alone otherwise. The offset meters use it. certify's zero arms
+pass `Zero(None)` because their variants carry no margin, so the
+repair here is for the variants to carry `(margin, band)`, and the
+routing is already in place.
