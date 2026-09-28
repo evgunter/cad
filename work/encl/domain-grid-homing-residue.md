@@ -2,10 +2,11 @@
 id: domain-grid-homing-residue
 kind: issue
 title: What the domain-uniform grid homing left: knot_aligned_cuts, the grid-plus-sliver predicate spelled twice, hand-spelled interior filters
-status: open
+status: closed
 opened: 2026-09-28
 priority: P4
 cost: E
+closed: 2026-09-28
 ---
 
 Filed by `encl/domain-uniform-grid` (PR 3348), which homed the
