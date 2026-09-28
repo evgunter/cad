@@ -138,49 +138,52 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     }
 }
 
-/// The C6 capability cost, pinned honest: a coaxial NESTED pair (one
-/// wholly inside the other) now refuses at the wall-pair extent gate.
-/// Before PR-A the containment fallback answered it correctly by luck;
-/// the refusal must be the gate's own typed door, not a wrong answer.
+/// **A coaxial NESTED pair answers** (the retired wall-pair gate
+/// refused it on reach). Two coaxial walls of different radii are
+/// parallel: their carriers share no point, and every other pair is a
+/// wall against a cap plane, whose section is essential on a wall that
+/// describes. So the section pass clears the pair and the containment
+/// fallback's answer is certified: the union is the outer cylinder,
+/// the intersection the inner one.
 #[test]
-fn the_nested_coaxial_pair_refuses_at_the_wall_pair_gate() {
+fn the_nested_coaxial_pair_answers_the_nested_closed_forms() {
     let tol = Tol::witness();
     let inner = cyl(0.0, 0.0, 1.0, 1.0, 3.0);
     let outer = cyl(0.0, 0.0, 2.0, 0.0, 4.0);
+    let volume = |r: Result<topo::BooleanResult<f64>, BooleanError>| {
+        let r = r.unwrap_or_else(|e| panic!("the nested pair: {e:?}"));
+        let b = &r.body().expect("non-empty").body;
+        topo::mass_properties(b, tol).unwrap().volume
+    };
     for (a, b) in [(&inner, &outer), (&outer, &inner)] {
-        let err = topo::union(a, b, tol).expect_err("the nested pair refuses under D10");
-        let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-            panic!("expected the wall-pair extent gate, got {err:?}");
-        };
-        assert!(what.contains("two cylinder walls"), "{what}");
+        let v = volume(topo::union(a, b, tol));
+        assert!(
+            (v - 16.0 * PI).abs() < 1e-9,
+            "the union is the outer wall's: {v}"
+        );
+        let v = volume(topo::intersect(a, b, tol));
+        assert!(
+            (v - 2.0 * PI).abs() < 1e-9,
+            "the intersection is the inner's: {v}"
+        );
     }
+    let v = volume(topo::subtract(&outer, &inner, tol));
+    assert!((v - 14.0 * PI).abs() < 1e-9, "outer ∖ inner: {v}");
 }
 
-/// The gate's conservatism inherits the AABB of the CARRIER slab: two
-/// parallel cylinders diagonally offset — axes 2.69 apart, a 0.69 m
-/// true gap, robustly disjoint — refuse because their axis-aligned
-/// boxes still overlap at a corner. The sharp edge of the stated
-/// capability cost: an honest refusal, never a wrong answer, but a
-/// refusal on a pose the old fallback answered correctly. If the gate
-/// ever narrows to trimmed-wall reach, this row flips to the correct
-/// two-shell answer and should be updated, loudly.
+/// **Two parallel cylinders diagonally offset answer as two disjoint
+/// units** — axes 2.69 apart, a 0.69 m true gap — where the retired
+/// wall-pair gate refused them because their axis-aligned boxes overlap
+/// at a corner. Parallel walls meet in rulings or not at all (W1).
 #[test]
-fn a_diagonally_offset_disjoint_pair_now_refuses_at_the_gate() {
+fn a_diagonally_offset_disjoint_pair_answers_two_units() {
     let tol = Tol::witness();
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let b = cyl(1.9, 1.9, 1.0, 0.0, 2.0);
-    match topo::union(&a, &b, tol) {
-        Err(BooleanError::FallbackExtentUnsupported { what, .. }) => {
-            assert!(what.contains("two cylinder walls"), "{what}");
-        }
-        Err(e) => panic!("expected the extent gate, got {e:?}"),
-        Ok(topo::BooleanResult::Body(body)) => {
-            let v = topo::mass_properties(&body.body, tol).unwrap().volume;
-            assert!((v - 4.0 * PI).abs() < 1e-9, "two disjoint units: {v}");
-            panic!("the box gate no longer fires on the diagonal pose: update this row");
-        }
-        Ok(other) => panic!("unexpected {other:?}"),
-    }
+    let r = topo::union(&a, &b, tol).unwrap_or_else(|e| panic!("the diagonal pair: {e:?}"));
+    let body = &r.body().expect("non-empty").body;
+    let v = topo::mass_properties(body, tol).unwrap().volume;
+    assert!((v - 4.0 * PI).abs() < 1e-9, "two disjoint units: {v}");
 }
 
 /// D3's carrier gate probed at MANY radii: radially-off points must be

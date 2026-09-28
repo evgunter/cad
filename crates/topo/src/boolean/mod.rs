@@ -78,6 +78,9 @@ mod finish;
 pub(crate) mod insert;
 mod join;
 mod ops;
+pub(crate) mod section_cert;
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use ops::section_report;
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
@@ -1046,9 +1049,11 @@ pub enum BooleanError {
     CurvedPairUnsupported {
         /// The op this refusal is specific to, or `None` when the kind
         /// has no arm under any op. `Union` is named only by the
-        /// crossings path's reach gate (`ops::interior_loop_reach_gate`),
-        /// which refuses a torus face that may meet an undeclared face
-        /// of the other operand where no edge event can see it.
+        /// crossings path's section certificate
+        /// (`ops::interior_loop_verdict`), which refuses a face pair it
+        /// cannot certify free of a loop interior to both faces: an
+        /// intractable pose, a tangency, a certified interior loop, or
+        /// an undecided witness.
         op: Option<BooleanOp>,
         /// The operand carrying the face whose kind has no arm.
         operand: Operand,

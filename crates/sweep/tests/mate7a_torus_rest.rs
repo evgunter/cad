@@ -26,7 +26,8 @@
 //! the carrier-identity rung reads the verified `Rest` declaration
 //! before the sampled clearance, whose `±charge` about an identically
 //! zero residual would read definitely negative — and stops at the
-//! no-crossings fallback's torus extent gate.
+//! no-crossings fallback's section pass, on the coincident pair's
+//! tangency.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -366,15 +367,16 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
 /// carrier, so its clearance is zero by that certificate, and the
 /// declared cover takes the endpoint posture.
 ///
-/// What stops the lane now is the no-crossings fallback's TORUS extent
-/// gate: no crossing cuts either torus, and a torus face whose reach
-/// meets the other operand is exactly the case the vertex probe cannot
-/// decide (every vertex it would probe lies on the other torus), so the
-/// gate refuses typed before the probe runs. The property is the one
+/// What stops the lane now is the no-crossings fallback's section pass:
+/// no crossing cuts either torus, and a coincident coaxial pair is the
+/// tangent row of the torus × torus classification (the tube circles
+/// coincide, so the nesting margin is zero) — exactly the case the
+/// vertex probe cannot decide (every vertex it would probe lies on the
+/// other torus), so the pass refuses typed before the probe runs. The property is the one
 /// this row has always held: a coincident torus pair never reaches a
 /// body it cannot justify.
 #[test]
-fn the_admitted_torus_lane_stops_at_the_torus_extent_gate() {
+fn the_admitted_torus_lane_stops_at_the_section_pass() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
@@ -382,7 +384,7 @@ fn the_admitted_torus_lane_stops_at_the_torus_extent_gate() {
     assert!(
         matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
         "the declared coincident pair passes the crossing layer and stops at \
-         the torus extent gate: {err:?}"
+         the section pass: {err:?}"
     );
 }
 
