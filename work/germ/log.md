@@ -258,3 +258,18 @@ question. The ∖/∩ torus roster stays shut behind it.
 PR 3330 carries the chord-rule relaxation (with its soundness argument for
 every kind that reaches it) and the ring convention's one home. Its dual
 review waits for disk: the cone fix pass and the stopgap are building.
+## 2026-09-28 — the cone ground lands (PR 3322)
+
+The cone gets its `curved_face_containment` arm, and the C5 gate asks the
+arm about the POSE (`route_pose`; the new `NeighborPoseUnroutable`). Tier:
+a single full review, APPROVE-WITH-FIXES:
+- no wrong answer, and no working shell or offset newly refused;
+- one ordering MINOR: an operand guard's refusal read as "served", so
+  `route_pose` admitted a pose it never classified;
+- three rows missing that go red on degradation.
+
+The fix pass took all of it. Hosted run 36391755202 is green on
+`60da0f8c2`. The band-vs-zero posture stays open on its P3 row, which now
+carries the reviewer's argument that the aperture guards are policy, not
+numerical necessity. `VERBS-CONE` now carries the list of `reduce.rs` sites
+that have no cone arm.

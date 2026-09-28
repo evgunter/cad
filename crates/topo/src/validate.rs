@@ -3513,7 +3513,7 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   outward normal, on loops of line, circle and ellipse carriers — a
 ///   planar loop riding a spiric or NURBS carrier is not examined,
 ///   so such a face's sense bit is falsified by nothing at rest;
-///   `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
+///   `work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
 ///   A planar face's NESTING half — a ring lying inside the outer
 ///   loop of its own face — is check 9's nesting arm, on every planar
 ///   face, through the parity walk that reads each outer edge on its
@@ -3549,7 +3549,7 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   next). And check 10 reads one point per shell, which decides only
 ///   under the no-crossing premise — **shells that cross** are global
 ///   self-intersection's, the first item of this list.
-///   (`work/atrest/check-10-is-silent-where-point-in-solid-refuses`.)
+///   (`work/restfront/check-10-is-silent-where-point-in-solid-refuses`.)
 ///
 ///   **What check 10 does not refuse is deliberate**: several `Outer`
 ///   shells under one solid are what four doors produce ON PURPOSE —
@@ -3571,9 +3571,9 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   certifies the rest of the frame for the axisymmetric kinds
 ///   ([`geom::Surface::representability_margins`],
 ///   [`geom::Curve3::representability_margins`]); these are not
-///   certified: `work/atrest/unlevered-frame-conventions-are-uncertified-at-rest.md`.
+///   certified: `work/restfront/unlevered-frame-conventions-are-uncertified-at-rest.md`.
 ///   Nor is an ellipse's `major > minor` ordering:
-///   `work/atrest/an-ellipse-stored-minor-over-major-passes-tier-3.md`.
+///   `work/restfront/an-ellipse-stored-minor-over-major-passes-tier-3.md`.
 ///
 /// # Errors
 ///
@@ -4111,7 +4111,7 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// is read, so the common body pays nothing. A solid with `n > 1`
 /// shells pays `n` sign walks and at least `n (n - 1)` point probes,
 /// with no bounding-box prefilter
-/// (`work/atrest/check-10-is-quadratic-in-shells-per-solid`).
+/// (`work/restfront/check-10-is-quadratic-in-shells-per-solid`).
 fn shell_winding_errors<T: Decide>(
     body: &Body<T>,
     band: Band,
@@ -4367,8 +4367,13 @@ pub(crate) fn tier3_local_checks<
 ///
 /// The +V invariant reads a volume ENCLOSURE and refuses only on a
 /// definite disagreement, so its verdict on a bracket `[lo, hi]` is
-/// settled as soon as that bracket excludes zero — and refinement only
-/// tightens a bracket, never moves the truth out of it:
+/// settled as soon as that bracket excludes zero, because EVERY
+/// round's bracket contains the true volume. The brackets need not
+/// nest and their widths are not monotone in the round — each round
+/// recomputes its sum from scratch, and the rounding width of its
+/// midpoint sum grows with the cell count (`geom-brep`'s
+/// `last_round_width_lo`) — but containment is all the argument
+/// reads:
 ///
 /// - `hi` definitely negative ⇒ the body's volume is `≤ hi < 0`, and
 ///   no finer round produces an upper end above the volume. REFUSE.
@@ -5933,7 +5938,7 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // **The residue this arm does not examine**: a loop riding a NURBS
     // or spiric carrier, whose region has no closed-form area
-    // (`work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
+    // (`work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
     // A planar face bounded so carries a stored sense no at-rest check
     // falsifies.
     //
@@ -6207,7 +6212,7 @@ pub(crate) fn tier3_local_checks_marked<
     // - **A face on a non-planar surface** in arms 4 and 5: there is
     //   no plane to meet in. Arms 1-3 still run there. Both silences
     //   are one row
-    //   (`work/atrest/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
+    //   (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
     //
     // The residue is a floor, not a ceiling: what it costs is that a
     // body carrying one of those shapes validates. The shapes this
