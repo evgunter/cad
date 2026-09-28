@@ -1046,13 +1046,34 @@ pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 /// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
 pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
-/// The recourse of last resort (D4 ¶1 (i)): where a refusal would
-/// otherwise name no recourse at all because the kernel approximated —
-/// a fitted carrier's residual, a certified bound — loosening the
-/// tolerance is the one lever left, and the refusal may be a kernel bug.
-/// No other refusal advises loosening.
-pub const LAST_RESORT_RECOURSE: &str = "Recourse: as a last resort, loosen the tolerance; this \
-                                        refusal may indicate a kernel bug worth reporting";
+/// The qualifier a refusal at a kernel approximation limit puts on its
+/// one recourse, loosening the tolerance (D4 ¶1 (i)): a kernel
+/// approximation limit — an offset fit that stalls, a quadrature budget
+/// spent, a built curve's residual — leaves the user no lever but ε,
+/// and the kernel falling short there may be a defect.
+///
+/// **It follows the lever, not stands alone.** It ends the message, but
+/// only after the site's own lever and the value its payload gives
+/// (`Recourse: loosen the tolerance to {best} m or more, `), appended
+/// after a comma so the value stays in the one sentence the marker
+/// labels. A site whose payload gives no value writes the whole
+/// sentence [`KERNEL_LIMIT_RECOURSE`]. A refusal that names any other
+/// recourse — a geometry lever such as splitting the face — names that
+/// instead, and no loosening at all: this is for the site that would
+/// otherwise name none.
+///
+/// A site that must compose it into a `&'static str` reaches the same
+/// literal through the hidden `geom_core::kernel_limit_last_resort!`
+/// macro.
+pub const KERNEL_LIMIT_LAST_RESORT: &str = crate::kernel_limit_last_resort!();
+
+/// The whole last-resort recourse for a site whose payload gives no
+/// value to size the loosening to: the lever, then
+/// [`KERNEL_LIMIT_LAST_RESORT`].
+pub const KERNEL_LIMIT_RECOURSE: &str = concat!(
+    "Recourse: loosen the tolerance, ",
+    crate::kernel_limit_last_resort!()
+);
 
 /// [`KERNEL_DEFECT_ENDING`] as a literal, for `concat!` at a site
 /// whose prose is a `&'static str` (a constant cannot be spliced into
@@ -1063,6 +1084,16 @@ pub const LAST_RESORT_RECOURSE: &str = "Recourse: as a last resort, loosen the t
 macro_rules! kernel_defect_ending {
     () => {
         "There is no way through: this is a kernel defect; report it"
+    };
+}
+
+/// [`KERNEL_LIMIT_LAST_RESORT`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! kernel_limit_last_resort {
+    () => {
+        "as a last resort; this refusal may indicate a kernel bug worth reporting"
     };
 }
 

@@ -1018,7 +1018,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "surface-residual",
             escalated(CertCheck::Surface1Residual, in_band),
-            geom_core::LAST_RESORT_RECOURSE,
+            geom_core::KERNEL_LIMIT_RECOURSE,
         ),
     ]
 }

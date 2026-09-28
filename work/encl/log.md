@@ -1156,3 +1156,10 @@ class of 65 sites is PRED's row.
   - offset_fit: two arms drop loosening (a real lever, split the face, remains); three keep it as the last resort, one of them (~769) missed by the row. topo `classify_offset_fit` mirrors this.
   - PROPS' quadrature-budget sites are filed on PROPS' slate. topo flush is filed in issues. ssi evidence added.
   - **Collision with 3351**, which adds `geom_core::LAST_RESORT_RECOURSE` (a whole sentence). Decision: 3363's tail is the one home, because it can carry a site's value. 3351's fix pass composes from it and deletes its own constant. The style review for 3363 is also checking that composition.
+- 2026-09-28 — Reviews adjudicated.
+  - **3363** (style review): APPROVE-WITH-FIXES, all taken. The doc now uses D4's own list. Adds `KERNEL_LIMIT_RECOURSE`, the whole no-value sentence, which topo now uses. Adds a checks-window endings pin: red with "loosen" re-added, then green. The `contains` pins are now whole-recourse. Merged at head `ae4283fcc4` → `c28651d7c3`, hosted green. Row closed.
+  - **3351** (full review): REQUEST-CHANGES.
+    - M1: the certify Display fixed `Reading::Build`, so a file's defect at STEP adoption read as a kernel defect or "loosen". Fix (a): Display renders the payload only; each door appends `recourse` at its own reading, and adoption never gives last resort or kernel defect.
+    - M2: tighten was offered on wrong-sign in-band margins. It is now gated on `passes()`.
+    - Minors: TubeStraddles/Limb/ChartImageUnavailable siblings get endings; the Invalid tail is reworded; mesh12 accepts ParamWinding only; the tube Zero|Negative conflation goes on the row; a row for validate's SliverDihedral/own_close "lower".
+    - Fix pass dispatched. It composes from `KERNEL_LIMIT_RECOURSE` now that 3363 is on main.

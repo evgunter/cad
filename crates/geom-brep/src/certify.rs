@@ -55,8 +55,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
 use geom_core::{
-    Band, BandError, Decide, Indeterminate, InfSpeed, KERNEL_DEFECT_ENDING,
-    KERNEL_OR_FILE_DEFECT_ENDING, LAST_RESORT_RECOURSE, Margin, MarginDiag, Point3, Real, Sign,
+    Band, BandError, Decide, Indeterminate, InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
+    KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, Point3, Real, Sign,
 };
 
 use crate::description::{
@@ -455,10 +455,9 @@ impl core::fmt::Display for CertifyError {
                 "{check} at sample {sample} definitely exceeds the tolerance \
                  band (the cache does not represent the description, D4 ¶2)"
             ),
-            Self::PlaneNurbs(refusal) => write!(
-                f,
-                "the plane × NURBS Intersection lane refused — {refusal}"
-            ),
+            Self::PlaneNurbs(refusal) => {
+                write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
+            }
             Self::NotTransverse { sample } => write!(
                 f,
                 "the faces meet tangentially at sample {sample}, where the \
@@ -776,7 +775,9 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
                     let k = cause.band.escalate() / cause.band.zero();
                     match cause.margin {
                         MarginDiag::Value(m) if passes.accepts(m) => tighten(Some(m.abs() / k)),
-                        MarginDiag::Enclosure { lo, hi } if passes.accepts(lo) && passes.accepts(hi) => {
+                        MarginDiag::Enclosure { lo, hi }
+                            if passes.accepts(lo) && passes.accepts(hi) =>
+                        {
                             tighten(Some(lo.abs().min(hi.abs()) / k))
                         }
                         MarginDiag::Value(_) | MarginDiag::Enclosure { .. } => alone(),
@@ -791,7 +792,7 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
         }
         Ending::Unsized(Unsized::Defect) => defect.to_owned(),
         Ending::Unsized(Unsized::LastResort) => match reading {
-            Reading::Build | Reading::AtRest => LAST_RESORT_RECOURSE.to_owned(),
+            Reading::Build | Reading::AtRest => KERNEL_LIMIT_RECOURSE.to_owned(),
             Reading::Adopt => defect.to_owned(),
         },
     }
@@ -2825,7 +2826,7 @@ mod tests {
             .render(Reading::Build),
             "the between-samples sag bound at sample 4 definitely exceeds the tolerance \
              band (the cache does not represent the description, D4 ¶2). Recourse: \
-             as a last resort, loosen the tolerance; this refusal may indicate a kernel bug \
+             loosen the tolerance, as a last resort; this refusal may indicate a kernel bug \
              worth reporting"
         );
 
@@ -4027,7 +4028,7 @@ mod tests {
                     value: 2e-8,
                 }),
                 &certificate,
-                LAST_RESORT_RECOURSE,
+                KERNEL_LIMIT_RECOURSE,
             ),
             (
                 lane(P::TubeStraddles {
@@ -4035,7 +4036,7 @@ mod tests {
                     boxes: 4,
                 }),
                 &certificate,
-                LAST_RESORT_RECOURSE,
+                KERNEL_LIMIT_RECOURSE,
             ),
             (
                 built(CertifyError::ChartImageUnavailable {
@@ -4127,11 +4128,11 @@ mod tests {
             ),
             (
                 undecided(CertCheck::Surface1Residual, MarginDiag::Value(5e-9)),
-                LAST_RESORT_RECOURSE,
+                KERNEL_LIMIT_RECOURSE,
             ),
             (
                 undecided(CertCheck::PlaneNurbsCertificate, MarginDiag::Invalid),
-                LAST_RESORT_RECOURSE,
+                KERNEL_LIMIT_RECOURSE,
             ),
             (
                 recourse(
@@ -4167,9 +4168,7 @@ mod tests {
         assert_eq!(escalated.to_string(), payload);
         assert_eq!(
             escalated.render(Reading::Build),
-            format!(
-                "{payload}. There is no way through: this is a kernel defect; report it"
-            )
+            format!("{payload}. There is no way through: this is a kernel defect; report it")
         );
     }
 
