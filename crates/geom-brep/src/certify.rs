@@ -1896,8 +1896,9 @@ fn run_checks<T: Decide>(
             // parallelism within the derived threshold at lever arm
             // r = 1/κ_rel (D2 verbatim, D4 ¶1). A second-order refusal
             // is named by a definite parallelism defect at the folded
-            // arm when there is one, so the cause a refusal reports does
-            // not depend on the surfaces' order or the scalar.
+            // arm when there is one, so a definite first-order defect is
+            // reported as itself whatever the surfaces' order or the
+            // scalar.
             Resolved::Tangent { surf1, surf2, .. } => {
                 let (p, tau) = if i > 0 && i < CERT_SAMPLES - 1 {
                     let (p, tau) = spec.carrier.ders1(t);
@@ -1936,33 +1937,31 @@ fn run_checks<T: Decide>(
                     match so.verdict {
                         Ok(Sign::Positive) => {}
                         refused => {
-                            // The second-order margin gates the lever
-                            // `1/κ_rel`, not the first-order question:
-                            // without a definite `κ_rel` the parallelism
-                            // defect is metered at the folded arm the
-                            // sagitta was read over, and a definite
-                            // defect there is the refusal's cause.
-                            // `κ_rel` is only a curvature where the
-                            // normals are parallel — off a tangency it
-                            // depends on the argument order, and at
-                            // `Interval` its sign `σ₂` hulls to
-                            // `[−1, 1]` where they are perpendicular —
-                            // so a crossing's own defect must not be
-                            // reported as an osculating pair's. An
-                            // in-band or zero reading here says nothing
-                            // more definite than the second-order one,
-                            // which then stands.
-                            if let Ok(Sign::Positive | Sign::Negative) = decide(
-                                "tangent_normal_parallel",
-                                Margin::levered(jet.sin_theta, arm),
-                                band,
-                            ) {
-                                return Err(CertifyError::ResidualExceeded {
+                            // No lever `1/κ_rel` exists, so the
+                            // parallelism defect is metered at the folded
+                            // arm the sagitta was read over; a DEFINITE
+                            // defect there is the refusal's cause (why
+                            // `κ_rel` alone cannot tell a crossing from an
+                            // osculating pair: `crate::TangentJet`). An
+                            // in-band or zero reading is no more definite
+                            // than the second-order one, which stands.
+                            // `topo::boolean::contact_verify`'s tangency
+                            // ladder spells the same fallback lever; the
+                            // one deliberate difference is its role here,
+                            // where it only names a refusal already made.
+                            let renamed = matches!(
+                                decide(
+                                    "tangent_normal_parallel",
+                                    Margin::levered(jet.sin_theta, arm),
+                                    band,
+                                ),
+                                Ok(Sign::Positive | Sign::Negative)
+                            );
+                            return Err(match refused {
+                                _ if renamed => CertifyError::ResidualExceeded {
                                     check: CertCheck::TangentParallel,
                                     sample: i,
-                                });
-                            }
-                            return Err(match refused {
+                                },
                                 Err(cause) => CertifyError::Escalated {
                                     check: CertCheck::TangentSecondOrder,
                                     sample: i,
