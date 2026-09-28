@@ -867,3 +867,28 @@ It merges on hosted green.
 - **Open, handed to the review.** `sweep::swept::describe_face_rim_at_rest`.
 
 Full review dispatched.
+
+## PR 3324 review adjudicated (2026-09-28)
+
+(ENCL orchestrator) Full review on `781c3b20d8`: APPROVE-WITH-FIXES, no
+MAJOR.
+- **No ratified clause implemented the old order**, checked with `-S`
+  provenance on D2's lane clause (`4eda8abec4`) and on "lane gate comes
+  first" (`ec33536109`, BLEND-9 code doc). So this is not a design fork.
+- **Correctness.** In lane, nothing changes. Out of lane, the pair is
+  classified per station. The K row is a real pin under `probe`.
+- **Taken into a fix pass:**
+  - the two `UnderDetermined` spellings made to agree;
+  - the rule's doc states that every Nurbs/Approx pair now answers
+    `InBand` (the kind is not implemented), whose recourse misleads;
+  - the "unverified" `describe_face_rim_at_rest` is closed (loft's
+    Plane×Nurbs cap rims only, under D2's NURBS exemption), and its doc
+    example corrected;
+  - the CONTACT item's diagnosis completed (the fix there needs a
+    bound-free first-order path, not a reorder) and priced;
+  - the new doc paragraph trimmed;
+  - surgery's "falls to the certification door's refusal" claim
+    checked.
+- **Brief correction, recorded.** The widened smooth out-of-lane row
+  was never meant to red on the old order (both answered
+  `UnderDetermined`); the brief overstated that, not the PR.
