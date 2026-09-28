@@ -920,3 +920,10 @@ class of 65 sites is PRED's row.
   - The fix adds a first-order parallelism reading, on the refusal path only, when the second-order margin is not Positive. A definite defect renames the refusal to `TangentParallel`.
   - The certified set does not change. K delta is 0 at every ε row across the four producers (checked with a temporary marker). No fork: C7 and D4 ¶1 decide the same things.
   - Single full review dispatched. Its falsification targets: callers that branch on the refusal kind, and reuse of the predicate name in the census.
+- 2026-09-28 — The PR 3333 full review came back APPROVE-WITH-FIXES.
+  - Kernel claims all confirmed: the mixed-round fold is sound, the fold is independent of pool width, the public contract of `refine_to_target` is unchanged, and the row's premise is refuted in code.
+  - The reviewer found a real test gap: a zero-pad (unsound) mutant passed every assertion in the row. A closed-form containment check catches it.
+  - Other findings, all taken into the fix pass: prose misses in teapot.rs, tour `main.rs`, `nurbs_import.rs` and `test_validate.py`, and the confusing `held` name.
+  - A monotonicity contradiction between validate.rs:4370 and the `filter` guard is to be settled from the code.
+  - Declined: merging the two near-duplicate refusal types (taste), and the index loop.
+  - Fix pass sent back to the lane.
