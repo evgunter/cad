@@ -36,8 +36,11 @@
 //! - [`oracles`] — closed-form volumes, which are neither: a truth
 //!   derived without the kernel, so its own doc carries the rule for
 //!   which per-suite spellings may come here at all;
-//! - `revolve_common` — the revolve suites' own, and the place `p2`
-//!   and `eps` presently live despite belonging to no verb.
+//! - [`sphere_recut`] — the certified sphere-recut fixture and the one
+//!   measurement taken of it, a group two suites' rows name (body
+//!   authoring, same routing);
+//! - `revolve_common` — the revolve suites' own, and the place `eps`
+//!   presently lives despite belonging to no verb.
 //!
 //! A helper one suite uses stays in that suite.
 //!
@@ -141,6 +144,11 @@ pub mod interval;
 /// its module doc carries the rule for which per-suite spellings come
 /// here and which are second derivations that must not.
 pub mod oracles;
+
+/// The certified sphere-recut fixture — its plate, its ball and the
+/// enclosure width its subtract is measured to escalate on — which two
+/// suites' rows run as one fixture. Body authoring, so it routes here.
+pub mod sphere_recut;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;

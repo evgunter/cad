@@ -78,12 +78,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
-    (p2(x, y), bulge)
+    (Point2::new(x, y), bulge)
 }
 
 /// `a ∖ b`, the one boolean these rows use.
@@ -100,7 +96,7 @@ fn ball_at(c: Vec3<f64>) -> Body<f64> {
         .validate(tol())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;

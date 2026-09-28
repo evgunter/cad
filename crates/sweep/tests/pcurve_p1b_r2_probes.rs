@@ -35,10 +35,6 @@ use topo::{Body, EdgeKey, FaceKey, ValidationError};
 
 use crate::common::approx::band;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// Every `ScaffoldAtRest` report tier 3 makes about `body`.
 fn scaffolds_at_rest(body: &Body<f64>) -> Vec<EdgeKey> {
     match topo::validate_geometric(body, Tol::witness()) {
@@ -73,10 +69,10 @@ fn scaffold_descriptions(body: &Body<f64>) -> Vec<EdgeKey> {
 
 fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon([
-        p2(x0, y0),
-        p2(x0 + side, y0),
-        p2(x0 + side, y0 + side),
-        p2(x0, y0 + side),
+        Point2::new(x0, y0),
+        Point2::new(x0 + side, y0),
+        Point2::new(x0 + side, y0 + side),
+        Point2::new(x0, y0 + side),
     ]);
     let plane = SketchPlane::new(Affine3::from_parts(
         geom_core::Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
@@ -93,7 +89,7 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
 /// A profile with an ARC segment, extruded — the arc scaffolding door
 /// (`arc_of_circle`) rather than the chord one.
 fn arc_prism() -> Body<f64> {
-    let v = |x: f64, y: f64, bulge: f64| (p2(x, y), bulge);
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     let lp = bulge_loop(vec![
         v(0.0, 0.0, 0.0),
         v(1.0, 0.0, 0.4),
@@ -110,14 +106,19 @@ fn arc_prism() -> Body<f64> {
 
 /// Revolves the closed `(r, y)` polygon about the `y` axis.
 fn revolved(points: &[(f64, f64)], revolution: Revolution<f64>) -> Body<f64> {
-    let lp = bulge_loop(points.iter().map(|(r, y)| (p2(*r, *y), 0.0)).collect());
+    let lp = bulge_loop(
+        points
+            .iter()
+            .map(|(r, y)| (Point2::new(*r, *y), 0.0))
+            .collect(),
+    );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a valid profile");
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         revolution,
@@ -510,14 +511,17 @@ fn r2_the_converted_edges_have_measurable_epsilon_headroom() {
 /// concentric — not a rigid translation.
 #[test]
 fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
-    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the half disc is a valid profile");
     let ball = revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,

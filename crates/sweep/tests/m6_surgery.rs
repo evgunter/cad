@@ -13,7 +13,7 @@ use core::f64::consts::PI;
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Point2, Vec3};
+use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{ball_poled, cube};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -33,10 +33,6 @@ const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 /// The pip-rim blend radius, meters.
 const RIM_R: f64 = 0.02;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 fn layout(n: u32) -> Vec<(f64, f64)> {
     let c = vec![(0.0, 0.0)];
