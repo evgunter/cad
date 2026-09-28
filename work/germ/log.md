@@ -355,3 +355,15 @@ The spec is `docs/GERM-SECTION-CERTIFICATE-SPEC.md`, on `germ/section-certificat
 - **Watch in review:**
   - premise S is asserted from `curved_face_arm`'s "never a silent fallback"; the reviewers must confirm it over every edge × face arm;
   - the corner bar now clears at the guard, so its never-a-body row rests on the chord and sagitta rules.
+
+## 2026-09-28 — premise S failed at the sweep; the certificate pauses on a one-line fix
+
+The certificate implementer walked every edge × face arm before writing any code, and stopped as briefed.
+
+- **The failure:** the planar sweep's conic × plane lane classifies only `roots.first()` (`reduce.rs` ≈`:841`). A first root landing `Out` hides a second root landing `In`: nothing is recorded, certified a miss, or refused.
+- **The measurement:** a spun cylinder against a box refuses at `UnpairedLooseEnds` for s ∈ {0, 0.3, 3}. Looping over every root answers the closed forms. It was loud here, but nothing guarantees that, and it breaks L1: the no-event decision could clear a component on a dropped root.
+- **Filed:** `conic-plane-sweep-examines-only-the-first-root` (P0, E). Dispatched on `germ/conic-plane-every-root`, with red-first rows and a sibling search; the tier is an orchestrator read.
+- **The certificate lane resumes on top of it.** The lone-vertex ruling is conservative: refuse a pair whose face carries an `Empty` loop.
+- **`VERBS-CONE` gains two items:** the convexity arm (`:1519`) and the certificate's cone arms.
+
+**Class (logged):** a spec asserted a premise from a doc comment ("never a silent fallback") on ONE arm, and the premise was false on a sibling arm that the doc comment never covered. The implementer's audit-before-code caught it. Briefs for certificate work keep "audit the premise per arm, stop if it fails."

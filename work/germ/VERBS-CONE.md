@@ -107,3 +107,8 @@ What came back:
 
 A plane × cone ellipse always encircles the axis and so crosses the
 cone's seams, but no plane fixture reached the join to confirm it.
+
+**2026-09-28, from the section-certificate lane's premise-S audit.** Two more arms must learn the cone before `boolean_arm_exists` admits it:
+
+- **`reduce.rs` `curved_face_arm`, the "both endpoints inside" arm (about `:1519` on `2ba90bced`).** It rests on the carrier's convexity, which holds for a cylinder or a sphere. A cone's is not the same: a nappe pair is not convex, and the apex breaks it. Unreachable today only through the roster.
+- **The section certificate's cone arms (its spec's Q3):** the crossings-path half, AND the no-crossings arm that replaces the extent gates. These land with this item.
