@@ -12,15 +12,17 @@ changes nothing leaves `git status` clean.
 
 The nightly (`nightly.yml` calling `render.yml`) re-renders every lane
 at main's tip and commits the re-baselined cells to main. **Never
-hand-commit cells.** PRs do not render: merge, and the next nightly
-commits what your change moved; pull after it.
+hand-commit cells.** PRs do not render.
+
+**If your change should move frames, render your branch before you
+merge**: push, then `local-scripts/render-hosted.sh [--lane <lane>]`
+(or `gh workflow run render.yml --ref <branch>`). The run commits the
+re-baselined cells to your branch; `git pull`, look at them, and they
+merge with your change. Otherwise the nightly commits them a day later
+and nobody looks.
 
 A re-baseline is **not a failure** — if the render is what you
 intended, it is a pass.
-
-To LOOK at a branch's cells before merging, render it hosted:
-`local-scripts/render-hosted.sh --on-demand --lane <lane>` (or dispatch
-`render.yml`).
 Expect the PNG lanes to re-baseline when the runner image's mesa bumps;
 that is the lane working.
 

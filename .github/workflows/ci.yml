@@ -43,7 +43,7 @@ jobs:
     if: github.event_name != 'push'
     outputs:
       tier: ${{ steps.classify.outputs.TIER }}
-      cargo_scope: ${{ steps.classify.outputs.CARGO_SCOPE }}
+      cargo_scope: ${{ steps.paths.outputs.cargo_scope }}
       run_build: ${{ steps.classify.outputs.RUN_BUILD }}
       test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
       seeds: ${{ steps.classify.outputs.SEEDS }}
@@ -96,6 +96,7 @@ jobs:
           TIER: ${{ steps.classify.outputs.TIER }}
           SEEDS: ${{ steps.classify.outputs.SEEDS }}
           PKGS: ${{ steps.classify.outputs.PKGS }}
+          CARGO_SCOPE: ${{ steps.classify.outputs.CARGO_SCOPE }}
         run: |
           # A row keyed here runs when the diff touches its own subject, and
           # nightly otherwise. TIER=all (an unscopable change) runs every row.
@@ -127,6 +128,15 @@ jobs:
               [ "$TIER" = all ] && extra="all()"
             fi
             echo "eps_extra=$extra"
+            # test-utils holds the tree-wide source-reader ledger and has no
+            # dependencies, so every closure builds it: a new source-reading
+            # test anywhere owes that ledger a line, and this is where it
+            # hears about it.
+            case "$TIER: $CARGO_SCOPE " in
+              closure:*" -p test-utils "*) echo "cargo_scope=$CARGO_SCOPE" ;;
+              closure:*) echo "cargo_scope=$CARGO_SCOPE -p test-utils" ;;
+              *) echo "cargo_scope=$CARGO_SCOPE" ;;
+            esac
           } | tee -a "$GITHUB_OUTPUT"
 
   lint:

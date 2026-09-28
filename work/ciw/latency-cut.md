@@ -95,7 +95,14 @@ import and interval, ungated.
   reporters, the opt-level calibrator, the demotion selector, and the local
   mirror `local-scripts/ci-local.sh` + `gate.sh`.
 - The read reach in `ci-filter.py`: a tree-wide guard runs when its own
-  crate is in the closure, and nightly.
+  crate is in the closure, and nightly. Measured cost: of 781 red→fix pairs,
+  18 non-merge fixes touched a tree-wide guard — 11 of them
+  `test-utils/tests/reader_census.rs` (a new source-reading test owes the
+  ledger a line), 3 `pncad-py` `prose_census`, 3 `editor-core`
+  `m4_pr8_latency`, 1 `profile` `raw_door_census`; all bookkeeping.
+  test-utils has no dependencies, so every closure builds it and the
+  reader ledger still runs on every code PR; the other seven a PR hears
+  about when it touches their crate, or from the nightly.
 
 ## Expected shape
 

@@ -132,7 +132,10 @@ itself — and it stops showing the friction a user would actually hit. A frame
 that changed is telling you the kernel changed. Never adjust
 a scene, tolerance, or camera to restore a frame. Decide whether the new output
 is right: if it is wrong, fix the kernel; if it is right, re-baseline and say in
-the PR what moved and why.
+the PR what moved and why. **PRs do not render**, so a change you expect to move
+frames renders itself: push, run `local-scripts/render-hosted.sh` (it dispatches
+`render.yml` on your branch, which commits the re-baselined cells there), pull,
+and look before you merge.
 
 ## 4. Comment style
 
