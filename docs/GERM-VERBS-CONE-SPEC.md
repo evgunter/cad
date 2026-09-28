@@ -648,3 +648,198 @@ rule's own docs (`boxes.rs` :1215–1228) defer it to "the cone lane".
 A tighter box sends fewer pairs to the certificate: P8's quarter cone is
 boxed today as a whole frustum. The change moves box-derived baselines;
 re-baseline, and say what moved.
+
+## 3. Units, in dependency order
+
+**How the units stay safe.** Every unit before U7 leaves
+`boolean_arm_exists` untouched, so the cone keeps refusing typed at the
+operand gate, and the three pins stay green through them all
+(`verbs_germarms.rs` :256, `verbs_gate_r1_probes.rs` :386,
+`review_m3_pr4.rs` :590). No op reaches a cone face before U7, so the
+rows before it are verdict-level: in-crate tests call `sweep_direction`,
+`wall_crossing`, `classify` and `certify` directly, below the gate. From
+U7 on, every body a row returns is checked two ways: a closed-form
+volume (`mass_properties`), and `point_in_solid` at named points.
+
+| unit | scope | depends on | cost | review |
+|---|---|---|---|---|
+| U0 `cone-box-clip` (optional) | `ConeSlab` through `clip_to_boundary` (§2.7) | — | E | orchestrator read |
+| U1 `line-cone-roots` | `line_cone_roots`, factored from the ray lane; `wall_crossing`'s line arm for a cone; the same-side guard becomes `Torus \| Cone` (§2.1, §2.3) | PR 3375 merged | M | single |
+| U2 `circle-cone-roots` | `circle_cone.rs`: the quartic, the coaxial and parallel-axes closed forms; the circle rung falls through to the roots for a cone (§2.2) | PR 3375, U1 | M–H | dual |
+| U3 `cone-apex-closure` | the closure rule in `cone_trimmed_window`; the cone clause of `ChartCache::describes` (§2.4) | — | M | single |
+| U4 `section-cert-cone-rows` | `classify`: cone × {plane, sphere, coaxial cylinder, coaxial cone, parallel cylinder}, plus torus × coaxial cone (§2.5.1–2.5.4) | U1, U2 (premise S), U3 (W2 on apex-closed faces) | H | dual |
+| U5 `parallel-axis-cone-pair` (optional before U7) | §2.5.5 | U4 | M | dual |
+| U6 `sphere-cone-no-crossings` | scope and scan change (§2.6) | U4 | E | single |
+| **U7 `cone-roster-flip`** | `Cone` onto `boolean_arm_exists` (and `revert_arm_exists`, Q2); re-pin the three gate rows; op-level rows | U1–U4, U6 | M | dual |
+| U8 `plane-cone-axis-normal-join` (after U7; Q1) | the (Plane, Cone) join arm for `AxisNormalCircle`, with the cone's pierce normal and `sector_face` arm | U7 | H | dual |
+
+**U1–U4 must precede any clearing row.** A W1 or W2 clearance on a cone
+pair is sound only under premise S, and the `(Negative, Negative)` arm
+breaks premise S on the double cone (§0, P3). The flip comes last, so
+nothing between them is reachable.
+
+### U0 — cone-box-clip
+
+- **Row, red first:** a quarter cone's box excludes the opposite
+  quadrant's point `(−0.5, 0.2, 0.5)`. The mutant omits the clip, and the
+  box contains the point.
+- **Baselines:** box-derived counts move. Re-baseline them, and say what
+  moved.
+
+### U1 — line-cone-roots
+
+**The ray lane stays bit-identical.** Every `bool2_cone_doors.rs` row
+passes unchanged. The rows go through `sweep_direction` against the
+preview cone:
+
+1. **P3, the apex pin:** four pierces on the lateral face, at
+   `y = 1 − ρ` (`ρ ∈ {0.028, 0.063}`, each twice). **Red against the
+   mutant "guard not extended"**, which records none. That is the
+   silence §0 measured.
+2. **A same-nappe `(Negative, Negative)` segment near the axis:** no
+   event (`NoInterior` or `Miss`).
+3. **A belly chord** (`y = 0.5`, `z = 0.2`, `x ∈ [−2, 2]`): two pierces.
+   Red on main: `CurvedPierceUnsupported` (the `f2` door).
+4. **P4's edges:** no event. Red on main: the `f2` door.
+5. **An edge through the apex:** `CurvedPierceUnsupported`, never no
+   event. The mutant reads `Tangent` as `Miss`.
+6. **An edge parallel to a generator that crosses the face:** the door
+   (Q3).
+7. **A counterexample search** (shape 1; seed logged, env override,
+   `CAD_FUZZ_EFFORT`): random segments against the cone, where the
+   certified interior-root count equals a dense sign-change count of `Q`,
+   away from the band.
+
+### U2 — circle-cone-roots
+
+1. **Coaxial rims:** inside the cone, no event; outside, no event. A
+   parallel lying ON the cone is the door. Red on main:
+   `CurvedPierceUnsupported` at `circle_clearance` for every coaxial
+   rim.
+2. **A parallel-axis rim crossing the lateral face:** two pierces at the
+   closed-form `θ`, within the band. Red on main.
+3. **Tilted rims:** 2 and 4 certified roots, against dense sampling (a
+   shape-1 search).
+4. **A rim through the apex, and a tangent rim:** the door.
+5. **A parallel-axis rim a few mm clear of the parallel at `ε = 1e-6`:**
+   it answers. This is the lily trap, and the closed form avoids it.
+6. **Mutants:**
+   - the pole check dropped (an anchor at a root loses it);
+   - the coaxial `Zero` read as clear.
+
+### U3 — cone-apex-closure
+
+1. **`point_in_solid` on the 3π/2 partial cone:** interior, exterior and
+   boundary points, and a point in the gap's quadrant is `Out`. Red on
+   main: `PartialConeFace`.
+2. **`curved_face_containment` on that face:** `In` over `[0, 3π/2)` and
+   `Out` in the gap. Red on main: `None`.
+3. **Widths `π/2` (unchanged), `3π/2`, and the full single face
+   (`alone`).**
+4. **`describes`:** the preview cone's merged face describes (red on
+   main: `SingularChartJoint`), and a two-apex bow-tie still refuses.
+5. **The mutant:** nearest-branch continuity restored at the apex.
+
+### U4 — section-cert-cone-rows
+
+1. **The numeric cross-check**, the certificate spec's method (a
+   shape-1 search, seed logged). Per row, random poses biased toward each
+   margin's zero. Trace the section on a `(u, v)` grid, count components,
+   and class each by its seam-crossing parity. The rows must match
+   `classify` with **0 mismatches** in count and class.
+2. **Every witness is on both carriers within the band.**
+3. **The item's ellipse fixture:** W2 on a frustum band with its seam;
+   W4 on the apex-closed face with an event; W2 there after U3.
+4. **Sphere × cone:** a small ball that meets the lateral face in one
+   null loop, its own seam turned away and no event. The answer is
+   R-loop. **Red against the mutant "arc case read as whole circle"**,
+   which clears the loop by W2. That is the row that guards the hazard.
+5. **Coaxial cylinder, coaxial cone and coaxial torus:** W2 on seamed
+   faces, `essential_pair` counts.
+6. **Parallel cylinder:** `e = r_c` gives R-tan; `r_c > e` gives
+   essential on both; `r_c < e` gives essential on the cylinder only.
+7. **Swapped roles:** each row with the cone as `G`.
+
+### U6 — sphere-cone-no-crossings
+
+- **A ball strictly inside the cone:** the section pass clears it by W0.
+- **A ball meeting the lateral face in a null loop, with no crossing:**
+  R-loop, `FallbackExtentUnsupported`.
+- **Red against the mutant "scan `continue`s without the scope
+  change"**: then no one examines the pair, and U7's op row returns a
+  wrong body.
+
+### U7 — cone-roster-flip (last)
+
+Re-pin the three gate rows to the door each now reaches. The op-level
+rows, all four ops each, use the preview cone, `V = π/3`:
+
+| fixture | ∪ | ∩ | A∖B | B∖A |
+|---|---|---|---|---|
+| P9 nested in the 6³ box (stays green) | `216` | `π/3` | `Empty` | `216 − π/3` |
+| P6 box `0.6² × 0.2` inside | `π/3` | `0.072` | `π/3 − 0.072` | `Empty` |
+| P4 brick clear, boxes overlapping | Assembly `π/3 + 0.12` | `Empty` | `π/3` | `0.12` |
+| P2a pin through the base disc | `π/3 + 0.012` | `0.004` | `π/3 − 0.004` | `0.012` |
+| P10 coaxial pin `r = 0.1`, `y ∈ [−0.5, 0.5]` | `π/3 + 0.005π` | `0.005π` | `π/3 − 0.005π` | `0.005π` |
+| 3π/2 cone against a brick clear of it in its box | Assembly `π/4 + v_B` | `Empty` | `π/4` | `v_B` |
+| P3 apex pin | typed refusal (pierce normal or join), never a body | same | same | same |
+| P1 bite, P2 bite + pin | R-reach, typed, naming the cone face | same | same | same |
+| P5 slab, P7 | `CurvedBooleanUnsupported { kind: Cone }` at the join | same | same | same |
+
+- **`point_in_solid`** at `(−0.6, 0.05, 0)` (P2a: `In` both) and
+  `(0, 0.25, 0)` (P10: `In` both), and one point per region.
+- **The admission's red-first row is P3, run against the mutant "U1's
+  guard reverted".** It returns a valid, wrong body, because §2.5.1's
+  hyperbola and circle rows clear the pairs. The row asserts that no
+  body is returned.
+- **`docs/DESIGN.md` :410** ("cone and torus operands refuse") is
+  describing text, and it has been stale for the torus since PR 3265.
+  `git log -S` finds only the editing pass `99cc678bf`. It is re-worded
+  in this PR, as a describing clause, not a design change.
+
+### U8 — plane-cone-axis-normal-join (after the flip)
+
+- **P5:** slab ∩ cone is the frustum
+  `π·0.3/3·(0.49 + 0.28 + 0.16) = 0.093π`.
+- The unit needs the cone's pierce normal (`face_normal.rs` :217), a
+  `sector_face` arm, `bool_planar_chord_spec`'s cone wall, and the
+  closure-pinned window (U3).
+- The tilted cut is Q1.
+
+## 4. Open questions (⚑ = design fork)
+
+- **Q1 ⚑ The join.** Does U8 (the axis-normal plane × cone join) belong
+  to this item, or to its own? The tilted ellipse cut is the larger
+  question. `crates/geom-brep/README.md` C1 says "a generic-tilt
+  plane×cone routes to rung 3 permanently". The ellipse is IN the
+  inventory; the hyperbola and parabola are out by decision. Making the
+  tilted ellipse exact would amend ratified text, so it is Ev's call.
+  Until then, every cone face with an event refuses at the join, as the
+  torus's does.
+- **Q2 The revert roster.** Should `Cone` go onto `revert_arm_exists` in
+  U7, or wait behind `torus-onto-the-subtract-and-intersect-roster`? The
+  probe put the cone on both rosters, and ∖ and ∩ reached the same doors
+  as ∪ on every fixture. Recommendation: flip both, with every op-level
+  row run under all four ops. That is the orchestrator's call; it is not
+  a design fork.
+- **Q3 Generator-parallel lines:** keep the door (recommended; the ray
+  lane grazes there too), or add the linear root `t = −k₀/2b`. Land the
+  root only if a fixture needs it.
+- **Q4 Where the apex closure lives:** locally in the cone trim and
+  `ChartCache` (recommended), or in `pcurves::chart_boundary`, whose
+  `SingularChartJoint` also serves the pcurve minter. Moving it changes
+  the minter's contract, so it would be its own unit.
+- **Q5 Sphere × torus on the no-crossings path** refuses at the scan
+  (`ops.rs` :2274, the same arm as the cone), although `torus_sphere`
+  exists (`section_cert.rs` :650). U6's move applies to it verbatim. It
+  is a conservative refusal, not a wrong answer.
+- **Q6 U5 (parallel-axis cone × cone):** before the flip, or after it as
+  a follow-up? Until then the pair is R-reach. It is a refusal, so after
+  is safe.
+- **Q7 The item's "what a cone admission must carry"** is stale. The
+  preview's wrong answers were closed by PR 3372, and the extent gates it
+  names no longer exist. The item should cite §0 and the silent arm.
+- **Q8 The levers** for the new margins: the aperture margin `μ`, the
+  circle lane, and the coaxial and parallel readings. The implementer
+  picks each and states it in the predicate's doc; they are not design
+  forks.
