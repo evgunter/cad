@@ -1104,3 +1104,9 @@ class of 65 sites is PRED's row.
   - Both rejected the framing: the "three-arm at every site" scope is agent text.
   - They split on one point, which arms carry "lower the tolerance". A: every band-decided arm. B: only where lowering ε moves toward a pass, since it is backwards on residuals.
   - Reconciliation round 1: each designer was handed the other's For-Ev section.
+- 2026-09-28 — `[ev]` PR 3352 opened: D4 ¶1, one recourse per decision.
+  - Round 1 reconciliation converged both designers. The recourse is owned by the decision and keyed by a closed type, and the tolerance arm is derived from the decision's pass set and verdict: "lower" only where lowering ε can pass it, never on residuals. `Indeterminate` is data-only. (iv) gains the at-rest defect rider.
+  - One stated split, for Ev: whether a residual offers "loosen the tolerance" (B) or no tolerance arm at all (A, which the diff takes).
+  - The body carries both revised For-Ev sections verbatim, labelled A/B. Row 3 (recommendation half) is in `DESIGN-FORK-LOG.md`.
+  - `certify-escalation-renders-the-coincidence-menu-unlabelled` has `needs_ev: true`. PR 3351 is held at `28393a4e91`, red on its pair row by design.
+  - Subscribed to 3352 for Ev's answer.
