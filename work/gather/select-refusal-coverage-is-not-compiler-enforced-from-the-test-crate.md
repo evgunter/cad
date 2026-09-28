@@ -2,10 +2,12 @@
 id: select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate
 kind: issue
 title: SelectRefusal is #[non_exhaustive], so its variant coverage cannot be enforced from editor-core/tests
-status: open
+status: dispatched
 opened: 2026-09-15
 priority: P3
 cost: E
+branch: gather/name-edge-home
+rides_with: three-walks-over-the-name-carrying-edges
 ---
 
 

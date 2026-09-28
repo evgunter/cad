@@ -69,3 +69,21 @@ reading each body:
   comment-ratio budget exists at all binds future work.
 
 Load 17.5 → 17.
+
+**Second wave, dispatched 2026-09-28.** Every lane runs on Opus.
+
+- `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares`
+  on `gather/cusp-sweep-gate`: **single FULL review**. It moves a gate
+  onto the declared door and carries a record across two crates, and
+  whether the census certifies a curve contact inside one body is
+  unmeasured, so believing it takes more than reading it.
+- `three-walks-over-the-name-carrying-edges`, with
+  `select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`
+  riding along, on `gather/name-edge-home`: **single STYLE review**.
+  Both fixes are stated in their rows, and the walks' semantics do not
+  change.
+- `product-per-part-gate-counts-solids-but-gates-sources`: to the two
+  designers (Opus and Fable, `docs/prompts/designer.md`) before
+  anything is built, because option (b) changes a refusal callers see.
+
+The other three `+design` rows wait for this wave to land.

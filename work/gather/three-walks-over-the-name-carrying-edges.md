@@ -2,11 +2,12 @@
 id: three-walks-over-the-name-carrying-edges
 kind: issue
 title: the name-carrying edge set (Transform, Part, split pass-through) is walked in two places and a third is proposed; it wants one home
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P1
 cost: M
 refs: [the-solve-accepts-a-body-placed-under-two-roots, product-refuses-naming-when-one-instance-is-placed-under-two-roots]
+branch: gather/name-edge-home
 ---
 
 Recorded from PR 3142's review (Q1), filed by the GATHER two-roots lane.
