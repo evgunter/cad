@@ -6995,4 +6995,71 @@ mod tests {
         encloses(b.flux, c * g_int, "Q12 flux");
         encloses(b.area, g_int, "Q12 area");
     }
+
+    /// `refine_dir`'s grid is the DOMAIN's sixteenths, skipped only
+    /// where a knot sits on the grid point bit for bit: `0.5` is
+    /// skipped, while a knot one ulp above `1/16` does NOT suppress
+    /// `1/16`, and both land in the refined vector. The expected
+    /// vector is written out by hand.
+    #[test]
+    fn refine_dir_inserts_the_domain_grid_skipping_bit_equal_knots() {
+        let near = f64::from_bits(0.0625f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        #[allow(clippy::cast_precision_loss)]
+        let net: Vec<RVec3> = (0..kv.control_count()).map(|i| [pt(i as f64); 3]).collect();
+        let (rkv, rnet, count) = refine_dir(&kv, &net, 1, true).unwrap();
+        assert_eq!(
+            rkv.knots(),
+            [
+                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
+            ]
+        );
+        assert_eq!(count, 19);
+        assert_eq!(rnet.len(), 19);
+    }
+
+    /// `refine_dir` has no "already fine enough" cut-off: a vector
+    /// with more control points than the grid has spans still takes
+    /// every grid point it lacks. The interior knots are the odd
+    /// 64ths, none on the sixteenths grid, so all fifteen go in.
+    #[test]
+    fn refine_dir_refines_an_already_fine_vector() {
+        let mut knots = vec![0.0, 0.0, 0.0];
+        knots.extend((0..21).map(|j| f64::from(2 * j + 1) / 64.0));
+        knots.extend([1.0, 1.0, 1.0]);
+        let kv = KnotVector::clamped(knots, 2).unwrap();
+        assert_eq!(kv.control_count(), 24);
+        #[allow(clippy::cast_precision_loss)]
+        let net: Vec<RVec3> = (0..24).map(|i| [pt(i as f64); 3]).collect();
+        let (rkv, _, count) = refine_dir(&kv, &net, 1, true).unwrap();
+        assert_eq!(count, 24 + 15);
+        for k in 1..16 {
+            let t = f64::from(k) / 16.0;
+            assert_eq!(rkv.multiplicity_of(t).map(|(m, _)| m), Some(1), "{t}");
+        }
+    }
+
+    /// `bezier_blocks`' uniform breaks are the DOMAIN's `m`ths, dropped
+    /// when within the sliver guard of a knot: a knot one ulp above
+    /// `1/4` suppresses the break at `1/4` (four blocks, not five),
+    /// while `1/2` and `3/4` stand. On a degree-1 identity image each
+    /// block starts at its break, so the block starts ARE the breaks.
+    #[test]
+    fn bezier_blocks_drops_a_uniform_break_within_the_sliver_of_a_knot() {
+        let near = f64::from_bits(0.25f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, near, 1.0, 1.0], 1).unwrap();
+        let img = TrimPiece {
+            knots: kv,
+            control: [0.0, near, 1.0].iter().map(|t| (pt(*t), pt(0.0))).collect(),
+            weights: vec![1.0; 3],
+        };
+        let blocks = bezier_blocks(&img, 4).unwrap();
+        assert_eq!(blocks.len(), 4, "{blocks:?}");
+        for (block, start) in blocks.iter().zip([0.0, near, 0.5, 0.75]) {
+            let u = block[0].0;
+            assert!(u.lo() <= start && start <= u.hi(), "{u:?} vs {start}");
+            assert!(u.hi() - u.lo() < 1e-12, "{u:?}");
+        }
+    }
 }

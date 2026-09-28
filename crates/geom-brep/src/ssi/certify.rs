@@ -1157,4 +1157,47 @@ mod tests {
             );
         }
     }
+
+    /// A degree-2 carrier on `[0, 1]` with the given interior knots.
+    fn carrier(interior: &[f64]) -> geom::NurbsCurve3<f64> {
+        use geom_core::Point3;
+        use geom_core::spline::KnotVector;
+        let mut knots = vec![0.0, 0.0, 0.0];
+        knots.extend_from_slice(interior);
+        knots.extend([1.0, 1.0, 1.0]);
+        let kv = KnotVector::clamped(knots, 2).unwrap();
+        let n = kv.control_count();
+        #[allow(clippy::cast_precision_loss)]
+        let control = (0..n).map(|i| Point3::new(i as f64, 0.0, 0.0)).collect();
+        geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
+    }
+
+    /// `refined` inserts the DOMAIN's 32nds, skipping a grid point only
+    /// where a knot sits on it bit for bit: `0.5` is skipped, while a
+    /// knot one ulp above `2/32` does NOT suppress `2/32`.
+    #[test]
+    fn refined_inserts_the_domain_grid_skipping_bit_equal_knots() {
+        let near = f64::from_bits(0.0625f64.to_bits() + 1);
+        let fine = super::refined(&carrier(&[near, 0.5]));
+        let mut want = vec![0.0, 0.0, 0.0, near];
+        want.extend((1..32).map(|k| f64::from(k) / 32.0));
+        want.extend([1.0, 1.0, 1.0]);
+        want.sort_by(f64::total_cmp);
+        assert_eq!(fine.knots().knots(), want);
+    }
+
+    /// `refined`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`
+    /// control points is returned as it came, one with a control point
+    /// fewer still takes the whole grid. The interior knots are odd
+    /// 128ths, none on the 32nds grid.
+    #[test]
+    fn refined_leaves_a_carrier_at_the_cut_off_alone() {
+        let odd = |n: i32| -> Vec<f64> { (0..n).map(|j| f64::from(2 * j + 1) / 128.0).collect() };
+        let at = carrier(&odd(31));
+        assert_eq!(at.knots().control_count(), super::SSI_CERT_SPANS + 2);
+        assert_eq!(super::refined(&at).knots().knots(), at.knots().knots());
+        let below = carrier(&odd(30));
+        assert_eq!(below.knots().control_count(), 33);
+        assert_eq!(super::refined(&below).knots().control_count(), 33 + 31);
+    }
 }
