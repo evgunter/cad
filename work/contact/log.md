@@ -351,3 +351,20 @@ Signed: (CONTACT orchestrator)
     which bound makes it conservative.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-4 landed (#3345); CONTACT-6 traced
+
+- **CONTACT-4** merged as `032169bff`.
+- **CONTACT-6.** The cut-cavity false `Out` was not the ray lane's
+  fault. `split` handed back a lower half with one section face's
+  sense bit wrong, copied from the cavity wall it was carved from.
+  `validate_geometric` catches it (`LoopRoleInverted`); the row's
+  premise that the body validated was wrong. The fix is one bit at
+  its one writer, in REACH's `splitting/finish.rs` (seam posted).
+  Head against base: 1,274 false `Out` → 0 over six poses, with
+  refusals unchanged.
+- **Tier: single full review**, not dual. The certified walk is
+  unchanged: it answered what the data said, and the fix restores the
+  data's invariant.
+
+Signed: (CONTACT orchestrator)
