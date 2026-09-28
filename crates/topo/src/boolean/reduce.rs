@@ -1759,70 +1759,46 @@ fn wall_crossing<T: Decide>(
     t1: T,
     band: Band,
 ) -> Result<SpanVerdict<T>, BooleanError> {
-    let geom::Curve3::Line { origin, dir } = *carrier else {
-        // A carrier that is not a line: no root lane here.
-        return Ok(SpanVerdict::Unsettled);
-    };
-    // The certified roots, per kind. Both lanes answer the same three
-    // ways — a certified root set, a definite miss, or no certain
-    // count — and the cylinder adds a fourth, the axis-parallel line
-    // whose residual is constant. A line never lies on a torus, so the
-    // torus has no such case.
     let mut roots = [T::zero(); 4];
-    let count = match *surface {
-        geom::Surface::Cylinder {
-            origin: c_origin,
+    // The carrier's metres per unit of its parameter, so that a root's
+    // distance from the span's ends is metered as a length: a `Line`'s
+    // `dir` is unit (its parameter IS arc length), a `Circle`'s
+    // parameter is an angle and its arc length is `radius·Δθ`.
+    let (count, metres_per_param) = match *carrier {
+        geom::Curve3::Line { origin, dir } => (
+            line_wall_root_count(origin, dir, surface, &mut roots, band)?,
+            T::one(),
+        ),
+        // The circle × torus quartic ([`super::circle_torus`]). A circle
+        // against any other kind has no root lane here, and the door
+        // says so (`Uncertain`).
+        geom::Curve3::Circle {
+            center,
             axis,
             radius,
-            ..
-        } => match super::solid_contain::line_wall_roots(origin, dir, c_origin, axis, radius, band)
-            .map_err(|diag| BooleanError::Escalated { diag })?
-        {
-            super::solid_contain::WallRoots::Two(ts) => {
-                roots[..2].copy_from_slice(&ts);
-                2
-            }
-            // A tangency is not a crossing this lane can act on: the
-            // material verdicts behind a pierce are first-order, and
-            // along a tangency every first-order datum ties. It keeps
-            // the door.
-            super::solid_contain::WallRoots::Tangent => return Ok(SpanVerdict::Unsettled),
-            // A constant residual, or no root on the infinite line at all.
-            super::solid_contain::WallRoots::AxisParallel => return Ok(SpanVerdict::Constant),
-            super::solid_contain::WallRoots::Miss => return Ok(SpanVerdict::Miss),
-        },
-        // The quartic: the ray lane's own certified root door, over the
-        // edge's span instead of a ray's forward half. It answers only
-        // on a CERTIFIED count, so a graze, a repeated root, or a
-        // classifying sign in the band is `Uncertain` and keeps the
-        // door exactly as the cylinder's tangency does.
-        geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => match super::solid_contain::line_torus_roots(
-            origin,
-            dir,
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            band,
+            u_ref,
+        } => match super::circle_torus::circle_torus_roots(
+            center, axis, radius, u_ref, t0, t1, surface, band,
         )
         .map_err(|diag| BooleanError::Escalated { diag })?
         {
-            super::solid_contain::TorusRoots::Certified { count, ts } => {
-                roots = ts;
-                count
+            super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
+                roots = thetas;
+                (Ok(count), radius)
             }
-            super::solid_contain::TorusRoots::Uncertain => return Ok(SpanVerdict::Unsettled),
-            super::solid_contain::TorusRoots::Miss => return Ok(SpanVerdict::Miss),
+            // A coaxial carrier's residual is constant: the circle rung's
+            // analogue of the axis-parallel line.
+            super::circle_torus::CircleTorusRoots::Coaxial => (Err(SpanVerdict::Constant), radius),
+            super::circle_torus::CircleTorusRoots::Uncertain => {
+                (Err(SpanVerdict::Unsettled), radius)
+            }
+            super::circle_torus::CircleTorusRoots::Miss => (Err(SpanVerdict::Miss), radius),
         },
-        // A sphere face: no root lane here, and inventing one is not
-        // this function's business.
         _ => return Ok(SpanVerdict::Unsettled),
+    };
+    let count = match count {
+        Ok(count) => count,
+        Err(verdict) => return Ok(verdict),
     };
     let ts = &roots[..count];
     for &t in ts {
@@ -1830,7 +1806,11 @@ fn wall_crossing<T: Decide>(
         // unit), so both gaps are lengths and take `Margin::of`.
         let mut interior = true;
         for gap in [t - t0, t1 - t] {
-            match decide("bool_wall_root_in_span", Margin::of(gap), band) {
+            match decide(
+                "bool_wall_root_in_span",
+                Margin::of(gap * metres_per_param),
+                band,
+            ) {
                 Ok(Sign::Positive) => {}
                 Ok(Sign::Negative | Sign::Zero) => interior = false,
                 Err(diag) => return Err(BooleanError::Escalated { diag }),
@@ -1874,6 +1854,78 @@ fn wall_crossing<T: Decide>(
         }
     }
     Ok(SpanVerdict::NoInterior)
+}
+
+/// The certified LINE × wall roots, per kind, written into `roots`:
+/// `Ok(count)` for a certified root set, `Err(verdict)` for the answers
+/// that are not one.
+fn line_wall_root_count<T: Decide>(
+    origin: Point3<T>,
+    dir: geom_core::Vec3<T>,
+    surface: &geom::Surface<T>,
+    roots: &mut [T; 4],
+    band: Band,
+) -> Result<Result<usize, SpanVerdict<T>>, BooleanError> {
+    // The certified roots, per kind. Both lanes answer the same three
+    // ways — a certified root set, a definite miss, or no certain
+    // count — and the cylinder adds a fourth, the axis-parallel line
+    // whose residual is constant. A line never lies on a torus, so the
+    // torus has no such case.
+    Ok(match *surface {
+        geom::Surface::Cylinder {
+            origin: c_origin,
+            axis,
+            radius,
+            ..
+        } => match super::solid_contain::line_wall_roots(origin, dir, c_origin, axis, radius, band)
+            .map_err(|diag| BooleanError::Escalated { diag })?
+        {
+            super::solid_contain::WallRoots::Two(ts) => {
+                roots[..2].copy_from_slice(&ts);
+                Ok(2)
+            }
+            // A tangency is not a crossing this lane can act on: the
+            // material verdicts behind a pierce are first-order, and
+            // along a tangency every first-order datum ties. It keeps
+            // the door.
+            super::solid_contain::WallRoots::Tangent => return Ok(Err(SpanVerdict::Unsettled)),
+            // A constant residual, or no root on the infinite line at all.
+            super::solid_contain::WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
+            super::solid_contain::WallRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+        },
+        // The quartic: the ray lane's own certified root door, over the
+        // edge's span instead of a ray's forward half. It answers only
+        // on a CERTIFIED count, so a graze, a repeated root, or a
+        // classifying sign in the band is `Uncertain` and keeps the
+        // door exactly as the cylinder's tangency does.
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => match super::solid_contain::line_torus_roots(
+            origin,
+            dir,
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            band,
+        )
+        .map_err(|diag| BooleanError::Escalated { diag })?
+        {
+            super::solid_contain::TorusRoots::Certified { count, ts } => {
+                *roots = ts;
+                Ok(count)
+            }
+            super::solid_contain::TorusRoots::Uncertain => return Ok(Err(SpanVerdict::Unsettled)),
+            super::solid_contain::TorusRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+        },
+        // A sphere face: no root lane here, and inventing one is not
+        // this function's business.
+        _ => return Ok(Err(SpanVerdict::Unsettled)),
+    })
 }
 
 /// What one edge×curved-face pair asks of the sweep.
