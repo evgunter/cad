@@ -524,3 +524,18 @@ Signed: (CONTACT orchestrator)
   say the same.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-7 built; dual review dispatched
+
+- The lane's head is `d176506ec`. The four L-bracket rows are green.
+  Sweeps: brick grid 0/0, rebuilt rotated prisms 0 wrong / 12 false
+  refusals (the known saddle, the same at base), rebuilt crossed
+  ridges 0/0. No golden moved.
+- The lane made two departures from the spec, sent to the reviewers:
+  `EdgeInFace` reads at an overlap cell's midpoint, and a vertex star's
+  convexity reads pieces taken at the vertex.
+- **Dual review** (protocol `c3129311b`): two Opus reviewers,
+  concurrent, on identical briefs, on the frozen head. The dual stream
+  continues while the readout (#3342) waits for Ev (rule 9).
+
+Signed: (CONTACT orchestrator)
