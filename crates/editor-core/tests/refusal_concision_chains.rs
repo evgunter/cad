@@ -2996,28 +2996,122 @@ fn every_check_finding_renders_within_the_budget() {
 }
 
 /// **The checks window's escalated evidence ends in the decision that
-/// escalated** (D4 ¶1 (i)): the shell-role sign selects a form and
-/// measures no size, so each of its refused arms ends in its lever and
-/// names no tolerance. A source that is not that decision's gets no
-/// ending from the window — only its own payload's — rather than an
-/// invented lever. No row the window writes itself advises lowering the tolerance.
+/// escalated** (D4 ¶1 (i)). The shell-role sign passes on either
+/// definite sign and its margin is a thickness, so every band-decided
+/// arm ends in its lever plus the tolerance that decides it, valued at
+/// `|m|/K` where the verdict carries a margin; a bracket straddling zero
+/// is passed by no tolerance. A source that is not that decision's
+/// ends in its own payload's recourse and no invented lever. No row the
+/// window writes itself advises lowering the tolerance.
 #[test]
 fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     use editor_core::{CheckEvidence, CheckFinding, CheckId};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+    use topo::{ShellClassifyError as S, ShellKey};
     const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
+    let shell = ShellKey::default();
+    // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
+    let band = Band::new(1e-9, 1e-8).expect("a band");
+    let escalated = |margin| S::Escalated {
+        shell,
+        source: Indeterminate {
+            margin,
+            band,
+            predicate: Some("chk_shell_volume_sign"),
+        },
+    };
+    let render = |source| {
+        CheckFinding {
+            check: CheckId::Connectedness,
+            root: RecipeNodeId(4),
+            output_ix: 0,
+            evidence: CheckEvidence::Escalated { source },
+        }
+        .to_string()
+    };
+    let head = "check connectedness: root 4 output 0: the component count is unknowable: ";
+    let in_band = |m: &str| {
+        format!(
+            "{head}predicate 'chk_shell_volume_sign' indeterminate: margin {m} lies inside the \
+             ambiguity band (1e-9, 1e-8). "
+        )
+    };
     let pinned = [
-        ("Escalated", LEVER.to_owned()),
-        ("Escalated(zero volume)", LEVER.to_owned()),
         (
-            "Escalated(invalid margin)",
+            "in band, outer side",
+            escalated(MarginDiag::Value(5e-9)),
             format!(
-                "{LEVER}; an unreadable or collapsed margin may indicate a kernel bug worth \
-                 reporting"
+                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
+                in_band("5e-9")
+            ),
+        ),
+        (
+            "in band, void side",
+            escalated(MarginDiag::Value(-2e-9)),
+            format!(
+                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
+                in_band("-2e-9")
+            ),
+        ),
+        (
+            "in band, bracket across zero",
+            escalated(MarginDiag::Enclosure {
+                lo: -2e-9,
+                hi: 3e-9,
+            }),
+            format!(
+                "{head}predicate 'chk_shell_volume_sign' indeterminate: enclosure [-2e-9, 3e-9] \
+                 cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
+            ),
+        ),
+        (
+            "invalid margin",
+            escalated(MarginDiag::Invalid),
+            format!(
+                "{head}predicate 'chk_shell_volume_sign' indeterminate: margin is invalid (NaN \
+                 or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
+                 unreadable or collapsed margin may indicate a kernel bug worth reporting"
+            ),
+        ),
+        (
+            "definite zero",
+            S::ZeroVolume { shell },
+            format!(
+                "{head}a shell's signed volume is definitely zero. {LEVER}, or, if this \
+                 thickness is intended, tighten the tolerance"
+            ),
+        ),
+        (
+            "straddle",
+            S::Straddles { shell },
+            format!(
+                "{head}a shell's certified volume bracket straddles zero. {LEVER}; if the wall \
+                 is sound, its volume is below what the quadrature certifies, which may \
+                 indicate a kernel bug worth reporting"
             ),
         ),
     ];
-    let rows = check_findings();
-    for (name, finding) in &rows {
+    for (name, source, want) in pinned {
+        let text = render(source.clone());
+        assert_eq!(text, want, "{name}");
+        // The payload's own Display ends in the same one ending.
+        let ending = source.ending().expect("the shell-role decision's refusal");
+        assert!(text.ends_with(&ending), "{name}: {text}");
+        let whole = source.to_string();
+        assert!(whole.ends_with(&format!(". {ending}")), "{name}: {whole}");
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&whole),
+            1,
+            "{name}: {whole}"
+        );
+    }
+    // A band failure is the run's configuration, not the shell-role
+    // decision: the finding forwards its payload and adds no lever.
+    let error = payloads::band_error();
+    let unowned = render(S::Band { error });
+    assert!(unowned.ends_with(&error.to_string()), "{unowned}");
+    assert!(!unowned.contains("thicken"), "{unowned}");
+    for (name, finding) in &check_findings() {
         let text = finding.to_string();
         // The separation arm forwards the Boolean's own sentence, whose
         // coincidence ending is `geom_core::COINCIDENCE_RECOURSE`'s to
@@ -3025,36 +3119,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         if !name.starts_with("SeparationUnavailable/") {
             assert!(!text.contains("lower"), "{name}: {text}");
         }
-        if let Some((_, ending)) = pinned.iter().find(|(row, _)| row == name) {
-            assert!(text.ends_with(ending.as_str()), "{name}: {text}");
-            assert_eq!(
-                test_utils::refusal::recourse_markers(&text),
-                1,
-                "{name}: {text}"
-            );
-            assert!(!text.contains("tighten"), "{name}: {text}");
-        }
     }
-    let seen = pinned
-        .iter()
-        .filter(|(row, _)| rows.iter().any(|(name, _)| name == row))
-        .count();
-    assert_eq!(seen, pinned.len(), "every pinned escalated row is rendered");
-    // A band failure is the run's configuration, not the shell-role
-    // decision: the finding forwards its payload and adds no lever.
-    let band = payloads::band_error();
-    let unowned = CheckFinding {
-        check: CheckId::Connectedness,
-        root: RecipeNodeId(4),
-        output_ix: 0,
-        evidence: CheckEvidence::Escalated {
-            source: topo::ShellClassifyError::Band { error: band },
-        },
-    }
-    .to_string();
-    assert!(unowned.ends_with(&band.to_string()), "{unowned}");
-    assert!(!unowned.contains("thicken"), "{unowned}");
-    assert!(!unowned.contains("lower"), "{unowned}");
 }
 
 fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
@@ -3117,6 +3182,15 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 CheckId::Connectedness,
                 E::Escalated {
                     source: ShellClassifyError::ZeroVolume { shell },
+                },
+            ),
+        ),
+        (
+            "Escalated(straddle)",
+            finding(
+                CheckId::Connectedness,
+                E::Escalated {
+                    source: ShellClassifyError::Straddles { shell },
                 },
             ),
         ),

@@ -385,9 +385,10 @@ pub enum CheckEvidence {
         /// default 1).
         expected: u32,
     },
-    /// A shell's orientation read escalated (in-band or zero signed
-    /// volume): the component count for this subject is UNKNOWABLE at
-    /// this tolerance, which is a finding, never a silent skip (F6).
+    /// A shell's orientation could not be read (an in-band or zero
+    /// signed volume, or a volume bracket straddling zero): the component
+    /// count for this subject is UNKNOWABLE, which is a finding, never a
+    /// silent skip (F6).
     Escalated {
         /// The typed refusal from the shell door.
         source: ShellClassifyError,
@@ -521,23 +522,16 @@ pub struct CheckFinding {
     pub evidence: CheckEvidence,
 }
 
-// One story, one recourse, in one place, through the document
-// layer's one sink ([`crate::finding`]; the eval/mod.rs one-vocabulary
-// lesson: a payload with no Display forces every consumer to invent
-// its own second vocabulary). The Unsupported arm FORWARDS its
-// payload's Display — the payload's own recourse rides the story, so
-// `recourse` answers "" there ("already told"). The Escalated arm
-// deliberately does NOT forward the funnel's generic coincidence
-// recourse ("declare the coincidence / move the geometry") — it is
-// meaningless for a shell-volume sign, and a kernel arena key names
-// nothing a document user can act on — so that arm renders the
-// margin-payload view (name + numbers, no recourse tail, no key) and
-// ends in the escalating decision's own ending
-// ([`ShellClassifyError::ending`]), or in none where the source is not
-// that decision's. StaleExpectation's recourse is
-// pinned prose riding the story's own "; " joint, so it too answers
-// "" rather than growing a second tail. The subject is the finding's
-// (root, output) attribution.
+// One story, one recourse, in one place, through the document layer's
+// one sink ([`crate::finding`]). The subject is the finding's (root,
+// output) attribution. Three arms end in a recourse the story already
+// carries, so `recourse` answers "" ("already told") there:
+// - Unsupported forwards its payload's `Display`, recourse included.
+// - Escalated renders the payload's data view (no stage prefix, no
+//   arena key, neither of which a document user can act on) and ends
+//   in the escalating decision's own ending, [`ShellClassifyError::
+//   ending`], the one the payload's `Display` ends in too.
+// - StaleExpectation's pinned prose ends in its own ". Recourse:".
 impl crate::finding::Finding for CheckFinding {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -554,18 +548,25 @@ impl crate::finding::Finding for CheckFinding {
                 "{actual} disconnected component(s) where {expected} was expected"
             ),
             CheckEvidence::Escalated { source } => {
-                f.write_str("the component count is unknowable at this tolerance: ")?;
+                f.write_str("the component count is unknowable: ")?;
                 match source {
                     ShellClassifyError::Escalated { source, .. } => {
                         write!(f, "{}", source.payload())
                     }
-                    ShellClassifyError::ZeroVolume { .. } => f.write_str(
-                        "a shell's signed volume is definitely zero (or its certified \
-                         bracket straddles zero)",
-                    ),
-                    // run_checks routes only the two sign-read arms
-                    // here; any other source forwards its own story.
-                    other => write!(f, "{other}"),
+                    ShellClassifyError::ZeroVolume { .. } => {
+                        f.write_str("a shell's signed volume is definitely zero")
+                    }
+                    ShellClassifyError::Straddles { .. } => {
+                        f.write_str("a shell's certified volume bracket straddles zero")
+                    }
+                    // run_checks routes only the sign-read arms here;
+                    // any other source forwards its own story, and the
+                    // shell-role decision has no ending for it.
+                    other => return write!(f, "{other}"),
+                }?;
+                match source.ending() {
+                    Some(ending) => write!(f, ". {ending}"),
+                    None => Ok(()),
                 }
             }
             CheckEvidence::Unsupported { source } => write!(
@@ -645,7 +646,6 @@ impl crate::finding::Finding for CheckFinding {
                  or an instance placed nowhere; if it is deliberate, state the expected count \
                  in ChecksConfig::expected_components"
             }
-            CheckEvidence::Escalated { source } => source.ending().unwrap_or(""),
             CheckEvidence::NotSeparated { .. } => {
                 "Recourse: usually a feature left dangling as a second product root, so \
                  delete it or feed it downstream; roots meant to TOUCH want a mate, and \
@@ -672,7 +672,8 @@ impl crate::finding::Finding for CheckFinding {
                 "Recourse: evaluate the document at f64 to measure it, or turn this check \
                  off rather than reading its silence as a clean body"
             }
-            CheckEvidence::Unsupported { .. }
+            CheckEvidence::Escalated { .. }
+            | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
             | CheckEvidence::SeparationUnavailable { .. } => "",
         }
@@ -1117,7 +1118,8 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
                 }
                 Err(
                     source @ (ShellClassifyError::Escalated { .. }
-                    | ShellClassifyError::ZeroVolume { .. }),
+                    | ShellClassifyError::ZeroVolume { .. }
+                    | ShellClassifyError::Straddles { .. }),
                 ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,

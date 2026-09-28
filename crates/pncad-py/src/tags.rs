@@ -2689,11 +2689,12 @@ pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
 /// The carrier's word says which finding the registry made: the count
 /// is unknowable because a shell would not classify (`escalated`), or
 /// because a face of the subject is outside the flux inventory
-/// (`unsupported`). This one says which of the shell door's four ways
+/// (`unsupported`). This one says which of the shell door's five ways
 /// it refused, so a caller reads it instead of substring-matching the
 /// sentence: the run's tolerance formed no band, a face refused in the
-/// props inventory, the sign read escalated in-band, or the signed
-/// volume is definitely zero and there is no side to classify to.
+/// props inventory, the sign read escalated in-band, the signed volume
+/// is definitely zero, or its certified bracket straddles zero, so
+/// there is no side to classify to.
 ///
 /// `band` is the same word [`checks_error_tag`] mints for the
 /// registry's own band refusal, one namespace up, and means the same
@@ -2704,6 +2705,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
         ShellClassifyError::Props { .. } => "props",
         ShellClassifyError::Escalated { .. } => "escalated",
         ShellClassifyError::ZeroVolume { .. } => "zero_volume",
+        ShellClassifyError::Straddles { .. } => "straddles",
     }
 }
 

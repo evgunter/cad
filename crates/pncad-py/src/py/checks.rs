@@ -367,8 +367,8 @@ impl CheckEvidence {
     }
 
     /// The shell door's own refusal, as a branchable word, on
-    /// `escalated` and `unsupported`: `band`, `props`, `escalated` or
-    /// `zero_volume`. `reason` is the same refusal's sentence; this is
+    /// `escalated` and `unsupported`: `band`, `props`, `escalated`,
+    /// `zero_volume` or `straddles`. `reason` is the same refusal's sentence; this is
     /// the part a caller matches on.
     #[getter]
     fn inner_variant(&self) -> Option<&'static str> {
