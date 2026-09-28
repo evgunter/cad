@@ -59,3 +59,19 @@ For each remaining hit, say which door raises it and whether that door
 takes a declaration. Where it does not, the site wants the
 `payload()` + routed `Recourse:` shape, and a row filed on the owner's
 slate.
+
+**The field-type grep cannot see a tuple variant (ENCL, 2026-09-28).**
+It matches `cause: Indeterminate`, not `Escalated(Indeterminate)`, and
+about twenty error enums carry their escalation that way:
+
+    grep -rnE '^\s+[A-Z][A-Za-z]*\((geom_core::)?(predicate::)?Indeterminate\),?$' crates --include=*.rs
+
+At 793b5c4 (outside `tests/`) it hits `topo` (validate 3, carrier_eq
+2, splitting/containment, sector_shape, replace_face, face_normal,
+chart_region, boolean rest/join/contain), `profile` (sugar 2,
+structure, seg, path/arc_fillet), `geom` (curves 2), `geom-core`
+(linalg/unit_vec) and `geom-brep` (ssi, intersect, edge_nurbs,
+dihedral). `ssi::SsiError::Escalated` and
+`intersect`'s `Escalated(diag)` render `{diag}` whole under a comment
+that says so on purpose (S6); `edge_nurbs`'s is the
+`work/iso/plane-nurbs-…` row above. The rest are for the triage.

@@ -1096,7 +1096,7 @@ impl DocSession {
                     let (verdict, kept) = badge(assemble_gathered(product, self.tol));
                     (Some(verdict), kept)
                 } else {
-                    (None, Some(Arc::new(product.body)))
+                    (None, Some(Arc::new(product.body.into_body())))
                 };
                 (None, checks, at_rest, body)
             }
@@ -1538,6 +1538,25 @@ impl DocSession {
             Ok(edit) => self.commit(edit),
             Err(fault) => OpOutcome::refused(Refusal::SlotUnit(fault)),
         }
+    }
+
+    /// **What `SessionOp::SetSlotUnit` would answer for this slot
+    /// whatever unit is picked, or `None` where the slot has a written
+    /// notation to change** — asked ahead of the pick by the control
+    /// that pushes the op.
+    ///
+    /// It is the unit-free half of the op's own slot admission
+    /// ([`props::slot_literal`], which `props::slot_unit_edit` runs
+    /// first), so the words it carries are the refusal's own. It is not
+    /// everything `perform` can answer: the session-wide gate `perform`
+    /// applies before any op (a held value gesture refuses
+    /// `SetSlotUnit` with [`Refusal::GestureInFlight`]) is not read
+    /// here, and neither is the unit-dependent arm, which the op
+    /// answers at the pick.
+    pub fn slot_unit_refusal(&self, node: RecipeNodeId, slot: SlotId) -> Option<Refusal> {
+        props::slot_literal(self.committed_doc(), node, slot)
+            .err()
+            .map(Refusal::SlotUnit)
     }
 
     /// **The declared dimensions `parse_expr` reads text against** —

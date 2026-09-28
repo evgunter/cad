@@ -1952,11 +1952,14 @@ class TestCrosslapGlued(unittest.TestCase):
         the detector's FULL inventory — mate plus the merge-stage
         `SameOriented` exteriors — and the kernel glues, but the
         boolean node still fails in the document layer's NAMING
-        emitter (the bottom-plane pairs: one beam-A face merging with
-        one of beam B's two coplanar bottom halves). When this test
-        fails with the union succeeding, the wall has fallen — flip
-        this scene's declaration back to the whole inventory and drop
-        the inspection narrowing above."""
+        emitter. The bottom plane merges beam A's bottom with BOTH of
+        beam B's coplanar bottom halves, so a seam chord bordering the
+        merged face reads through to two faces of one operand, and no
+        rule picks the one it lies on: a missing rule, not a kernel
+        bug (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
+        When this test fails with the union succeeding, the wall has
+        fallen — flip this scene's declaration back to the whole
+        inventory and drop the inspection narrowing above."""
         doc = Doc()
         beam_a, beam_b = self.beams(doc)
         ev = evaluate(doc)
@@ -1971,12 +1974,12 @@ class TestCrosslapGlued(unittest.TestCase):
         with self.assertRaises(EvaluationError) as caught:
             ev.value(glued)
         self.assertEqual(caught.exception.kind, "naming")
-        # WHICH naming refusal, beside the carrier's word: the emitter
-        # could not mint a name, which is a different wall from a
-        # duplicate or a missing upstream table and wants a different
-        # fix. That the emission arm is the one standing here is what a
-        # reader of this residue needs.
-        self.assertEqual(caught.exception.inner_kind, "emission")
+        # WHICH naming refusal, beside the carrier's word: the missing
+        # rule for a merged face holding several faces of one operand,
+        # which wants a naming rule rather than a kernel fix. That this
+        # arm is the one standing here is what a reader of this residue
+        # needs.
+        self.assertEqual(caught.exception.inner_kind, "merged_chord_constituents")
 
 
 class TestCrosslapExploded(unittest.TestCase):

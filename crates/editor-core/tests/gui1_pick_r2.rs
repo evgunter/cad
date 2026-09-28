@@ -20,7 +20,7 @@
 //!    aimed at a shared vertex, three-body occlusion, and a mesh
 //!    carrying a degenerate (zero-area) triangle.
 //!
-//! Sweep shape (per `memories/test-suite-cost.md`): counterexample
+//! Sweep shape (per implementer-discipline §8): counterexample
 //! search, varying seed, counts on the effort dial, with an
 //! anti-vacuity floor under the number of pick answers actually
 //! compared.

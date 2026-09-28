@@ -30,7 +30,7 @@ camera.**
 
 **The collapse is deliberate and asserted**, which is why this is a
 prose row and not a behaviour one.
-`a_refused_fold_is_news_about_the_camera_and_apply_overwrites_with_it`
+`a_refused_fold_is_news_about_the_camera`
 (`frame.rs`, the module's own tests) asserts `folded_moved` of a
 refused fold with the reason inline — *"a refusal is a camera event
 too"* — and `frame_policy.rs`'s `folded_moved` row pins both arms the

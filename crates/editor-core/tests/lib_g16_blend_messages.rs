@@ -1,7 +1,7 @@
 //! **The blend refusal messages, PINNED** — adopted from the LIB-G16
 //! R2 review probe, which printed them for a cross-tree byte
 //! comparison and so expired with that comparison
-//! (`memories/test-suite-cost.md`: a one-shot comparison artefact has
+//! (implementer-discipline §8: a one-shot comparison artefact has
 //! no consumer once the diff is taken, and a test that asserts nothing
 //! is never a gate).
 //!
@@ -66,7 +66,7 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
 /// Merged into ONE row per verb rather than eight tests: nextest is
 /// process-per-test and each of these rebuilds the same cube document,
 /// so the split would pay the fixture eight times over
-/// (`memories/test-suite-cost.md`). Every assertion carries its own
+/// (implementer-discipline §8). Every assertion carries its own
 /// label so a red names the refusal without the test name helping.
 fn messages(
     blend: fn(

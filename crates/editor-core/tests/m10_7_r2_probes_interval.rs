@@ -9,7 +9,7 @@
 //! study measures. Everything the unit measured on the slab and the
 //! plate is re-derived here on geometry the unit never built.
 //!
-//! Most rows are `#[ignore]`d evidence probes ([[test-suite-cost]]: a
+//! Most rows are `#[ignore]`d evidence probes (implementer-discipline §8: a
 //! row that only prints cannot gate). The rows that ASSERT are named so
 //! and carry the claim they falsify.
 //!

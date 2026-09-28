@@ -33,9 +33,12 @@ use geom_brep::offset_fit::{
     BestBound, LastRound, OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb,
     certify_offset_at, fit_offset_at,
 };
-use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
+use geom_brep::offset_meters::{
+    MeterError, OFFSET_METER_LADDER, Refused, patch_collapse, patch_regularity,
+};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::Bounds;
+use geom_core::KERNEL_LIMIT_LAST_RESORT;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
 
@@ -460,8 +463,23 @@ fn a_collapsed_control_row_refuses_at_the_regularity_floor() {
     ];
     let base = NurbsSurface::new(kv2(), kv2(), control, vec![1.0; 9]).unwrap();
     match fit_offset_at(&base, 0.1, 1e-4, band()) {
-        Err(OffsetFitError::Meter(MeterError::NormalFloor { floor, .. })) => {
+        Err(e @ OffsetFitError::Meter(MeterError::NormalFloor { floor, verdict, .. })) => {
             assert_eq!(floor, 0.0, "a collapsed row left a positive floor");
+            // A zero margin is band-decided, and no smaller tolerance
+            // passes it: the lever, and the report clause for a face with
+            // no degeneracy to split off.
+            assert!(
+                matches!(verdict, Refused::Zero(c) if c.margin == 0.0),
+                "{verdict:?}"
+            );
+            let text = e.to_string();
+            assert!(
+                text.ends_with(
+                    "Recourse: split the face clear of any pole, cusp or pinch; if it has none, \
+                     this may indicate a kernel bug worth reporting"
+                ),
+                "{text}"
+            );
         }
         other => panic!("a pole-collapsed patch was fitted: {other:?}"),
     }
@@ -475,11 +493,21 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     // Inward past the sphere's own radius: the offset folds through
     // the centre.
     match fit_offset_at(&base, -1.2 * r, 1e-4, band()) {
-        Err(OffsetFitError::Meter(MeterError::CurvatureHeadroom {
-            reach, headroom, ..
-        })) => {
+        Err(e @ OffsetFitError::Meter(MeterError::CurvatureHeadroom { reach, verdict, .. })) => {
+            let headroom = verdict.margin();
             assert!(headroom <= 0.0, "headroom {headroom} is not a refusal");
             assert!(reach <= r * 1.01, "reach {reach} exceeds r = {r}");
+            // Folding by a fifth of the radius is sign-certain: the
+            // lever alone, no tolerance.
+            assert!(matches!(verdict, Refused::Negative { .. }), "{verdict:?}");
+            let text = e.to_string();
+            assert!(
+                text.ends_with(
+                    "Recourse: use an offset distance of smaller magnitude, or offset to the \
+                     other side"
+                ),
+                "{text}"
+            );
         }
         other => panic!("a folding offset was fitted: {other:?}"),
     }
@@ -544,8 +572,14 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
                 "the message points at the round budget: {msg}"
             );
             assert!(
-                msg.contains(&format!("loosen the tolerance to {best_bound} m")),
-                "the repair is not sized to the best bound reached: {msg}"
+                msg.contains(&format!("best certified error was {best_bound} m")),
+                "the message does not report the best bound reached: {msg}"
+            );
+            // The cap has a geometry lever, so the message names it and
+            // advises no loosening.
+            assert!(
+                msg.contains("Recourse: split the face") && !msg.contains("loosen"),
+                "the recourse is not the split alone: {msg}"
             );
         }
         other => panic!("a cap stop with a finite bound did not name the cap: {other:?}"),
@@ -680,9 +714,10 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
         "the message says a round that rose was improving: {msg}"
     );
     assert!(
-        msg.contains(&format!("loosen the tolerance to {best} m or more"))
-            && !msg.contains(&format!("{achieved} m")),
-        "the repair is not sized to the best bound reached: {msg}"
+        msg.ends_with(&format!(
+            "Recourse: loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
+        )) && !msg.contains(&format!("{achieved} m")),
+        "the last resort is not sized to the best bound reached: {msg}"
     );
 }
 
@@ -1210,9 +1245,10 @@ fn the_second_non_improving_round_is_the_stalls_face() {
             "saddle d={d:e}: the message does not say what was tried: {msg}"
         );
         assert!(
-            msg.contains(&format!("loosen the tolerance to {best} m or more"))
-                && !msg.contains(&format!("{achieved} m")),
-            "saddle d={d:e}: the repair is not sized to the best bound reached: {msg}"
+            msg.ends_with(&format!(
+                "Recourse: loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
+            )) && !msg.contains(&format!("{achieved} m")),
+            "saddle d={d:e}: the last resort is not sized to the best bound reached: {msg}"
         );
     }
 }

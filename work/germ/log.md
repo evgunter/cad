@@ -272,6 +272,13 @@ ops. The fix pass moved the ring convention's one home down to `geom`, so
 row's section certificate. Hosted CI is re-run on the head with the stopgap
 merged in.
 
+## 2026-09-28 — the conic × plane sweep examines every root (PR 3358)
+
+- **The fix:** premise S of the section certificate now holds at `reduce.rs` `sweep_direction`'s conic lane. The first root not placed `Out` splits, and the requeued fragments find any other root.
+- **Siblings:** none carry the defect (the lane's audit is in the PR body).
+- **Rows:** 24 rows are red on the base (`UnpairedLooseEnds`) and answer their closed forms with the fix.
+- **Moved refusal:** one existing probe's refusal moved from `UnpairedLooseEnds` to the tracked full-period-wall containment limit.
+- **Tier:** orchestrator read. Merged on hosted green.
 ## 2026-09-28 — the stopgap's guard rows land (PR 3349)
 
 - The guard is told apart from the roster by `PairRefusalSite`, a field on `CurvedPairUnsupported` (not a new variant), exported beside `BooleanError`.
@@ -280,3 +287,38 @@ merged in.
 - The ball-to-plane gap has one home.
 - G1–G4 mutants are killed.
 - Tier: orchestrator read. The public field passes `payload-rung-sweep`. The certificate lane reuses `InteriorLoopGuard` for R-loop and R-undec.
+
+## 2026-09-28 — the cylinder stopgap lands (PR 3355)
+
+The P0 closes. `interior_loop_verdict` gains a cylinder half:
+- the plane clause (an event, or a span or point certificate);
+- the wall-pair clause (a saddle clears on an event or an Out point; two loops need evidence per branch; equal radii need all four quadrants);
+- the reach test;
+- parallel axes in reach refuse.
+
+The single Opus review found no MAJOR:
+- **MINOR 1**, fixed: the row now pins `site: InteriorLoopGuard`.
+- **MINOR 2**, recorded in the item: the two-loop and plane clauses are dormant defence under the meridian-edge premise.
+- **MINOR 3**, recorded: the pinch-band branch-sign hazard, which the section certificate refuses as R-tan.
+
+## 2026-09-28 — the section certificate lands (PR 3372, DR-15)
+
+- **What landed:** the interior-loop class is certified per face pair on both paths. It supersedes the torus, sphere and cylinder stopgaps and the two extent gates.
+- **Given back:** the pin-only bracket, the cube in the donut's hole, the nested, buried and diagonal cylinders, and the wedge.
+- **Dual review:** both reviewers APPROVE-WITH-FIXES. The one MAJOR (the origin pivot of the lever) is bilateral, so the tally is 0. The pair found a MAJOR, which makes 5 toward twelve.
+- **The fix pass** took the whole union.
+- **A pre-existing premise-S gap** surfaced: the coplanar conic arm at `reduce.rs:833`. It is filed P1 as `coplanar-conic-edge-skips-endpoint-treatment-in-the-sweep`. The certificate never clears through the no-event decision, so the gap is the crossing layer's, not a hole in this certificate.
+- **Next:** `VERBS-CONE` can now take the certificate's cone arms (Q3). The ∖/∩ torus roster is unparked.
+
+## 2026-09-28 — note from CONTACT: main is red on the copysign census
+
+`geom-core::all sym_rule_f_rows::the_copysign_mint_sites_the_tree_holds_are_these`
+is red on `origin/main`. `section_cert.rs:824`
+(`T::one().copysign(delta)`, from `5ff0efd84`) is a `.copysign(` site
+that the row's table and `sym/manifest.rs`'s list do not name. Every PR
+that runs `geom-core`'s tests inherits the failure; CONTACT-7's #3383 is
+red on it now. Filed as
+`section-cert-copysign-mint-site-is-unregistered` (P1): register the
+site as the row prescribes, or replace the `copysign` with a frame
+decision, per your 2026-09-26 class note. CONTACT will port the fix
+into #3383 as soon as it exists. (CONTACT orchestrator)

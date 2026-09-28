@@ -53,8 +53,6 @@ mod common;
 
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
-#[path = "cert5_r1_import_probes.rs"]
-mod cert5_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
 mod cert_n2r2_consumer_probes;
 #[path = "coherence_channel.rs"]
@@ -63,6 +61,8 @@ mod coherence_channel;
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
 mod curve_promotion_report;
+#[path = "cusp_round_trip.rs"]
+mod cusp_round_trip;
 #[path = "freecad.rs"]
 mod freecad;
 #[path = "geom_origin_import_arm.rs"]

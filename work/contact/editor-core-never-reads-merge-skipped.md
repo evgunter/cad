@@ -14,3 +14,15 @@ that PR's second decision, planar skips become refusals and only curved
 skips remain in `merge_skipped`. Those are still published silently. A
 document union should say so. Check the consumers in `editor-core`
 first; this was reported, not traced.
+
+## Planar skips are refusals now (CONTACT-8, 2026-09-28)
+
+Ev took the second decision, and CONTACT-8 built it: `group_contract`
+in `crates/topo/src/merge_faces.rs` gives every planar group the
+refusing regime, so a planar group the merge cannot glue fails the
+boolean as `BooleanError::Merge` and never reaches `merge_skipped`.
+What this row is about is now only the curved record
+(`PeriodClosure`, `GroupNotClosed` of a curved run, and a declined
+`DeclaredCarrierUnsupported` pair). The consumer check is unchanged:
+`grep -rn merge_skipped crates --include=*.rs` finds no reader outside
+`crates/topo` but `sweep`'s `curved_mergedoor` test suite.

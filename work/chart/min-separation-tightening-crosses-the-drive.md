@@ -111,3 +111,5 @@ predicates. Those rows never diverged.
 TRIM filed it; the ground is M10's (`clearance.rs`, `measure.rs`) and
 the ruling — whether a lane split may be invisible to the census — is
 Ev's.
+
+**2026-09-28:** `r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors` was deleted in the 2026-09-28 CI-latency cut.

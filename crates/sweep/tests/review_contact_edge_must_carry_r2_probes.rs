@@ -465,19 +465,7 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
             .iter()
             .filter(|s| s.predicate == "tangent_second_order")
             .count();
-        let contact = out
-            .body
-            .edges()
-            .filter(|(_, e)| {
-                matches!(
-                    out.body
-                        .get_curve_geom(e.curve)
-                        .and_then(|g| g.certified())
-                        .map(|c| c.description()),
-                    Some(EdgeDescription::TangentIntersection { .. })
-                )
-            })
-            .count();
+        let contact = crate::common::contact_edges::intrinsic_edges(&out.body);
         assert_eq!(
             contact,
             2 * request.len(),

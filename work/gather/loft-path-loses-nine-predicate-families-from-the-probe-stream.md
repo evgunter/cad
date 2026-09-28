@@ -2,12 +2,12 @@
 id: loft-path-loses-nine-predicate-families-from-the-probe-stream
 kind: issue
 title: Retiring the T-validation drops nine profile-validation predicate families from the loft path's Probe sample stream, and the k-lint gate cannot observe a shrunken population
-status: open
+status: closed
 opened: 2026-09-12
 refs: [2409]
 priority: P3
 cost: M
-design: true
+closed: 2026-09-28
 ---
 
 
@@ -76,3 +76,13 @@ because the instrument and the cause sit in different programs:
 
 WIRE holds the row because WIRE's unit caused the narrowing; the fix
 almost certainly does not land here.
+
+## Closed (Ev, in chat, 2026-09-28): not a defect
+
+Ev: "i'm not sure whether this is a defect; i really don't want agents
+to preserve busywork just to feed k-lint". `k-lint` is a margin
+instrument, not a coverage gate: a code path that stops recording
+margins because it stopped doing the work is not a regression to
+preserve, and none of the three dispositions above is owed. The nine
+families still reach the linted distribution through the tour's other
+scenes.

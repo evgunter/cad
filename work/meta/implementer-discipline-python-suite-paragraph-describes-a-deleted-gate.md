@@ -2,7 +2,8 @@
 id: implementer-discipline-python-suite-paragraph-describes-a-deleted-gate
 kind: issue
 title: implementer-discipline §2 still tells every lane the python suite is seed-gated; the gate was deleted on 2026-09-12 and it runs on every code-tier run
-status: open
+status: closed
+closed: 2026-09-28
 opened: 2026-09-13
 priority: P4
 cost: E
@@ -84,3 +85,5 @@ gone under an axis nothing reads.
 own rule — it is the standing discipline handed to every lane by path.
 So this is a row to be taken with that in mind, not a wording fix a
 lane can land in passing.
+
+Closed 2026-09-28: implementer-discipline §2 is rewritten for the latency-cut gate (`work/ciw/latency-cut.md`).

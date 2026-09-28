@@ -2,12 +2,11 @@
 id: torus-onto-the-subtract-and-intersect-roster
 kind: issue
 title: Torus onto revert_arm_exists: subtract and intersect still refuse a torus operand at the front door
-status: parked
+status: open
 opened: 2026-09-25
-refs: [torus-operand-gate-admission]
 priority: P2
 cost: D
-blocked_on: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
+refs: [torus-operand-gate-admission, torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 ---
 
 ## What
@@ -35,9 +34,12 @@ against ∪, plus the ∪ fixtures that have torus faces:
   hole; 60 seeded random rods under ∩): `CurvedSectorSideUnsupported`, the
   sagitta charge ∪ stops at, or `CurvedPierceUnsupported` /
   `FallbackExtentUnsupported`; no body;
-- a slab cutting a face-interior oval, a cube in the hole, two tori
-  meeting in an oval: `FallbackExtentUnsupported` (the no-crossings
-  extent gate runs for every op);
+- a slab cutting a face-interior oval, two tori meeting in an oval:
+  `FallbackExtentUnsupported` (the no-crossings pass runs for every op).
+  A cube in the hole refused there too when measured; since the section
+  certificate (PR 3372) replaced the extent gate, the cube in the hole
+  answers the disjoint union under ∪ (π² + 0.5), and its ∖/∩ now stop
+  only at this roster;
 - the dumbbell (torus and cylinder handles) and MATE-7a's socket, peg,
   coincident, chain and kissing fixtures: the same typed doors as ∪ or
   the extent gate;
@@ -62,3 +64,12 @@ GERM, beside `torus-operand-gate-admission`.
 ## Parked (2026-09-28)
 
 Measured by PR 3330 and not admitted: under ∖ and ∩ the interior-oval class returns wrong bodies. It waits on the section certificate, (b) on `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`.
+
+## Unparked (2026-09-28)
+
+It was parked on the interior-loop row, which the section certificate
+(PR 3372) closes: the half donut and bracket now refuses at the guard
+(R-loop) under every op, so admitting the torus to this roster no longer
+extends a wrong answer to ∖ and ∩. The admission's own measurement is
+still owed: re-run the shapes above with `Torus` on the roster, against
+the certificate.
