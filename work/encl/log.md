@@ -950,3 +950,8 @@ class of 65 sites is PRED's row.
     - A side channel through `drive::classify_replay`'s escalation log. The moved Interval cell still names `tangent_second_order` there, so it is fixed if cheap, else a row.
     - The stale ledger row in `predicate-dimension-audit.md`, an overclaiming header comment, two missed sweep hits, and a cross-reference between the two fallback spellings (certify vs contact_verify), to a consolidation row.
   - Fix pass sent back to the lane.
+- 2026-09-28 — PR 3333 fix pass landed at `9e70ecbd9a` (main merged clean).
+  - All 9 items done.
+  - Monotonicity is settled: rounds are NOT monotone (each round recomputes from scratch, and midpoint rounding grows with cell count). The `filter` guard stays, and validate.rs's check-7 doc now rests on containment only.
+  - `PERF-6-SPEC.md` corrected in place, since it states a measurement.
+  - Merging on hosted green of this head.
