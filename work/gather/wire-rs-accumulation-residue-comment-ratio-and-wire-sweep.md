@@ -2,11 +2,13 @@
 id: wire-rs-accumulation-residue-comment-ratio-and-wire-sweep
 kind: issue
 title: eval/wire.rs is about 47% comment by line and nothing decides whether that is wanted: a ratio budget or an editorial pass
-status: review
+status: closed
 opened: 2026-09-12
 priority: P4
 cost: M
 branch: gather/wire-rs-editorial-pass
+closed: 2026-09-28
+pr: 3365
 ---
 
 
