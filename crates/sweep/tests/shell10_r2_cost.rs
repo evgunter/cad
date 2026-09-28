@@ -13,8 +13,8 @@ use sweep::test_support::block;
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::shell_operands::{hollow_box, outer_and_void, vessel};
 use crate::shell8_common::{beside, cap, tol};
-use crate::verbs_shell::{hollow_box, outer_and_void, vessel};
 
 fn median_ms(label: &str, mut f: impl FnMut()) {
     for _ in 0..20 {
