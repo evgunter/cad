@@ -238,14 +238,16 @@
 //! `contact_marks*` door has a production caller at all today — its
 //! callers are this crate's tests and probes.
 //!
-//! **One door sits beside the table rather than in it**:
-//! [`AtRestBody::validate_pseudomanifold`], the tier-3′ pass over a body
-//! whose [`validate_geometric`] verdict was kept, which runs the census
-//! and reads the battery's half off that verdict. It is a method of the
-//! verdict and not a form of a pass, since the verdict is its subject.
-//! It has no `_structural` twin because only the composed certified door
-//! mints the verdict it reads, and over a body carried with no verdict
-//! (the dual arm's) it is [`validate_pseudomanifold`] verbatim.
+//! **Two doors sit beside the table rather than in it**, the pair
+//! [`AtRestBody`] carries: [`AtRestBody::validate`], which is
+//! [`validate_geometric`] keeping its verdict with the body, and
+//! [`AtRestBody::validate_pseudomanifold`], the tier-3′ pass over that
+//! body, which runs the census and reads the battery's half off the
+//! kept verdict. They are methods of the verdict and not forms of a
+//! pass, since the verdict is their subject. Neither has a `_structural`
+//! twin: both are bounded on the certification right, the verdict is
+//! only minted by the composed certified door, and a scalar without the
+//! right keeps no verdict to read.
 //!
 //! [`validate`] and [`validate_closed`] (tiers 1 and 2) take no form:
 //! they certify nothing and read no declaration. The measurement doors
@@ -3693,7 +3695,7 @@ pub fn validate_geometric_certificate<
     structural_via(
         body,
         tol,
-        StructuralPhase::BeforeCertifiedCheck7(&geom_brep::plane_nurbs_limbs::<T>),
+        StructuralPhase::BeforeCertifiedCheck7(CertifiedLanes::<T>::held().nurbs),
     )?;
     validate_geometric_certified(body, tol)
 }
@@ -3834,7 +3836,7 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let quad = Some(crate::props::QuadLane::certified());
+    let quad = Some(CertifiedLanes::<T>::held().quad);
     let certificate = plus_v_by_sign(body, band, tol, quad)?;
     // Check 10, behind a clean check 7 (`shell_winding_errors`).
     let errors = shell_winding_errors(body, band, tol, quad);
@@ -4526,12 +4528,8 @@ pub fn contact_marks<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    contact_marks_via(
-        body,
-        tol,
-        Some(&geom_brep::plane_nurbs_limbs::<T>),
-        Some(crate::props::QuadLane::certified()),
-    )
+    let lanes = CertifiedLanes::<T>::held();
+    contact_marks_via(body, tol, Some(lanes.nurbs), Some(lanes.quad))
 }
 
 /// **[`contact_marks`] holding NO lane** — the same pass at every
@@ -7331,13 +7329,14 @@ pub fn validate_pseudomanifold_certificate<
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
+    let lanes = CertifiedLanes::<T>::held();
     pseudomanifold_certificate_via(
         body,
         contacts,
         tol,
-        Some(&geom_brep::plane_nurbs_limbs::<T>),
-        Some(crate::props::QuadLane::certified()),
-        Some(crate::chart_region::RegionLane::certified()),
+        Some(lanes.nurbs),
+        Some(lanes.quad),
+        Some(lanes.region),
     )
 }
 
@@ -7387,15 +7386,19 @@ pub fn validate_pseudomanifold_certificate_structural<
 /// **Two states, the ones [`AtRestOutcome`] names.**
 /// [`AtRestOutcome::Validated`] is minted only by
 /// [`AtRestBody::validate`], which runs [`validate_geometric`] and keeps
-/// its `Ok`. [`AtRestOutcome::NotRunAtThisScalar`] is the dual arm of
-/// [`crate::AtRestPolicy::gate_at_rest_kept`]: nothing was checked, and
-/// [`AtRestBody::validate_pseudomanifold`] over such a body runs the
-/// whole pass, battery included. Neither state is read off a policy's
-/// answer, so a policy cannot mint a verdict its scalar did not derive.
+/// its `Ok`. [`AtRestOutcome::NotRunAtThisScalar`] is what a dual's
+/// [`crate::AtRestPolicy::gate_at_rest_kept`] carries: nothing was
+/// checked, and the dual's tier-3′ gate checks nothing either. Neither
+/// state is read off a policy's answer, so a policy cannot mint a
+/// verdict its scalar did not derive.
 ///
 /// The verdict needs no tolerance beside it: [`Tol`] is the run's one
 /// committed-ε witness, so the tolerance a later door is handed is the
-/// one the gate ran at.
+/// one the gate ran at. **It does not carry the symbolic session**: at
+/// `Sym<T>` a decision reads the thread's `geom_core::sym` session,
+/// whose budget and rules decide which margins discharge as exact, so a
+/// verdict kept under one session and read under another is the first
+/// session's verdict (no caller does that today).
 #[derive(Clone, Debug)]
 pub struct AtRestBody<T: Real> {
     body: Body<T>,
@@ -7421,8 +7424,9 @@ impl<T: Real> AtRestBody<T> {
         })
     }
 
-    /// A body carried with no verdict — the dual arm's, where the
-    /// scalar's policy runs no gate.
+    /// A body carried with no verdict: a dual's
+    /// [`crate::AtRestPolicy::gate_at_rest_kept`], whose policy runs no
+    /// gate.
     pub(crate) fn not_run(body: Body<T>) -> Self {
         Self {
             body,
@@ -7453,9 +7457,15 @@ impl<T: Real> AtRestBody<T> {
     /// the same ten checks through the same lanes. The two gate check 7
     /// differently (the door roster's difference), and a gate only
     /// decides which refusals a failing body reports: on a body every
-    /// check passes, both run every check. So what is left is the census.
-    /// Over an [`AtRestOutcome::NotRunAtThisScalar`] body it is
-    /// [`validate_pseudomanifold`] verbatim.
+    /// check passes, both run every check through the lanes
+    /// [`CertifiedLanes::held`] spells once for both doors. So what is
+    /// left is the census.
+    ///
+    /// No production path hands this method an
+    /// [`AtRestOutcome::NotRunAtThisScalar`] body: only a dual keeps one,
+    /// and a dual cannot call a door bounded on the certification right.
+    /// The arm keeps the method total without trusting that, by running
+    /// [`validate_pseudomanifold`] whole; this crate's tests reach it.
     ///
     /// # Errors
     ///
@@ -7469,24 +7479,13 @@ impl<T: Real> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         match self.outcome {
-            AtRestOutcome::Validated => {
-                let band = match Band::linear(tol) {
-                    Ok(band) => band,
-                    Err(error) => return Err(vec![ValidationError::Band { error }]),
-                };
-                let errors = crate::census::census_and_certify(
-                    &self.body,
-                    contacts,
-                    band,
-                    tol,
-                    Some(crate::chart_region::RegionLane::certified()),
-                );
-                if errors.is_empty() {
-                    Ok(())
-                } else {
-                    Err(errors)
-                }
-            }
+            AtRestOutcome::Validated => census_verdict(
+                &self.body,
+                contacts,
+                linear_band(tol)?,
+                tol,
+                Some(CertifiedLanes::<T>::held().region),
+            ),
             AtRestOutcome::NotRunAtThisScalar => validate_pseudomanifold(&self.body, contacts, tol),
         }
     }
@@ -7519,23 +7518,62 @@ fn pseudomanifold_certificate_via<
     region: Option<crate::chart_region::RegionLane<T>>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     validate_closed(body)?;
-    let band = match Band::linear(tol) {
-        Ok(band) => band,
-        Err(error) => return Err(vec![ValidationError::Band { error }]),
-    };
+    let band = linear_band(tol)?;
     // The tier-3 local battery, verbatim: it reads no contact record,
     // so with empty records 3′ is tier 3 exactly. The records are the
     // census's.
-    let (mut errors, certificate) = tier3_local_checks(body, band, tol, nurbs_lane, quad_lane);
-    if errors.is_empty() {
-        errors.extend(crate::census::census_and_certify(
-            body, contacts, band, tol, region,
-        ));
+    let (errors, certificate) = tier3_local_checks(body, band, tol, nurbs_lane, quad_lane);
+    if !errors.is_empty() {
+        return Err(errors);
     }
+    census_verdict(body, contacts, band, tol, region)?;
+    Ok(certificate_of_a_clean_verdict(certificate))
+}
+
+/// **Tier 3′'s census over a body whose battery is clean** — the one
+/// tail of both tier-3′ paths: [`pseudomanifold_certificate_via`] after
+/// its own battery, and [`AtRestBody::validate_pseudomanifold`] over a
+/// kept verdict.
+fn census_verdict<T: geom_core::Decide + geom_core::Bounds>(
+    body: &Body<T>,
+    contacts: &crate::boolean::ContactRecords,
+    band: Band,
+    tol: Tol,
+    region: Option<crate::chart_region::RegionLane<T>>,
+) -> Result<(), Vec<ValidationError>> {
+    let errors = crate::census::census_and_certify(body, contacts, band, tol, region);
     if errors.is_empty() {
-        Ok(certificate_of_a_clean_verdict(certificate))
+        Ok(())
     } else {
         Err(errors)
+    }
+}
+
+/// `Band::linear(tol)`, its refusal as the verdict vector every door
+/// returns it in.
+fn linear_band(tol: Tol) -> Result<Band, Vec<ValidationError>> {
+    Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])
+}
+
+/// **The certified lanes, spelled once**: check 2's plane × NURBS lane,
+/// the quadrature checks 7 and 10 decide through, and the chart-region
+/// door the census's two chart-region arms examine through. The
+/// certified doors read their lanes here, so the tier-3 verdict
+/// [`AtRestBody`] keeps and the tier-3′ pass that reads it hold the same
+/// lanes by construction.
+struct CertifiedLanes<T: geom_core::Decide> {
+    nurbs: geom_brep::NurbsLane<'static, T>,
+    quad: crate::props::QuadLane<T>,
+    region: crate::chart_region::RegionLane<T>,
+}
+
+impl<T: geom_core::Decide + geom_core::CertifiedBounds> CertifiedLanes<T> {
+    fn held() -> Self {
+        Self {
+            nurbs: &geom_brep::plane_nurbs_limbs::<T>,
+            quad: crate::props::QuadLane::certified(),
+            region: crate::chart_region::RegionLane::certified(),
+        }
     }
 }
 
