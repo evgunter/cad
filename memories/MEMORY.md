@@ -25,8 +25,7 @@ not what it says.
 - [Orchestration model](orchestration-model.md) — orchestrator plans and
   meta-reviews, subagents code and review; when to self-merge vs wait
   for Ev; the two-designer weighing before a design fork goes to Ev;
-  standing rules for branches, monitors, channels and dispatches, and
-  the runner and speed budgets
+  standing rules for branches, monitors, channels and dispatches
 - [Orchestrator switch runbook](orchestrator-switch-runbook.md) —
   RUNBOOK, read only when handing off to a successor
 - [Agent lane operations](agent-lane-operations.md) — lane creation,

@@ -136,8 +136,8 @@ Ev's standing instructions for implementation work:
   other orchestrators should see. Keep PUSHING branches continuously;
   only the PR is batched.
 - **Runners are a budget (Ev, 2026-09-28)**: when CI jobs sit queued
-  for more than a few seconds, combine the work in flight into a
-  single PR. Anything that waits on Ev keeps its own PR, so it cannot
+  for more than a few seconds, you may combine the work in flight
+  into a single PR. Anything that waits on Ev keeps its own PR, so it cannot
   hold the rest hostage.
 - **Friction is a finding (Ev, 2026-09-28)** — say so when something
   slows you down. The bars: CI takes 15 min at most and typically
