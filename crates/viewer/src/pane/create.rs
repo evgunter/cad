@@ -434,6 +434,23 @@ impl Held {
     }
 }
 
+/// **The one reason the add-profile button is held for**, out of every
+/// reason the form found, handed over in the form's own top-to-bottom
+/// order.
+///
+/// A refused input outranks the form waiting for one: a missing frame,
+/// shape or first step shows in the form itself (an empty picker, no
+/// shape chosen, an empty chain), while a refused value looks like any
+/// other number in its field and has no other voice. Between two of
+/// one kind the earlier in the form is said, so the first thing a
+/// person is asked for is the first thing the form lacks.
+fn held_for(holds: impl IntoIterator<Item = Held>) -> Option<Held> {
+    holds.into_iter().reduce(|said, next| match (said, next) {
+        (Held::Waiting(_), Held::Refused(_)) => next,
+        _ => said,
+    })
+}
+
 /// **What a bored circle holds the button for**: a bore at least as
 /// wide as the radius, which is an input the reader gave and the form
 /// refuses — [`Held::Refused`], not a request for the next input.
@@ -987,17 +1004,17 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.profile_plane,
         );
         let shape = self.drafts.profile_shape;
-        let mut blocked: Option<Held> = None;
-        // Stated before the shape check so the FIRST thing a person is
-        // told is the thing they have to do first.
+        // Every reason the button is held, in the form's order; which
+        // one is said is `held_for`'s to decide, not any one arm's.
+        let mut holds: Vec<Held> = Vec::new();
         if self.drafts.profile_plane.is_none() {
-            blocked = Some(Held::Waiting("pick a frame to draw on"));
+            holds.push(Held::Waiting("pick a frame to draw on"));
         }
         match shape {
             // No shape chosen: the form is at rest. It says what it is
             // waiting for and draws nothing — no fields to fill in for
             // a shape nobody picked, and no preview in the viewport.
-            None => blocked = blocked.or(Some(Held::Waiting("choose a shape to add"))),
+            None => holds.push(Held::Waiting("choose a shape to add")),
             Some(ShapeKind::Circle) => {
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
@@ -1025,13 +1042,11 @@ impl ViewerBehavior<'_> {
                         unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
                     }
                 });
-                if let Some(held) = bore_held(
+                holds.extend(bore_held(
                     self.drafts.profile_bored,
                     self.drafts.profile_bore,
                     self.drafts.profile_radius,
-                ) {
-                    blocked = Some(held);
-                }
+                ));
             }
             Some(ShapeKind::Rectangle) => {
                 let unit = self.drafts.length_unit.def();
@@ -1073,10 +1088,11 @@ impl ViewerBehavior<'_> {
                 // this the empty list drew the lattice's own refusal
                 // about a program nobody had started writing.
                 if self.drafts.profile_path.is_empty() {
-                    blocked = Some(Held::Waiting("add a step to the chain"));
+                    holds.push(Held::Waiting("add a step to the chain"));
                 }
             }
         }
+        let blocked = held_for(holds);
         if let Some(held) = blocked {
             held_line(ui, &self.theme, held);
         }
@@ -2164,7 +2180,8 @@ mod tone_tests {
     use pncad::select::{InterrogateError, Resolution};
 
     use super::{
-        Held, bore_held, face_frame_fault, held_line, part_listing, selection_says_unresolved,
+        Held, bore_held, face_frame_fault, held_for, held_line, part_listing,
+        selection_says_unresolved,
     };
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::parts::{PartCensus, PartChooser, PartEntry};
@@ -2363,6 +2380,23 @@ mod tone_tests {
         ));
         assert_eq!(bore_held(true, 0.005, 0.01), None);
         assert_eq!(bore_held(false, 0.02, 0.01), None);
+    }
+
+    /// **Which held reason is said**: a refused input over the form
+    /// waiting for one, wherever it came in the form; between two of
+    /// one kind, the earlier.
+    #[test]
+    fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
+        let frame = Held::Waiting("pick a frame to draw on");
+        let chain = Held::Waiting("add a step to the chain");
+        let bore = Held::Refused("the bore is too wide");
+        let wider = Held::Refused("the bore is wider still");
+        assert_eq!(held_for([frame, chain]), Some(frame));
+        assert_eq!(held_for([frame, bore]), Some(bore));
+        assert_eq!(held_for([bore, frame]), Some(bore));
+        assert_eq!(held_for([frame, bore, chain]), Some(bore));
+        assert_eq!(held_for([bore, wider]), Some(bore));
+        assert_eq!(held_for([]), None);
     }
 
     /// **The add-profile form's held reason**: a refused input is loud,

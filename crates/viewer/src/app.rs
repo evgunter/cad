@@ -3246,4 +3246,118 @@ mod properties_pane_tests {
         without.sort();
         assert_eq!(with, without);
     }
+
+    /// Every text the app painted once its "Add feature" section is
+    /// opened, with the drafts `plant` wrote: one frame to lay out and
+    /// find the header, one that clicks it, then frames at a clock set
+    /// well past the section's opening animation.
+    fn painted_adding_a_profile(plant: impl FnOnce(&mut crate::drafts::Drafts)) -> Vec<String> {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        plant(&mut app.drafts);
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut run = |seconds: f64, events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 4000.0),
+                )),
+                time: Some(seconds),
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                eframe::App::ui(&mut app, ui, &mut frame);
+            });
+            let landed = crate::pane::headless::landed_in(&output.shapes);
+            output.textures_delta.clear();
+            landed
+        };
+        let header = run(0.0, Vec::new())
+            .into_iter()
+            .find(|landed| landed.text == "Add feature")
+            .expect("the creation section's header is painted")
+            .allocated
+            .center();
+        let button = |pressed| egui::Event::PointerButton {
+            pos: header,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        run(
+            1.0,
+            vec![
+                egui::Event::PointerMoved(header),
+                button(true),
+                button(false),
+            ],
+        );
+        let mut texts = Vec::new();
+        for seconds in [2.0, 3.0] {
+            texts = run(seconds, Vec::new())
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect();
+        }
+        texts
+    }
+
+    /// Which of three held reasons the app paints — the frame prompt,
+    /// the empty chain's, the bore's refusal — with `plane` picked,
+    /// `shape` chosen, a bore planted as wide as the radius and the
+    /// chain planted empty.
+    fn held_reason_said(
+        plane: Option<crate::session::ProfilePlane>,
+        shape: crate::forms::ShapeKind,
+    ) -> Vec<&'static str> {
+        const SAID: [&str; 3] = [
+            "pick a frame to draw on",
+            "add a step to the chain",
+            "the bore must be smaller than the radius",
+        ];
+        let painted = painted_adding_a_profile(|drafts| {
+            drafts.profile_plane = plane;
+            drafts.profile_shape = Some(shape);
+            drafts.profile_bored = true;
+            drafts.profile_bore = drafts.profile_radius;
+            drafts.profile_path.clear();
+        });
+        assert!(
+            painted.iter().any(|text| text == "Add profile"),
+            "the add-profile form is drawn in this frame: {painted:?}"
+        );
+        SAID.into_iter()
+            .filter(|said| painted.iter().any(|text| text.starts_with(said)))
+            .collect()
+    }
+
+    /// **The add-profile form says one held reason, and which one is
+    /// decided once**: with no frame and an empty chain, the frame
+    /// prompt, which comes first in the form; with an over-wide bore, the
+    /// refusal, picked frame or not.
+    #[test]
+    fn the_add_profile_form_says_a_refusal_before_a_missing_input_and_the_frame_first() {
+        use crate::forms::ShapeKind;
+        use crate::session::ProfilePlane;
+        assert_eq!(
+            held_reason_said(None, ShapeKind::Path),
+            ["pick a frame to draw on"]
+        );
+        assert_eq!(
+            held_reason_said(None, ShapeKind::Circle),
+            ["the bore must be smaller than the radius"]
+        );
+        assert_eq!(
+            held_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Circle),
+            ["the bore must be smaller than the radius"]
+        );
+        // The empty chain is said once the frame is picked, so the
+        // first case above held it back rather than never drawing it.
+        assert_eq!(
+            held_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Path),
+            ["add a step to the chain"]
+        );
+    }
 }
