@@ -102,10 +102,6 @@ const TAU: f64 = core::f64::consts::TAU;
 const PI: f64 = core::f64::consts::PI;
 const FRAC_PI_2: f64 = core::f64::consts::FRAC_PI_2;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn flip(rng: &mut fuzz::Rng) -> bool {
     rng.unit() < 0.5
 }
@@ -288,21 +284,30 @@ fn mirror_corner(
             let v = (corner.x - o1.x, corner.y - o1.y);
             let t = (v.0 * d.0 + v.1 * d.1) / len2;
             let foot = (o1.x + t * d.0, o1.y + t * d.1);
-            Some(p2(2.0 * foot.0 - corner.x, 2.0 * foot.1 - corner.y))
+            Some(Point2::new(
+                2.0 * foot.0 - corner.x,
+                2.0 * foot.1 - corner.y,
+            ))
         }
         (OracleLeg::Line { .. }, OracleLeg::Arc { center: o, .. }) => {
             let (dx, dy) = leg_in.travel_dir(corner, true);
             let v = (o.x - corner.x, o.y - corner.y);
             let t = v.0 * dx + v.1 * dy;
             let foot = (corner.x + t * dx, corner.y + t * dy);
-            Some(p2(2.0 * foot.0 - corner.x, 2.0 * foot.1 - corner.y))
+            Some(Point2::new(
+                2.0 * foot.0 - corner.x,
+                2.0 * foot.1 - corner.y,
+            ))
         }
         (OracleLeg::Arc { center: o, .. }, OracleLeg::Line { .. }) => {
             let (dx, dy) = leg_out.travel_dir(corner, false);
             let v = (o.x - corner.x, o.y - corner.y);
             let t = v.0 * dx + v.1 * dy;
             let foot = (corner.x + t * dx, corner.y + t * dy);
-            Some(p2(2.0 * foot.0 - corner.x, 2.0 * foot.1 - corner.y))
+            Some(Point2::new(
+                2.0 * foot.0 - corner.x,
+                2.0 * foot.1 - corner.y,
+            ))
         }
         (OracleLeg::Line { .. }, OracleLeg::Line { .. }) => None,
     }
@@ -364,7 +369,7 @@ fn clamp_arrival(corner: Point2<f64>, m: Point2<f64>, leg: OracleLeg) -> OracleL
             }
             let new_len = len.min(0.95 * g);
             OracleLeg::Line {
-                far: p2(corner.x + dx / len * new_len, corner.y + dy / len * new_len),
+                far: Point2::new(corner.x + dx / len * new_len, corner.y + dy / len * new_len),
             }
         }
     }
@@ -840,7 +845,7 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
         (0u64, 0u64, 0u64, 0u64, 0u64);
     for i in 0..corners {
         let enclosing_bias = i % 5 == 0;
-        let corner = p2(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+        let corner = Point2::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
         let leg_in = rand_leg(&mut rng, corner, true, enclosing_bias);
         let leg_out = rand_leg(&mut rng, corner, false, enclosing_bias);
         let r = if enclosing_bias {
@@ -966,14 +971,14 @@ struct EnclosingCase {
 fn enclosing_cases() -> Vec<EnclosingCase> {
     // sin(a_out - a_in) > 0 with tau_in = tau_out = +1 gives sigma = +1,
     // so sigma*tau = +1 on both legs and r > R swallows both.
-    let c1 = p2(0.0, 0.0);
+    let c1 = Point2::new(0.0, 0.0);
     // The mirror: both legs clockwise, sin(a_out - a_in) < 0, sigma = -1,
     // and sigma*tau = +1 again — the other sign pair that reaches rho < 0.
-    let c2 = p2(-0.7, 0.35);
-    let c3 = p2(0.25, 0.25);
-    let c4 = p2(-0.15, 0.5);
-    let c5 = p2(0.6, -0.5);
-    let c6 = p2(-0.4, -0.9);
+    let c2 = Point2::new(-0.7, 0.35);
+    let c3 = Point2::new(0.25, 0.25);
+    let c4 = Point2::new(-0.15, 0.5);
+    let c5 = Point2::new(0.6, -0.5);
+    let c6 = Point2::new(-0.4, -0.9);
     vec![
         EnclosingCase {
             name: "sigma = tau = +1, equal carriers (R 0.2, r 0.5), right-angle turn",
@@ -1259,7 +1264,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
 /// offset carriers rather than about the fillet the author asked for.
 #[test]
 fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
-    let c = p2(0.4, -0.2);
+    let c = Point2::new(0.4, -0.2);
     let r = 0.6;
     let impossible: [(&str, OracleLeg, OracleLeg); 4] = [
         (
@@ -1346,11 +1351,11 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
     let deg = |d: f64| d.to_radians();
     // corner (0, -s3) on both circles (centers (-1,0),(1,0), R=2);
     // both legs only a few degrees long.
-    let far_in = p2(-1.0 + 2.0 * deg(296.0).cos(), 2.0 * deg(296.0).sin());
+    let far_in = Point2::new(-1.0 + 2.0 * deg(296.0).cos(), 2.0 * deg(296.0).sin());
     // 70 degrees past the bottom corner: far enough that the TOP corner
     // reads Negative on the signed reach gate, close enough to keep the
     // bottom corner in its window.
-    let far_out = p2(1.0 + 2.0 * deg(310.0).cos(), 2.0 * deg(310.0).sin());
+    let far_out = Point2::new(1.0 + 2.0 * deg(310.0).cos(), 2.0 * deg(310.0).sin());
     let leg = |far: Point2<f64>, centre: Point2<f64>| OracleLeg::Arc {
         center: centre,
         radius: 2.0,
@@ -1358,9 +1363,9 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
         far_angle: (far.y - centre.y).atan2(far.x - centre.x),
     };
     let err = build_corner(
-        p2(0.0, -s3),
-        leg(far_in, p2(-1.0, 0.0)),
-        leg(far_out, p2(1.0, 0.0)),
+        Point2::new(0.0, -s3),
+        leg(far_in, Point2::new(-1.0, 0.0)),
+        leg(far_out, Point2::new(1.0, 0.0)),
         0.5,
     )
     .expect_err("short legs must refuse");
@@ -1429,16 +1434,16 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
 /// the bit.
 #[test]
 fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
-    let corner = p2(-0.036_538_048_808_474_78, -0.639_153_338_141_905_2);
+    let corner = Point2::new(-0.036_538_048_808_474_78, -0.639_153_338_141_905_2);
     let r = 0.567_033_689_456_740_4;
     let leg_in = OracleLeg::Arc {
-        center: p2(-1.716_849_619_579_590_6, -0.386_316_949_082_364_86),
+        center: Point2::new(-1.716_849_619_579_590_6, -0.386_316_949_082_364_86),
         radius: 1.699_227_240_394_869,
         tau: -1.0,
         far_angle: 6.965_749_569_640_534_5,
     };
     let leg_out = OracleLeg::Arc {
-        center: p2(0.526_054_394_925_831_4, -0.712_263_623_663_518_8),
+        center: Point2::new(0.526_054_394_925_831_4, -0.712_263_623_663_518_8),
         radius: 0.567_322_987_015_324_7,
         tau: 1.0,
         far_angle: 5.717_696_914_354_667,
@@ -1577,11 +1582,11 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
 /// which pins the same refusal over six authored rows.
 #[test]
 fn enclosing_fillet_swallows_both_leg_carriers() {
-    let corner = p2(0.4141246232685536, -0.9332926788663134);
+    let corner = Point2::new(0.4141246232685536, -0.9332926788663134);
     let r = 0.7730763477423346;
-    let o1 = p2(0.33261753191949683, -1.1228461282388256);
+    let o1 = Point2::new(0.33261753191949683, -1.1228461282388256);
     let fa1: f64 = -1.477819896068483;
-    let o2 = p2(0.4884663916168746, -0.8611854913524928);
+    let o2 = Point2::new(0.4884663916168746, -0.8611854913524928);
     let fa2: f64 = 6.685799873422015;
     let r1 = (corner.x - o1.x).hypot(corner.y - o1.y);
     let r2 = (corner.x - o2.x).hypot(corner.y - o2.y);
@@ -1702,7 +1707,7 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
     const SCENE: f64 = 1.0;
     const ULPS: f64 = 8.0;
 
-    let corner = p2(-0.417_819_980_559_473_56, -0.034_224_129_413_008_564);
+    let corner = Point2::new(-0.417_819_980_559_473_56, -0.034_224_129_413_008_564);
     // The mined corner walked in REVERSE (legs swapped, windings
     // negated; sigma*tau per leg — and with it the collapsed offset
     // lever — is invariant): the orientation whose anchors bracket the
@@ -1785,7 +1790,7 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
 /// What must never happen — on any band — is a build.
 #[test]
 fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
-    let corner = p2(-0.466_393_541_070_097, -0.036_421_594_587_948_69);
+    let corner = Point2::new(-0.466_393_541_070_097, -0.036_421_594_587_948_69);
     // The mined orientation, verbatim: the collapsed leg is the
     // OUTGOING one — the side whose offset lever the M8 gate measures.
     let leg_in = arc_leg(

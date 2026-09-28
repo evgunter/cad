@@ -3700,10 +3700,6 @@ mod tests {
         }
     }
 
-    pub(super) fn pt(x: f64, y: f64) -> Point2<f64> {
-        Point2::new(x, y)
-    }
-
     /// Exact coordinate equality (Point2 carries no PartialEq).
     fn assert_pt(p: Point2<f64>, x: f64, y: f64) {
         assert!(
@@ -3716,7 +3712,12 @@ mod tests {
 
     /// CCW axis-aligned rectangle polygon.
     pub(super) fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
-        vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)]
+        vec![
+            Point2::new(x0, y0),
+            Point2::new(x1, y0),
+            Point2::new(x1, y1),
+            Point2::new(x0, y1),
+        ]
     }
 
     /// A `ScaledFace` from raw polygons (already metred), rings by
@@ -3765,11 +3766,11 @@ mod tests {
         // breaks azimuth invariance) — structure, not span, decides.
         let tau = core::f64::consts::TAU;
         let notched = vec![
-            pt(0.0, 0.0),
-            pt(tau, 0.0),
-            pt(tau, 1.0),
-            pt(tau * 0.5, 0.4),
-            pt(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(tau, 0.0),
+            Point2::new(tau, 1.0),
+            Point2::new(tau * 0.5, 0.4),
+            Point2::new(0.0, 1.0),
         ];
         assert_eq!(wrap_band(&notched, r, band()).unwrap(), None);
         // A near-full span INSIDE the band escalates typed — neither
@@ -3833,14 +3834,14 @@ mod tests {
     #[test]
     fn iso_line_and_iso_arc_entry_points_are_exact() {
         let line = geom_brep::Pcurve::IsoLine {
-            p0: pt(0.25, 0.0),
+            p0: Point2::new(0.25, 0.0),
             pl: Vec2::new(0.5, 1.0),
         };
         assert_pt(pcurve_entry(&line, 0.0, 2.0, true).unwrap(), 0.25, 0.0);
         assert_pt(pcurve_entry(&line, 0.0, 2.0, false).unwrap(), 1.25, 2.0);
 
         let arc = geom_brep::Pcurve::IsoArc {
-            p0: pt(0.0, 1.0),
+            p0: Point2::new(0.0, 1.0),
             pd: Vec2::new(1.0, 0.0),
             t0: 0.0,
             angle: core::f64::consts::FRAC_PI_2,
@@ -3855,7 +3856,7 @@ mod tests {
     #[test]
     fn zero_trig_harmonic_passes_and_sinusoid_refuses() {
         let linear = geom_brep::Pcurve::Harmonic {
-            p0: pt(0.0, 0.5),
+            p0: Point2::new(0.0, 0.5),
             pa: Vec2::zero(),
             pb: Vec2::zero(),
             pl: Vec2::new(1.0, 0.0),
@@ -3864,7 +3865,7 @@ mod tests {
 
         // The tilted-cut class: an alive sin channel refuses typed.
         let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: pt(0.0, 0.5),
+            p0: Point2::new(0.0, 0.5),
             pa: Vec2::zero(),
             pb: Vec2::new(0.0, 0.3),
             pl: Vec2::new(1.0, 0.0),
@@ -3877,7 +3878,7 @@ mod tests {
         // The C6 statement with teeth: 1e-300 is NOT a structural
         // zero, and no scalar zero-test on T may decide otherwise.
         let nearly = geom_brep::Pcurve::Harmonic {
-            p0: pt(0.0, 0.5),
+            p0: Point2::new(0.0, 0.5),
             pa: Vec2::new(0.0, 1e-300),
             pb: Vec2::zero(),
             pl: Vec2::new(1.0, 0.0),
@@ -3893,19 +3894,19 @@ mod tests {
     fn point_in_polygon_square_verdicts() {
         let sq = rect(0.0, 0.0, 1.0, 1.0);
         assert_eq!(
-            point_in_polygon(&sq, pt(0.5, 0.5), band()).unwrap(),
+            point_in_polygon(&sq, Point2::new(0.5, 0.5), band()).unwrap(),
             PolyContainment::In
         );
         assert_eq!(
-            point_in_polygon(&sq, pt(1.5, 0.5), band()).unwrap(),
+            point_in_polygon(&sq, Point2::new(1.5, 0.5), band()).unwrap(),
             PolyContainment::Out
         );
         assert_eq!(
-            point_in_polygon(&sq, pt(1.0, 0.5), band()).unwrap(),
+            point_in_polygon(&sq, Point2::new(1.0, 0.5), band()).unwrap(),
             PolyContainment::OnBoundary
         );
         assert_eq!(
-            point_in_polygon(&sq, pt(1.0, 1.0), band()).unwrap(),
+            point_in_polygon(&sq, Point2::new(1.0, 1.0), band()).unwrap(),
             PolyContainment::OnBoundary
         );
     }
@@ -3915,21 +3916,21 @@ mod tests {
         // A CCW "U": the notch interior is OUT despite the bounding
         // box saying otherwise.
         let u = vec![
-            pt(0.0, 0.0),
-            pt(3.0, 0.0),
-            pt(3.0, 2.0),
-            pt(2.0, 2.0),
-            pt(2.0, 0.5),
-            pt(1.0, 0.5),
-            pt(1.0, 2.0),
-            pt(0.0, 2.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(3.0, 0.0),
+            Point2::new(3.0, 2.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(2.0, 0.5),
+            Point2::new(1.0, 0.5),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.0, 2.0),
         ];
         assert_eq!(
-            point_in_polygon(&u, pt(1.5, 1.0), band()).unwrap(),
+            point_in_polygon(&u, Point2::new(1.5, 1.0), band()).unwrap(),
             PolyContainment::Out
         );
         assert_eq!(
-            point_in_polygon(&u, pt(0.5, 1.0), band()).unwrap(),
+            point_in_polygon(&u, Point2::new(0.5, 1.0), band()).unwrap(),
             PolyContainment::In
         );
     }
@@ -3955,14 +3956,14 @@ mod tests {
     fn a_bar_through_a_u_clips_to_two_pieces() {
         // The U from above ∩ a horizontal bar across both prongs.
         let u = vec![
-            pt(0.0, 0.0),
-            pt(3.0, 0.0),
-            pt(3.0, 2.0),
-            pt(2.0, 2.0),
-            pt(2.0, 0.5),
-            pt(1.0, 0.5),
-            pt(1.0, 2.0),
-            pt(0.0, 2.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(3.0, 0.0),
+            Point2::new(3.0, 2.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(2.0, 0.5),
+            Point2::new(1.0, 0.5),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.0, 2.0),
         ];
         let bar = rect(-0.5, 1.0, 3.5, 1.5);
         let crossings = proper_crossings(&u, &bar, band()).unwrap();
@@ -4033,7 +4034,12 @@ mod tests {
     fn identical_regions_certify_through_the_structural_fast_path() {
         // Bit-identical cycles under rotation: the rung-2 product.
         let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
-        let rotated = vec![pt(1.0, 0.0), pt(1.0, 1.0), pt(0.0, 1.0), pt(0.0, 0.0)];
+        let rotated = vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+        ];
         let b = face_of(rotated, &[]);
         assert_eq!(
             overlap_of_regions(&a, &b, false, band()).unwrap(),
@@ -4046,7 +4052,12 @@ mod tests {
         // A small hole leaves the positive claim standing…
         let holed = face_of(
             rect(0.0, 0.0, 3.0, 3.0),
-            &[vec![pt(1.2, 1.2), pt(1.2, 1.4), pt(1.4, 1.4), pt(1.4, 1.2)]],
+            &[vec![
+                Point2::new(1.2, 1.2),
+                Point2::new(1.2, 1.4),
+                Point2::new(1.4, 1.4),
+                Point2::new(1.4, 1.2),
+            ]],
         );
         let probe = face_of(rect(0.5, 0.5, 2.5, 2.5), &[]);
         assert_eq!(
@@ -4058,7 +4069,12 @@ mod tests {
         // subtraction can only refuse, never bless falsely).
         let big_hole = face_of(
             rect(0.0, 0.0, 3.0, 3.0),
-            &[vec![pt(0.5, 0.5), pt(0.5, 2.5), pt(2.5, 2.5), pt(2.5, 0.5)]],
+            &[vec![
+                Point2::new(0.5, 0.5),
+                Point2::new(0.5, 2.5),
+                Point2::new(2.5, 2.5),
+                Point2::new(2.5, 0.5),
+            ]],
         );
         let inner = face_of(rect(1.0, 1.0, 2.0, 2.0), &[]);
         match overlap_of_regions(&big_hole, &inner, false, band()) {
@@ -4130,14 +4146,14 @@ mod tests {
         let top = |u: f64| 1.0 + 0.5 * u.sin();
         let inscribed = face_of(
             vec![
-                pt(0.0, 0.0),
-                pt(core::f64::consts::PI, 0.0),
-                pt(core::f64::consts::PI, 1.0),
-                pt(2.4, top(2.4)),
-                pt(1.8, top(1.8)),
-                pt(1.2, top(1.2)),
-                pt(0.6, top(0.6)),
-                pt(0.0, 1.0),
+                Point2::new(0.0, 0.0),
+                Point2::new(core::f64::consts::PI, 0.0),
+                Point2::new(core::f64::consts::PI, 1.0),
+                Point2::new(2.4, top(2.4)),
+                Point2::new(1.8, top(1.8)),
+                Point2::new(1.2, top(1.2)),
+                Point2::new(0.6, top(0.6)),
+                Point2::new(0.0, 1.0),
             ],
             &[],
         );
@@ -4150,7 +4166,7 @@ mod tests {
         // the variant gate (`pcurve_entry`), which is exactly the
         // exclusion the module docs name.
         let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: pt(0.0, 1.0),
+            p0: Point2::new(0.0, 1.0),
             pa: Vec2::zero(),
             pb: Vec2::new(0.0, 0.5),
             pl: Vec2::new(1.0, 0.0),
@@ -4514,7 +4530,7 @@ mod tests {
                     (Vec2::zero(), Vec2::new(0.0, tiny)),
                 ] {
                     let h = geom_brep::Pcurve::Harmonic {
-                        p0: pt(0.0, 0.0),
+                        p0: Point2::new(0.0, 0.0),
                         pa,
                         pb,
                         pl: Vec2::new(1.0, 0.0),
@@ -4532,7 +4548,7 @@ mod tests {
             // -0.0 == 0.0 in value: the trig term is the exact zero
             // function, so admitting it is sound (structure, not bits).
             let h = geom_brep::Pcurve::Harmonic {
-                p0: pt(0.25, 0.5),
+                p0: Point2::new(0.25, 0.5),
                 pa: Vec2::new(-0.0, 0.0),
                 pb: Vec2::new(0.0, -0.0),
                 pl: Vec2::new(1.0, 2.0),
@@ -4621,10 +4637,10 @@ mod tests {
             let holed = face_of(
                 rect(0.0, 0.0, 2.0, 2.0),
                 &[vec![
-                    pt(0.0, 0.0),
-                    pt(0.0, 2.0 - d),
-                    pt(2.0 - d, 2.0 - d),
-                    pt(2.0 - d, 0.0),
+                    Point2::new(0.0, 0.0),
+                    Point2::new(0.0, 2.0 - d),
+                    Point2::new(2.0 - d, 2.0 - d),
+                    Point2::new(2.0 - d, 0.0),
                 ]],
             );
             let probe = face_of(rect(0.0, 0.0, 2.0, 2.0), &[]);
@@ -4694,7 +4710,12 @@ mod tests {
         #[test]
         fn r1_a_rotated_square_clips_to_the_octagon() {
             let a = rect(-1.0, -1.0, 1.0, 1.0);
-            let b = vec![pt(1.5, 0.0), pt(0.0, 1.5), pt(-1.5, 0.0), pt(0.0, -1.5)];
+            let b = vec![
+                Point2::new(1.5, 0.0),
+                Point2::new(0.0, 1.5),
+                Point2::new(-1.5, 0.0),
+                Point2::new(0.0, -1.5),
+            ];
             let crossings = proper_crossings(&a, &b, band()).unwrap();
             assert_eq!(crossings.len(), 8);
             let pieces = intersection_pieces(&a, &b, &crossings, band()).unwrap();
@@ -4712,10 +4733,10 @@ mod tests {
             let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
             let spike = face_of(
                 vec![
-                    pt(x - w, -1.0),
-                    pt(x + w, -1.0),
-                    pt(x + w, 0.5),
-                    pt(x - w, 0.5),
+                    Point2::new(x - w, -1.0),
+                    Point2::new(x + w, -1.0),
+                    Point2::new(x + w, 0.5),
+                    Point2::new(x - w, 0.5),
                 ],
                 &[],
             );
@@ -4728,7 +4749,14 @@ mod tests {
         #[test]
         fn r1_a_vertex_touch_on_an_edge_interior_refuses_typed() {
             let a = face_of(rect(0.0, 0.0, 2.0, 1.0), &[]);
-            let t = face_of(vec![pt(0.5, -1.0), pt(1.5, -1.0), pt(1.0, 0.0)], &[]);
+            let t = face_of(
+                vec![
+                    Point2::new(0.5, -1.0),
+                    Point2::new(1.5, -1.0),
+                    Point2::new(1.0, 0.0),
+                ],
+                &[],
+            );
             match overlap_of_regions(&a, &t, false, band()) {
                 Err(ChartRegionError::TouchingBoundary) => {}
                 other => panic!("apex-on-edge touch must refuse typed, got {other:?}"),
@@ -4752,11 +4780,11 @@ mod tests {
             // parallel row is over_lever(0, 0) = NaN → MarginDiag::
             // Invalid → Escalated. Fail-loud, never a silent verdict.
             let dup = vec![
-                pt(0.0, 0.0),
-                pt(1.0, 0.0),
-                pt(1.0, 0.0),
-                pt(1.0, 1.0),
-                pt(0.0, 1.0),
+                Point2::new(0.0, 0.0),
+                Point2::new(1.0, 0.0),
+                Point2::new(1.0, 0.0),
+                Point2::new(1.0, 1.0),
+                Point2::new(0.0, 1.0),
             ];
             let a = face_of(dup, &[]);
             let b = face_of(rect(0.5, 0.5, 1.5, 1.5), &[]);
@@ -4772,7 +4800,12 @@ mod tests {
         fn r1_replay_is_bit_deterministic() {
             let a = face_of(rect(-1.0, -1.0, 1.0, 1.0), &[]);
             let b = face_of(
-                vec![pt(1.5, 0.0), pt(0.0, 1.5), pt(-1.5, 0.0), pt(0.0, -1.5)],
+                vec![
+                    Point2::new(1.5, 0.0),
+                    Point2::new(0.0, 1.5),
+                    Point2::new(-1.5, 0.0),
+                    Point2::new(0.0, -1.5),
+                ],
                 &[],
             );
             let first = overlap_of_regions(&a, &b, false, band()).unwrap();
@@ -5272,7 +5305,7 @@ mod r2_mate8_probes {
     //! Blinded-review probes (lane R2, PR #1472): adversarial edge
     //! cases for `decomposition_witness`'s completeness argument and
     //! its budget guard. Probe-branch only; not part of the unit.
-    use super::tests::{pt, rect, uv};
+    use super::tests::{rect, uv};
     use super::*;
 
     /// Strict even-odd containment of `(x, y)` in `poly`, with a
@@ -5387,12 +5420,12 @@ mod r2_mate8_probes {
     fn r2p4_repeated_abscissae_find_a_witness() {
         let a = uv(
             vec![
-                pt(0.0, 0.0),
-                pt(2.0, 0.0),
-                pt(2.0, 1.0),
-                pt(3.0, 2.0),
-                pt(2.0, 3.0),
-                pt(0.0, 3.0),
+                Point2::new(0.0, 0.0),
+                Point2::new(2.0, 0.0),
+                Point2::new(2.0, 1.0),
+                Point2::new(3.0, 2.0),
+                Point2::new(2.0, 3.0),
+                Point2::new(0.0, 3.0),
             ],
             vec![],
         );
@@ -5417,7 +5450,7 @@ mod r2_mate8_probes {
             (0..n)
                 .map(|i| {
                     let t = core::f64::consts::TAU * (i as f64) / (n as f64);
-                    pt(cx + 2.0 * t.cos(), 2.0 * t.sin())
+                    Point2::new(cx + 2.0 * t.cos(), 2.0 * t.sin())
                 })
                 .collect()
         };
@@ -5458,7 +5491,7 @@ mod r2_mate8_probes {
             (0..n)
                 .map(|i| {
                     let t = core::f64::consts::TAU * (i as f64) / (n as f64);
-                    pt(cx + 2.0 * t.cos(), 2.0 * t.sin())
+                    Point2::new(cx + 2.0 * t.cos(), 2.0 * t.sin())
                 })
                 .collect()
         };
@@ -5506,20 +5539,20 @@ mod r2_mate8_probes {
         // A comb, walked as a simple polygon: up the spine, out along
         // each tooth's underside, back along its top.
         let teeth = 28usize;
-        let mut comb = vec![pt(0.0, 0.0)];
+        let mut comb = vec![Point2::new(0.0, 0.0)];
         for i in 0..teeth {
             let y = 2.0 * (i as f64);
-            comb.push(pt(1.0, y));
-            comb.push(pt(1.0, y + 1.0));
-            comb.push(pt(0.1, y + 1.0));
-            comb.push(pt(0.1, y + 2.0));
+            comb.push(Point2::new(1.0, y));
+            comb.push(Point2::new(1.0, y + 1.0));
+            comb.push(Point2::new(0.1, y + 1.0));
+            comb.push(Point2::new(0.1, y + 2.0));
         }
-        comb.push(pt(0.0, 2.0 * (teeth as f64)));
+        comb.push(Point2::new(0.0, 2.0 * (teeth as f64)));
         let crosser = vec![
-            pt(-0.2, -1.0),
-            pt(-0.18, -1.0),
-            pt(1.22, 2.0 * (teeth as f64) + 1.0),
-            pt(1.2, 2.0 * (teeth as f64) + 1.0),
+            Point2::new(-0.2, -1.0),
+            Point2::new(-0.18, -1.0),
+            Point2::new(1.22, 2.0 * (teeth as f64) + 1.0),
+            Point2::new(1.2, 2.0 * (teeth as f64) + 1.0),
         ];
         let segments = comb.len() + crosser.len();
         assert!(

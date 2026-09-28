@@ -2474,24 +2474,27 @@ mod tests {
         use geom::surfaces::nurbs::NurbsSurface;
         use geom_core::spline::KnotVector;
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::new(2).unwrap());
-        let p = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let control = vec![
-            p(0.0, 0.0, 0.0),
-            p(0.0, 0.5, 0.0),
-            p(0.0, 1.0, 0.0),
-            p(0.5, 0.0, 0.0),
-            p(0.5, 0.5, 1.0),
-            p(0.5, 1.0, 0.0),
-            p(1.0, 0.0, 0.0),
-            p(1.0, 0.5, 0.0),
-            p(1.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.5, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.5, 0.0, 0.0),
+            Point3::new(0.5, 0.5, 1.0),
+            Point3::new(0.5, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.5, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
         ];
         let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
         body.set_face_surface(face, FaceSurface::New(surface))
             .unwrap();
-        (body, face, (p(0.0, 0.0, 0.0), p(1.0, 1.0, 1.0)))
+        (
+            body,
+            face,
+            (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 1.0)),
+        )
     }
 
     /// **The NURBS half of the same defect.** A patch's interior

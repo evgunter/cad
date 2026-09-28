@@ -40,10 +40,6 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn predicate_of(err: &PathError<f64>) -> Option<&'static str> {
     match err {
         PathError::Escalated { source } => source.predicate,
@@ -81,13 +77,13 @@ fn builds_and_validates(lp: Result<ProfileLoop<f64>, PathError<f64>>, what: &str
 /// the origin. Offset line `y = r` against offset circle `3 - r`: the
 /// clearance `3 - 2r` closes at `r = 1.5`.
 fn line_arc_3(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    Open.at(p2(0.0, 3.0))
-        .line_to(p2(0.0, 0.0), tol())?
+    Open.at(Point2::new(0.0, 3.0))
+        .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(3.0, 0.0, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -103,13 +99,13 @@ fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathEr
     let h = (r_carrier * r_carrier - 0.25 * d * d).sqrt();
     Open.arc_fillet_arc(
         Center {
-            c: p2(-0.5 * d, 0.0),
+            c: Point2::new(-0.5 * d, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.0, -h),
+            p: Point2::new(0.0, -h),
         },
         radius,
         Center {
-            c: p2(0.5 * d, 0.0),
+            c: Point2::new(0.5 * d, 0.0),
             winding: ArcSweep::Ccw,
             p: Start,
         },
@@ -124,15 +120,15 @@ fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathEr
 fn mixed_3(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-1.5, 0.0),
+            c: Point2::new(-1.5, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(1.5, 0.0),
+            p: Point2::new(1.5, 0.0),
         },
         radius,
         Center {
-            c: p2(1.5, 0.0),
+            c: Point2::new(1.5, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(4.5, 0.0),
+            p: Point2::new(4.5, 0.0),
         },
         tol(),
     )?
@@ -154,18 +150,18 @@ fn corner_out(
     sweep_frac: f64,
     radius: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let corner = p2(r_carrier, 0.0);
-    let d = p2(sin_turn, (1.0 - sin_turn * sin_turn).sqrt());
-    let start = p2(corner.x - arm * d.x, corner.y - arm * d.y);
+    let corner = Point2::new(r_carrier, 0.0);
+    let d = Point2::new(sin_turn, (1.0 - sin_turn * sin_turn).sqrt());
+    let start = Point2::new(corner.x - arm * d.x, corner.y - arm * d.y);
     let ang = sweep_frac * core::f64::consts::TAU;
     Open.at(start)
         .toward(d.x, d.y, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(r_carrier * ang.cos(), r_carrier * ang.sin()),
+                p: Point2::new(r_carrier * ang.cos(), r_carrier * ang.sin()),
             },
             tol(),
         )?
