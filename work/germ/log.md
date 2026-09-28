@@ -230,3 +230,31 @@ to spare CI.
 Held for the next round: `circle-crosses-a-torus-face-with-no-root-lane` and
 `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`
 (both H), and `VERBS-CONE`, behind the cone lane.
+
+## 2026-09-28 — a live wrong answer on main from PR 3265, and a stopgap
+
+The torus-ops lane (PR 3330) measured that `union` on main returns a
+confident wrong answer. A torus face meets a partner face ONLY in a
+face-interior oval, while the op has crossings elsewhere (a half donut and a
+C-bracket whose pin crosses the planar cap). The no-crossings
+`torus_extent_gate` never runs, and face-region propagation cannot see the
+oval. The result is `Ok(Seamed)`, valid at tiers 1–3, with the lens counted
+twice. PR 3265 admitted the torus to ∪, so PR 3265 introduced this. Its dual
+review caught the no-crossings case but not this one. It is the
+`torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`
+row, now P0, and it is **an escape from DR-11**: neither reviewer raised it.
+It is recorded here and goes on DR-11's row as a later escape (protocol
+rule 11).
+
+Decision, taken without asking because restoring fail-loud is the ratified
+default, not a design choice: a sound STOPGAP ships now as its own PR
+(`germ/interior-oval-stopgap`). It refuses typed where a torus face's box
+overlaps a partner face's box that produced no crossing event. It is a
+per-pair gate if that is provably sound, otherwise a per-op one, even though
+per-op takes back most of what PR 3265 admitted to ∪. The narrow proper fix,
+a per-pair section certificate, is H-cost and goes to Ev as the design
+question. The ∖/∩ torus roster stays shut behind it.
+
+PR 3330 carries the chord-rule relaxation (with its soundness argument for
+every kind that reaches it) and the ring convention's one home. Its dual
+review waits for disk: the cone fix pass and the stopgap are building.
