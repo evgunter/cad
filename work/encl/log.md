@@ -972,3 +972,9 @@ class of 65 sites is PRED's row.
   - The convex form alone gives 0 of 93 refusals, a frame-invariant bound and `hull_sup` ÷4.4. None of the candidate fixes on the ENCL side would close it.
   - Row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites`. Evidence appended there, and PROPS notified on its log (two ENCL rows now wait on it, one P0).
   - The probe sources are in this session's scratchpad only.
+- 2026-09-28 — The equal-split lane opened PR 3338 (head `13fff39548`).
+  - Adds a helper, `equal_split_plan`, and replaces four hand compositions with it. Bits are unchanged (diagnostics identical against main).
+  - Constants ruling: RATIONAL_CERT_SPLITS and RATIONAL_METER_SPLITS are two independent choices. The meter's value was measured (e9c9e57a5e); the cert's only cited it (db570b6835). "Mirrored" is dropped at both sites. There is no ratification of either.
+  - This answers CHORD's `C23`. After merge I will note it on C23 and the CHORD log and leave the close to CHORD.
+  - Filed `domain-uniform-refinement-grid-is-spelled-three-times` (P4/E).
+  - Style review dispatched.
