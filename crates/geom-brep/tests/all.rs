@@ -83,6 +83,8 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
+#[path = "germ_pose_gate.rs"]
+mod germ_pose_gate;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]

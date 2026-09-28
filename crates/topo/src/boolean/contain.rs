@@ -639,8 +639,9 @@ pub(super) fn point_on_arc<T: Decide>(
 /// not on the chart at all.
 ///
 /// Only then does this ask the interior question, per chart: the
-/// sphere and torus arms read their own chart windows
-/// ([`sphere_face_containment`], [`torus_face_containment`]), and a
+/// sphere, torus and cone arms read their own chart windows
+/// ([`sphere_face_containment`], [`torus_face_containment`],
+/// [`cone_face_containment`]), and a
 /// **cylinder wall of the ISO-BOUNDED class** answers it this way:
 ///
 /// - the face carries no rings (a ring is a hole the rectangle below
@@ -658,7 +659,7 @@ pub(super) fn point_on_arc<T: Decide>(
 /// answers `None` rather than a verdict it cannot stand behind.
 ///
 /// `None` is therefore the honest remainder throughout — a chart with no
-/// arm (cone, NURBS), a chart form the trim cannot express (a ringed face, a
+/// arm (NURBS), a chart form the trim cannot express (a ringed face, a
 /// non-iso boundary, or a FULL-PERIOD azimuth window, whose cosine
 /// comparison is an equivalence only under a period), or a margin on a
 /// trim boundary — and the caller keeps its typed frontier door there.
@@ -755,7 +756,27 @@ pub(crate) fn curved_face_placement<T: Decide>(
                 band,
             );
         }
-        _ => return Ok(CurvedPlacement::Trim(None)),
+        Some(&geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        }) => {
+            return cone_face_containment(
+                body,
+                face,
+                ConeChart {
+                    apex,
+                    axis,
+                    half_angle,
+                    u_ref,
+                },
+                q,
+                band,
+            );
+        }
+        Some(geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_))
+        | None => return Ok(CurvedPlacement::Trim(None)),
     };
     // ON THE CHART FIRST. The trim below is parameter-domain work and
     // premises an on-wall point (`point_on_wall_in_face` says so in its
@@ -970,6 +991,85 @@ fn torus_face_containment<T: Decide>(
         v_win,
         q,
         band,
+    ) {
+        Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
+        Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
+        Ok(None) => Ok(CurvedPlacement::Trim(None)),
+        Err(e) => Err(solid_err(e)),
+    }
+}
+
+/// One cone carrier's chart data, as [`cone_face_containment`] reads it.
+struct ConeChart<T: geom_core::Real> {
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    u_ref: Vec3<T>,
+}
+
+/// The CONE chart's arm of [`curved_face_containment`], reached after
+/// the shared boundary walk and the ring test.
+///
+/// The same three steps as the other arms, in the same order and for
+/// the same reasons: the CARRIER first, then the chart trim, then
+/// membership in it. The carrier is the whole DOUBLE cone
+/// ([`super::solid_contain::cone_elevation`] with no nappe), because
+/// that is the surface the face's carrier states: a point on the
+/// mirror nappe is ON the carrier and outside this face's trim — a
+/// sibling face's incidence, `Trim(Out)`, never `OffCarrier` — and the
+/// slant window's signed bounds are what put it outside. The trim and
+/// the membership test are the solid door's own
+/// ([`super::solid_contain::cone_face_trim`],
+/// [`super::solid_contain::point_on_cone_in_face`]), so the face-level
+/// and solid-level doors cannot disagree about which chart points a
+/// cone face holds.
+///
+/// **What differs from the solid door is the question**, as on the
+/// torus: this door is asked about ONE face, so a face that shares a
+/// wrapped group with siblings reads its own azimuth window rather
+/// than the group's.
+///
+/// The remainder, per case:
+///
+/// - A face whose own window the walk **cannot pin** — an apex-closed
+///   face beside a sibling, whose walk reports the apex junction's wrap
+///   as a full period — or cannot take at all, is the honest remainder.
+///   `None`.
+/// - **The apex** of a face whose slant window reaches it has no
+///   tangent plane and no azimuth; the boundary walk has already placed
+///   it where it is a vertex, and anywhere else it is `None`.
+/// - A **graze** on a window edge that the boundary walk did not place
+///   ON a vertex or an edge is `None`, as everywhere in this door.
+fn cone_face_containment<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    chart: ConeChart<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<CurvedPlacement, ContainError> {
+    let ConeChart {
+        apex,
+        axis,
+        half_angle,
+        u_ref,
+    } = chart;
+    let elevation = super::solid_contain::cone_elevation(apex, axis, half_angle, None, q);
+    match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
+        Ok(Sign::Zero) => {}
+        Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
+        Err(diag) => return Err(ContainError::Escalated(diag)),
+    }
+    let (az, v, nappe) =
+        match super::solid_contain::cone_face_trim(body, face, apex, axis, half_angle, band) {
+            Ok(t) => t,
+            Err(
+                super::solid_contain::PointInSolidError::PartialConeFace { .. }
+                | super::solid_contain::PointInSolidError::CorruptFace { .. },
+            ) => return Ok(CurvedPlacement::Trim(None)),
+            Err(e) => return Err(solid_err(e)),
+        };
+    match super::solid_contain::point_on_cone_in_face(
+        face, apex, axis, half_angle, u_ref, az, v, nappe, q, band,
     ) {
         Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
         Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),

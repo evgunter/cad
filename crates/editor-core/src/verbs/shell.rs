@@ -280,6 +280,17 @@ fn fold_replace_face_error<T: Real>(
             kind,
             other_kind,
         },
+        R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
+        } => R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
+        },
         R::FittedBoundaryUnsupported { edge, what } => R::FittedBoundaryUnsupported { edge, what },
         R::CarrierLaneUnsupported { edge, what } => R::CarrierLaneUnsupported { edge, what },
         R::IsoRow { edge, error } => R::IsoRow {

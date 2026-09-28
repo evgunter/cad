@@ -958,6 +958,69 @@ pub(super) fn cone_chart_trim<T: Decide>(
     }
     let v = cone_slant_window(body, face, apex, axis, cos_a)?;
     let nappe = cone_nappe(face, v, band)?;
+    let az = cone_trimmed_window(body, face, v, band)?;
+    Ok((Some(az), face, v, nappe))
+}
+
+/// **One cone face's own chart trim** — the question a FACE-scoped
+/// caller asks, where [`cone_chart_trim`] answers the solid door's.
+/// `(azimuth window, slant window, nappe)`, the window `None` exactly
+/// when the face alone wraps the azimuth.
+///
+/// The solid door lets a wrapped group's representative answer for
+/// every member, because its question is the group's UNION. A caller
+/// asking which chart points THIS face holds cannot: two half-bands of
+/// one full revolve form a wrapped group, and reading the group's
+/// window for either one would put the other's half inside it. So the
+/// azimuth is `None` only for a group of ONE — a face whose every
+/// non-rim boundary edge is shared with itself, which covers every
+/// azimuth of its slant window — and every other face takes the
+/// trimmed class's own window, with its refusal where the walk cannot
+/// pin one.
+///
+/// The slant window and the nappe are the face's own in both cases, by
+/// the same two predicates [`cone_chart_trim`] documents.
+///
+/// # Errors
+///
+/// As [`cone_chart_trim`].
+#[allow(clippy::type_complexity)] // one chart trim: two windows and a side
+pub(super) fn cone_face_trim<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    band: Band,
+) -> Result<(Option<(T, T)>, (T, T), bool), PointInSolidError> {
+    let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
+    let nappe = cone_nappe(face, v, band)?;
+    let alone = surface_group(body, face, RimExemption::Circles)
+        .map_err(|face| PointInSolidError::CorruptFace { face })?
+        .is_some_and(|group| group.members == [face]);
+    if alone {
+        return Ok((None, v, nappe));
+    }
+    Ok((Some(cone_trimmed_window(body, face, v, band)?), v, nappe))
+}
+
+/// The azimuth window of a cone face in the TRIMMED class — the window
+/// the closed-form walk gets right, which is exactly one definitely
+/// narrower than a period. A window a period wide or wider is the apex
+/// junction's wrap, not a face that covers the chart, and the refusal
+/// says so rather than trimming by an angle that means nothing.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a window the walk cannot
+/// take, [`PointInSolidError::PartialConeFace`] for one not definitely
+/// under a period, [`PointInSolidError::Escalated`] in-band.
+fn cone_trimmed_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    v: (T, T),
+    band: Band,
+) -> Result<(T, T), PointInSolidError> {
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
@@ -969,10 +1032,6 @@ pub(super) fn cone_chart_trim<T: Decide>(
         .ok()
         .flatten()
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    // The trimmed class is exactly the window the walk gets right. A
-    // window a period wide or wider is the apex junction's wrap, not a
-    // face that covers the chart — and the refusal says so rather than
-    // trimming by an angle that means nothing.
     match decide(
         "bool_cone_trim_period",
         Margin::levered(T::tau() - (az.1 - az.0), v.0.abs().max(v.1.abs())),
@@ -980,9 +1039,49 @@ pub(super) fn cone_chart_trim<T: Decide>(
     )
     .map_err(|diag| PointInSolidError::Escalated { face, diag })?
     {
-        Sign::Positive => Ok((Some(az), face, v, nappe)),
+        Sign::Positive => Ok(az),
         Sign::Zero | Sign::Negative => Err(PointInSolidError::PartialConeFace { face }),
     }
+}
+
+/// **A point's elevation off a cone** — its exact signed distance to the
+/// carrier, positive off the axis side, `ρ·cos α − s·sin α` with `ρ`
+/// the distance from the axis and `s` the point's axial height above
+/// the apex taken toward the nappe asked about:
+///
+/// - `Some(nappe)` — ONE nappe, the face's own (`true` the `v > 0`
+///   one). `s = ±h`, so a point on the MIRROR nappe reads `2ρ·cos α`
+///   off, which is what keeps it from reading as this face's.
+/// - `None` — the whole double cone, the [`geom::Surface::Cone`]
+///   carrier as the implicit form states it. `s = |h|`, the nearer
+///   nappe.
+///
+/// Not linearized: in the point's own meridian half-plane the nappe is
+/// the ray from the apex along `(sin α, cos α)` in `(ρ, s)`, and the
+/// expression is `(ρ, s)`'s perpendicular offset from that ray's line.
+/// Where `s ≥ 0` the foot lies on the ray itself (`ρ·sin α + s·cos α ≥
+/// 0`), so the offset IS the distance; where `s < 0` — a point below
+/// the apex, asked about one nappe — it is a positive lower bound on
+/// the distance `√(ρ² + s²)` (Cauchy–Schwarz), which is all a carrier
+/// verdict reads. Every door asking "is this point ON the cone" reads
+/// this one expression, so the solid door, the face door and their
+/// rows cannot disagree about which points lie on it.
+pub(super) fn cone_elevation<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    nappe: Option<bool>,
+    p: Point3<T>,
+) -> T {
+    let w = p - apex;
+    let h = w.dot(axis);
+    let s = match nappe {
+        Some(true) => h,
+        Some(false) => T::zero() - h,
+        None => h.abs(),
+    };
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    (w - axis * h).norm() * cos_a - s * sin_a
 }
 
 /// The face's slant window, folded over its outer cycle's vertices.
@@ -2611,12 +2710,7 @@ fn point_in_faces<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let w = q - apex;
-                let h = w.dot(axis);
-                let nappe_h = if nappe { h } else { T::zero() - h };
-                let (sin_a, cos_a) = half_angle.sin_cos();
-                let radial = w - axis * h;
-                let elev = radial.norm() * cos_a - nappe_h * sin_a;
+                let elev = cone_elevation(apex, axis, half_angle, Some(nappe), q);
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {

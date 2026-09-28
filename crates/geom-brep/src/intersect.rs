@@ -21,6 +21,18 @@
 //!   ([`SectionError::Escalated`] — an ill-conditioned operand pair at
 //!   this ε), whose Display composes the shared two-tolerance recourse
 //!   through [`geom_core::Indeterminate`]'s own Display.
+//! - **A division by a cone's aperture is decided first.** Every arm
+//!   that divides by `sin α` or `cos α` — or by a product carrying one
+//!   — decides that clause of the cone's convention `α ∈ (0, π/2)` as
+//!   a named trilean metered at the arm's `extent` before the lane that
+//!   divides runs, and refuses [`SectionError::DegenerateOperand`] when
+//!   it is not definitely positive (`pn_aperture_*`, `coc_aperture_*`).
+//!   A body at rest already holds the convention exactly (tier-3 check
+//!   1); the trilean is the band's question — a divisor within ε of
+//!   zero carries no relative accuracy, and a quotient by it is not a
+//!   closed form this table can stand behind — and the arm's insurance
+//!   against operands that never came to rest, as `pt_tube_guard` is
+//!   the torus arm's.
 //! - **The M2 pairs enter unchanged**: plane×plane stays the existing
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
 //!   the pipelines execute it bit-identically); plane×cylinder's rim
@@ -458,6 +470,123 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    SSI certificate's limbs is not a ratified rule. The refusal is \
                    the honest answer, not a missing marcher",
         },
+    }
+}
+
+/// **The table asked about a POSE**, not a kind pair: [`route`]'s arm
+/// for the two surfaces' kinds, with `implemented` narrowed to whether
+/// THAT arm serves THESE two surfaces as they stand.
+///
+/// [`route`] answers per kind pair, and an implemented arm is
+/// configuration-scoped: coaxial cone×cylinder, axis-containing or
+/// axis-normal plane×torus, apex-through or axis-normal plane×cone,
+/// equal-radius crossing or parallel cylinder×cylinder. A consumer that
+/// gates on the kind pair admits every other pose of those pairs as
+/// though a closed form were wired for it. This asks the arm itself —
+/// the pair's own section function, which runs its configuration
+/// trileans before any rung — and reads its routing verdict back:
+///
+/// - the arm classifies the pose (any `Ok`) ⇒ `implemented` stands;
+/// - the arm refuses [`SectionError::RoutesToGeneralRung`] ⇒ the pose
+///   routes to an arm that has not retired, so `implemented` is
+///   `false` and `note` is the arm's own grounds;
+/// - an in-band trilean ⇒ [`SectionError::Escalated`], returned: the
+///   pose cannot be told from its neighbour at this ε.
+///
+/// **Only ROUTING is read.** An arm that classifies the pose and then
+/// refuses its mint — a degenerate operand, a locus past `extent`, a
+/// coincidence, a carrier the conic constructor declines — has still
+/// said the pose is its own, and `implemented` stands; what it would
+/// not mint is that arm's refusal to give, not this question's.
+///
+/// **Cylinder×cylinder is asked with [`RadiusEvidence::Declared`]**,
+/// the most permissive evidence the arm takes. A pose the arm refuses
+/// even then — unequal radii (the declaration contradicted) or skew
+/// axes — is refused under every evidence, so it is not served; a pose
+/// it accepts is served only given evidence this question does not
+/// hold, and the consumer's own evidence decides the rest. The answer
+/// is one-sided by construction: it refuses only what the arm refuses
+/// under every evidence, and never refuses a pose the arm would serve.
+///
+/// Every other implemented pair serves every pose: plane×plane,
+/// plane×cylinder, plane×sphere, sphere×sphere, and the two
+/// general-rung arms that march (cylinder×sphere, plane×NURBS). An
+/// unimplemented pair answers [`route`] unchanged. The match is
+/// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
+/// the table is a compile-time visit here too.
+///
+/// `extent` is the reach the consumer needs the pose read over — the
+/// arms' own operand extent, the lever their angular trileans are
+/// metered at (a tilt `θ` displaces the locus by `θ·extent` there).
+///
+/// # Errors
+///
+/// [`SectionError::Escalated`] — a pose trilean in the band.
+/// [`SectionError::WrongLane`] — never, unless this dispatch itself is
+/// wrong (a kernel bug, loudly typed).
+pub fn route_pose<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    extent: T,
+    band: Band,
+) -> Result<PairRoute, SectionError> {
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    let (ka, kb) = (SurfaceKind::of(a), SurfaceKind::of(b));
+    let arm = route(ka, kb);
+    let verdict = match (ka, kb) {
+        (Plane, Cone) => plane_cone_section(a, b, extent, band).map(drop),
+        (Cone, Plane) => plane_cone_section(b, a, extent, band).map(drop),
+        (Plane, Torus) => plane_torus_section(a, b, extent, band).map(drop),
+        (Torus, Plane) => plane_torus_section(b, a, extent, band).map(drop),
+        (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
+        (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
+        (Cylinder, Cylinder) => {
+            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, extent, band) {
+                Err(SectionError::RadiusDeclarationContradicted) => {
+                    Err(SectionError::RoutesToGeneralRung {
+                        pair: "cylinder×cylinder",
+                        why: "unequal radii cut a quartic, not the equal-radius pair's \
+                              conics, and the pair's general-rung arm has not retired",
+                    })
+                }
+                other => other.map(drop),
+            }
+        }
+        // Every pose served, by a closed form or by a general-rung arm
+        // that marches.
+        (Plane, Plane | Cylinder | Sphere | Nurbs)
+        | (Cylinder | Sphere | Nurbs, Plane)
+        | (Sphere, Sphere | Cylinder)
+        | (Cylinder, Sphere) => Ok(()),
+        // Unimplemented at the kind level: `route`'s answer stands.
+        (Cylinder, Torus | Nurbs)
+        | (Torus, Cylinder | Cone | Sphere | Torus | Nurbs)
+        | (Cone, Cone | Sphere | Torus | Nurbs)
+        | (Sphere, Cone | Torus | Nurbs)
+        | (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
+        | (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => Ok(()),
+    };
+    match verdict {
+        Ok(())
+        | Err(
+            SectionError::DegenerateOperand { .. }
+            | SectionError::BeyondOperandExtent { .. }
+            | SectionError::CoincidentSurfaces
+            | SectionError::DegenerateTorus
+            | SectionError::Carrier(_),
+        ) => Ok(arm),
+        Err(SectionError::RoutesToGeneralRung { why, .. }) => Ok(PairRoute {
+            implemented: false,
+            note: why,
+            ..arm
+        }),
+        Err(
+            e @ (SectionError::Escalated(_)
+            | SectionError::WrongLane { .. }
+            | SectionError::RadiusDeclarationContradicted
+            | SectionError::CoaxialDeclarationContradicted),
+        ) => Err(e),
     }
 }
 
@@ -1543,6 +1672,15 @@ pub enum PlaneConeSection<T: Real> {
 ///
 /// Trileans, in order:
 ///
+/// 0. `pn_aperture_sin` and `pn_aperture_cos`, each metered at
+///    `extent` — the two clauses of the cone's convention
+///    `α ∈ (0, π/2)`, decided because the lanes below DIVIDE by them
+///    (the apex lane by `sin α·‖a×n‖`, the axis-normal lane by
+///    `cos α`); either failing refuses
+///    [`SectionError::DegenerateOperand`]. The divisor of the apex
+///    lane is then bounded away from zero on both of its branches: on
+///    `Positive` it exceeds the decided discriminant, and on `Zero` it
+///    tracks `cos α·|a·n|`, whose small-`|a·n|` end is `sin α`'s.
 /// 1. `pn_apex_on_plane` — margin `(apex − q)·normal` (meters): Zero ⇒
 ///    the apex lane (step 2); definite ⇒ step 3.
 /// 2. `pn_apex_section` — margin `sin α·‖axis×normal‖ −
@@ -1558,8 +1696,8 @@ pub enum PlaneConeSection<T: Real> {
 ///
 /// # Errors
 ///
-/// [`SectionError`] — wrong-lane kinds, escalations (F6), or the R1
-/// generic-tilt routing refusal.
+/// [`SectionError`] — wrong-lane kinds, the aperture guards, escalations
+/// (F6), or the R1 generic-tilt routing refusal.
 pub fn plane_cone_section<T: Decide>(
     plane: &Surface<T>,
     cone: &Surface<T>,
@@ -1589,6 +1727,32 @@ pub fn plane_cone_section<T: Decide>(
     };
 
     let (sin_a, cos_a) = half_angle.sin_cos();
+    // The division guards (the module's aperture rule): the apex lane
+    // divides by
+    // `sin α·‖a×n‖` and the axis-normal lane by `cos α`, so each
+    // convention clause is decided before either lane runs. Neither is
+    // a pose question — a pose that passes them is classified below.
+    for (name, margin, what) in [
+        (
+            "pn_aperture_sin",
+            sin_a,
+            "the cone's half-angle does not definitely open off its axis, so the \
+             apex lane's division by sin α is not decided",
+        ),
+        (
+            "pn_aperture_cos",
+            cos_a,
+            "the cone's half-angle is not definitely under a right angle, so the \
+             axis-normal circle's division by cos α is not decided",
+        ),
+    ] {
+        match decide(name, Margin::levered(margin, extent), band)
+            .map_err(SectionError::Escalated)?
+        {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+        }
+    }
     let c = a.dot(n);
     let s_vec = a.cross(n);
     let s = s_vec.norm();

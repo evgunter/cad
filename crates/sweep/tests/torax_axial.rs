@@ -520,11 +520,10 @@ fn torax_a_wall_thicker_than_the_tube_refuses_typed() {
 /// `false` and `shell` falls to the per-chart loop — which, at the time
 /// this was measured, refused at the C5 table's
 /// `NeighborPairUnroutable(Plane, Torus)`. VERBS-C5ARMS has since
-/// routed the pair, so the same counterfactual would now proceed one
-/// door deeper and refuse at the per-chart reanchor gate — the
-/// corner-accumulation family `offd2_r1_probes` pins at `8.331e-4` m
-/// on the elbow cap — never through the mint. Nothing else in this
-/// suite refuses through the mint.
+/// routed the pair, so the same counterfactual would now proceed past
+/// the kind gate and refuse at a per-chart door after it (the pose
+/// gate or the corner re-anchor, by the cap's pose) — never through
+/// the mint. Nothing else in this suite refuses through the mint.
 #[test]
 fn torax_the_torus_arms_floor_is_the_ring_closing() {
     // Below the floor: the same fixture the closed-form rows use.
