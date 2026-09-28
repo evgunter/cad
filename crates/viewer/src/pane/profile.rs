@@ -439,8 +439,8 @@ mod tests {
         Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
     };
     use crate::sketch::{self, PreviewError, PreviewLoop, ProfilePreview, ProfileShape};
-    use crate::theme::Theme;
     use crate::test_support::{inserted, try_inserted, xy_frame};
+    use crate::theme::Theme;
 
     /// **Drawing the editor never rewrites a document value.** A
     /// committed `circle_split` above the form's count cap (the

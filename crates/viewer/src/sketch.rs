@@ -851,9 +851,9 @@ impl PreviewHold<'_> {
 impl core::fmt::Display for PreviewHold<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::OpenChain => f.write_str(
-                "the chain does not close yet — its last step has to target the start",
-            ),
+            Self::OpenChain => {
+                f.write_str("the chain does not close yet — its last step has to target the start")
+            }
             Self::Invalid(invalid) => write!(f, "does not validate: {invalid}"),
         }
     }
@@ -1795,11 +1795,7 @@ mod tests {
             ),
         ] {
             assert_eq!(error.tone(), tone, "{error:?}");
-            assert_eq!(
-                error.is_unfinished(),
-                tone == Tone::Advisory,
-                "{error:?}"
-            );
+            assert_eq!(error.is_unfinished(), tone == Tone::Advisory, "{error:?}");
         }
     }
 }
