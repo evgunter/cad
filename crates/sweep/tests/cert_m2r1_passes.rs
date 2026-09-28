@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
-use geom_core::{Band, Point2, Point3, Real, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, ContactRecords, SplitPart, SplitPlane, split};
@@ -333,10 +333,6 @@ fn m2r1_passes_interval() {
 
 // ---- f64-only corrupt constructions (check 8 / check 9 failures). ----
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
         .filter(|(_, f)| {
@@ -351,7 +347,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     revolve(
         &profile(lp),
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -366,7 +362,6 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
 /// builds it; plus its reverted twin so check 7 WOULD also fire.
 pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let mut out = Vec::new();
     let vessel = revolved(bulge_loop(vec![
         v(0.0, 0.0, 0.0),
@@ -396,7 +391,7 @@ pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band, tol).unwrap();
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol).unwrap();
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).unwrap();
         }
@@ -406,11 +401,16 @@ pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         out.push((what.to_string(), sealed));
     }
     // Diagonal chord split of a quarter washer wall (check 2 + check 8).
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let tq = revolve(
         &profile(lp),
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Partial(FRAC_PI_2),

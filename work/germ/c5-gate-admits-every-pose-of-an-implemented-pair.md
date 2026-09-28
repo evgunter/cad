@@ -2,11 +2,12 @@
 id: c5-gate-admits-every-pose-of-an-implemented-pair
 kind: issue
 title: The C5 gate reads PairRoute::implemented per KIND pair - a pose the arm would refuse passes the gate; sibling arms divide unguarded
-status: open
+status: dispatched
 opened: 2026-09-05
 refs: [VERBS-C5ARMS, VERBS-CONE, 1864]
 priority: P0
 cost: D
+branch: germ/cone-containment-and-pose-gate
 ---
 
 

@@ -25,14 +25,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 fn main() {
     // The half disc: semicircle (0,-1) -> (1,0) -> (0,1), closed on the
@@ -100,7 +96,7 @@ fn main() {
     println!("[M2] sphere chart worn by {} face(s)", group.len());
 
     let mut body = ball.clone();
-    match topo::replace_faces_offset(&mut body, &group, 0.05, band(), Tol::witness()) {
+    match topo::replace_faces_offset(&mut body, &group, 0.05, Tol::witness()) {
         Err(topo::ReplaceFaceError::CarrierLaneUnsupported { what, .. }) => {
             println!("[M2] REFUSED CarrierLaneUnsupported: {what}");
             println!(

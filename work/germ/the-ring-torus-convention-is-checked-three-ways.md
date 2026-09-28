@@ -2,10 +2,11 @@
 id: the-ring-torus-convention-is-checked-three-ways
 kind: issue
 title: The ring-torus convention (R > r, rho > 0) is checked in three spellings with three error types
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P3
 cost: D
+branch: germ/torus-ops-and-chord
 ---
 
 ## What

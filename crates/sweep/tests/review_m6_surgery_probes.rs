@@ -30,17 +30,16 @@ const PIP_R: f64 = 0.09;
 const PIP_H: f64 = 0.05;
 const RIM_R: f64 = 0.02;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())

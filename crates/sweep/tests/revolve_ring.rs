@@ -24,13 +24,18 @@
 
 use crate::revolve_common;
 
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
 
 fn washer() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ])
 }
 
 /// The square-holed washer, fully revolved: a rectangular-section ring
@@ -38,10 +43,10 @@ fn washer() -> ProfileLoop<f64> {
 #[test]
 fn one_call_hollow_ring() {
     let hole = ProfileLoop::polygon([
-        p2(1.25, 0.25),
-        p2(1.75, 0.25),
-        p2(1.75, 0.75),
-        p2(1.25, 0.75),
+        Point2::new(1.25, 0.25),
+        Point2::new(1.75, 0.25),
+        Point2::new(1.75, 0.75),
+        Point2::new(1.25, 0.75),
     ]);
     let vp = validated(vec![washer(), hole]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
@@ -128,8 +133,8 @@ fn one_call_hollow_ring() {
 fn hollow_torus_runs_no_crossing_machinery() {
     let tol = Tol::witness();
     let (rc, ro, ri) = (5.0, 0.5, 0.35);
-    let outer = profile::circle(p2(rc, 0.0), ro, tol).unwrap();
-    let inner = profile::circle(p2(rc, 0.0), ri, tol).unwrap();
+    let outer = profile::circle(Point2::new(rc, 0.0), ro, tol).unwrap();
+    let inner = profile::circle(Point2::new(rc, 0.0), ri, tol).unwrap();
     let vp = validated(vec![outer.into(), inner.into()]);
 
     let bracket = geom_core::k_stats::Bracket::open();
@@ -167,9 +172,24 @@ fn hollow_torus_runs_no_crossing_machinery() {
 /// closed-form contribution.
 #[test]
 fn two_holes_two_cavities() {
-    let outer = ProfileLoop::polygon([p2(1.0, 0.0), p2(3.0, 0.0), p2(3.0, 3.0), p2(1.0, 3.0)]);
-    let h1 = ProfileLoop::polygon([p2(1.5, 0.5), p2(2.5, 0.5), p2(2.5, 1.0), p2(1.5, 1.0)]);
-    let h2 = ProfileLoop::polygon([p2(1.5, 1.5), p2(2.0, 1.5), p2(2.0, 2.5), p2(1.5, 2.5)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(3.0, 0.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(1.0, 3.0),
+    ]);
+    let h1 = ProfileLoop::polygon([
+        Point2::new(1.5, 0.5),
+        Point2::new(2.5, 0.5),
+        Point2::new(2.5, 1.0),
+        Point2::new(1.5, 1.0),
+    ]);
+    let h2 = ProfileLoop::polygon([
+        Point2::new(1.5, 1.5),
+        Point2::new(2.0, 1.5),
+        Point2::new(2.0, 2.5),
+        Point2::new(1.5, 2.5),
+    ]);
     let vp = validated(vec![outer, h1, h2]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -191,8 +211,18 @@ fn two_holes_two_cavities() {
 /// as a lamina cavity — the case split composes.
 #[test]
 fn wire_outer_with_hole_cavity() {
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 3.0), p2(0.0, 3.0)]);
-    let hole = ProfileLoop::polygon([p2(0.5, 1.0), p2(1.5, 1.0), p2(1.5, 2.0), p2(0.5, 2.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 3.0),
+        Point2::new(0.0, 3.0),
+    ]);
+    let hole = ProfileLoop::polygon([
+        Point2::new(0.5, 1.0),
+        Point2::new(1.5, 1.0),
+        Point2::new(1.5, 2.0),
+        Point2::new(0.5, 2.0),
+    ]);
     let vp = validated(vec![outer, hole]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -224,10 +254,10 @@ fn wire_outer_with_hole_cavity() {
 #[test]
 fn holed_full_revolve_replays() {
     let hole = ProfileLoop::polygon([
-        p2(1.25, 0.25),
-        p2(1.75, 0.25),
-        p2(1.75, 0.75),
-        p2(1.25, 0.75),
+        Point2::new(1.25, 0.25),
+        Point2::new(1.75, 0.25),
+        Point2::new(1.75, 0.75),
+        Point2::new(1.25, 0.75),
     ]);
     let build = || {
         let vp = validated(vec![washer(), hole.clone()]);

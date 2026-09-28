@@ -19,10 +19,6 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_lo
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A meridian loop revolved a full turn about the `y` axis.
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -31,7 +27,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -46,16 +42,16 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
 /// and the flipped one is a TORUS: the differential this file exists
 /// to keep honest.
 fn bellied(r0: f64, y0: f64, r1: f64, y1: f64, cy: f64, sign: f64) -> Body<f64> {
-    let c = p2(0.0, cy);
+    let c = Point2::new(0.0, cy);
     let (dx0, dy0) = (r0 - c.x, y0 - c.y);
     let (dx1, dy1) = (r1 - c.x, y1 - c.y);
     let sweep = (dx0 * dy1 - dy0 * dx1).atan2(dx0 * dx1 + dy0 * dy1);
     let bulge = sign * (sweep / 4.0).tan();
     revolved(bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r0, y0), bulge),
-        (p2(r1, y1), 0.0),
-        (p2(0.0, y1), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r0, y0), bulge),
+        (Point2::new(r1, y1), 0.0),
+        (Point2::new(0.0, y1), 0.0),
     ]))
 }
 
@@ -74,16 +70,16 @@ fn torus_belly_vase() -> Body<f64> {
 /// numbers: base disc, FOOT CYLINDER, sphere-zone belly, mouth disc.
 fn bellied_pot() -> Body<f64> {
     let (foot, y_foot, r_neck, y_mouth) = (4.0 / 64.0, 1.0 / 64.0, 3.0 / 64.0, 8.0 / 64.0);
-    let c = p2(0.0, y_mouth / 2.0);
+    let c = Point2::new(0.0, y_mouth / 2.0);
     let (dx0, dy0) = (foot - c.x, y_foot - c.y);
     let (dx1, dy1) = (r_neck - c.x, y_mouth - c.y);
     let sweep = (dx0 * dy1 - dy0 * dx1).atan2(dx0 * dx1 + dy0 * dy1);
     revolved(bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(foot, 0.0), 0.0),
-        (p2(foot, y_foot), (sweep / 4.0).tan()),
-        (p2(r_neck, y_mouth), 0.0),
-        (p2(0.0, y_mouth), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(foot, 0.0), 0.0),
+        (Point2::new(foot, y_foot), (sweep / 4.0).tan()),
+        (Point2::new(r_neck, y_mouth), 0.0),
+        (Point2::new(0.0, y_mouth), 0.0),
     ]))
 }
 
@@ -92,10 +88,10 @@ fn bullet() -> Body<f64> {
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), 0.0),
-            (p2(r, h), (std::f64::consts::FRAC_PI_2 / 4.0).tan()),
-            (p2(0.0, h + r), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(r, h), (std::f64::consts::FRAC_PI_2 / 4.0).tan()),
+            (Point2::new(0.0, h + r), 0.0),
         ])
         .with_tangent_joints(vec![2]),
     )
@@ -105,20 +101,20 @@ fn bullet() -> Body<f64> {
 /// hollowed at base and must keep hollowing.
 fn drum() -> Body<f64> {
     revolved(bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(3.0 / 64.0, 0.0), 0.0),
-        (p2(3.0 / 64.0, 8.0 / 64.0), 0.0),
-        (p2(0.0, 8.0 / 64.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(3.0 / 64.0, 0.0), 0.0),
+        (Point2::new(3.0 / 64.0, 8.0 / 64.0), 0.0),
+        (Point2::new(0.0, 8.0 / 64.0), 0.0),
     ]))
 }
 
 /// **The cone frustum** between two planar caps.
 fn cone_frustum() -> Body<f64> {
     revolved(bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(4.0 / 64.0, 0.0), 0.0),
-        (p2(2.0 / 64.0, 8.0 / 64.0), 0.0),
-        (p2(0.0, 8.0 / 64.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(4.0 / 64.0, 0.0), 0.0),
+        (Point2::new(2.0 / 64.0, 8.0 / 64.0), 0.0),
+        (Point2::new(0.0, 8.0 / 64.0), 0.0),
     ]))
 }
 
@@ -129,10 +125,10 @@ fn wedge() -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
         vec![bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), 0.0),
-            (p2(r, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ])],
     )
     .validate(Tol::witness())
@@ -140,7 +136,7 @@ fn wedge() -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Partial(std::f64::consts::FRAC_PI_2),
@@ -267,7 +263,7 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             .get_face(m.faces[0])
             .and_then(|f| one.get_surface(f.surface))
             .cloned();
-        match topo::replace_faces_offset(&mut one, &m.faces, m.distance, band(), tol) {
+        match topo::replace_faces_offset(&mut one, &m.faces, m.distance, tol) {
             Ok(()) => {
                 let after = one
                     .get_face(m.faces[0])

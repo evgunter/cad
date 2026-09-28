@@ -17,23 +17,19 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
 use sweep::{Extrusion, extrude};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The lune: the cross-section of D1's kissing-cylinders figure,
 /// authored through the new door. Circles (0,1) r 1 and (0,2) r 2 are
 /// internally tangent at the origin; the region kept is the x ≥ 0 lip.
 fn lune() -> profile::ClosedLoop<f64> {
     let tol = Tol::witness();
-    Open.at(p2(0.0, 4.0))
+    Open.at(Point2::new(0.0, 4.0))
         .angle(-std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
         .line(2.0, tol)
         .unwrap()
         .turn(std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
-        .tangent_arc_to(p2(0.0, 0.0), tol)
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol)
         .unwrap()
         .cusp()
         .tangent_arc_to(Start, tol)

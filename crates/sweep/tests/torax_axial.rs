@@ -53,10 +53,6 @@ use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 
 use crate::common::charts::hollow_moves;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -98,7 +94,7 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -204,14 +200,17 @@ fn residual(s: &Surface<f64>, p: Point3<f64>) -> f64 {
 /// `h_c = 4/64`, a 3-4-5 at each junction with both residuals exactly
 /// zero.
 pub(crate) fn torus_barrel() -> Body<f64> {
-    let c = p2(6.0 / 64.0, 1.0 / 16.0);
-    let (lo, hi) = (p2(3.0 / 64.0, 0.0), p2(3.0 / 64.0, 8.0 / 64.0));
+    let c = Point2::new(6.0 / 64.0, 1.0 / 16.0);
+    let (lo, hi) = (
+        Point2::new(3.0 / 64.0, 0.0),
+        Point2::new(3.0 / 64.0, 8.0 / 64.0),
+    );
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
             (lo, bulge(lo, hi, c)),
             (hi, 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
+            (Point2::new(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     )
@@ -221,15 +220,18 @@ pub(crate) fn torus_barrel() -> Body<f64> {
 /// belly bulged about `(7/64, 5/64)` — off the axis, so a TORUS with
 /// `R = 7/64`, `r = 5/64`, `h_c = 5/64`.
 pub(crate) fn torus_belly() -> Body<f64> {
-    let c = p2(7.0 / 64.0, 5.0 / 64.0);
-    let (lo, hi) = (p2(4.0 / 64.0, 1.0 / 64.0), p2(3.0 / 64.0, 8.0 / 64.0));
+    let c = Point2::new(7.0 / 64.0, 5.0 / 64.0);
+    let (lo, hi) = (
+        Point2::new(4.0 / 64.0, 1.0 / 64.0),
+        Point2::new(3.0 / 64.0, 8.0 / 64.0),
+    );
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(4.0 / 64.0, 0.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(4.0 / 64.0, 0.0), 0.0),
             (lo, bulge(lo, hi, c)),
             (hi, 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
+            (Point2::new(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     )
@@ -562,14 +564,17 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
     let turn = Revolution::Partial(turn);
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![bulge_loop(vec![(p2(0.0, -r), 0.0), (p2(0.0, r), -1.0)])],
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), -1.0),
+        ])],
     )
     .validate(tol())
     .expect("the lune's cross-section validates");
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -629,14 +634,17 @@ fn torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let elbow = {
         let profile = Profile::new(
             SketchPlane::xy(),
-            vec![bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])],
+            vec![bulge_loop(vec![
+                (Point2::new(-r, 0.0), 1.0),
+                (Point2::new(r, 0.0), 1.0),
+            ])],
         )
         .validate(tol())
         .expect("the elbow's cross-section validates");
         revolve(
             &profile,
             RevolveAxis {
-                origin: p2(1.2, 0.0),
+                origin: Point2::new(1.2, 0.0),
                 dir: Vec2::new(0.0, -1.0),
             },
             Revolution::Partial(-core::f64::consts::FRAC_PI_2),

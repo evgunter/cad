@@ -36,14 +36,13 @@ use topo::validate_geometric;
 const IN_PLANE: f64 = 1.0 - 1e-9;
 
 fn rect(plane: SketchPlane<f64>, sx: f64, sy: f64) -> ValidatedProfile<f64> {
-    let p2 = Point2::<f64>::new;
     Profile::new(
         plane,
         vec![ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(sx, 0.0),
-            p2(sx, sy),
-            p2(0.0, sy),
+            Point2::new(0.0, 0.0),
+            Point2::new(sx, 0.0),
+            Point2::new(sx, sy),
+            Point2::new(0.0, sy),
         ])],
     )
     .validate(Tol::witness())

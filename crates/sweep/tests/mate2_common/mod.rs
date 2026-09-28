@@ -21,14 +21,10 @@ use topo::{
     Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
 };
 
-pub fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The collar: an annulus (outer r = 1.5, bore r = 0.5), z ∈ [1, 2],
 /// both rims three 120° arcs starting at `deg0` — bore wall is 3 faces.
 pub fn collar_at(deg0: f64) -> Body<f64> {
-    let o = p2(0.0, 0.0);
+    let o = Point2::new(0.0, 0.0);
     extruded(
         sketch_at(1.0),
         vec![three_arc(o, 1.5, deg0), three_arc(o, 0.5, deg0)],
@@ -48,7 +44,7 @@ pub fn collar() -> Body<f64> {
 pub fn peg_at(deg0: f64, z0: f64, h: f64) -> Body<f64> {
     extruded(
         sketch_at(z0),
-        vec![three_arc(p2(0.0, 0.0), 0.5, deg0)],
+        vec![three_arc(Point2::new(0.0, 0.0), 0.5, deg0)],
         h,
         Tol::witness(),
     )
