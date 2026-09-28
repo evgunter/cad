@@ -331,3 +331,27 @@ The measurement lane (`germ/interior-loop-measurements`, merged here, no PR) fou
 - **The backstop's tilted rod is this class:** the pre-backstop body drops the lens. The backstop fires only because the closed-form lane lacks ellipse arcs, so the guard is the real barrier.
 - **Cone preview (throwaway admission):** every op is wrong, both with and without crossings. The cone needs a half in the guard AND an arm in the no-crossings extent gates before `VERBS-CONE` admits it. These are now in the spec lane's scope and on `VERBS-CONE`.
 - **Sphere × cylinder with two components:** every fixture refuses earlier, at `CurvedPierceUnsupported`. No escape, but also no evidence for the guard's sphere clause.
+
+## 2026-09-28 — the section-certificate spec is read; the core slice is dispatched
+
+The spec is `docs/GERM-SECTION-CERTIFICATE-SPEC.md`, on `germ/section-certificate-spec` (`2ba90bced`).
+
+- **Lemma L1:** with sweep completeness (S) as premise, a component that meets F∩G without lying in int F ∩ int G carries an event or causes a refusal. So the certificate proves, per component: it misses, OR it is not interior (unbounded, essential on a face whose chart lifts, a witness point Out, or a lone component with an event).
+- **Checked by hand:** L1; the cylinder × cylinder three-pose table (the c-interval [c_lo, c_hi] reaches both ends → 2 encircling loops; one end → one null saddle loop; neither with r₂ thick → 2 loops around the thin axis); W2 through `chart_boundary`.
+- **The forks, each taken on its conservative default,** none touching ratified text:
+  - Q1: no new `BooleanError` variant; R-loop and R-undec keep the guard's existing refusal.
+  - Q2: keep refusing definite interior loops.
+  - Q4: check "a curved face carries a seam edge" per face, via `chart_boundary`.
+
+  Each can go to Ev as an `[ev]` PR if a customer case asks for it.
+- **Cone arms (Q3):** they land with `VERBS-CONE`, which must carry both halves; noted on that item. General-pose cone × {cylinder, cone} (Q5) and radial holes through a tube (Q8) are follow-ups, filed when the core lands.
+- **Dispatched:** the core slice on `germ/section-certificate`, branched off the spec so the spec is deleted at merge. It covers:
+  - torus × {plane, sphere}, coaxial and parallel-axis torus pairs;
+  - cylinder × {cylinder, plane};
+  - the sphere half;
+  - the per-pair rewrite on both paths, replacing the torus and cylinder extent gates.
+
+  H, with a dual review. It supersedes the cylinder stopgap's clause, and whichever lands second merges the other.
+- **Watch in review:**
+  - premise S is asserted from `curved_face_arm`'s "never a silent fallback"; the reviewers must confirm it over every edge × face arm;
+  - the corner bar now clears at the guard, so its never-a-body row rests on the chord and sagitta rules.
