@@ -431,3 +431,20 @@ The single Opus review found no MAJOR:
 - **The fix pass** took the whole union.
 - **A pre-existing premise-S gap** surfaced: the coplanar conic arm at `reduce.rs:833`. It is filed P1 as `coplanar-conic-edge-skips-endpoint-treatment-in-the-sweep`. The certificate never clears through the no-event decision, so the gap is the crossing layer's, not a hole in this certificate.
 - **Next:** `VERBS-CONE` can now take the certificate's cone arms (Q3). The ∖/∩ torus roster is unparked.
+
+## 2026-09-28 — the VERBS-CONE spec is read; U3 and U6 are dispatched
+
+The spec is `docs/GERM-VERBS-CONE-SPEC.md` on `germ/verbs-cone-spec` (`3edfab44f`).
+
+- **Headline:** with PR 3372 merged, admitting the cone today would be safe but useless. Every preview fixture now refuses typed, and there is no live defect on main.
+- **One silent arm** (the `(Negative, Negative)` convexity arm across the apex) is masked only by R-reach. That fixes the order: the root lanes come before the certificate rows, and the roster flip comes last.
+- **Rulings on its questions:**
+  - **Q1 (a tilted plane × cone join would amend ratified C1):** not taken. Tilted plane × cone stays as C1 says. U8 (the axis-normal join) becomes its own item, after the flip. No `[ev]` question is owed unless a customer case asks for more.
+  - **Q2:** the cone joins the ∖/∩ roster in the flip.
+  - **Q3:** a line parallel to a generator keeps the door.
+  - **Q4:** the apex closure stays local to the cone trim and `ChartCache`.
+  - **Q5:** U6's move applies to sphere × torus too, in the same lane.
+  - **Q6:** U5 comes after the flip, and is optional.
+  - **Q7:** the item text is refreshed by the U3/U6 lane.
+- **Dispatched:** U3 (the apex closure) and U6 (sphere × cone and sphere × torus from the scan to the pass), combined in one lane with one PR (Ev's CI note), on branch `germ/cone-apex-closure` off the spec branch. The review tier is single, since `point_in_solid` on partial cones goes from refusing to answering.
+- **Waiting on PR 3375:** U1 (line roots) and U2 (circle roots). U4, then U7, follow.
