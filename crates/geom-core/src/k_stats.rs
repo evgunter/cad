@@ -127,7 +127,12 @@
 //! [`decide_invariant`] and the gate doors below. [`check_unlogged`] is
 //! the deliberate exception and records neither channel (its own docs
 //! say why), so "every escalation this funnel produces" would be one
-//! door too wide.
+//! door too wide. A site whose escalation a definite outcome of the same
+//! op superseded splices that reading with [`splice_superseded`], which
+//! carries its verdicts and samples and leaves the escalation out. The
+//! tangency certificate (`geom_brep::certify`) does; `topo`'s contact
+//! ladder does not yet
+//! (`work/contact/contact-verify-logs-a-second-order-escalation-its-outcome-overruled.md`).
 //!
 //! A predicate's own indeterminacy is produced here too. A predicate
 //! whose question is only validly posed under a condition on the margin
@@ -149,8 +154,8 @@
 //! recording is simply dropped — [`splice`] says the same for a
 //! detached run. Four shipped sites open a frame at all
 //! (`editor_core`'s per-node evaluator and its part-cache shield, and
-//! two in `topo::props`), plus the [`detached`] runs in
-//! `editor_core::names::discriminate` and `mesh::tessellate`. So a log
+//! two in `topo::props`), plus the runs detached under a frame of their
+//! own, which are the callers of [`detached`] and [`map_detached`]. So a log
 //! is a per-bracket SIDE channel and never a second copy of an op's
 //! error: every other consumer of a deciding op — the exporters, the
 //! importers, `verbs`, `pncad`, the viewer, the demos, any library
@@ -380,6 +385,8 @@ fn record_verdict(verdict: Verdict) {
 /// It is not the only place the channel is WRITTEN: [`splice`] extends
 /// it with a [`detached`] run's escalations, which this function minted
 /// on the same thread into that run's own frame. One mint, two writers.
+/// ([`splice_superseded`] is not a third: it is the splice that leaves
+/// this channel out.)
 ///
 /// With no frame open the escalation is recorded nowhere and only
 /// returned — the same posture every other decision has outside a
@@ -937,6 +944,41 @@ pub fn detached<R>(work: impl FnOnce() -> R) -> (R, Detached) {
 /// which is what the serial walk does too: a decision taken outside any
 /// bracket is recorded nowhere.
 pub fn splice(recording: Detached) {
+    splice_channels(recording, true);
+}
+
+/// **Splices a detached run's verdicts and samples, and not its
+/// escalations** — for a reading whose indeterminate outcome a DEFINITE
+/// outcome of the same op has superseded, so the escalation no longer
+/// decides anything the op returns.
+///
+/// The escalation channel has two readers. `editor_core::eval`'s memo-hit
+/// assert compares two runs of the same code, so it sees this door on
+/// both sides. The one that acts on it, the subdivision driver, takes an
+/// escalation on a node's log as the reason the node
+/// did not decide: its enclosure is the cue to refine or, wholly in the
+/// band, a terminal sliver NAMED by that predicate. That reading is
+/// wrong for an escalation the op went on to overrule — a refusal
+/// renamed by a definite reading, or a reading taken only to name a
+/// refusal already made — because refining the box cannot change an
+/// outcome the escalation never decided, and the sliver would name a
+/// cause the op did not refuse for. What stays is everything the run
+/// DECIDED: the verdicts, which the verdict-diff engine's populations
+/// are built from, and the samples, which are the K stream. Neither
+/// population moves across this door; only the escalation log does, and
+/// it then carries the escalations the op's outcome rests on.
+///
+/// The caller owes the argument that the outcome is superseded, at its
+/// own site: this door cannot tell a superseded escalation from a live
+/// one, and an escalation dropped here that the outcome DID rest on
+/// would read, to the driver, as a node that decided.
+pub fn splice_superseded(recording: Detached) {
+    splice_channels(recording, false);
+}
+
+/// The one body behind [`splice`] and [`splice_superseded`]: they differ
+/// only in whether the escalation channel travels.
+fn splice_channels(recording: Detached, escalations: bool) {
     let Detached {
         recorded,
         #[cfg(feature = "probe")]
@@ -945,7 +987,9 @@ pub fn splice(recording: Detached) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             top.recorded.verdicts.extend(recorded.verdicts);
-            top.recorded.escalations.extend(recorded.escalations);
+            if escalations {
+                top.recorded.escalations.extend(recorded.escalations);
+            }
         }
     });
     #[cfg(feature = "probe")]
@@ -1793,6 +1837,51 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["vlog_esc"]
         );
+    }
+
+    /// **A superseded splice carries the verdicts and not the
+    /// escalations**, in the caller's decision order: the verdict
+    /// populations are what [`splice`] would have produced, and the
+    /// escalation log is what it would have produced less this run's.
+    #[test]
+    fn a_superseded_splice_drops_only_the_escalations() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        let (_, recording) = detached(|| {
+            let _ = decide("vlog_superseded", Margin::of(mid), b);
+            decide("vlog_decided", Margin::of(1.0f64), b).unwrap();
+        });
+        let outer = Bracket::open();
+        let _ = decide("vlog_live", Margin::of(mid), b);
+        splice_superseded(recording);
+        decide("vlog_after", Margin::of(1.0f64), b).unwrap();
+        let log = outer.finish();
+        assert_eq!(names(&log), ["vlog_decided", "vlog_after"]);
+        assert_eq!(
+            log.escalations
+                .iter()
+                .map(Escalation::predicate)
+                .collect::<Vec<_>>(),
+            ["vlog_live"],
+            "the superseded escalation reached the frame, or the live one left it"
+        );
+    }
+
+    /// The K stream does not move across a superseded splice: its
+    /// samples, the escalated one included, reach the caller's sink.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn a_superseded_splice_keeps_every_sample() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        let (_, recording) = detached(|| {
+            let _ = Probe(mid).sign_within(b);
+            let _ = Probe(1.0).sign_within(b);
+        });
+        start_recording();
+        splice_superseded(recording);
+        let got: Vec<f64> = take_samples().iter().map(|s| s.margin).collect();
+        assert_eq!(got, [mid, 1.0], "a superseded splice lost a sample");
     }
 
     /// **The sample population does not shrink**: a detached run's

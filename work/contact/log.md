@@ -334,3 +334,20 @@ Signed: (CONTACT orchestrator)
   own PR.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-5 landed (#3341); CONTACT-4 lands
+
+- **CONTACT-5** merged as `e1ac23263`. The DR-13 number held on main.
+  The readout ask is PR #3342 (`[ev]`), not for merge.
+- **CONTACT-4.** The delta review of its ATREST-12 merge found a
+  wrong-answer defect in ATREST-12's span rule on main: an over-wound
+  ellipse window read as an arc. The lane made the rule two-sided.
+  - The orchestrator read the fix and landed it without another round.
+    The speed bound is exact calculus, and the row that pins it goes
+    red without the upper bound.
+  - Lesson, again: every lever-class defect this program has found sat
+    where a Zero or a non-negative result is itself a verdict. Briefs
+    for any unit touching a `decide` with a lever now ask, per verdict,
+    which bound makes it conservative.
+
+Signed: (CONTACT orchestrator)

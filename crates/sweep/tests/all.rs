@@ -190,6 +190,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "contfp_reads_arcs_on_their_carriers.rs"]
+mod contfp_reads_arcs_on_their_carriers;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
 #[path = "extrude_acceptance.rs"]
@@ -508,6 +510,8 @@ mod m9_3_wall_door;
 
 #[path = "germ_cone_doors.rs"]
 mod germ_cone_doors;
+#[path = "germ_interior_oval.rs"]
+mod germ_interior_oval;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]
