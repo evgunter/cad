@@ -34,15 +34,11 @@ use sweep::test_support::brick;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A cylinder about the z axis, `r = 1`, `z ∈ [−2, 2]` — the wall every
 /// row below pierces.
 fn pipe() -> Body<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(p2(0.0, 0.0), 1.0, tol).unwrap();
+    let lp = profile::circle(Point2::new(0.0, 0.0), 1.0, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(4.0), tol)
@@ -231,7 +227,7 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
         let lp = bulge_loop(
             [(0.2, 0.0), (0.6, 0.0), (0.4, 0.6), (0.2, 0.6)]
                 .into_iter()
-                .map(|(r, y)| (p2(r, y), 0.0))
+                .map(|(r, y)| (Point2::new(r, y), 0.0))
                 .collect(),
         );
         let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -240,7 +236,7 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
         revolve(
             &profile,
             RevolveAxis {
-                origin: p2(0.0, 0.0),
+                origin: Point2::new(0.0, 0.0),
                 dir: Vec2::new(0.0, 1.0),
             },
             Revolution::Full,

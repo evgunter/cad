@@ -16,16 +16,12 @@ use profile::{
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The validated profile of a polygon, or the door's typed refusal —
 /// the fallible half of [`prism`], so a row whose fixture is only
 /// constructible at some ε rows can *state* what the door said there
 /// instead of panicking through `prism`'s `expect` (R1-E).
 fn try_polygon(pts: &[(f64, f64)]) -> Result<ValidatedProfile<f64>, ProfileError> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness())
 }
 
@@ -484,7 +480,7 @@ fn r1f_one_curved_face_among_planars() {
         .map(|i| {
             let a = core::f64::consts::TAU * f64::from(i) / 6.0;
             let bulge = if i == 0 { 0.2 } else { 0.0 };
-            (p2(r * a.cos(), r * a.sin()), bulge)
+            (Point2::new(r * a.cos(), r * a.sin()), bulge)
         })
         .collect();
     let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(vs)])

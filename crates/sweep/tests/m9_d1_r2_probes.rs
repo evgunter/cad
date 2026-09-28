@@ -46,19 +46,22 @@ fn assert_pole_at(t: &Revolved<f64>, li: usize, v: usize, p: Point2<f64>) {
 /// (bulge 1), closed on-axis. The two poles are at distinct axial
 /// heights, so a swapped export cannot pass.
 fn off_center_meridian() -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(0.0, 0.5), 1.0), (p2(0.0, 2.5), 0.0)])
+    bulge_loop(vec![
+        (Point2::new(0.0, 0.5), 1.0),
+        (Point2::new(0.0, 2.5), 0.0),
+    ])
 }
 
 #[test]
 fn full_off_center_ball_poles_land_on_their_authored_canonical_indices() {
     let vp = validated(vec![off_center_meridian()]);
-    let lo = canon_index(&vp, 0, p2(0.0, 0.5));
-    let hi = canon_index(&vp, 0, p2(0.0, 2.5));
+    let lo = canon_index(&vp, 0, Point2::new(0.0, 0.5));
+    let hi = canon_index(&vp, 0, Point2::new(0.0, 2.5));
     assert_ne!(lo, hi);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_pole_at(&t, 0, lo, p2(0.0, 0.5));
-    assert_pole_at(&t, 0, hi, p2(0.0, 2.5));
+    assert_pole_at(&t, 0, lo, Point2::new(0.0, 0.5));
+    assert_pole_at(&t, 0, hi, Point2::new(0.0, 2.5));
     assert_eq!(t.poles[0].iter().flatten().count(), 2);
 }
 
@@ -69,8 +72,8 @@ fn full_off_center_ball_poles_land_on_their_authored_canonical_indices() {
 fn partial_wedge_pole_export_is_direction_safe_both_signs() {
     for theta in [core::f64::consts::FRAC_PI_2, -core::f64::consts::FRAC_PI_2] {
         let vp = validated(vec![off_center_meridian()]);
-        let lo = canon_index(&vp, 0, p2(0.0, 0.5));
-        let hi = canon_index(&vp, 0, p2(0.0, 2.5));
+        let lo = canon_index(&vp, 0, Point2::new(0.0, 0.5));
+        let hi = canon_index(&vp, 0, Point2::new(0.0, 2.5));
         let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
         assert_all_tiers(&t.body);
         // The wedge of the unit ball over |θ|: (2/3)·R³·|θ|, the
@@ -84,8 +87,8 @@ fn partial_wedge_pole_export_is_direction_safe_both_signs() {
             (volume - exact).abs() / exact < 1e-12,
             "theta = {theta}: volume {volume:.15e} != {exact:.15e}"
         );
-        assert_pole_at(&t, 0, lo, p2(0.0, 0.5));
-        assert_pole_at(&t, 0, hi, p2(0.0, 2.5));
+        assert_pole_at(&t, 0, lo, Point2::new(0.0, 0.5));
+        assert_pole_at(&t, 0, hi, Point2::new(0.0, 2.5));
         assert_eq!(
             t.poles[0].iter().flatten().count(),
             2,
@@ -102,20 +105,20 @@ fn partial_wedge_pole_export_is_direction_safe_both_signs() {
 #[test]
 fn full_two_segment_axis_run_exports_run_ends_and_only_run_ends() {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.5, 1.0), 0.0),
-        (p2(0.0, 2.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.5, 1.0), 0.0),
+        (Point2::new(0.0, 2.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
-    let bot = canon_index(&vp, 0, p2(0.0, 0.0));
-    let top = canon_index(&vp, 0, p2(0.0, 2.0));
-    let mid = canon_index(&vp, 0, p2(0.0, 1.0));
-    let off = canon_index(&vp, 0, p2(1.5, 1.0));
+    let bot = canon_index(&vp, 0, Point2::new(0.0, 0.0));
+    let top = canon_index(&vp, 0, Point2::new(0.0, 2.0));
+    let mid = canon_index(&vp, 0, Point2::new(0.0, 1.0));
+    let off = canon_index(&vp, 0, Point2::new(1.5, 1.0));
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_pole_at(&t, 0, bot, p2(0.0, 0.0));
-    assert_pole_at(&t, 0, top, p2(0.0, 2.0));
+    assert_pole_at(&t, 0, bot, Point2::new(0.0, 0.0));
+    assert_pole_at(&t, 0, top, Point2::new(0.0, 2.0));
     assert!(t.poles[0][mid].is_none(), "run interior vertex is deleted");
     assert!(t.poles[0][off].is_none(), "off-axis vertex is not a pole");
     // No live body vertex is unaccounted: 2 poles + 2 copies (seam/π)
@@ -128,18 +131,21 @@ fn full_two_segment_axis_run_exports_run_ends_and_only_run_ends() {
 /// and the per-loop export indexing does not cross loops.
 #[test]
 fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
-    let outer = bulge_loop(vec![(p2(0.0, -2.0), 1.0), (p2(0.0, 2.0), 0.0)]);
+    let outer = bulge_loop(vec![
+        (Point2::new(0.0, -2.0), 1.0),
+        (Point2::new(0.0, 2.0), 0.0),
+    ]);
     // A small CW square hole around (1, 0), strictly inside.
     let hole = bulge_loop(vec![
-        (p2(0.7, -0.3), 0.0),
-        (p2(0.7, 0.3), 0.0),
-        (p2(1.3, 0.3), 0.0),
-        (p2(1.3, -0.3), 0.0),
+        (Point2::new(0.7, -0.3), 0.0),
+        (Point2::new(0.7, 0.3), 0.0),
+        (Point2::new(1.3, 0.3), 0.0),
+        (Point2::new(1.3, -0.3), 0.0),
     ]);
     for theta in [core::f64::consts::FRAC_PI_2, -core::f64::consts::FRAC_PI_2] {
         let vp = validated(vec![outer.clone(), hole.clone()]);
-        let lo = canon_index(&vp, 0, p2(0.0, -2.0));
-        let hi = canon_index(&vp, 0, p2(0.0, 2.0));
+        let lo = canon_index(&vp, 0, Point2::new(0.0, -2.0));
+        let hi = canon_index(&vp, 0, Point2::new(0.0, 2.0));
         let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
         assert_all_tiers(&t.body);
         // The wedge of the R = 2 ball over |θ| less the revolved hole
@@ -153,8 +159,8 @@ fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
             (volume - exact).abs() / exact < 1e-12,
             "theta = {theta}: volume {volume:.15e} != {exact:.15e}"
         );
-        assert_pole_at(&t, 0, lo, p2(0.0, -2.0));
-        assert_pole_at(&t, 0, hi, p2(0.0, 2.0));
+        assert_pole_at(&t, 0, lo, Point2::new(0.0, -2.0));
+        assert_pole_at(&t, 0, hi, Point2::new(0.0, 2.0));
         assert_eq!(t.poles[0].iter().flatten().count(), 2);
         assert!(
             t.poles[1].iter().all(Option::is_none),
@@ -170,18 +176,18 @@ fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
 #[test]
 fn full_ball_with_subdivided_diameter_exports_run_end_poles_only() {
     let lp = bulge_loop(vec![
-        (p2(0.0, -1.0), 1.0),
-        (p2(0.0, 1.0), 0.0),
-        (p2(0.0, 0.0), 0.0),
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
-    let south = canon_index(&vp, 0, p2(0.0, -1.0));
-    let north = canon_index(&vp, 0, p2(0.0, 1.0));
-    let mid = canon_index(&vp, 0, p2(0.0, 0.0));
+    let south = canon_index(&vp, 0, Point2::new(0.0, -1.0));
+    let north = canon_index(&vp, 0, Point2::new(0.0, 1.0));
+    let mid = canon_index(&vp, 0, Point2::new(0.0, 0.0));
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_pole_at(&t, 0, south, p2(0.0, -1.0));
-    assert_pole_at(&t, 0, north, p2(0.0, 1.0));
+    assert_pole_at(&t, 0, south, Point2::new(0.0, -1.0));
+    assert_pole_at(&t, 0, north, Point2::new(0.0, 1.0));
     assert!(t.poles[0][mid].is_none(), "subdivision vertex is deleted");
     assert_eq!(counts(&t.body).0, 2, "V2: the two poles only");
 }

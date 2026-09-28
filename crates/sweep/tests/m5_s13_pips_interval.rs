@@ -59,7 +59,7 @@ mod certified {
     /// comparing ε to this constant.
     ///
     /// A both-sides pin on the same quantity does exist, on a different
-    /// fixture: `m5_s12_curved_ops_interval`'s `RECUT_MAPPED_ENCLOSURE_HI`.
+    /// fixture: `common::sphere_recut`'s `RECUT_MAPPED_ENCLOSURE_HI`.
     /// A paragraph claiming this constant was pinned that way too stood
     /// here until 2026-09-19; it was left behind by the change the body
     /// comment records and contradicted the assertion six lines below

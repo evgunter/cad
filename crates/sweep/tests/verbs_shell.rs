@@ -25,10 +25,6 @@ use sweep::{
 };
 use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRole, SolidKey};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// `topo::subtract` with the result body pulled out.
 pub(crate) fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     topo::subtract(a, b, Tol::witness())
@@ -44,10 +40,10 @@ pub(crate) fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// bounded by one cylinder wall and two planar caps. The perf fixture.
 pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r, 0.0), 0.0),
-        (p2(r, h), 0.0),
-        (p2(0.0, h), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -55,7 +51,7 @@ pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -69,10 +65,10 @@ pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
 /// two-shell shape the STEP gate is recorded on.
 pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(ri, 0.0), 0.0),
-        (p2(ro, 0.0), 0.0),
-        (p2(ro, h), 0.0),
-        (p2(ri, h), 0.0),
+        (Point2::new(ri, 0.0), 0.0),
+        (Point2::new(ro, 0.0), 0.0),
+        (Point2::new(ro, h), 0.0),
+        (Point2::new(ri, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -80,7 +76,7 @@ pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -92,7 +88,7 @@ pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
 
 /// A right prism on a polygon.
 pub(crate) fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a polygon is a valid profile");
@@ -1132,7 +1128,10 @@ const KLEIN_SWEEP_IN: f64 = 0.5 * core::f64::consts::PI;
 /// A circle profile loop of radius `r` — two semicircular arcs, the
 /// spelling `profile::circle` produces.
 fn circle_loop(r: f64) -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])
+    bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])
 }
 
 /// Klein's elbow, revolved about the loop-arc axis exactly as the demo
@@ -1144,7 +1143,7 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(KLEIN_RLOOP, 0.0),
+            origin: Point2::new(KLEIN_RLOOP, 0.0),
             dir: Vec2::new(0.0, -1.0),
         },
         Revolution::Partial(-KLEIN_SWEEP_IN),
@@ -1683,16 +1682,16 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
         &Profile::new(
             SketchPlane::xy(),
             vec![bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(0.30, 0.0), 0.0),
-                (p2(0.20, 0.40), 0.0),
-                (p2(0.0, 0.40), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(0.30, 0.0), 0.0),
+                (Point2::new(0.20, 0.40), 0.0),
+                (Point2::new(0.0, 0.40), 0.0),
             ])],
         )
         .validate(tol)
         .expect("the frustum meridian validates"),
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -2124,10 +2123,10 @@ fn sorted_dedup<K: Ord + Copy>(keys: &[K]) -> (Vec<K>, bool) {
 fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
     let square = |a: f64, b: f64| {
         bulge_loop(vec![
-            (p2(a, a), 0.0),
-            (p2(b, a), 0.0),
-            (p2(b, b), 0.0),
-            (p2(a, b), 0.0),
+            (Point2::new(a, a), 0.0),
+            (Point2::new(b, a), 0.0),
+            (Point2::new(b, b), 0.0),
+            (Point2::new(a, b), 0.0),
         ])
     };
     let lo = 0.5 * (side - bore);

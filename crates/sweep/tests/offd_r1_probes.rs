@@ -25,19 +25,20 @@ use crate::common;
 use crate::common::approx::band;
 use common::approx::{prism, twisted_loft};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn revolved_by(points: &[(f64, f64)], rev: Revolution<f64>) -> Body<f64> {
-    let lp = bulge_loop(points.iter().map(|(r, y)| (p2(*r, *y), 0.0)).collect());
+    let lp = bulge_loop(
+        points
+            .iter()
+            .map(|(r, y)| (Point2::new(*r, *y), 0.0))
+            .collect(),
+    );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("probe polygon is a valid profile");
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         rev,

@@ -14,12 +14,8 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("polygon profile");
@@ -30,10 +26,10 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 
 fn vessel(r: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r, 0.0), 0.0),
-        (p2(r, h), 0.0),
-        (p2(0.0, h), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -41,7 +37,7 @@ fn vessel(r: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -550,14 +546,17 @@ fn probe_late_err_leaves_body_untouched() {
     // torus through the C5 gate (the arm is implemented), reaches the
     // per-chart reanchor plan, and refuses THERE — an Err decided even
     // deeper in the plan than the route gate this row used to stop at.
-    let lp = bulge_loop(vec![(p2(-0.3, 0.0), 1.0), (p2(0.3, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.3, 0.0), 1.0),
+        (Point2::new(0.3, 0.0), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("disc profile");
     let elbow = revolve(
         &profile,
         RevolveAxis {
-            origin: p2(1.2, 0.0),
+            origin: Point2::new(1.2, 0.0),
             dir: Vec2::new(0.0, -1.0),
         },
         Revolution::Partial(-0.5 * core::f64::consts::PI),

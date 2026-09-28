@@ -34,8 +34,8 @@
 use crate::revolve_common;
 
 use crate::common::approx::band;
-use geom_core::Point3;
 use geom_core::Tol;
+use geom_core::{Point2, Point3};
 use profile::RawLoop;
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
@@ -45,7 +45,10 @@ use topo::boolean::{SolidContainment, point_in_solid};
 /// The half-disc of the `ball` acceptance: a unit semicircle from
 /// (0, −1) through (1, 0) to (0, 1), closed by the on-axis diameter.
 fn half_disc() -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)])
+    bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ])
 }
 
 /// The unit ball: two half-sphere bands on ONE sphere surface.
@@ -272,10 +275,10 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 #[test]
 fn the_die_pips_shape_now_stops_typed_at_its_own_tangency() {
     let slab = validated(vec![profile::ProfileLoop::polygon([
-        p2(-2.0, -2.0),
-        p2(2.0, -2.0),
-        p2(2.0, 2.0),
-        p2(-2.0, 2.0),
+        Point2::new(-2.0, -2.0),
+        Point2::new(2.0, -2.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(-2.0, 2.0),
     ])]);
     let a = sweep::extrude(&slab, sweep::Extrusion::Distance(1.0), Tol::witness())
         .unwrap()

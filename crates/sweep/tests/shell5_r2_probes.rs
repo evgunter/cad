@@ -17,10 +17,6 @@ use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 use crate::verbs_shell::{cut, two_void_box};
 use sweep::test_support::{block, brick};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
     topo::classify_shells(body, Tol::witness())
         .expect("classifies")
@@ -154,10 +150,10 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
 /// A cylinder of radius `r` spanning `z0..z1`, coaxial with `z`.
 fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, z0), 0.0),
-        (p2(r, z0), 0.0),
-        (p2(r, z1), 0.0),
-        (p2(0.0, z1), 0.0),
+        (Point2::new(0.0, z0), 0.0),
+        (Point2::new(r, z0), 0.0),
+        (Point2::new(r, z1), 0.0),
+        (Point2::new(0.0, z1), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -165,7 +161,7 @@ fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
