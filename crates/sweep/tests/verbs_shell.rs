@@ -16,89 +16,22 @@
 use crate::common::approx::band;
 use crate::common::census::{genus_of, rings_of};
 use crate::common::charts::{charts, moves_by};
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::{
+    hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
+};
+use crate::common::torus_walls::klein_elbow;
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::{block, brick, tube_frame};
+use sweep::test_support::{block, corners, prism, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
 };
-use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRole, SolidKey};
-
-/// `topo::subtract` with the result body pulled out.
-pub(crate) fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    topo::subtract(a, b, Tol::witness())
-        .expect("the subtraction runs")
-        .body()
-        .expect("a body")
-        .body
-        .clone()
-}
-
-/// **The vessel**: a rectangular meridian revolved a full turn about
-/// the `y` axis — a solid cylinder of radius `r` and height `h`,
-/// bounded by one cylinder wall and two planar caps. The perf fixture.
-pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(r, 0.0), 0.0),
-        (Point2::new(r, h), 0.0),
-        (Point2::new(0.0, h), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("the meridian is a valid profile");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        Tol::witness(),
-    )
-    .expect("the meridian revolves")
-    .body
-}
-
-/// A tube: the annular meridian revolved a full turn — the curved
-/// two-shell shape the STEP gate is recorded on.
-pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(ri, 0.0), 0.0),
-        (Point2::new(ro, 0.0), 0.0),
-        (Point2::new(ro, h), 0.0),
-        (Point2::new(ri, h), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("the annular meridian is a valid profile");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        Tol::witness(),
-    )
-    .expect("the annular meridian revolves")
-    .body
-}
-
-/// A right prism on a polygon.
-pub(crate) fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a polygon extrudes")
-        .body
-}
+use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRole};
 
 /// The planar face whose origin sits at height `y` (the caps).
-pub(crate) fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
+fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
     body.faces()
         .find(|(_, f)| {
             matches!(
@@ -317,57 +250,10 @@ fn opening_two_faces_gives_two_rims_and_one_shell() {
 // shell. Every number here is a closed form of an existing fixture.
 // ---------------------------------------------------------------------
 
-/// `V(w, d, h)`.
-pub(crate) fn v(w: f64, d: f64, h: f64) -> f64 {
-    w * d * h
-}
-
-/// The `block(2, 3, 4, Tol::witness())` box shelled at `0.25`: one solid, two shells,
-/// the hollow operand every row below starts from.
-pub(crate) fn hollow_box() -> Body<f64> {
-    topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, Tol::witness())
-        .expect("the first shell is the sealed row's own green")
-        .body
-}
-
-/// The operand's (outer, void) shell keys, decided through the shell
-/// classifier on the operand itself.
-pub(crate) fn outer_and_void(body: &Body<f64>) -> (ShellKey, ShellKey) {
-    let roles = topo::classify_shells(body, Tol::witness()).expect("the operand classifies");
-    let pick = |role: ShellRole| {
-        let hits: Vec<ShellKey> = roles
-            .iter()
-            .filter(|c| c.role == role)
-            .map(|c| c.shell)
-            .collect();
-        assert_eq!(hits.len(), 1, "exactly one {role:?} shell");
-        hits[0]
-    };
-    (pick(ShellRole::Outer), pick(ShellRole::Void))
-}
-
-/// Per SOLID, the shell roles sorted — grouped by `Shell::solid`, not
-/// read as a flat multiset, because tier 3 does not check solid
-/// membership and the grouping is pinned here.
-pub(crate) fn roles_by_solid(body: &Body<f64>) -> Vec<(SolidKey, Vec<ShellRole>)> {
-    let roles = topo::classify_shells(body, Tol::witness()).expect("the shells classify");
-    body.solids()
-        .map(|(solid, _)| {
-            let mut kinds: Vec<ShellRole> = roles
-                .iter()
-                .filter(|c| c.solid == solid)
-                .map(|c| c.role)
-                .collect();
-            kinds.sort_by_key(|r| format!("{r:?}"));
-            (solid, kinds)
-        })
-        .collect()
-}
-
 /// The row-1 closed form: `[V(2,3,4) − V(1.9,2.9,3.9)]` is the outer
 /// wall's term, `[V(1.6,2.6,3.6) − V(1.5,2.5,3.5)]` the void's.
-const OUTER_TERM: fn() -> f64 = || v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
-const INNER_TERM: fn() -> f64 = || v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5);
+const OUTER_TERM: fn() -> f64 = || box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
+const INNER_TERM: fn() -> f64 = || box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5);
 
 /// **The ruled composition.** `shell(shell(block(2,3,4, Tol::witness()), 0.25), 0.05)`:
 /// two solids, four shells, tier 3 green, one `Outer` and one `Void`
@@ -508,24 +394,6 @@ fn the_clearance_gate_reads_across_shells() {
     );
 }
 
-/// A `6 × 4 × 4` box with two voids of `1.2 × 2 × 2` side by side,
-/// `0.4` of material between them and at least `1.0` to every outer
-/// wall — built as two subtractions, the way a user would write it.
-/// Returns the body and the void gap.
-pub(crate) fn two_void_box() -> (Body<f64>, f64) {
-    let one = cut(
-        &block(6.0, 4.0, 4.0, Tol::witness()),
-        &brick((1.0, 2.2), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
-    );
-    let two = cut(
-        &one,
-        &brick((2.6, 3.8), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
-    );
-    assert_eq!(two.solids().count(), 1, "one solid");
-    assert_eq!(two.shells().count(), 3, "outer plus two voids");
-    (two, 0.4)
-}
-
 /// **Two voids.** With material `g = 0.4` between them, `t > g/2`
 /// refuses naming two VOID faces, and `t < g/2` builds three solids
 /// with the closed-form volume.
@@ -566,7 +434,8 @@ fn two_voids_refuse_across_their_gap_and_build_three_solids_below_it() {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
     let props = topo::mass_properties(out, tol).expect("props");
-    let want = (v(6.0, 4.0, 4.0) - v(5.7, 3.7, 3.7)) + 2.0 * (v(1.5, 2.3, 2.3) - v(1.2, 2.0, 2.0));
+    let want = (box_volume(6.0, 4.0, 4.0) - box_volume(5.7, 3.7, 3.7))
+        + 2.0 * (box_volume(1.5, 2.3, 2.3) - box_volume(1.2, 2.0, 2.0));
     assert!(
         (props.volume - want).abs() <= 1e-12,
         "three walls: got {}, want {want}",
@@ -1139,8 +1008,6 @@ fn the_shell_cost_is_measured_not_asserted() {
 // every run by hand, the loop arc's spine radius, and one arc's sweep.
 const KLEIN_R: f64 = 0.25;
 const KLEIN_WALL: f64 = 0.05;
-const KLEIN_RLOOP: f64 = 1.20;
-const KLEIN_SWEEP_IN: f64 = 0.5 * core::f64::consts::PI;
 
 /// A circle profile loop of radius `r` — two semicircular arcs, the
 /// spelling `profile::circle` produces.
@@ -1149,25 +1016,6 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
     ])
-}
-
-/// Klein's elbow, revolved about the loop-arc axis exactly as the demo
-/// does — built from whichever cross-section loops it is handed.
-fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), loops)
-        .validate(Tol::witness())
-        .expect("the elbow's cross-section validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(KLEIN_RLOOP, 0.0),
-            dir: Vec2::new(0.0, -1.0),
-        },
-        Revolution::Partial(-KLEIN_SWEEP_IN),
-        Tol::witness(),
-    )
-    .expect("the elbow revolves")
-    .body
 }
 
 /// **The `r ± t/2` wall pair — and the wall that stops it retiring.**
@@ -1448,6 +1296,8 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
 /// whose counterpart's seam sits strictly inside it.
 #[test]
 fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
+    // NOT `common::cert_corpus::f64_only_corpus`'s ring: the same body, built
+    // here step by step because this row asserts each step.
     let tol = Tol::witness();
     let t = 0.05;
     for (what, body, y, want_vertex) in [
@@ -1598,7 +1448,7 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
             Some(want_of(&triangle)),
         ),
     ] {
-        let body = prism(&pts, 0.25);
+        let body = prism(corners(&pts), 0.25, tol);
         let hollow = topo::shell(&body, t, tol)
             .unwrap_or_else(|e| panic!("{what}: an oblique planar junction hollows now, got {e}"))
             .body;
@@ -1644,7 +1494,7 @@ fn oblique_planar_prisms_open_at_their_cap() {
         ("a kite (no right angle anywhere)", kite),
         ("a triangle (58/58/64)", triangle),
     ] {
-        let body = prism(&pts, 0.25);
+        let body = prism(corners(&pts), 0.25, tol);
         let cap = plane_face_at(&body, 0.25);
         match topo::shell_open(&body, t, &[cap], tol) {
             Ok(s) => {
@@ -1772,8 +1622,9 @@ fn the_simultaneous_door_names_its_scope() {
     // door would place the corner anywhere along that line. Refused
     // instead, naming the shape and the count.
     let mut straight = prism(
-        &[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        corners(&[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
         0.4,
+        tol,
     );
     let moves = moves_by(charts(&straight), -0.05);
     let e = topo::offset_planes_together(&mut straight, &moves, band(), tol)

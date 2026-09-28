@@ -20,8 +20,9 @@ use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey, VoidContainment, Void
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_inward};
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::{hollow_box, outer_and_void, vessel};
 use crate::shell8_common::{beside, beside_raw, cap, faces_of, solid_of, tol, volume};
-use crate::verbs_shell::{hollow_box, v, vessel};
 
 fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
     body.vertices()
@@ -169,9 +170,9 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
     println!("[r2] roles of the nested operand: {:?}", roles(&body));
     let s = topo::shell(&body, t, tol())
         .expect("both shell; the void wall and the cube face never gate");
-    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9))
-        + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5))
-        + (v(0.5, 0.5, 0.5) - v(0.4, 0.4, 0.4));
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
+        + (box_volume(0.5, 0.5, 0.5) - box_volume(0.4, 0.4, 0.4));
     println!(
         "[r2] nested: solids={} shells={} volume={} want={want} thickened={:?}",
         s.body.solids().count(),
@@ -360,7 +361,7 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let (t1, t) = (0.1, 0.02);
     let hv = topo::shell(&vessel(1.0, 2.0), t1, tol()).unwrap().body;
-    let (_, void) = crate::verbs_shell::outer_and_void(&hv);
+    let (_, void) = outer_and_void(&hv);
     let ceiling = cap(&hv, void, y, 2.0 - t1);
 
     let alone = topo::shell_open(&hv, t, &ceiling, tol()).expect("the void ceiling opens");
@@ -418,7 +419,8 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     println!("[r2] box beside opened vessel: box vertices same={same} moved={moved}");
     assert_eq!((same, moved), (8, 0));
     let props = topo::mass_properties(&opened.body, tol()).unwrap();
-    let want = (v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
+    let want = (box_volume(2.0, 3.0, 4.0)
+        - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
         + hollow_vessel_want(t1, t, 1.0, 2.0, true);
     println!(
         "[r2] box beside opened vessel: solids={} shells={} volume={} want={want}",
@@ -479,7 +481,7 @@ fn r2_solid_order_assertion_on_a_body_with_a_freed_solid_slot() {
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
     let s = topo::shell(&body, 0.05, tol()).expect("a freed slot in the arena is not a reorder");
     assert_eq!(s.body.solids().count(), 2);
-    let one_wall = v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
+    let one_wall = box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
     assert!((volume(&s.body) - 2.0 * one_wall).abs() < 1e-12);
 
     // A graft that REUSES the freed slot (a key with version 2 in the
@@ -543,7 +545,9 @@ fn tess(label: &str, body: &Body<f64>) {
 #[test]
 fn r2_e2e_consumer_seat() {
     let (z, y) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0));
-    let one_wall = |t: f64| v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
+    let one_wall = |t: f64| {
+        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t)
+    };
 
     // ---- 1. Two parts in one body, hollowed in one call. ----
     let part_a = block(2.0, 3.0, 4.0, Tol::witness());
@@ -602,10 +606,10 @@ fn r2_e2e_consumer_seat() {
     );
     let third = topo::shell_open(&second.body, 0.01, &[inner_ceiling], tol())
         .expect("hollow, hollow, open");
-    let want = (v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98))
-        + (v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9))
-        + (v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58))
-        + (v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5))
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.98, 2.98, 3.98))
+        + (box_volume(1.92, 2.92, 3.92) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.58, 2.58, 3.58))
+        + (box_volume(1.52, 2.52, 3.52) - box_volume(1.5, 2.5, 3.5))
         - 1.52 * 2.52 * 0.01;
     println!(
         "[r2] e2e 2: solids={} shells={} volume={} want={want}",
@@ -650,8 +654,8 @@ fn r2_e2e_consumer_seat() {
     let opened = topo::shell_open(&hollowed.body, 0.02, &b_inner_ceiling, tol())
         .expect("opened on the vessel's inner wall");
     // BOTH solids shell again: the box's thin solid becomes two more.
-    let want = (v(2.0, 3.0, 4.0) - v(1.96, 2.96, 3.96))
-        + (v(1.94, 2.94, 3.94) - v(1.9, 2.9, 3.9))
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
+        + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
         + hollow_vessel_want(0.05, 0.02, 1.0, 2.0, true);
     let props = topo::mass_properties(&opened.body, tol()).unwrap();
     println!(

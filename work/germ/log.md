@@ -287,3 +287,16 @@ merged in.
 - The ball-to-plane gap has one home.
 - G1–G4 mutants are killed.
 - Tier: orchestrator read. The public field passes `payload-rung-sweep`. The certificate lane reuses `InteriorLoopGuard` for R-loop and R-undec.
+
+## 2026-09-28 — the cylinder stopgap lands (PR 3355)
+
+The P0 closes. `interior_loop_verdict` gains a cylinder half:
+- the plane clause (an event, or a span or point certificate);
+- the wall-pair clause (a saddle clears on an event or an Out point; two loops need evidence per branch; equal radii need all four quadrants);
+- the reach test;
+- parallel axes in reach refuse.
+
+The single Opus review found no MAJOR:
+- **MINOR 1**, fixed: the row now pins `site: InteriorLoopGuard`.
+- **MINOR 2**, recorded in the item: the two-loop and plane clauses are dormant defence under the meridian-edge premise.
+- **MINOR 3**, recorded: the pinch-band branch-sign hazard, which the section certificate refuses as R-tan.
