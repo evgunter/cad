@@ -256,3 +256,40 @@ Their five lift sites now read `r.map(T::from_f64)`:
 The numerals are textually unchanged. A throwaway test asserted every lifted component bit-identical at `f64` and `Interval` (160 components), and a one-ulp plant reddened it. No behaviour changed.
 
 Signed (S-DUP orchestrator).
+
+## 2026-09-28 — CONTACT-3 lands alone; CONTACT-4 reconciles with ATREST-12; process notes
+
+**CONTACT-3** lands on its own PR. The dual (DR-12) returned no MAJOR.
+Both reviewers found the refusal coarser than the spec asked, and the
+orchestrator ruled to fix that at the source rather than disclose it.
+The fix pass generalised the exact class to parity along the ruling.
+It was wider than the brief, and better. One single delta review
+followed, then a last pass pinning floors and caps.
+
+**CONTACT-4 left the combined PR.** ATREST-12 (#3325) reached main after
+CONTACT-4 branched and decided the same four questions in
+`splitting/containment.rs`. Ruling: main's decisions stand by default,
+with one exception. On the span rule, CONTACT-4 may override if main's
+rule reads an almost-closed eccentric arc as closed. The note is on
+RESTFRONT's log, since ATREST has closed. A delta review of the
+reconciliation follows.
+
+Process notes, each a class:
+- **The lever class generalises.** A scaling that is conservative where
+  a Zero only abandons a ray is unsound where a Zero is a verdict. It
+  surfaced four times in CONTACT-1 (touch cones) and again in CONTACT-4
+  (the ellipse pre-pass). The rows it filed are
+  `touch-cone-readings-are-levered-directions-not-face-distances`, and
+  CONTACT-4's two-sided ellipse bounds.
+- **The session scratchpad is shared by every agent.** A reviewer who
+  listed it saw other lanes' file names. Dual briefs now say: write
+  lane-prefixed files, open earlier probes by name, never list the
+  directory, never run process listings.
+- **Two lanes used pattern `pkill -f`,** which implementer discipline
+  forbids. Each time it hit only the lane's own processes. Briefs now
+  repeat "kill only recorded PIDs".
+- **The 2026-09-26 weekly usage limit** killed three agents mid-work.
+  Nothing was lost: the clones kept their work, and each agent resumed
+  with its context.
+
+Signed: (CONTACT orchestrator)

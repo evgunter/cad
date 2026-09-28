@@ -2,12 +2,13 @@
 id: cylinder-wall-trim-overcovers-a-tilted-section
 kind: issue
 title: point_in_solid's cylinder wall arm reads a wall bounded by a tilted planar section as its vertex rectangle and answers In across the cut (the cut cylinder)
-status: dispatched
+status: closed
 opened: 2026-09-25
 priority: P0
 cost: H
 refs: [ATREST-9]
 parent: CONTACT-3
+closed: 2026-09-28
 ---
 
 Found by ATREST-9's fix pass (PR #3204), measuring its new ellipse arm
@@ -78,3 +79,11 @@ misstates. The cone and sphere chart trims fold boundary images the
 same way (`torus_chart_windows`' "this is a class" paragraph). They
 are unmeasured under tilted sections.
 
+
+## Closed
+
+Fixed by CONTACT-3. `the_cut_cylinder_reads_its_truth` is no longer
+ignored. It passes with zero wrong answers, and the only refusal it
+admits is `VolumeUncertified`. This row's measured figures (62 false,
+282 refused) were taken on an older base; on CONTACT-3's base the
+cut cylinder gave 52 false.
