@@ -80,30 +80,9 @@ mutate "M2 material_kappa_rel drops the negation" "$D" \
 mutate "M3 material_kappa_rel ignores sense_plus" "$D" \
   "'    -(kappa_rel * sense_plus)'" "'    -kappa_rel'"
 
-mutate "M4 declaration ignores the CLASS" "$V" \
-  "'''        d.class == crate::contact::ContactClass::Tangent
-            && ((d.a == a && d.b == b) || (d.a == b && d.b == a))'''" \
-  "'        ((d.a == a && d.b == b) || (d.a == b && d.b == a))'"
-
-mutate "M5 declaration ignores the face PAIR" "$V" \
-  "'''        d.class == crate::contact::ContactClass::Tangent
-            && ((d.a == a && d.b == b) || (d.a == b && d.b == a))'''" \
-  "'        d.class == crate::contact::ContactClass::Tangent'"
-
-mutate "M6 declaration always true" "$V" \
-  "'    declarations.iter().any(|d| {'" \
-  "'''    if true {
-        return true;
-    }
-    declarations.iter().any(|d| {'''"
-
 mutate "M7 the lamina refusal removed" "$V" \
   "'        MaterialArmOutcome::Lamina => Some(ValidationError::LaminaWedge { edge }),'" \
   "'        MaterialArmOutcome::Lamina => None,'"
-
-mutate "M8 declared arm covers Cusp only (an undeclared Slit passes)" "$D" \
-  "'        matches!(self, Self::Cusp | Self::Slit)'" \
-  "'        matches!(self, Self::Cusp)'"
 
 mutate "M9 the cusp door re-derives the ray as ang + pi" "$P" \
   "'        Self::from_unit(-self.unit)'" \

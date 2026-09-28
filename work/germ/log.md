@@ -387,3 +387,25 @@ The certificate implementer walked every edge × face arm before writing any cod
 
 - **PR 3358 (every root) merged** on hosted green, after main was merged in (main had moved in `topo` and `sweep`). The certificate lane is told.
 - **`circle-crosses-a-torus-face-with-no-root-lane` (P1, H) is held** until the cylinder stopgap lands and frees its target. With the certificate and the stopgap both building, free disk sits at about 15 GB, and a third lane plus a certificate full gate risks filling it.
+## 2026-09-28 — the cylinder stopgap lands (PR 3355)
+
+The P0 closes. `interior_loop_verdict` gains a cylinder half:
+- the plane clause (an event, or a span or point certificate);
+- the wall-pair clause (a saddle clears on an event or an Out point; two loops need evidence per branch; equal radii need all four quadrants);
+- the reach test;
+- parallel axes in reach refuse.
+
+The single Opus review found no MAJOR:
+- **MINOR 1**, fixed: the row now pins `site: InteriorLoopGuard`.
+- **MINOR 2**, recorded in the item: the two-loop and plane clauses are dormant defence under the meridian-edge premise.
+- **MINOR 3**, recorded: the pinch-band branch-sign hazard, which the section certificate refuses as R-tan.
+
+## 2026-09-28 — the section certificate is up (PR 3372); the dual review is dispatched
+
+- **Frozen head `b43df6b64`**, hosted green. R1 and R2 were dispatched concurrently with identical briefs and no relaxations. The protocol hash is recorded at merge.
+- **The implementer's changes from the spec:**
+  - cylinder × plane never reads W4, since its component count is uncertified;
+  - an off-carrier witness counts as no verdict;
+  - the corner bar clears at the certificate but still refuses at the reduction.
+- **Given back:** the pin-only bracket, the cube in the donut's hole, the nested and buried coaxial cylinders, and the diagonal parallel pair, each checked by closed form.
+- **`local-scripts/ci-local.sh` is gone from main** (`24fedbfad`), so hosted CI is the gate of record from here on.

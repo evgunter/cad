@@ -2,11 +2,19 @@
 id: cylinder-wall-pair-meeting-in-an-interior-loop-while-crossings-exist-elsewhere
 kind: issue
 title: Two cylinder walls meeting in a saddle loop interior to both faces, while crossings exist elsewhere, come back as a valid wrong body under every op
+<<<<<<< HEAD
 status: dispatched
+=======
+status: closed
+>>>>>>> origin/main
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 opened: 2026-09-28
 priority: P0
 cost: M
+<<<<<<< HEAD
+=======
+closed: 2026-09-28
+>>>>>>> origin/main
 ---
 
 
@@ -82,3 +90,68 @@ GERM, beside `interior_loop_verdict`. Two ways to close it:
   encircle the thinner wall's axis and so cross its seam lines. That
   argument is unmeasured here.
 - **The section certificate (b)** on the torus item. It is kind-generic.
+<<<<<<< HEAD
+=======
+
+## Stopgap (GERM cylinder-guard PR, 2026-09-28)
+
+`ops::interior_loop_verdict` gains a cylinder half, per pair, raised
+as `CurvedPairUnsupported { site: InteriorLoopGuard }` like the other
+two. Rows: `crates/sweep/tests/germ_interior_saddle.rs`. Both saddle
+fixtures (perpendicular and tilted `0.15`) refused every op; on the
+base each op answered the valid wrong bodies tabled above.
+
+- **Sphere or torus partner:** left to the halves above. The torus
+  half refuses every overlapping cylinder pair on reach, and the
+  sphere half owns sphere × cylinder.
+- **Plane partner** (`ops::ellipse_misses_a_face`): a pair with an
+  event passes, because the section is one ellipse or rulings. With
+  no event the pair clears only on a certificate:
+  - the ellipse's axial extent `2r|n⊥|/|n·â|` exceeds either face
+    box's width along the axis; a plane parallel to the axis passes
+    this at `2r`;
+  - or one of four ellipse points is outside a face.
+- **Wall partner** (`ops::wall_pair_clear`), for axes decided skew.
+  Over the thinner wall, the section is one saddle loop when
+  `s > r_k − r_t`, else two loops, one per branch, about the thin
+  axis:
+  - a saddle loop clears on any event of the pair, or one point
+    outside a face;
+  - each branch clears on an event on it, or one of its points
+    outside a face;
+  - with equal radii, all four branch-sign quadrants need an event.
+  - A reach test clears walls whose boxes keep them off the other
+    carrier, at any angle. Parallel axes that fail it refuse.
+- **Any other partner kind** refuses on reach.
+
+**What it costs.** Across the whole `topo` and `sweep` suites only
+`m9_3_zip`'s tube chain moved. Its union refused at (B wall × A end
+cap) until the plane clause tried four ellipse points instead of one:
+the first sat exactly on the tangency point `(2, 4, 1)`, on both
+faces' boundaries. After that no answered row refuses.
+
+**Still open.** The section certificate (b) remains the proper fix,
+the stopgap being removable once it lands. Separately, the sphere
+half's with-event clause for a cylinder partner rests on the premise
+`cylinder_extent_gate` states: every wall face carries a meridian
+boundary edge. A ball the wall passes through meets it in two loops,
+and one event does not cover both unless each loop crosses a
+meridian. A seamless periodic band would void that. The clauses here
+do not rest on it, because the wall-pair clause asks for evidence on
+each branch.
+
+Under that premise the two-loop branches (the per-branch and
+four-quadrant rules) and the plane certificates are dormant defence.
+A loop that encircles an axis cannot lie wholly inside a valid face
+without an event, so those clauses decide over-refusal only, and no
+row can show them refusing. Only the saddle clause is live.
+
+One tolerance-level hazard is argued but unmeasured. In the band where
+the saddle margin is undecided (`|r_k − r_t − s| ≲ tol`), the two
+branches meet at a shallow angle, and a contact vertex within
+tolerance of both carriers can sit on the wrong side of
+`sign(m̂·(p − o_k))`. An event on one branch could then clear an
+interior loop on the other. That needs a face boundary within about
+tol of the loop that never touches it: a near-tangency, which the
+section certificate refuses as R-tan.
+>>>>>>> origin/main
