@@ -18,10 +18,10 @@ use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate, validate_closed, validate_geometric};
 
 use geom_core::{Point2, Tol};
-use revolve_common::{axis_y, p2, validated};
+use revolve_common::{axis_y, validated};
 
 fn v(x: f64, y: f64, b: f64) -> (Point2<f64>, f64) {
-    (p2(x, y), b)
+    (Point2::new(x, y), b)
 }
 
 fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
@@ -57,7 +57,11 @@ fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
 ///   = (5 + 3√2)π.
 #[test]
 fn frustum_with_bore_matches_independent_closed_forms() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -82,12 +86,12 @@ fn frustum_with_bore_matches_independent_closed_forms() {
 #[test]
 fn cup_inner_walls_match_independent_closed_forms() {
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 2.0),
-        p2(1.5, 2.0),
-        p2(1.5, 0.5),
-        p2(0.0, 0.5),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(1.5, 2.0),
+        Point2::new(1.5, 0.5),
+        Point2::new(0.0, 0.5),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -165,9 +169,19 @@ fn major_arc_prism_matches_independent_closed_forms() {
 /// A = 2(32 − π) + 24 + 2π + 8 = 96.
 #[test]
 fn two_hole_plate_matches_independent_closed_forms() {
-    let outer = ProfileLoop::polygon([p2(-3.0, -3.0), p2(3.0, -3.0), p2(3.0, 3.0), p2(-3.0, 3.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(-3.0, -3.0),
+        Point2::new(3.0, -3.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(-3.0, 3.0),
+    ]);
     let round = bulge_loop(vec![v(-0.5, 0.0, 1.0), v(-2.5, 0.0, 1.0)]);
-    let square = ProfileLoop::polygon([p2(0.5, -1.0), p2(2.5, -1.0), p2(2.5, 1.0), p2(0.5, 1.0)]);
+    let square = ProfileLoop::polygon([
+        Point2::new(0.5, -1.0),
+        Point2::new(2.5, -1.0),
+        Point2::new(2.5, 1.0),
+        Point2::new(0.5, 1.0),
+    ]);
     let t = extrude(
         &validated(vec![outer, round, square]),
         Extrusion::Distance(1.0),
@@ -182,7 +196,12 @@ fn two_hole_plate_matches_independent_closed_forms() {
 /// shell).
 #[test]
 fn negative_extrusion_distance_is_positively_oriented() {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(-1.5),
@@ -197,7 +216,12 @@ fn negative_extrusion_distance_is_positively_oriented() {
 /// with the θ-scaled closed forms.
 #[test]
 fn negative_revolve_angle_is_positively_oriented() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -219,7 +243,12 @@ fn negative_revolve_angle_is_positively_oriented() {
 #[test]
 fn megascale_washer_matches_and_validates() {
     let s = (geom_core::Tol::witness().get().eps * 1e14).max(1.0);
-    let lp = ProfileLoop::polygon([p2(s, 0.0), p2(2.0 * s, 0.0), p2(2.0 * s, s), p2(s, s)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(s, 0.0),
+        Point2::new(2.0 * s, 0.0),
+        Point2::new(2.0 * s, s),
+        Point2::new(s, s),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -271,7 +300,12 @@ fn megascale_washer_matches_and_validates() {
 #[test]
 fn diagonal_chord_split_refuses_typed_not_silent() {
     use topo::{FaceSurface, LoopBoundary, MassPropsError, MefSite, ValidationError};
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -392,9 +426,9 @@ fn pappus_cross_checks_review_revolves() {
     use revolve_common::full_pappus_y;
     let frustum = revolve(
         &validated(vec![ProfileLoop::polygon([
-            p2(1.0, 0.0),
-            p2(2.0, 0.0),
-            p2(1.0, 1.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(1.0, 1.0),
         ])]),
         axis_y(),
         Revolution::Full,

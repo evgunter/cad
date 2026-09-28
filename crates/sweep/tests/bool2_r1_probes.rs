@@ -24,7 +24,7 @@
 use crate::revolve_common;
 
 use crate::common::approx::band;
-use geom_core::{Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use revolve_common::*;
@@ -38,7 +38,11 @@ fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
 /// The doors suite's full cone: base disc radius 1 at y = 0, apex at
 /// (0, 1, 0), half-angle π/4.
 fn cone() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -52,7 +56,12 @@ fn cone() -> Body<f64> {
 /// The doors suite's frustum: base radius 1 at y = 0, top radius 0.5
 /// at y = 1; virtual apex (0, 2, 0).
 fn frustum() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.5, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.5, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -65,7 +74,11 @@ fn frustum() -> Body<f64> {
 
 /// The doors suite's quarter cone (swept quadrant x > 0, z < 0).
 fn quarter_cone() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -88,9 +101,13 @@ fn tilted_cone() -> Body<f64> {
     // base-rim point (on the x-axis generator), (0.5,0.5) on the axis.
     // Edge (1,0)→(0.5,0.5) is perpendicular to the axis (a disc);
     // edge (0.5,0.5)→(0,0) lies on the axis (omitted).
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.5, 0.5)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.5, 0.5),
+    ]);
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(1.0, 1.0).normalize(),
     };
     revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
@@ -261,7 +278,11 @@ fn probe_azimuth_window_edge_straddle() {
 #[test]
 fn probe_a_small_cone_classifies_at_its_own_scale() {
     let s = 0.05;
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(s, 0.0), p2(0.0, s)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(s, 0.0),
+        Point2::new(0.0, s),
+    ]);
     let body = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -299,7 +320,12 @@ fn probe_a_small_cone_classifies_at_its_own_scale() {
 #[test]
 fn probe_small_frustum_virtual_apex_still_exhausts() {
     let s = 0.05;
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(s, 0.0), p2(0.5 * s, s), p2(0.0, s)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(s, 0.0),
+        Point2::new(0.5 * s, s),
+        Point2::new(0.0, s),
+    ]);
     let body = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -327,7 +353,12 @@ fn probe_small_frustum_virtual_apex_still_exhausts() {
 #[test]
 fn probe_e2e_revolve_union_tessellate() {
     let a = quarter_cone();
-    let lp = ProfileLoop::polygon([p2(5.0, 0.0), p2(6.0, 0.0), p2(6.0, 1.0), p2(5.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(5.0, 0.0),
+        Point2::new(6.0, 0.0),
+        Point2::new(6.0, 1.0),
+        Point2::new(5.0, 1.0),
+    ]);
     let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, -1.0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -352,7 +383,12 @@ fn probe_e2e_revolve_union_tessellate() {
 #[test]
 #[ignore = "documents another unit's defect (planar half-disc cap misread); run explicitly"]
 fn probe_planar_cap_misread_reproduction() {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(0.5, 0.0), p2(0.5, 0.4), p2(0.0, 0.4)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(0.5, 0.0),
+        Point2::new(0.5, 0.4),
+        Point2::new(0.0, 0.4),
+    ]);
     let body = revolve(
         &validated(vec![lp]),
         axis_y(),

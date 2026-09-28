@@ -49,9 +49,9 @@
 
 use crate::revolve_common;
 
-use geom_core::{Band, Point3, Tol};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
-use revolve_common::{axis_y, p2, validated};
+use revolve_common::{axis_y, validated};
 use sweep::{Revolution, revolve};
 use topo::{
     Body, BooleanDeclarations, BooleanError, ContactClass, FaceContainment, FaceKey,
@@ -86,34 +86,34 @@ fn half_as(sign: f64, handle: Handle, premerge: bool) -> Body<f64> {
     let (mut chain, tangent_joint) = match handle {
         Handle::Torus if s > 0.0 => (
             vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(0.3, 0.0), QUARTER_CW),
-                (p2(0.8, 0.5), 0.0),
-                (p2(1.5, 0.5), 0.0),
-                (p2(1.5, 1.5), 0.0),
-                (p2(0.0, 1.5), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(0.3, 0.0), QUARTER_CW),
+                (Point2::new(0.8, 0.5), 0.0),
+                (Point2::new(1.5, 0.5), 0.0),
+                (Point2::new(1.5, 1.5), 0.0),
+                (Point2::new(0.0, 1.5), 0.0),
             ],
             Some(2),
         ),
         Handle::Torus => (
             vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(0.0, -1.5), 0.0),
-                (p2(1.5, -1.5), 0.0),
-                (p2(1.5, -0.5), 0.0),
-                (p2(0.8, -0.5), QUARTER_CW),
-                (p2(0.3, 0.0), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(0.0, -1.5), 0.0),
+                (Point2::new(1.5, -1.5), 0.0),
+                (Point2::new(1.5, -0.5), 0.0),
+                (Point2::new(0.8, -0.5), QUARTER_CW),
+                (Point2::new(0.3, 0.0), 0.0),
             ],
             Some(4),
         ),
         Handle::Cylinder => (
             vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(0.3, 0.0), 0.0),
-                (p2(0.3, 0.5 * s), 0.0),
-                (p2(1.5, 0.5 * s), 0.0),
-                (p2(1.5, 1.5 * s), 0.0),
-                (p2(0.0, 1.5 * s), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(0.3, 0.0), 0.0),
+                (Point2::new(0.3, 0.5 * s), 0.0),
+                (Point2::new(1.5, 0.5 * s), 0.0),
+                (Point2::new(1.5, 1.5 * s), 0.0),
+                (Point2::new(0.0, 1.5 * s), 0.0),
             ],
             None,
         ),
@@ -450,7 +450,12 @@ fn the_waist_faces_partition_their_band_under_face_containment() {
 
 fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     use geom_core::{Affine3, Mat3, Vec3};
-    let lp = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(x.0, y.0),
+        Point2::new(x.1, y.0),
+        Point2::new(x.1, y.1),
+        Point2::new(x.0, y.1),
+    ]);
     let plane = profile::SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
         Point3::new(0.0, 0.0, z.0) - Point3::origin(),
@@ -733,7 +738,12 @@ fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: f64)
     let u = d.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
     let v = d.cross(u);
     let h = w / 2.0;
-    let lp = ProfileLoop::polygon([p2(-h, -h), p2(h, -h), p2(h, h), p2(-h, h)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(-h, -h),
+        Point2::new(h, -h),
+        Point2::new(h, h),
+        Point2::new(-h, h),
+    ]);
     let start = o + d * t0;
     let plane = profile::SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(u, v, d),
@@ -919,7 +929,10 @@ fn a_torus_poking_through_a_slab_face_is_not_an_assembly() {
 #[test]
 fn a_cylinder_grazing_the_outer_equator_is_not_an_assembly() {
     use geom_core::{Affine3, Mat3, Vec3};
-    let lp = bulge_loop(vec![(p2(-0.55, 3.0), 1.0), (p2(0.55, 3.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.55, 3.0), 1.0),
+        (Point2::new(0.55, 3.0), 1.0),
+    ]);
     let plane = profile::SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(Vec3::unit_y(), Vec3::unit_z(), Vec3::unit_x()),
         Vec3::new(-1.0, 0.0, 0.0),

@@ -14,6 +14,15 @@
 //! evaluation a leaf replays, the fixture, and the lockfile (a rayon
 //! bump).
 //!
+//! **At ONE ε row, 1e-6.** Whether the two schedules agree is not a
+//! question about the tolerance, and the row's cost is: at 1e-12 it held
+//! its `test` leg for 32 minutes on the run that gated it (evgunter/cad
+//! PR 3300), against minutes at the other two rows. So the other rows
+//! return before driving, and say so. What keeps the one run honest is
+//! the non-vacuity check below: the drive must split into many leaves at
+//! this ε, or the rayon schedule has nothing to schedule and the
+//! comparison passes by construction.
+//!
 //! Two drives, not three: the sequential drive against the parallel
 //! one. A sequential repeat added nothing the pair does not already
 //! catch — a schedule-dependent leak shows as the two disagreeing, and
@@ -45,6 +54,13 @@ use crate::m10_7_r2_probes_interval::bracket;
 #[test]
 fn r2_the_drive_is_bit_identical_under_the_rayon_schedule() {
     let tol = Tol::witness();
+    if format!("{:e}", tol.eps()) != "1e-6" {
+        println!(
+            "skipped at eps={:e}: the schedule's determinism is ε-free, and the 1e-6 row runs it",
+            tol.eps()
+        );
+        return;
+    }
     let (doc, _, _) = bracket(1.0e-3, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let run = |parallel: bool| {
@@ -59,13 +75,21 @@ fn r2_the_drive_is_bit_identical_under_the_rayon_schedule() {
             tol,
         )
         .expect("the bracket's nominal builds");
+        let leaves = v.receipt().certified + v.receipt().refused;
         (
             v.serialize(),
             format!("{:?}", v.content_key()),
             v.decisions(),
+            leaves,
         )
     };
     let sequential = run(false);
+    assert!(
+        sequential.3 > 1,
+        "the drive never split ({} leaf), so the rayon schedule had nothing to schedule \
+         and the comparison below would pass by construction",
+        sequential.3
+    );
     let parallel = run(true);
     assert_eq!(
         sequential.0, parallel.0,

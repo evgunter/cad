@@ -29,10 +29,6 @@ use crate::common;
 use crate::common::approx::band;
 use common::approx::{FIT_DEGREE, prism};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The target these fixtures hand the fit ENGINE, and no longer a door's
 /// argument: since the shell chain took the `Tol` witness, the only
 /// tolerance a kernel door accepts is the run's ε, and a chosen number
@@ -43,14 +39,19 @@ const ENGINE_FIT_TARGET: f64 = 1e-6;
 
 /// Revolves the closed `(r, y)` polygon a full turn about the `y` axis.
 fn revolved(points: &[(f64, f64)]) -> Body<f64> {
-    let lp = bulge_loop(points.iter().map(|(r, y)| (p2(*r, *y), 0.0)).collect());
+    let lp = bulge_loop(
+        points
+            .iter()
+            .map(|(r, y)| (Point2::new(*r, *y), 0.0))
+            .collect(),
+    );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the fixture polygon is a valid profile");
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -426,7 +427,7 @@ fn an_apex_window_crossing_refuses_typed() {
 /// seams at a fresh key while the other wall kept the old chart.
 #[test]
 fn a_shared_surface_key_refuses_typed() {
-    let v = |x: f64, y: f64| (p2(x, y), 1.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 1.0);
     let lp = bulge_loop(vec![v(-0.5, 0.0), v(0.5, 0.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

@@ -7,14 +7,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::EdgeDescription;
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, ValidationError};
-
-fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
-    geom_core::Point2::new(x, y)
-}
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), loops)
@@ -80,7 +76,7 @@ fn two_successive_coplanar_splits_stay_tier3() {
             (2.0, 2.0),
             (0.0, 2.0),
         ]
-        .map(|(x, y)| p2(x, y)),
+        .map(|(x, y)| Point2::new(x, y)),
     );
     let body = extruded(vec![profile], 1.0);
     let first = split_at_y(&body, 1.0);
@@ -120,7 +116,7 @@ fn transverse_resplit_of_a_restated_product_stays_tier3() {
             (3.0, 2.0),
             (0.0, 2.0),
         ]
-        .map(|(x, y)| p2(x, y)),
+        .map(|(x, y)| Point2::new(x, y)),
     );
     let body = extruded(vec![notched], 1.0);
     let first = split_at_y(&body, 1.0);
@@ -158,7 +154,7 @@ fn restated_edges_keep_carrier_bits() {
             (3.0, 2.0),
             (0.0, 2.0),
         ]
-        .map(|(x, y)| p2(x, y)),
+        .map(|(x, y)| Point2::new(x, y)),
     );
     let body = extruded(vec![notched], 1.0);
     let before: Vec<(EdgeKey, geom::Curve3<f64>, f64, f64)> = body
@@ -213,7 +209,10 @@ fn restated_edges_keep_carrier_bits() {
 fn tangent_plane_split_of_a_cylinder_never_reaches_the_smooth_arm() {
     // Full circle profile (two semicircular arcs) of radius 1 at the
     // origin, extruded: a cylinder barrel with planar caps.
-    let circle = bulge_loop(vec![(p2(-1.0, 0.0), 1.0), (p2(1.0, 0.0), 1.0)]);
+    let circle = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 1.0),
+        (Point2::new(1.0, 0.0), 1.0),
+    ]);
     let body = extruded(vec![circle], 1.0);
     // Plane y = 1 is tangent to the barrel along the line (0,1,z).
     let attempt = topo::split(
