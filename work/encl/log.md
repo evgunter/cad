@@ -1060,3 +1060,15 @@ class of 65 sites is PRED's row.
   - `knot_aligned_cuts` is not homed: it is a different function (trim-rectangle range, and it clears the ends).
   - Filed SSI's `chart-uniform-breaks-lean-on-exact-dedup`. edge_nurbs is ISO's by territory, not SSI/Q's.
   - Style review dispatched.
+- 2026-09-28 — The PR 3348 style review came back APPROVE-WITH-FIXES.
+  - Confirmed: bits are unchanged at every site (by reading and executing), and the guard mutant turns four rows red.
+  - Taken:
+    - `WithinUlps(f64)` becomes `u32`, fixing a fail-quiet NaN/∞/negative hazard, with the clearance const made public beside `GridSkip`;
+    - the helper uses the typed `interior_knots()`; the other hand filters are recorded, not swept;
+    - a non-dyadic grid-arithmetic pin, since today no row catches an evaluation-order mutant;
+    - SSI row accuracy and pricing;
+    - one encl row recording the declined `knot_aligned_cuts` and the residual spellings;
+    - a hairline-row update;
+    - two trivial efficiency items.
+  - Declined: import-style taste.
+  - The reviewer also corrected my brief: 3e884c14be is the branch's first commit, not a commit on main.
