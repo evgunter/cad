@@ -754,3 +754,31 @@ Signed: (CONTACT orchestrator)
   declared-only designers.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — The declared-only fork goes to Ev (#3422)
+
+- The two designers agreed on the final state in their first reports:
+  - a declaration licenses a coincidence, never a side;
+  - every meeting is read, and only a Rest clears;
+  - one list of meetings, holding each with its backing.
+
+  The one choice left is the curved half. **C1** reads a curved face
+  through its reach box and keeps the M9-2 boss; **C2** refuses and
+  retires it. Both designers lean C1. Reconciliation: none.
+- Each built a wrong clear on main: an I-profile through a slab
+  (planar, with saddle stars reading `Unanalysed`), and a log dipping
+  0.2 m into a wall (curved; arm 1 skips the face a v-on-f record
+  names). Both are in the row.
+- One designer measured the nineteen ratified planar seats: read
+  strictly, they are all Rest.
+- The blinding byte is on `analysis/design-fork/contact-2026-09-29`.
+  One designer ran `ls` on the shared scratchpad once and disclosed
+  it. It read no file there. The other report was written to the
+  scratchpad as `dfork/decl-A-first.txt`, so it may have seen that
+  file name. The name reveals no content, and its report is
+  independent in substance: its own witness, its own measurement.
+- The row stays P0. The repair unit waits on Ev's answer. It is priced
+  H: the ledger, the box reading in `Star`, and the three wrong-clear
+  rows.
+
+Signed: (CONTACT orchestrator)
