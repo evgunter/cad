@@ -2007,9 +2007,9 @@ its shape is not one of these:
 
 - **A composer on the vocabulary type, one home, called by every
   surface that shows the sentence** — `Refusal::affordance`,
-  `::exists_wording`, `::offer_wording` (`session::refuse`), and
-  `ChooserBackend::unusable` (`platform`, spent at two
-  `on_disabled_hover_text` calls in `app`).
+  `::exists_wording`, `::offer_wording`, `::undeclared_wording`
+  (`session::refuse`), and `ChooserBackend::unusable` (`platform`,
+  spent at two `on_disabled_hover_text` calls in `app`).
 - **Composed in the vocabulary's own `Display`, riding the sentence**
   — `Refusal`'s `NoDocumentDirectory` arm, `FaceFrameFault`'s
   `NotOneBody` arm (`session::refuse`).
