@@ -1319,7 +1319,10 @@ mod tests {
         let edit = drafts
             .profile_edit(&doc, profile)
             .expect("the editor holds the form's profile");
-        assert!(!edit.differs_from_base(), "a fresh load has nothing to apply");
+        assert!(
+            !edit.differs_from_base(),
+            "a fresh load has nothing to apply"
+        );
         assert!(sketch::authors_same_loops(&edit.shapes(), &authored));
         let loops = edit.programs(notation).expect("finite");
         let Some(Node::Profile(current)) = doc.node(profile) else {
@@ -1349,10 +1352,16 @@ mod tests {
         assert!(edit.differs_from_base());
         // Held across frames while the document stands still.
         let edit = drafts.profile_edit(&before, profile).expect("held");
-        assert!(edit.differs_from_base(), "the typed number survived a second read");
+        assert!(
+            edit.differs_from_base(),
+            "the typed number survived a second read"
+        );
         let after = applied(&before, edit, notation);
         let edit = drafts.profile_edit(&after, profile).expect("held");
-        assert!(!edit.differs_from_base(), "the applied program is the new base");
+        assert!(
+            !edit.differs_from_base(),
+            "the applied program is the new base"
+        );
         assert!(same_step(edit.loops[0][1], moved_to));
         // Undo: the document the history steps back to.
         let edit = drafts.profile_edit(&before, profile).expect("held");

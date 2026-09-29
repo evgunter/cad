@@ -2,10 +2,12 @@
 id: document-news-has-no-home
 kind: issue
 title: What a tool has to say is one door, but the panes reach it three different ways
-status: open
+status: closed
 opened: 2026-09-05
 priority: P1
-cost: D
+cost: M
+branch: vnews/tool-news-is-a-value
+closed: 2026-09-28
 ---
 
 
@@ -104,3 +106,36 @@ implementation record the program maintains itself. The general
 finding lives once, in
 `work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
 section.
+
+## Closed
+
+`frame::tool_news` takes `&tools::PanelRefusal`, a value built only by
+`ToolKind::refuses` and `FormKind::refuses` (`crates/viewer/src/tools.rs`),
+with a `Display` composed by the same private function `ToolKind::says`
+uses, so a panel's name has one spelling. The door answers
+`Retold::Again` itself: the value is by type a refusal at a panel's
+button, and the same click says it again — the caller no longer
+answers it. A `compile_fail,E0308` doctest on `tool_news` shows a
+`String` does not build.
+
+**The census had moved again.** At the merge base the population was
+eleven, not fourteen: `app.rs`'s two sites had gone to
+`frame::tool_notice(&ToolNotice)`, a typed door that reads `Retold`
+from the event's arm. That door is also why the row's shape — one type
+for `ToolNotice` and `says`' output — was not taken: `ToolNotice`
+already has its own door, and merging the two would put arms that
+answer `Never` behind a door that answers `Again`. The eleven were
+three spellings: `ToolKind::X.says(&error)` (five, `pane/create.rs`),
+`format!("<form>: {error}")` or a literal (four, `pane/create.rs`'s
+add-datum, add-profile and extrude forms) and the same in
+`pane/profile.rs` (two, edit and revert). They are now one:
+`frame::tool_news(&<Kind>::<X>.refuses(&why))`, with the forms named
+by `tools::FormKind`.
+
+One test site handed the door text that was not a tool's —
+`frame_policy.rs`' `a_joined_line_splits_back_into_the_notices_it_was_made_from`
+put a `DisplayFault` and an `AdmissionFault` through it — and now
+builds those with `Message::new`, which is what it meant.
+
+The sibling left: `frame::startup_notices(&[String])`, filed as
+`work/vnews/startup-notices-door-takes-text`.

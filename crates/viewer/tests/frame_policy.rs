@@ -197,8 +197,8 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 /// a reader met a separator that might be a boundary and might be the
 /// notice talking. Unfalsifiable at one notice, wrong at two.
 ///
-/// Both texts here are real faults' own renderings through a real
-/// door, not prose written for the row: `NonRigidFrame` writes a
+/// Both texts here are real faults' own renderings, not
+/// prose written for the row: `NonRigidFrame` writes a
 /// `LIST_SEPARATOR` inside one sentence — the hazard
 /// `work/view/joined-notices-nest-their-own-separator.md` records as
 /// mechanical and present — and `FusedGeometry` writes an em-dash.
@@ -210,11 +210,13 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 /// says why a count passes over text that reads as one item too many.
 #[test]
 fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
-    let nests = frame::tool_news(
+    let nests = frame::Message::new(
+        frame::Subject::Document,
         DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string(),
         frame::Retold::Again,
     );
-    let dashes = frame::tool_news(
+    let dashes = frame::Message::new(
+        frame::Subject::Document,
         AdmissionFault::FusedGeometry {
             instance: RecipeNodeId(3),
             root: RecipeNodeId(9),
@@ -615,8 +617,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         ),
         (
             frame::tool_news(
-                "blend: the held edges are on another body",
-                frame::Retold::Again,
+                &viewer::tools::ToolKind::Blend.refuses(&"the held edges are on another body"),
             ),
             "what a tool has to say",
         ),
@@ -1097,8 +1098,7 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
     let mixed = [
         cursor("the picking paths disagree"),
         frame::tool_news(
-            "blend: the held edges are on another body",
-            frame::Retold::Again,
+            &viewer::tools::ToolKind::Blend.refuses(&"the held edges are on another body"),
         ),
     ];
     let RankedVerdict::Show(shown) = frame::frame_status(&mixed, &acted, None) else {
@@ -1241,17 +1241,17 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
 
 /// **The profiles badge counts, in agreeing words, and says it is the
 /// document's.** One and two are the two nouns; the subject is the
-/// document because no camera move brings an undrawable arc back.
+/// document because no camera move brings an undrawable point back.
 #[test]
 fn the_profiles_badge_counts_what_it_could_not_draw() {
     for (undrawn, label) in [
         (
             1,
-            "profiles: 1 profile with an arc the viewport cannot draw",
+            "profiles: 1 profile with a point the viewport cannot draw",
         ),
         (
             2,
-            "profiles: 2 profiles with an arc the viewport cannot draw",
+            "profiles: 2 profiles with a point the viewport cannot draw",
         ),
     ] {
         let badge = frame::profiles_badge(undrawn).expect("something went undrawn");
@@ -3268,10 +3268,8 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
             node: RecipeNodeId(4),
         },
     });
-    let panel = frame::tool_news(
-        "mate tool: no landed evaluation to derive frames from",
-        frame::Retold::Again,
-    );
+    let panel =
+        frame::tool_news(&ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"));
     let notices = [declined, dropped, panel];
     let acted = [SessionOp::Select(Selection::None)];
 
@@ -3525,6 +3523,60 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
     ];
     for (what, notice, retold) in cases {
         assert_eq!(frame::tool_notice(&notice).retold(), retold, "{what}");
+    }
+}
+
+/// **A panel's refusal is document news in its panel's words**, and
+/// the same click says it again. One seated tool and every form: the
+/// form's name is the sentence's opening, so a form worded as another
+/// goes red by name, and a form added without a row here goes red on
+/// the count.
+#[test]
+fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
+    use viewer::tools::{FormKind, ToolKind};
+
+    let why = "the distance is not a number";
+    let forms = [
+        (
+            FormKind::AddDatum,
+            "add datum: the distance is not a number",
+        ),
+        (
+            FormKind::AddProfile,
+            "add profile: the distance is not a number",
+        ),
+        (FormKind::Extrude, "extrude: the distance is not a number"),
+        (
+            FormKind::EditProfile,
+            "edit profile: the distance is not a number",
+        ),
+        (
+            FormKind::RevertProfile,
+            "revert profile: the distance is not a number",
+        ),
+    ];
+    assert_eq!(forms.len(), FormKind::ALL.len(), "every form has a row");
+    let cases = forms
+        .into_iter()
+        .map(|(form, text)| (format!("{form:?}"), form.refuses(&why), text))
+        .chain([(
+            "a seated tool".to_owned(),
+            ToolKind::Revolve.refuses(&why),
+            "revolve tool: the distance is not a number",
+        )]);
+    for (what, refusal, text) in cases {
+        let message = frame::tool_news(&refusal);
+        assert_eq!(message.text(), text, "{what}: the panel's words");
+        assert_eq!(
+            message.subject(),
+            frame::Subject::Document,
+            "{what}: a refusal at a panel's button answers an act aimed at the document"
+        );
+        assert_eq!(
+            message.retold(),
+            frame::Retold::Again,
+            "{what}: the same click says it again"
+        );
     }
 }
 

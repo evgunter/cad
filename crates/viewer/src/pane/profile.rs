@@ -22,6 +22,7 @@ use crate::frame;
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::Theme;
+use crate::tools::FormKind;
 use crate::widgets::{angle_picker, length_picker, new_row_step, path_step_fields};
 
 impl ViewerBehavior<'_> {
@@ -100,17 +101,14 @@ impl ViewerBehavior<'_> {
                         base: edit.base().clone(),
                         loops,
                     }),
-                    Err(error) => self.notices.push(frame::tool_news(
-                        format!("edit profile: {error}"),
-                        frame::Retold::Again,
-                    )),
+                    Err(error) => self
+                        .notices
+                        .push(frame::tool_news(&FormKind::EditProfile.refuses(&error))),
                 }
             }
             if revert && let Err(error) = edit.revert(doc) {
-                self.notices.push(frame::tool_news(
-                    format!("revert profile: {error}"),
-                    frame::Retold::Again,
-                ));
+                self.notices
+                    .push(frame::tool_news(&FormKind::RevertProfile.refuses(&error)));
             }
         });
         true

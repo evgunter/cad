@@ -103,12 +103,21 @@ impl ToolKind {
         }
     }
 
-    /// **The one composition of a tool's sentence**: what the status
-    /// line shows when this tool has something to say, whether the tool
-    /// said it (a refusal at a commit button) or the frame did (a lost
-    /// pick). Two spellings of this prefix is how the two drift.
+    /// **A tool's sentence**: its name, then what it has to say — a
+    /// panel's prompt, or a tool event's words ([`ToolNotice`]). A
+    /// refusal at its commit button is [`ToolKind::refuses`], composed
+    /// by the same function, so the prefix has one spelling.
     pub fn says(self, what: &impl core::fmt::Display) -> String {
-        format!("{}: {what}", self.label())
+        said(self.label(), what)
+    }
+
+    /// **This tool's panel refusing its commit**, as the value
+    /// [`crate::frame::tool_news`] takes.
+    pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
+        PanelRefusal {
+            panel: Panel::Tool(self),
+            why: why.to_string(),
+        }
     }
 
     /// **What the cursor may pick while this tool is open** — an open
@@ -204,6 +213,85 @@ impl core::fmt::Display for ToolNotice {
             Self::Seated { tool, event } => tool.says(event),
         };
         f.write_str(&said)
+    }
+}
+
+/// The sentence a panel speaks: its name, then what it has to say.
+fn said(label: &str, what: &impl core::fmt::Display) -> String {
+    format!("{label}: {what}")
+}
+
+vocabulary! {
+    /// **A panel that commits an edit without being a seated tool**,
+    /// named by what its button does: the creation pane's add-datum,
+    /// add-profile and extrude forms, and the profile editor's apply and
+    /// revert.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum FormKind {
+        /// The creation pane's add-datum form.
+        AddDatum,
+        /// The creation pane's add-profile form.
+        AddProfile,
+        /// The creation pane's extrude form.
+        Extrude,
+        /// The profile editor's apply.
+        EditProfile,
+        /// The profile editor's revert.
+        RevertProfile,
+    }
+
+    /// Every form, for the suites that sweep them.
+    pub const ALL;
+}
+
+impl FormKind {
+    /// The form's name, as its sentences open.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::AddDatum => "add datum",
+            Self::AddProfile => "add profile",
+            Self::Extrude => "extrude",
+            Self::EditProfile => "edit profile",
+            Self::RevertProfile => "revert profile",
+        }
+    }
+
+    /// **This form refusing its commit**, as the value
+    /// [`crate::frame::tool_news`] takes.
+    pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
+        PanelRefusal {
+            panel: Panel::Form(self),
+            why: why.to_string(),
+        }
+    }
+}
+
+/// Which panel refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Panel {
+    Tool(ToolKind),
+    Form(FormKind),
+}
+
+/// **What a panel's button refused, and which panel's it was** — the
+/// value [`crate::frame::tool_news`] takes. Built only by
+/// [`ToolKind::refuses`] and [`FormKind::refuses`], so its sentence opens
+/// with a panel's name by construction and no other refusal's text can
+/// be handed to that door.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PanelRefusal {
+    panel: Panel,
+    why: String,
+}
+
+impl core::fmt::Display for PanelRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { panel, why } = self;
+        let label = match panel {
+            Panel::Tool(kind) => kind.label(),
+            Panel::Form(form) => form.label(),
+        };
+        f.write_str(&said(label, why))
     }
 }
 

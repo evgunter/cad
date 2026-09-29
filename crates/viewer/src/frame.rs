@@ -245,7 +245,7 @@ use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
 use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
-use crate::tools::ToolNotice;
+use crate::tools::{PanelRefusal, ToolNotice};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -942,7 +942,8 @@ pub fn frame_status(
 /// list. The sweep that routed every writer through the ranking put
 /// four more on it: [`Subject::Camera`] ([`fold_status`]'s refused
 /// fold, delivered at [`crate::pane::viewport::land`]),
-/// [`Subject::Cursor`] ([`crate::idpass::Disagreement::notice`]),
+/// [`Subject::Cursor`] (`idpass::IdNews`'s notices: a disagreement, or
+/// an id said beside a refused ray),
 /// [`Subject::Display`] (the pick index's
 /// refused click and the δ field's two doors, through
 /// [`PICK_INDEX_SEAM`] and [`SCENE_SEAM`]) and [`Subject::Preferences`]
@@ -1512,9 +1513,9 @@ pub fn fold_status(folded: &Folded) -> StatusUpdate {
 /// with.
 ///
 /// This is a policy over a value, not a report: it never SHOWS
-/// anything. What the cursor has to say is
-/// [`crate::idpass::Disagreement`]'s, raised where the two picking
-/// paths are compared.
+/// anything. What the cursor has to say is `idpass::IdNews`'s — a
+/// disagreement, or an id said beside a refused ray — raised where the
+/// two picking paths are compared.
 pub fn cursor_status(step: IdStep) -> StatusUpdate {
     match step {
         IdStep::Hold => StatusUpdate::Keep,
@@ -1711,8 +1712,8 @@ impl Badge {
 /// done for a seam that needs two.
 ///
 /// **What it does not buy.** It covers a seam's own refusal TYPE, so
-/// a door whose input is not one — [`tool_news`], [`startup_notices`]
-/// — spells its subject and says so at the door. And a shared
+/// a door whose input is not one — [`tool_news`]'s panel refusal,
+/// [`startup_notices`]' text — spells its subject at the door. And a shared
 /// [`Subject`] is not a shared seam: the scene (which the δ field's
 /// doors share, [`SCENE_SEAM`]) and the pick index
 /// ([`PICK_INDEX_SEAM`]) are separate seams under
@@ -1777,8 +1778,8 @@ impl SeamSubject for NotIndexed {
 // handed, and the writer hands its refusal over rather than picking.
 // Most are pinned twice over: the door takes one error type, so
 // calling the wrong door does not compile. A door whose input is text
-// rather than a typed refusal, such as `tool_news` or
-// `startup_notices`, is not pinned, and says so at its own doc.
+// rather than a typed refusal, such as `startup_notices`, is not
+// pinned, and says so at its own doc.
 
 /// **What a pick against a missing index says** — the one seam
 /// refusal that stays on the line, and the boundary the channel test
@@ -1958,7 +1959,7 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 /// answer to an operation the user aimed at the document through the
 /// cursor, and moving the pointer does not answer it. The cursor
 /// subject is for a message ABOUT what lies under the pointer, which
-/// is [`crate::idpass::Disagreement`]'s.
+/// is `idpass::IdNews`'s.
 ///
 /// # The certified tie is re-rendered here, and only here
 ///
@@ -2033,33 +2034,37 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
     Message::new(Subject::Document, notice.to_string(), retold)
 }
 
-/// **What a tool has to say** that is not one of its own events — an
-/// authoring panel's refusal, or a sentence formatted at the site.
-/// [`Subject::Document`], retired the way that subject says. A tool's
-/// own events go through [`tool_notice`] instead, whose arms answer
-/// [`Retold`] from the event.
+/// **What a tool has to say** that is not one of its own events: a
+/// panel's refusal at its commit button ([`PanelRefusal`]), a seated
+/// tool's or a form's. [`Subject::Document`], retired the way that
+/// subject says. A tool's own events go through [`tool_notice`]
+/// instead, whose arms answer [`Retold`] from the event.
 ///
-/// **The caller answers [`Retold`]**, because a door that takes text
-/// cannot read from it whether anything will say it again, and a
-/// default here would be [`Message::new`]'s missing default one door
-/// out. A panel's refusal is [`Retold::Again`] — the same click says
-/// it again — and every site today is one.
+/// **[`Retold::Again`], answered here**: the refusal is the answer to a
+/// click on that button, and the same click says it again.
 ///
-/// **A door a type does not pin**, like [`startup_notices`], because
-/// its call sites hand it text — rendered through
-/// [`crate::tools::ToolKind::says`] and the typed forms vocabulary, or
-/// formatted at the site. What it buys
-/// is that every site shares one decision: changing the subject here
-/// changes it at all of them, and a row can see it.
+/// **Type-pinned**: [`PanelRefusal`] is built only by
+/// [`ToolKind::refuses`](crate::tools::ToolKind::refuses) and
+/// [`FormKind::refuses`](crate::tools::FormKind::refuses), so every sentence
+/// through this door opens with a panel's name, and text that is not a
+/// panel's does not build:
 ///
-/// The sites are every `frame::tool_news` call under
-/// `crates/viewer/src`, and no number is given for them. They are a
-/// grep over the panes and the app, not a population any type bounds;
-/// a row could count them by that grep, as `frame_policy.rs` counts
-/// `ViewerApp::store`'s reads, but it would go red at every new site,
-/// and nothing about a new site is wrong.
-pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
-    Message::new(Subject::Document, text, retold)
+/// ```compile_fail,E0308
+/// use viewer::frame::tool_news;
+///
+/// tool_news(&"the camera has no finite projection".to_string());
+/// ```
+///
+/// where a panel's refusal does:
+///
+/// ```
+/// use viewer::frame::tool_news;
+/// use viewer::tools::ToolKind;
+///
+/// tool_news(&ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"));
+/// ```
+pub fn tool_news(refusal: &PanelRefusal) -> Message {
+    Message::new(Subject::Document, refusal.to_string(), Retold::Again)
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
@@ -2521,8 +2526,9 @@ pub fn datums_badge(vanished: usize) -> Option<Badge> {
 ///
 /// A badge, per-frame and unlatched, for [`datums_badge`]'s reasons.
 /// The cause is narrower than a datum's: a profile is drawn from its
-/// validated value at the display tolerance, and what empties it is an
-/// arc the flattener cannot put a point on (`crate::sketch::committed`)
+/// validated value at the display tolerance, and what empties it is a
+/// point the flattener cannot compute — a vertex's own position, an
+/// arc's frame, or a point along an arc (`crate::sketch::committed`)
 /// — a fact about the document at this tolerance, so the subject is
 /// the document and the tone [`Tone::Advisory`]: there is no camera
 /// move that brings it back.
@@ -2531,7 +2537,7 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
         let noun = if undrawn == 1 { "profile" } else { "profiles" };
         Badge::read(
             Subject::Document,
-            format!("profiles: {undrawn} {noun} with an arc the viewport cannot draw"),
+            format!("profiles: {undrawn} {noun} with a point the viewport cannot draw"),
             Tone::Advisory,
         )
     })
