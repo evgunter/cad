@@ -141,3 +141,7 @@ Pinned by `tests/frame_policy.rs`'s progress table (six points) and
 and by `app.rs`'s `the_toolbar_draws_each_progress_state_once`, which
 plants each `Outstanding` and index state in a headless app and reads
 the words and recourse the toolbar paints.
+
+A third reader of the index's absence, `pane/create.rs`'s
+`all_edges_row`, gives it a sentence that ignores the seam. It is
+filed as `select-all-edges-names-one-reason-for-three-absences`.
