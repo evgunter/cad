@@ -238,7 +238,7 @@ use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
-use crate::pickcache::NotIndexed;
+use crate::pickcache::{IndexSeam, NotIndexed};
 use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
@@ -2580,7 +2580,20 @@ pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
 /// given the toolbar two indicators that can both be lit, for one
 /// wait, with no rule anywhere saying which the reader should believe.
 /// The rule is here instead, and it is a total function of what the
-/// session owes and whether the index seam is busy.
+/// session owes and what the index seam is doing.
+///
+/// **Two of its names are [`Outstanding`]'s, because they are the same
+/// facts.** `Progress::Evaluating` holds exactly when
+/// `Outstanding::Evaluating` does, and `Progress::Canceled` exactly
+/// when `Outstanding::Canceled` does; `Current` is the one session
+/// state the index seam splits, into [`Self::Indexing`] and no state
+/// at all. Where two vocabularies share a spelling for two meanings
+/// the spelling is the defect, and [`RankedVerdict`] exists to remove
+/// one; here a second spelling would be the defect, telling a reader
+/// the states differ where they do not. Nor is this [`Outstanding`]
+/// beside an [`IndexSeam`]: an evaluation outranks the index build
+/// behind it, so the six pairs are five states, and the one pair the
+/// chrome does not tell apart has no variant to be drawn from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Progress {
     /// A run is in flight: the picture is older than the document and
@@ -2590,10 +2603,9 @@ pub enum Progress {
     /// running** — what a cancel leaves behind. A spinner over that
     /// alone would be a lie about work nobody is doing.
     ///
-    /// `indexing` is whether a seam BELOW the evaluation is
-    /// nonetheless busy — an index build, or the display fit the index
-    /// waits on — and it is carried here rather than answered by a
-    /// second indicator because this is the one state where the seams
+    /// `index` is whether a seam BELOW the evaluation is nonetheless
+    /// busy, and it is carried here rather than answered by a second
+    /// indicator because this is the one state where the seams
     /// disagree about whether anything is happening: a build submitted
     /// before the cancel is still running, and it will change the
     /// picture. The rule the payload buys is **the spinner follows the
@@ -2602,8 +2614,8 @@ pub enum Progress {
     /// indexed* refusal agrees with the toolbar instead of describing
     /// the same moment a second way.
     Canceled {
-        /// Whether an index build is in flight behind the cancel.
-        indexing: bool,
+        /// Whether an index build is on its way behind the cancel.
+        index: IndexSeam,
     },
     /// The document is evaluated and its index is being built: the
     /// picture is the last one that finished, and picks are refused
@@ -2611,8 +2623,8 @@ pub enum Progress {
     Indexing,
 }
 
-/// The one state, from what the session owes and what the pick cache
-/// is doing.
+/// The one state, from what the session owes and what the index seam
+/// is doing ([`crate::pickcache::PickCache::index_seam`]).
 ///
 /// **Evaluation outranks indexing**, because an index built for a
 /// generation the session has already moved past is about to be
@@ -2620,12 +2632,12 @@ pub enum Progress {
 /// without cancel means both can be in flight at once, and naming the
 /// index build there would tell a reader the wait was nearly over when
 /// a whole evaluation is still ahead of it.
-pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
-    match outstanding {
-        Outstanding::Evaluating => Some(Progress::Evaluating),
-        Outstanding::Canceled => Some(Progress::Canceled { indexing }),
-        Outstanding::Current if indexing => Some(Progress::Indexing),
-        Outstanding::Current => None,
+pub fn progress(outstanding: Outstanding, index: IndexSeam) -> Option<Progress> {
+    match (outstanding, index) {
+        (Outstanding::Evaluating, _) => Some(Progress::Evaluating),
+        (Outstanding::Canceled, index) => Some(Progress::Canceled { index }),
+        (Outstanding::Current, IndexSeam::Building) => Some(Progress::Indexing),
+        (Outstanding::Current, IndexSeam::Idle) => None,
     }
 }
 

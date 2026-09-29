@@ -380,9 +380,9 @@ plausible, and a row that covers the consumer by repeating the same
 positional convention agrees with a transposed call site rather than
 contradicting it. So `DocSession::outstanding` reads the two by name —
 there is no argument list for them to be positions in — and
-`frame::progress` takes the folded value beside the index seam's
-`bool`, two arguments of different types that no call site can
-transpose. The fold itself is covered by driving a session into each of
+`frame::progress` takes the folded value beside the index seam's own,
+`pickcache::IndexSeam`, two arguments of different types that no call
+site can transpose. The fold itself is covered by driving a session into each of
 the three states (`tests/eval_seam.rs`), because a row that names the
 states says nothing about which session state produces which.
 
@@ -414,8 +414,17 @@ one that decides.
   direction they cannot disagree — an attempt is recorded in the step
   that submits it and the seam holds the request until the answer
   `pump` takes straight to `land`.
-- The fit's two reads in `app` are `FitService::busy` directly; there
-  is no second record to consult.
+- The fit's reads are `FitService::busy` directly; there is no second
+  record to consult.
+
+**The index seam is the one fact two of those records answer
+together.** The first build of a document waits on the fit that prices
+its δ, and while it waits `PickCache::sync` is handed no δ and holds no
+attempt, so the cache's record reads idle through a wait the build is
+already part of. `PickCache::index_seam` reads both and is the one
+door `IndexSeam` comes from; the toolbar's progress state and a refused
+pick (`pickcache::unindexed`) are each handed its value, and neither
+takes a `bool` a consumer could fill from the cache's record alone.
 
 **A seam that has stopped answering is no longer one of the states any
 of this covers.** It used to be: reporting the cache's record alone

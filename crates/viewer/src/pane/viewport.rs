@@ -1815,7 +1815,7 @@ mod tests {
 
         let click = [input::PickAction::Select([10.0, 10.0])];
         assert_eq!(
-            pickcache::unindexed(&click, Some(&landed), false),
+            pickcache::unindexed(&click, Some(&landed), pickcache::IndexSeam::Idle),
             Some(NotIndexed::AnotherPicture),
             "so the click gets the picture's answer, which is a refusal",
         );
@@ -1826,7 +1826,7 @@ mod tests {
                     input::PickAction::ClearHover,
                 ],
                 Some(&landed),
-                false,
+                pickcache::IndexSeam::Idle,
             ),
             None,
             "and a hover, pushed every frame the pointer is inside the \

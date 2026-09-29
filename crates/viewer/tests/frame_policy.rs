@@ -30,12 +30,14 @@ use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, HitTestError, NodePickError};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
-use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
+use viewer::evalseam::{
+    FitService, IndexDone, IndexRequest, IndexService, InlineFitter, InlineIndexer, MemoReport,
+};
 use viewer::frame::{self, RankedVerdict, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
-use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
+use viewer::pickcache::{self, CacheStep, IndexLanding, IndexSeam, PickCache};
 use viewer::pickindex::{self, IdMap, PictureKey};
 use viewer::platform;
 use viewer::prefs::{Absent, Prefs, PrefsStore};
@@ -2619,16 +2621,16 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
     let click = [input::PickAction::Select([10.0, 10.0])];
     assert_eq!(
-        pickcache::unindexed(&click, None, true),
+        pickcache::unindexed(&click, None, IndexSeam::Building),
         Some(pickcache::NotIndexed::Building),
     );
     assert_eq!(
-        pickcache::unindexed(&click, None, false),
+        pickcache::unindexed(&click, None, IndexSeam::Idle),
         Some(pickcache::NotIndexed::Absent),
         "a refused build is not a build that is still running, and the \
          sentence must not promise an answer that is not coming",
     );
-    for indexing in [true, false] {
+    for seam in [IndexSeam::Building, IndexSeam::Idle] {
         assert_eq!(
             pickcache::unindexed(
                 &[
@@ -2636,12 +2638,12 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
                     input::PickAction::ClearHover,
                 ],
                 None,
-                indexing,
+                seam,
             ),
             None,
             "an observation asked every frame is not a refusal to report",
         );
-        assert_eq!(pickcache::unindexed(&[], None, indexing), None);
+        assert_eq!(pickcache::unindexed(&[], None, seam), None);
     }
     assert_ne!(
         pickcache::NotIndexed::Building.to_string(),
@@ -2680,7 +2682,7 @@ fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
     let click = [input::PickAction::Select([10.0, 10.0])];
 
     assert_eq!(
-        pickcache::unindexed(&click, Some(&held), false),
+        pickcache::unindexed(&click, Some(&held), IndexSeam::Idle),
         Some(pickcache::NotIndexed::AnotherPicture),
         "an index is in hand, so the refusal is not about an absence",
     );
@@ -2691,7 +2693,7 @@ fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
                 input::PickAction::ClearHover,
             ],
             Some(&held),
-            false,
+            IndexSeam::Idle,
         ),
         None,
         "and the act filter is the same one: a hover is not news here \
@@ -2718,30 +2720,89 @@ fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
 /// owe, times the index seam's two.
 #[test]
 fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
-    assert_eq!(frame::progress(Outstanding::Current, false), None);
+    assert_eq!(frame::progress(Outstanding::Current, IndexSeam::Idle), None);
     assert_eq!(
-        frame::progress(Outstanding::Evaluating, false),
+        frame::progress(Outstanding::Evaluating, IndexSeam::Idle),
         Some(frame::Progress::Evaluating)
     );
     assert_eq!(
-        frame::progress(Outstanding::Canceled, false),
-        Some(frame::Progress::Canceled { indexing: false }),
+        frame::progress(Outstanding::Canceled, IndexSeam::Idle),
+        Some(frame::Progress::Canceled {
+            index: IndexSeam::Idle
+        }),
         "a spinner over no running work would be a lie",
     );
     assert_eq!(
-        frame::progress(Outstanding::Canceled, true),
-        Some(frame::Progress::Canceled { indexing: true }),
+        frame::progress(Outstanding::Canceled, IndexSeam::Building),
+        Some(frame::Progress::Canceled {
+            index: IndexSeam::Building
+        }),
         "a cancel with an index build still running is one state that \
          carries the work, not a second indicator beside it",
     );
     assert_eq!(
-        frame::progress(Outstanding::Current, true),
+        frame::progress(Outstanding::Current, IndexSeam::Building),
         Some(frame::Progress::Indexing)
     );
     assert_eq!(
-        frame::progress(Outstanding::Evaluating, true),
+        frame::progress(Outstanding::Evaluating, IndexSeam::Building),
         Some(frame::Progress::Evaluating),
         "an index for a superseded generation is about to be discarded",
+    );
+}
+
+/// **The index seam is building while EITHER record says so**: the
+/// cache's outstanding attempt, or the fit its first build waits on.
+///
+/// The last row is the state a document opens into. The fit is pricing
+/// the δ, so the cache is handed none and holds no attempt — its own
+/// record reads idle — and a click there is still owed the sentence
+/// that says an index is coming, the one the toolbar's `indexing…`
+/// carries as its hover.
+#[test]
+fn the_index_seam_is_building_through_the_fit_its_first_build_waits_on() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let idle_fit = InlineFitter::new();
+    let mut busy_fit = InlineFitter::new();
+    busy_fit.submit(
+        session
+            .fit_request(common::plate_delta())
+            .expect("a landed plate has a body to fit"),
+    );
+    assert!(busy_fit.busy(), "the fixture holds a fit in flight");
+
+    let mut idle = PickCache::inline();
+    assert!(!idle.indexing());
+    assert_eq!(idle.index_seam(&idle_fit), IndexSeam::Idle);
+
+    let mut asked = PickCache::inline();
+    assert_eq!(
+        asked.sync(session.index_inputs(), Some(common::plate_delta())),
+        CacheStep::Submitted
+    );
+    assert_eq!(
+        asked.index_seam(&idle_fit),
+        IndexSeam::Building,
+        "an outstanding build is building with no fit behind it",
+    );
+
+    assert_eq!(idle.sync(session.index_inputs(), None), CacheStep::Nothing);
+    assert!(
+        !idle.indexing() && idle.index().is_none(),
+        "while the δ is being priced the cache holds nothing at all",
+    );
+    assert_eq!(
+        idle.index_seam(&busy_fit),
+        IndexSeam::Building,
+        "and the seam is building anyway: the fit is the build's first step",
+    );
+    let click = [input::PickAction::Select([10.0, 10.0])];
+    assert_eq!(
+        pickcache::unindexed(&click, idle.index(), idle.index_seam(&busy_fit)),
+        Some(pickcache::NotIndexed::Building),
+        "so a click in that window is told an index is coming, not that \
+         none is being built",
     );
 }
 
