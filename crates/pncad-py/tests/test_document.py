@@ -210,6 +210,11 @@ class TestNodeKindReadDoor(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.node_kind(stray[-1])
         self.assertEqual(caught.exception.variant, "unknown_node")
+        # The recourse is this read's own: no edit was made, so the
+        # edit door's "aim the edit" would be a recourse for nobody.
+        message = str(caught.exception)
+        self.assertIn("Recourse: ask for the kind of a node this document holds", message)
+        self.assertNotIn("aim the edit", message)
 
 
 class TestEvaluation(unittest.TestCase):

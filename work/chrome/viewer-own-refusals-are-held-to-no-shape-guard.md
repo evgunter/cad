@@ -35,3 +35,17 @@ it two ways.
 A roster over every `Refusal` arm except `Edit` (which the edits suite
 owns), on a representative payload, held to `problems` with the same
 must-fire admission lists; then each arm rewritten at its source.
+
+## Two viewer doors that forward an `EditError` nobody typed
+
+(EDIT, PR 3490's fix pass, sweeping every door that forwards an
+`EditError`: `EditError::problem` renders the refusal without the edit
+door's recourse, for a door that states its own.)
+
+- `Refusal::ProfileEditOrder` (`crates/viewer/src/session/refuse.rs`)
+  puts an intermediate one-argument write's whole refusal in
+  parentheses. The viewer generated that write, so the edit door's
+  recourse is not the user's; the arm's own sentence ends without one.
+- `SceneDocError::Edit` (`crates/viewer/src/scene.rs`) forwards the
+  edit door's whole sentence for the spike scene's fixed literals,
+  which only a kernel defect refuses.

@@ -538,8 +538,7 @@ impl core::fmt::Display for NamingError {
                  ambiguity K below 2), so two coincidences in a row could be decided apart"
             ),
             Self::Escalated { predicate, source } => {
-                let what = super::discriminate::decision_words(predicate)
-                    .unwrap_or(geom_core::UNNAMED_DECISION);
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(
                     f,
                     "no name can be decided because {what} is too close to call: {source}"

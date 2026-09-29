@@ -2624,9 +2624,9 @@ fn edit_inner_variant_tags_are_stable() {
 /// attributes it CARRIES, in publication order, with the rest `None`.
 ///
 /// It is here rather than in `tests/*.py` because most of these arms
-/// have no Python door — the bound `DocEdit` surface is ten verbs, and
-/// a rebind, a witness, an appearance write or an expression-path edit
-/// is not among them. A rename or a re-slotting of any arm's payload
+/// have no Python door: the bound `DocEdit` surface binds a rebind
+/// (`DocEdit.rebind`), but not a witness, an appearance write or an
+/// expression-path edit. A rename or a re-slotting of any arm's payload
 /// is a breaking change to the bindings whether or not a Python row
 /// can provoke it, so it is pinned where it can be provoked: by
 /// construction, on the row with no interpreter.

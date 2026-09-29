@@ -801,16 +801,10 @@ pub const UNNAMED_DECISION: &str = geom_core::UNNAMED_DECISION;
 /// constructor's gates, which the path door routes to a sentence of
 /// their own and which validation never decides;
 /// `recourse_roster::every_decided_name_has_a_subject_or_a_sentence`
-/// holds that against the names `src` decides.
+/// holds that against the names `src` decides. A flip report states
+/// these words too, through `editor-core`'s one lookup over every
+/// owner's words.
 #[must_use]
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
 pub fn decision_subject(predicate: &str) -> Option<&'static str> {
     Some(match predicate {
         "arc_apex_identity" => "whether two arc apexes are one point",

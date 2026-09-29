@@ -810,18 +810,20 @@ pub enum UpstreamCause {
     },
 }
 
-/// What a flipped predicate was deciding, in words: the subject of a
-/// flip report. The predicate's name is routing and rides `Debug`; a
-/// predicate with no words here reads as `geom_core::UNNAMED_DECISION`.
+/// The subject of a flip report: the signed margin a predicate
+/// decides on, named by what it decides (`crate::decision::words`).
+/// What flips is that margin's sign, so "from negative to positive"
+/// reads as the margin's, not as the decision's. The predicate's name
+/// is routing and rides `Debug`; a predicate with no words reads as
+/// `geom_core::UNNAMED_DECISION`.
 struct FlipSubject<'a>(&'a str);
 
 impl core::fmt::Display for FlipSubject<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let words = match self.0 {
-            "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
-            other => crate::names::decision_words(other).unwrap_or(geom_core::UNNAMED_DECISION),
-        };
-        f.write_str(words)
+        match crate::decision::words(self.0) {
+            Some(words) => write!(f, "the margin deciding {words}"),
+            None => write!(f, "the margin of {}", geom_core::UNNAMED_DECISION),
+        }
     }
 }
 

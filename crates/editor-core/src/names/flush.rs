@@ -371,8 +371,9 @@ pub enum DeclareError {
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM in the declare sugar's own vocabulary — findings, the
 // node it would insert, the id an insert owes. The `Edit` arm forwards
-// the document edit's own refusal, which already carries its node and
-// its recourse; re-stating it here would give one refusal two voices.
+// the document edit's problem, and states the recourse itself: the
+// caller passed findings, not the node the edit door's recourse is
+// about.
 impl core::fmt::Display for DeclareError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -381,10 +382,28 @@ impl core::fmt::Display for DeclareError {
                  would only pretend something was declared; pass the findings the inspection \
                  actually returned",
             ),
-            Self::Edit(error) => write!(f, "declare: the document edit refused: {error}"),
-            Self::NoMintedId => f.write_str(
-                "declare: the insert applied but minted no node id — an insert always mints \
-                 one, so this is a kernel bug",
+            Self::Edit(error) => {
+                write!(f, "declare: the document edit refused: {}", error.problem())?;
+                match error {
+                    // A finding names what the evaluation it came from
+                    // held; a document edited since may not hold it.
+                    EditError::DeclareNamesMissingNode { .. }
+                    | EditError::NameStepNeverMinted { .. }
+                    | EditError::ReadSiteMissingNode { .. } => f.write_str(
+                        ". Recourse: declare findings inspected from this document as it now \
+                         stands",
+                    ),
+                    // A `Declare` node has no inputs, slots or
+                    // parameters, and moves no cluster: nothing else
+                    // the insert checks can refuse it.
+                    _ => write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING),
+                }
+            }
+            Self::NoMintedId => write!(
+                f,
+                "declare: the insert applied but minted no node id, and an insert always mints \
+                 one. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
         }
     }

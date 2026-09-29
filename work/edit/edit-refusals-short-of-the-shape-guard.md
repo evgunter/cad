@@ -22,17 +22,19 @@ standard (`work/chrome/error-and-check-text-overflows-its-region.md`,
 part never to drop, and where there is no way through the sentence
 says so.
 
-These rows, raised through `EditError` (`crates/editor-core/src/edit.rs`) on the status line, and a part's failure in the feature tree (`crates/editor-core/src/eval/parts.rs`), render with none. Each is admitted
-by exact id, under the comment naming this file:
+These rows still render with none. Each is admitted by exact id, under
+the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  6 feature-tree rows (`Part/PartProduct` left the list when its
-  sentence gained a recourse,
+  6 feature-tree rows, a part's failure (`crates/editor-core/src/eval/parts.rs`):
+  `Part/DepthExceeded`, `Part/NoResolver`, `Part/ReferenceCycle` and
+  `Part/Unresolved` over its three faults (`Part/PartProduct` left the
+  list when its sentence gained a recourse,
   `part-product-refusal-draws-the-gathers-stage-prefix`).
 - `crates/viewer/tests/refusal_concision_edits.rs`, `FILED_NO_RECOURSE`:
-  65 status-line rows.
-
-Families: `Edit/AppearanceNamesMissingNode`, `Edit/AppearanceNotSet`, `Edit/AppearanceWrongKind`, `Edit/AssertionDimension`, `Edit/AssertionTarget`, `Edit/ContinuousParamCannotBeCount`, `Edit/DeclareInputNotDeclare`, `Edit/DeclareNamesMissingNode`, `Edit/DeleteWouldDangle`, `Edit/Dimension`, `Edit/DocParamCountHasNoDistribution`, `Edit/DocParamCountHasNoUnit`, `Edit/DocParamNotDeclared`, `Edit/DocParamUnitMismatch`, `Edit/DocParamValueKindMismatch`, `Edit/DuplicateInput`, `Edit/DuplicateWitnessEntry`, `Edit/EmptyPlacementList`, `Edit/EmptyWitnessBulk`, `Edit/EvaluationOfAnotherDocument`, `Edit/ImproperPlacement`, `Edit/InvalidDistribution`, `Edit/InvalidTolerance`, `Edit/MaintenanceRefused`, `Edit/MaintenanceUnrecorded`, `Edit/MateRefused`, `Edit/MeasureMalformed`, `Edit/MetaNonFinite`, `Edit/MetaNotSet`, `Edit/MetaUnversioned`, `Edit/NameUnresolvedInEvaluation`, `Edit/NonFiniteAlignment`, `Edit/NonFiniteDocParam`, `Edit/NonFinitePlacement`, `Edit/NotStructuralSlot`, `Edit/PathOffTree`, `Edit/PayloadDocParamDimension`, `Edit/PayloadUnknownDocParam`, `Edit/PinUnchanged`, `Edit/PlacementAxis`, `Edit/PlacementOnNonInstance`, `Edit/PlacementRuleMismatch`, `Edit/ReadSiteMissingNode`, `Edit/RebindAppearanceCollision`, `Edit/RebindIdentity`, `Edit/RebindKindMismatch`, `Edit/RebindMetadataCollision`, `Edit/RebindNoReferences`, `Edit/RebindTargetMissingNode`, `Edit/RebindUnknownName`, `Edit/RepeatedDesignation`, `Edit/Roots`, `Edit/SelectionNotCanonical`, `Edit/SetMembersOnNonList`, `Edit/SlotDimensionMismatch`, `Edit/SlotDocParamDimension`, `Edit/SlotUnknownDocParam`, `Edit/StructuralSlotNeedsStructuralEdit`, `Edit/TooFewMembers`, `Edit/UnknownNode`, `Edit/UnknownSlot`, `Edit/UnresolvedInput`, `Edit/UpdateOnNonInstance`, `Edit/WitnessOnNonSketch`, `Edit/WouldCycle`, `Part`.
+  7 status-line `EditError` placement arms, held for the placement unit
+  (`## Built` names them). Every other status-line arm states its
+  recourse (PR 3490).
 
 ## A part's wrapper
 
@@ -54,13 +56,10 @@ goes red.
 ## A predicate's name on screen (CHROME fix pass, PR 3457)
 
 A predicate's static name is routing: `geom_core::IndeterminatePayload`
-no longer renders it, and every escalation now says in words what was
-being decided (`test_utils::refusal::subjectless_escalations`). These
-sites still put a name in the sentence; each wants the decision in
-words, with the name left to `Debug`:
-
-- `crates/editor-core/src/resolve/mod.rs`, the three flip reports:
-  "predicate {predicate} flipped from {from} to {to} …".
+does not render it, and every escalation says in words what was being
+decided (`test_utils::refusal::subjectless_escalations`). The three flip
+reports in `crates/editor-core/src/resolve/mod.rs` say it too
+(`FlipSubject`), and leave the name to `Debug`.
 
 ## Ruled and spec'd (2026-09-29, EDIT orchestrator) — the status-line half, single review
 
@@ -109,13 +108,16 @@ this row, so it stays open, and the unit sets the `## Built` section.
 
 ## Built (2026-09-29, PR 3490) — the status-line half
 
-- **56 `EditError` arms now state a recourse.** Each was read against its raise site first. 54 are labelled `Recourse:`. The two count arms (`DocParamCountHasNoUnit`, `DocParamCountHasNoDistribution`) end "There is no way through", because no edit gives a count a unit or a distribution.
-- **Forwarded faults keep their own sentence.** Where the fault is shared with the load door (`RootFault`, `DistributionFault`, `SlotDimensionFault`, `MeasureNodeFault`, `DimensionError`, `MetaVersionError`), the recourse sits in the `EditError` wrapper. `Roots` and `InvalidDistribution` match on the fault.
-- **Their 56 `FILED_NO_RECOURSE` entries are gone.** The roster gained five rows that render `Roots` and `InvalidDistribution` over their other fault arms.
-- **The three flip reports in `resolve/mod.rs`** say the decision in words (`FlipSubject`, over `names::discriminate::decision_words`) and leave the predicate's name to `Debug`.
+- **56 `EditError` arms state a recourse.** Each was read against its raise site first, and each is labelled `Recourse:`. The two count arms (`DocParamCountHasNoUnit`, `DocParamCountHasNoDistribution`) name redeclaring the parameter continuous, which the create-or-replace door accepts. Where a slot reads the count as a count, that redeclaration refuses with `SlotDocParamDimension`'s own recourse, which also gets through (`edit_refusal_recourse.rs` follows both).
+- **A recourse is written once per phrase** (`HELD_NODE`, `NAME_A_HELD_ENTITY`, `OR_A_DECLARED_PARAM`, `CLEAR_ONE_FIRST`, `COUNT_REDECLARED`), and each says what to do rather than restating the rule (`SlotDimensionMismatch`, `InvalidTolerance`, `NominalOutsideSupport`).
+- **Forwarded faults keep their own sentence.** Where the fault is shared with the load door (`RootFault`, `DistributionFault`, `SlotDimensionFault`, `MeasureNodeFault`, `DimensionError`, `MetaVersionError`), the recourse sits in the `EditError` wrapper. `Roots` and `InvalidDistribution` match on the fault. No edit door raises `InvalidDistribution` over `NonFinite` (`distribution_fault_error` routes it to `NonFiniteDocParam`), so that arm ends in the kernel-defect ending and has no roster row.
+- **The roster derives its fault rows** from witness chains whose matches are exhaustive, so a new `RootFault` or `DistributionFault` arm does not compile without a place in the chain or a stated reason for none.
+- **A door that forwards an edit nobody authored states its own recourse.** `EditError::problem` renders the refusal without its recourse. `SplitError::PartEdit`/`RemainderEdit` and `InlineError::Edit` render that problem, then their own ending, arm by arm (`refactor.rs`, `ReplayTail`): rebind a forward reference to an earlier node, clear what this document sets on the instance's name, or give the call a resolver; every other arm is the kernel-defect ending. The secondary doors do the same: Python's `Doc.node_kind`, the viewer's `ReplayError` (a damaged file or a defect), `RangeRefusal::Derivation` (a defect), and `DeclareError::Edit` (stale findings, or a defect).
+- **Flip reports read one lookup** (`crates/editor-core/src/decision.rs`) over each owner's words: `names::decision_words`, `eval::decision_words`, `topo::decision_words` and `profile::decision_subject`. They name the margin whose sign flipped ("the margin deciding … flipped from negative to positive"). `edit_refusal_recourse::every_predicate_a_subtract_logs_has_words_or_a_reason` holds every predicate a plain subtract logs to words or a reasoned `WORDLESS` entry; the unworded ones are filed as `flip-reports-name-no-decision-for-most-predicates`.
+- **The status-line `FILED_NO_RECOURSE` entries are gone** except the seven placement arms.
 
 **What remains on this row:**
-- The eight feature-tree rows (`refusal_concision_chains.rs`), which wait for #3482.
+- The six feature-tree rows (`refusal_concision_chains.rs`, the `Part` family).
 - The seven placement arms held for `placement-is-spelled-three-ways-node-registry-and-rule`: `MaintenanceUnrecorded`, `ImproperPlacement`, `NonFinitePlacement`, `PlacementOnNonInstance`, `PlacementAxis`, `PlacementRuleMismatch`, `EmptyPlacementList`.
 
 **Corrections to this row:**

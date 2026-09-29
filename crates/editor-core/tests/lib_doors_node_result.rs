@@ -524,7 +524,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::Vanished {
                 name: name(EntityKind::Face),
                 diagnosis: Diagnosis::PredicateFlip {
-                    predicate: "coincidence",
+                    predicate: "name_frag_side_of",
                     from: geom_core::Sign::Zero,
                     to: geom_core::Sign::Positive,
                     source: editor_core::FlipSource::VerdictLog,
@@ -535,7 +535,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             &[
                 "face name minted by node 5",
                 "no longer resolves",
-                "an unnamed decision flipped",
+                "the margin deciding the side of a cut a face lies on flipped from zero to positive",
             ],
         ),
         (

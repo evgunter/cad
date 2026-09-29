@@ -358,23 +358,20 @@ fn declare_error_display_names_its_content_not_its_struct() {
             DeclareError::NoFindings,
             vec!["no findings", "records no intent"],
         ),
-        // The wrapping arm forwards the document edit's own refusal,
-        // which already carries its slot and its recourse.
+        // The wrapping arm forwards the document edit's problem and
+        // states its own recourse: the caller passed findings, and the
+        // edit door's "name an entity" is about a node nobody wrote.
         (
-            DeclareError::Edit(EditError::SlotDimensionMismatch {
-                slot: SlotId::Radius,
-                expected: Dimension::Length,
-                found: Dimension::Angle,
-            }),
+            DeclareError::Edit(EditError::DeclareNamesMissingNode { name: face_name() }),
             vec![
                 "the document edit refused",
-                "needs a length expression",
-                "got an angle",
+                "refers to a node that is not live",
+                "Recourse: declare findings inspected from this document as it now stands",
             ],
         ),
         (
             DeclareError::NoMintedId,
-            vec!["minted no node id", "kernel bug"],
+            vec!["minted no node id", geom_core::KERNEL_DEFECT_ENDING],
         ),
     ];
     assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
@@ -1443,8 +1440,8 @@ fn a_predicate_flip_names_its_signs_as_words() {
             source: editor_core::FlipSource::VerdictLog,
         },
         &[
-            "the side of a cut a face lies on",
-            "flipped from positive to negative",
+            "the margin deciding the side of a cut a face lies on flipped from positive to \
+             negative",
         ],
         // Every `Sign`, not the two this row happens to construct: a
         // rendering that leaked `Zero` would be just as much a dump.
@@ -1457,16 +1454,18 @@ fn a_predicate_flip_names_its_signs_as_words() {
         .concat(),
     );
     // A predicate with no words says so in the kernel's one phrase for
-    // it, never by its name.
+    // it, never by its name: the volume backstop, wordless on purpose
+    // (`edit_refusal_recourse::WORDLESS` says why).
     let unnamed = Diagnosis::PredicateFlip {
-        predicate: "coincidence",
+        predicate: "volume_backstop",
         from: geom_core::predicate::Sign::Zero,
         to: geom_core::predicate::Sign::Positive,
         source: editor_core::FlipSource::VerdictLog,
     }
     .to_string();
     assert!(
-        unnamed.starts_with(geom_core::UNNAMED_DECISION) && !unnamed.contains("coincidence"),
+        unnamed.starts_with(&format!("the margin of {}", geom_core::UNNAMED_DECISION))
+            && !unnamed.contains("volume_backstop"),
         "{unnamed}"
     );
 }
@@ -1489,8 +1488,8 @@ fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
             },
         },
         &[
-            "the side of a cut a face lies on",
-            "flipped from positive to negative",
+            "the margin deciding the side of a cut a face lies on flipped from positive to \
+             negative",
             &face_name().to_string(),
             "recovered by re-running the pair at diagnosis time",
             "one of the two runs recorded no side verdict at the name's minting node",
@@ -1689,8 +1688,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 to: Sign::Positive,
                 source: editor_core::FlipSource::VerdictLog,
             },
-            "which side of a face's plane a point lies on flipped from negative to positive on \
-             the name's derivation path"
+            "the margin deciding which side of a face's plane a point lies on flipped from \
+             negative to positive on the name's derivation path"
                 .to_owned(),
         ),
         (
@@ -1725,8 +1724,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 to: Sign::Positive,
             }),
             format!(
-                "which side of a face's plane a point lies on flipped from negative to positive \
-                 at node 10{tail}"
+                "the margin deciding which side of a face's plane a point lies on flipped from \
+                 negative to positive at node 10{tail}"
             ),
         ),
         (
@@ -2709,9 +2708,12 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         let clause = at_load
             .strip_prefix("node 7: ")
             .unwrap_or_else(|| panic!("the load door names the node first: {at_load}"));
+        assert_eq!(at_edit.problem().to_string(), clause);
         assert_eq!(
             at_edit.to_string(),
-            format!("{clause}. Recourse: give the slot a length expression")
+            format!(
+                "{clause}. Recourse: write it from length literals and parameters declared length"
+            )
         );
     }
 }
