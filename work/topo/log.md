@@ -2507,3 +2507,36 @@ PR 3467 under the ruling:
 
 It builds on the lane's warm target. Tier after delivery: SINGLE,
 full.
+
+## PR 3472's review: NOT-MERGEABLE-AS-IS; fix pass dispatched (2026-09-29)
+
+The single full review of `a1fed5f736` (270,871 tokens, 147 tools,
+45 min, harness; archived privately) confirmed the non-strut proof by
+execution. It found no over-refusal across about 326k calls on valid
+bodies, or anywhere under an instrumented hook over five crates'
+suites, and the check's mutants red the rows. One MAJOR, three MINOR,
+five NOTE, nine style notes.
+
+- **MAJOR (accepted):** the strut seam's premise is false.
+  - A strut on a torn orbit returns `Ok` and splices its new `he_plus`
+    into the torn orbit (`OrbitForeignMember`), on the torn strutted
+    segment and on the cube.
+  - In the tear search, 120 of 370 torn-walk strut calls put a minted
+    key in an orbit error.
+  - The PR's own rationale for refusing past `he2` applies at a
+    zero-length run, so struts now prove the walk too.
+- **Accepted:**
+  - Q1: one helper for the walk check, shared with `kev_plan`.
+  - The read-side row gains the missed `edges_of_vertex` /
+    `faces_of_vertex` callers in sweep, and the rho-shaped-merge
+    residue (NOTE 4).
+  - The false "defined twice" claim, and the unscoped "never panics".
+  - A row pinning `OrbitBroken` ahead of the `prev`-link `StaleKey`.
+  - The unverifiable seed-57 comment.
+  - `null.rs`'s restated site list.
+- **Not ruled this pass:** `OrbitBroken { he }` naming the origin
+  rather than the stray member, and the string-selected control door.
+
+The fix pass is dispatched on `topo/mev-fan-orbit-proof` with the
+reviewer's probes to adopt. After it: close, log, merge (single tier,
+no DR row).
