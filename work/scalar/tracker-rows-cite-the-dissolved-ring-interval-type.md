@@ -2,7 +2,9 @@
 id: tracker-rows-cite-the-dissolved-ring-interval-type
 kind: issue
 title: Open rows on twelve other slates still name RingInterval, which RING-3 dissolved into Interval
-status: open
+status: review
+branch: scalar/ring-cites
+pr: 3468
 opened: 2026-09-29
 priority: P4
 cost: E
