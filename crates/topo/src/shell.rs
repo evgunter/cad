@@ -1524,10 +1524,10 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             // The promoted face faces the HOST's way on the host's
             // surface: a ring of the guest is wound opposite to the
             // guest's outer loop, i.e. the way an outer loop of a
-            // host-facing face must be. The host's key is a chart the
-            // guest does not share, so the stated bit is written; were
-            // it the guest's own chart, `mfkrh` would derive the
-            // guest's bit negated, which a coherent host's bit is.
+            // host-facing face must be. The lift re-charted the
+            // counterpart onto a surface of its own, so the host's key
+            // is never the guest's chart, and `mfkrh` writes the
+            // host's bit as stated.
             // Tier 3's check 6 reads `sense` against the stored loop
             // windings on every planar face, and check 7 reads the
             // volume the same windings integrate, so a flip either way

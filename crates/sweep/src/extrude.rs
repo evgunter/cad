@@ -681,9 +681,7 @@ pub fn extrude<T: Decide>(
         }
         // Close the hole cycle: the ring keeps the forward chain; the
         // new face is the transient disc, on the bottom cap's plane.
-        // Its outer loop becomes the cap's ring, wound clockwise about
-        // the cap's outward normal, so the disc faces against the
-        // cap's chart normal.
+        // `kfmrh` kills it at once, and nothing reads its bit.
         let close = body.mef(
             MefSite::Chords {
                 he1: prev.he_minus,

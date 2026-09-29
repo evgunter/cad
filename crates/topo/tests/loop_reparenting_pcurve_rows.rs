@@ -1824,8 +1824,14 @@ fn kfmrh_carries_every_row_across_one_payload() {
 /// `up` is first moved onto `low`'s key, so the demotion into `low`
 /// is one key and carries whatever `up` kept; the ring then moves (or
 /// is promoted) onto the plane face's key, which is the question.
+///
+/// The ring's row count is pinned, not read off the body: on the tied
+/// fixture `up` keeps its four rows across the move onto `low`'s key,
+/// and a count read after that move would take whatever the setter
+/// left and pass either door's half whatever it did.
 #[test]
 fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
+    const RING_ROWS: usize = 4;
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body
@@ -1837,12 +1843,11 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
                 },
             )
             .unwrap();
-        let ring_rows = rows_of(&s.body, s.up).0;
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
         s.body.ring_move(ring, s.plane).unwrap();
         let want = if tied {
-            (ring_rows, 6 + 4 - ring_rows)
+            (RING_ROWS, 6 + 4 - RING_ROWS)
         } else {
             (0, 10)
         };
@@ -1858,7 +1863,6 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
                 },
             )
             .unwrap();
-        let ring_rows = rows_of(&s.body, s.up).0;
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
         let made = s
@@ -1872,7 +1876,7 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
             )
             .unwrap();
         let want = if tied {
-            (ring_rows, 4 - ring_rows)
+            (RING_ROWS, 4 - RING_ROWS)
         } else {
             (0, 4)
         };
@@ -2227,18 +2231,74 @@ fn rings(body: &Body<f64>) -> Vec<(FaceKey, LoopKey, bool)> {
         .collect()
 }
 
+/// The bored block with each cap re-charted onto its own plane with
+/// the normal negated, stating `false`: the same solid, with every
+/// cap's bit `false`. The caps' rim edges are re-described against the
+/// new keys, so the body stays tier-3 valid. (Adopted from the second
+/// review of PR 3467.)
+fn caps_on_flipped_planes(mut body: Body<f64>) -> Body<f64> {
+    let caps: Vec<FaceKey> = rings(&body).into_iter().map(|(f, _, _)| f).collect();
+    for cap in caps {
+        let key = body.get_face(cap).unwrap().surface;
+        let Some(Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        }) = body.get_surface(key).cloned()
+        else {
+            panic!("a planar cap");
+        };
+        body.set_face_surface(
+            cap,
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin,
+                    normal: -normal,
+                    u_ref,
+                },
+                sense: false,
+            },
+        )
+        .unwrap();
+    }
+    topo::test_support::describe_as_intersections(&mut body, Tol::witness());
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "the re-charted caps bound the same solid"
+    );
+    body
+}
+
 /// **`mfkrh` promotes a hole to a face facing against its parent.**
 /// Each cap's bore ring on the bored block was wound clockwise about
 /// the cap's outward normal, so on the cap's chart the promoted face
 /// takes the cap's bit negated, and the body stays tier-3 valid. The
 /// cap's own bit stated there is refused; on another chart the stated
-/// bit is written.
+/// bit is written. Run on the block as built (caps `true`) and with
+/// its caps on their flipped planes (caps `false`), so the negation is
+/// read from both bits.
 #[test]
 fn mfkrh_negates_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewhere() {
-    let base = bored_block(&[1.5]);
-    let found = rings(&base);
-    assert_eq!(found.len(), 2, "one bore ring in each cap");
     let mut failures = Vec::new();
+    for (caps, base) in [
+        (true, bored_block(&[1.5])),
+        (false, caps_on_flipped_planes(bored_block(&[1.5]))),
+    ] {
+        let found = rings(&base);
+        assert_eq!(found.len(), 2, "one bore ring in each cap");
+        assert!(
+            found.iter().all(|&(_, _, p)| p == caps),
+            "every cap carries {caps}"
+        );
+        mfkrh_rows(&base, found, &mut failures);
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// The `mfkrh` rows on one bored block: each ring in `found` promoted
+/// from a clone of `base` with each spec.
+fn mfkrh_rows(base: &Body<f64>, found: Vec<(FaceKey, LoopKey, bool)>, failures: &mut Vec<String>) {
     for (parent, ring, p) in found {
         let own = base.get_face(parent).unwrap().surface;
         let foreign = |sense| FaceSurface::New {
@@ -2291,13 +2351,12 @@ fn mfkrh_negates_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewher
                     stated,
                     &before,
                     &b,
-                    &mut failures,
+                    failures,
                 ),
                 (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
             }
         }
     }
-    assert!(failures.is_empty(), "{failures:#?}");
 }
 
 /// **`mfkrh` reads a shared payload as the parent's chart.** The bored
@@ -2308,12 +2367,11 @@ fn mfkrh_negates_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewher
 /// the cap's chart, so both take the cap's bit negated, and the cap's
 /// own bit stated on the second key is refused.
 ///
-/// No tier-3 verdict is read here: the cap's rim edges cannot be
-/// re-described against a patch (a plane–patch `Intersection` does not
-/// certify), and check 6, which reads `sense` against a loop's winding,
-/// reads planar faces only. The plane-charted twin above is the
-/// validity row; this one pins that the payload tie reaches the same
-/// derivation.
+/// Check 6, which reads `sense` against a loop's winding, reads planar
+/// faces only, and the cap's rim edges cannot be re-described against
+/// a patch (a plane–patch `Intersection` does not certify). So the
+/// derived bits are read by check 6 on the cap's plane instead, where
+/// they mean the same thing.
 #[test]
 fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
     let mut body = bored_block(&[0.75, 2.25]);
@@ -2337,6 +2395,12 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
     ];
     let cap_patch =
         std::sync::Arc::new(geom::NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).unwrap());
+    let jet = cap_patch.ders(0.5, 0.5);
+    assert!(
+        jet.du.cross(jet.dv).z > 0.0,
+        "the patch faces the plane's way"
+    );
+    let plane_key = body.get_face(top).unwrap().surface;
     let own = body
         .set_face_surface(
             top,
@@ -2393,6 +2457,50 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
         .unwrap();
     if sense_of(&body, second.face) {
         failures.push("mfkrh Shared(second key, one payload): want false".to_owned());
+    }
+
+    // Check 6 on the derived bits: each promoted face is put on the
+    // cap's plane key (off its chart, so the bit is written as stated)
+    // stating the bit derived on the patch, which means the same there
+    // since the patch faces the plane's way. Check 6 must find nothing
+    // on the face; the other bit is the control, and must draw
+    // `LoopRoleInverted`. (Adopted from the first review of PR 3467.)
+    assert!(
+        body.get_surface(plane_key).is_some(),
+        "the rims keep the cap's plane key live"
+    );
+    for f in [first.face, second.face] {
+        let bit = sense_of(&body, f);
+        for (stated, want_inverted) in [(bit, false), (!bit, true)] {
+            let mut b = body.clone();
+            b.set_face_surface(
+                f,
+                FaceSurface::Shared {
+                    key: plane_key,
+                    sense: stated,
+                },
+            )
+            .unwrap();
+            let on_f: Vec<String> = match topo::validate_geometric(&b, Tol::witness()) {
+                Ok(()) => Vec::new(),
+                Err(errors) => errors
+                    .iter()
+                    .map(|e| format!("{e:?}"))
+                    .filter(|e| e.contains(&format!("{f:?}")))
+                    .collect(),
+            };
+            let inverted = on_f.iter().any(|e| e.starts_with("LoopRoleInverted"));
+            let ok = if want_inverted {
+                inverted
+            } else {
+                on_f.is_empty()
+            };
+            if !ok {
+                failures.push(format!(
+                    "{f:?} on the plane stating {stated} (derived {bit}): {on_f:?}"
+                ));
+            }
+        }
     }
     assert!(failures.is_empty(), "{failures:#?}");
 }

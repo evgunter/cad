@@ -31,7 +31,7 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
-use super::axis::{AxisFrame, AxisRun, LoopClasses};
+use super::axis::{AxisFrame, AxisRun, LoopClasses, WallClass};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{revolved_strut_spec, wall_surface};
@@ -465,19 +465,18 @@ fn build_wire<T: Decide>(
                 .he_minus
         };
         // The wall states its classified sense — see
-        // `partial::sweep_loop`; the band-2 twins below take the same.
-        let wall = &cls.walls[wseg(i)];
-        let surface = match (pair[i], i, wall.kind(), wall.sense()) {
-            (true, 1.., _, Some(sense)) => FaceSurface::Shared {
+        // `partial::sweep_loop`.
+        let surface = match (pair[i], i, cls.walls[wseg(i)]) {
+            (true, 1.., WallClass::Wall { sense, .. }) => FaceSurface::Shared {
                 key: face_surface_key(&body, faces[i - 1])?,
                 sense,
             },
-            (_, _, Some(kind), Some(sense)) => FaceSurface::New {
-                surface: wall_surface(kind, &segs[wseg(i)], frame),
+            (_, _, WallClass::Wall { kind, sense }) => FaceSurface::New {
+                surface: wall_surface(&kind, &segs[wseg(i)], frame),
                 sense,
             },
             // Unreachable: wire segments are off-axis by construction.
-            _ => FaceSurface::Inherit,
+            (_, _, WallClass::OnAxis) => FaceSurface::Inherit,
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
@@ -660,7 +659,10 @@ fn build_wire<T: Decide>(
 }
 
 /// The spec that puts a band-2 wall on its band-1 twin's surface with
-/// the twin's sense: one classified wall, one material side.
+/// the twin's sense: one classified wall, one material side. The copy
+/// is the classification itself: band 1 minted the twin off the wire
+/// face's placeholder chart, where its classified bit is written as
+/// stated.
 fn twin_wall<T: Decide>(
     body: &Body<T>,
     twin: FaceKey,

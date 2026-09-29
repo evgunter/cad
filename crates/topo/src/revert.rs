@@ -437,7 +437,10 @@ mod tests {
     fn revert_flips_sense_on_non_plane_faces_instead_of_refusing() {
         let cube = declined_cube::<f64>(Tol::witness());
         let before: Vec<bool> = cube.body.faces().map(|(_, f)| f.sense).collect();
-        assert!(before.iter().all(|s| *s), "mvfs/mef mint sense: true");
+        assert!(
+            before.iter().all(|s| *s),
+            "the seed states sense: true and every mef derives it"
+        );
         let reverted = cube.body.revert().expect("S12: curved revert is wired");
         let after: Vec<bool> = reverted.faces().map(|(_, f)| f.sense).collect();
         assert!(after.iter().all(|s| !*s), "every non-plane face flipped");

@@ -962,13 +962,11 @@ pub enum EulerOpError {
         /// The solid that would be left without shells.
         solid: SolidKey,
     },
-    /// A [`FaceSurface`] spec lands on `face`'s own chart
-    /// ([`Body::same_chart`]) and states a
-    /// [`crate::entity::Face::sense`] the operator's own topology
-    /// contradicts: on that chart the bit is derived, not stated
-    /// ([`Body::resolve_face_surface`]). Raised in the plan phase of
-    /// [`Body::mef`], [`Body::mfkrh`] and [`Body::set_face_surface`],
-    /// so the body is untouched.
+    /// A [`FaceSurface`] spec on `face`'s own chart states a
+    /// [`crate::entity::Face::sense`] other than the one
+    /// [`Body::resolve_face_surface`] derives there. Raised in the plan
+    /// phase of [`Body::mef`], [`Body::mfkrh`] and
+    /// [`Body::set_face_surface`], so the body is untouched.
     SenseContradictsChart {
         /// The face whose chart the spec lands on: the parent of a
         /// minted face, or the face re-charted in place.
@@ -1476,11 +1474,9 @@ impl<T: Decide> Body<T> {
     /// [`Body::set_face_surface`] once it exists; a body reaching rest
     /// with it fails tier 3.
     ///
-    /// `sense` is the seed face's [`crate::Face::sense`]. A placeholder
-    /// has no chart normal to state a side against and the face bounds
-    /// no region yet, so the bit is the caller's provisional one,
-    /// stated at its call; the construction states the honest bit when
-    /// it charts the face ([`Body::set_face_surface`]).
+    /// `sense` is the seed face's [`crate::Face::sense`], stated by the
+    /// caller and provisional until it charts the face
+    /// ([`Body::resolve_face_surface`]).
     ///
     /// # Errors
     ///
@@ -1781,10 +1777,9 @@ impl<T: Decide> Body<T> {
     /// (`Inherit` keeps the M1 face-split semantics — two regions of
     /// one surface). Chord-line sugar: [`Body::mef_chord`].
     ///
-    /// **Sense** ([`crate::Face::sense`]): on the old face's chart the
-    /// new face is a piece of the old face's region and takes its bit;
-    /// on any other chart it carries the bit the spec states
-    /// ([`Body::resolve_face_surface`] owns the rule).
+    /// **Sense** ([`crate::Face::sense`]): `mef` passes
+    /// [`ParentSide::With`], derived on the old face's chart and stated
+    /// on any other ([`Body::resolve_face_surface`]).
     ///
     /// **Minting order** (D9, exact): surface (only for
     /// [`FaceSurface::New`]), curve (the certified [`EdgeCurve`]),

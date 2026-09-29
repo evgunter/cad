@@ -562,8 +562,8 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 he2: first.he_plus,
             },
             placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0], tol),
-            // The transient disc faces against the cap whose ring its
-            // loop becomes, as extrude's.
+            // The disc is transient: `kfmrh` kills it at once, and
+            // nothing reads its bit.
             FaceSurface::Shared {
                 key: bottom_surface,
                 sense: false,

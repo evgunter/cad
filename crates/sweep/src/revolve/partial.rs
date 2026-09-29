@@ -143,8 +143,8 @@ pub(super) fn build_partial<T: Decide>(
             bridge.vertex,
             segs,
             hq,
-            // The transient disc faces against the cap whose ring its
-            // loop becomes, as extrude's.
+            // The disc is transient: `kfmrh` kills it at once, and
+            // nothing reads its bit.
             FaceSurface::Shared {
                 key: start_surface,
                 sense: false,
@@ -425,7 +425,7 @@ pub(super) fn sweep_loop<T: Decide>(
     let mut tops: Vec<Option<EdgeKey>> = Vec::with_capacity(n);
     let mut first_top: Option<topo::HalfEdgeKey> = None;
     for j in 0..n {
-        let (Some(kind), Some(sense)) = (cls.walls[j].kind(), cls.walls[j].sense()) else {
+        let WallClass::Wall { kind, sense } = cls.walls[j] else {
             faces.push(None);
             tops.push(None);
             continue;
@@ -473,7 +473,7 @@ pub(super) fn sweep_loop<T: Decide>(
                 sense,
             },
             None => FaceSurface::New {
-                surface: wall_surface(kind, &segs[j], frame),
+                surface: wall_surface(&kind, &segs[j], frame),
                 sense,
             },
         };

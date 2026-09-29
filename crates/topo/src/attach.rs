@@ -83,14 +83,10 @@ impl<T: Decide> Body<T> {
     /// skips such a face — so what the drop removes is a wrong row no
     /// reader could be warned about.
     ///
-    /// **The face's [`crate::Face::sense`] follows the spec**
-    /// ([`Body::resolve_face_surface`], the face standing as its own
-    /// parent): `Inherit` keeps the key and the bit; a `New` or
-    /// `Shared` on the face's own chart ([`Body::same_chart`]) keeps
-    /// the bit, and a spec stating the other bit there is refused;
-    /// anywhere else the stated bit is written, since the bit the face
-    /// carried states the material side against a normal it is no
-    /// longer on.
+    /// **Sense** ([`crate::Face::sense`]): the face stands as its own
+    /// parent and the door passes [`ParentSide::With`], so the bit is
+    /// kept on the face's own chart and stated on any other
+    /// ([`Body::resolve_face_surface`]).
     ///
     /// # Errors
     ///

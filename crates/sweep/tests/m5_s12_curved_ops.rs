@@ -4,8 +4,8 @@
 //! S10 ratified `Face::sense` (a face's outward normal is the chart
 //! normal negated where the bit is `false`); S11 made the constructors write the
 //! bit honestly; S12 — this unit — makes `revert` FLIP it, makes
-//! splitting's `mef`/`mfkrh` re-mints INHERIT the parent's bit, and
-//! narrows the wholesale curved ∖/∩ front door to the classes that
+//! splitting's `mef` re-mints take the parent's bit on its chart (an
+//! `mfkrh` promotion there takes it negated), and narrows the wholesale curved ∖/∩ front door to the classes that
 //! still lack a join lane.
 //!
 //! Rows, in the order the unit's three parts land:

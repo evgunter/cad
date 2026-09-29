@@ -1,7 +1,7 @@
 ---
 id: mint-face-surface-and-sense-reads-key-equality-where-same-chart-reads-provenance
 kind: issue
-title: mint_face_surface_and_sense decides 'the parent's own surface' by key equality while same_chart decides one chart by key or shared payload Arc, so a Shared second key on the parent's payload carries the run's rows and resets sense
+title: A minted or re-charted face's sense is derived on the parent's chart (same_chart) and stated by the caller on any other, and a contradicting stated bit is refused
 status: open
 opened: 2026-09-24
 priority: P1

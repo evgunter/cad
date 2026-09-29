@@ -1449,22 +1449,18 @@ impl<T: Decide> Body<T> {
     /// NOT promised, [module docs](self)), `Shared` reuses an existing
     /// key.
     ///
-    /// **Sense** ([`crate::Face::sense`]): the ring bounded a hole of
-    /// the demoting face, so on that face's chart the new face faces
-    /// the other way and takes its bit negated; on any other chart it
-    /// carries the bit the spec states ([`Body::resolve_face_surface`]
-    /// owns the rule). Promoting an [`LoopBoundary::Empty`] ring
-    /// yields an **empty-outer face** — the `mvfs`-face shape, now
+    /// **Sense** ([`crate::Face::sense`]): `mfkrh` passes
+    /// [`ParentSide::Against`], derived on the demoting face's chart
+    /// and stated on any other ([`Body::resolve_face_surface`]).
+    /// Promoting an [`LoopBoundary::Empty`] ring yields an
+    /// **empty-outer face** — the `mvfs`-face shape, now
     /// operator-reachable inside a larger body.
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): the promoted ring's stored
-    /// rows are a curve stated in the DEMOTING face's chart.
-    /// [`FaceSurface::Inherit`] — and a [`FaceSurface::Shared`] naming
-    /// that same key, or one sharing its payload
-    /// ([`Body::same_chart`]) — keeps them, since the chart does not
-    /// move; any other surface DROPS them, for the reasons and with
-    /// the consequences [`Body::drop_rows_on_chart_change`] states. A
-    /// new face's rows are the caller's to mint either way
+    /// rows are a curve stated in the DEMOTING face's chart. A spec on
+    /// that chart ([`Body::same_chart`]) keeps them; any other surface
+    /// DROPS them ([`Body::drop_loop_rows`]; [`Body::drop_rows`] states
+    /// why). A new face's rows are the caller's to mint either way
     /// ([`crate::pcurves::mint_pcurves`]).
     ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
@@ -1572,18 +1568,11 @@ impl<T: Decide> Body<T> {
     /// Mirrors the M1 fresh-surface semantics for the migrated suites
     /// and for promotions whose real surface is not yet known.
     ///
-    /// A placeholder has no chart normal to state a side against, so
-    /// `sense` is the caller's provisional bit, stated at its call; the
-    /// caller states the honest one when it charts the face.
-    ///
-    /// **Pcurve rows**: the promoted ring arrives rowless whenever it
-    /// brought rows. A placeholder is not a described surface at all,
-    /// so it is not the chart any row was stated in and cannot be —
-    /// the drop here is decided by KIND, not by whether the door
-    /// minted a fresh key, and a `Shared` placeholder would read the
-    /// same way. [`Body::drop_rows_on_chart_change`] carries the rest;
-    /// the promoted face's rows are the caller's to mint once it gives
-    /// the face a real surface.
+    /// The placeholder is a fresh payload, so it is never the demoting
+    /// face's chart: `mfkrh` writes `sense`, the caller's provisional
+    /// bit, as stated, and drops the promoted ring's rows. The caller
+    /// states the honest bit, and mints the rows, when it gives the
+    /// face a real surface.
     ///
     /// # Errors
     ///

@@ -11979,10 +11979,9 @@ mod tests {
     /// battery can see the defect.
     ///
     /// Bit-identity: the honest body's report is unchanged by the S10
-    /// threading (planar sweeps mint `sense: true` throughout — S11
-    /// reverses only material-against-chart walls, none here — so the
-    /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
-    /// before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
+    /// threading (`plane_every_face` states `sense: true` on each plane
+    /// it grafts, so the multiply is `· +1`) — pinned here as
+    /// "no `LoopRoleInverted` before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
     /// grafted on; its twelve chords stay conventional, so the honest
     /// report is about those chords and nothing else. (The all-green
     /// variant of this row, on the fully certified cube, lives in
