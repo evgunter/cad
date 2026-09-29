@@ -2267,7 +2267,9 @@ pub(crate) fn site_rows_from<T: Decide>(
 ///
 /// **Cost.** One walk and one certification per half-edge of the loops
 /// the surgery rewires, and one presence read per half-edge of the rest
-/// of the face ([`site_rows_from`]).
+/// of the face ([`site_rows_from`]) — so N operators on one minted face
+/// whose loop grows with each cost O(N²)
+/// (`work/topo/euler-site-mint-re-walks-the-rewired-loop-on-every-op`).
 ///
 /// # Errors
 ///
