@@ -116,15 +116,17 @@
 //! merged member from `w`'s point to `v`'s, and each keeps the carrier
 //! it was certified with. [`Body::kev`] is keys-only and ε-free: it
 //! carries a merge that moves nothing — an empty fan, or a killed null
-//! edge, whose two vertices hold one point — and otherwise refuses a
-//! merge that would move a certified member
-//! ([`EulerOpError::MergeRebasesCarriers`], naming every one) or one end
-//! of a null edge ([`EulerOpError::RebasedNullEdge`]).
-//! [`Body::kev_describing`] is the same kill with a band and the
-//! members' re-descriptions: a listed member is certified with its spec
-//! at the merged endpoints, an unlisted one passes the re-basing gate
-//! `mev`'s fan site passes. The two doors' docs carry the argument,
-//! including why the keys-only door reads no band.
+//! edge, whose two vertices hold one point — and otherwise refuses
+//! every merge with a certified member, one at a single point included
+//! ([`EulerOpError::MergeRebasesCarriers`], naming every one), or one
+//! that moves one end of a null edge
+//! ([`EulerOpError::RebasedNullEdge`]). [`Body::kev_describing`] is the
+//! same kill with a band and the members' re-descriptions: a listed
+//! member is certified with its spec at the merged endpoints, an
+//! unlisted one passes the re-basing gate `mev`'s fan site passes, so
+//! `kev_describing(he, &[], tol)` is the merge that moves nothing or
+//! moves within band. [`Body::kev_merged_members`] reads the members
+//! and their merged endpoints.
 //!
 //! # `kef` — inverse of `mef` (the loop splice)
 //!
