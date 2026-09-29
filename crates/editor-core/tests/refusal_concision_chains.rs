@@ -3722,3 +3722,8 @@ fn decode(literal: &str) -> String {
     }
     out
 }
+
+/// Review probe access (lane `partroot-rev`).
+pub(crate) fn node_refusals_for_review() -> Vec<(String, NodeErrorKind)> {
+    node_refusals()
+}

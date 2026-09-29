@@ -129,6 +129,8 @@ mod panel_display;
 mod panel_edits;
 #[path = "part_root_carried.rs"]
 mod part_root_carried;
+#[path = "partroot_rev_probes.rs"]
+mod partroot_rev_probes;
 #[path = "path_authoring.rs"]
 mod path_authoring;
 #[path = "pick3_acceptance.rs"]

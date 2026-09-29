@@ -184,6 +184,8 @@ mod fix_pattern_mate_crossing;
 mod refusal_concision;
 #[path = "refusal_concision_at_rest.rs"]
 mod refusal_concision_at_rest;
+#[path = "partroot_rev_probes.rs"]
+mod partroot_rev_probes;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
 #[path = "remap_reorders_ids.rs"]
