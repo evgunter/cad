@@ -1551,7 +1551,8 @@ mod tests {
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
-        ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, deep_snapshot, ops_holed_box, prov,
+        ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, deep_snapshot, ops_holed_box,
+        prov,
     };
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
