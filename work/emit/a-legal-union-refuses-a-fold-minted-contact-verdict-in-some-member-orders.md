@@ -2,10 +2,12 @@
 id: a-legal-union-refuses-a-fold-minted-contact-verdict-in-some-member-orders
 kind: issue
 title: A legal three-member union refuses as a fold-minted contact verdict (UNION_FOLD_CONTACT_VERDICT) in some member orders and fuses in others
-status: open
+status: closed
 opened: 2026-09-25
 priority: P0
-cost: D
+cost: M
+branch: emit/fold-contact-verdict
+closed: 2026-09-29
 ---
 
 
@@ -88,3 +90,25 @@ this way. The rows are
 `wire_legal_union_refusals::no_order_of_…_refuses_a_fold_contact`, which
 cover every order of all three fixtures. Each one is red at `b4e425801a`
 on this refusal.
+
+## Closed — fixed by #3377, pinned by PR 3476
+
+The refusal was not a contact that the pairwise judgement missed. The
+step that joined `a` to an accumulation holding `s` left the declared
+y-walls unglued: they overlap in area rather than meeting flush. The
+next boolean's census then refused that same-operand pair, and
+`fold_step_refusal` reported it as fold-minted.
+
+CONTACT-8 (#3377, `merge_coplanar_faces`) glues the group. Three rows in
+`wire_legal_union_refusals.rs` now pin every member order of the three
+fixtures against an outcome table:
+
+- the three-member fixture;
+- the four-member fixture;
+- R1's split fixture plus `big`.
+
+All three rows are red at `b4e425801a`.
+
+The `SeamVertexParentage` orders remain. They belong to
+`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`
+and `two-emitter-refusals-a-legal-declared-union-reaches`.
