@@ -137,7 +137,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     let diag = Indeterminate {
         margin: MarginDiag::value(3.0e-10),
         band,
-        predicate: Some("side_of_plane"),
+        predicate: Some("bool_vertex_face_side"),
         terminal_sliver: false,
     };
     let face = FaceKey::default();

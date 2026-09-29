@@ -361,3 +361,31 @@ fn nothing_in_src_is_invisible_to_the_reader() {
         "the ring-clearance gate reaches the funnel as a const and must still be rostered"
     );
 }
+
+/// **`split_edge`'s in-band interiority reads whole through the blend's
+/// operator door**, on a constructed value (no blend fixture reaches
+/// the band): the decision as its subject, one recourse the blend can
+/// take, and no declaration, which a blend does not take. The split's
+/// and the Boolean's doors have their rows in `topo`
+/// (`boolean::refusal_routes`).
+#[test]
+fn the_split_param_escalation_reads_whole_through_the_blend_door() {
+    use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
+    let text = BlendError::Op {
+        site: "meridian split",
+        source: topo::EulerOpError::SplitParamEscalated {
+            edge: topo::EdgeKey::default(),
+            diag: escalation("split_edge_param_interior"),
+        },
+    }
+    .to_string();
+    assert_eq!(recourse_markers(&text), 1, "{text}");
+    assert!(subjectless_escalations(&text).is_empty(), "{text}");
+    assert!(stage_prefixes(&text, &[]).is_empty(), "{text}");
+    assert!(
+        text.contains("whether a crossing lands strictly inside its edge is undecided: margin ")
+            && text.ends_with("Recourse: move the geometry, or lower the tolerance")
+            && !text.contains("declare"),
+        "{text}"
+    );
+}

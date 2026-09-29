@@ -121,19 +121,13 @@ pub fn contact_pair_verdict<T: Decide>(
 ///
 /// An ANGULAR contradiction (axes not parallel, planes not parallel)
 /// gets no steer: no gap makes those two carriers one, so pointing at
-/// `Fit` there would be advice that cannot work.
+/// `Fit` there would be advice that cannot work. Which contradiction
+/// is which is the one table the refusals' facts are read from
+/// (`refusal_routes::contradiction`).
 pub(super) fn fit_steer(diag: &Indeterminate) -> Option<&'static str> {
-    matches!(
-        diag.predicate,
-        Some(
-            "carrier_sphere_radius"
-                | "carrier_cyl_radius"
-                | "carrier_sphere_center"
-                | "carrier_cyl_axis_offset"
-                | "bool_plane_offset"
-        )
-    )
-    .then_some(FIT_DEFERRAL)
+    super::refusal_routes::contradiction(diag.predicate)
+        .is_some_and(|c| c.fits_a_clearance)
+        .then_some(FIT_DEFERRAL)
 }
 
 /// The `Rest` table (C4): carrier non-contradiction through the

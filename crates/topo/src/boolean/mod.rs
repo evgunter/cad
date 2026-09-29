@@ -89,6 +89,7 @@ pub mod plane_eq;
 mod r2_probes;
 pub(crate) mod recl;
 pub(crate) mod reduce;
+pub(crate) mod refusal_routes;
 mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
@@ -157,9 +158,92 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => "whether the two planes are parallel",
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
         crate::query::DATUM_UNIT_NORM => "whether a direction has any length",
+        "sector_arm" => "whether a corner's edges are long enough to measure its angle over",
+        "sector_reflex" => "whether a corner is convex or reflex",
+        "sector_straight" => "whether a corner is straight or folds back on itself",
+        "bool_pierce_normal_on_chart" => {
+            "whether a point lies on a curved face, so the face's normal can be read there"
+        }
+        // `geom`'s torus convention, which the pierce point's normal
+        // reads before it differentiates the torus.
+        "torus_tube_positive" => "whether a torus's tube radius is positive",
+        "ring_torus_convention" => "whether a torus's tube stays clear of its axis",
+        "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
+            CROSSING_INTERIOR
+        }
+        "split_conic_root_order" => "which of two crossings on an edge comes first",
+        "bool_split_span_period" => "whether an arc stays short of a full turn",
+        "bool_face_disc_carrier"
+        | "bool_contact_vertex"
+        | "bool_contact_arc_end_vertex"
+        | "bool_contact_arc"
+        | "bool_curved_contain_carrier"
+        | "bool_curved_contain_period"
+        | "bool_wall_trim"
+        | "bool_wall_junction"
+        | "bool_wall_outline_reach"
+        | "bool_wall_piece_span"
+        | "bool_wall_rim_level"
+        | "bool_wall_section_tilt"
+        | "bool_wall_trim_period"
+        | "bool_wall_iso_meridian"
+        | "bool_wall_iso_rim"
+        | "bool_wall_section_seat"
+        | "bool_sphere_iso_meridian"
+        | "bool_sphere_iso_rim"
+        | "bool_torus_trim_major_period"
+        | "bool_torus_trim_minor_period"
+        | "bool_sphere_trim"
+        | "bool_sphere_trim_antipode"
+        | "bool_sphere_trim_latitude"
+        | "bool_sphere_trim_meridian_span"
+        | "bool_sphere_trim_period"
+        | "bool_sphere_trim_pole"
+        | "bool_sphere_trim_pole_end"
+        | "bool_sphere_trim_pole_interior"
+        | "bool_torus_chart_affine"
+        | "bool_torus_chart_box"
+        | "bool_torus_chart_closure"
+        | "bool_torus_frame_radius"
+        | "bool_torus_trim"
+        | "bool_cone_chart_box"
+        | "bool_cone_group_slant"
+        | "bool_cone_trim"
+        | "bool_cone_trim_nappe"
+        | "bool_cone_trim_period"
+        | "bool_cone_trim_side"
+        | "bool_ray_cone_apex"
+        | "bool_ray_cone_nappe"
+        | "point_in_loop_segment"
+        | "point_in_loop_boundary"
+        | "point_in_loop_side"
+        | "point_in_loop_advance"
+        | "point_in_loop_arm"
+        | "point_in_arc_loop_segment"
+        | "point_in_arc_loop_boundary"
+        | "point_in_arc_loop_boundary_disagreement"
+        | "point_in_arc_loop_side"
+        | "point_in_arc_loop_advance"
+        | "point_in_arc_loop_arm"
+        | "point_in_arc_loop_reach"
+        | "point_in_arc_loop_conic_span"
+        | "point_in_arc_loop_conic_on"
+        | "point_in_arc_loop_conic_end"
+        | "point_in_arc_loop_conic_trim"
+        | "point_in_arc_loop_conic_straddle"
+        | "point_in_arc_loop_conic_window"
+        | "point_in_arc_loop_conic_disc"
+        | "point_in_arc_loop_conic_advance" => {
+            "whether a point lies inside a face, on its boundary, or outside it"
+        }
         _ => return None,
     })
 }
+
+/// [`decision_words`] for the interiority of a crossing on its edge,
+/// which `Body::split_edge` decides for every door that splits an edge
+/// at a crossing (`EulerOpError::SplitParamEscalated`).
+pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside its edge";
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
@@ -882,10 +966,11 @@ pub enum BooleanError {
         relation: PlaneRelation,
     },
     /// A declared coincidence contradicts the geometry (the declared
-    /// pair's planes are definitely distinct) — the recipe's intent
+    /// pair's carriers are definitely distinct) — the recipe's intent
     /// cannot be realized; refused loudly, never glued (M4 PR 5).
     DeclarationContradicted {
-        /// The contradicting predicate's diagnostics.
+        /// The contradicting predicate, with an `INVALID` margin: the
+        /// verdict is definite, and the raise sites keep no measure.
         diag: Indeterminate,
     },
     /// A declared CONTACT meets definite counter-evidence at the op
@@ -1715,13 +1800,35 @@ impl core::fmt::Display for BooleanError {
                  tolerance reaches this. Recourse: {}",
                 geom_core::RANGE_RECOURSE
             ),
-            Self::Escalated { diag } => write!(
-                f,
-                "parts of the two solids are too close to call at this tolerance ({}), \
-                 and the Boolean never snaps them together. Recourse: \
-                 {COINCIDENCE_RECOURSE}",
-                diag.payload()
-            ),
+            // Routed by the decision that escalated
+            // (`refusal_routes::escalation`): a coincidence keeps the
+            // declare lever; a decision no face pair names states its
+            // own; a name the table does not carry states the hole.
+            Self::Escalated { diag } => match refusal_routes::escalation(diag.predicate) {
+                Some(refusal_routes::Escalation::Coincidence) => write!(
+                    f,
+                    "parts of the two solids are too close to call at this tolerance ({}), \
+                     and the Boolean never snaps them together. Recourse: \
+                     {COINCIDENCE_RECOURSE}",
+                    diag.payload()
+                ),
+                Some(refusal_routes::Escalation::Own { subject, recourse }) => write!(
+                    f,
+                    "{subject} is undecided: {}. Recourse: {recourse}",
+                    diag.payload()
+                ),
+                Some(refusal_routes::Escalation::KernelCheck { subject }) => write!(
+                    f,
+                    "{subject} is undecided: {}. {KERNEL_DEFECT_ENDING}",
+                    diag.payload()
+                ),
+                None => write!(
+                    f,
+                    "{} is undecided: {diag}; {}",
+                    geom_core::UNNAMED_DECISION,
+                    geom_core::MissingRecourse(diag.predicate)
+                ),
+            },
             Self::UndeclaredCoincidence { diag, pair, .. } => {
                 if pair[0].0 == pair[1].0 {
                     write!(f, "two faces of the {} operand", operand_word(pair[0].0))?;
@@ -1763,11 +1870,15 @@ impl core::fmt::Display for BooleanError {
                 crate::contact::CONTRADICTION_RECOURSE,
                 crate::contact::steer_clause(*steer),
             ),
+            // The verdict is definite and its margin `INVALID`, so the
+            // payload would claim a poisoned reading: the sentence
+            // names the fact that contradicted instead.
             Self::DeclarationContradicted { diag } => write!(
                 f,
-                "a declared coincidence contradicts the geometry ({diag}) — the \
-                 declared pair's planes are definitely distinct; fix the declaration or the \
-                 geometry, the op never glues a lie"
+                "a declared coincidence contradicts the geometry: {}, and the Boolean never \
+                 glues a lie. {}",
+                refusal_routes::contradicted_fact(diag),
+                refusal_routes::CONTRADICTION_RECOURSE
             ),
             Self::UnsupportedDeclarationClass { class } => write!(
                 f,
@@ -1822,12 +1933,10 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand)
             ),
             Self::CrossingInsertion {
-                operand,
-                edge,
-                source,
+                operand, source, ..
             } => write!(
                 f,
-                "crossing insertion refused on edge {edge:?} of the {} operand: \
+                "the Boolean could not insert a crossing on an edge of the {} operand: \
                  {source}",
                 operand_word(*operand)
             ),

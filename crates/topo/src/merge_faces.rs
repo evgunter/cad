@@ -415,7 +415,8 @@ pub enum MergeCoplanarError {
     /// declaration contradicts the geometry; refused loudly, never
     /// glued (M4 PR 5; `plane_eq` rung 2's verification direction).
     DeclarationContradicted {
-        /// The contradicting predicate's diagnostics.
+        /// The contradicting predicate, with an `INVALID` margin: the
+        /// verdict is definite, and the raise site keeps no measure.
         diag: Indeterminate,
     },
     /// A declared face pair meets with OPPOSITE orientations at a
@@ -557,10 +558,14 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: invalid declared pair at surface {surface:?}: {what}"
             ),
+            // The verdict is definite and its margin `INVALID`: the
+            // sentence names the fact that contradicted, not a payload.
             Self::DeclarationContradicted { diag } => write!(
                 f,
-                "merge_coplanar_faces: declared coincidence contradicts the geometry ({diag}) \
-                 — fix the declaration or the geometry, the op never glues a lie"
+                "a declared coincidence contradicts the geometry: {}, and the merge never \
+                 glues a lie. {}",
+                crate::boolean::refusal_routes::contradicted_fact(diag),
+                crate::boolean::refusal_routes::CONTRADICTION_RECOURSE
             ),
             Self::DeclaredOppositeOrientation { f1, f2 } => write!(
                 f,
@@ -3565,17 +3570,19 @@ mod tests {
             group.contains("unmerged") && group.contains("run continues"),
             "a group's own gate says the run survives it: {group}"
         );
+        let contradicted = rendered(&MergeCoplanarError::DeclarationContradicted {
+            diag: Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band: Band::linear(Tol::witness()).expect("the witness band"),
+                predicate: Some("bool_plane_offset"),
+                terminal_sliver: false,
+            },
+        });
         assert!(
-            rendered(&MergeCoplanarError::DeclarationContradicted {
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::value(0.0),
-                    band: Band::linear(Tol::witness()).expect("the witness band"),
-                    predicate: Some("merge_declared_plane_eq"),
-                    terminal_sliver: false,
-                },
-            })
-            .contains("fix the declaration or the geometry"),
-            "the declared-pair contradiction carries its recourse"
+            contradicted.contains("the declared planes are parallel but apart")
+                && contradicted.ends_with("Recourse: fix the declaration or move the geometry"),
+            "the declared-pair contradiction names its fact and ends on its recourse: \
+             {contradicted}"
         );
         let split = |other_kind| {
             rendered(&MergeCoplanarError::GroupKindSplit {

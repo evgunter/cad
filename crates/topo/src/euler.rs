@@ -1064,9 +1064,15 @@ impl EulerOpError {
                  an endpoint, {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::SplitParamEscalated { edge, diag } => format!(
-                "split_edge: interiority test on edge {edge:?} escalated \
-                 ({diag})"
+            // Every door that splits an edge at a crossing forwards this
+            // whole — the split, the blend and the Boolean — and none
+            // has a declaration that names where on an edge a crossing
+            // lands, so the lever is the one all three have.
+            Self::SplitParamEscalated { diag, .. } => format!(
+                "{} is undecided: {}. Recourse: {}",
+                crate::boolean::CROSSING_INTERIOR,
+                diag.payload(),
+                geom_core::NO_DECLARATION_RECOURSE
             ),
             Self::PcurveSplit {
                 edge,
@@ -5424,10 +5430,10 @@ mod tests {
         }
     }
 
-    /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`
-    /// interiority refusal arms describe one user situation — the
-    /// definite arm composes the shared recourse directly, the
-    /// escalated arm carries it through the `Indeterminate` Display.
+    /// The definite `split_edge` interiority arm composes the shared
+    /// recourse; the escalated arm, which every splitting door forwards
+    /// whole, states the decision and the lever those doors share, and
+    /// offers no declaration.
     #[test]
     fn split_param_pair_carries_the_shared_recourse() {
         let edge = EdgeKey::default();
@@ -5449,9 +5455,10 @@ mod tests {
             },
         };
         let msg = escalated.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
+        assert!(
+            msg.starts_with("whether a crossing lands strictly inside its edge is undecided: ")
+                && msg.ends_with("Recourse: move the geometry, or lower the tolerance")
+                && !msg.contains("declare"),
             "{msg}"
         );
     }
