@@ -1992,10 +1992,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // NAMED here, because the label is a claim about the
                     // two of them and about nothing else the funnel
                     // decides.
-                    Some("path_junction_turn" | "path_junction_side") => write!(
+                    Some(name @ ("path_junction_turn" | "path_junction_side")) => write!(
                         f,
-                        "whether the path turns at this junction, and to which side, is too \
-                         close to call: {source}"
+                        "{} is too close to call: {source}",
+                        crate::validate::decision_subject(name).unwrap_or_default()
                     ),
                     // A name no arm above claims. If the crate has
                     // decided it needs nothing beyond the shared clause
@@ -2004,20 +2004,27 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // stops there; otherwise the refusal names the hole,
                     // through the one home every recourse table's
                     // fall-through composes. Either way the sentence
-                    // opens with what the decision was deciding: the
-                    // listed name's own description, or, for an unlisted
-                    // one, the door that took it.
-                    _ => match source
-                        .predicate
-                        .and_then(crate::validate::shared_clause_only)
-                    {
-                        Some(what) => write!(f, "{what}, which is too close to call: {source}"),
-                        None => write!(
-                            f,
-                            "a decision the path door takes is too close to call: {source} — {}",
-                            geom_core::MissingRecourse(source.predicate)
-                        ),
-                    },
+                    // opens with what the decision was deciding, in the
+                    // words `validate::decision_subject` holds.
+                    _ => {
+                        let what = source
+                            .predicate
+                            .and_then(crate::validate::decision_subject)
+                            .unwrap_or(crate::validate::UNNAMED_DECISION);
+                        let listed = source
+                            .predicate
+                            .and_then(crate::validate::shared_clause_only)
+                            .is_some();
+                        if listed {
+                            write!(f, "{what} is too close to call: {source}")
+                        } else {
+                            write!(
+                                f,
+                                "{what} is too close to call: {source} — {}",
+                                geom_core::MissingRecourse(source.predicate)
+                            )
+                        }
+                    }
                 }
             }
             Self::Band(e) => write!(f, "the path's tolerance could not form a band: {e}"),

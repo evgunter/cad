@@ -84,3 +84,16 @@ it: the clause before an escalation payload must pose the question or
 its verdict, or name a measured quantity that escalated; on the pre-fix
 wrappers it is red on 19 rows, thirteen distinct clauses. `geom_core::MissingRecourse` no longer
 prints the name either.
+
+**No fallback passes silently (second fix pass).** Every door's
+fallback for a decision it has no words for is one phrase,
+`geom_core::UNNAMED_DECISION` ("an unnamed decision"), and the guard's
+`GENERIC_SUBJECTS` reads it (and chart-region's deliberately generic
+subject) as no subject. With the chain fixtures still escalating under
+a name no door words (`side_of_plane`), the guard went red on seven
+rows; the fixtures now use names each door raises, and the one row
+that exists to show the gap sentence (`Blend/Escalated(unrouted)`) is
+admitted by name with its reason (`FILED_SUBJECTLESS`, must-fire). The
+profile doors' words have one home, `validate::decision_subject`, held
+complete against the crate's decided names by a roster test; the blend
+door's subjects and recourses are one table.

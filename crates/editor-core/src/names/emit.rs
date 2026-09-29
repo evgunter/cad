@@ -542,11 +542,11 @@ impl core::fmt::Display for NamingError {
                 // What the naming decision was deciding, in words; the
                 // name is routing and rides `Debug`.
                 let what = match *predicate {
-                    SIDE_OF | "side_of_plane" => "the side of a cut a face lies on",
+                    SIDE_OF => "the side of a cut a face lies on",
                     ORDER_ALONG => "the order of two pieces along an edge",
                     ON_MEMBER_EDGE => "a point's place along an edge",
                     CHORD_ON_RIM => "whether a chord lies on its rim",
-                    _ => "a decision that tells two names apart",
+                    _ => geom_core::UNNAMED_DECISION,
                 };
                 write!(
                     f,
@@ -1660,7 +1660,7 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: "side_of_plane",
+                    predicate: crate::names::discriminate::SIDE_OF,
                     source: escalation(),
                 },
                 vec!["the side of a cut"],

@@ -2076,7 +2076,7 @@ impl core::fmt::Display for NodeErrorKind {
                     "revolve_full_vs_partial" => "whether the revolve makes a full turn",
                     "bool_plane_parallel" => "whether the two planes are parallel",
                     "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-                    _ => "a decision this node takes",
+                    _ => geom_core::UNNAMED_DECISION,
                 };
                 write!(f, "{what} is too close to call: {source}")
             }

@@ -58,7 +58,11 @@ const LAYERS: &[(&str, &[&str])] = &[
     ),
     (
         "whether the path turns at this junction",
-        &["path_junction_side", "path_junction_turn"],
+        &["path_junction_turn"],
+    ),
+    (
+        "whether the path carries straight on at this junction",
+        &["path_junction_side"],
     ),
 ];
 
@@ -114,9 +118,8 @@ fn every_routed_name_renders_the_sentence_its_own_layer_owns() {
         // The door's own fall-through: a listed name opens with what
         // its margin measures, an unlisted one with the door.
         let text = rendered(name);
-        let fall_through = text.starts_with("a decision the path door takes")
-            || profile::shared_clause_only(name)
-                .is_some_and(|w| text.starts_with(&format!("{w}, which is too close to call:")));
+        let fall_through = text.starts_with(profile::UNNAMED_DECISION)
+            || profile::shared_clause_only(name).is_some();
         let routed = !fall_through;
         assert_eq!(
             routed,

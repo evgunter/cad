@@ -196,20 +196,23 @@ impl core::fmt::Display for TransformError {
                 source.render(geom_brep::recourse::Reading::Build)
             ),
             Self::NotRigid { check } => {
-                // The checks run in this order, so the mirror check is
-                // reached only by orthonormal columns: a determinant off
-                // one there is minus one.
+                // Raised on a definite defect AND on an in-band margin
+                // (the rigidity checks refuse on anything but a decided
+                // `Zero`), and the payload does not say which, so the
+                // sentence says what the check found possible, not a
+                // verdict. The checks run in this order: the mirror
+                // check is reached only by columns decided orthonormal.
                 let how = match *check {
                     "transform_rigid_col01_orth"
                     | "transform_rigid_col12_orth"
-                    | "transform_rigid_col02_orth" => "it shears",
-                    "transform_rigid_det_plus_one" => "it mirrors",
-                    _ => "it scales along an axis, or an entry is not a finite number",
+                    | "transform_rigid_col02_orth" => "it may shear",
+                    "transform_rigid_det_plus_one" => "it may mirror",
+                    _ => "it may scale an axis, or hold a number that is not finite",
                 };
                 write!(
                     f,
-                    "the map is not rigid at tolerance: {how}. Recourse: use only a rotation \
-                     and a translation"
+                    "the map is not definitely rigid at tolerance: {how}. Recourse: use only a \
+                     rotation and a translation"
                 )
             }
             Self::NonFiniteMap { check } => {
@@ -240,9 +243,10 @@ impl core::fmt::Display for TransformError {
                 f,
                 "a moved approximating surface could not be re-certified or re-fitted: {source}"
             ),
-            Self::NurbsPlaceholder => f.write_str(
-                "a spline (NURBS) surface or carrier cannot be transformed yet; there is no \
-                 way through yet",
+            Self::NurbsPlaceholder => write!(
+                f,
+                "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
+                geom_core::NOT_YET_ENDING
             ),
             Self::Corrupt { what } => write!(
                 f,

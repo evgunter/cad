@@ -1372,6 +1372,12 @@ pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 /// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
 pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
+/// The subject a door states for an escalation whose decision it has no
+/// words for — a name its table does not carry, or no name at all. One
+/// phrase for every door, so the refusal-shape guard can read it as no
+/// subject: a row that renders it is red unless admitted by name.
+pub const UNNAMED_DECISION: &str = "an unnamed decision";
+
 /// The one ending of a refusal at a shape or configuration the kernel
 /// does not build or check yet: nothing the user changes gets through
 /// today, and nothing is wrong with what they asked for.
@@ -1458,13 +1464,18 @@ macro_rules! kernel_or_file_defect_ending {
 /// nothing further, not that the advice above is not advice; a door
 /// that has DECIDED a predicate needs nothing further says so itself
 /// rather than reaching this sentence.
-///
 #[derive(Debug, Clone, Copy)]
 pub struct MissingRecourse<'a>(pub Option<&'a str>);
 
 impl fmt::Display for MissingRecourse<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("no recourse is recorded for this decision")
+        // Whether the escalation carried a name is the one fact about
+        // the field a person can use: an unnamed one is not a gap in a
+        // table but a decision nobody labelled.
+        match self.0 {
+            Some(_) => f.write_str("no recourse is recorded for this decision"),
+            None => f.write_str("no recourse is recorded for an unnamed decision"),
+        }
     }
 }
 

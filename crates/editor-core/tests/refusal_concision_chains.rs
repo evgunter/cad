@@ -427,6 +427,16 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Check/SeparationUnavailable/Containment(ZeroVolumeBody)",
 ];
 
+/// The rows that render a door's generic fallback subject
+/// (`geom_core::UNNAMED_DECISION`) on purpose, by exact row id, each
+/// with its reason. Every other row's escalation says in words what was
+/// decided.
+pub(crate) const FILED_SUBJECTLESS: &[(&str, &str)] = &[(
+    "Blend/Escalated(unrouted)",
+    "the gap sentence for a name the blend's recourse table does not route: the \
+     row exists to show that sentence",
+)];
+
 /// Which admission, if any, lets `problem` — one line
 /// [`test_utils::refusal::problems`] reported on row `name`, rendered
 /// `text` — stand, as the entry's own id.
@@ -466,6 +476,11 @@ fn admission(name: &str, text: &str, problem: &str) -> Option<String> {
     }
     if rest.starts_with(" renders a Debug struct") && FILED_DEBUG.contains(&name) {
         return Some(format!("FILED_DEBUG {name}"));
+    }
+    if rest.starts_with(" escalates without saying what was decided")
+        && FILED_SUBJECTLESS.iter().any(|(row, _)| *row == name)
+    {
+        return Some(format!("FILED_SUBJECTLESS {name}"));
     }
     if rest.starts_with(" states no recourse") && FILED_NO_RECOURSE.contains(&name) {
         return Some(format!("FILED_NO_RECOURSE {name}"));
@@ -512,6 +527,16 @@ fn the_bare_recourses_are_geom_cores_constants() {
             geom_core::SPLIT_PLANE_RECOURSE,
             geom_core::NO_DECLARATION_RECOURSE,
         ]
+    );
+}
+
+/// `test_utils::refusal::GENERIC_SUBJECTS` restates the doors' shared
+/// fallback subject; this holds the copy equal.
+#[test]
+fn the_generic_subject_is_geom_cores_constant() {
+    assert_eq!(
+        test_utils::refusal::GENERIC_SUBJECTS[0],
+        geom_core::UNNAMED_DECISION
     );
 }
 
@@ -571,6 +596,12 @@ fn every_admission_admits_a_row_it_is_needed_for() {
             .map(|n| format!("FILED_NO_RECOURSE {n}"))
             .filter(|e| !used.contains(e)),
     );
+    stale.extend(
+        FILED_SUBJECTLESS
+            .iter()
+            .map(|(n, _)| format!("FILED_SUBJECTLESS {n}"))
+            .filter(|e| !used.contains(e)),
+    );
     for row in FILED_DECLARE {
         let offers = rows.iter().any(|(n, t)| n == row && t.contains("declare"));
         if !offers {
@@ -600,6 +631,14 @@ mod payloads {
             band: band(),
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
+        }
+    }
+
+    /// [`diag`] under a predicate name a door raises it with.
+    pub(super) fn named(predicate: &'static str) -> Indeterminate {
+        Indeterminate {
+            predicate: Some(predicate),
+            ..diag()
         }
     }
 
@@ -879,8 +918,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "Escalated",
             NodeErrorKind::Escalated {
-                predicate: "side_of_plane",
-                source: diag(),
+                predicate: "revolve_full_vs_partial",
+                source: named("revolve_full_vs_partial"),
             },
         ),
         row(
@@ -1148,7 +1187,12 @@ fn tube() -> Vec<(String, NodeErrorKind)> {
         ("NonpositiveWall", E::NonpositiveWall { eps: 1.0e-7 }),
         ("WallExceedsRadius", E::WallExceedsRadius { eps: 1.0e-7 }),
         ("WallGapCollapsed", E::WallGapCollapsed { eps: 1.0e-7 }),
-        ("Escalated", E::Escalated { source: diag() }),
+        (
+            "Escalated",
+            E::Escalated {
+                source: named("tube_window_span"),
+            },
+        ),
         (
             "Escalated(hollow)",
             E::Escalated {
@@ -2164,14 +2208,14 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             "Escalated(segment)",
             E::Escalated {
                 site: EscalationSite::Segment(a),
-                source: diag(),
+                source: named("vertex_separation"),
             },
         ),
         (
             "Escalated(pair)",
             E::Escalated {
                 site: EscalationSite::SegmentPair(a, b),
-                source: diag(),
+                source: named("collinear_overlap"),
             },
         ),
         ("Structure", E::Structure(structure_refusal())),
@@ -2343,7 +2387,12 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::DegenerateArcCenter { radius: 1e-12 },
         ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),
-        ("Escalated", P::Escalated { source: diag() }),
+        (
+            "Escalated",
+            P::Escalated {
+                source: named("ray_side"),
+            },
+        ),
         (
             "NoCornerForFillet(disjoint)",
             P::NoCornerForFillet {
@@ -2701,8 +2750,8 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "side_of_plane",
-                source: diag(),
+                predicate: "name_frag_side_of",
+                source: named("name_frag_side_of"),
             },
         ),
     ];

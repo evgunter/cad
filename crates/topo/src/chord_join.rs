@@ -2866,11 +2866,12 @@ mod tests {
             panic!("expected the in-band neighbour, got {escalated:?}");
         };
         assert_eq!(diag.predicate, Some("split_arc_window"));
-        // The sentence leaves the routing name out; the typed refusal
-        // carries it.
+        // The sentence says what was too close to call, in words.
         assert!(
-            format!("{escalated:?}").contains("split_arc_window"),
-            "{escalated:?}"
+            escalated
+                .to_string()
+                .contains("where a section runs across a face is too close to call"),
+            "{escalated}"
         );
 
         for msg in [definite.to_string(), escalated.to_string()] {

@@ -222,7 +222,15 @@ impl core::fmt::Display for TubeError {
                     Some("tube_wall_gap") => "inner and outer radii stay distinct",
                     Some("tube_window_span") => "arc window ends after it starts",
                     Some("tube_window_headroom") => "arc window stays short of a full turn",
-                    _ => "shape is well formed",
+                    // Only the five names above are decided here; any
+                    // other is a decision this door has no words for.
+                    _ => {
+                        return write!(
+                            f,
+                            "{} is too close to call: {source}",
+                            geom_core::UNNAMED_DECISION
+                        );
+                    }
                 };
                 write!(f, "whether {door}'s {what} is too close to call: {source}")
             }

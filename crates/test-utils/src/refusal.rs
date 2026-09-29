@@ -112,6 +112,18 @@ const DECISION_PHRASES: &[&str] = &[
     "could not be decided",
 ];
 
+/// The generic subjects a door falls back to when it has no words for
+/// a decision: `geom_core::UNNAMED_DECISION` (restated here, this crate
+/// being a dependency-free leaf; `editor-core`'s chain suite holds the
+/// copy equal), and the chart-region test's deliberately generic
+/// subject, which about twenty of its decisions share. A clause carrying
+/// one says nothing about what was decided, so it is no subject: a row
+/// that renders one is red unless its caller admits it by name.
+pub const GENERIC_SUBJECTS: &[&str] = &[
+    "an unnamed decision",
+    "a decision about how the two faces' regions overlap",
+];
+
 /// The measured quantities an `… escalated` clause may name as its
 /// subject (`the transversality margin at sample 4 escalated`).
 const QUANTITY_WORDS: &[&str] = &[
@@ -151,7 +163,8 @@ fn clause_before(text: &str, end: usize) -> String {
 /// decision of its own (its predicate's name is routing, kept to
 /// `Debug`), so the clause in front of it has to: a question or its
 /// verdict ([`DECISION_PHRASES`]), or a measured quantity that
-/// `escalated` ([`QUANTITY_WORDS`]). A location or a stage alone
+/// `escalated` ([`QUANTITY_WORDS`]), and it must not be a door's generic
+/// fallback ([`GENERIC_SUBJECTS`]). A location or a stage alone
 /// (`escalated at an edge:`, `the tube escalated:`,
 /// `path junction classification:`) is not a subject.
 #[must_use]
@@ -201,6 +214,10 @@ pub fn subjectless_escalations(text: &str) -> Vec<String> {
         };
         let clause = clause_before(text, head.trim_end().len());
         let lower = clause.to_lowercase();
+        if GENERIC_SUBJECTS.iter().any(|g| lower.contains(g)) {
+            found.push(clause);
+            continue;
+        }
         let question = DECISION_PHRASES.iter().any(|p| lower.contains(p));
         let quantity = lower.split_whitespace().last() == Some("escalated")
             && lower
@@ -500,6 +517,11 @@ mod tests {
         ] {
             let text = format!("node 5 failed: the op refused: {subject}: {payload}");
             assert!(subjectless_escalations(&text).is_empty(), "{text}");
+        }
+        for generic in GENERIC_SUBJECTS {
+            let text =
+                format!("node 5 failed: the op refused: {generic} is too close to call: {payload}");
+            assert_eq!(subjectless_escalations(&text).len(), 1, "{text}");
         }
         let enclosure = "the op refused: the tube escalated: enclosure [-2e-9, 3e-9] cannot be \
                          classified against the ambiguity band (1e-9, 1e-8)";

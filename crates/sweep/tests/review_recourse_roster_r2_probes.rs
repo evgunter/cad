@@ -71,15 +71,15 @@ fn the_two_doors_render_one_gap_sentence_for_one_unknown_name() {
             );
         }
         assert!(
-            !path.contains("whether the path turns at this junction"),
+            !path.contains("at this junction"),
             "no category over an unknown name: {path}"
         );
         // Both doors say what was too close to call before the
         // payload; for a name neither table knows, that is the door's
         // own decision, and the blend door names its site too.
         assert!(
-            path.starts_with("a decision the path door takes is too close to call: ")
-                && blend.starts_with("at the chain, a blend decision is undecided: "),
+            path.starts_with("an unnamed decision is too close to call: ")
+                && blend.starts_with("at the chain, an unnamed decision is undecided: "),
             "each door names what escalated ahead of the payload: {path} / {blend}"
         );
     }
@@ -126,7 +126,7 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
         );
         assert!(text.contains(COINCIDENCE_RECOURSE), "{text}");
         assert!(
-            !text.contains("no recourse is recorded") && !text.contains("turns at this junction"),
+            !text.contains("no recourse is recorded") && !text.contains("at this junction"),
             "neither a gap sentence nor a category: {text}"
         );
         assert_eq!(text.contains(NOTE), noted, "{text}");
@@ -143,25 +143,31 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
 
 /// **The tube's table routes which tube it names, never a recourse.**
 ///
-/// The three wall names read "the hollow tube"; every other name, and
-/// a nameless escalation, reads "the tube" — the honest answer for a
-/// predicate both tube doors can reach — and every one of them renders
-/// the shared recourse whole, with no gap sentence.
+/// The three wall names read "the hollow tube" and the two window names
+/// "the tube" — the honest answer for a predicate both tube doors can
+/// reach; a name the tube does not decide, and a nameless escalation,
+/// read as unnamed. Every one renders the shared recourse whole, with no
+/// gap sentence.
 #[test]
 fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
-    for (name, door) in [
-        ("tube_wall", "the hollow tube"),
-        ("tube_wall_bore", "the hollow tube"),
-        ("tube_wall_gap", "the hollow tube"),
-        ("tube_frame_unit", "the tube"),
-        ("tube_window_span", "the tube"),
-        (UNKNOWN, "the tube"),
+    for (name, subject) in [
+        ("tube_wall", "whether the hollow tube's wall"),
+        ("tube_wall_bore", "whether the hollow tube's wall"),
+        (
+            "tube_wall_gap",
+            "whether the hollow tube's inner and outer radii",
+        ),
+        ("tube_window_span", "whether the tube's arc window"),
+        ("tube_window_headroom", "whether the tube's arc window"),
+        // Not decided by the tube: the door has no words for it.
+        ("tube_frame_unit", "an unnamed decision"),
+        (UNKNOWN, "an unnamed decision"),
     ] {
         let text = TubeError::Escalated {
             source: escalation(Some(name)),
         }
         .to_string();
-        assert!(text.starts_with(&format!("whether {door}'s ")), "{text}");
+        assert!(text.starts_with(subject), "{text}");
         assert!(
             text.contains(COINCIDENCE_RECOURSE) && !text.contains("no recourse is recorded"),
             "{text}"
@@ -172,7 +178,7 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     }
     .to_string();
     assert!(
-        text.starts_with("whether the tube's shape is well formed is too close to call: margin "),
+        text.starts_with("an unnamed decision is too close to call: margin "),
         "{text}"
     );
 }

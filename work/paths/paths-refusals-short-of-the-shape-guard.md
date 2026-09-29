@@ -65,8 +65,11 @@ words, with the name left to `Debug`:
 
 - `crates/profile/src/path.rs`, the stored-form fillet arms: "…
   ('{predicate}' classifies …)" (two arms).
-- `ProfileError::Escalated` and `PathError::Escalated` now open with
-  what the decision decides, from `validate::decision_subject` (the
-  `SHARED_CLAUSE_ONLY` descriptions plus the carrier and segment
-  checks). A name decided later that is in neither falls back to "a
-  validation decision" / "a decision the path door takes".
+- `ProfileError::Escalated` and `PathError::Escalated`'s fall-through
+  now open with what the decision decides, from
+  `validate::decision_subject`: one plain clause per name, for every
+  name the crate decides except the fillet constructor's gates (routed
+  to sentences of their own). `recourse_roster::every_decided_name_has_a_subject_or_a_sentence`
+  holds that against `src`, so a name decided later without words goes
+  red there. A name from outside the crate reads `geom_core::UNNAMED_DECISION`,
+  which the shape guard reads as no subject.

@@ -283,11 +283,14 @@ mod interval_lane {
             half_edge: topo::HalfEdgeKey::default(),
             error: err,
         };
-        assert!(
-            format!("{wrapped:?}").contains("ssi_hull_sup"),
-            "the tier-3 wrapper keeps the escalating predicate's name: {wrapped:?}"
-        );
         let wrapped = wrapped.to_string();
+        // Both renderings say what escalated in words.
+        for text in [&direct, &wrapped] {
+            assert!(
+                text.contains("the fitted lane's certificate escalated"),
+                "{text}"
+            );
+        }
         for text in [&direct, &wrapped] {
             // AMENDED (fix pass): escalations now render through
             // `IndeterminatePayload`, the classifier's own renderer, so
