@@ -66,6 +66,36 @@ arena:
 - `kev`: `declined_cube`, tears `halves[19].next = halves[5]` and
   `halves[18].next = halves[19]`, kill at `halves[18]`.
 
+## Measured: the `None` anchors (PR 3483's review, head `d9465eb31e`)
+
+The same three plans write `None` where the `next` step lands on a
+killed half, which a torn `next` fakes. The review's search planted
+one and two tears of each of six kinds (seeds 1..=300) on
+`declined_cube`, `ops_ring_bridge`, `ops_strut_cube`, `ops_genus2` and
+`ops_holed_box`, ran each kill at every half-edge (release, debug
+assertions off) and counted the `Ok` results that leave a vertex
+anchored at `None` while a half-edge still starts there. Of 128,400
+calls per operator and tear kind:
+
+| tear | `kef` | `kemr` | `kev` |
+| --- | --- | --- | --- |
+| `NextForeign` | 0 | 2 | 0 |
+| `StartForeign` | 0 | 194 | 0 |
+| `EdgeBijection` | 0 | 0 | 4 |
+| `PrevForeign`, `ParentLoopForeign`, `LoopAnchorForeign` | 0 | 0 | 0 |
+
+A separate search over `EdgeBijection` tears (seeds 1..=1,000, the
+kills whose merged fan is empty exactly where `next(he)` is not the
+mate, or the other way round) found 6 `kev` calls that return `Ok`
+with a `None` anchor on a survivor that keeps edges, the first on
+`ops_strut_cube`, seed 30, one tear, kill at `halves[16]`. Four
+deterministic constructions reach the arm with no search: a strut
+with `next(m) = he` (`kev`); `declined_cube` with `halves[9]` and
+`halves[8]` torn onto each other (`kef`); and `ops_ring_bridge` with
+`next(he1) = he2`, or `next(he2) = he1` (`kemr`). In the dev profile
+each panics at its operator's tier-1 postcondition. At the fix pass's
+head every count above is 0.
+
 ## The shape to give
 
 Each plan proves that the half-edge it will anchor on starts at the

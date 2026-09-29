@@ -728,8 +728,8 @@ pub enum EulerOpError {
     /// [`EulerOpError::FanOrbitBroken`]); or a kill's new `emanating` for
     /// that vertex, read one `next` step from either killed half, starts
     /// elsewhere, or is `None` while another half-edge still starts there
-    /// (fired by [`Body::kef`], [`Body::kemr`] and the three `kev` doors,
-    /// with `he` the killed half that starts at the vertex).
+    /// (fired by [`Body::kef`], [`Body::kemr`] and the same three `kev`
+    /// calls, with `he` the killed half that starts at the vertex).
     OrbitBroken {
         /// The half-edge whose start vertex's orbit is broken.
         he: HalfEdgeKey,

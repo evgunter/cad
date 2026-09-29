@@ -38,9 +38,18 @@ departure from it; the input is already tier-1-invalid. What the row
 asks is whether the reversal should carry a live-but-wrong tear into
 new anchor faults, or refuse it typed as the Euler plans now do.
 
-Derived by reading, not measured: a probe in the style of
-`review_d18::kill_anchors_on_torn_bodies` over `revert` would size
-it.
+## Measured
+
+The kill-anchor review of PR 3483 planted every single tear on
+`declined_cube` (24 half-edges, so 576 `next` tears and 576 `prev`
+tears, one half-edge's link set to each half-edge in turn) and ran
+`revert`. With debug assertions off, 168 of the 576 `next` tears give
+`Ok` with an `EmanatingStartMismatch` the source did not have, and
+120 of the 576 `prev` tears give `Ok` with a loop whose `first` lies
+in another loop. In the dev profile `revert` panics at its tier-1
+postcondition instead (`revert.rs`, the `debug_assert` after the
+build). The probe was the review's own and is not committed; a row in
+the style of `review_d18::kill_anchors_on_torn_bodies` would keep it.
 
 ## The shape to give
 
