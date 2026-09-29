@@ -63,7 +63,14 @@ fn start_point(body: &Body<f64>, he: HalfEdgeKey) -> Point3<f64> {
 #[test]
 fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
     let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
-    let sq = || vec![bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)])];
+    let sq = || {
+        vec![bulge_loop(vec![
+            v(0.0, 0.0),
+            v(2.0, 0.0),
+            v(2.0, 2.0),
+            v(0.0, 2.0),
+        ])]
+    };
     let mut body = sweep::loft_body::<f64>(&[sq(), sq()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body;

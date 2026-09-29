@@ -954,7 +954,11 @@ fn mef_onto_a_second_key_holding_one_surface_drops_the_runs_rows_and_mints_none_
         let made = split_low(&mut s, FaceSurface::Shared(second));
         assert_eq!(rows_of(&s.body, made.face), (0, 4), "stamped: {stamped}");
         assert_eq!(rows_of(&s.body, s.low), (4, 0), "stamped: {stamped}");
-        assert_eq!(validate_pcurves(&s.body, band()), vec![], "stamped: {stamped}");
+        assert_eq!(
+            validate_pcurves(&s.body, band()),
+            vec![],
+            "stamped: {stamped}"
+        );
     }
 }
 

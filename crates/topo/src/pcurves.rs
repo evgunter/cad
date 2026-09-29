@@ -2252,7 +2252,7 @@ pub(crate) fn site_rows<T: Decide>(
         }
     };
     // Pass 1: the walk, loop by loop, in the pass's order.
-    let mut walked: Vec<(SiteHalf, geom::Curve3<T>, Pcurve<T>, T, T)> = Vec::new();
+    let mut walked: Vec<SiteWalked<T>> = Vec::new();
     for halves in &loops {
         let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(halves.len());
         let item = |i: usize| -> Result<WalkItem<T>, ItemFail> {
@@ -2294,6 +2294,10 @@ pub(crate) fn site_rows<T: Decide>(
     }
     Ok(SiteRows::Mint(rows))
 }
+
+/// One half-edge of [`site_rows`]' walk: where it lands, its carrier,
+/// and its branch-pinned image with the carrier interval.
+type SiteWalked<T> = (SiteHalf, geom::Curve3<T>, Pcurve<T>, T, T);
 
 /// Why [`site_rows`] could not read or derive one half-edge of the
 /// walk.
@@ -2411,6 +2415,10 @@ pub(crate) struct WalkItem<T: Real> {
     plus: bool,
 }
 
+/// One image [`walk_cycle`] placed: the branch-pinned chart curve with
+/// its carrier interval.
+type Pinned<T> = (Pcurve<T>, T, T);
+
 /// Why [`pin_branch`] placed no representation of an image.
 pub(crate) enum PinMiss {
     /// No representation meets the predecessor's exit on any branch.
@@ -2454,7 +2462,7 @@ fn walk_cycle<T: Decide, E>(
     len: usize,
     mut item: impl FnMut(usize) -> Result<WalkItem<T>, E>,
     band: Band,
-) -> Result<Vec<(Pcurve<T>, T, T)>, WalkFail<E>> {
+) -> Result<Vec<Pinned<T>>, WalkFail<E>> {
     // The chart's own u period (`chart_u_period`): `τ` on an analytic
     // azimuth chart, the knot-domain length on a NURBS chart closed in
     // u, and NO shift at all on a chart that does not wrap.
