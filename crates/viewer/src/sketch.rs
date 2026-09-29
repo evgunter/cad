@@ -1758,6 +1758,10 @@ pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]>
 
 #[cfg(test)]
 mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
     use pncad::document::{EvalError, SlotId};
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{
