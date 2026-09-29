@@ -2,11 +2,12 @@
 id: certify-zero-arms-quote-no-margin-without-a-seam
 kind: issue
 title: geom-brep: certify's zero arms render the tighten offer without its value, because a margin derived at T: Decide is no refusal payload outside a ratified Bounds seam
-status: dispatched
+status: open
 opened: 2026-09-28
 priority: P3
 cost: M
 design: true
+needs_ev: true
 ---
 
 

@@ -1220,3 +1220,8 @@ class of 65 sites is PRED's row.
   - Closed `adoption-certification-has-no-eps-in-lever`.
   - **Orchestrator slip:** committing the main merge on the `[ev]` branch left a conflict block in the fork log (`08eba8f88c`). I fixed it forward in `5bb3585ded`. Check `git merge`'s exit before editing, not only before committing.
 - 2026-09-29 — Opened design fork `encl-zero-arm-margin` on `certify-zero-arms-quote-no-margin-without-a-seam`. It covers the unvalued tighten on certify's Zero arms, the Bounds scope rule, and the zero span (D4 ¶1 (i) against Ev's `e1600790f9`), with 3380's door as the consumer. The blinding byte is on `analysis/design-fork/encl-zero-arm-margin` (protocol `bb10a4cdd4`). Two designers were dispatched concurrently with the same problem statement.
+- 2026-09-29 — Design fork `encl-zero-arm-margin` put to Ev as `[ev]` PR 3402. `certify-zero-arms-…` has `needs_ev: true`.
+  - **Both first reports converged:** the classifier's `MarginDiag` rides the Zero verdict; `Zero(None)`/`tighten(None)`/`Definite` are deleted; the zero span goes through D4 ¶1 (i) with an m ≤ 0 note; Bounds clause 2 gains one sentence (the diff); D4 ¶1 (i) is unchanged; the import door reads a structured verdict.
+  - **Split, on the mechanism:** A would have every outcome of `sign_within` carry the view; B would add a named `decide_sized` door. There was no reconciliation round.
+  - **Correction:** "a zero span is always a defect" (`e1600790f9`) is co-authored fix-pass text, not Ev's ruling, contrary to my brief and to the 3392 row's attribution. The PR says so.
+  - Void-side fixture PR 3401 is open and read; it merges on green.
