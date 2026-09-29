@@ -599,7 +599,8 @@ pub enum Landing {
 /// together they are one three-state fact**, and this is that fact as
 /// a value — the only thing a consumer of it is handed
 /// ([`DocSession::outstanding`] is the one site that reads both).
-/// `crates/viewer/README.md`, The session's vocabularies, argues why.
+/// `crates/viewer/README.md`, The session's vocabularies, argues why,
+/// and why [`crate::frame::Progress`] shares two of these names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outstanding {
     /// The picture answers the document the session holds: nothing is

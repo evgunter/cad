@@ -18,7 +18,8 @@
 //!   [`crate::evalseam::IndexService`] seam, at most one attempt per
 //!   picture ([`crate::pickindex::PictureKey`]), reporting
 //!   [`CacheStep`] for what a sync did and
-//!   [`IndexLanding`] for what an answer did;
+//!   [`IndexLanding`] for what an answer did, and [`IndexSeam`] for
+//!   whether an index for the picture on screen is on its way;
 //! - [`NotIndexed`] and [`unindexed`] — the typed refusal a pick
 //!   stream earns while no index describes the picture on screen,
 //!   whether because there is none at all or because the one in hand
@@ -58,7 +59,7 @@ use std::sync::Arc;
 use pncad::document::{Doc, Evaluation, ProfileProgram};
 use pncad::geom_core::Tol;
 
-use crate::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer};
+use crate::evalseam::{FitService, IndexDone, IndexRequest, IndexService, InlineIndexer};
 use crate::generation::Generation;
 use crate::input::PickAction;
 use crate::pickindex::{PickIndex, PickIndexError, PictureKey};
@@ -241,7 +242,7 @@ pub enum CacheStep {
     /// resubmitted.
     ///
     /// **A statement about the picture THIS sync asked about**, where
-    /// [`PickCache::indexing`] is the standing fact the chrome reads.
+    /// [`PickCache::indexing`] is the cache's standing record.
     /// The two are not the same question: a frame that submits a new
     /// picture answers [`CacheStep::Submitted`] and is indexing all
     /// the same.
@@ -465,8 +466,8 @@ impl PickCache {
         self.index.as_ref()
     }
 
-    /// Whether a build is outstanding: the indexing state the chrome
-    /// reads, as a value (`crate::frame::progress`).
+    /// Whether a build is outstanding: the cache's own record, one of
+    /// the two [`PickCache::index_seam`] reads for the chrome.
     ///
     /// **The cache's own record, and it is the only thing that can
     /// answer.** It says which PICTURE was asked for, where the seam
@@ -476,8 +477,8 @@ impl PickCache {
     /// picture stops existing, while the seam goes on building the
     /// orphan and goes on reporting itself busy for it.
     ///
-    /// **And the seam cannot disagree in the other direction**, which
-    /// is why it is not consulted as well. An attempt is recorded in
+    /// **And the index seam cannot disagree in the other direction**,
+    /// which is why it is not consulted as well. An attempt is recorded in
     /// the same step it is submitted, and from there the seam holds it
     /// — running or waiting — until it hands back the answer
     /// [`PickCache::pump`] takes straight to [`PickCache::land`],
@@ -490,10 +491,52 @@ impl PickCache {
         matches!(self.attempt, Some(Attempt::Asked(_)))
     }
 
+    /// Whether an index for the picture on screen is on its way, from
+    /// this cache's record and the fit seam the build waits on.
+    ///
+    /// **The cache's record alone reads idle through the fit.** While
+    /// the δ a document opens at is still being priced there is no δ
+    /// to build at, so [`PickCache::sync`] is handed `None` and
+    /// forgets; the build follows the fit with no gap, and from a
+    /// user's seat the fit is its first step.
+    ///
+    /// **The fit's `busy` is read directly, where the index seam's is
+    /// not** ([`PickCache::indexing`] argues against it: that seam can
+    /// be busy with an orphan). A busy fit cannot be an orphan in the
+    /// sense that matters, because it holds the build back whatever it
+    /// is fitting: `ViewerApp::sync_scene` hands [`PickCache::sync`] a
+    /// δ only once the fit is idle. That is a fact of the call site,
+    /// not of this cache, and it is what this read leans on.
+    pub fn index_seam(&self, fit: &dyn FitService) -> IndexSeam {
+        if self.indexing() || fit.busy() {
+            IndexSeam::Building
+        } else {
+            IndexSeam::Idle
+        }
+    }
+
     /// Why the last attempt refused, if it did.
     pub fn error(&self) -> Option<&PickIndexError> {
         self.error.as_ref()
     }
+}
+
+/// **Whether the index seam is working toward the picture on screen**,
+/// as the chrome and a refused pick both read it.
+///
+/// A value rather than a `bool`, so a consumer cannot be handed
+/// [`PickCache::indexing`] in its place — the cache's record alone,
+/// which reads idle through the fit that precedes every first build.
+/// That is all the type stops: the variants are public, so a call site
+/// can still hand over one it built, and which door a consumer's value
+/// came from ([`PickCache::index_seam`]) is held by rows that drive the
+/// app, not by the type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IndexSeam {
+    /// Nothing is being built, and nothing a build waits on is running.
+    Idle,
+    /// An index build is outstanding, or the fit that decides its δ is.
+    Building,
 }
 
 /// **A pick attempted while no index describes the picture on
@@ -515,7 +558,7 @@ impl PickCache {
 /// nobody is looking at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NotIndexed {
-    /// A build is under way ([`PickCache::indexing`]): the answer is
+    /// A build is under way ([`IndexSeam::Building`]): the answer is
     /// coming, and the toolbar is already saying so.
     Building,
     /// No index, and no build under way — the last attempt refused
@@ -598,12 +641,15 @@ impl core::error::Error for NotIndexed {}
 ///
 /// **Which sentence is true is read from what the pane holds**, not
 /// chosen at the call site. `held` is the index in hand
-/// ([`PickCache::index`]) and `indexing` is [`PickCache::indexing`].
+/// ([`PickCache::index`]) and `seam` is [`PickCache::index_seam`].
 ///
-/// **The two cannot both be set**, so they are not a pair of flags a
-/// caller could swap: [`PickCache::sync`] drops the held index in the
-/// same step that marks a build outstanding, which is the whole of
-/// *current or absent, never behind* above.
+/// **The two cannot both be set, and half of that is the caller's
+/// ordering.** [`PickCache::sync`] drops the held index in the same
+/// step that marks a build outstanding — the cache's half. For a busy
+/// fit, the cache knows nothing of it: it is `ViewerApp::sync_scene`
+/// that submits the fit and then hands [`PickCache::sync`] no δ in the
+/// same frame, before any pane reads the seam, and that forgets the
+/// index.
 ///
 /// **This door is asked where no index describes the picture on
 /// screen** — the `else` of the pane's one currency read, which is
@@ -616,7 +662,7 @@ impl core::error::Error for NotIndexed {}
 pub fn unindexed<'a>(
     actions: impl IntoIterator<Item = &'a PickAction>,
     held: Option<&PickIndex>,
-    indexing: bool,
+    seam: IndexSeam,
 ) -> Option<NotIndexed> {
     actions
         .into_iter()
@@ -629,9 +675,9 @@ pub fn unindexed<'a>(
             // "not news" because a wildcard put it there.
             PickAction::Hover(_) | PickAction::ClearHover => false,
         })
-        .then_some(match (held, indexing) {
+        .then_some(match (held, seam) {
             (Some(_), _) => NotIndexed::AnotherPicture,
-            (None, true) => NotIndexed::Building,
-            (None, false) => NotIndexed::Absent,
+            (None, IndexSeam::Building) => NotIndexed::Building,
+            (None, IndexSeam::Idle) => NotIndexed::Absent,
         })
 }

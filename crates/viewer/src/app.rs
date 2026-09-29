@@ -68,7 +68,7 @@ use crate::idpass::IdQueryLog;
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
-use crate::pickcache::{self, PickCache};
+use crate::pickcache::{self, IndexSeam, PickCache};
 use crate::pickindex::{PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
@@ -1600,13 +1600,10 @@ impl ViewerApp {
             // doing, so the toolbar never lights two spinners for
             // the same moment.
             // **The spinner follows the work, never the name**
-            // (`frame::Progress::Canceled`). A fit in flight is the
-            // index build's first step from a user's seat — nothing is
-            // on screen for it, the build follows it with no gap, and
-            // the one progress state is what says a picture is coming.
+            // (`frame::Progress::Canceled`).
             match frame::progress(
                 self.session.outstanding(),
-                self.picks.indexing() || self.fit.busy(),
+                self.picks.index_seam(self.fit.as_ref()),
             ) {
                 Some(frame::Progress::Evaluating) => {
                     ui.separator();
@@ -1620,7 +1617,8 @@ impl ViewerApp {
                     // collect it.
                     ui.ctx().request_repaint();
                 }
-                Some(frame::Progress::Canceled { indexing }) => {
+                Some(frame::Progress::Canceled { index }) => {
+                    let indexing = index == IndexSeam::Building;
                     ui.separator();
                     // The recourse is UNCONDITIONAL: the cancel is
                     // what the reader has to act on, and an index
@@ -1878,7 +1876,7 @@ impl eframe::App for ViewerApp {
                     scene: &self.scene,
                     index: self.picks.index(),
                     scene_key: self.scene_key,
-                    indexing: self.picks.indexing(),
+                    indexing: self.picks.index_seam(self.fit.as_ref()),
                     revision: self.revision,
                     camera: &mut self.camera,
                     input: self.input,
@@ -1989,13 +1987,13 @@ pub(crate) struct ViewerBehavior<'a> {
     /// scene_key`), for the reads of `index` that are about the
     /// PICTURE rather than about the document.
     pub(crate) scene_key: Option<PictureKey>,
-    /// Whether a build for the picture this frame WANTS is under way —
-    /// the other half of what `index: None` means, and the half that
+    /// Whether an index for the picture this frame WANTS is on its way
+    /// — the other half of what `index: None` means, and the half that
     /// decides which sentence a refused pick gets
-    /// ([`crate::pickcache::NotIndexed`]). Carried as a value rather than re-derived
-    /// from the session, because "someone is building one" is the pick
-    /// cache's answer and nothing else's.
-    pub(crate) indexing: bool,
+    /// ([`crate::pickcache::NotIndexed`]). The same value the toolbar's
+    /// progress state reads, from the same door, so a click and the
+    /// spinner cannot describe one wait two ways.
+    pub(crate) indexing: IndexSeam,
     pub(crate) revision: u64,
     pub(crate) camera: &'a mut Camera,
     pub(crate) input: InputMap,
@@ -2568,6 +2566,8 @@ mod tests {
         /// Where the sentence [`toolbar_drawn`] looked for landed, one
         /// rect per line, empty when it was given none.
         status: Vec<egui::Rect>,
+        /// Every text run the second frame painted, in paint order.
+        painted: Vec<String>,
     }
 
     /// A status line longer than a narrow window's toolbar row, in the
@@ -2624,6 +2624,7 @@ mod tests {
             available: f32::NAN,
             panel: egui::Rect::NOTHING,
             status: Vec::new(),
+            painted: Vec::new(),
         };
         for _ in 0..2 {
             let input = egui::RawInput {
@@ -2651,14 +2652,12 @@ mod tests {
                     row.occupied = laid_out.response.rect.width();
                 });
             });
+            let landed = crate::pane::headless::landed_in(&output.shapes);
             row.status = sentence
-                .and_then(|text| {
-                    crate::pane::headless::landed_in(&output.shapes)
-                        .into_iter()
-                        .find(|landed| landed.text == text)
-                })
-                .map(|landed| landed.rows)
+                .and_then(|text| landed.iter().find(|landed| landed.text == text))
+                .map(|landed| landed.rows.clone())
                 .unwrap_or_default();
+            row.painted = landed.into_iter().map(|landed| landed.text).collect();
             // Nothing here paints, so the frame's texture delta is
             // dropped rather than uploaded, and epaint refuses a drop
             // it did not see taken.
@@ -2691,6 +2690,109 @@ mod tests {
             },
             Some(CANCELED_LINE),
         )
+    }
+
+    /// **What the toolbar draws for each progress state**, planted
+    /// through the reads it takes them from: the session's
+    /// [`crate::session::Outstanding`] and the index seam, whose
+    /// building state is planted as a fit in flight — the one the
+    /// cache's own record cannot see.
+    ///
+    /// The spinner is not text and is not read here; what is asserted
+    /// is the words and the recourse beside them, in paint order.
+    #[test]
+    fn the_toolbar_draws_each_progress_state_once() {
+        use crate::evalseam::{FitService, InlineFitter};
+        use crate::pickcache::IndexSeam;
+        use crate::session::{DocSession, Outstanding};
+
+        const WORDS: [&str; 5] = [
+            "evaluating…",
+            "Cancel",
+            CANCELED_LINE,
+            "Re-evaluate",
+            "indexing…",
+        ];
+        let tol = pncad::tolerance::witness();
+        let session = |outstanding: Outstanding| {
+            let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+            let mut session = DocSession::inline(document, tol);
+            session.pump();
+            match outstanding {
+                Outstanding::Current => {}
+                Outstanding::Evaluating => {
+                    session.perform(SessionOp::Reevaluate);
+                }
+                Outstanding::Canceled => {
+                    session.perform(SessionOp::Reevaluate);
+                    session.perform(SessionOp::CancelEvaluation);
+                    session.pump();
+                }
+            }
+            assert_eq!(
+                session.outstanding(),
+                outstanding,
+                "the fixture plants {outstanding:?}"
+            );
+            session
+        };
+        let drawn = |outstanding: Outstanding, index: IndexSeam| {
+            let row = toolbar_drawn(
+                UNBOUNDED,
+                |app| {
+                    app.session = session(outstanding);
+                    let mut fit = InlineFitter::new();
+                    if index == IndexSeam::Building {
+                        fit.submit(
+                            app.session
+                                .fit_request(app.delta)
+                                .expect("a landed plate has a body to fit"),
+                        );
+                    }
+                    app.fit = Box::new(fit);
+                    assert_eq!(
+                        app.picks.index_seam(app.fit.as_ref()),
+                        index,
+                        "the fixture plants {index:?}"
+                    );
+                },
+                None,
+            );
+            row.painted
+                .into_iter()
+                .filter(|text| WORDS.contains(&text.as_str()))
+                .collect::<Vec<_>>()
+        };
+        for (outstanding, index, expected) in [
+            (Outstanding::Current, IndexSeam::Idle, vec![]),
+            (Outstanding::Current, IndexSeam::Building, vec!["indexing…"]),
+            (
+                Outstanding::Evaluating,
+                IndexSeam::Idle,
+                vec!["evaluating…", "Cancel"],
+            ),
+            (
+                Outstanding::Evaluating,
+                IndexSeam::Building,
+                vec!["evaluating…", "Cancel"],
+            ),
+            (
+                Outstanding::Canceled,
+                IndexSeam::Idle,
+                vec![CANCELED_LINE, "Re-evaluate"],
+            ),
+            (
+                Outstanding::Canceled,
+                IndexSeam::Building,
+                vec![CANCELED_LINE, "Re-evaluate", "indexing…"],
+            ),
+        ] {
+            assert_eq!(
+                drawn(outstanding, index),
+                expected,
+                "the toolbar over {outstanding:?} with the index seam {index:?}"
+            );
+        }
     }
 
     /// **The canceled line wraps as the status line does**: whole, at
@@ -3250,7 +3352,7 @@ mod properties_pane_tests {
     /// **One frame of the real app**, at a 1600 by 1000 window, with
     /// `time` and `events` as its input: every text run it painted and
     /// where. The one frame body every whole-app row here draws with.
-    fn app_frame(
+    pub(super) fn app_frame(
         ctx: &egui::Context,
         app: &mut ViewerApp,
         frame: &mut eframe::Frame,
@@ -3861,6 +3963,99 @@ mod properties_pane_tests {
         assert_eq!(
             held_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Path),
             ["add a step to the chain"]
+        );
+    }
+}
+
+/// **A click in the viewport while the index seam is busy**, driven
+/// through the whole app: the value `ViewerApp::ui` hands the viewport
+/// ([`ViewerBehavior::indexing`]) is what decides which refusal the
+/// click earns, and this row is where that call site is read.
+#[cfg(test)]
+mod index_seam_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use eframe::egui;
+    use egui_tiles::Tile;
+
+    use super::properties_pane_tests::app_frame;
+    use super::{Pane, ViewerApp};
+    use crate::evalseam::{FitDone, FitRequest, FitService};
+    use crate::pickcache::NotIndexed;
+    use crate::session::DocSession;
+
+    /// A fit seam that is always pricing and never answers: the
+    /// window between a document landing and its δ being chosen, held
+    /// open for as many frames as the row needs.
+    struct Pricing;
+
+    impl FitService for Pricing {
+        fn submit(&mut self, _request: FitRequest) {}
+        fn poll(&mut self) -> Option<FitDone> {
+            None
+        }
+        fn busy(&self) -> bool {
+            true
+        }
+    }
+
+    /// **The click is told an index is coming**, over a document that
+    /// has landed while its δ is still being fitted. That is the state
+    /// a document opens into: `sync_scene` hands the pick cache no δ,
+    /// so the cache holds no attempt and its own record reads idle, and
+    /// only a viewport handed the index seam's door hears the fit.
+    #[test]
+    fn a_click_while_the_fit_prices_the_delta_is_told_an_index_is_coming() {
+        let ctx = egui::Context::default();
+        let tol = pncad::tolerance::witness();
+        let mut app =
+            ViewerApp::assemble(&ctx, tol).expect("startup that needs no graphics device");
+        let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let mut session = DocSession::inline(document, tol);
+        session.pump();
+        app.session = session;
+        app.fit = Box::new(Pricing);
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut time = 0.0;
+        let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
+            time += 1.0;
+            app_frame(&ctx, app, &mut frame, Some(time), events)
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect::<Vec<_>>()
+        };
+
+        paint(&mut app, Vec::new());
+        assert!(
+            !app.picks.indexing() && app.picks.index().is_none(),
+            "the fixture is the cache's idle record under a fit in flight"
+        );
+        let at = app
+            .tree
+            .tiles
+            .iter()
+            .find(|(_, tile)| matches!(tile, Tile::Pane(Pane::Viewport)))
+            .and_then(|(id, _)| app.tree.tiles.rect(*id))
+            .expect("the viewport is laid out")
+            .center();
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        paint(&mut app, vec![egui::Event::PointerMoved(at)]);
+        paint(&mut app, vec![press(true), press(false)]);
+        let painted = paint(&mut app, Vec::new());
+
+        assert!(
+            painted.contains(&NotIndexed::Building.to_string()),
+            "the click's refusal promises the index the toolbar is spinning for: {painted:?}"
+        );
+        assert!(
+            !painted.contains(&NotIndexed::Absent.to_string()),
+            "and does not say none is being built"
         );
     }
 }
