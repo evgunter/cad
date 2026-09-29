@@ -27,7 +27,7 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
-use pncad::select::{ContactClass, HitTestError, NodePickError};
+use pncad::select::{ContactClass, HitTestError, NodePickError, UnnamedEntity};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
@@ -1891,10 +1891,11 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 /// bug arm, so the state is built directly: the id side of a
 /// disagreement, holding the refusal the index would have stored.
 /// The sentence is fixed here, and the refusal rides through its own
-/// `Display` once, unaltered.
+/// `Display` once, unaltered — and that `Display` names the lookup
+/// that built the index, not a hit test, because none ran.
 #[test]
 fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
-    let error = HitTestError::Unnamed {
+    let error = UnnamedEntity {
         node: RecipeNodeId(2),
         entity: editor_core::names::EntityRef {
             body: 0,
@@ -1902,18 +1903,17 @@ fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
         },
     };
     let report = idpass::Disagreement {
-        from_gpu: idpass::IdAnswer::Unnamed {
-            id: 9,
-            error: error.clone(),
-        },
+        from_gpu: idpass::IdAnswer::Unnamed { id: 9, error },
         from_ray: Vec::new(),
     };
+    let sentence = report.to_string();
     assert_eq!(
-        report.to_string(),
+        sentence,
         format!(
             "picking paths disagree at the cursor: id buffer id 9, a drawn patch: {error}, ray nothing"
         )
     );
+    assert!(!sentence.contains("hit test"), "{sentence}");
 }
 
 /// **The diagnostic's subject is the PATCH under the cursor, and the

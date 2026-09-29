@@ -1158,10 +1158,8 @@ impl<T: Decide> Body<T> {
     ///
     /// Answered from identity evidence only: one surface key, or two
     /// keys sharing one NURBS / `Approx` payload `Arc`. A
-    /// [`crate::GeomSource`] stamp is not read: it declares what the
-    /// recipe intended, and does not prove the two keys hold one value.
-    /// Whether the recipe has declared two keys one surface is the merge
-    /// door's question (`Body::planes_declared_equal`), not this one's.
+    /// [`crate::GeomSource`] stamp is not read — [`crate::source`]'s
+    /// module docs name this question and the declared one apart.
     ///
     /// Two keys holding equal values with no identity tie answer
     /// `false`, and their rows drop and are re-minted: the price of

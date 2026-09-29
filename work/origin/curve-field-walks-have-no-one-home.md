@@ -2,11 +2,12 @@
 id: curve-field-walks-have-no-one-home
 kind: issue
 title: the curve side has the same hand-written field walks the surface side lost in PR 3429 (poisoned_curve_datums, the mesh memo's curve3)
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P3
 cost: M
 refs: [surface-field-walks-and-source-theorem-checks-have-no-one-home]
+branch: origin/curve-walk
 ---
 
 

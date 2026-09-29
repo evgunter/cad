@@ -1734,12 +1734,12 @@ impl<T: Decide> Body<T> {
         ))
     }
 
-    /// The F6 ladder's merge test (M4 PR 5, the N6 retirement): same
-    /// surface key (structural), same [`crate::GeomSource`] including
-    /// orient (declared — shared recipe source, syntactic identity,
-    /// zero numerics), or the pair's surfaces are declared-equivalent
-    /// by this call's face pairs (verified through `plane_eq`'s
-    /// declared rung at the meeting edge; contradiction refuses).
+    /// The F6 ladder's merge test: the recipe declared the two faces'
+    /// surfaces one ([`crate::source::surface_declaration`] — same key
+    /// or same [`crate::GeomSource`], zero numerics) and the faces share
+    /// a `sense`, or the pair's planes are declared-equivalent by this
+    /// call's face pairs (verified through `plane_eq`'s declared rung
+    /// at the meeting edge; contradiction refuses).
     ///
     /// The M3-era rung — bit-identical nine-scalar descriptions — is
     /// RETIRED from production: equal bits without shared source stay
@@ -1749,8 +1749,8 @@ impl<T: Decide> Body<T> {
     /// here by design* — the declared-pair verification only checks
     /// the declaration is not a lie; the INTENT does the gluing.
     ///
-    /// Non-plane surfaces never merge, same-key included (curved
-    /// maximality is M5's).
+    /// The declared hard rungs merge any kind; the declared-pair rung
+    /// is planar.
     ///
     /// **Shared sense is a precondition of every rung** (S10). Two
     /// faces on one surface whose `sense` bits differ have OPPOSITE
@@ -1787,46 +1787,21 @@ impl<T: Decide> Body<T> {
         // conclude the faces are one region. Falling through leaves
         // the declared rung to refuse loudly if the pair was declared.
         let same_sense = face1.sense == face2.sense;
-        // The hard rungs are KIND-AGNOSTIC since M5 PR 9 (C12.5, the
-        // cosurface generalization): the same-key and same-source
-        // tests never touch a numeric coordinate, so nothing about
-        // them was planar — the M3-era "curved same-key neighbors
-        // stay unmerged" note flips here, with the same ladder, the
-        // same never-numeric rule, and N3 naming semantics unchanged.
-        // The named consumer: the boolean zip's re-merge of a
-        // cylinder wall split by a through cut.
-        if k1 == k2 && same_sense {
-            return Ok(true); // structural
-        }
-        // Declared rung, N6 form: same recipe source INCLUDING orient
-        // — a provenance lookup, no numerics (M4's GeomSource
-        // retirement consumed, NOT bit_identity). The debug assertion
-        // is DESIGN.md's "records agree with bits", stated for the
-        // planar kind where the bit predicate exists.
-        if same_sense
-            && let (Some(g1), Some(g2)) = (self.surface_source(k1), self.surface_source(k2))
-            && g1 == g2
-        {
-            // Asserted only where the scalar HAS a bit channel: the rung
-            // is the provenance lookup, the bits are its evidence, and a
-            // scalar with no channel (`Dual`, `Sym`) offers none —
-            // `None` there is not disagreement.
+        // The hard rungs are the declared-identity predicate
+        // (`crate::source`'s module docs): kind-agnostic, never numeric.
+        let declaration = crate::source::surface_declaration(self, k1, self, k2);
+        if same_sense && declaration.one_surface() {
+            // Asserted where the grouping's kind split will not refuse
+            // the pair typed, and only where the scalar HAS a bit
+            // channel: a scalar with no channel (`Dual`, `Sym`) offers
+            // no evidence, and `None` there is not disagreement.
             #[cfg(debug_assertions)]
-            if let (
-                Surface::Plane {
-                    origin: o1,
-                    normal: n1,
-                    u_ref: u1,
-                },
-                Surface::Plane {
-                    origin: o2,
-                    normal: n2,
-                    u_ref: u2,
-                },
-            ) = (s1.clone(), s2.clone())
-                && let Some(agree) = crate::source::plane_bits_witness(o1, n1, o2, n2, false)
-                    .zip(crate::source::vec3_bits_witness(u1, u2))
-                    .map(|(plane, u_ref)| plane && u_ref)
+            if declaration == crate::source::SurfaceDeclaration::SameSource
+                && matches!(
+                    (MergeKind::of(s1), MergeKind::of(s2)),
+                    (Ok(a), Ok(b)) if a == b
+                )
+                && let Some(agree) = crate::source::surface_bits_witness(s1, s2)
             {
                 debug_assert!(
                     agree,

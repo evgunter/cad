@@ -30,7 +30,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use editor_core::{Evaluation, HitTestError, RecipeNodeId};
+use editor_core::{Evaluation, RecipeNodeId, UnnamedEntity};
 use viewer::pickindex::PickIndex;
 
 use crate::common::corpus_pick::{
@@ -203,7 +203,7 @@ fn wide_sweep(
     // Each part's patch names, and which patches each of its positions
     // belongs to: the aim knows WHICH FACE it aimed at, and a hit on
     // another face at the same depth is not that aim kept.
-    let names: Vec<Vec<Result<pncad::prelude::StableName, HitTestError>>> = index
+    let names: Vec<Vec<Result<pncad::prelude::StableName, UnnamedEntity>>> = index
         .parts()
         .iter()
         .map(|part| {

@@ -20,10 +20,11 @@
 //! node id, `t`, and hit point) or a typed error; the
 //! [`topo::FaceKey`]s live inside the private [`MeshPick`] state and
 //! the private winning-triangle lookup. The one stated exception is
-//! the [`HitTestError::Unnamed`] BUG arm, whose payload (inherited
-//! verbatim from [`super::hit`]) carries the unnamed [`EntityRef`] —
-//! that is a naming-emission diagnostic for a kernel bug report,
-//! never a selection value, and typed beats stringly even there.
+//! the [`UnnamedEntity`] BUG report (the payload of
+//! [`HitTestError::Unnamed`], and the whole per-entity refusal of the
+//! name doors), which carries the unnamed [`EntityRef`] — that is a
+//! naming-emission diagnostic for a kernel bug report, never a
+//! selection value, and typed beats stringly even there.
 //!
 //! Picking is a UI concern with no D9 predicate obligation (GQ6
 //! re-survey §3): everything here is plain `f64` with conservative
@@ -83,8 +84,8 @@ use geom_core::{Decide, Point3, Tol, Vec3};
 use mesh::{Mesh, PatchKeys, PatchMemo, StoredPatchId, TessellateError, tessellate_with};
 use topo::FaceKey;
 
-use super::hit::{HitTestError, entity_name};
-use crate::eval::{ContentKey, Evaluation, NamingKey, NodeResult, NodeValue};
+use super::hit::{HitTestError, UnnamedEntity, entity_name, lookup, standing};
+use crate::eval::{ContentKey, Evaluation, NamingKey, NodeValue};
 use crate::ident::DocumentId;
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
@@ -650,30 +651,12 @@ impl core::fmt::Display for NodePickError {
 impl core::error::Error for NodePickError {}
 
 /// One node's `Ok` value, or the standing refusal that says why there
-/// is none.
-///
-/// The ladder [`NodePick::build`] and [`NodePick::build_all`] both
-/// climb, written once: two spellings of one standing vocabulary is
-/// how the two doors come to disagree about a poisoned node.
+/// is none — [`standing`]'s ladder in [`NodePick::build`]'s vocabulary.
 fn standing_value<T: Decide>(
     eval: &Evaluation<T>,
     node: RecipeNodeId,
 ) -> Result<&NodeValue<T>, NodePickError> {
-    match eval.nodes.get(&node) {
-        Some(NodeResult::Ok(value)) => Ok(value),
-        Some(NodeResult::Failed(_)) => {
-            Err(NodePickError::Standing(HitTestError::NodeFailed { node }))
-        }
-        Some(NodeResult::Poisoned { through }) => {
-            Err(NodePickError::Standing(HitTestError::NodePoisoned {
-                node,
-                through: *through,
-            }))
-        }
-        None => Err(NodePickError::Standing(HitTestError::NodeNotEvaluated {
-            node,
-        })),
-    }
+    standing(eval, node).map_err(NodePickError::Standing)
 }
 
 /// A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
@@ -1246,10 +1229,15 @@ impl NodePick {
     /// goes in, the name comes out.
     ///
     /// Total, per patch, and honest about the loud arm: an
-    /// evaluated-but-unnamed face is [`HitTestError::Unnamed`] in ITS
-    /// OWN slot rather than a refusal of the whole call, because one
+    /// evaluated-but-unnamed face is [`UnnamedEntity`] in ITS OWN
+    /// slot rather than a refusal of the whole call, because one
     /// naming-emission bug should not cost a consumer the names of
-    /// every other patch it is drawing.
+    /// every other patch it is drawing. That is the only thing a slot
+    /// can hold besides a name — the node's standing is one fact
+    /// about the call and is settled before any slot is filled — so
+    /// the slot's type is exactly that, and a reader of it handles no
+    /// hit-test arm: no hit test runs here, and the refusal's own
+    /// sentence says a lookup did.
     ///
     /// **`eval` must be an evaluation OF the document this index was
     /// built from** (DI3, A2a). The index is built from one evaluation
@@ -1261,44 +1249,38 @@ impl NodePick {
     /// table is read.
     ///
     /// The refusal is of the CALL and sits OUTSIDE the vector, which
-    /// is the shape of the fact: a mispairing is one thing that is
-    /// wrong with the arguments, not one thing wrong with each patch,
-    /// and a per-slot `Err` repeating it once per patch would read as
-    /// `n` unnamed faces. The per-patch lane keeps its own meaning.
+    /// is the shape of the fact: a mispairing, or a node with no table
+    /// in `eval`, is one thing that is wrong with the arguments, not
+    /// one thing wrong with each patch, and a per-slot `Err` repeating
+    /// it once per patch would read as `n` unnamed faces. The
+    /// per-patch lane keeps its own meaning.
     ///
     /// A LATER evaluation of the SAME document is admitted, even one
     /// that re-tessellated this node: identity is what a pairing is
     /// about (DI3), and whether the patches still line up is the
     /// content keys' business, which is what [`PickMemo`] reads them
-    /// for.
+    /// for. A later evaluation in which this node FAILED is admitted
+    /// by the pairing and refused by the standing: the stale index
+    /// has no table to read, and the call says so once.
     ///
     /// # Errors
     ///
-    /// [`HitTestError::EvaluationOfAnotherDocument`] — the only way
-    /// the call as a whole refuses.
+    /// [`HitTestError::EvaluationOfAnotherDocument`] for the pairing;
+    /// the standing arms ([`HitTestError::NodeNotEvaluated`],
+    /// [`HitTestError::NodeFailed`], [`HitTestError::NodePoisoned`])
+    /// when `eval` holds no table for this node. Nothing else refuses
+    /// the call.
     pub fn patch_names(
         &self,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
-        if let Some(refusal) = mispairing(self.document, eval) {
-            return Err(refusal);
-        }
-        Ok(self
-            .mesh
-            .patches
-            .iter()
-            .map(|patch| {
-                entity_name(
-                    eval,
-                    self.node,
-                    EntityRef {
-                        body: self.body,
-                        key: EntityKey::Face(patch.face),
-                    },
-                )
-                .cloned()
-            })
-            .collect())
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
+        self.names_of(
+            eval,
+            self.mesh
+                .patches
+                .iter()
+                .map(|patch| EntityKey::Face(patch.face)),
+        )
     }
 
     /// The stable name of every boundary polyline of
@@ -1314,38 +1296,54 @@ impl NodePick {
     /// and reads the name out of here; the key never leaves.
     ///
     /// Total, per polyline, with the loud arm in its own slot: an
-    /// evaluated-but-unnamed edge is [`HitTestError::Unnamed`] for
-    /// that polyline alone, because one naming-emission bug should not
-    /// cost a consumer the names of every other edge it is drawing.
+    /// evaluated-but-unnamed edge is [`UnnamedEntity`] for that
+    /// polyline alone, because one naming-emission bug should not
+    /// cost a consumer the names of every other edge it is drawing —
+    /// and it is the only thing a slot holds besides a name, for
+    /// [`NodePick::patch_names`]' reason.
     ///
-    /// The pairing is [`NodePick::patch_names`]', for the same reason
-    /// and with the same boundary: `eval` must be an evaluation of the
-    /// document this index was built from, a later evaluation of that
-    /// document is admitted, and the refusal is of the call rather
-    /// than of each polyline.
+    /// The pairing and the standing are [`NodePick::patch_names`]',
+    /// for the same reason and with the same boundary: `eval` must be
+    /// an evaluation of the document this index was built from, a
+    /// later evaluation of that document is admitted, and a refusal
+    /// is of the call rather than of each polyline.
     ///
     /// # Errors
     ///
-    /// [`HitTestError::EvaluationOfAnotherDocument`] — the only way
-    /// the call as a whole refuses.
+    /// As [`NodePick::patch_names`]: the pairing arm, or a standing
+    /// arm. Nothing else refuses the call.
     pub fn boundary_names(
         &self,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
+        self.names_of(
+            eval,
+            self.mesh
+                .boundaries
+                .iter()
+                .map(|boundary| EntityKey::Edge(boundary.edge)),
+        )
+    }
+
+    /// The two name doors' one body: the pairing, then the standing,
+    /// then one table read per key, in the order the keys come.
+    fn names_of(
+        &self,
+        eval: &Evaluation<f64>,
+        keys: impl Iterator<Item = EntityKey>,
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
         if let Some(refusal) = mispairing(self.document, eval) {
             return Err(refusal);
         }
-        Ok(self
-            .mesh
-            .boundaries
-            .iter()
-            .map(|boundary| {
-                entity_name(
-                    eval,
+        let value = standing(eval, self.node)?;
+        Ok(keys
+            .map(|key| {
+                lookup(
+                    value,
                     self.node,
                     EntityRef {
                         body: self.body,
-                        key: EntityKey::Edge(boundary.edge),
+                        key,
                     },
                 )
                 .cloned()
@@ -1561,21 +1559,7 @@ pub fn pick_face<T: Decide>(
 
     // Target standing, up front (docs: an error, never a silent miss).
     for target in targets {
-        match eval.nodes.get(&target.node) {
-            Some(NodeResult::Ok(_)) => {}
-            Some(NodeResult::Failed(_)) => {
-                return Err(HitTestError::NodeFailed { node: target.node });
-            }
-            Some(NodeResult::Poisoned { through }) => {
-                return Err(HitTestError::NodePoisoned {
-                    node: target.node,
-                    through: *through,
-                });
-            }
-            None => {
-                return Err(HitTestError::NodeNotEvaluated { node: target.node });
-            }
-        }
+        standing(eval, target.node)?;
     }
 
     // The survivors of the certified order: a candidate no other

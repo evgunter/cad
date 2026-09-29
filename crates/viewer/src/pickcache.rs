@@ -351,7 +351,8 @@ impl PickCache {
             // is the per-frame rebuild loop; the error is already
             // recorded and the caller has already seen it.
             Some(Attempt::Answered(key)) if key == wanted => return CacheStep::Held,
-            _ => {}
+            // Nothing asked yet, or asked for another picture.
+            Some(Attempt::Asked(_) | Attempt::Answered(_)) | None => {}
         }
         self.attempt = Some(Attempt::Asked(wanted));
         // **Dropped before the answer, not after it.** What is held
@@ -623,10 +624,7 @@ pub fn unindexed<'a>(
         .any(|action| match action {
             // An ACT: the user asked for something and did not get it.
             PickAction::Select(_) => true,
-            // Observations. Exhaustive on purpose, the way
-            // `ToolKind::pick_kinds` is: a fifth action added to the
-            // stream must be classified here rather than falling into
-            // "not news" because a wildcard put it there.
+            // Observations.
             PickAction::Hover(_) | PickAction::ClearHover => false,
         })
         .then_some(match (held, indexing) {

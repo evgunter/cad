@@ -235,3 +235,26 @@ faces, one grouping spelling in census and the test helpers, the cone
 containment change pinned and measured right). Seam notes on
 RESTFRONT's `check-10-…` (a silence retired, tier 3 widened) and SHELL's
 log; a TCOST finding filed (`germ-cone-doc-claims-one-merged-face-…`).
+
+## 2026-09-29 — PR 3429 lands (one surface walk, one declared predicate)
+
+Single FULL review on `5aa6d5a16`: APPROVE-WITH-FIXES, no MAJOR; fix
+pass `390837fed` (step-import's sixth walk folded, byte-identical;
+`Mirrored` pinned through a public door; the analytic/NURBS split made
+a type, no `unreachable!`, no allocation; chart-region's `same_chart`
+renamed `declared_chart`; mesh-side every-scalar row; `plane_eq` rung 1
+routed through `source_declaration`). `surface-field-walks-…` and
+`three-spellings-…` close; `carrier-eq-source-rung-…` filed. Main
+(with PR 3430) merged in before landing, so the gate ran on the
+combined tree.
+
+## 2026-09-29 — the P0 spine closed; track re-banded P3
+
+PR 3429 (one surface walk, one declared predicate) landed after a
+single FULL review and fix pass. With it, every row the track was
+opened for is closed. `program.md` re-banded P3 (the band of what
+remains) and its charter restated; `plan.md` rewritten to the present
+slate. `curve-field-walks-…`, `surface-field-census-…` and
+`carrier-eq-source-rung-…` dispatched as one unit on
+`origin/curve-walk` (single STYLE review: the pattern is PR 3429's,
+repeated).

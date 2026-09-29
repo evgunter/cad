@@ -469,10 +469,13 @@ fn pick_face_refuses_a_target_of_another_document() {
 /// thing the row left open: the later run answers the SAME names, slot
 /// for slot, and "admitted" is not covering a difference. The second
 /// half takes the same parameter to a degenerate value, so the node
-/// FAILS in the later run, and shows the split the signature exists
-/// for: the CALL is still admitted (identity is unchanged) and every
-/// SLOT refuses, so a stale index announces itself per patch rather
-/// than answering a plausible name.
+/// FAILS in the later run, and shows the two checks the door runs in
+/// order: the pairing admits the call (identity is unchanged) and the
+/// standing refuses it — once, for the call, because a node with no
+/// table is one fact about the arguments and not one fact per patch —
+/// so a stale index announces itself rather than answering a
+/// plausible name, and the per-slot lane is left to the one thing it
+/// holds, an unnamed entity.
 ///
 /// What may be reused across such a run is the content keys' business
 /// (`PickMemo`), not the pairing's — and
@@ -535,23 +538,21 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
     );
 
     // The loud end of the same admission: the node FAILS in the later
-    // run. Identity is unchanged, so the call is admitted; the stale
-    // index's patches have no table to invert, so every slot refuses.
+    // run. Identity is unchanged, so the pairing admits the call; the
+    // stale index's patches have no table to invert, so the standing
+    // refuses it — outside the vector, the way the pairing refusal
+    // sits, since both are one fact about the arguments.
     let broken = later(0.0);
-    let names_broken = pick
-        .patch_names(&broken)
-        .expect("identity is unchanged, so the CALL is still admitted");
     assert_eq!(
-        names_broken.len(),
-        names_before.len(),
-        "the index is still the one that was built"
-    );
-    assert!(
-        names_broken
-            .iter()
-            .all(|n| matches!(n, Err(HitTestError::NodeFailed { node }) if *node == ext)),
+        pick.patch_names(&broken),
+        Err(HitTestError::NodeFailed { node: ext }),
         "a stale index over a node that has since failed announces \
-         itself in every slot rather than answering a plausible name"
+         itself once, for the call, rather than answering a plausible name"
+    );
+    assert_eq!(
+        pick.boundary_names(&broken),
+        Err(HitTestError::NodeFailed { node: ext }),
+        "the edge door refuses the same way"
     );
 }
 
