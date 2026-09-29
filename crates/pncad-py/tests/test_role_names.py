@@ -177,16 +177,18 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         self.assertEqual(len(bands), 4, "one band per meridian segment")
-        self.assertEqual(bands, [band(node, piece(doc, profile, 0, seg)) for seg in range(4)])
+        # `select` answers in name order, which follows the minted ids;
+        # the door's answers are the same names.
+        self.assertCountEqual(bands, [band(node, piece(doc, profile, 0, seg)) for seg in range(4)])
         # No pole, so no `[pi, 2pi)` half exists to name.
         self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
         # A rim per meridian vertex, and a seam vertex under each.
         rims = of_role(ev, node, EntityKind.Edge, SegTag.BandRim)
-        self.assertEqual(rims, [band_rim(node, piece(doc, profile, 0, v)) for v in range(4)])
+        self.assertCountEqual(rims, [band_rim(node, piece(doc, profile, 0, v)) for v in range(4)])
         seam = of_role(
             ev, node, EntityKind.Vertex, SegTag.MeridianVertex, MeridianEnd.Seam
         )
-        self.assertEqual(
+        self.assertCountEqual(
             seam, [meridian_vertex(MeridianEnd.Seam, node, piece(doc, profile, 0, v)) for v in range(4)]
         )
         # The names denote what the door says they denote: `band` 2 is
