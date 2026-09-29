@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-29
 priority: P4
 cost: M
-refs: [sweep-family-homes-sit-outside-the-tests-common-routing-list, sweep-suites-wrap-tol-witness-in-a-private-tol]
+refs: [3385, sweep-suites-wrap-tol-witness-in-a-private-tol]
 ---
 
 **The ruling this routes onto.** S-DUP asked it as the design fork

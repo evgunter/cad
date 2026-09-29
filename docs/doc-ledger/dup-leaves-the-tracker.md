@@ -1,7 +1,7 @@
-# S-DUP leaves the tracker — 2026-09-28
+# S-DUP leaves the tracker — 2026-09-29
 
 S-DUP — one thing spelled *n* times — opened 2026-09-15 as SUITE's
-successor, and closed 2026-09-28 when its last two rows closed on Ev's
+successor, and closed 2026-09-29, when its last two rows closed on Ev's
 rulings (#3385, #3387).
 
 Its plan set `## Exit criteria` (SUITE's X1–X6, with X3 widened to
@@ -21,13 +21,13 @@ the crate the door would live in.
 
 `work/dup/` was deleted whole. Band **4900–4999** was claimed at the
 opening. Ev took S-DUP off the A/B protocol on 2026-09-16, so the band
-drew no row. S-DUP ran three design forks: rows 2, 7 and 8 of
+drew no row. S-DUP ran three design forks: rows 2, 8 and 9 of
 `docs/DESIGN-FORK-LOG.md` (the chart partition, sweep family homes,
 validate classifier recourses).
 
-Recover SHA `@@SHA@@`.
+Recover SHA `212c23111ac12cccff2addde83d631a376cf39a4`.
 
-    git show @@SHA@@:work/dup/<FILE>
+    git show 212c23111ac12cccff2addde83d631a376cf39a4:work/dup/<FILE>
 
 ## What it left
 
@@ -45,7 +45,8 @@ that the fold was reached. The main results:
   #3311 and #3312), and the façade box fixture pinned against drift;
 - one enclosure-to-role reading, `ShellRole::decided_at`, for checks 7
   and 10, `classify_shells` and point containment at infinity (#3393);
-- the at-rest `ArcLoopUnsupported` advice made current (#3388).
+- the at-rest `ArcLoopUnsupported` advice made current (#3388), and
+  the offset fit's `Band` arm (#3403).
 
 Its method, items 1–29, now lives in `work/reroute/plan.md`.
 
@@ -76,7 +77,7 @@ Its method, items 1–29, now lives in `work/reroute/plan.md`.
 | `solid-of-vertex-is-hand-spelled-twice-in-sweep-tests-beside-solidowners` | issue | 2026-09-26 | #3284 |
 | `step-program-embed-has-no-map-door` | issue | 2026-09-26 | #3302 |
 | `suite-headers-instruct-on-ignored-rows-they-no-longer-have` | issue | 2026-09-26 | #3285 |
-| `sweep-family-homes-sit-outside-the-tests-common-routing-list` | issue | 2026-09-28 | #3385 (Ev) |
+| `sweep-family-homes-sit-outside-the-tests-common-routing-list` | issue | 2026-09-29 | #3385 (Ev) |
 | `sweep-suites-import-fixtures-from-other-suites` | issue | 2026-09-28 | #3371 |
 | `sweep-test-support-brick-is-still-a-second-box-construction` | issue | 2026-09-19 | #2877 |
 | `the-9-3-holed-box-sequence-is-written-out-four-times` | issue | 2026-09-24 | #3152 |
@@ -113,7 +114,7 @@ Its method, items 1–29, now lives in `work/reroute/plan.md`.
 | `topo-tests-review-m2-pr7-rederives-the-shared-cube` | issue | 2026-09-16 | #2727 |
 | `two-rules-disagree-on-when-a-fixture-leaves-a-suite` | issue | 2026-09-27 | #3307 (Ev) |
 | `two-spellings-of-the-face-to-solid-owner-index` | issue | 2026-09-24 | #3151 |
-| `validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them` | issue | 2026-09-28 | #3387 (Ev) |
+| `validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them` | issue | 2026-09-29 | #3387 (Ev) |
 | `viewer-corpus-pick-suites-restate-the-flatten-and-tie-ray-walks` | issue | 2026-09-26 | #3302 |
 | `viewer-review-suite-fixtures-have-no-oracle-role` | issue | 2026-09-20 | #2900 |
 | `viewer-review-suites-cite-the-withdrawn-independence-reading` | issue | 2026-09-19 | #2886 |
@@ -150,10 +151,30 @@ slates. They stay open there.
 - **FIXTURE, HELPER, VACUITY** (P3 and P4): the brick lane's six topo
   fixture rows, the per-file face-to-solid and half-edge walks, the
   planar cap finders, and the probes that print without asserting.
+- **RESTFRONT, P3**: `validate-classifiers-and-lower-displays-classify-refusals-differently`
+  (#3387's audit).
 - **TCOST, BLIND, GUARD, LINALG, LIB, CENSUS, COMB**: one or two rows
   each, P3 or P4.
 - **`work/issues/`**: `demos-tour-spells-the-half-edge-to-face-walk-three-times`.
-- **S-REROUTE**: the seven rows of the 2026-09-26 cut and those filed
-  there since, with S-DUP's method.
+- **S-REROUTE**: the seven rows of the 2026-09-26 cut, the two
+  family-home fold rows from #3385, and S-DUP's method.
 
-@@FORKS@@
+## The last two rulings
+
+- **Family homes (#3385, row 8).** Ev accepted the two designers'
+  shared recommendation: no family homes. `shell7_common`,
+  `shell8_common`, `mate2_common` and `revolve_common` fold into
+  content-named `tests/common` modules under a one-tree rule, and the
+  `tol()` copies are inlined as `Tol::witness()`. The fold is two
+  S-REROUTE rows: `sweep-family-homes-fold-into-tests-common` and
+  `sweep-suites-wrap-tol-witness-in-a-private-tol`.
+- **Classifier recourses (#3387, row 9).** The designers recommended
+  giving each refusal type an `ending(Reading)`, and Ev turned that down.
+  Ev first asked how probable drift was: 25 lower rewordings and 2
+  stale texts in five days. Ev then asked whether code quality, not
+  drift, justifies the change, and it does not. The at-rest text
+  belongs to the checks window that reads it, and the classifiers
+  already match exhaustively. The two stale texts were fixed (#3388,
+  #3403). The arms whose two texts disagree on the kind of refusal
+  became RESTFRONT's
+  `validate-classifiers-and-lower-displays-classify-refusals-differently`.

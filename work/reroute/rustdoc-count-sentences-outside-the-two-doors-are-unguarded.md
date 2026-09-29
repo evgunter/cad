@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P4
 cost: D
-refs: [a-doors-rustdoc-carries-an-unguarded-census-sentence]
+refs: [3152]
 ---
 
 

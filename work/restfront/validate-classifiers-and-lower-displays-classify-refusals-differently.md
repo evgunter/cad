@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-29
 priority: P3
 cost: M
-refs: [validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them, validate-own-close-levers-follow-the-d4-recourse-ruling, chart-region-corrupt-spells-its-kernel-defect-ending-by-hand, nappe-spanning-spells-its-kernel-defect-ending-by-hand]
+refs: [3387, validate-own-close-levers-follow-the-d4-recourse-ruling, chart-region-corrupt-spells-its-kernel-defect-ending-by-hand, nappe-spanning-spells-its-kernel-defect-ending-by-hand]
 ---
 
 **Where this comes from.** S-DUP's design fork on

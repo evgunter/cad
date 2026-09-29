@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-28
 priority: P1
 cost: M
-refs: [a-shell-role-is-decided-by-two-spellings, step-export-refuses-every-hollow-body]
+refs: [3393, step-export-refuses-every-hollow-body]
 ---
 
 
