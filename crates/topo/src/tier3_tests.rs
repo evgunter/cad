@@ -1359,8 +1359,13 @@ fn sliver_dihedral_at_rest_is_rejected() {
     };
     let errs = validate_geometric(&body, tol).unwrap_err();
     assert!(
-        errs.iter()
-            .any(|e| matches!(e, ValidationError::SliverDihedral { .. })),
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::SliverDihedral {
+                check: crate::validate::WedgeCheck::Dihedral,
+                ..
+            }
+        )),
         "{errs:?}"
     );
 }
@@ -1820,6 +1825,7 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
         in_band.iter().all(|e| matches!(
             e,
             ValidationError::SliverDihedral {
+                check: crate::validate::WedgeCheck::SecondOrder,
                 cause: Indeterminate {
                     predicate: Some("tangent_second_order"),
                     ..
@@ -2102,7 +2108,8 @@ fn material_arm_error_table() {
     // Both splits escalate, carrying the predicate that split.
     for predicate in ["material_wedge_side", "material_cusp_side"] {
         match err(Some(MaterialArmOutcome::Split { predicate })) {
-            Some(ValidationError::SliverDihedral { cause, .. }) => {
+            Some(ValidationError::SliverDihedral { check, cause, .. }) => {
+                assert_eq!(check, crate::validate::WedgeCheck::MaterialSide);
                 assert_eq!(cause.predicate, Some(predicate));
             }
             other => panic!("a split must escalate, got {other:?}"),

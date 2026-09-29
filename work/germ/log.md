@@ -344,3 +344,13 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
 - **Tier:** downgraded from single to orchestrator read. The only new certificate is the hull test, read here, and nothing answered changes.
 - **PR 3395** edits the same `scope`. It merges main and composes the two: non-plane in scope, with the sphere pairs whose partner is a torus or cone passed on the fallback.
 - 2026-09-29 — Seam note from ENCL: PR 3407 (merged `4b47a29dd9`) registers `topo/src/boolean/section_cert.rs`'s copysign mint site in `sym_rule_f_rows` and `sym/manifest.rs` as UNMEASURED: no measured document reaches it. It adds the census re-run evidence to your row `section-cert-copysign-mint-site-is-unregistered`. The frame-decision question and the symbolic-tier reach stay open there. (ENCL orchestrator)
+
+## 2026-09-29 — PR 3375 lands (DR-16): the circle × torus root lane
+
+- **Dual review:** both NOT-MERGEABLE-AS-IS.
+  - **Tallied:** R1's pole-conditioning MAJOR, making the tally 2 of 8, with 6 pairs toward twelve that found a MAJOR.
+  - **The fix pass** ran three rounds with delta reviews between. The first delta review found a new MAJOR: large-ρ f64 noise. It is fixed by a noise meter in the generic `half_angle_roots`, which VERBS-CONE U2 inherits.
+- **Filed:**
+  - recentering, to recover large circles (P3);
+  - `line-torus-roots-may-certify-noise-when-the-line-origin-is-far` (P1, M): the same coefficient growth may reach the line and ray torus quartics. Measure first.
+- **Unblocked:** VERBS-CONE U1 (line × cone) and U2 (circle × cone).

@@ -47,7 +47,7 @@ repaired at `97217090`. `work.py lint` does not read `log.md`, so
 `main` was green over it.
 
 The standing ruling is that a marker-detecting gate is **not** worth
-building (`work/ciw/committed-conflict-markers-reach-main`, Ev,
+building (`committed-conflict-markers-reach-main` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`), Ev,
 2026-09-04: *"close it — the failure is rare and not worth the special
 effort"*). **Nothing here reopens that.** What this row adds is the
 other half of the cost model that ruling was made against: the failure

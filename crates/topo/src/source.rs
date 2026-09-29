@@ -29,12 +29,10 @@
 //! hand, derived by a kernel op, or had its source CLEARED by
 //! [`crate::Body::clear_geom_sources`] with the re-stamp that door
 //! expects never running — a defect. [`GeomOrigin`] is the total
-//! record a body keeps per description, and it separates THREE of
-//! those four: `Imported`, `Cleared` and the recipe stamp are each
-//! their own arm, while hand-built and kernel-derived share
-//! `KernelDirect` because nothing inside the kernel can tell them
-//! apart — the reason is on that arm, and the fourth separation is
-//! `work/topo/kernel-direct-origin-does-not-separate-hand-built-from-derived`.
+//! record a body keeps per description: `Imported`, `Cleared` and the
+//! recipe stamp are each their own arm, and hand-built and
+//! kernel-derived are one arm, `KernelDirect`, because no reader asks
+//! which of the two a description is.
 //!
 //! A `GeomSource` is the payload of that record's `Recipe` arm, never
 //! a spelling inside `GeomSource` itself: a source meaning "not from a
@@ -367,12 +365,11 @@ fn bits_witness<T: geom_core::Real>(pairs: &[(T, T)]) -> Option<bool> {
 /// the question `Option<&GeomSource>` could not answer, and the ONE
 /// row a [`crate::Body`] keeps per geometric description.
 ///
-/// A missing `GeomSource` row conflated four origins: an imported
-/// description, a hand-built one, one a kernel op derived, and one
+/// It tells apart what a missing `GeomSource` row cannot: an imported
+/// description, one minted by a kernel door, and one
 /// [`crate::Body::clear_geom_sources`] dropped whose re-stamp never
-/// ran — the last a DEFECT, indistinguishable from the three
-/// legitimate states. Three of the four separate by name here; the
-/// fourth separation is [`GeomOrigin::KernelDirect`]'s own doc.
+/// ran — the last a DEFECT, which absence would make
+/// indistinguishable from the legitimate states.
 ///
 /// **No absence arm, and no second map.** The recipe source IS the
 /// `Recipe` arm's payload, so a description cannot carry a source and
@@ -414,11 +411,11 @@ pub enum GeomOrigin {
     /// at the mint**, not inferred from a missing row.
     ///
     /// A hand-built body's description and one a kernel op derived are
-    /// BOTH this arm today, because nothing inside the kernel can tell
-    /// them apart: they enter the arenas through the same
-    /// crate-internal mint doors, and what separates them is which
-    /// caller opened the public door above
-    /// (`work/topo/kernel-direct-origin-does-not-separate-hand-built-from-derived`).
+    /// both this arm. They enter the arenas through the same
+    /// crate-internal mint doors, so telling them apart would take a
+    /// stamp decided at every public door that mints, and no reader
+    /// asks the question: the importer's consumers need `Imported`
+    /// told from the rest, and N6 reads only `Recipe`.
     KernelDirect,
     /// [`crate::Body::clear_geom_sources`] dropped a recipe source this
     /// description carried, and the re-stamp that door expects has not
