@@ -2,7 +2,9 @@
 id: ring-3-residue-outside-its-fence
 kind: issue
 title: RING-3 residue outside its fence: prose and one gate entry still name the retired ring
-status: open
+status: review
+branch: scalar/hygiene
+pr: 3449
 priority: P4
 cost: E
 opened: 2026-09-24

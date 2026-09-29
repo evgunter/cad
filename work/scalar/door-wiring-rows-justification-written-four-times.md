@@ -2,7 +2,9 @@
 id: door-wiring-rows-justification-written-four-times
 kind: issue
 title: The function-pointer wiring rows' justification is written out at four door modules
-status: open
+status: review
+branch: scalar/hygiene
+pr: 3449
 opened: 2026-09-25
 priority: P4
 cost: E

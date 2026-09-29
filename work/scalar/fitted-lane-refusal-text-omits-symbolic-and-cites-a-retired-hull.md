@@ -2,7 +2,9 @@
 id: fitted-lane-refusal-text-omits-symbolic-and-cites-a-retired-hull
 kind: issue
 title: FittedLaneUnsupported's Display omits the symbolic tier from its replay list and cites the retired exact-arithmetic-ring hull
-status: open
+status: review
+branch: scalar/hygiene
+pr: 3449
 opened: 2026-09-25
 priority: P4
 cost: E

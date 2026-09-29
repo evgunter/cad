@@ -2,7 +2,9 @@
 id: quad-lane-formation-sites-in-its-own-module-are-unpinned
 kind: issue
 title: QuadLane is formed in the module that owns its private field and nothing pins those sites against a literal
-status: open
+status: review
+branch: scalar/hygiene
+pr: 3449
 opened: 2026-09-24
 priority: P3
 cost: D

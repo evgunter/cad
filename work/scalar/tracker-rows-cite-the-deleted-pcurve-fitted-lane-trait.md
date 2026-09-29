@@ -2,7 +2,9 @@
 id: tracker-rows-cite-the-deleted-pcurve-fitted-lane-trait
 kind: issue
 title: Open tracker rows on other slates still cite PcurveFittedLane, which LANE-4 deleted
-status: open
+status: review
+branch: scalar/hygiene
+pr: 3449
 opened: 2026-09-25
 priority: P4
 cost: E

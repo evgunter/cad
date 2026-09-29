@@ -2,7 +2,9 @@
 id: certification-gate-gaps-3-and-5-have-no-follow-up
 kind: issue
 title: the certification-doors gate's KNOWN GAPs 3 (a value handed to an unlisted helper) and 5 (macros, include!) are disclosed and unscheduled
-status: open
+status: review
+branch: scalar/hygiene
+pr: 3449
 opened: 2026-09-24
 priority: P3
 cost: H

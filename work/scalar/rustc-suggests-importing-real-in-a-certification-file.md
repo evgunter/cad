@@ -2,7 +2,9 @@
 id: rustc-suggests-importing-real-in-a-certification-file
 kind: issue
 title: rustc's own help steers a certification author to use geom_core::Real, the one import the certification gate forbids
-status: open
+status: review
+branch: scalar/hygiene
+pr: 3449
 opened: 2026-09-24
 priority: P4
 cost: E
