@@ -139,8 +139,11 @@ frame enters the solve (filed on MSOLVE's slate by the unit). A
 maintenance re-mint or an inline compose that drops a parametric drive
 reports it. The survey that grounds the spec's premises is summarized
 there. Tier: dual review, because the unit changes the persisted
-registry format and the solver's composition point at once. Two of the
-spec's rulings are design forks and go through the designer pair
-(`docs/DESIGN-FORK-PROTOCOL.md`) before the unit is dispatched: where a
-non-literal cluster placement refuses (lane T or MSOLVE), and whether
-`Doc::placement` becomes fallible.
+registry format and the solver's composition point at once. The
+spec's rulings are the orchestrator's first cut, and most of them
+decide what Ev's "yes" left open (the type's shape, the address of a
+cluster placement, the non-nominal lanes, what becomes of a dropped
+drive). So the unit's design is a fork: an Opus and a Fable designer
+weigh it per `docs/DESIGN-FORK-PROTOCOL.md` (dispatched 2026-09-29,
+problem only, no candidates), it goes to Ev as an `[ev]` PR, and the
+spec is rewritten to the answer before the implementer is dispatched.
