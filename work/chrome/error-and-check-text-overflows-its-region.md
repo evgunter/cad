@@ -4,7 +4,7 @@ kind: issue
 title: viewer: the CONCISION half — error messages should be shorter, and most of the text is the kernel's typed refusals (Ev's request; the layout half landed in 3058)
 status: closed
 opened: 2026-09-17
-pr: PRNUM
+pr: 3457
 closed: 2026-09-29
 priority: P0
 cost: E

@@ -4,7 +4,7 @@ kind: issue
 title: topo/geom-brep: the refusals over 50 words on ground no program owns (Ev's concision request)
 status: closed
 closed: 2026-09-29
-pr: PRNUM
+pr: 3457
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 ---

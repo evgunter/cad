@@ -7,7 +7,7 @@ opened: 2026-09-28
 priority: P1
 cost: E
 closed: 2026-09-29
-pr: PRNUM
+pr: 3457
 ---
 
 (ENCL implementer, raised by the review of PR 3347.)
