@@ -128,3 +128,16 @@ mutant each red exactly one new row), collapsed five copies of the
 forwarding body into one, and removed the verbatim-then-overwrite solid
 step. Main merged in before landing, so the gate ran on the combined
 tree.
+
+## 2026-09-29 — PR 3419 lands (the axis per-component source)
+
+Single FULL review on `0834a2fd0`: NOT-MERGEABLE-AS-IS on the red gate
+alone (a hand-written `Debug` failed the exhaustive-destructure census;
+fixed by a CI lane), no MAJOR in the design. Adjudicated fixes
+(`ed7d5cb5a`): the axis token now keys on the placement MAP, not the
+output-body ordinal (one map at two ordinals gave unequal tokens,
+breaking the ratified staleness row 2 — two rows through the real
+stamping path went red on the old keying); false "0 for a plain
+Transform" docs; the sphere token's meaning stated; one home for the
+three per-surface side tables. Residues filed at adjudication (PR
+3420). Seam note on WIRE's log; the WIRE row's fired trigger pruned.
