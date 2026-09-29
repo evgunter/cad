@@ -72,7 +72,7 @@ resolution refuses a number claimed twice rather than picking the first
 writer: `github: 1374` is on both `work/chrome/add-profile-placement-on-picked-face-frame.md`
 (open) and `work/docm/sketch-frame-from-face.md` (closed) — where
 picking wrongly would invent or suppress a fired trigger — and
-`github: 1607` on both `work/ciw/render-lanes-red-at-missing-merge-ref.md`
+`github: 1607` on both `render-lanes-red-at-missing-merge-ref` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)
 and `work/issues/render-lanes-checkout-merge-ref-vanishes.md` (both
 closed, one `refs:` the other: a duplicate filing). Each is named by its
 own warning. Both are other programs' rows; routed, not edited.

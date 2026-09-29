@@ -15,7 +15,7 @@ use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::canonical;
-use super::defer::{TieRows, Upstream, mint_candidates, pass_through, put, upstream_name};
+use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
@@ -163,16 +163,13 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, Namin
 /// door that writes a `SplitEdge` record is `Body::split_edge`, and it
 /// records the parent on the child it has just minted, so every record
 /// points at a key that already existed and a chain is strictly
-/// decreasing in age. Nothing outside `topo` can close it. That a
-/// cycling lineage exists at all is real — a graft copies these
-/// records with their SOURCE keys and they chain into strangers in the
-/// destination (`work/bool/graft-copies-provenance-keys-verbatim.md`
-/// records `Body::split_root`'s cycle arm firing on real assembly
-/// products) — but the aliasing is `topo`-internal and this crate has
-/// no door to it. `chase_b` below is NOT covered by this argument and
-/// is guarded instead: it hops through a caller-supplied graft map
-/// between provenance reads, which is enough to close a loop that
-/// `split_edge`'s records alone cannot.
+/// decreasing in age in the arena that wrote it. A graft does not keep
+/// that order — a dead-on-arrival key is minted after the grafted
+/// edges whose records name it — but it forwards injectively (each
+/// source key to its own result key), and an injective image of an
+/// acyclic chain is acyclic. Nothing outside `topo` can close it. `chase_b` below walks the same records and reads the
+/// caller's graft rows only to decide where to stop, so the argument
+/// covers it too.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
@@ -412,7 +409,7 @@ fn name_split_edges_vertices<T: Decide>(
             {
                 // Intact operand edge: pass-through.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(e)))?;
-                pass_through(t, tie, up, ent(s.ix, EntityKey::Edge(e)))?;
+                tie.carry(up, ent(s.ix, EntityKey::Edge(e)))?;
                 continue;
             }
             if target_table
@@ -452,7 +449,7 @@ fn name_split_edges_vertices<T: Decide>(
                     .is_some()
             {
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
-                pass_through(t, tie, up, ent(s.ix, EntityKey::Vertex(v)))?;
+                tie.carry(up, ent(s.ix, EntityKey::Vertex(v)))?;
                 continue;
             }
             // Resolve the birth record — directly, or through the
@@ -656,7 +653,15 @@ pub(crate) fn name_boolean<T: Decide>(
         naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect();
     let inv_edges: BTreeMap<EdgeKey, EdgeKey> =
         naming.graft_edges.iter().map(|&(s, d)| (d, s)).collect();
-    let fwd_edges: BTreeMap<EdgeKey, EdgeKey> = naming.graft_edges.iter().copied().collect();
+    // Result → B key for every key a grafted record can name: the
+    // grafted edges and the dead-on-arrival keys standing for B edges
+    // that died before the graft.
+    let lineage_inv: BTreeMap<EdgeKey, EdgeKey> = naming
+        .graft_edges
+        .iter()
+        .chain(&naming.graft_dead_edges)
+        .map(|&(s, d)| (d, s))
+        .collect();
     let inv_vertices: BTreeMap<VertexKey, VertexKey> =
         naming.graft_vertices.iter().map(|&(s, d)| (d, s)).collect();
     let a_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments_a.iter().copied().collect();
@@ -814,7 +819,7 @@ pub(crate) fn name_boolean<T: Decide>(
         a,
         b,
         &inv_edges,
-        &fwd_edges,
+        &lineage_inv,
         &seam_set,
         &inc,
         &descend_face,
@@ -927,7 +932,7 @@ fn name_boolean_edges<T: Decide>(
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
     inv_edges: &BTreeMap<EdgeKey, EdgeKey>,
-    fwd_edges: &BTreeMap<EdgeKey, EdgeKey>,
+    lineage_inv: &BTreeMap<EdgeKey, EdgeKey>,
     seam_set: &BTreeSet<EdgeKey>,
     inc: &Incidence,
     descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
@@ -955,26 +960,31 @@ fn name_boolean_edges<T: Decide>(
     // A face's descent for CHORD purposes: a plain face descends as
     // itself; a MERGED face (M4 PR 5, N3 live) reads through to its
     // unique constituent on side `want` — the seam's mint-time operand
-    // identity survives the glue. Several same-side constituents
-    // refuse.
-    let chord_descent = |f: FaceKey, want: topo::Operand| -> Result<OpSide<FaceKey>, NamingError> {
-        let Some(ds) = merged_descents.get(&f) else {
-            return descend_face(f);
+    // identity survives the glue. Several same-side constituents are a
+    // legal body no rule reads — a declared union's merge can glue
+    // faces of two members of one assembly into one face — and refuse
+    // as the missing rule (`NamingError::MergedChordConstituents`).
+    let chord_descent =
+        |e: EdgeKey, f: FaceKey, want: topo::Operand| -> Result<OpSide<FaceKey>, NamingError> {
+            let Some(ds) = merged_descents.get(&f) else {
+                return descend_face(f);
+            };
+            // Constituent fragments of ONE operand face share a
+            // descent — dedup before the uniqueness demand.
+            let mut hits: Vec<OpSide<FaceKey>> =
+                ds.iter().filter(|d| d.operand() == want).copied().collect();
+            hits.sort_unstable();
+            hits.dedup();
+            match hits.as_slice() {
+                [] => Err(bug("merged face lacks the needed operand-side constituent")),
+                [one] => Ok(*one),
+                several => Err(NamingError::MergedChordConstituents {
+                    edge: e,
+                    face: f,
+                    several: several.len(),
+                }),
+            }
         };
-        // Constituent fragments of ONE operand face share a
-        // descent — dedup before the uniqueness demand.
-        let mut hits: Vec<OpSide<FaceKey>> =
-            ds.iter().filter(|d| d.operand() == want).copied().collect();
-        hits.sort_unstable();
-        hits.dedup();
-        match hits.as_slice() {
-            [] => Err(bug("merged face lacks the needed operand-side constituent")),
-            [one] => Ok(*one),
-            _ => Err(bug(
-                "merged face has several same-side constituents at a seam edge",
-            )),
-        }
-    };
     // **A chord between two MERGED faces.** Each face has a constituent
     // on both sides, so neither face says which side to read through
     // to. `own` is the side the chord's own key descends to, and the
@@ -1055,19 +1065,19 @@ fn name_boolean_edges<T: Decide>(
             (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
             (true, false) => {
                 let d1 = descend_face(faces[1])?;
-                (chord_descent(faces[0], d1.operand().other())?, d1)
+                (chord_descent(e, faces[0], d1.operand().other())?, d1)
             }
             (false, true) => {
                 let d0 = descend_face(faces[0])?;
-                (d0, chord_descent(faces[1], d0.operand().other())?)
+                (d0, chord_descent(e, faces[1], d0.operand().other())?)
             }
             (true, true) => {
                 let Some(side) = own else {
                     return Err(NamingError::MergedChord { edge: e });
                 };
                 let (d0, d1) = (
-                    chord_descent(faces[0], side)?,
-                    chord_descent(faces[1], side)?,
+                    chord_descent(e, faces[0], side)?,
+                    chord_descent(e, faces[1], side)?,
                 );
                 let (op, f0) = d0.of(a, b);
                 let (_, f1) = d1.of(a, b);
@@ -1128,49 +1138,23 @@ fn name_boolean_edges<T: Decide>(
     }
 
     // ---- Operand-descended edges, grouped by (side, root). ----
-    // Best-effort descent for a GRAFTED B side: stops at the first key B's table
-    // names. A broken chain (a middle fragment of a doubly-pierced
-    // edge dies PRE-graft, so its key is unnamed AND ungrafted)
-    // returns the non-resolving key instead of refusing — the
-    // `resolves == false` route below hands such edges to
-    // `chord_kind`, the same rescue the A lane gets (review R1: lane
-    // parity; the kernel completed the body, naming must too).
-    //
-    // This is NOT `Body::split_root`, deliberately: the result body's
-    // records for grafted edges carry B-space keys verbatim (the graft
-    // copies provenance without forwarding), and this lane depends on
-    // that: B's table names ancestors that died in B
-    // before the graft, and the verbatim key is the only way back to
-    // them. B's operand body cannot be chased instead — it is not the
-    // body that was grafted (a placed copy is). Forwarding `SplitEdge`
-    // at the graft therefore needs a dead-ancestor bridge on the
-    // `GraftMap` before this descent can become the shared chase.
-    //
-    // Spending the budget means the walk revisited a key — the same
-    // corrupt record `chase_edge_to_table` refuses, on the lane where
-    // the aliasing above can actually produce one — so it refuses with
-    // the same locator rather than falling out of the loop with a root
-    // it cannot justify. **Guarded**, by
-    // `a_cycling_graft_map_refuses_in_the_b_lane` below: unlike
-    // `chase_edge_to_table`, this walk reads `fwd_edges` — built from
-    // `BooleanNaming::graft_edges`, which the caller supplies —
-    // between provenance reads, so one honest `split_edge` record and
-    // one synthetic graft row close the loop from outside `topo`.
-    let chase_b = |e_b0: EdgeKey| -> Result<EdgeKey, NamingError> {
-        let mut e_b = e_b0;
-        for _ in 0..=fwd_edges.len() {
-            if b.table.name_of(&ent(0, EntityKey::Edge(e_b))).is_some() {
-                return Ok(e_b);
-            }
-            let Some(res) = fwd_edges.get(&e_b) else {
-                return Ok(e_b); // dead, ungrafted intermediate
-            };
-            match body.edge_provenance_of(*res) {
-                Some(Provenance::SplitEdge { edge }) => e_b = *edge,
-                _ => return Ok(e_b),
-            }
-        }
-        Err(topo::SplitLineageCycle { edge: e_b0 }.into())
+    // A GRAFTED B side chases in the result body — the graft forwards
+    // every record into result keys — stopping at the first key whose B
+    // preimage B's table names, and reads the root back to B. A B
+    // ancestor that died before the graft is a dead result key with a
+    // `graft_dead_edges` row, so the walk still reaches it; a broken
+    // chain (a middle fragment of a doubly-pierced edge dies PRE-graft,
+    // unnamed) returns that non-resolving B key, which the
+    // `resolves == false` route below hands to `chord_kind`, the rescue
+    // the A lane gets. A walk that leaves the graft rows is a record
+    // the graft did not forward, and refuses.
+    let chase_b = |e: EdgeKey| -> Result<EdgeKey, NamingError> {
+        let named_in_b = |k: &EdgeKey| b.table.name_of(&ent(0, EntityKey::Edge(*k))).is_some();
+        let root = body.split_root(e, |r| lineage_inv.get(&r).is_none_or(named_in_b))?;
+        lineage_inv
+            .get(&root)
+            .copied()
+            .ok_or(bug("a grafted edge's split lineage left the graft rows"))
     };
     let mut groups: BTreeMap<OpSide<EdgeKey>, Vec<EdgeKey>> = BTreeMap::new();
     for (e, _) in body.edges() {
@@ -1186,7 +1170,7 @@ fn name_boolean_edges<T: Decide>(
         let (op, k) = side.of(a, b);
         let root_key = match space {
             KeySpace::Arena => chase_edge_to_table(body, op.table, k)?,
-            KeySpace::Graft => chase_b(k)?,
+            KeySpace::Graft => chase_b(e)?,
         };
         let root = side.with(root_key);
         // A root that resolves in no operand table is a join-minted
@@ -1941,7 +1925,7 @@ fn name_split_faces<T: Decide>(
                     vec![ent(s.ix, EntityKey::Face(f))],
                     Parent::Elsewhere,
                 );
-                pass_through(t, tie, up, ent(s.ix, EntityKey::Face(f)))?;
+                tie.carry(up, ent(s.ix, EntityKey::Face(f)))?;
             } else {
                 groups
                     .entry((root, s.ix))
@@ -2049,7 +2033,11 @@ mod tests {
                 ),
             )),
             tied,
-            piece: false,
+            candidate: if tied {
+                super::super::table::Candidate::Of(0)
+            } else {
+                super::super::table::Candidate::Only
+            },
         }
     }
 
@@ -2314,23 +2302,18 @@ mod tests {
         );
     }
 
-    /// **The B-lane edge chase refuses on a cycle too, and this is the
-    /// row `chase_edge_to_table` cannot have.**
-    ///
-    /// `chase_b` advances in two steps — a hop through `fwd_edges`,
-    /// built from the caller's `BooleanNaming::graft_edges`, and then
-    /// a read of `Body::edge_provenance`. The second is `topo`'s and
-    /// writes only strictly-older parents; the FIRST is the caller's,
-    /// and one row through it closes a loop that `split_edge`'s
-    /// records alone cannot. So the refusal `chase_edge_to_table`
-    /// shares is exercised here, on the lane where a real graft can
-    /// alias the same way.
+    /// **A B-lane lineage that leaves the graft rows refuses.** A
+    /// grafted edge's records are forwarded into result keys, each
+    /// with a graft row back to B (a live edge's, or a dead ancestor's
+    /// `graft_dead_edges` row), so `chase_b` never reaches a key with no
+    /// B preimage unless a record was not forwarded — which it refuses
+    /// rather than reading as an A key or a root.
     ///
     /// The chain is honest: `split_edge` twice off one lateral gives
-    /// `e2 → e1 → e0` as genuine birth records, and only the one graft
-    /// row is synthetic.
+    /// `e2 → e1 → e0` as genuine birth records; the one graft row makes
+    /// e2 a grafted edge whose parent e1 has no row.
     #[test]
-    fn a_cycling_graft_map_refuses_in_the_b_lane() {
+    fn a_b_lineage_leaving_the_graft_rows_refuses() {
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
         let b_table = name_extrude(
@@ -2356,11 +2339,11 @@ mod tests {
                 && b_table.name_of(&ent(0, EntityKey::Edge(e1))).is_none(),
             "the parent is named and the children are not, or the walk stops early"
         );
-        // The grafted layout — the only one `chase_b` serves. ONE
-        // synthetic graft row is enough: result edge e2 reads as B's
-        // e1, e1 forwards to e2, and e2's birth record points back at
-        // e1. A is the same named cube, so every other key resolves on
-        // the A side and the walk reaches e2.
+        // The grafted layout — the only one `chase_b` serves. Result
+        // edge e2 reads as B's e1, and its birth record names result
+        // edge e1, which no graft row covers. A is the same named cube,
+        // so every other key resolves on the A side and the walk
+        // reaches e2.
         let naming = topo::BooleanNaming {
             a_keys: topo::OperandKeys::Direct,
             b_keys: topo::OperandKeys::Grafted,
@@ -2378,10 +2361,15 @@ mod tests {
             body: &body,
         };
         let err = name_boolean(RecipeNodeId(9), &body, &naming, &a, &b, Tol::witness())
-            .expect_err("a graft row that forwards into its own parent must refuse");
+            .expect_err("a lineage that leaves the graft rows must refuse");
         assert!(
-            matches!(err, NamingError::SplitLineage(c) if c.edge == e1),
-            "the refusal names the edge the walk was asked about: {err:?}"
+            matches!(
+                err,
+                NamingError::Emission {
+                    what: "a grafted edge's split lineage left the graft rows"
+                }
+            ),
+            "the refusal is the B lane's own: {err:?}"
         );
     }
 
@@ -2634,5 +2622,175 @@ mod tests {
             matches!(err, NamingError::Emission { what } if what == NESTED_MERGED),
             "{err:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod split_carries_candidates {
+    //! **A split's intact pass-through carries each tie candidate's
+    //! number** (N4, "A tie's candidates keep their identity"), whether
+    //! the tie survives the split `Tied` or narrows. Over the U-cutter
+    //! subtract — a block less a U whose prongs leave two cap fragments
+    //! under one tied name — every row the split carries verbatim must
+    //! answer, for each entity, the candidate the subtract gave that
+    //! entity. Renumbering at the split would pass whenever its fresh
+    //! order happened to match; the two plane normals below swap which
+    //! half is output body 0, so one of the two orders disagrees with
+    //! any fresh numbering.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use crate::edit::DocEdit;
+    use crate::eval::{CancelToken, EvalOptions, Evaluation, evaluate};
+    use crate::ident::DocumentId;
+    use crate::names::table::{EntityRef, Entry, NameTable};
+    use crate::node::{BooleanOp, Datum, Node, RecipeNodeId};
+    use crate::program::{LoopProgram, ProfileProgram};
+    use crate::test_support::{frame, len, scl};
+    use crate::{ProfileDoc, RefusingReach};
+    use geom_core::Tol;
+
+    fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+        let a = crate::apply(
+            &doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("inserts");
+        (a.doc, a.record.minted.expect("a node"))
+    }
+
+    fn prism(doc: ProfileDoc, z0: f64, dz: f64, pts: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) {
+        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
+                ids: Vec::new(),
+            }),
+        );
+        ins(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(dz),
+            },
+        )
+    }
+
+    /// The U-cutter subtract, split by the plane y = `y` with normal
+    /// (0, `ny`, 0): the subtract's id and the split's.
+    fn split_u_cutter(y: f64, ny: f64) -> (Evaluation<f64>, RecipeNodeId, RecipeNodeId) {
+        let doc = ProfileDoc::empty(
+            DocumentId::derive("split-carries-candidates"),
+            Tol::witness(),
+        );
+        let (doc, a) = prism(
+            doc,
+            0.0,
+            4.0,
+            &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
+        );
+        let (doc, b) = prism(
+            doc,
+            1.0,
+            2.0,
+            &[
+                (2.0, 1.0),
+                (6.0, 1.0),
+                (6.0, 3.0),
+                (2.0, 3.0),
+                (2.0, 2.5),
+                (5.0, 2.5),
+                (5.0, 1.5),
+                (2.0, 1.5),
+            ],
+        );
+        let (doc, sub) = ins(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Subtract,
+                a,
+                b,
+                declare: None,
+            },
+        );
+        let (doc, tool) = ins(
+            doc,
+            Node::Datum(Datum::Plane {
+                origin: [len(0.0), len(y), len(0.0)],
+                normal: [scl(0.0), scl(ny), scl(0.0)],
+            }),
+        );
+        let (doc, split) = ins(doc, Node::Split { target: sub, tool });
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        (ev, sub, split)
+    }
+
+    fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
+        &ev.value(id)
+            .unwrap_or_else(|| panic!("node {id:?} evaluates: {:?}", ev.nodes.get(&id)))
+            .name_table
+    }
+
+    /// Every tied row of the subtract the split carries verbatim, as
+    /// (entry shape in the split, whether each candidate kept its
+    /// number). Keys are kept through the split, so an entity of the
+    /// split names the same key in the subtract's one body.
+    fn carried_ties(y: f64, ny: f64) -> Vec<(bool, Vec<bool>)> {
+        let (ev, sub, split) = split_u_cutter(y, ny);
+        let (sub, split) = (table(&ev, sub), table(&ev, split));
+        let mut out = Vec::new();
+        for (name, entry) in sub.iter_refs() {
+            if !matches!(entry, Entry::Tied(_)) {
+                continue;
+            }
+            let Some(row) = split.rows().find(|(n, _)| *n == name).map(|(_, r)| r) else {
+                continue;
+            };
+            let kept = row
+                .pairs()
+                .map(|(c, e)| {
+                    let upstream = EntityRef {
+                        body: 0,
+                        key: e.key,
+                    };
+                    sub.candidate_of(name, &upstream) == Some(c)
+                })
+                .collect();
+            let tied = matches!(split.entry_of(name), Some(Entry::Tied(_)));
+            out.push((tied, kept));
+        }
+        out
+    }
+
+    #[test]
+    fn a_split_carries_each_tie_candidates_number_tied_or_narrowed() {
+        // Planes between the prongs separate the candidates, one per
+        // half, and the split's own table keeps the tie `Tied` across
+        // its two bodies; a plane clear of both keeps both in one half.
+        for (what, y, ny) in [
+            ("between the prongs, +y", 2.0, 1.0),
+            ("between the prongs, -y", 2.0, -1.0),
+            ("clear of both prongs, +y", 3.5, 1.0),
+            ("clear of both prongs, -y", 3.5, -1.0),
+        ] {
+            let rows = carried_ties(y, ny);
+            assert!(
+                rows.iter().any(|(tied, kept)| *tied && kept.len() == 2),
+                "{what}: the premise, a subtract tie the split keeps Tied: {rows:?}"
+            );
+            assert!(
+                rows.iter().all(|(_, kept)| kept.iter().all(|k| *k)),
+                "{what}: a carried candidate lost its number: {rows:?}"
+            );
+        }
     }
 }

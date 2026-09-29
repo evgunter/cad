@@ -223,8 +223,8 @@ impl From<topo::MassProperties<f64>> for MassProperties {
 /// One construction site for the same reason
 /// [`Body::validator_err`] is one: two doors that refuse the same
 /// class must not drift on the word. `extra` is where they legitimately
-/// differ — the certificate door has a sign-level bracket to hand over
-/// and the reporting door has none.
+/// differ — the certificate door has a bracket to hand over and the
+/// reporting door has none.
 fn measurement_err(
     py: Python<'_>,
     err: &topo::MassPropsError,
@@ -240,7 +240,7 @@ fn measurement_err(
 
 /// The refusal a door raises when a gate's certificate could not be
 /// continued to the number ([`topo::SignCertificate::measure`]): the
-/// measurement refusal, carrying the sign-level bracket as
+/// measurement refusal, carrying the kernel's bracket as
 /// `volume_lo`/`volume_hi`/`surface_area` when the kernel classified
 /// the refusal as the schedule running out, and `None` on every other
 /// refusal because no other refusal has one. The classification is the
@@ -422,10 +422,11 @@ impl Body {
     /// the same `ValidationError` and the same `reason`
     /// ([`ValidationRefusal::MassProperties`]) `mass_properties()`
     /// raises on that body. On THAT refusal the exception also carries the
-    /// sign-level bracket the gate decided on — `volume_lo`,
-    /// `volume_hi`, `surface_area` — which is the whole of what the
-    /// certified quadrature is entitled to say about the body, and is
-    /// `None` on every other refusal because no other refusal has one.
+    /// narrowest bracket the gate's certificate or its continuation
+    /// held — `volume_lo`, `volume_hi`, `surface_area` — which is the
+    /// whole of what the certified quadrature is entitled to say about
+    /// the body, and is `None` on every other refusal because no other
+    /// refusal has one.
     fn validate_geometric_measured(&self, py: Python<'_>) -> PyResult<MassProperties> {
         let tol = Tol::witness();
         let certificate = match topo::validate_geometric_certificate(&self.inner, tol) {
@@ -1983,7 +1984,7 @@ impl ImportReport {
     /// volume sign, and admits a valid body whose volume is not
     /// measurable at this ε. Reading this on such a report raises the
     /// measurement refusal `validate_geometric_measured` raises, with
-    /// the sign-level bracket when the schedule ran out.
+    /// its bracket when the schedule ran out.
     #[getter]
     fn enclosure(&self, py: Python<'_>) -> PyResult<MassProperties> {
         self.enclosure

@@ -314,14 +314,102 @@ fn in_band_shell_escalates_typed_never_guessed() {
     };
     // The escalation names the funnel site it came from.
     assert_eq!(source.predicate, Some("chk_shell_volume_sign"));
-    // The rendered story names the margin data and the check's own
-    // recourse — not the funnel's generic declare-the-coincidence
-    // menu, and no kernel arena key.
+    // The rendered story names the margin data and ends in the
+    // shell-role decision's own ending — a thickness a smaller
+    // tolerance decides — not the funnel's generic
+    // declare-the-coincidence menu, and no kernel arena key.
     let rendered = finding.to_string();
     assert!(rendered.contains("chk_shell_volume_sign"), "{rendered}");
-    assert!(rendered.contains("thicken or remove"), "{rendered}");
+    assert!(
+        rendered.contains(
+            "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
+             intended, tighten the tolerance below "
+        ),
+        "{rendered}"
+    );
     assert!(!rendered.contains("declare"), "{rendered}");
     assert!(!rendered.contains("ShellKey"), "{rendered}");
+}
+
+/// The void side of the same decision: a 3 m box holding a unit-square
+/// cavity `(1 + K)·ε` thick. The outer shell decides; the cavity's
+/// `V/A` is negative and in band, so the sign escalates, and a margin
+/// on a side the decision accepts ends valued at `|m|/K`.
+///
+/// The sheet is what a unit cube cavity leaves when a box filling all
+/// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
+/// directly never reaches the census: the Boolean's own orientation
+/// read of the uncut tool (`bool_point_in_solid_infinity`, the same
+/// `V/A`) is in band and refuses the node.
+#[test]
+fn in_band_void_shell_escalates_with_its_valued_ending() {
+    use geom_core::{Band, ErrorTextReading};
+    let tol = Tol::witness();
+    let t = (1.0 + tol.k()) * tol.eps();
+    let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
+    let (doc, a) = slab(doc, 0.0, 1.5, 0.0, 3.0);
+    let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
+    let (doc, hollow) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a,
+            b,
+            declare: None,
+        },
+    );
+    let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
+    let (doc, root) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: hollow,
+            b: c,
+            declare: None,
+        },
+    );
+    let report = checks(&doc, &ChecksConfig::default());
+    assert_eq!(report.findings.len(), 1, "{report}");
+    let finding = &report.findings[0];
+    assert_eq!(
+        (finding.check, finding.root, finding.output_ix),
+        (CheckId::Connectedness, root, 0),
+        "{finding}"
+    );
+    let CheckEvidence::Escalated {
+        source: ShellClassifyError::Escalated { source: ind, .. },
+    } = &finding.evidence
+    else {
+        panic!("expected the typed in-band escalation, got: {finding}");
+    };
+    assert_eq!(ind.predicate, Some("chk_shell_volume_sign"), "{finding}");
+    assert_eq!(ind.band, Band::linear(tol).expect("the run's band"));
+    let ErrorTextReading::Value(m) = ind.margin.diagnostic_f64_for_error_text() else {
+        panic!("expected a valued margin, got: {finding}");
+    };
+    // The cavity's own V/A on the void side: a unit square `h` deep,
+    // `h` the sheet as its two planes are represented.
+    let h = 2.0 - (0.5 + (1.5 - t));
+    let want = -h / (2.0 + 4.0 * h);
+    assert!(
+        m < 0.0 && (m - want).abs() <= 1e-6 * want.abs(),
+        "margin {m:e}, want ≈ {want:e}"
+    );
+    let below = m.abs() / (ind.band.escalate() / ind.band.zero());
+    let ending = format!(
+        "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
+         intended, tighten the tolerance below {below:e} m"
+    );
+    let rendered = finding.to_string();
+    assert!(
+        rendered.ends_with(&format!(
+            "predicate 'chk_shell_volume_sign' indeterminate: margin {m:e} lies inside the \
+             ambiguity band ({:e}, {:e}). {ending}",
+            ind.band.zero(),
+            ind.band.escalate()
+        )),
+        "{rendered}"
+    );
 }
 
 #[test]

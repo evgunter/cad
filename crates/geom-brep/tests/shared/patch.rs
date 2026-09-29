@@ -24,10 +24,8 @@
 //! parameterised for exactly that reason — sharing them does not merge
 //! two derivations, it stops two derivations from restating one loop.
 //!
-//! The copy this module simply removed is the one that was never
-//! independent at all: `cert5_arm_and_cells.rs` already reached into
-//! `cert5_r1_patch_probes.rs` for this exact code rather than restating
-//! it, and now both reach here.
+//! `cert5_arm_and_cells.rs` and `cert5_r1_patch_probes.rs` both reach
+//! here for it rather than restating it.
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};

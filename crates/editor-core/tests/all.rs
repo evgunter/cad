@@ -80,6 +80,8 @@ mod asm_r2b_interface_wire;
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
+#[path = "assemble_one_local_battery.rs"]
+mod assemble_one_local_battery;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -377,8 +379,6 @@ mod m4_pr6_refusal;
 mod m4_pr6_review_probes;
 #[path = "m4_pr6_roundtrip.rs"]
 mod m4_pr6_roundtrip;
-#[path = "m4_pr6_roundtrip_interval.rs"]
-mod m4_pr6_roundtrip_interval;
 #[path = "m4_pr7_appearance.rs"]
 mod m4_pr7_appearance;
 #[path = "m4_pr7_appearance_interval.rs"]
@@ -435,6 +435,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "names_verbatim_edge_evaluator.rs"]
+mod names_verbatim_edge_evaluator;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
@@ -453,6 +455,8 @@ mod pinned_lift_validates_once;
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
+#[path = "product_gate_attribution.rs"]
+mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 
@@ -538,9 +542,6 @@ mod u8a_parse;
 mod unreadable_by_this_build;
 
 test_utils::every_suite_file_is_aggregated!();
-
-#[path = "cert_m2r1_corpus.rs"]
-mod cert_m2r1_corpus;
 
 #[path = "lib_tube_node.rs"]
 mod lib_tube_node;

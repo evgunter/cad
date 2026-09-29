@@ -35,7 +35,7 @@ use geom_brep::{
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
-use geom_core::{MarginDiag, Point2, Point3, Vec2, Vec3};
+use geom_core::{Point2, Point3, Vec2, Vec3};
 use slotmap::SlotMap;
 
 /// Chord-sum arc length of a `Curve3<f64>` over `[d0, d1]` — a LOWER
@@ -205,7 +205,7 @@ fn certify_poison_meter_escalates_invalid_at_the_meter() {
     match certify_axis(degenerate_net(), 0.0, 1.0) {
         Err(CertifyError::Escalated { cause, .. }) => {
             assert_eq!(cause.predicate, Some("nurbs_span_meter"), "{cause:?}");
-            assert!(matches!(cause.margin, MarginDiag::Invalid), "{cause:?}");
+            assert!(cause.margin.is_invalid(), "{cause:?}");
         }
         other => panic!("a poison meter must escalate at the meter: {other:?}"),
     }
@@ -216,7 +216,9 @@ fn certify_poison_meter_escalates_invalid_at_the_meter() {
 #[test]
 fn certify_backwards_span_stays_interval_not_forward() {
     match certify_axis(axis_segment_f64(1.0), 1.0, 0.0) {
-        Err(CertifyError::IntervalNotForward) => {}
+        Err(CertifyError::IntervalNotForward {
+            verdict: geom_brep::recourse::Refused::Negative { .. },
+        }) => {}
         other => panic!("a backwards span must stay IntervalNotForward: {other:?}"),
     }
 }
@@ -251,7 +253,7 @@ fn iso_lane_poison_meter_escalates_invalid_end_to_end() {
             ..
         }) => {
             assert_eq!(cause.predicate, Some("pcurve_interval_meter"), "{cause:?}");
-            assert!(matches!(cause.margin, MarginDiag::Invalid), "{cause:?}");
+            assert!(cause.margin.is_invalid(), "{cause:?}");
         }
         other => panic!("the iso lane must refuse a poison meter at the meter: {other:?}"),
     }
@@ -313,7 +315,7 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
             ..
         }) => {
             assert_eq!(cause.predicate, Some("pcurve_interval_meter"), "{cause:?}");
-            assert!(matches!(cause.margin, MarginDiag::Invalid), "{cause:?}");
+            assert!(cause.margin.is_invalid(), "{cause:?}");
         }
         other => panic!("the fitted lane must refuse a poison meter at the meter: {other:?}"),
     }

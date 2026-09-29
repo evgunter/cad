@@ -42,11 +42,7 @@ use viewer::tree;
 /// that one.
 fn frame_at(origin: [f64; 3]) -> Node<ProfileProgram> {
     let (_, u, v) = ProfilePlane::xy_numbers();
-    Node::Datum(Datum::Frame {
-        origin: common::len3(origin),
-        u: common::scl3(u),
-        v: common::scl3(v),
-    })
+    common::frame(origin, u, v)
 }
 
 /// The label for one node, through the home the picker and the tree
@@ -129,11 +125,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
 /// plane** — the label says less rather than something else.
 #[test]
 fn an_oblique_frame_is_not_called_a_world_plane() {
-    let node = Node::Datum(Datum::Frame {
-        origin: common::len3([0.0, 0.0, 0.0]),
-        u: common::scl3([1.0, 1.0, 0.0]),
-        v: common::scl3([0.0, 1.0, 0.0]),
-    });
+    let node = common::frame([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
     let shown = label(&node, 1);
     assert!(
         !shown.contains("xy"),

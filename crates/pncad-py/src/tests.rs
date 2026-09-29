@@ -32,6 +32,94 @@ use test_utils::source::{
     type_base,
 };
 
+// The box-document fixture and the literal pair under it. The text
+// between the two markers is spelled identically in
+// `crates/pncad/tests/all.rs`, whose tests cannot reach this
+// file's and vice versa; `box_document_fixture_twins_agree` in
+// that file fails on any drift, so edit both copies together.
+// BEGIN box-document fixture twin
+/// A length literal, in canonical metres, through the façade.
+fn len(metres: f64) -> pncad::document::Expr {
+    use pncad::document::{Dimension, Expr};
+    Expr::literal(metres, Dimension::Length).expect("a finite length")
+}
+
+/// A dimensionless literal — a direction component — as [`len`].
+fn scl(value: f64) -> pncad::document::Expr {
+    use pncad::document::{Dimension, Expr};
+    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+}
+
+/// The world xy frame — the plane the box document sketches on.
+fn xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
+    use pncad::document::{Datum, Node};
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+/// A square profile-program node, `[0,s]²` on `plane`.
+fn square(
+    plane: pncad::document::RecipeNodeId,
+    s: f64,
+) -> pncad::document::Node<pncad::document::ProfileProgram> {
+    use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
+    Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![LoopProgram::Chain(vec![
+            ProgramStep::At([len(0.0), len(0.0)]),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(s)])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])],
+        ids: Vec::new(),
+    })
+}
+
+/// Insert a node, returning the (document, minted id) pair.
+fn insert(
+    doc: pncad::document::ProfileDoc,
+    node: pncad::document::Node<pncad::document::ProfileProgram>,
+) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
+    let applied = pncad::document::apply(
+        &doc,
+        &pncad::document::DocEdit::InsertNode { node },
+        pncad::tolerance::Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the edit is accepted");
+    let minted = applied.record.minted.expect("an insert mints an id");
+    (applied.doc, minted)
+}
+
+/// A one-box document under the id `label` derives: square(2)
+/// extruded 1.5, volume exactly 6.0. Returns (doc, profile id, body
+/// id) — the MINTED ids, so no caller couples to mint order.
+fn box_doc(
+    label: &str,
+) -> (
+    pncad::document::ProfileDoc,
+    pncad::document::RecipeNodeId,
+    pncad::document::RecipeNodeId,
+) {
+    use pncad::document::{Node, ProfileDoc};
+    let doc = ProfileDoc::empty_derived(label, pncad::tolerance::Tol::witness());
+    let (doc, plane) = insert(doc, xy_frame());
+    let (doc, profile) = insert(doc, square(plane, 2.0));
+    let (doc, body) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.5),
+        },
+    );
+    (doc, profile, body)
+}
+// END box-document fixture twin
+
 #[test]
 fn dimension_tags_are_stable() {
     assert_eq!(dimension_tag(Dimension::Length), "length");
@@ -719,9 +807,10 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // same way here.
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let escalated = |predicate| Indeterminate {
-        margin: MarginDiag::Value(2.0e-9),
+        margin: MarginDiag::value(2.0e-9),
         band,
         predicate,
+        terminal_sliver: false,
     };
     carries(
         &F::Frame {
@@ -792,12 +881,10 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             error: FrameError::Degenerate {
                 input: FrameInput::RollReference,
                 indeterminate: Some(Indeterminate {
-                    margin: MarginDiag::Enclosure {
-                        lo: -1.0e-9,
-                        hi: 3.0e-9,
-                    },
+                    margin: MarginDiag::enclosure(-1.0e-9, 3.0e-9),
                     band,
                     predicate: None,
+                    terminal_sliver: false,
                 }),
             },
         },
@@ -820,9 +907,10 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             error: FrameError::Degenerate {
                 input: FrameInput::MirrorNormal,
                 indeterminate: Some(Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: None,
+                    terminal_sliver: false,
                 }),
             },
         },
@@ -1223,10 +1311,9 @@ fn the_evaluation_door_speaks_the_standing_ladder() {
 fn resolution_status_tags_are_stable() {
     use crate::tags::{resolution_status_tag, resolve_error_tag, resolve_indeterminate_tag};
     use pncad::document::{
-        CancelToken, Datum, DocEdit, EvalOptions, Expr, LoopProgram, Node, ProfileDoc,
-        ProfileProgram, apply, evaluate,
+        CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc, ProfileProgram, apply,
+        evaluate,
     };
-    use pncad::prelude::Dimension;
     use pncad::select::{Resolution, ResolveIndeterminate, RunCtx, all_faces, resolve};
 
     // The indeterminate arms carry a node id and nothing else, so all
@@ -1248,30 +1335,10 @@ fn resolution_status_tags_are_stable() {
 
     let tol = Tol::witness();
     let doc: ProfileDoc = crate::identity::derived("resolution-status-probe", tol);
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
 
-    let insert = |doc: &ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(
-            doc,
-            &DocEdit::InsertNode { node },
-            tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the node inserts");
-        let id = applied.record.minted.expect("an inserted id");
-        (applied.doc, id)
-    };
-    let (doc, plane) = insert(
-        &doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(
-        &doc,
+        doc,
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![
@@ -1282,7 +1349,7 @@ fn resolution_status_tags_are_stable() {
         }),
     );
     let (doc, extrude) = insert(
-        &doc,
+        doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
@@ -1743,8 +1810,8 @@ fn expression_evaluation_tags_are_stable() {
 
     // Division by zero: no refusal at the operation, a poisoned value
     // caught at the boundary.
-    let zero = Expr::literal(0.0, Dimension::Scalar).expect("finite");
-    let one = Expr::literal(1.0, Dimension::Length).expect("finite");
+    let zero = scl(0.0);
+    let one = len(1.0);
     let pole = Expr::div(one, zero).expect("a scalar divisor is legal");
     assert_eq!(
         tag(&eval(&pole, &bound).expect_err("the pole refuses at the boundary")),
@@ -1771,10 +1838,7 @@ fn expression_evaluation_tags_are_stable() {
 #[test]
 fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() {
     let tol = Tol::witness();
-    use pncad::document::{
-        Datum, DocEdit, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save,
-    };
-    use pncad::prelude::Dimension;
+    use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
 
     let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe", tol);
     let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
@@ -1784,17 +1848,9 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     // replacement below now lands on the frame's origin rather than on
     // a profile point. The probe is about the load door's dimension
     // walk, which reaches both alike.
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
     let framed = apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Node::Datum(Datum::Frame {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                u: [scl(1.0), scl(0.0), scl(0.0)],
-                v: [scl(0.0), scl(1.0), scl(0.0)],
-            }),
-        },
+        &DocEdit::InsertNode { node: xy_frame() },
         tol,
         &pncad::document::RefusingReach,
     )
@@ -2207,9 +2263,10 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
         (UnitVec3Error::UnderflowedLength, "underflowed_direction"),
         (
             UnitVec3Error::Escalated(Indeterminate {
-                margin: MarginDiag::Value(2.0e-9),
+                margin: MarginDiag::value(2.0e-9),
                 band,
                 predicate: Some("datum_unit_norm"),
+                terminal_sliver: false,
             }),
             "escalated",
         ),
@@ -3010,9 +3067,10 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
         let refused = BlendError::Escalated {
             site,
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_radius_headroom"),
+                terminal_sliver: false,
             },
         };
         let text = refused.to_string();
@@ -3257,6 +3315,10 @@ fn check_registry_tags_are_stable() {
 
     let refused = ShellClassifyError::ZeroVolume {
         shell: pncad::topo::ShellKey::default(),
+        verdict: pncad::geom_brep::recourse::Classified {
+            margin: pncad::geom_core::MarginDiag::value(5.0e-10),
+            band: pncad::geom_core::Band::new(1e-9, 1e-8).expect("a band"),
+        },
     };
     assert_eq!(
         check_evidence_tag(&CheckEvidence::Escalated {
@@ -3331,6 +3393,10 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     // its own word, which is the half a caller branches on.
     let refused = pncad::document::ShellClassifyError::ZeroVolume {
         shell: pncad::topo::ShellKey::default(),
+        verdict: pncad::geom_brep::recourse::Classified {
+            margin: pncad::geom_core::MarginDiag::value(5.0e-10),
+            band: pncad::geom_core::Band::new(1e-9, 1e-8).expect("a band"),
+        },
     };
     carries(
         &E::Escalated {
@@ -3451,7 +3517,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// **What one validator finding says, arm by arm** — including the
 /// arms no Python door can produce.
 ///
-/// `ValidationError` has seventy-one arms and Python reaches them
+/// Python reaches `ValidationError`'s arms
 /// through five `Body` methods — the four rungs of the ladder and
 /// `validate_geometric_measured`, whose gate half is the third rung —
 /// so most of the enum is unreachable
@@ -3704,9 +3770,10 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             face: FaceKey::default(),
             ring: Default::default(),
             source: Indeterminate {
-                margin: MarginDiag::Value(5e-9),
+                margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
                 predicate: Some("ring_contact"),
+                terminal_sliver: false,
             },
         })
         .ring_contact_kind,
@@ -4545,6 +4612,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "side_plane",
             "sliver_join",
             "sliver_rim",
+            "smooth_join_refuted",
         ],
         delegates: &[],
     },
@@ -4738,6 +4806,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fragment_lineage_cycle",
             "member_edge_tied",
             "merged_chord",
+            "merged_chord_constituents",
             "merged_chord_off_rim",
             "missing_upstream",
             "narrow_band",
@@ -5020,8 +5089,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_invalid",
             "product_naming",
             "root_failed",
+            "root_invalid",
             "root_poisoned",
-            "solid_invalid",
             "unknown_node",
         ],
         delegates: &[],
@@ -5148,6 +5217,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "sliver_join",
             "sliver_radius",
             "sliver_rim",
+            "smooth_join_refuted",
             "underflowed_axis",
             "unsupported_toroid",
             "vertex_crosses_axis",
@@ -5202,7 +5272,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "shell_classify_error_tag",
-        values: &["band", "escalated", "props", "zero_volume"],
+        values: &["band", "escalated", "props", "straddles", "zero_volume"],
         delegates: &[],
     },
     TagEntry {
@@ -5210,7 +5280,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "chart_sense_mixed",
-            "chart_spans_solids",
             "corrupt",
             "escalated",
             "face",
@@ -5566,6 +5635,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "planar_boundary_residual",
             "planar_face_escalated",
             "planar_face_residual",
+            "poisoned_curve_datum",
             "poisoned_surface_datum",
             "poisoned_surface_description",
             "ring_contact_escalated",
@@ -5576,6 +5646,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
             "shell_disconnected",
+            "shell_winding",
             "shell_without_faces",
             "sliver_dihedral",
             "solid_without_shells",
@@ -5586,8 +5657,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transverse_not_intrinsic",
             "uncertifiable_surface",
             "undeclared_contact",
-            "undeclared_cusp",
             "unreachable_half_edge",
+            "unrepresentable_curve_datum",
             "unrepresentable_surface_datum",
             "vertex_orbit_overrun",
             "volume_uncomputable",
@@ -5724,6 +5795,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The slot-addressed half of the four above, same pin.
     ("slot_doc_param_dimension", 2),
     ("slot_unknown_doc_param", 2),
+    ("smooth_join_refuted", 2),
     ("split", 2),
     ("step_ids", 2),
     ("step_map_diverged", 2),
@@ -6484,9 +6556,7 @@ fn top_form<'a>(code_line: &'a str, line: &str, number: usize) -> (TopForm, &'a 
 
 /// **Read `src/tags.rs` and enumerate its tag table.**
 ///
-/// A RECOGNISER THAT ENUMERATES, in the house sense
-/// (`scripts/check-ci-mirror-parity.py`'s header makes the argument at
-/// length): every top-level line must match one of the forms below,
+/// A RECOGNISER THAT ENUMERATES, in the house sense: every top-level line must match one of the forms below,
 /// and anything else raises rather than being skipped. The failure
 /// mode this rules out is the one that matters — a reader that quietly
 /// matches nothing, reports a happy zero, and lets the pin pass
@@ -9365,67 +9435,10 @@ fn the_node_kind_vocabulary_matches_its_committed_roster() {
 // calls being asked about. It is `cfg(debug_assertions)`-gated, so
 // these rows are too; every profile this workspace builds keeps it on.
 mod product_memo_rows {
+    use super::{box_doc, insert, square, xy_frame};
     use crate::product_memo::{self, ProductMemo};
     use pncad::document as d;
     use pncad::tolerance::Tol;
-
-    /// The world xy frame, the plane the fixture sketches on.
-    fn xy_frame() -> d::Node<d::ProfileProgram> {
-        let len = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
-        let scl = |v: f64| d::Expr::literal(v, d::Dimension::Scalar).expect("a scalar literal");
-        d::Node::Datum(d::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })
-    }
-
-    /// A square `[0,s]²` on `plane`.
-    fn square(plane: d::RecipeNodeId, s: f64) -> d::Node<d::ProfileProgram> {
-        let lit = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
-        d::Node::Profile(d::ProfileProgram {
-            plane,
-            loops: vec![d::LoopProgram::Chain(vec![
-                d::ProgramStep::At([lit(0.0), lit(0.0)]),
-                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(s), lit(0.0)])),
-                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(s), lit(s)])),
-                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(0.0), lit(s)])),
-                d::ProgramStep::LineTo(d::ProgramTarget::Start),
-            ])],
-            ids: Vec::new(),
-        })
-    }
-
-    fn insert(
-        doc: d::ProfileDoc,
-        node: d::Node<d::ProfileProgram>,
-    ) -> (d::ProfileDoc, d::RecipeNodeId) {
-        let applied = d::apply(
-            &doc,
-            &d::DocEdit::InsertNode { node },
-            Tol::witness(),
-            &pncad::document::RefusingReach,
-        )
-        .expect("the edit is accepted");
-        let minted = applied.record.minted.expect("an insert mints an id");
-        (applied.doc, minted)
-    }
-
-    /// One box: square(2) extruded 1.5, under the id `label` derives.
-    fn box_doc(label: &str) -> d::ProfileDoc {
-        let lit = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
-        let doc = d::ProfileDoc::empty_derived(label, Tol::witness());
-        let (doc, plane) = insert(doc, xy_frame());
-        let (doc, profile) = insert(doc, square(plane, 2.0));
-        let (doc, _) = insert(
-            doc,
-            d::Node::Extrude {
-                profile,
-                distance: lit(1.5),
-            },
-        );
-        doc
-    }
 
     /// A document that draws nothing: a plane and a sketch, no solid.
     fn sketch_only(label: &str) -> d::ProfileDoc {
@@ -9459,7 +9472,7 @@ mod product_memo_rows {
     #[cfg(debug_assertions)]
     #[test]
     fn the_checks_registry_and_the_assembly_gate_share_one_gather() {
-        let doc = box_doc("memo-both-orders");
+        let (doc, _, _) = box_doc("memo-both-orders");
         let ev = evaluated(&doc);
         let cfg = d::ChecksConfig::default();
         let tol = Tol::witness();
@@ -9484,7 +9497,7 @@ mod product_memo_rows {
     #[cfg(debug_assertions)]
     #[test]
     fn all_four_product_doors_share_one_gather() {
-        let doc = box_doc("memo-four-doors");
+        let (doc, _, _) = box_doc("memo-four-doors");
         let ev = evaluated(&doc);
         let cfg = d::ChecksConfig::default();
         let tol = Tol::witness();
@@ -9504,7 +9517,7 @@ mod product_memo_rows {
     #[cfg(debug_assertions)]
     #[test]
     fn the_gate_consumes_a_copy_and_the_memo_survives_it() {
-        let doc = box_doc("memo-survives-the-gate");
+        let (doc, _, _) = box_doc("memo-survives-the-gate");
         let ev = evaluated(&doc);
         let tol = Tol::witness();
         let memo = ProductMemo::default();
@@ -9523,7 +9536,7 @@ mod product_memo_rows {
     #[cfg(debug_assertions)]
     #[test]
     fn a_subject_free_configuration_gathers_nothing() {
-        let doc = box_doc("memo-lazy");
+        let (doc, _, _) = box_doc("memo-lazy");
         let ev = evaluated(&doc);
         let cfg = d::ChecksConfig {
             separation: d::Advisory::Off,
@@ -9590,7 +9603,7 @@ mod product_memo_rows {
     #[cfg(debug_assertions)]
     #[test]
     fn a_different_tolerance_gathers_again() {
-        let doc = box_doc("memo-tolerance-key");
+        let (doc, _, _) = box_doc("memo-tolerance-key");
         let ev = evaluated(&doc);
         let tol = Tol::witness();
         let at = tol.get();
@@ -9617,8 +9630,8 @@ mod product_memo_rows {
     /// would have raised has to be raised here or not at all.
     #[test]
     fn a_mispaired_document_is_refused_before_the_memo_is_consulted() {
-        let doc = box_doc("memo-paired");
-        let other = box_doc("memo-paired-other");
+        let (doc, _, _) = box_doc("memo-paired");
+        let (other, _, _) = box_doc("memo-paired-other");
         let ev = evaluated(&doc);
         assert!(ProductMemo::paired(&ev, doc.id()).is_ok());
         let mispaired = ProductMemo::paired(&ev, other.id()).expect_err("a foreign document");

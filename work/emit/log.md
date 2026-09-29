@@ -1003,3 +1003,18 @@ Filed:
 - P2 `sibling-branches-mint-one-step-id-for-different-steps` (via the
   PR);
 - the Python handles remainder, `python-spells-a-piece-by-its-authoring-calls-step-handle`.
+
+## 2026-09-26 — Ev: step ids carry lineage, via a digest chain (PR 3262)
+
+Sibling branches of one document minted the same `StepId` for
+different steps. A parent that pinned one branch and then updated to
+the other silently re-denoted a painted leg, with `maintenance: []`.
+The measured rows are in `asm_parent_held_names`.
+
+Ev ruled (b): step ids are minted from a digest chain, which keeps D9,
+and siblings never collide. He first asked whether `UpdateReference`
+should catch it. It cannot without the lineage the id should carry.
+
+The row becomes the build. Node ids share the defect and are left for
+a later row.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

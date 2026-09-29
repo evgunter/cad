@@ -34,7 +34,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{EdgeDescription, SurfaceKind};
-use geom_core::{Band, MarginDiag, Point2, Tol};
+use geom_core::{Band, ErrorTextReading, Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;
 use sweep::blend::{
@@ -45,26 +45,15 @@ use sweep::{Extrusion, extrude};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
+use crate::common::cavity::skewed_cavity_edges;
+use crate::common::contact_edges::intrinsic_edges;
+
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn band() -> Band {
     Band::linear(tol()).expect("the run's linear band")
-}
-
-/// How many edges of a body store the intrinsic tangency.
-fn intrinsic_edges(body: &Body<f64>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(|c| c.description()),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count()
 }
 
 /// The typed in-band refusal of the must-carry rule, or a panic naming
@@ -84,7 +73,7 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
                 panic!("{what}: refused, but not as the rule's in-band escalation: {error}");
             };
             assert_eq!(source.predicate, Some("tangent_second_order"), "{what}");
-            let MarginDiag::Value(m) = source.margin else {
+            let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
                 panic!("{what}: the deciding station's margin is a value, got {source:?}");
             };
             let b = band();
@@ -377,19 +366,7 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")
         .count();
-    let contact = out
-        .body
-        .edges()
-        .filter(|(_, e)| {
-            matches!(
-                out.body
-                    .get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(|c| c.description()),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count();
+    let contact = intrinsic_edges(&out.body);
     assert_eq!(contact, 48, "the die's 24 trimlines and 24 corner arcs");
     assert_eq!(spent, contact * 2 * interior);
 }
@@ -398,62 +375,10 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
 // The corner ball's own arcs on a slim wedge: the EXTENT lever.
 // ---------------------------------------------------------------
 
-/// The skewed vented cavity of `blend4_r1_probes` — block `[0,4]³`, a
-/// parallelogram cavity prism of side `1.2` and skew `theta` over
-/// `z ∈ [1, 3]`, a round vent from its centroid — with its twelve
-/// concave edges, the whole body scaled by `scale`. Re-posed here
-/// because the pose is the point: at a slim skew the corner ball's
-/// arc against the band subtends the wedge angle, so the arc's EXTENT
-/// `r·θ` — not `r_band` — is the folded lever arm, and the
-/// second-order margin is `θ²·r/2`.
-pub(crate) fn skewed_cavity_edges(theta: f64, scale: f64) -> (Body<f64>, Vec<EdgeKey>) {
-    use crate::common::cavity::{cut, edges_with_corners, prism, rod};
-    let p = |x: f64, y: f64| Point2::new(x * scale, y * scale);
-    let s = 1.2;
-    let (ax, ay) = (1.0, 1.0);
-    let (dx, dy) = (s * theta.cos(), s * theta.sin());
-    let quad = [
-        p(ax, ay),
-        p(ax + s, ay),
-        p(ax + s + dx, ay + dy),
-        p(ax + dx, ay + dy),
-    ];
-    let block = prism(
-        &[p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)],
-        0.0,
-        4.0 * scale,
-    );
-    let centroid = Point2::new(
-        (quad[0].x + quad[1].x + quad[2].x + quad[3].x) / 4.0,
-        (quad[0].y + quad[1].y + quad[2].y + quad[3].y) / 4.0,
-    );
-    // A narrower vent than `blend4_r1_probes`' (`0.12·sin θ`, not
-    // `0.45·sin θ`): the slimmer poses below leave the cavity's own
-    // walls `0.48·sin θ` clear of it, so the clearance screen answers
-    // for the corner arcs and not for the vent.
-    let vent = rod(
-        centroid,
-        (theta.sin() * 0.12).min(0.25) * scale,
-        2.5 * scale,
-        5.0 * scale,
-    );
-    let cavity = prism(&quad, 1.0 * scale, 3.0 * scale);
-    let vented = cut("vent", &block, &vent);
-    let body = cut("cavity", &vented, &cavity);
-    let near = 1e-9 * scale;
-    let edges = edges_with_corners(&body, |q: geom_core::Point3<f64>| {
-        ((q.z - 1.0 * scale).abs() < near || (q.z - 3.0 * scale).abs() < near)
-            && quad
-                .iter()
-                .any(|c| (q.x - c.x).abs() < near && (q.y - c.y).abs() < near)
-    });
-    assert_eq!(edges.len(), 12, "the cavity's twelve concave edges");
-    (body, edges)
-}
-
-/// Contact edges of a carved body stored as a non-seam chart image —
-/// the rule's UNDER-DETERMINED description.
-pub(crate) fn chart_contact_edges(body: &Body<f64>) -> usize {
+/// Edges of a carved body stored as a non-seam chart image — the rule's
+/// UNDER-DETERMINED description, and any other chart-described edge
+/// the body carries (a boolean's rims among them): a whole-body count.
+fn chart_contact_edges(body: &Body<f64>) -> usize {
     body.edges()
         .filter(|(_, e)| {
             matches!(

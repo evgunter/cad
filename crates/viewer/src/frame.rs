@@ -15,10 +15,11 @@
 //!
 //! What is here is all of that shape. **What the chrome has to say and
 //! which of its two channels says it**: the [`Subject`] / [`Message`] /
-//! [`StatusUpdate`] / [`Badge`] vocabulary, the doors that build one,
-//! the two that spend one ([`apply`] for a ranked verdict or a
-//! retirement, [`deliver`] for a policy that may or may not have news),
-//! and [`frame_status`]'s ranking over a frame's news. **The toolbar
+//! [`StatusUpdate`] / [`RankedVerdict`] / [`Badge`] vocabulary, the doors
+//! that build one, the two that spend one — [`deliver`] for a policy's
+//! [`StatusUpdate`], [`apply`] for the ranking's [`RankedVerdict`], and
+//! the types decide which, not the caller — and [`frame_status`]'s
+//! ranking over a frame's news. **The toolbar
 //! badge for the landed product** ([`product_badge`]) and the rest of
 //! the badge family beside it. **The draft and the offer a refused
 //! batch leaves behind** ([`retype_draft`], [`creation_offer`]).
@@ -98,9 +99,9 @@
 //! recurring event stream whose next event makes the thing the wrong
 //! answer — and carrying one never decided which channel a fact goes
 //! to. What differs is the ENFORCEMENT. A message is STORED as a
-//! message, so retiring it is the chrome's own bookkeeping: [`apply`]
+//! message, so retiring it is the chrome's own bookkeeping: [`deliver`]
 //! matches the held message's subject against a
-//! [`StatusUpdate::Expire`] and drops it, and [`StatusUpdate::Clear`]
+//! [`StatusUpdate::Expire`] and drops it, and [`RankedVerdict::Clear`]
 //! sweeps the line whole. **No such machinery touches a badge** — its
 //! subject names the event that changes the state it reads, and the
 //! badge ends because the read does.
@@ -132,7 +133,7 @@
 //! event about its subject: a camera verdict goes on the next camera
 //! event, what the cursor said on the next cursor move, and what the
 //! document said on the next act the document accepts. That last is
-//! [`StatusUpdate::Clear`], which sweeps the whole line because an
+//! [`RankedVerdict::Clear`], which sweeps the whole line because an
 //! accepted act makes every standing complaint stale; the other two
 //! are [`StatusUpdate::Expire`], which retires one subject and leaves
 //! the rest alone. Before this rule the only sweeper was `Clear`, so
@@ -145,12 +146,18 @@
 //! writing to the frame's notices — `ViewerApp`'s `notices`, which
 //! `ViewerBehavior` lends the panes.
 //!
-//! **Nothing enforces the "but one".** `ViewerBehavior` lends the panes
-//! the field itself too (its `status`, for the retirements below), and
-//! a pane that handed [`apply`] a [`StatusUpdate::Show`] there would put
-//! a sentence on the line the ranking never saw, with nothing going
-//! red. So this is the tree as read, not a guarantee. It gives no
-//! number: the writers are a grep rather than a type, and a row that
+//! **Nothing enforces the "but one".** The types close one route
+//! around the ranking: a policy answers in [`StatusUpdate`], [`deliver`]
+//! is the only door that takes one and sends its `Show` to the notices,
+//! and [`apply`] takes only a [`RankedVerdict`] — so a policy's verdict
+//! handed to the field-writing door does not build. They do not close
+//! the field. `ViewerBehavior` lends the panes the field itself (its
+//! `status`, which [`deliver`] needs for the retirements below), and
+//! [`RankedVerdict`]'s variants are public, so a pane that assigned the
+//! field, or handed [`apply`] a [`RankedVerdict::Show`] it built
+//! itself, would put a sentence on the line the ranking never saw,
+//! with nothing going red. So this is the tree as read, not a
+//! guarantee. It gives no number: the writers are a grep rather than a type, and a row that
 //! counted them — the way `frame_policy.rs`'s
 //! `the_readme_counts_its_two_populations_correctly` counts
 //! `ViewerApp::store`'s reads — would go red at every new writer and
@@ -162,13 +169,17 @@
 //! outside the ranking, and the difference is a retirement. A
 //! retirement says nothing, so there is nothing to weigh it against
 //! and nothing to join it to; ranking one is not a stricter discipline
-//! but a category error. [`apply`] is
-//! therefore a legitimate door and stays one — it is where a
-//! retirement belongs — and [`cursor_status`], which returns only
+//! but a category error. So [`deliver`], the one door every policy's
+//! verdict goes through, splits it: news to the frame's notices,
+//! retirement to the field. [`cursor_status`], which returns only
 //! [`StatusUpdate::Keep`] and [`StatusUpdate::Expire`], was never one
-//! of these writers however directly it reaches the field.
-//! [`deliver`] is the door for a policy that can answer either way:
-//! news to the frame's notices, retirement to the field.
+//! of these writers although its answer reaches the field directly —
+//! and should it grow a `Show`, that `Show` joins the notices without
+//! its call site changing.
+//! [`apply`] is the other door and takes the other type: the
+//! ranking's own answer, a [`RankedVerdict`], which has already been
+//! weighed against everything the frame said and must not be weighed
+//! again.
 //!
 //! **The exception is the startup initializer**, `ViewerApp::new`'s
 //! `status: startup_notices(&notices)` — the preferences file's
@@ -203,11 +214,12 @@
 //!
 //! Both are values here rather than conditions at a call site.
 //! [`fold_status`] never CLEARS for a camera fold:
-//! clearing is the acting batch's verdict alone ([`batch_status`]),
-//! because an action the document accepted is the one event that makes
-//! a standing complaint stale, and a fold that cleared would be
-//! deciding the fate of messages written by everyone else in the same
-//! frame. And the gather's verdict badges rather than writes, because
+//! clearing is the acting batch's verdict alone ([`batch_status`]'s
+//! [`RankedVerdict::Clear`], which a policy's [`StatusUpdate`] has no
+//! spelling for), because an action the document accepted is the one
+//! event that makes a standing complaint stale, and a fold that
+//! cleared would be deciding the fate of messages written by everyone
+//! else in the same frame. And the gather's verdict badges rather than writes, because
 //! a fault about the document on screen outlives every frame the
 //! camera moves in.
 
@@ -219,16 +231,20 @@ use pncad::document::{
 };
 use pncad::select::{HitTestError, NodePickError};
 
+use crate::blend::BlendEvent;
 use crate::camera::CameraError;
 use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
+use crate::matetool::MateToolEvent;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
+use crate::seats::SeatEvent;
 use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
+use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -248,7 +264,7 @@ use crate::vocab::{partial_mirror, vocabulary};
 /// whichever stream's next event makes it the wrong answer.
 ///
 /// **The two channels retire it differently, and that is the whole of
-/// the difference.** A message is held in a field, so [`apply`] has to
+/// the difference.** A message is held in a field, so [`deliver`] has to
 /// be told: [`StatusUpdate::Expire`] names the subject and drops what
 /// the line holds about it. A badge is held nowhere — it is recomputed
 /// from the state it reads on the frame it is drawn — so its subject
@@ -279,13 +295,13 @@ pub enum Subject {
     Cursor,
     /// **The document on screen and the acts aimed at it** — retired
     /// by the next batch holding an operation [`acts`] counts: swept by
-    /// [`StatusUpdate::Clear`] when that batch refused nothing, and
+    /// [`RankedVerdict::Clear`] when that batch refused nothing, and
     /// replaced by the refusal when it did.
     ///
     /// **No [`StatusUpdate::Expire`] issuer** — see the note below,
     /// which this shares with [`Self::Display`] and
     /// [`Self::Preferences`]. What sweeps it today is
-    /// [`StatusUpdate::Clear`], and `Clear` is not this subject's
+    /// [`RankedVerdict::Clear`], and `Clear` is not this subject's
     /// event in any sense a type can check: it sweeps the whole line,
     /// a `Camera` message as readily as this one, because an act the
     /// document accepted makes every standing complaint stale
@@ -331,7 +347,7 @@ pub enum Subject {
 /// event and a row can see the difference. [`Subject::Document`],
 /// [`Subject::Display`] and [`Subject::Preferences`] have none, so
 /// nothing yet distinguishes them: each is swept by
-/// [`StatusUpdate::Clear`], which is subject-blind, and by nothing
+/// [`RankedVerdict::Clear`], which is subject-blind, and by nothing
 /// else.
 ///
 /// **What each of those three states is therefore a claim about its
@@ -349,7 +365,7 @@ pub enum Subject {
 /// subject is either offered at a seat of this list or named there as
 /// deliberately absent with its reason. A sixth subject WITH an issuer
 /// would otherwise miss the list with no row going red, and its
-/// messages would then be swept only by [`StatusUpdate::Clear`],
+/// messages would then be swept only by [`RankedVerdict::Clear`],
 /// silently. The
 /// suite's own row over this list holds a different direction — that
 /// the two named here are the two the policies it calls actually
@@ -362,28 +378,32 @@ partial_mirror! {
     absent [
         Document => "its event is the next act the document ACCEPTS, \
                      which nothing marks yet; what sweeps it today is \
-                     the subject-blind `StatusUpdate::Clear`",
+                     the subject-blind `RankedVerdict::Clear`",
         Display => "its event is the next rebuild of the thing the \
                     message is about, which nothing marks yet; the \
                     held facts about the picture badge instead, and \
                     the news that does wear this subject is swept only \
-                    by `StatusUpdate::Clear`",
+                    by `RankedVerdict::Clear`",
         Preferences => "its event is the next write of the preferences \
                         file, which nothing marks yet; swept only by \
-                        `StatusUpdate::Clear`, for `Display`'s reason",
+                        `RankedVerdict::Clear`, for `Display`'s reason",
     ],
 }
 
-/// **One frame's news**: what it is about, and its own words.
+/// **One frame's news**: what it is about, its own words, and whether
+/// anything will say it again.
 ///
 /// The text is composed by whoever raised it, from the typed value
 /// that failed — nothing here writes prose about someone else's
-/// failure. What this type adds is the half a `String` could not
-/// carry: which recurring event makes the sentence the wrong answer.
-/// **The fields are private and [`Message::new`] is the only door**,
-/// for [`Badge`]'s reason: a struct literal is a second way to build
-/// one, and a value whose whole point is that a decision was made in
-/// one place must not have a spelling that skips it.
+/// failure. What this type adds is the two halves a `String` could not
+/// carry: which recurring event makes the sentence the wrong answer
+/// ([`Subject`]), and whether this line is the only telling it will get
+/// ([`Retold`]). **The fields are private and [`Message::new`] is the
+/// only public door**, for [`Badge`]'s reason: a struct literal is a
+/// second way to build one, and a value whose whole point is that a
+/// decision was made in one place must not have a spelling that skips
+/// it. (The one other door, [`Message::joined`], is private and builds
+/// from `Message`s the public door made.)
 ///
 /// **A message's text carries no [`NOTICE_MARK`], and that is what
 /// makes a joined line readable.** [`frame_status`] puts several
@@ -398,11 +418,52 @@ partial_mirror! {
 pub struct Message {
     subject: Subject,
     text: String,
+    retold: Retold,
+}
+
+/// **Whether anything will say this notice's news again** — the one
+/// property [`frame_status`]'s rank 1 reads.
+///
+/// A notice's NEWS is what happened and why. It is said again when a
+/// surface the reader reads in words keeps carrying it — a tree row's
+/// fault, which evaluation raises on every run — or when the reader's
+/// own repeat of the act that raised it raises it again, as a refusal
+/// or a declined pick does. **A symptom is not the news**: a seat
+/// drawn empty, a part drawn at its mated pose, a later refusal that
+/// no drag is in flight each show THAT something is so, never that an
+/// edit made it so or why.
+///
+/// **The burden is on [`Retold::Again`].** A door answers `Again` only
+/// when it can show the retelling from what it holds — the act it
+/// answers, or a surface that always carries the news — and `Never`
+/// wherever it cannot. The two mistakes are not symmetric: a `Never`
+/// that was not needed puts one sentence beside a refusal, and an
+/// `Again` that was wrong loses the news for good, which is the defect
+/// this type exists to stop.
+///
+/// **Decided by the door that makes the message, and never by
+/// default.** [`Message::new`] takes it as an argument, so every
+/// producer — in this module, the panes, the app or the id pass —
+/// answers the question at the site that knows what its message is
+/// about, and the ranking reads the answer without asking what refused
+/// beside it. A rule over PAIRS would need a table of which refusal may
+/// hide which notice, and nothing states what would fill it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Retold {
+    /// **Something says it again**, so a refusal may stand in front of
+    /// it: dropping it from one frame's line loses nothing the reader
+    /// will not meet again.
+    Again,
+    /// **Dropping it means nothing will ever say it.** This frame's
+    /// line is the only telling, so a refusal in the same frame does
+    /// not take its place ([`frame_status`]).
+    Never,
 }
 
 impl Message {
     /// A message about `subject`, in `text`'s own words — with any
-    /// [`NOTICE_MARK`] in them rewritten to the within-a-notice mark.
+    /// [`NOTICE_MARK`] in them rewritten to the within-a-notice mark —
+    /// and whether anything will say it again.
     ///
     /// **Rewritten rather than refused.** A door that panicked would
     /// be reachable from the keyboard: [`delta_not_a_number`] echoes
@@ -411,10 +472,17 @@ impl Message {
     /// mark is asking for a list mark one level in — it is inside a
     /// notice, which is what [`LIST_SEPARATOR`] is for — so the
     /// rewrite says what the author meant at the level they are at.
-    pub fn new(subject: Subject, text: impl Into<String>) -> Self {
+    ///
+    /// **`retold` has no default.** A default is a decision nobody
+    /// made, and the one this door would make — [`Retold::Again`] —
+    /// is the under-admission [`frame_status`]'s rank 1 exists to
+    /// stop: a producer added later would drop its news beside a
+    /// refusal without ever being asked whether it could.
+    pub fn new(subject: Subject, text: impl Into<String>, retold: Retold) -> Self {
         Self {
             subject,
             text: text.into().replace(NOTICE_MARK, LIST_SEPARATOR.trim()),
+            retold,
         }
     }
 
@@ -435,8 +503,11 @@ impl Message {
     ///
     /// The caller decides the subject, because what a joined line is
     /// ABOUT is a separate question with its own rule
-    /// ([`joined_subject`]).
+    /// ([`joined_subject`]). Its [`Retold`] is [`Retold::Never`] when
+    /// any notice on it is: the field is total, and `Again` would be
+    /// false of a line carrying a once-only telling.
     fn joined(subject: Subject, notices: &[Message]) -> Self {
+        let never = notices.iter().any(|notice| notice.retold == Retold::Never);
         Self {
             subject,
             text: notices
@@ -444,6 +515,7 @@ impl Message {
                 .map(Message::text)
                 .collect::<Vec<_>>()
                 .join(NOTICE_SEPARATOR),
+            retold: if never { Retold::Never } else { Retold::Again },
         }
     }
 
@@ -456,6 +528,11 @@ impl Message {
     pub fn text(&self) -> &str {
         &self.text
     }
+
+    /// Whether anything will say its news again.
+    pub fn retold(&self) -> Retold {
+        self.retold
+    }
 }
 
 /// **The message's own words, and only those.**
@@ -467,34 +544,100 @@ impl Message {
 /// ([`StatusUpdate::Expire`]) and what a joined rank-2 line takes as
 /// its own subject, so one recurring event can retire the joined
 /// sentence. It does not RANK: [`frame_status`] ranks by SOURCE — a
-/// refusal, else the frame's notices, else the batch's own verdict —
-/// and no rank reads a subject. A line that printed its own routing
-/// would be saying to the user what the chrome says to itself.
+/// refusal with the notices nothing will say again, else the frame's
+/// notices, else the batch's own verdict — and no rank reads a
+/// subject. A line that printed its own routing would be saying to
+/// the user what the chrome says to itself.
+///
+/// `retold` is the same decision for the converse reason: it RANKS —
+/// it is what lets a notice ride beside a refusal — and it is about
+/// the line's future, which the line has no words for.
 impl core::fmt::Display for Message {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { subject: _, text } = self;
+        let Self {
+            subject: _,
+            text,
+            retold: _,
+        } = self;
         f.write_str(text)
     }
 }
 
-/// What a frame's events should do to the status line.
+/// **A policy's verdict on the status line**: what one writer's events
+/// should do to it, before anything has weighed it against the rest of
+/// the frame.
+///
+/// Every policy in this module answers in this vocabulary —
+/// [`fold_status`], [`cursor_status`] — and every one of them is spent
+/// through [`deliver`], which is the only door that takes one. The
+/// line's field is never written from a `StatusUpdate` directly: a
+/// [`Self::Show`] is one candidate sentence among the frame's, and
+/// only [`frame_status`]'s ranking decides which candidates the line
+/// says. What the ranking answers is the other type, [`RankedVerdict`],
+/// and that is the one [`apply`] takes.
+///
+/// **There is no `Clear` here, and that is a rule rather than a gap.**
+/// Sweeping the whole line is what an act the document ACCEPTED does
+/// ([`batch_status`]), and it is the ranking's answer, not a policy's:
+/// a policy that could clear would be deciding the fate of sentences
+/// written by writers it knows nothing about. A policy that has
+/// nothing to say about its own subject any more says
+/// [`Self::Expire`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StatusUpdate {
     /// Leave the line as it is.
     Keep,
-    /// Clear it: the user acted and nothing refused.
-    Clear,
     /// **An event about `Subject` happened and had nothing to say.**
     /// Whatever the line holds about that subject is now the answer to
     /// a question nobody is asking, and goes; a message about anything
     /// else is untouched.
     ///
     /// This is the whole difference between [`Self::Keep`] and a
-    /// [`Self::Clear`] that would be far too broad: a clean camera
-    /// fold must retire the camera refusal it wrote a moment ago
-    /// without deciding the fate of sentences written by writers it
-    /// knows nothing about ([`fold_status`]).
+    /// [`RankedVerdict::Clear`] that would be far too broad: a clean
+    /// camera fold must retire the camera refusal it wrote a moment
+    /// ago without deciding the fate of sentences written by writers
+    /// it knows nothing about ([`fold_status`]).
     Expire(Subject),
+    /// **One candidate sentence** — news this writer has, which joins
+    /// the frame's notices and meets the ranking ([`deliver`]).
+    Show(Message),
+}
+
+/// **The ranking's answer: what the line says after a whole frame.**
+///
+/// [`frame_status`] is the only public function that answers in it,
+/// and [`apply`] is the only door that takes one. The variants are
+/// public, so a hand-built `Show` still reaches [`apply`]; what the
+/// type refuses is a policy's [`StatusUpdate`]. It is a separate type
+/// from [`StatusUpdate`] because a `Show` means two different things
+/// in the two: a policy's `Show` is one candidate that must be ranked,
+/// and this `Show` is the WINNER, already weighed against everything
+/// the frame said, which must reach the field and must not be ranked
+/// again — handed back to the notices it would be joined with the
+/// very list it won.
+///
+/// **The vocabularies differ in both directions, and each difference
+/// is stated by the type that lacks it.** `Clear` is here and not in
+/// [`StatusUpdate`]: sweeping the line is the verdict of an act the
+/// document accepted, which only the batch has. `Expire` is there and
+/// not here: a retirement is one writer's statement about its own
+/// subject, and it reaches the field through [`deliver`] on the frame
+/// its event happens, so the ranking never answers one.
+///
+/// **Why two three-state enums and not one**, although they share
+/// `Keep` and `Show`: the shared `Show` means opposite things — a
+/// candidate to be weighed, and the winner that must not be — and the
+/// door a verdict takes is decided by which of the two it is. One
+/// enum, or one with a shared core, puts both meanings back behind one
+/// spelling, which is the defect this split exists to remove.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RankedVerdict {
+    /// Leave the line as it is: the frame had no news and did not act.
+    Keep,
+    /// Clear it: the user acted, the document accepted it, and the
+    /// frame had no news — an accepted act makes every standing
+    /// complaint stale, whatever it was about.
+    Clear,
     /// Show this message, replacing whatever the line held.
     Show(Message),
 }
@@ -513,59 +656,57 @@ pub enum StatusUpdate {
 /// spelled as a decision, and `Expire` is a RETIREMENT, which must
 /// reach the field directly because a notice cannot un-say anything.
 ///
-/// **This is the door for a policy that may or may not have something
-/// to say**, and [`fold_status`] is the only one there is: its refusal
-/// is news and its clean arm retires the camera sentence. Read off
-/// `deliver`'s callers rather than off the shape — there is one
-/// production call site, [`crate::pane::viewport::land`]. A writer that already
-/// knows it has a [`Message`] pushes onto `notices` itself; a writer
-/// that assigns the field has no way to say "I have nothing to add",
-/// which is the defect [`apply`]'s docs describe and this door removes
-/// for the policies.
+/// **This is the door for every policy**, and which door a call site
+/// uses is not the call site's decision: [`apply`] does not take a
+/// [`StatusUpdate`], so a policy's verdict has nowhere else to go.
+/// That is what makes a policy's arms safe to extend. A `Show` added
+/// to [`cursor_status`] tomorrow joins the notices at
+/// [`crate::pane::viewport`]'s id pass without that call site
+/// changing, where a door chosen by reading the callee's arms would
+/// have become a writer the ranking never saw.
 ///
-/// **Every arm is written out**, and a wildcard for the three
+/// **Every arm is written out**, and a wildcard for the two
 /// non-`Show` ones would defeat the whole door: it would route a
 /// variant added later to the field by default, which is exactly the
 /// defect this exists to stop, and it would be added at a diff where
 /// nothing looked wrong. The variant that most wants that treatment is
 /// the one it would be most wrong for — a future `Show`-shaped arm is
 /// news by construction. So the compiler carries the rule, and the
-/// three arms below say which side each of today's is on rather than
+/// arms below say which side each of today's is on rather than
 /// leaving it to be read off a binding's name.
+///
+/// A policy's verdict cannot be handed to the other door — this does
+/// not build:
+///
+/// ```compile_fail,E0308
+/// use viewer::frame::{apply, cursor_status, Message};
+/// use viewer::idpass::IdStep;
+///
+/// let mut status: Option<Message> = None;
+/// apply(&mut status, cursor_status(IdStep::Void));
+/// ```
+///
+/// and the same call through this door does:
+///
+/// ```
+/// use viewer::frame::{cursor_status, deliver, Message};
+/// use viewer::idpass::IdStep;
+///
+/// let (mut notices, mut status): (Vec<Message>, Option<Message>) = (Vec::new(), None);
+/// deliver(&mut notices, &mut status, cursor_status(IdStep::Void));
+/// ```
 pub fn deliver(notices: &mut Vec<Message>, status: &mut Option<Message>, update: StatusUpdate) {
     match update {
         // News: it competes, so it must be ranked.
         StatusUpdate::Show(message) => notices.push(message),
-        // Nothing to say, so nothing to rank. `Clear` is not a
-        // retirement — it is a subject-blind sweep — but it is on this
-        // side for the same reason `Expire` is: it takes something
-        // away rather than adding to what the frame has to say, and a
-        // notice cannot un-say anything.
-        StatusUpdate::Keep => apply(status, StatusUpdate::Keep),
-        StatusUpdate::Expire(subject) => apply(status, StatusUpdate::Expire(subject)),
-        StatusUpdate::Clear => apply(status, StatusUpdate::Clear),
-    }
-}
-
-/// **Apply a verdict to the status line**: the one place a
-/// [`StatusUpdate`] becomes the field it describes.
-///
-/// Every policy in this module answers in this vocabulary and every
-/// consumer applies it here, so [`StatusUpdate::Keep`] is spelled as a
-/// decision rather than as the absence of one. A writer that assigns
-/// the `Option<Message>` itself has no way to say "I have nothing to
-/// add", and the natural-looking spelling of it — assigning what it
-/// would have shown — writes `None` over whatever another writer in
-/// the same frame put there.
-///
-/// [`StatusUpdate::Expire`] is the one arm that reads the line before
-/// writing it, and it is why the field is an `Option<Message>` and not
-/// an `Option<String>`: retiring a message requires knowing what the
-/// message was about.
-pub fn apply(status: &mut Option<Message>, update: StatusUpdate) {
-    match update {
+        // Nothing to say, so nothing to rank, and nothing to write.
         StatusUpdate::Keep => {}
-        StatusUpdate::Clear => *status = None,
+        // A retirement: it takes something away rather than adding to
+        // what the frame has to say, and a notice cannot un-say
+        // anything, so it reaches the field. It is the one arm that
+        // reads the line before writing it, and it is why the field is
+        // an `Option<Message>` and not an `Option<String>`: retiring a
+        // message requires knowing what the message was about.
         StatusUpdate::Expire(subject) => {
             if status
                 .as_ref()
@@ -574,7 +715,26 @@ pub fn apply(status: &mut Option<Message>, update: StatusUpdate) {
                 *status = None;
             }
         }
-        StatusUpdate::Show(message) => *status = Some(message),
+    }
+}
+
+/// **Apply the ranking's verdict to the status line**: the one place a
+/// [`RankedVerdict`] becomes the field it describes.
+///
+/// It takes a [`RankedVerdict`] and nothing else, so what reaches the
+/// field through here is only ever what [`frame_status`] decided —
+/// a policy's [`StatusUpdate`] does not build here, and goes through
+/// [`deliver`]. [`RankedVerdict::Keep`] is spelled as a decision rather
+/// than as the absence of one: a writer that assigns the
+/// `Option<Message>` itself has no way to say "I have nothing to add",
+/// and the natural-looking spelling of it — assigning what it would
+/// have shown — writes `None` over whatever another writer in the same
+/// frame put there.
+pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
+    match verdict {
+        RankedVerdict::Keep => {}
+        RankedVerdict::Clear => *status = None,
+        RankedVerdict::Show(message) => *status = Some(message),
     }
 }
 
@@ -598,11 +758,20 @@ pub fn acts(op: &SessionOp) -> bool {
 /// A refusal always shows, even from a hover-only batch — a hover
 /// cannot refuse today, and if one ever does, silence is the wrong
 /// answer.
-pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdate {
+///
+/// **Private, because it is an input to the ranking and not an answer
+/// of it.** It answers in [`RankedVerdict`] — its three arms are the
+/// ranking's own vocabulary, and its answer IS the ranking's when the
+/// frame has no news — but a caller holding news that applied this
+/// instead of [`frame_status`] would skip every notice the frame
+/// produced. Outside this module the batch's verdict is spelled
+/// `frame_status(&[], ops, refusal)`, which is the same answer and
+/// cannot be asked of a frame with news without weighing it.
+fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> RankedVerdict {
     match (ops.iter().any(acts), refusal) {
-        (_, Some(refusal)) => StatusUpdate::Show(refusal_message(refusal)),
-        (true, None) => StatusUpdate::Clear,
-        (false, None) => StatusUpdate::Keep,
+        (_, Some(refusal)) => RankedVerdict::Show(refusal_message(refusal)),
+        (true, None) => RankedVerdict::Clear,
+        (false, None) => RankedVerdict::Keep,
     }
 }
 
@@ -618,8 +787,14 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// refusal a drag of that value gets from the session's gesture door —
 /// goes onto the frame's notices through this same door, so the two
 /// routes say one sentence rather than two spellings of it.
+///
+/// [`Retold::Again`] by either route: a refusal is the answer to an act
+/// that did nothing, and the same act says it again. So a refusal that
+/// arrives as a NOTICE stays under a batch refusal in the same frame
+/// ([`frame_status`]'s rank 1), as a second refusal of one frame does
+/// under [`Refusal::preferred`].
 pub fn refusal_message(refusal: &Refusal) -> Message {
-    Message::new(Subject::Document, refusal.to_string())
+    Message::new(Subject::Document, refusal.to_string(), Retold::Again)
 }
 
 /// **The status line after a whole FRAME**: what the open tool said
@@ -632,7 +807,7 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// from the SAME ops, and they disagree by construction. A pick the
 /// blend tool declines is still a `Select` that the session performs
 /// cleanly — so [`batch_status`] sees an acting op and no refusal,
-/// answers [`StatusUpdate::Clear`], and wipes the notice that was
+/// answers [`RankedVerdict::Clear`], and wipes the notice that was
 /// written a few lines earlier. The user's mis-aimed click moved the
 /// selection to another body and the sentence explaining why it did
 /// not join the blend was on screen for zero frames.
@@ -643,8 +818,11 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 ///
 /// # The ranking
 ///
-/// 1. A **refusal** wins, alone. It is the answer to the action the
-///    user asked the DOCUMENT for, and it is the louder of the two.
+/// 1. A **refusal** wins, and beside it ride only the notices nothing
+///    will say again: after the refusal, joined with
+///    [`NOTICE_SEPARATOR`] in the order they happened, come the
+///    frame's notices whose [`Message::retold`] is [`Retold::Never`],
+///    and every other notice is dropped.
 /// 2. Else **every notice the frame produced**, in the order they
 ///    happened, joined with [`NOTICE_SEPARATOR`] — the same boundary
 ///    the preferences path writes between its own startup notices
@@ -653,13 +831,42 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 ///    which is the same keep-last defect [`batch_status`] exists to
 ///    stop for refusals. Not the first one either — a frame CAN drop
 ///    two picks (a seated tool has two seats), and both drops are news.
-/// 3. Else the batch's own verdict — [`StatusUpdate::Clear`] for a
-///    clean acting batch, [`StatusUpdate::Keep`] otherwise.
+/// 3. Else the batch's own verdict — [`RankedVerdict::Clear`] for a
+///    clean acting batch, [`RankedVerdict::Keep`] otherwise.
 ///
 /// Joining is a SEPARATOR, not a composed sentence: each notice is
 /// still its own typed value's own rendering, which is what the error
 /// micro-decision asks. Nothing here writes prose about someone else's
 /// failure.
+///
+/// # What rides beside a refusal: news nothing will say again
+///
+/// Two sentences about different things are worse than one about the
+/// louder, so rank 1 drops what it can afford to — and what it can
+/// afford to drop is exactly the news the reader will meet again.
+/// **The rule: a notice rides beside a refusal when dropping it means
+/// nothing will ever say it** ([`Retold`] says what counts as saying
+/// it again: a surface that keeps carrying the news in words, or the
+/// reader's own repeat of the act that raised it — and never a
+/// symptom). Whether the state it reports could be had back is not the
+/// test: an undo that would return it helps only a reader who knows to
+/// undo, and that knowledge is the sentence being dropped.
+///
+/// It is a property of the MESSAGE, answered where the message is made
+/// ([`Message::new`] has no default), not of the pair: the ranking
+/// reads it without asking what refused. **Which kinds ride is not
+/// listed here**, on purpose: each door that makes a notice answers
+/// for its own arms, where a new arm is a compile error until its
+/// author answers, and gives its reasons there — [`Withdrawal::notice`],
+/// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
+/// every typed refusal door with its own one-line reason. A census here
+/// would be a second copy that nothing checks against the first.
+///
+/// **The refusal comes first** although the notices beside it can
+/// matter more. The join is reading order, not a second ranking — both
+/// are on the line — and the refusal is the answer to the act the user
+/// just made, which is what they are reading the line for; what else
+/// the frame did follows it.
 ///
 /// # The join is invertible, and that is the whole rule
 ///
@@ -696,11 +903,21 @@ pub fn frame_status(
     notices: &[Message],
     ops: &[SessionOp],
     refusal: Option<&Refusal>,
-) -> StatusUpdate {
+) -> RankedVerdict {
     match batch_status(ops, refusal) {
-        refused @ StatusUpdate::Show(_) => refused,
+        RankedVerdict::Show(refused) => {
+            let line: Vec<Message> = core::iter::once(refused)
+                .chain(
+                    notices
+                        .iter()
+                        .filter(|notice| notice.retold() == Retold::Never)
+                        .cloned(),
+                )
+                .collect();
+            RankedVerdict::Show(Message::joined(joined_subject(&line), &line))
+        }
         verdict if notices.is_empty() => verdict,
-        _ => StatusUpdate::Show(Message::joined(joined_subject(notices), notices)),
+        _ => RankedVerdict::Show(Message::joined(joined_subject(notices), notices)),
     }
 }
 
@@ -819,12 +1036,12 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// that stepped forward over the mate again.
 ///
 /// Its subject is [`Subject::Document`], so what retires it is
-/// [`StatusUpdate::Clear`] — and [`acts`] makes that the next thing
+/// [`RankedVerdict::Clear`] — and [`acts`] makes that the next thing
 /// the user DOES other than hovering, which is narrower than "the next
 /// act the document accepts". Three legs, each with a row:
 ///
 /// - **A hover leaves it standing.** [`batch_status`] answers
-///   [`StatusUpdate::Keep`] for a batch of nothing but
+///   [`RankedVerdict::Keep`] for a batch of nothing but
 ///   [`SessionOp::Hover`], so the pointer drifting over the viewport
 ///   does not take the sentence
 ///   (`a_hover_only_batch_leaves_the_status_line_alone`).
@@ -836,7 +1053,7 @@ pub const LIST_SEPARATOR: &str = "; ";
 ///   and `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write`
 ///   on the live path).
 /// - **The next non-hover operation takes the line off it**, whatever
-///   that operation's own verdict is: [`StatusUpdate::Clear`] where the
+///   that operation's own verdict is: [`RankedVerdict::Clear`] where the
 ///   document accepted it, the refusal's own sentence where it did not
 ///   (`a_supersession_survives_the_accepted_edit_that_caused_it`,
 ///   `an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on`).
@@ -870,11 +1087,15 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// It reaches the line through the frame's NOTICES rather than by
 /// assignment, for the reason [`frame_status`] states: the transition
 /// that withdraws is an edit the document accepted, so the same
-/// frame's batch verdict is [`StatusUpdate::Clear`].
+/// frame's batch verdict is [`RankedVerdict::Clear`].
 ///
-/// A refusal in the same frame outranks it and it is then not shown,
-/// which rank 1 already says. The two cannot come from one operation:
-/// a refused op returns before the prune that fills the report.
+/// **A refusal in the same frame does not hide it.** Nothing else will
+/// ever say what the edit took or why — the picture shows only what is
+/// left — so it is [`Retold::Never`] and rides beside the refusal,
+/// which is rank 1's rule for exactly this. The two cannot come from
+/// one operation (a refused op returns before the prune that fills the
+/// report), but they come from one frame whenever a panel's edit lands
+/// and a gesture op behind it refuses.
 ///
 /// # The cause is the fault's own sentence
 ///
@@ -1053,8 +1274,22 @@ impl<'a> Withdrawal<'a> {
     }
 
     /// This withdrawal as a notice for [`frame_status`]'s rank 2.
+    ///
+    /// **Every kind answers [`Retold`] for itself**, so a fourth kind
+    /// is a compile error here rather than inheriting its siblings'
+    /// answer. All three are [`Retold::Never`] today, each over its own
+    /// symptom — the part drawn at its mated pose; the geometry drawn
+    /// again, or the instance gone; the part no longer following the
+    /// hand, and a later drag refused as having none in flight. None of
+    /// those says that an edit took the placement, the hide or the drag,
+    /// or which fault took it; only this sentence does.
     pub fn notice(&self) -> Message {
-        Message::new(Subject::Document, self.to_string())
+        let retold = match self.kind {
+            WithdrawalKind::Superseded => Retold::Never,
+            WithdrawalKind::DroppedHide => Retold::Never,
+            WithdrawalKind::KilledGesture => Retold::Never,
+        };
+        Message::new(Subject::Document, self.to_string(), retold)
     }
 }
 
@@ -1069,18 +1304,18 @@ impl<'a> Withdrawal<'a> {
 /// ([`maintenance_notice`], one notice per row in the outcome's own
 /// order). They are notices rather than a verdict for [`Withdrawal`]'s
 /// reason: the edit that produced them was accepted, so the same
-/// frame's batch verdict is [`StatusUpdate::Clear`], which they
+/// frame's batch verdict is [`RankedVerdict::Clear`], which they
 /// outrank. What takes them off the line is the next frame whose batch
 /// holds any operation [`acts`] counts — [`batch_status`] answers it
-/// with [`StatusUpdate::Clear`] when nothing refused and with the
+/// with [`RankedVerdict::Clear`] when nothing refused and with the
 /// refusal otherwise; a hover-only batch keeps them.
 ///
 /// **Destructured rather than field-read**, so a field added to
 /// [`OpOutcome`] is E0027 here and its author decides whether the
 /// line says it. The four this does not word are not news the line
 /// owes: `committed` and `previewed` are the act itself, `minted` is
-/// an id a form reads back, and `refusal` is ranked above every
-/// notice by [`frame_status`] on its own.
+/// an id a form reads back, and `refusal` is ranked by [`frame_status`]
+/// on its own, ahead of these.
 pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '_ {
     let OpOutcome {
         committed: _,
@@ -1117,17 +1352,33 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// what the picture draws. It still rides [`OpOutcome::maintenance`],
 /// where a reader of the API sees it.
 ///
+/// **Each worded arm answers [`Retold`] for itself**, and all three
+/// answer [`Retold::Never`]: none can show a retelling.
+///
+/// - An orphaned declaration evaluates to its own payload and refuses
+///   nothing, and its row is by contract what speaks "instead of
+///   leaving the author a node nothing will mention again".
+/// - A stranded appearance key's `AppearanceLoss` is evaluation's
+///   report to the API, and nothing in this viewer draws it.
+/// - A stranded payload name is retold only where its CARRIER fails on
+///   it, and this door cannot know that it will. A `Declare` carrier
+///   evaluates to its own payload without resolving its names, so its
+///   row stays `Ok`; any carrier poisoned by an upstream failure has a
+///   row that names the ancestor, not the strand; and the carrier's
+///   kind and its evaluation are not in the row. Where the retelling
+///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
+///
 /// The match names every arm, so a fifth is a compile error here
-/// rather than a row that reaches the outcome and is never worded.
+/// rather than a row that reaches the outcome and is never worded —
+/// or is worded and silently given its siblings' answer.
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
-    match row {
-        Maintenance::Strand { .. }
-        | Maintenance::StrandedAppearance { .. }
-        | Maintenance::OrphanedDeclare { .. } => {
-            Some(Message::new(Subject::Document, row.to_string()))
-        }
-        Maintenance::Cluster(_) => None,
-    }
+    let retold = match row {
+        Maintenance::Strand { .. } => Retold::Never,
+        Maintenance::StrandedAppearance { .. } => Retold::Never,
+        Maintenance::OrphanedDeclare { .. } => Retold::Never,
+        Maintenance::Cluster(_) => return None,
+    };
+    Some(Message::new(Subject::Document, row.to_string(), retold))
 }
 
 /// **Destructured rather than field-read**, so a field added to
@@ -1212,8 +1463,9 @@ impl core::fmt::Display for Withdrawal<'_> {
 /// on the re-frame an opened document books for itself.
 ///
 /// So the clean arm says nothing, and [`StatusUpdate::Expire`] is how
-/// it says nothing. It is never [`StatusUpdate::Clear`]: clearing
-/// belongs to [`batch_status`], where an action the document ACCEPTED
+/// it says nothing. It cannot clear — [`StatusUpdate`] has no spelling
+/// for [`RankedVerdict::Clear`], by design: clearing belongs to
+/// [`batch_status`], where an action the document ACCEPTED
 /// is what makes the last complaint stale; a camera move is not one,
 /// and a fold that cleared would be deciding the fate of sentences
 /// written by writers it knows nothing about — on the frame a document
@@ -1232,9 +1484,11 @@ impl core::fmt::Display for Withdrawal<'_> {
 /// without the thing that provoked it.
 pub fn fold_status(folded: &Folded) -> StatusUpdate {
     match &folded.refused {
+        // The same move says it again.
         Some((op, error)) => StatusUpdate::Show(Message::new(
             Subject::Camera,
             format!("camera: {error} (from {op})"),
+            Retold::Again,
         )),
         None => StatusUpdate::Expire(Subject::Camera),
     }
@@ -1332,7 +1586,7 @@ pub enum Affordance {
 /// different road. Nothing retires a badge, because nothing stores
 /// one: the subject names the event that changes the state the badge
 /// READS, and the badge goes because the read does. So the field is
-/// not consulted by [`apply`] or by any other retiring machinery, and
+/// not consulted by [`deliver`] or by any other retiring machinery, and
 /// what it buys is that a seam's two channels answer one question
 /// once ([`SeamSubject`]) instead of a badge and a line message about
 /// the same seam being free to disagree.
@@ -1551,8 +1805,10 @@ impl SeamSubject for NotIndexed {
 /// hover text already says, and it would undo half of #1843 — which
 /// asked for the indicator AND a pick path that distinguishes "not
 /// indexed yet" from "nothing under the cursor".
+///
+/// [`Retold::Again`]: the same click says it again until the build lands.
 pub fn unindexed_refusal(refusal: &NotIndexed) -> Message {
-    Message::new(NotIndexed::SUBJECT, refusal.to_string())
+    Message::new(NotIndexed::SUBJECT, refusal.to_string(), Retold::Again)
 }
 
 /// **What a δ the display refused says** — [`Subject::Display`], the
@@ -1560,8 +1816,10 @@ pub fn unindexed_refusal(refusal: &NotIndexed) -> Message {
 ///
 /// The error's own words, whole: [`SceneError`] states the condition a
 /// δ has to meet, and no prefix here says it a second way.
+///
+/// [`Retold::Again`]: the same δ says it again.
 pub fn delta_refusal(error: &SceneError) -> Message {
-    Message::new(SceneError::SUBJECT, error.to_string())
+    Message::new(SceneError::SUBJECT, error.to_string(), Retold::Again)
 }
 
 /// **What a δ field holding something that is not a number says.**
@@ -1571,17 +1829,27 @@ pub fn delta_refusal(error: &SceneError) -> Message {
 /// this one is not type-pinned because the text never reached
 /// [`crate::scene::DisplayTolerance`] — the parser's words are what
 /// there is.
+///
+/// [`Retold::Again`]: the same text says it again.
 pub fn delta_not_a_number(typed: &str, error: &core::num::ParseFloatError) -> Message {
     Message::new(
         SCENE_SEAM,
         format!("display δ: {typed:?} is not a number ({error})"),
+        Retold::Again,
     )
 }
 
 /// **What a preferences store that could not be written says** —
 /// [`Subject::Preferences`], retired by the next write of that file.
+///
+/// [`Retold::Never`]: nothing is sure to write again. A write happens
+/// only when a preference CHANGES — `ViewerApp::remember_dir` returns
+/// early for the directory it already holds, and the theme writes only
+/// on a new choice — so repeating the Open or Save As that failed to
+/// write never says it again, and a later launch that reads the old
+/// file cleanly never says the change was not kept.
 pub fn store_refusal(error: &StoreError) -> Message {
-    Message::new(Subject::Preferences, error.to_string())
+    Message::new(Subject::Preferences, error.to_string(), Retold::Never)
 }
 
 /// **What the preferences file had to say at startup**, and `None`
@@ -1629,7 +1897,12 @@ pub fn store_refusal(error: &StoreError) -> Message {
 pub fn startup_notices(notices: &[String]) -> Option<Message> {
     let notices: Vec<Message> = notices
         .iter()
-        .map(|text| Message::new(Subject::Preferences, text.as_str()))
+        // Never ranked — it is the field's initial value, set before any
+        // frame — so the answer decides nothing today. It is `Never`
+        // because nothing is sure to say it again: these are the file's
+        // complaints and the launch directory's, and neither is
+        // promised at the next launch.
+        .map(|text| Message::new(Subject::Preferences, text.as_str(), Retold::Never))
         .collect();
     (!notices.is_empty()).then(|| Message::joined(Subject::Preferences, &notices))
 }
@@ -1703,9 +1976,11 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 /// node, then the role path — for the same reason and with the same
 /// shape. Every other arm is the typed refusal's own words,
 /// unaltered.
+///
+/// [`Retold::Again`]: the same click says it again.
 pub fn pick_refusal(error: &PickError) -> Message {
     let PickError::HitTest(HitTestError::Ambiguous { hits }) = error else {
-        return Message::new(Subject::Document, error.to_string());
+        return Message::new(Subject::Document, error.to_string(), Retold::Again);
     };
     let tied: Vec<String> = hits
         .iter()
@@ -1719,17 +1994,60 @@ pub fn pick_refusal(error: &PickError) -> Message {
             tied.len(),
             tied.join(", ")
         ),
+        Retold::Again,
     )
 }
 
-/// **What a tool has to say** — an authoring panel's refusal, a
-/// survival drop, a pick a tool declined. [`Subject::Document`],
-/// retired the way that subject says.
+/// **What a tool did on its own** — a survival drop or a declined pick
+/// ([`ToolNotice`]) — as a notice, [`Subject::Document`] like
+/// [`tool_news`], in the words [`ToolNotice`]'s own `Display` gives it.
+///
+/// **The one door a tool event reaches the line through**, because the
+/// event's arm is what says whether anything will say it again, and a
+/// door that took the rendered text could not read it.
+///
+/// A **survival drop** is a pick the tool HELD, taken because an
+/// accepted edit left it naming nothing. The panel draws the seat empty
+/// from then on and a commit refuses that it is — the symptom, never
+/// that a pick was held and what took it — so it is [`Retold::Never`]
+/// and rides beside a refusal ([`frame_status`]). A **declined pick**
+/// took nothing: the held picks are untouched and the same pick says
+/// the same sentence again, so it is [`Retold::Again`].
+///
+/// Every arm of every tool's event vocabulary is named, each with its
+/// own answer, so an event added to one is a compile error here and its
+/// author decides which side it is on.
+pub fn tool_notice(notice: &ToolNotice) -> Message {
+    let retold = match notice {
+        ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
+        ToolNotice::Seated {
+            event: SeatEvent::PickLost { .. },
+            ..
+        } => Retold::Never,
+        ToolNotice::Blend(BlendEvent::TargetLost { .. }) => Retold::Never,
+        ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
+        ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
+        ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { .. }) => Retold::Again,
+    };
+    Message::new(Subject::Document, notice.to_string(), retold)
+}
+
+/// **What a tool has to say** that is not one of its own events — an
+/// authoring panel's refusal, or a sentence formatted at the site.
+/// [`Subject::Document`], retired the way that subject says. A tool's
+/// own events go through [`tool_notice`] instead, whose arms answer
+/// [`Retold`] from the event.
+///
+/// **The caller answers [`Retold`]**, because a door that takes text
+/// cannot read from it whether anything will say it again, and a
+/// default here would be [`Message::new`]'s missing default one door
+/// out. A panel's refusal is [`Retold::Again`] — the same click says
+/// it again — and every site today is one.
 ///
 /// **A door a type does not pin**, like [`startup_notices`], because
 /// its call sites hand it text — rendered through
-/// [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`] and
-/// the typed forms vocabulary, or formatted at the site. What it buys
+/// [`crate::tools::ToolKind::says`] and the typed forms vocabulary, or
+/// formatted at the site. What it buys
 /// is that every site shares one decision: changing the subject here
 /// changes it at all of them, and a row can see it.
 ///
@@ -1739,8 +2057,8 @@ pub fn pick_refusal(error: &PickError) -> Message {
 /// a row could count them by that grep, as `frame_policy.rs` counts
 /// `ViewerApp::store`'s reads, but it would go red at every new site,
 /// and nothing about a new site is wrong.
-pub fn tool_news(text: impl Into<String>) -> Message {
-    Message::new(Subject::Document, text)
+pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
+    Message::new(Subject::Document, text, retold)
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
@@ -1919,7 +2237,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::Naming
         | ProductErrorKind::NoBodyRoots
         | ProductErrorKind::Graft
-        | ProductErrorKind::SolidInvalid
+        | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
         | ProductErrorKind::ContactLineage => {
             if kind.means_no_body() {
@@ -1977,7 +2295,7 @@ pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
 /// succeeds, and it keeps drawing the mesh it already has — so the
 /// picture on screen is stale for exactly as long as this is `Some`.
 /// It was a line message, where an accepted act's
-/// [`StatusUpdate::Clear`] swept it off a picture that had not been
+/// [`RankedVerdict::Clear`] swept it off a picture that had not been
 /// rebuilt and the line then said nothing about a scene it still could
 /// not build.
 ///
@@ -2121,7 +2439,7 @@ fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
 /// in the toolbar, EARLIER in the same `update` than the pane that
 /// writes this, and `perform_batch` runs after both — so the sentence
 /// was never drawn on the frame it was written, and on a frame whose
-/// batch acted cleanly `StatusUpdate::Clear` wiped it before any
+/// batch acted cleanly `RankedVerdict::Clear` wiped it before any
 /// frame could draw it. The chrome then said nothing about a picture
 /// it could not draw, for as long as the user kept acting. A badge is
 /// read where it is drawn, so no ordering decides whether it appears.
@@ -2452,40 +2770,42 @@ mod tests {
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Expire(Subject::Camera));
 
-        let elsewhere = Message::new(Subject::Document, "someone else's news");
+        let elsewhere = Message::new(Subject::Document, "someone else's news", Retold::Again);
+        let mut notices = Vec::new();
         let mut status = Some(elsewhere.clone());
-        apply(&mut status, fold_status(&folded));
+        deliver(&mut notices, &mut status, fold_status(&folded));
+        assert!(notices.is_empty(), "a clean fold is not news");
         assert_eq!(
             status,
             Some(elsewhere),
-            "a clean fold is not news, and it retires nothing it did \
-             not write"
+            "and it retires nothing it did not write"
         );
     }
 
-    /// **The first `apply` below is not a live composition.** No
-    /// production caller hands a [`fold_status`] `Show` to [`apply`]: a
-    /// refused fold reaches the line through [`deliver`], onto the
-    /// frame's notices, and the ranking puts it up. It is here as the
-    /// nearest way to put a camera refusal on the line, so the row can
-    /// ask what the next clean fold's `Expire` does to it — which is
-    /// `apply`'s contract and holds whoever placed the refusal.
-    /// `pane::viewport`'s
+    /// Through this module's own doors, in the order a frame runs
+    /// them: the refused fold is delivered, the ranking puts it up,
+    /// and the next frame's clean fold is delivered. `pane::viewport`'s
     /// `landing_a_clean_fold_retires_the_camera_refusal_it_landed_before`
-    /// is the row on the live path, through `land` and the ranking; it
-    /// is not a duplicate of this one, and this one does not cover that
-    /// path.
+    /// drives the same property through `land`, which is the caller.
     #[test]
     fn a_clean_fold_retires_the_camera_refusal_it_did_write() {
         // The item's own reproduction: refuse a camera operation, then
         // navigate. Nothing acts, so nothing clears, and before the
         // subject rule the refusal sat on the line for as long as the
         // user orbited.
+        let mut notices = Vec::new();
         let mut status = None;
-        apply(&mut status, fold_status(&a_refused_fold()));
-        assert!(status.is_some(), "a refused fold is news");
+        deliver(&mut notices, &mut status, fold_status(&a_refused_fold()));
+        apply(&mut status, frame_status(&notices, &[], None));
+        assert!(
+            status
+                .as_ref()
+                .is_some_and(|held| held.subject() == Subject::Camera),
+            "a refused fold is news about the camera, and the ranking \
+             puts it up: {status:?}"
+        );
 
-        apply(&mut status, fold_status(&a_clean_fold()));
+        deliver(&mut Vec::new(), &mut status, fold_status(&a_clean_fold()));
         assert_eq!(
             status, None,
             "the next camera event retires a camera verdict whatever \
@@ -2507,8 +2827,12 @@ mod tests {
             (Subject::Display, Subject::Display, false),
             (Subject::Preferences, Subject::Document, true),
         ] {
-            let mut status = Some(Message::new(held, "the sentence on the line"));
-            apply(&mut status, StatusUpdate::Expire(event));
+            let mut status = Some(Message::new(
+                held,
+                "the sentence on the line",
+                Retold::Again,
+            ));
+            deliver(&mut Vec::new(), &mut status, StatusUpdate::Expire(event));
             assert_eq!(
                 status.is_some(),
                 survives,
@@ -2523,17 +2847,21 @@ mod tests {
         // outstanding answer still describes this cursor, so what the
         // cursor said is still about the cursor the user is pointing
         // with.
-        let disagreement = Message::new(Subject::Cursor, "picking paths disagree");
+        let disagreement = Message::new(Subject::Cursor, "picking paths disagree", Retold::Again);
         let mut status = Some(disagreement.clone());
-        apply(&mut status, cursor_status(IdStep::Hold));
+        deliver(&mut Vec::new(), &mut status, cursor_status(IdStep::Hold));
         assert_eq!(status, Some(disagreement));
 
         // And both of the other two ARE events, including the pointer
         // leaving the pane — where the id log voids the outstanding
         // question rather than asking a new one.
         for event in [IdStep::Ask { serial: 7 }, IdStep::Void] {
-            let mut status = Some(Message::new(Subject::Cursor, "picking paths disagree"));
-            apply(&mut status, cursor_status(event));
+            let mut status = Some(Message::new(
+                Subject::Cursor,
+                "picking paths disagree",
+                Retold::Again,
+            ));
+            deliver(&mut Vec::new(), &mut status, cursor_status(event));
             assert_eq!(status, None, "{event:?} is a cursor event");
         }
     }
@@ -2557,15 +2885,23 @@ mod tests {
     /// contract and not an accident of how a `Vec` happens to grow.
     #[test]
     fn deliver_sends_news_to_the_notices_and_retirements_to_the_field() {
-        let held = Message::new(Subject::Camera, "camera: refused a moment ago");
-        let earlier = Message::new(Subject::Document, "extrude: refused earlier this frame");
+        let held = Message::new(
+            Subject::Camera,
+            "camera: refused a moment ago",
+            Retold::Again,
+        );
+        let earlier = Message::new(
+            Subject::Document,
+            "extrude: refused earlier this frame",
+            Retold::Again,
+        );
 
         // News. The field is left alone — the ranking has not run yet,
         // and writing it here is the defect: this frame's accepted
         // batch would clear it before the toolbar painted it.
         let mut notices = vec![earlier.clone()];
         let mut status = Some(held.clone());
-        let news = Message::new(Subject::Camera, "camera: dolly refused");
+        let news = Message::new(Subject::Camera, "camera: dolly refused", Retold::Again);
         deliver(&mut notices, &mut status, StatusUpdate::Show(news.clone()));
         assert_eq!(
             notices,
@@ -2588,16 +2924,6 @@ mod tests {
         assert!(notices.is_empty(), "an Expire adds nothing to the frame");
         assert_eq!(status, None, "and retires what it was about");
 
-        // `Clear` is the fourth arm and the subject-blind one: not a
-        // retirement, but on the retiring side of this door for the
-        // same reason — it takes something away, and the thing it
-        // takes away is the whole line whatever the line was about.
-        let mut notices = Vec::new();
-        let mut status = Some(Message::new(Subject::Document, "someone else's news"));
-        deliver(&mut notices, &mut status, StatusUpdate::Clear);
-        assert!(notices.is_empty(), "a Clear adds nothing to the frame");
-        assert_eq!(status, None, "and sweeps the line whatever it held");
-
         // `Keep` is the absence of news spelled as a decision: neither
         // route is taken, and a `deliver` call that answers `Keep` is a
         // no-op on BOTH sides. `notices` starts non-empty so the
@@ -2607,6 +2933,7 @@ mod tests {
         let mut notices = vec![Message::new(
             Subject::Document,
             "news from earlier this frame",
+            Retold::Again,
         )];
         let mut status = Some(held.clone());
         let before = notices.clone();
@@ -2632,20 +2959,12 @@ mod tests {
     }
 
     /// **A refused fold is a `Show` about the camera, in the refusal's
-    /// own words — and [`apply`]'s `Show` arm replaces the line.**
-    ///
-    /// Two claims, and the second is about `apply` and NOT about the
-    /// camera. No production caller composes them any more: a refused
-    /// fold reaches the line through [`deliver`], which sends it to the
-    /// frame's notices, and `pane::viewport`'s
+    /// own words.** Where it goes from there is [`deliver`]'s, and
+    /// `pane::viewport`'s
     /// `landing_a_refused_fold_is_news_and_joins_the_frames_notices`
-    /// is the row on that live path. What survives here is `apply`'s
-    /// contract, which the sweep did not change and which
-    /// `app::ViewerApp::apply_status`'s ranked traffic still depends
-    /// on: a `Show` handed to `apply` overwrites whatever was held,
-    /// whoever hands it over.
+    /// is the row on that path.
     #[test]
-    fn a_refused_fold_is_news_about_the_camera_and_apply_overwrites_with_it() {
+    fn a_refused_fold_is_news_about_the_camera() {
         let folded = a_refused_fold();
         assert!(folded_moved(&folded), "a refusal is a camera event too");
         let StatusUpdate::Show(message) = fold_status(&folded) else {
@@ -2660,12 +2979,6 @@ mod tests {
             message.text().contains("camera:") && message.text().contains("dolly by a factor"),
             "the refusal names the move that provoked it: {message}"
         );
-
-        // `apply`'s contract, asserted through the nearest producer to
-        // hand rather than a live composition — see the doc above.
-        let mut status = Some(Message::new(Subject::Document, "older news"));
-        apply(&mut status, fold_status(&folded));
-        assert_eq!(status, Some(message));
     }
 
     #[test]
@@ -2739,7 +3052,7 @@ mod tests {
             ProductErrorKind::PlacedUnderTwoRoots,
             ProductErrorKind::Naming,
             ProductErrorKind::Graft,
-            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ] {
@@ -2795,7 +3108,7 @@ mod tests {
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::NoBodyRoots,
             ProductErrorKind::Graft,
-            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ]
@@ -2809,22 +3122,24 @@ mod tests {
     }
 
     #[test]
-    fn keep_clear_and_show_are_four_different_sentences() {
+    fn keep_clear_and_show_are_three_different_sentences() {
         // `Keep` is a decision, not the absence of one — the whole
-        // reason every policy here answers in this vocabulary instead
-        // of assigning the field.
-        let held = Message::new(Subject::Document, "held");
+        // reason the ranking answers in a vocabulary instead of
+        // assigning the field.
+        let held = Message::new(Subject::Document, "held", Retold::Again);
         let mut status = Some(held.clone());
-        apply(&mut status, StatusUpdate::Keep);
+        apply(&mut status, RankedVerdict::Keep);
         assert_eq!(status, Some(held));
-        let news = Message::new(Subject::Camera, "news");
-        apply(&mut status, StatusUpdate::Show(news.clone()));
+        // `Show` replaces whatever was held, whatever it was about:
+        // the ranking's winner is the line.
+        let news = Message::new(Subject::Camera, "news", Retold::Again);
+        apply(&mut status, RankedVerdict::Show(news.clone()));
         assert_eq!(status, Some(news));
         // `Clear` is the broad one, and deliberately: an act the
         // document accepted makes every standing complaint stale, not
         // only the ones about the document. It takes a camera message
         // with it.
-        apply(&mut status, StatusUpdate::Clear);
+        apply(&mut status, RankedVerdict::Clear);
         assert_eq!(status, None);
     }
 
@@ -2873,7 +3188,7 @@ mod tests {
         let acting = [SessionOp::Undo];
         assert_eq!(
             batch_status(&acting, None),
-            StatusUpdate::Clear,
+            RankedVerdict::Clear,
             "the frame this row is about CLEARS the line on its own — without \
              that, the composition below would be asserting about a case \
              where nothing had to survive anything"
@@ -2888,11 +3203,11 @@ mod tests {
              the act the document accepts next is what retires it"
         );
         assert_eq!(message.text(), notice);
-        let update = frame_status(core::slice::from_ref(&message), &acting, None);
-        assert_eq!(update, StatusUpdate::Show(message.clone()));
+        let verdict = frame_status(core::slice::from_ref(&message), &acting, None);
+        assert_eq!(verdict, RankedVerdict::Show(message.clone()));
 
         let mut status = None;
-        apply(&mut status, update);
+        apply(&mut status, verdict);
         assert_eq!(status, Some(message));
     }
 
@@ -2969,9 +3284,9 @@ mod tests {
             Withdrawal::superseded(&[constrained(7, &[9])])
                 .expect("news")
                 .notice(),
-            Message::new(Subject::Document, notice.clone()),
+            Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
-        let StatusUpdate::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
+        let RankedVerdict::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
             panic!("two withdrawals are news");
         };
         assert!(shown.text().contains("free move:") && shown.text().contains("hide:"));

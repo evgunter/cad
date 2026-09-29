@@ -920,8 +920,9 @@ class FrameError(PncadError):
     classifier saw an enclosure rather than a value, `zero` and
     `escalate` the band it was classified against, and `predicate`
     the decision's name where the kernel attached one. A poisoned
-    margin carries the band and no number. This is diagnostic data:
-    the escalation contract is that no sound branch exists here, so
+    margin carries the band and no number. This is diagnostic data,
+    for error text only and not a decision input: the escalation
+    contract is that no sound branch exists here, so
     the recourse is the message's own three levers — declare the
     coincidence, move the geometry, or lower the tolerance.
 
@@ -2068,8 +2069,8 @@ class Node:
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
-        Every face on a chart is named together (a full revolve's cap
-        is two half-faces). An unresolvable name, a name that is not a
+        Every face of one solid on a chart is named together (a full
+        revolve's cap is two half-faces). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
         designated face refuses typed at `evaluate`. `thickness` mints
         a literal in the node's `shell_thickness` slot, moved by
@@ -3969,8 +3970,9 @@ class Body:
         eps. Tier 3 admits such a body and the measurement raises
         `ValidationError` with `reason == "mass_properties_failed"`,
         exactly as `mass_properties()` does — carrying, there and
-        only there, the sign-level bracket the gate did certify as
-        `volume_lo`, `volume_hi` and `surface_area`."""
+        only there, the narrowest bracket the gate's certificate or
+        its continuation held, as `volume_lo`, `volume_hi` and
+        `surface_area`."""
     def validate_pseudomanifold(self) -> None:
         """Tier 3′, the ladder's fourth rung: tier 3's whole local
         battery PLUS the global coincidence census tier 3 defers,
@@ -5265,18 +5267,20 @@ class MateFault:
     @property
     def margin(self) -> Optional[Length]:
         """The in-band margin the classifier saw, when it saw a
-        value. Reading it is not branching on it: what the escalation
-        contract forbids is recovering the margin to make the sign
-        decision the classifier refused."""
+        value. For error text only, not a decision input: what the
+        escalation contract forbids is recovering the margin to make
+        the sign decision the classifier refused."""
 
     @property
     def margin_low(self) -> Optional[Length]:
         """The classified enclosure's lower bound, where the
-        classifier saw an enclosure rather than a value."""
+        classifier saw an enclosure rather than a value. For error
+        text only, not a decision input."""
 
     @property
     def margin_high(self) -> Optional[Length]:
-        """Its upper bound."""
+        """Its upper bound. For error text only, not a decision
+        input."""
 
     @property
     def zero(self) -> Optional[float]:
@@ -5976,8 +5980,9 @@ class CheckEvidence:
     `unsupported` (`reason`, `inner_variant`) — a shell's orientation
     read could not be decided at this tolerance, or a face is outside
     the flux inventory, so the count is UNKNOWABLE and says so rather
-    than guessing; `inner_variant` is which of the shell door's four
-    refusals it was (`band`, `props`, `escalated`, `zero_volume`).
+    than guessing; `inner_variant` is which of the shell door's five
+    refusals it was (`band`, `props`, `escalated`, `zero_volume`,
+    `straddles`).
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,

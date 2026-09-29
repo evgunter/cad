@@ -21,7 +21,7 @@ use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use common::*;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -32,14 +32,20 @@ use topo::Body;
 fn notched() -> Body<f64> {
     let b = FRAC_PI_8.tan();
     let lp = profile::Open
-        .at(p2(0.0, 0.0))
-        .arc_to(profile::Bulge { p: p2(2.0, 0.0), b }, Tol::witness())
+        .at(Point2::new(0.0, 0.0))
+        .arc_to(
+            profile::Bulge {
+                p: Point2::new(2.0, 0.0),
+                b,
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .line_to(p2(2.0, 1.5), Tol::witness())
+        .line_to(Point2::new(2.0, 1.5), Tol::witness())
         .unwrap()
         .arc_to(
             profile::Bulge {
-                p: p2(0.0, 1.5),
+                p: Point2::new(0.0, 1.5),
                 b: -b,
             },
             Tol::witness(),
@@ -59,8 +65,16 @@ fn notched() -> Body<f64> {
 /// The hole plate: 4×4×1 with a unit-radius through hole — the hole
 /// walls are the reversed-sense population.
 fn hole_plate() -> Body<f64> {
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
-    let hole = bulge_loop(vec![(p2(1.0, 2.0), 1.0), (p2(3.0, 2.0), 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(4.0, 0.0),
+        Point2::new(4.0, 4.0),
+        Point2::new(0.0, 4.0),
+    ]);
+    let hole = bulge_loop(vec![
+        (Point2::new(1.0, 2.0), 1.0),
+        (Point2::new(3.0, 2.0), 1.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(geom_core::Tol::witness())
         .unwrap();

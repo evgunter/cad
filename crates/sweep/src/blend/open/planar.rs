@@ -105,7 +105,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
     let vertex = links.vertex();
     // The caller walked this vertex's edge orbit successfully, which
     // proves the orbit half of this walk; the `parent_loop` deref
-    // `vertex_faces` adds is a stored reference nothing here proves.
+    // `Body::faces_of_vertex` adds is a stored reference nothing here proves.
     // The valence the corner derivation needs is the FACE orbit's; on a
     // manifold body it is the edge valence the door checked, and a
     // disagreement is itself the refusal.

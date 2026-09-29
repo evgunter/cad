@@ -16,16 +16,12 @@ use profile::{
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The validated profile of a polygon, or the door's typed refusal —
 /// the fallible half of [`prism`], so a row whose fixture is only
 /// constructible at some ε rows can *state* what the door said there
 /// instead of panicking through `prism`'s `expect` (R1-E).
 fn try_polygon(pts: &[(f64, f64)]) -> Result<ValidatedProfile<f64>, ProfileError> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness())
 }
 
@@ -254,13 +250,9 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     );
     // The valence census: distinct planes at each vertex.
     let mut hist: std::collections::BTreeMap<usize, usize> = std::collections::BTreeMap::new();
-    for (vk, v) in chamfered.vertices() {
-        let Some(em) = v.emanating else { continue };
-        let orbit = chamfered.vertex_orbit(em).expect("orbit");
+    for (vk, _) in chamfered.vertices() {
         let mut ns: Vec<Vec3<f64>> = Vec::new();
-        for he in orbit {
-            let lk = chamfered.get_half_edge(he).unwrap().parent_loop;
-            let fk = chamfered.get_loop(lk).unwrap().face;
+        for fk in chamfered.faces_of_vertex(vk).expect("orbit") {
             let f = chamfered.get_face(fk).unwrap();
             if let Some(geom::Surface::Plane { normal, .. }) = chamfered.get_surface(f.surface)
                 && !ns.iter().any(|n| (*n - *normal).norm() < 1e-12)
@@ -420,7 +412,7 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 assert_eq!(source.band, b);
                 // `==`, not a ceiling: the replica above and the
                 // kernel's own arithmetic must agree bit for bit.
-                assert_eq!(source.margin, MarginDiag::Value(margin));
+                assert_eq!(source.margin, MarginDiag::value(margin));
                 println!(
                     "[r1e] delta={delta:e}: chord_side margin {margin:e} IN BAND ({:e}, {:e}) \
                      — the profile escalates honestly; the conditioning meter is not reached",
@@ -488,7 +480,7 @@ fn r1f_one_curved_face_among_planars() {
         .map(|i| {
             let a = core::f64::consts::TAU * f64::from(i) / 6.0;
             let bulge = if i == 0 { 0.2 } else { 0.0 };
-            (p2(r * a.cos(), r * a.sin()), bulge)
+            (Point2::new(r * a.cos(), r * a.sin()), bulge)
         })
         .collect();
     let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(vs)])

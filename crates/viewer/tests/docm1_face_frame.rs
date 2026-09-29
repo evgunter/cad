@@ -457,24 +457,7 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
     // step back to — the gesture this row is about is an author's, not
     // a document-door edit's.
     let mut session = DocSession::inline(Doc::empty_derived("docm1-viewer", tol), tol);
-    let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![common::shape(&viewer::session::ProfileShape::Rectangle {
-                width: 0.02,
-                height: 0.02,
-            })],
-        },
-    );
-    let cube = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(0.01),
-        },
-    );
+    let cube = common::xy_box_in(&mut session, [0.02, 0.02, 0.01]);
     session.pump();
     let picked = FaceSelection {
         name: cap_of(cube),

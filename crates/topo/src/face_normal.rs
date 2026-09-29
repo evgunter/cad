@@ -137,9 +137,13 @@ pub(crate) enum NormalAtError {
 ///
 /// **The gate is on the kind and on the point, in that order.** The
 /// gradient is honest poison where the surface itself is singular — a
-/// cone apex or axis, a torus axis — and `Nurbs`/`Approx` have no
+/// cone apex, which lies ON the cone — and `Nurbs`/`Approx` have no
 /// implicit form at all, so those kinds get `Ok(None)` and the caller
-/// mints its own typed refusal naming the kind. For the kinds that DO
+/// mints its own typed refusal naming the kind. A ring torus is
+/// singular only on its axis, which no point of the tube reaches
+/// (`ρ ≥ R − r > 0`), so it has an arm: a point the margin below
+/// certifies onto the tube is off the axis, and one ON the axis reads
+/// `0/0`, which the margin escalates rather than classifies. For the kinds that DO
 /// have an arm, `p` is certified onto the chart first: the gradient's
 /// magnitude is 1 exactly on the surface and degenerates to `0/0` on
 /// the singular locus, so `‖∇F‖ − 1` levered by
@@ -174,7 +178,29 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     };
     match surface {
         geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f, *normal))),
-        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } => {
+        // A torus outside the ring convention has no regular chart here:
+        // a nonpositive tube has no surface to be normal to, and a horn or
+        // spindle (`R ≤ r`) is singular ON its surface, where the tube
+        // meets the axis. No arm, as for the cone — the tube asked first,
+        // since `R − r` alone passes a negative `r`.
+        geom::Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } if geom::torus_tube(*minor_radius, band).map_err(NormalAtError::Escalated)?
+            != Sign::Positive
+            || geom::ring_torus(*major_radius, *minor_radius, band)
+                .map_err(NormalAtError::Escalated)?
+                .sign
+                != Sign::Positive =>
+        {
+            Ok(None)
+        }
+        geom::Surface::Cylinder { .. }
+        | geom::Surface::Sphere { .. }
+        | geom::Surface::Torus { .. } => {
+            // The chart's own length scale, which turns `|∇F| − 1` (the
+            // elevation over it) into metres — not a curvature bound.
             let arm = geom_brep::curvature_lever_arm(surface, p);
             let grad = geom_brep::implicit_gradient(surface, p);
             let margin = Margin::levered(grad.norm() - T::one(), arm);
@@ -184,11 +210,11 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
                 Err(diag) => Err(NormalAtError::Escalated(diag)),
             }
         }
-        // Cone, Torus, Nurbs, Approx: no arm here. A cone's gradient is
-        // `0/0` on its whole axis (the apex included) and a torus's on
-        // its axis; the NURBS/Approx pair has no implicit form to
-        // differentiate. The caller names the kind in its own refusal
-        // rather than this door guessing which refusal it wants.
+        // Cone, Nurbs, Approx: no arm here. A cone's gradient is `0/0`
+        // on its whole axis, the apex ON the surface included; the
+        // NURBS/Approx pair has no implicit form to differentiate. The
+        // caller names the kind in its own refusal rather than this
+        // door guessing which refusal it wants.
         _ => Ok(None),
     }
 }
@@ -534,5 +560,99 @@ mod tests {
              let m = if pose.sense { a } else { b };",
         );
         assert_eq!(seen, vec!["*normal", "T::one()", "axis"]);
+    }
+
+    /// **The torus arm is the tube's own normal, and it refuses on the
+    /// axis.** At a point a general minor angle round the tube the
+    /// outward normal is the offset from the point's foot on the core
+    /// circle, over `r` — not the radial from the axis (a cylinder's
+    /// answer) and not the offset from the centre (a sphere's), both of
+    /// which this pose tells apart. Flipped by the sense bit like every
+    /// other arm. A point ON the axis is the torus's one singular locus;
+    /// no tube point is there, and the door must refuse rather than
+    /// hand the pierce lane a direction of nothing.
+    #[test]
+    fn the_torus_arm_is_the_tube_normal_and_refuses_on_the_axis() {
+        let (big_r, r, v) = (0.8, 0.5, 2.3_f64);
+        let (mut body, face) = face_on(geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        let (sv, cv) = v.sin_cos();
+        let p = Point3::new(big_r + r * cv, r * sv, 0.0);
+        let tube = Vec3::new(cv, sv, 0.0);
+        for sense in [true, false] {
+            body.set_face_sense(face, sense).unwrap();
+            let n = face_outward_normal_at(&body, face, p, band())
+                .unwrap()
+                .expect("the torus has an arm")
+                .vec();
+            let want = geom_brep::OutwardNormal::from_chart(tube, sense).vec();
+            assert!(
+                (n - want).norm() < 1e-12,
+                "sense {sense}: {n:?} is not the tube normal {want:?}"
+            );
+        }
+        assert!(
+            face_outward_normal_at(&body, face, Point3::new(0.0, 0.2, 0.0), band()).is_err(),
+            "a point on the torus axis has no normal and must refuse"
+        );
+    }
+
+    /// **The on-chart certificate is metered at the tube radius, on a
+    /// fat ring too, and a non-ring torus has no arm.** A point just past
+    /// the escalation width off a fat ring's tube (`R = 0.8`, `r = 0.5`)
+    /// is definitely off the surface; levering its reading by the ring's
+    /// tighter inner bend would shrink it by `(R − r)/r` into the band. A horn torus (`R = r`) is singular
+    /// on its surface and answers `None`, so the pierce lane refuses
+    /// typed naming the kind.
+    #[test]
+    fn a_fat_ring_meters_at_the_tube_and_a_horn_torus_has_no_arm() {
+        let torus = |big_r: f64, r: f64| geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (body, face) = face_on(torus(0.8, 0.5));
+        // Off the tube by one and a half escalation widths: definite at
+        // the tube's scale, in-band at the inner bend's (`0.3/0.5` of it).
+        let delta = 1.5 * band().escalate();
+        let off = Point3::new(0.8 - 0.5 - delta, 0.0, 0.0);
+        assert!(matches!(
+            face_outward_normal_at(&body, face, off, band()),
+            Err(NormalAtError::OffSurface)
+        ));
+        let (horn, face) = face_on(torus(0.5, 0.5));
+        assert!(
+            face_outward_normal_at(&horn, face, Point3::new(1.0, 0.0, 0.0), band())
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    /// **The tube is asked before the ring.** `r = −0.3` against
+    /// `R = 0.75` has `R − r = 1.05`, a definite ring margin, so a door
+    /// that read the ring alone would take the chart arm on a torus whose
+    /// tube is not a length. The point sits where that datum's residual
+    /// vanishes (`|ρ − R| = |r|`); the arm answers no normal.
+    #[test]
+    fn a_nonpositive_tube_has_no_arm_though_its_ring_margin_is_definite() {
+        let (body, face) = face_on(geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            major_radius: 0.75,
+            minor_radius: -0.3,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        assert!(
+            face_outward_normal_at(&body, face, Point3::new(1.05, 0.0, 0.0), band())
+                .unwrap()
+                .is_none()
+        );
     }
 }

@@ -21,7 +21,7 @@
 //!
 //! Rows marked **EVIDENCE** assert nothing about the subject and exist
 //! to print what the review measured; they are not gates
-//! (`memories/test-suite-cost.md`) and should be dropped or given
+//! (implementer-discipline §8) and should be dropped or given
 //! assertions if they survive a fix pass.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -33,7 +33,9 @@ test_utils::gated_to![
     "crates/pncad/src/",
     "crates/bvh/src/",
     "crates/viewer/tests/common/",
-    "crates/viewer/tests/gallery_ring.pncad"
+    "crates/viewer/tests/gallery_ring.pncad",
+    "crates/viewer/src/test_support.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::sync::{Arc, Mutex};
@@ -42,7 +44,7 @@ use crate::common;
 use crate::common::{ang, len, scl, xy_frame};
 
 use pncad::document::{Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
@@ -693,7 +695,7 @@ fn the_ray_path_and_the_id_map_invert_each_other_patch_included() {
 /// answers a name that is drawn under some id, and every such id
 /// inverts to a patch whose own name is that answer.
 ///
-/// A counterexample search (`memories/test-suite-cost`'s first shape):
+/// A counterexample search (implementer-discipline §8's first shape):
 /// the seed varies, the count rides the EFFORT dial, and cutting it
 /// loses detection power rather than correctness. The anti-vacuity
 /// witness is NOT drawn from the same sample — it is a static list of
@@ -952,13 +954,7 @@ fn picking_again_replaces_rather_than_accumulates() {
         .expect("no refusal")
         .expect("the top face");
     let side = index
-        .face_at(
-            eval,
-            &Ray {
-                origin: Point3::new(-1.0, 0.010, 0.005),
-                dir: Vec3::new(1.0, 0.0, 0.0),
-            },
-        )
+        .face_at(eval, &common::along_x(1.0, 0.010, 0.005))
         .expect("no refusal")
         .expect("a wall");
     assert_ne!(top.name, side.name, "the fixture offers two distinct faces");

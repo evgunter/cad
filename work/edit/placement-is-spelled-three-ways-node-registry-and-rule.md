@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-21
 priority: P0
 cost: H
-needs_ev: true
 ---
 
 Filed by the AUTHOR orchestrator at Ev's direction (in chat,
@@ -106,3 +105,21 @@ collapses to "the registry and the node should share a type". If they
 are parametric, the registry grows expressions and the scope reaches
 the solver and the wire format, and the row is a program rather than a
 unit.
+
+## RULED (2026-09-29, Ev on `[ev]` #3437) — a placement is parametric
+
+"yes!" A cluster's placement in the A11 registry has `Expr`
+components, the one placement type `Node::Transform` holds too, so a
+document parameter can drive where a cluster sits. A frame the
+maintenance mints from a solved pose is written as literals. A11
+rule (2) says so (`crates/editor-core/ASSEMBLY.md`).
+
+**What this settles, and what it leaves.** The first unit is one
+`Placement` type of `Expr`s, shared by `Node::Transform` and
+`Doc::placements`, evaluated at the document's parameters before mates
+compose onto it. It reaches persistence (the registry's wire form) and
+the solver's composition point (`SolvedPoses::placement`), which is
+MSOLVE's ground. Whether `Transform` stops being a node and becomes an
+edited slot is not decided. It stays this row's later question, with
+the two obstacles recorded above (`roots` as the sink set, and names as
+role paths through the node).

@@ -180,7 +180,7 @@ fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
 /// door reaches from the shipped fixtures, each held to the
 /// chamfer-purity claim. One test rather than one per row because
 /// every row rebuilds the same fixtures
-/// (`memories/test-suite-cost.md`); each row carries its own label.
+/// (implementer-discipline §8); each row carries its own label.
 #[test]
 fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     let body = cube(L, Tol::witness());
@@ -287,7 +287,7 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, geom_core::Sign::Zero);
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a co-surface seam's sine is structurally zero"
             );

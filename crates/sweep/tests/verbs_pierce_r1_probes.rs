@@ -14,14 +14,10 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
+use topo::Body;
 
 fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
-    (p2(x, y), bulge)
+    (Point2::new(x, y), bulge)
 }
 
 fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> Body<f64> {
@@ -35,25 +31,25 @@ fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> Body<f64> {
 
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(p2(cx, cy), r, tol).unwrap();
+    let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     body_of(vec![lp.into()], z0, z1)
 }
 
 /// An annular cap: outer circle `ro`, coaxial bore `ri`.
 fn tube(ro: f64, ri: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let outer = profile::circle(p2(0.0, 0.0), ro, tol).unwrap();
-    let bore = profile::circle(p2(0.0, 0.0), ri, tol).unwrap();
+    let outer = profile::circle(Point2::new(0.0, 0.0), ro, tol).unwrap();
+    let bore = profile::circle(Point2::new(0.0, 0.0), ri, tol).unwrap();
     body_of(vec![outer.into(), bore.into()], z0, z1)
 }
 
 fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
     body_of(
         vec![RawLoop::polygon([
-            p2(x0, y0),
-            p2(x1, y0),
-            p2(x1, y1),
-            p2(x0, y1),
+            Point2::new(x0, y0),
+            Point2::new(x1, y0),
+            Point2::new(x1, y1),
+            Point2::new(x0, y1),
         ])],
         z0,
         z1,
@@ -94,17 +90,20 @@ fn r1_a_box_through_an_annular_cap() {
     let a = tube(1.0, 0.4, 0.0, 2.0);
     let b = boxx(0.55, 0.85, -0.15, 0.15, 1.0, 3.0);
     let tol = Tol::witness();
-    let err = match topo::union(&a, &b, tol) {
-        Err(e) => e,
-        Ok(o) => panic!("R1[annular-cap-through-wall] unexpected body {o:?}"),
+    let out = match topo::union(&a, &b, tol) {
+        Ok(topo::BooleanResult::Body(out)) => out.body,
+        other => panic!("R1[annular-cap-through-wall] expected one solid, got {other:?}"),
     };
-    println!("R1[annular-cap-through-wall] REFUSED {err:?}");
-    // Both loops are disc-class, so the crossings ARE found; what has
-    // no arm is the join of a pierce ring in an arc-bounded face. The
-    // silence is what this row exists to forbid.
+    // Both loops are disc-class, so the crossings ARE found, and the
+    // join resolves the pierce regions through `point_in_solid`. The
+    // box stands in the annulus' material from z = 1 to 2, so the
+    // union adds only its part above the tube.
+    assert_eq!(topo::validate_geometric(&out, tol), Ok(()), "tier 3");
+    let v = topo::mass_properties(&out, tol).unwrap().volume;
+    let truth = core::f64::consts::PI * (1.0 - 0.16) * 2.0 + 0.3 * 0.3 * 1.0;
     assert!(
-        matches!(err, BooleanError::Join(_)),
-        "the crossing layer must pass it to the join: {err:?}"
+        (v - truth).abs() < 1e-9,
+        "R1[annular-cap-through-wall] volume {v}, truth {truth}"
     );
 }
 
@@ -130,26 +129,26 @@ fn r1_a_box_down_the_bore_of_a_tube() {
 
 /// **Concentric circles, no ring.** Two coaxial cylinders of different
 /// radii is the boss row's shape; here the SMALL one is fully buried
-/// so the caps' discs decide by containment alone.
+/// so the caps' discs decide by containment alone. The retired wall-pair
+/// gate refused it on reach; the fallback's section pass clears it
+/// (coaxial walls are parallel and share no point; each wall against a
+/// cap plane is essential on a wall that describes), so the containment
+/// answer is certified: the union is the big cylinder.
 #[test]
 fn r1_concentric_buried_cylinder() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let b = cyl(0.0, 0.0, 0.4, 0.5, 1.5);
     let tol = Tol::witness();
-    let err = match topo::union(&a, &b, tol) {
-        Err(e) => e,
-        Ok(o) => panic!("R1[concentric-buried] unexpected body {o:?}"),
+    let out = match topo::union(&a, &b, tol) {
+        Ok(topo::BooleanResult::Body(r)) => r.body,
+        other => panic!("R1[concentric-buried] expected one solid, got {other:?}"),
     };
-    println!(
-        "R1[concentric-buried] REFUSED {err:?} (truth would be {})",
-        PI * 2.0
-    );
-    // D10's posture, untouched by this unit: two cylinder walls whose
-    // certified extents meet with no edge event refuse typed rather
-    // than answering from a vertex probe.
+    assert_eq!(topo::validate_geometric(&out, tol), Ok(()), "tier 3");
+    let v = topo::mass_properties(&out, tol).unwrap().volume;
     assert!(
-        matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
-        "the no-crossings silence never re-opens: {err:?}"
+        (v - PI * 2.0).abs() < 1e-9,
+        "R1[concentric-buried] volume {v}, truth {}",
+        PI * 2.0
     );
 }
 
@@ -160,8 +159,18 @@ fn r1_concentric_buried_cylinder() {
 fn r1_square_hole_plate_unioned_with_a_boss() {
     let plate = body_of(
         vec![
-            RawLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]),
-            RawLoop::polygon([p2(-0.5, -0.5), p2(0.5, -0.5), p2(0.5, 0.5), p2(-0.5, 0.5)]),
+            RawLoop::polygon([
+                Point2::new(-2.0, -2.0),
+                Point2::new(2.0, -2.0),
+                Point2::new(2.0, 2.0),
+                Point2::new(-2.0, 2.0),
+            ]),
+            RawLoop::polygon([
+                Point2::new(-0.5, -0.5),
+                Point2::new(0.5, -0.5),
+                Point2::new(0.5, 0.5),
+                Point2::new(-0.5, 0.5),
+            ]),
         ],
         0.0,
         1.0,
@@ -183,18 +192,17 @@ fn r1_square_hole_plate_unioned_with_a_boss() {
 // ---------------------------------------------------------------
 
 /// **Half-disc** — one semicircular arc plus one straight chord, TWO
-/// vertices, so `point_in_loop`'s polygon through them is the chord: a
-/// segment of zero area, exactly the cap's defect.
+/// vertices, so the polygon through them is the chord: a segment of
+/// zero area, and not the cap's region.
 ///
 /// **Both bulge senses are run against the SAME box, and that is the
 /// whole design of the row**: exactly one of the two half-discs
 /// contains the box, and neither the author nor the reader has to know
-/// which. Before the loop-shape gate BOTH answered "disjoint" — the
-/// wrong answer, demonstrated without disambiguating the sense. After
-/// it the two senses must DIFFER: the containing one has no walk for
-/// its cap and refuses typed, the other is honestly disjoint and its
-/// volume is the disjoint answer. A regression puts them back in
-/// agreement, which is what this asserts.
+/// which. Answered from the vertex polygon, BOTH read "disjoint" — the
+/// wrong answer, demonstrated without disambiguating the sense. Read on
+/// its carriers, each sense answers its own truth: the containing one
+/// buries the box's lower half, the other is honestly disjoint. Both
+/// answering the same number is the silent wrong body.
 #[test]
 fn r1_a_box_through_a_half_disc_cap() {
     let tol = Tol::witness();
@@ -202,40 +210,26 @@ fn r1_a_box_through_a_half_disc_cap() {
     let hd = PI * 0.5 * 2.0;
     let disjoint_answer = hd + 0.3 * 0.3 * 2.0;
     let buried_truth = hd + 0.3 * 0.3 * 1.0;
-    let mut refused = 0;
-    let mut bodies = 0;
+    let mut volumes = Vec::new();
     for bulge in [1.0, -1.0] {
         // bulge = tan(theta/4); a semicircle is theta = pi -> |1|.
         let half = bulge_loop(vec![pv(-1.0, 0.0, bulge), pv(1.0, 0.0, 0.0)]);
         let a = body_of(vec![half], 0.0, 2.0);
-        match topo::union(&a, &b, tol) {
-            Err(e) => {
-                assert!(
-                    matches!(e, BooleanError::ArcLoopContainmentUnsupported { .. }),
-                    "bulge={bulge}: the half-disc cap has no walk; got {e:?}"
-                );
-                refused += 1;
-            }
-            Ok(topo::BooleanResult::Body(out)) => {
-                let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-                println!("R1[half-disc-cap bulge={bulge}] BODY volume={v}");
-                assert!(
-                    (v - disjoint_answer).abs() < 1e-9,
-                    "bulge={bulge}: the non-containing sense is honestly disjoint \
-                     ({disjoint_answer}); got {v}"
-                );
-                bodies += 1;
-            }
-            Ok(other) => panic!("bulge={bulge}: unexpected {other:?}"),
-        }
+        let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol)
+            .unwrap_or_else(|e| panic!("bulge={bulge}: the half-disc cap is walked; got {e:?}"))
+        else {
+            panic!("bulge={bulge}: a union of two solids is a body");
+        };
+        let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+        println!("R1[half-disc-cap bulge={bulge}] BODY volume={v}");
+        volumes.push(v);
     }
-    assert_eq!(
-        (refused, bodies),
-        (1, 1),
-        "exactly one sense contains the box: it must refuse, and the other \
-         must answer disjoint. Both answering {disjoint_answer} is the silent \
-         wrong body (buried truth {buried_truth}); both refusing would mean the \
-         gate fires where no region is at stake"
+    volumes.sort_by(f64::total_cmp);
+    assert!(
+        (volumes[0] - buried_truth).abs() < 1e-9 && (volumes[1] - disjoint_answer).abs() < 1e-9,
+        "exactly one sense contains the box: it buries the box's lower half \
+         ({buried_truth}), and the other is honestly disjoint ({disjoint_answer}); \
+         got {volumes:?}"
     );
 }
 
@@ -374,10 +368,15 @@ fn r1_the_cap_yardstick_is_what_the_pr_says() {
 #[test]
 fn r1_a_box_down_a_circular_hole_in_a_square_plate() {
     let tol = Tol::witness();
-    let hole = profile::circle(p2(0.0, 0.0), 0.5, tol).unwrap();
+    let hole = profile::circle(Point2::new(0.0, 0.0), 0.5, tol).unwrap();
     let plate = body_of(
         vec![
-            RawLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]),
+            RawLoop::polygon([
+                Point2::new(-2.0, -2.0),
+                Point2::new(2.0, -2.0),
+                Point2::new(2.0, 2.0),
+                Point2::new(-2.0, 2.0),
+            ]),
             hole.into(),
         ],
         0.0,

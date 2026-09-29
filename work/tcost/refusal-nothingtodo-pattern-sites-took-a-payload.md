@@ -50,3 +50,5 @@ VNEWS's `keep_out` names *"S-TCOST's and S-TINT's and Track W's"* for
 this file class. There is no `work/` directory for Track W on this
 tree, so the announcement could not be filed on its slate; this row and
 its twin `nothingtodo-pattern-sites-took-a-payload-tint` on `work/tint/` are the whole of it.
+
+**Correction 2026-09-28 (`vnews/a-ranked-verdict-is-its-own-type`):** `frame::batch_status` is now private to `frame`; the two `frame_policy.rs` sites feed `frame::frame_status(&[], ops, refusal)`, which gives the same answer.

@@ -237,8 +237,10 @@ re-evaluation, which re-verifies crossings (A4).
 **A5 — The at-rest gate.** `assembly::assemble` gathers the product
 (`product::product_recorded`), mints every solved mate's declaration as
 a `MintedDeclaration` (declaring mates mint like determining ones), and
-runs the scalar's at-rest policy, `topo::validate_pseudomanifold`, over
-body plus records. Minting resolves each reference against the
+runs the scalar's at-rest policy, `topo::validate_pseudomanifold`'s
+verdict, over body plus records. The gather's own tier-3 verdict rides
+on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
+census over it rather than the local battery a second time. Minting resolves each reference against the
 product's table and, when that is silent, asks the operand the mate
 reads at whether the name is spelled in its own table — a name spelled
 there at a node the product does not list refuses
@@ -352,9 +354,13 @@ so a verdict about the pair, and a state a mate comes to hold after
 insert (a head a rebind or a shrunk pattern strands, a re-pointed
 `Part`, a loaded snapshot), stay the solve's. (2) Placement lives on the
 cluster: clusters are connected components of the instance–mate graph
-(`clusters`); `Doc::placements` holds at most one `Frame` per cluster,
+(`clusters`); `Doc::placements` holds at most one placement per cluster,
 keyed by its gauge, a missing entry being the identity, so zero- and
-multi-anchor states are unrepresentable; `reconcile` re-keys records
+multi-anchor states are unrepresentable. A placement is parametric:
+its components are `Expr`s, the one placement type
+`Node::Transform` holds too, so a document parameter can drive where a
+cluster sits, and a frame the maintenance mints from a solved pose is
+written as literals (ruled by Ev on `[ev]` #3437, 2026-09-29); `reconcile` re-keys records
 when an edit joins or splits clusters
 (`ClusterMaintenance::{Join, Split, GaugeRewrite}`, gauge-exact in
 bits). When a gauge moves the maintenance solves the prior document

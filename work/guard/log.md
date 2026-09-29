@@ -129,3 +129,13 @@ viewer file redded with file and line, tree restored; and in CI in
 (a bare field under another name — none in the crate, and banning the
 name would be a rule about a widget nobody asked for), and a field
 built in another crate.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## Filed from TOPO: `the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds` (2026-09-29)
+
+Ev's ruling on PR 3156 makes `query.rs`'s `to_bits()` compare of
+`Bounds::lo`/`hi` a production bit-identity consumer. None of
+`bit-identity-consumer.sh`, `bit-identity-punning.sh` or
+`bounds-allowlist.sh` can see that spelling. The row carries the
+shape. It lands red until TQUERY's repair of the site, so it rides
+with or after that.

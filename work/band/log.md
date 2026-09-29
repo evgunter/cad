@@ -108,6 +108,20 @@ evidence on CONTACT's `axis-coincident-lap-trips-the-planar-join-invariant`.
 GERM's note above (one final-stage merge call at the end of the sweep)
 goes into the continuation-merge unit's brief verbatim.
 
+## 2026-09-26 — `blend-slit-name-collides-when-two-rims-share-a-meridian` closed (PR #3245)
+
+The teapot lid's rims roll in ONE `Node::Fillet`. The kernel record
+(`BlendNaming::slits`, `meridian_splits`) carries the slitting band's
+source edges, and `RoleSeg::BandSlit`/`BandCross` carry that set as a
+discriminator — option (a), because N4 names from birth data alone. The
+item undercounted: `BandCross` collided one row later the same way.
+Full single review, no MAJOR; its fix pass took the reviewer's rows
+(the one that matters: an unrewritten `band` silently retargets a held
+slit name, and nothing else in the suite saw it), made `band` a
+discriminator in `walk_names` rather than a derivation, and gave the
+band identity one home. `annulus-rim-phase-…` gained the note that its
+hand-kept retain is now load-bearing for `BandCut` uniqueness. Filed:
+INSTR's `tess-budget-baseline-names-predate-piece-naming`.
 ## 2026-09-26 — `sweep-emits-no-contact-record-for-declared-cusps` closed (PR #3257)
 
 `Extruded`, `Revolved` and `Lofted` carry `declared_contacts`, one
@@ -123,3 +137,5 @@ Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
 MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
 `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
 has its measured red-first row.
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/band/blend-endings-say-lower-the-tolerance-and-route-by-name.md`. `sweep::blend::ClassifiedMargin` is a third spelling of a decided margin beside `recourse::Classified`; convergence is noted on the encl certify-span row. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

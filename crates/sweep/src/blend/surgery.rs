@@ -109,9 +109,13 @@
 //! over every contact edge at the description pass (`attach_contact`,
 //! through [`geom_brep::must_carry_over_edge`]):
 //! **`tangent_second_order`** at the certification schedule's seven
-//! interior stations — jet-determinate stores the intrinsic tangency,
-//! under-determined the conventional chart image, in-band refuses
-//! [`BlendError::Escalated`] at the link. Everything else in this
+//! interior stations, each first gated by the first-order wedge
+//! (`dihedral_wedge` behind its `dihedral_arm`) —
+//! jet-determinate stores the intrinsic tangency, under-determined the
+//! conventional chart image, in-band refuses [`BlendError::Escalated`]
+//! at the link, and a transverse station refuses
+//! [`BlendError::SurgeryInvariant`]: the routing sends every contact
+//! whose surfaces cross at an angle to the plain intersection instead. Everything else in this
 //! module is structural: cycle walks, key equality, stored senses.
 //!
 //! # Out of scope, refused typed
@@ -182,7 +186,7 @@ use topo::{
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use super::arms::EdgeBlend;
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::build::{Blended, face_cycle};
+use super::build::{Blended, face_cycle, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
 use super::open::planar::{BlankPlan, Corner, blank_phase, corner_plan};
 use super::open::ruled::{RuledPlan, ruled_phase};
@@ -586,7 +590,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
     for links in ends {
         let v = links.vertex();
-        let Some(mut incident) = vertex_edges_of(source, v) else {
+        let Some(mut incident) = fan_at(source.edges_of_vertex(v)) else {
             return Err(not_intact(
                 EntityId::Vertex(v),
                 "a chain end's vertex orbit does not walk",
@@ -740,24 +744,30 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     };
     for (o, fk) in &blend_rows {
         let fk = *fk;
-        body.set_face_surface(fk, FaceSurface::New(o.link().blend.surface.clone()))
-            .map_err(|e| op("blend face surface", e))?;
-        body.set_face_sense(fk, band_sense(o.convexity()))
-            .map_err(|e| op("blend face sense", e))?;
+        body.set_face_surface_and_sense(
+            fk,
+            FaceSurface::New(o.link().blend.surface.clone()),
+            band_sense(o.convexity()),
+        )
+        .map_err(|e| op("blend face surface", e))?;
     }
     for (i, c) in corners.iter().enumerate() {
         let fk = corner_faces[i];
-        body.set_face_surface(fk, FaceSurface::New(c.surface.clone()))
-            .map_err(|e| op("corner patch surface", e))?;
-        body.set_face_sense(fk, band_sense(c.convexity))
-            .map_err(|e| op("corner patch sense", e))?;
+        body.set_face_surface_and_sense(
+            fk,
+            FaceSurface::New(c.surface.clone()),
+            band_sense(c.convexity),
+        )
+        .map_err(|e| op("corner patch surface", e))?;
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
-        body.set_face_surface(fk, FaceSurface::New(band_surfaces[i].clone()))
-            .map_err(|e| op("band face surface", e))?;
-        body.set_face_sense(fk, rim.chain.first().convexity.blend_sense())
-            .map_err(|e| op("band face sense", e))?;
+        body.set_face_surface_and_sense(
+            fk,
+            FaceSurface::New(band_surfaces[i].clone()),
+            rim.chain.first().convexity.blend_sense(),
+        )
+        .map_err(|e| op("band face surface", e))?;
     }
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;
@@ -826,19 +836,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 // ------------------------------------------------------------------
 // Plan helpers (read-only).
 // ------------------------------------------------------------------
-
-/// A vertex's incident edges, sorted (the corner front-door check).
-fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
-    let he = body.get_vertex(vertex)?.emanating?;
-    let mut edges: Vec<EdgeKey> = body
-        .vertex_orbit(he)?
-        .iter()
-        .filter_map(|h| body.get_half_edge(*h).map(|x| x.edge))
-        .collect();
-    edges.sort_unstable();
-    edges.dedup();
-    Some(edges)
-}
 
 /// Resolve one closed chain onto its two supports, with every
 /// structural precondition of the band replacement checked.
@@ -1352,10 +1349,9 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let mut crossings = Vec::with_capacity(chain.link_count());
     for (i, link) in chain.links().enumerate() {
         let vertex = ends[i].1;
-        let mut incident = vertex_edges_of(body, vertex)
+        let mut incident = fan_at(body.edges_of_vertex(vertex))
             .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
-        incident.dedup();
         let (arcs, seams): (Vec<EdgeKey>, Vec<EdgeKey>) =
             incident.iter().partition(|e| chain_edges.contains(e));
         // One seam per side that HAS one: both under `Seams`, the mate
@@ -1456,6 +1452,14 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
             closure: 0,
         }),
     })
+}
+
+/// **A band's identity in the birth record**: its closed chain's source
+/// edges, in chain order. Every row that names the band — its face,
+/// its seam splits, its slit — carries this one value, and its
+/// consumer reads it as a SET.
+fn band_identity<T: Real>(rim: &RimPlan<'_, T>) -> Vec<EdgeKey> {
+    rim.chain.links().map(|l| l.edge).collect()
 }
 
 /// Whether two rims of one plan rest on any common support face.
@@ -1622,10 +1626,9 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
     // recourse, which is honest wherever they could fire.
     let mut live = Vec::with_capacity(ann.crossings.len());
     for c in &ann.crossings {
-        let mut incident = vertex_edges_of(body, c.vertex)
+        let mut incident = fan_at(body.edges_of_vertex(c.vertex))
             .ok_or_else(|| not_intact(EntityId::Vertex(c.vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
-        incident.dedup();
         let extras: Vec<EdgeKey> = incident
             .into_iter()
             .filter(|e| !chain_edges.contains(e))
@@ -1739,7 +1742,7 @@ fn resolve_annulus<T: Decide + Bounds>(
     // the band's slit is minted from the MATE seam's rim-side piece
     // and the HOST seam's rim-side piece dies with this vertex, so a
     // third incident edge would be left behind by both.
-    let mut incident = vertex_edges_of(body, vertex)
+    let mut incident = fan_at(body.edges_of_vertex(vertex))
         .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
     incident.sort_unstable();
     let mut expected = vec![link0.edge, host_seam, mate_seam];
@@ -2719,11 +2722,12 @@ fn rim_phase<T: Decide + Bounds>(
     // sphere trim circle crosses, minting the band's inner vertices
     // on EXISTING geometry rather than strutting into the cap. ----
     let chain_edges: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
+    let band_named = band_identity(rim);
     // Per plane-walk position: (rim vertex, upper remnant edge, the
     // SOURCE meridian it came from).
     let mut remnants: Vec<(VertexKey, EdgeKey, EdgeKey)> = Vec::with_capacity(n);
     for &(_, v, e) in &plane_walk {
-        let incident = vertex_edges_of(body, v)
+        let incident = fan_at(body.edges_of_vertex(v))
             .ok_or_else(|| not_intact(EntityId::Vertex(v), "a rim vertex's edge orbit"))?;
         let meridians: Vec<EdgeKey> = incident
             .into_iter()
@@ -2759,7 +2763,8 @@ fn rim_phase<T: Decide + Bounds>(
         // document layer rather than resolving to another entity's
         // name.
         let frag = split_fragment(body, m, v, t_split, rec, "meridian split", tol)?;
-        rec.meridian_splits.push((frag.vertex, m));
+        rec.meridian_splits
+            .push((frag.vertex, m, band_named.clone()));
         remnants.push((v, frag.near, frag.source));
     }
 
@@ -2956,7 +2961,7 @@ fn rim_phase<T: Decide + Bounds>(
             let radial = (fp - ca) / sa;
             // The slit SURVIVES as the band's own double-traversed
             // meridian: a birth row, not a death.
-            rec.slits.push((mr, msrc));
+            rec.slits.push((mr, msrc, band_named.clone()));
             described.push((
                 mr,
                 ContactCarrier::SeamArc {
@@ -3027,9 +3032,7 @@ fn rim_phase<T: Decide + Bounds>(
              the closure case that sets the band's seamed chart"
         )
     };
-    let mut chain_named: Vec<EdgeKey> = chain_edges.clone();
-    chain_named.sort_unstable();
-    rec.bands.push((band_face, chain_named));
+    rec.bands.push((band_face, band_named));
     Ok((band_face, band_surface, described))
 }
 
@@ -3774,11 +3777,14 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // mate foot is a split of that support's seam; the closure
     // crossing's mate piece SURVIVES as the band's own meridian, so it
     // is a birth row and not a death.
+    //
+    let band_named = band_identity(rim);
     for (ix, c) in ann.crossings.iter().enumerate() {
         rec.rim_feet.push((host_feet[ix].foot(), c.vertex));
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
-        rec.meridian_splits.push((mate_feet[ix].0, c.mate_seam));
+        rec.meridian_splits
+            .push((mate_feet[ix].0, c.mate_seam, band_named.clone()));
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
         rec.meridian_remnants.push((mate_feet[ix].2, c.mate_seam));
@@ -3799,8 +3805,11 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         rec.rim_trims
             .push((mate_trims[i].edge, l.edge, RimSide::Mate));
     }
-    rec.slits
-        .push((mate_feet[ann.closure].1, closure.mate_seam));
+    rec.slits.push((
+        mate_feet[ann.closure].1,
+        closure.mate_seam,
+        band_named.clone(),
+    ));
     for l in rim.chain.links() {
         rec.dead.edges.push(l.edge);
     }
@@ -3831,8 +3840,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         }
         rec.dead.vertices.push(c.vertex);
     }
-    rec.bands
-        .push((band_face, rim.chain.links().map(|l| l.edge).collect()));
+    rec.bands.push((band_face, band_named));
     Ok((band_face, band_surface, described))
 }
 
@@ -4060,12 +4068,12 @@ fn attach_contact<T: Decide + Bounds>(
         // description is the plain intersection locus. Calling it a
         // TANGENT intersection would claim normal-parallelism along
         // the locus that the geometry does not have. The description
-        // is chosen for what the geometry IS, not for what the
-        // certifier would catch: a cut-off arc mis-described as a
-        // tangent intersection of band and cap certifies and passes
-        // tier 3 today (the `TangentParallel` margin `sin θ / |κ_rel|`
-        // admits a 90° crossing —
-        // `work/props/tangent-parallel-certifier-passes-a-transverse-arc.md`).
+        // is chosen for what the geometry IS, not for what a later
+        // gate would catch. Routed through the tangent branch below
+        // instead, a cut-off arc reads `Transverse` at the must-carry
+        // rule's first-order gate in either surface order, and that
+        // branch refuses it as the surgery contradicting its own
+        // routing.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
@@ -4074,12 +4082,13 @@ fn attach_contact<T: Decide + Bounds>(
         // definitely-smooth join, whose description is the must-carry
         // rule's to decide over the whole edge
         // (`geom_brep::must_carry_over_edge` — the lane gate, the
-        // certification schedule's interior stations and the three-way
-        // answer, in their one home). The rule decides; this site does
-        // not argue. Jet-determinate stores the intrinsic tangency,
+        // certification schedule's interior stations and the verdict,
+        // in their one home). The rule decides; this site does not
+        // argue. Jet-determinate stores the intrinsic tangency,
         // under-determined the conventional chart image, in-band
         // refuses typed at the door (D4 ¶3) — never silently either
-        // side.
+        // side — and a transverse station refutes this branch's
+        // smooth premise, refused as the invariant it breaks.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         let verdict = {
             let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
@@ -4110,11 +4119,14 @@ fn attach_contact<T: Decide + Bounds>(
             // Reached where the jet is under-determined on a pair the
             // lane admits: a corner arc on a slim wedge, whose extent
             // is the folded lever arm, or any band under a run with
-            // `K < 2`. A pair the lane REFUSES lands here too, and the
-            // derived image covers the carriers the lane admits, so
-            // such a pair would fall to the certification door's own
-            // refusal inside `op("surgery contact edge")`; no arm the
-            // battery admits mints one.
+            // `K < 2`. A pair the lane REFUSES lands here too once
+            // every station has read smooth first-order (a crossing
+            // out of lane answers `Transverse` below, as in lane): the
+            // certificate cannot store an intrinsic tangency there, so
+            // the conventional image is the honest description, and
+            // the door derives it — `geom_brep::chart_pcurve` images a
+            // ruling `Line` in a `Cone`'s chart as readily as in a
+            // plane's. No arm the battery admits mints such a pair.
             MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::chart(s1),
             // In-band: a separation certifiable as neither positive nor
             // zero — a band a few K·ε in radius, or a corner arc whose
@@ -4125,6 +4137,21 @@ fn attach_contact<T: Decide + Bounds>(
                 return Err(BlendError::Escalated {
                     site: BlendSite::Link { edge: link },
                     source,
+                });
+            }
+            // A station reads the join a corner: this branch's premise
+            // — a definitely-smooth join — is refuted by the geometry.
+            // The carrier kind routed the edge here, and every kind
+            // whose surfaces cross at an angle is routed to the
+            // transverse branch above, so reaching this arm is the
+            // surgery contradicting its own routing, announced rather
+            // than repaired by storing a description the routing did
+            // not choose.
+            MustCarryVerdict::Transverse => {
+                return Err(BlendError::SurgeryInvariant {
+                    at: EntityId::Edge(edge),
+                    detail: "a contact edge routed as a smooth join reads definitely \
+                             transverse at a certification station",
                 });
             }
         }

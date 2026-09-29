@@ -34,15 +34,11 @@ use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A circle-derived cylinder: circle (cx, cy) of radius r, extruded
 /// from z0 to z1 — exactly #347's "`circle`-derived cylinder".
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(p2(cx, cy), r, tol).unwrap();
+    let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(z1 - z0), tol)
@@ -267,7 +263,10 @@ fn the_bracket_rounds_at_six_millimetres() {
 /// ANSWER rather than a refusal. The sum is asserted here so the row
 /// still carries the measurement it was opened with.
 ///
-/// It now refuses typed at the curved-extent scan's wall×wall gate.
+/// It now refuses typed at the fallback's section pass: equal radii
+/// with axes `1.5` apart are the cylinder pair's middle row, one null
+/// saddle loop, and its witness lies strictly inside both walls with
+/// no event anywhere (R-loop).
 ///
 /// **The base reproduction, recorded here rather than as a row.** At
 /// this unit's merge base the same two bodies returned
@@ -290,9 +289,12 @@ fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     assert!((va + vb - 30.0 * core::f64::consts::PI).abs() < 1e-9);
     let err = topo::union(&a, &b, tol).expect_err("the silence never re-opens");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-        panic!("expected the extent scan's wall pair gate, got {err:?}");
+        panic!("expected the fallback's section pass, got {err:?}");
     };
-    assert!(what.contains("two cylinder walls"), "{what}");
+    assert!(
+        what.contains("closed loop interior to both faces"),
+        "{what}"
+    );
 }
 
 /// Cylinder operands the gate must NOT touch: two walls standing clear
@@ -318,7 +320,7 @@ fn cylinders_standing_clear_of_each_other_still_answer() {
 /// reduction therefore finds no crossing at all and the operation falls
 /// through to the containment fallback with the boundaries genuinely
 /// meeting: the S12-silence shape, for a cylinder pair.
-pub(crate) fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
+fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
     let tol = Tol::witness();
     let a = cyl(0.0, 0.0, 1.0, 0.0, 10.0);
     let rod = cyl(0.0, 0.0, 1.0, -10.0, 10.0);
@@ -337,26 +339,26 @@ pub(crate) fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
 fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let tol = Tol::witness();
     let outline = profile::Open
-        .at(p2(w / 2.0, 0.0))
+        .at(Point2::new(w / 2.0, 0.0))
         .toward(1.0, 0.0, tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(0.0, 1.0, tol)
         .unwrap()
-        .to(p2(w, h / 2.0), tol)
+        .to(Point2::new(w, h / 2.0), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(-1.0, 0.0, tol)
         .unwrap()
-        .to(p2(w / 2.0, h), tol)
+        .to(Point2::new(w / 2.0, h), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(0.0, -1.0, tol)
         .unwrap()
-        .to(p2(0.0, h / 2.0), tol)
+        .to(Point2::new(0.0, h / 2.0), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
@@ -563,8 +565,12 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
 fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
     let tol = Tol::witness();
     let wall = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let lp =
-        profile::ProfileLoop::polygon([p2(0.5, 0.999), p2(2.5, 0.999), p2(2.5, 3.0), p2(0.5, 3.0)]);
+    let lp = profile::ProfileLoop::polygon([
+        Point2::new(0.5, 0.999),
+        Point2::new(2.5, 0.999),
+        Point2::new(2.5, 3.0),
+        Point2::new(0.5, 3.0),
+    ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.9)));
     let brick = extrude(
         &Profile::new(plane, vec![lp]).validate(tol).unwrap(),

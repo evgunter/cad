@@ -11,8 +11,9 @@
 //! - the CONCAVE ruled band — a rod sunk into a block, whose two creases
 //!   along the ruling add material: the fold the unit states and pins
 //!   nowhere. Both bodies come through the EXTRUDE door as one profile
-//!   loop; the boolean refuses both (`block ∖ cylinder`,
-//!   `block ∪ cylinder`), which is pinned beside them;
+//!   loop; the boolean refuses the groove (`block ∖ cylinder`) and
+//!   builds a SHORTER sunk rod (`block ∪ cylinder`, the rod ending
+//!   inside the block's length), which is pinned beside them;
 //! - a cap carrying a RING (the bored D-rod): the plan checks the
 //!   supports for rings, not the cap;
 //! - a SUPPORT carrying a ring (a pocket sunk into the flat): the plan's
@@ -29,7 +30,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol, Vec3};
+use crate::common::approx::band;
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
@@ -183,13 +185,16 @@ fn cap_above() -> f64 {
     0.5 * ROD_R * ROD_R * (minor - minor.sin())
 }
 
-/// **The boolean builds neither ruled fixture on a block** — the groove
-/// (`block ∖ cylinder`) refuses `CurvedSectorSideUnsupported`, the sunk
-/// rod (`block ∪ cylinder`) refuses at the all-planar join lane. Pinned
-/// so the Phase-1 table's "no body" for the CONCAVE band is read as the
-/// boolean's, not the kernel's: the extrude door builds both (below).
+/// **What the boolean does with the ruled fixtures on a block** — the
+/// groove (`block ∖ cylinder`) refuses `CurvedSectorSideUnsupported`;
+/// a sunk rod SHORTER than the block (`z ∈ [0.2, 0.8]`) builds, and is
+/// the block plus the rod's segment above the top plane over its
+/// length. The rod's end caps meet the top plane along chords with one
+/// rim arc between their ends, which the plane×plane join lane mints.
+/// The full-length fixtures the Phase-1 table carves come through the
+/// extrude door (below).
 #[test]
-fn the_boolean_builds_neither_the_groove_nor_the_sunk_rod() {
+fn the_boolean_refuses_the_groove_and_builds_a_short_sunk_rod() {
     let groove = topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol());
     assert!(
         matches!(
@@ -198,11 +203,65 @@ fn the_boolean_builds_neither_the_groove_nor_the_sunk_rod() {
         ),
         "the groove refuses at the boolean, got {groove:?}"
     );
-    let sunk = topo::union(&block(), &cylinder(0.2, 0.6), tol());
+    let sunk = topo::union(&block(), &cylinder(0.2, 0.6), tol())
+        .expect("the short sunk rod builds")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    topo::validate_geometric_certificate(&sunk, tol()).expect("the sunk rod certifies at rest");
+    let expect = 2.0 * L + cap_above() * 0.6;
     assert!(
-        matches!(sunk, Err(topo::BooleanError::Join(_))),
-        "the sunk rod refuses at the boolean, got {sunk:?}"
+        (volume(&sunk) - expect).abs() < 1e-9,
+        "the sunk rod's volume: {} vs {expect}",
+        volume(&sunk)
     );
+}
+
+/// **The short sunk rod, checked without trusting the union.** Its
+/// volume must equal block + cylinder − (block ∩ cylinder), and
+/// block + (cylinder ∖ block), each computed by a DIFFERENT boolean;
+/// and six probes say which points it holds: inside the rod's segment
+/// above the block (in), past either end cap (out), outside the rod's
+/// wall and above its crown (out), and inside the block (in).
+#[test]
+fn the_short_sunk_rod_agrees_with_its_intersection_and_difference() {
+    let cyl = cylinder(0.2, 0.6);
+    let v = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
+    let body = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>| {
+        r.unwrap().body().unwrap().body.clone()
+    };
+    let u = body(topo::union(&block(), &cyl, tol()));
+    let i = body(topo::intersect(&block(), &cyl, tol()));
+    let s = body(topo::subtract(&cyl, &block(), tol()));
+    assert!(
+        (v(&u) - (2.0 + v(&cyl) - v(&i))).abs() < 1e-12,
+        "union {} vs block + cylinder − intersection {}",
+        v(&u),
+        2.0 + v(&cyl) - v(&i)
+    );
+    assert!(
+        (v(&u) - 2.0 - v(&s)).abs() < 1e-12,
+        "union {} vs block + (cylinder ∖ block) {}",
+        v(&u),
+        2.0 + v(&s)
+    );
+    for (q, inside) in [
+        ((0.0, 0.15, 0.5), true),
+        ((0.0, 0.15, 0.1), false),
+        ((0.0, 0.15, 0.9), false),
+        ((0.45, 0.1, 0.5), false),
+        ((0.0, 0.25, 0.5), false),
+        ((0.9, -0.5, 0.5), true),
+    ] {
+        let r = topo::point_in_solid(&u, Point3::new(q.0, q.1, q.2), band(), tol()).unwrap();
+        let expect = if inside {
+            topo::SolidContainment::In
+        } else {
+            topo::SolidContainment::Out
+        };
+        assert_eq!(r, expect, "at {q:?}");
+    }
 }
 
 /// **A groove milled along a block** (extrude door): the lip creases

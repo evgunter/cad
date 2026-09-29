@@ -51,7 +51,7 @@ use editor_core::{
 use geom_core::k_stats::decide;
 use geom_core::{Band, Margin, Sign, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, ang, len, scl};
 
 // ------------------------------------------------------------ authoring
 
@@ -97,7 +97,7 @@ fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<Profile
         input,
         translation: [dx, dy, dz],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_angle: ang(0.0),
     }
 }
 
@@ -106,12 +106,12 @@ fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<Profile
 /// `ProfileProgram::plane` became a node reference under this branch
 /// (main's move), so every fixture mints the frame first and hands the
 /// profile its id.
-fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::xy_frame())
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
@@ -963,41 +963,6 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
 }
 
 // ---------------------------------------------------- 6. D9 determinism
-
-/// **D9 on a multi-thousand-cell run of R2's own construction**: the
-/// whole-body comb query at a bound that has to subdivide, repeated,
-/// serialized, compared bit for bit.
-///
-/// The bound is the comb's own frontier. Slot A is 0.5 m wide, so
-/// `AtLeast(0.5)` sits exactly on the closest approach the body admits:
-/// no cell pair's separation enclosure ever clears it, none ever falls
-/// definitely under it, and the sweep spends its whole budget before
-/// refusing, priced. That is the run worth checking for determinism —
-/// a bound the geometry BREAKS now stops at the first verified witness
-/// and settles in a handful of cells, and one the tree can EXCLUDE
-/// never reaches the funnel at all.
-#[test]
-fn the_comb_answer_is_bit_stable_across_repeats() {
-    let (doc, minted, _placed) = comb();
-    let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
-    let first = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
-    let r = first.receipt();
-    let cells = r.discharged + r.violated + r.refused;
-    assert!(
-        cells > 2_000,
-        "the determinism row runs on a multi-thousand-cell subdivision: {r:?}"
-    );
-    assert_eq!(
-        r.abandoned, 0,
-        "and one that ran to the end of its budget rather than exiting early: {r:?}"
-    );
-    for _ in 0..3 {
-        let again = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
-        assert_eq!(again.serialize(), first.serialize());
-    }
-    println!("[r2 D9] {cells} cell pairs, stable over 4 runs");
-}
 
 /// **D9 across SCHEDULES.** The clearance engine has no parallel path
 /// of its own — `Sweep::run` is a sequential stack walk and

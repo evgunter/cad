@@ -221,3 +221,139 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     );
     assert_eq!(updated.maintenance, Vec::new(), "nothing is reported");
 }
+
+/// The part's profile step ids, loop 0.
+fn step_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId> {
+    match doc.node(profile) {
+        Some(Node::Profile(p)) => p.ids[0].clone(),
+        other => panic!("the part's profile: {other:?}"),
+    }
+}
+
+/// `base` with one leg inserted into its square at program position
+/// `at`, the new step minted by the door: the square's corners with
+/// `corner` spliced in as corner `at`.
+fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f64)) -> ProfileDoc {
+    let mut corners = vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+    corners.insert(at, corner);
+    let mut ids: Vec<Option<editor_core::StepId>> =
+        step_ids(base, profile).into_iter().map(Some).collect();
+    ids.insert(at, None);
+    apply(
+        base,
+        &DocEdit::SetProgram {
+            node: profile,
+            loops: vec![LoopProgram::polygon(corners).unwrap()],
+            ids: vec![ids],
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap()
+    .doc
+}
+
+/// **Two versions of one part that branch from one value.** Version A
+/// inserts a leg to `(3,1)` after the corner `(2,0)`; version B, made
+/// from the same base (an undo and a different edit, or a second
+/// `apply` on the base), inserts a leg to `(1,3)` after `(2,2)`
+/// instead. The step counter is part of the document value, so both
+/// mint the same id for their different legs. The parent pins A and
+/// paints A's new leg, then moves its pin to B — the version a store
+/// holds once B is saved over A (`pncad::workspace::update_to_store`).
+///
+/// This row pins the defect the tracker row
+/// `sibling-branches-mint-one-step-id-for-different-steps` records: the
+/// held name silently re-denotes B's leg and nothing is reported. It is
+/// the row that turns when that is fixed.
+#[test]
+fn sibling_versions_mint_one_step_id_and_a_held_name_crosses_between_them() {
+    let (base, profile, ext) = part();
+    let a = with_leg(&base, profile, 2, (3.0, 1.0));
+    let b = with_leg(&base, profile, 3, (1.0, 3.0));
+    let a_new = step_ids(&a, profile)[2];
+    let b_new = step_ids(&b, profile)[3];
+    assert_eq!(
+        a_new, b_new,
+        "each branch mints its new step from the base's counter"
+    );
+
+    let mut shelf = VersionShelf::default();
+    let ra = shelf.shelve(a);
+    let rb = shelf.shelve(b);
+    let shelf = Arc::new(shelf);
+
+    let wall = fixture::fname(
+        ext,
+        RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
+            step: a_new,
+            role: editor_core::PieceRole::Leg,
+        }),
+    );
+    let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
+    let (parent, instance) = insert(parent, Node::instantiate_part(ra));
+    let name = held(instance, &wall);
+    let parent = apply(
+        &parent,
+        &DocEdit::SetAppearance {
+            name: name.clone(),
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap()
+    .doc;
+    let before = corners(&run(&parent, &shelf), instance, &name);
+    assert!(
+        before.contains(&(2.0, 0.0, 0.0)) && before.contains(&(3.0, 1.0, 0.0)),
+        "at A the held name is A's leg (2,0)→(3,1): {before:?}"
+    );
+
+    let updated = apply(
+        &parent,
+        &DocEdit::UpdateReference {
+            node: instance,
+            new_pin: rb.pin,
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap();
+    assert_eq!(
+        updated.maintenance,
+        Vec::new(),
+        "the update reports nothing"
+    );
+    let after = corners(&run(&updated.doc, &shelf), instance, &name);
+    assert!(
+        after.contains(&(2.0, 2.0, 0.0)) && after.contains(&(1.0, 3.0, 0.0)),
+        "at B the same spelling is B's leg (2,2)→(1,3), a step A never had: {after:?}"
+    );
+}
+
+/// **Node ids branch the same way.** Two inserts applied to one base
+/// mint one `RecipeNodeId` for two different nodes, so a name minted by
+/// either node carries across to the other branch as the other node's.
+#[test]
+fn sibling_versions_mint_one_node_id_for_different_nodes() {
+    let (base, profile, _) = part();
+    let (_, tall) = insert(
+        base.clone(),
+        Node::Extrude {
+            profile,
+            distance: len(3.0),
+        },
+    );
+    let (_, taller) = insert(
+        base,
+        Node::Extrude {
+            profile,
+            distance: len(5.0),
+        },
+    );
+    assert_eq!(
+        tall, taller,
+        "each branch mints its new node from the base's counter"
+    );
+}

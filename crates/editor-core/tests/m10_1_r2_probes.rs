@@ -12,7 +12,7 @@
 //! abutting partitions — so that "the columns add up" is a claim about
 //! the measure rather than about subtraction.
 //!
-//! Sweep shape (`memories/test-suite-cost.md`): the two randomized
+//! Sweep shape (implementer-discipline §8): the two randomized
 //! rows are COUNTEREXAMPLE SEARCH — varying seed via `test_utils::fuzz`,
 //! counts on the shared effort dial, replay string in every assertion
 //! message. The rest are witnesses that can be written down, so they
@@ -30,6 +30,7 @@ test_utils::gated_to![
     "crates/editor-core/src/measure.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::fixture;

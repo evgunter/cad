@@ -8,7 +8,7 @@
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point3, Tol, Vec3};
-use topo::{Body, EdgeKey, FaceKey, ShellKey, SolidKey, SurfaceKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, ShellKey, SolidKey, VertexKey};
 
 pub(crate) fn tol() -> Tol {
     Tol::witness()
@@ -51,42 +51,16 @@ pub(crate) fn volume(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, tol()).expect("props").volume
 }
 
-/// The solid a face belongs to.
+/// The solid a face belongs to ([`Body::solid_of_face`], which every
+/// face of these suites' bodies has).
 pub(crate) fn solid_of(body: &Body<f64>, face: FaceKey) -> SolidKey {
-    let shell = body.get_face(face).unwrap().shell;
-    body.get_shell(shell).unwrap().solid
+    body.solid_of_face(face)
+        .expect("every face has an owning solid")
 }
 
-/// The solid a vertex belongs to, through its emanating half-edge.
-pub(crate) fn solid_of_vertex(body: &Body<f64>, vertex: VertexKey) -> SolidKey {
-    let he = body.get_vertex(vertex).unwrap().emanating.unwrap();
-    solid_of(body, face_of_he(body, he))
-}
-
-/// Every face of `solid`, in arena order.
+/// Every face of `solid`, in arena order ([`Body::faces_of_solid`]).
 pub(crate) fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(k, _)| solid_of(body, *k) == solid)
-        .map(|(k, _)| k)
-        .collect()
-}
-
-/// The chart groups of `solid`: faces by surface key, in arena order.
-pub(crate) fn charts_of(body: &Body<f64>, solid: SolidKey) -> Vec<Vec<FaceKey>> {
-    let mut out: Vec<(SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for face in faces_of(body, solid) {
-        let key = body.get_face(face).unwrap().surface;
-        match out.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, v)) => v.push(face),
-            None => out.push((key, vec![face])),
-        }
-    }
-    out.into_iter().map(|(_, v)| v).collect()
-}
-
-pub(crate) fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
+    body.faces_of_solid(solid).expect("the solid resolves")
 }
 
 /// Every vertex point of `body`, in arena order.
@@ -108,10 +82,13 @@ pub(crate) fn bits(p: &Point3<f64>) -> (u64, u64, u64) {
 /// not asked about — a vertex-point comparison alone would miss a
 /// re-authored edge description whose geometry is unchanged.
 pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
+    let owners = topo::SolidOwners::of(body);
+    let mine = |face: FaceKey| owners.face(face).expect("every face has an owning solid") == solid;
     let mut out: Vec<String> = Vec::new();
-    let mine = faces_of(body, solid);
-    for &f in &mine {
-        let d = body.get_face(f).unwrap();
+    for (f, d) in body.faces() {
+        if !mine(f) {
+            continue;
+        }
         out.push(format!(
             "face sense={} rings={} surface={:?}",
             d.sense,
@@ -120,7 +97,7 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
         ));
     }
     for (k, e) in body.edges() {
-        if !mine.contains(&face_of_he(body, e.he_plus)) {
+        if !mine(body.face_of_half_edge(e.he_plus).unwrap()) {
             continue;
         }
         let c = body
@@ -135,10 +112,7 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
         ));
     }
     for (k, vx) in body.vertices() {
-        let Some(em) = body.get_vertex(k).unwrap().emanating else {
-            continue;
-        };
-        if !mine.contains(&face_of_he(body, em)) {
+        if owners.vertex(k).expect("every vertex has an owning solid") != solid {
             continue;
         }
         out.push(format!(
@@ -174,11 +148,12 @@ pub(crate) fn edge_rows(body: &Body<f64>) -> Vec<(EdgeKey, String)> {
 }
 
 /// The whole CHART of `shell` whose plane is normal to `axis` (a unit
-/// world direction) and sits at `value` along it — every face wearing
-/// it, since a full revolve splits a cap into two half-discs and the
-/// rim surgery lifts a chart as one.
+/// world direction) and sits at `value` along it — every face of the
+/// shell's SOLID wearing it, since a full revolve splits a cap into two
+/// half-discs and the rim surgery lifts a solid's chart as one.
 pub(crate) fn cap(body: &Body<f64>, shell: ShellKey, axis: Vec3<f64>, value: f64) -> Vec<FaceKey> {
-    for &face in &body.get_shell(shell).unwrap().faces {
+    let data = body.get_shell(shell).unwrap();
+    for &face in &data.faces {
         let f = body.get_face(face).unwrap();
         let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
             continue;
@@ -187,19 +162,23 @@ pub(crate) fn cap(body: &Body<f64>, shell: ShellKey, axis: Vec3<f64>, value: f64
             continue;
         }
         if (Vec3::new(origin.x, origin.y, origin.z).dot(axis) - value).abs() < 1e-9 {
-            let chart = f.surface;
-            return body
-                .faces()
-                .filter(|(_, g)| g.surface == chart)
-                .map(|(k, _)| k)
-                .collect();
+            return wearers(body, data.solid, f.surface);
         }
     }
     panic!("no cap of {shell:?} normal to {axis:?} at {value}")
 }
 
+/// `solid`'s faces wearing `chart`, in arena order: a chart is
+/// body-wide, and what a door takes as one is one solid's wearers.
+pub(crate) fn wearers(body: &Body<f64>, solid: SolidKey, chart: topo::SurfaceKey) -> Vec<FaceKey> {
+    faces_of(body, solid)
+        .into_iter()
+        .filter(|&g| body.get_face(g).unwrap().surface == chart)
+        .collect()
+}
+
 /// The whole chart of `solid` whose plane is normal to `+z` and sits at
-/// `z`.
+/// `z` — the solid's own wearers of it.
 pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKey> {
     for face in faces_of(body, solid) {
         let f = body.get_face(face).unwrap();
@@ -209,21 +188,18 @@ pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKe
         if normal.x.abs() > 1e-9 || normal.y.abs() > 1e-9 || (origin.z - z).abs() > 1e-9 {
             continue;
         }
-        let chart = f.surface;
-        return body
-            .faces()
-            .filter(|(_, g)| g.surface == chart)
-            .map(|(k, _)| k)
-            .collect();
+        return wearers(body, solid, f.surface);
     }
     panic!("no z = {z} cap on {solid:?}")
 }
 
 /// The `(outer, void)` shells of a two-shell solid, decided through the
 /// shell classifier restricted to that solid's own shells.
+/// NOT `common::shell_operands::outer_and_void`, which reads a one-solid
+/// body whole: this is its per-SOLID twin on a multi-solid body.
 pub(crate) fn outer_and_void_of(body: &Body<f64>, solid: SolidKey) -> (ShellKey, ShellKey) {
-    let shells = body.get_solid(solid).unwrap().shells.clone();
-    let roles = topo::classify_shells_of(body, &shells, tol()).expect("the solid classifies");
+    let shells = body.shells_of_solid(solid).unwrap();
+    let roles = topo::classify_shells_of(body, shells, tol()).expect("the solid classifies");
     let pick = |r: topo::ShellRole| {
         roles
             .iter()

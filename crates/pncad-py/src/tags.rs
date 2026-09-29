@@ -1289,6 +1289,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::CosurfaceEscalated { .. } => "cosurface_escalated",
         ExtrudeError::SliverJoin { .. } => "sliver_join",
         ExtrudeError::SliverRim { .. } => "sliver_rim",
+        ExtrudeError::SmoothJoinRefuted { .. } => "smooth_join_refuted",
         ExtrudeError::CapPlane { .. } => "cap_plane",
         ExtrudeError::SidePlane { .. } => "side_plane",
         ExtrudeError::Op { .. } => "op",
@@ -1320,6 +1321,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::CosurfaceEscalated { .. } => "cosurface_escalated",
         RevolveError::SliverJoin { .. } => "sliver_join",
         RevolveError::SliverRim { .. } => "sliver_rim",
+        RevolveError::SmoothJoinRefuted { .. } => "smooth_join_refuted",
         RevolveError::CapPlane { .. } => "cap_plane",
         RevolveError::Op { .. } => "op",
         RevolveError::Pcurve(_) => "pcurve",
@@ -1558,6 +1560,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
         NamingError::SeamLineSides { .. } => "seam_line_sides",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::SplitReference { .. } => "split_reference",
@@ -1589,7 +1592,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OperandOuterShells { .. } => "operand_outer_shells",
         ShellError::Partition { .. } => "partition",
         ShellError::WallClearance { .. } => "wall_clearance",
-        ShellError::ChartSpansSolids { .. } => "chart_spans_solids",
         ShellError::ChartSenseMixed { .. } => "chart_sense_mixed",
         ShellError::Face { .. } => "face",
         ShellError::OpenFaceStale { .. } => "open_face_stale",
@@ -2010,7 +2012,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
         E::Graft { .. } => "graft_refused",
-        E::SolidInvalid { .. } => "solid_invalid",
+        E::RootInvalid { .. } => "root_invalid",
         E::ProductInvalid { .. } => "product_invalid",
         E::Naming { .. } => "product_naming",
         E::ContactLineage { .. } => "contact_lineage",
@@ -2687,11 +2689,12 @@ pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
 /// The carrier's word says which finding the registry made: the count
 /// is unknowable because a shell would not classify (`escalated`), or
 /// because a face of the subject is outside the flux inventory
-/// (`unsupported`). This one says which of the shell door's four ways
+/// (`unsupported`). This one says which of the shell door's five ways
 /// it refused, so a caller reads it instead of substring-matching the
 /// sentence: the run's tolerance formed no band, a face refused in the
-/// props inventory, the sign read escalated in-band, or the signed
-/// volume is definitely zero and there is no side to classify to.
+/// props inventory, the sign read escalated, the signed volume (or an
+/// end of its bracket) is zero at this tolerance, or its certified
+/// bracket straddles zero, so there is no side to classify to.
 ///
 /// `band` is the same word [`checks_error_tag`] mints for the
 /// registry's own band refusal, one namespace up, and means the same
@@ -2702,6 +2705,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
         ShellClassifyError::Props { .. } => "props",
         ShellClassifyError::Escalated { .. } => "escalated",
         ShellClassifyError::ZeroVolume { .. } => "zero_volume",
+        ShellClassifyError::Straddles { .. } => "straddles",
     }
 }
 
@@ -2734,6 +2738,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::DegenerateTorusEscalated { .. } => "degenerate_torus_escalated",
         ValidationError::PoisonedSurfaceDatum { .. } => "poisoned_surface_datum",
         ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
+        ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",
+        ValidationError::UnrepresentableCurveDatum { .. } => "unrepresentable_curve_datum",
         ValidationError::EdgeCertification { .. } => "edge_certification",
         ValidationError::DescriptionNotAdjacent { .. } => "description_not_adjacent",
         ValidationError::PlanarFaceResidual { .. } => "planar_face_residual",
@@ -2744,7 +2750,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
-        ValidationError::UndeclaredCusp { .. } => "undeclared_cusp",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
@@ -2755,6 +2760,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",
         ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
         ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
+        ValidationError::ShellWinding { .. } => "shell_winding",
         ValidationError::UndeclaredContact { .. } => "undeclared_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",

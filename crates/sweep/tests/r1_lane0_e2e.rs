@@ -36,17 +36,16 @@ fn rigid_f64() -> Affine3<f64> {
 /// row holds is the two things that are: no door on the walk reports
 /// `ApproxLaneUnsupported` or `ApproxCertification` when the seam
 /// answers, and the surface `transform_rigid` produces carries
-/// `geom_brep::certify_offset_over_at`'s measurement of the mapped
-/// pair, limb for limb by bits — the free function, not the door
-/// re-asked.
+/// `geom_brep::certify_offset_over`'s measurement of the mapped pair
+/// at the run's ε, limb for limb by bits — the free function, not the
+/// door re-asked.
 #[test]
 fn the_f64_seam_answers_every_public_door() {
     let d = 0.05;
     let (body, face) = box_with_approx_cap(d, 1e-9);
-    let Some(Surface::Approx(a)) = body.get_surface(body.get_face(face).unwrap().surface) else {
+    let Some(Surface::Approx(_)) = body.get_surface(body.get_face(face).unwrap().surface) else {
         panic!("the cap wears the approximating surface");
     };
-    let stored = a.tolerance();
 
     let contacts = topo::boolean::ContactRecords::default();
     for (door, r) in [
@@ -83,19 +82,13 @@ fn the_f64_seam_answers_every_public_door() {
     }
 
     let moved = topo::transform_rigid(&body, &rigid_f64(), Tol::witness())
-        .expect("a rigid map of a certified fit re-certifies at the same tolerance");
+        .expect("a rigid map of a certified fit re-certifies at the run's ε");
     let Some(Surface::Approx(m)) = moved.get_surface(moved.get_face(face).unwrap().surface) else {
         panic!("the mapped cap is still approximating");
     };
-    assert_eq!(
-        m.tolerance().to_bits(),
-        stored.to_bits(),
-        "the map carries the surface's own claim, not the run's"
-    );
     let spec = m.spec();
-    let geom::SurfaceDescription::Offset { base, d: dm } = &spec.description;
     let free =
-        geom_brep::certify_offset_over_at(base, &spec.fit, *dm, spec.window, m.tolerance(), band())
+        geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, Tol::witness())
             .expect("`geom-brep`'s certifier measures the mapped pair");
     let got = m.certificate();
     for (name, x, y) in [
@@ -124,7 +117,7 @@ fn the_f64_seam_answers_every_public_door() {
             FaceSurface::New(Surface::Nurbs(Arc::new(planar_patch(1.0)))),
         )
         .expect("the cap takes a NURBS surface");
-    match topo::replace_faces_offset(&mut fresh, &[cap], 0.05, band(), Tol::witness()) {
+    match topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness()) {
         Ok(()) => {}
         Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
         other => panic!("the `f64` mint must not report the lane's absence: {other:?}"),
@@ -136,7 +129,7 @@ fn the_f64_seam_answers_every_public_door() {
             FaceSurface::New(Surface::Nurbs(Arc::new(planar_patch(1.0)))),
         )
         .expect("the cap takes a NURBS surface");
-    match topo::replace_face_offset(&mut single, scap, 0.05, band(), Tol::witness()) {
+    match topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness()) {
         Ok(()) => {}
         Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
         other => panic!("the single-face `f64` mint must not report the lane's absence: {other:?}"),
@@ -162,8 +155,9 @@ fn the_interval_seam_refuses_at_every_public_door() {
     };
     let lifted = a.map_scalar(Interval::from_f64);
 
-    let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    use crate::common::interval::{iv, p2, v3};
+
+    let v = |x: f64, y: f64| (p2(x, y), iv(0.0));
     let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
@@ -216,7 +210,7 @@ fn the_interval_seam_refuses_at_every_public_door() {
 
     match topo::transform_rigid(
         &body,
-        &Affine3::translation(geom_core::Vec3::new(iv(1.0), iv(0.0), iv(0.0))),
+        &Affine3::translation(v3(1.0, 0.0, 0.0)),
         Tol::witness(),
     ) {
         Err(topo::TransformError::ApproxLaneUnsupported { lane }) => {
@@ -233,8 +227,9 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
     use geom_core::{Bounds, Interval, Real};
     use profile::{Profile, SketchPlane, test_support::bulge_loop};
 
-    let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    use crate::common::interval::{iv, p2};
+
+    let v = |x: f64, y: f64| (p2(x, y), iv(0.0));
     let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
@@ -260,13 +255,7 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
     let nurbs = planar_patch(1.0).map_scalar(Interval::from_f64);
     body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(Arc::new(nurbs))))
         .expect("the attach-layer door accepts a live face");
-    match topo::replace_faces_offset(
-        &mut body,
-        &[face],
-        iv(0.05),
-        geom_core::Band::linear(Tol::witness()).unwrap(),
-        Tol::witness(),
-    ) {
+    match topo::replace_faces_offset(&mut body, &[face], iv(0.05), Tol::witness()) {
         Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f }) => {
             assert_eq!(f, face, "the refusal names the face it could not mint");
         }
@@ -331,13 +320,7 @@ fn the_probe_seam_refuses_at_the_map_and_the_mint() {
         .unwrap();
     b2.set_face_surface(c2.face, FaceSurface::New(Surface::Nurbs(Arc::new(nurbs))))
         .unwrap();
-    match topo::replace_faces_offset(
-        &mut b2,
-        &[c2.face],
-        Probe::from_f64(0.05),
-        geom_core::Band::linear(Tol::witness()).unwrap(),
-        Tol::witness(),
-    ) {
+    match topo::replace_faces_offset(&mut b2, &[c2.face], Probe::from_f64(0.05), Tol::witness()) {
         Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face }) => {
             assert_eq!(face, c2.face);
         }

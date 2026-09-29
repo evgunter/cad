@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use geom::{ApproxSurface, NurbsSurface, Surface};
-use geom_core::{Affine3, Band, Decide, Point3, Real, Tol, Vec3};
+use geom_core::{Affine3, Decide, Point3, Real, Tol, Vec3};
 use topo::{Body, ContactRecords, FaceKey, FaceSurface};
 
 /// The bowed patch the head's fixture uses, copied so the base can
@@ -42,16 +42,9 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn band() -> Band {
-    Band::linear(tol()).unwrap()
-}
-
 fn bowed_offset_approx<T: Real>() -> ApproxSurface<T> {
-    let minted = geom_brep::approx_offset_surface(Arc::new(bowed_patch()), 0.05, tol(), band())
+    let approx = geom_brep::approx_offset_surface(Arc::new(bowed_patch()), 0.05, tol())
         .expect("the bowed patch's offset fits at the run's eps");
-    let Surface::Approx(approx) = minted else {
-        panic!("the mint door produces Surface::Approx");
-    };
     approx.map_scalar(T::from_f64)
 }
 
@@ -135,7 +128,7 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
 
     // So does the offset mint, on a NURBS-faced seed.
     let (mut nurbs, nface) = nurbs_seed::<T>();
-    let minted = topo::replace_faces_offset(&mut nurbs, &[nface], T::from_f64(0.05), band(), tol());
+    let minted = topo::replace_faces_offset(&mut nurbs, &[nface], T::from_f64(0.05), tol());
     match minted {
         Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f }) => {
             assert!(
