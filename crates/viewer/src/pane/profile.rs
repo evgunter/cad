@@ -630,10 +630,7 @@ mod tests {
     fn both_pickers_say_a_refused_choice_is_not_well_typed_in_one_sentence() {
         let verb = hovering_a_choice(vec![crate::widgets::new_row_step(0)], "at", "line_to");
         let said = "line_to is not well-typed here — the tip is at the entry, before any verb";
-        assert_eq!(
-            sketch::not_well_typed(Verb::LineTo, TipState::Entry),
-            said
-        );
+        assert_eq!(sketch::not_well_typed(Verb::LineTo, TipState::Entry), said);
         assert!(verb.lines().any(|line| line == said), "verb combo: {verb}");
 
         let arc = sketch::fresh_step_at(Verb::ArcTo, Some(TipState::PlainPoint));
@@ -641,7 +638,11 @@ mod tests {
             matches!(arc, Step::ArcTo(pncad::profile::ArcData::Bulge { .. })),
             "the arc lands in bulge, so its mode combo reads `bulge`: {arc:?}"
         );
-        let mode = hovering_a_choice(vec![crate::widgets::new_row_step(0), arc], "bulge", "radius");
+        let mode = hovering_a_choice(
+            vec![crate::widgets::new_row_step(0), arc],
+            "bulge",
+            "radius",
+        );
         let said = "radius is not well-typed here — the tip is a bound position with no incoming \
                     tangent";
         assert!(mode.lines().any(|line| line == said), "mode picker: {mode}");

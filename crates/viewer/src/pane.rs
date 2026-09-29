@@ -140,7 +140,8 @@ pub(crate) mod headless {
     ) -> String {
         let ctx = egui::Context::default();
         let laid_out = timed(&ctx, 0.0, Vec::new(), &mut draw);
-        let at = hit(&laid_out, opener, 0).unwrap_or_else(|| panic!("`{opener}` was never painted"));
+        let at =
+            hit(&laid_out, opener, 0).unwrap_or_else(|| panic!("`{opener}` was never painted"));
         let press = |pressed| egui::Event::PointerButton {
             pos: at,
             button: egui::PointerButton::Primary,
