@@ -11,7 +11,7 @@ refs: [validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-the
 
 **Where this comes from.** S-DUP's design fork on
 `validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them`
-(PR 3387, row 8 of `docs/DESIGN-FORK-LOG.md`). Ev ruled on 2026-09-29.
+(PR 3387, row 9 of `docs/DESIGN-FORK-LOG.md`). Ev ruled on 2026-09-29.
 The at-rest texts stay in `validate.rs`'s `classify_*` functions,
 written for the checks window, and are not moved into the refusal
 types: *"the choice should ultimately be made based on code quality

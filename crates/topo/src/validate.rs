@@ -597,9 +597,9 @@ pub enum CensusUnsupportedCause {
     /// The census asks [`contfp`](crate::boolean::contfp) whether a
     /// vertex, an edge midpoint or a crossing point lies inside a
     /// planar face. Three of that door's arms carry no measured
-    /// quantity at all — an arc-bearing loop no walk expresses, an
-    /// exhausted parity schedule, unwalkable topology — and the census
-    /// used to answer all three with
+    /// quantity at all — a spiric or spline edge within the point's
+    /// reach, an exhausted parity schedule, unwalkable topology — and
+    /// the census used to answer all three with
     /// [`ValidationError::CensusEscalated`] over an
     /// [`Indeterminate`] it MINTED: predicate `pm_census_containment`,
     /// margin [`MarginDiag::Invalid`](geom_core::MarginDiag::Invalid).
@@ -2263,7 +2263,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::SeamOnNonPeriodic
-        | CertifyError::IntervalNotForward
+        | CertifyError::IntervalNotForward { .. }
         | CertifyError::WindingExceeded
         | CertifyError::ResidualExceeded { .. }
         | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. }) => MISMATCH,
@@ -2273,6 +2273,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
         CertifyError::NotSecondOrderSeparated { .. } => {
             "its faces agree to second order, so they do not fix where it runs, which its \
              description says they do"
+        }
+        CertifyError::TubeNotSeparated { .. } => {
+            "its faces are not certainly curving apart along it, so the check cannot prove they \
+             fix where it runs, which its description says they do"
         }
         CertifyError::PlaneNurbs(P::FootPointInconclusive { .. }) => {
             "the check could not locate the curve on its spline face (the projection did not \
@@ -2302,8 +2306,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::SeamOnNonPeriodic
-            | CertifyError::IntervalNotForward
-            | CertifyError::WindingExceeded
             | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
@@ -2313,8 +2315,11 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::ResidualExceeded { .. }
+            | CertifyError::IntervalNotForward { .. }
+            | CertifyError::WindingExceeded
             | CertifyError::NotTransverse { .. }
             | CertifyError::NotSecondOrderSeparated { .. }
+            | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
@@ -2381,7 +2386,7 @@ fn classify_offset_fit(
         O::Meter(m) => {
             // The lead says what the verdict decided: a zero verdict is
             // band-decided, so it says "may".
-            use geom_brep::offset_meters::Refused as R;
+            use geom_brep::recourse::Refused as R;
             let why = match m {
                 M::Escalated { .. } => {
                     "whether this face can be offset is too close to call at this tolerance"
@@ -2526,10 +2531,9 @@ fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
         ),
         ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
         ContainError::ArcLoopUnsupported { .. } => (
-            "its boundary is arcs over fewer than three corners, which the check cannot \
-             read as a region",
-            "Recourse: split an arc so the boundary has three corners, or draw the region \
-             as one circle",
+            "its boundary has a spiric or spline edge near a point the check asked about, \
+             which the check cannot yet read across",
+            "Recourse: model the boundary with lines, circles or ellipses",
         ),
     }
 }
@@ -4248,10 +4252,9 @@ pub(crate) fn shell_vertices<'b, T: Real>(
         .filter_map(move |v| vertex_point(body, v))
 }
 
-/// One shell's role, from its own sign walk through `quad` decided by
-/// check 7's [`plus_v_decide`] (`Pass` is `Outer`, `Refuse` is `Void`),
-/// or `None` where the walk refuses or the sign is still undecided when
-/// the schedule runs out.
+/// One shell's role, from its own sign walk through `quad` read by
+/// check 7's [`plus_v_read`], or `None` where the walk refuses or the
+/// sign is still undecided when the schedule runs out.
 pub(crate) fn shell_role<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -4259,18 +4262,13 @@ pub(crate) fn shell_role<T: Decide>(
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Option<crate::props::ShellRole> {
-    use crate::props::ShellRole;
     crate::props::sign_walk(
         body,
         faces,
         band,
         tol,
         quad,
-        |e| match plus_v_decide(e, band) {
-            PlusVOutcome::Pass => Some(Some(ShellRole::Outer)),
-            PlusVOutcome::Refuse => Some(Some(ShellRole::Void)),
-            PlusVOutcome::Undecided => None,
-        },
+        |e| plus_v_read(e, band).map(Some),
         |_| None,
     )
     .ok()
@@ -4392,26 +4390,39 @@ pub(crate) enum PlusVVerdict {
     Uncomputable(crate::props::MassPropsError),
 }
 
+/// Check 7's reading of one enclosure, as the role
+/// [`crate::props::ShellRole::decided_at`] gives it: the high end under
+/// `positive_volume` first, and the low end under
+/// `positive_volume_enclosure` only when the high end decides nothing.
+fn plus_v_read<T: geom_core::Decide>(
+    enclosure: crate::props::VolumeEnclosure<T>,
+    band: Band,
+) -> Option<crate::props::ShellRole> {
+    use crate::props::{BracketEnd, ShellRole};
+    let lever = enclosure.surface_area;
+    let role_at = |end, name, volume| {
+        decide(name, Margin::over_lever(volume, lever), band)
+            .ok()
+            .and_then(|sign| ShellRole::decided_at(end, sign))
+    };
+    role_at(BracketEnd::High, "positive_volume", enclosure.volume_hi).or_else(|| {
+        role_at(
+            BracketEnd::Low,
+            "positive_volume_enclosure",
+            enclosure.volume_lo,
+        )
+    })
+}
+
 fn plus_v_decide<T: geom_core::Decide>(
     enclosure: crate::props::VolumeEnclosure<T>,
     band: Band,
 ) -> PlusVOutcome {
-    let lever = enclosure.surface_area;
-    if let Ok(Sign::Negative) = decide(
-        "positive_volume",
-        Margin::over_lever(enclosure.volume_hi, lever),
-        band,
-    ) {
-        return PlusVOutcome::Refuse;
+    match plus_v_read(enclosure, band) {
+        Some(crate::props::ShellRole::Outer) => PlusVOutcome::Pass,
+        Some(crate::props::ShellRole::Void) => PlusVOutcome::Refuse,
+        None => PlusVOutcome::Undecided,
     }
-    if let Ok(Sign::Positive) = decide(
-        "positive_volume_enclosure",
-        Margin::over_lever(enclosure.volume_lo, lever),
-        band,
-    ) {
-        return PlusVOutcome::Pass;
-    }
-    PlusVOutcome::Undecided
 }
 
 /// **What an enclosure reading means once there is nothing left to
@@ -6121,9 +6132,8 @@ pub(crate) fn tier3_local_checks_marked<
     // `point_in_loop_*` and which this arm pools as a fourth consumer
     // the way `boolean::contfp` and the solid-containment sweep
     // already pool; an arc-bearing loop's rows are
-    // `point_in_arc_loop_*`, pooled with `solid_contain`'s in-face
-    // walk. `ring_nesting`'s doc says why the one-circle class gets no
-    // second instrument (`boolean::contain`'s `disc_side`).
+    // `point_in_arc_loop_*`, pooled with `boolean::contfp` and
+    // `solid_contain`'s in-face walk.
     //
     // The queries are the ring's VERTICES, exact whatever curve joins
     // them, so an arc-bearing RING is decided as readily as a
@@ -7070,25 +7080,11 @@ enum RingNestingVerdict {
 /// loop carries and however many vertices it has. On a loop of lines
 /// it is [`crate::splitting::point_in_loop`] unchanged.
 ///
-/// It is also the instrument for a loop of arcs of ONE circle, which
-/// `boolean::contain`'s `disc_side` decides in one radial margin — one
-/// instrument for every class, rather than two dispatched on the
-/// loop's shape. On that class the two share their band: the walk's
-/// only point-level row there is the radial gap
-/// (`point_in_arc_loop_conic_on`, levered at the radius), the same
-/// quantity as `disc_side`'s margin — computed differently, so the two
-/// can part by an ulp at the band's edge, and no further. Every other
-/// row it decides is about one RAY — a schedule member, a vertex's
-/// line, the circle's roots, an arc's ends, trimmed by distance so that
-/// no row compresses near an end — and an in-band margin there abandons
-/// that ray for the next, never the point (the soundness argument is
-/// at the ray loop of [`crate::splitting::containment::point_in_carrier_loop`]). What `disc_side` has over it is
-/// cost and immunity to a graze, and a schedule exhausted is reported,
-/// never guessed. The corpus-wide agreement of the two was measured
-/// once, by an instrument that did not land; what holds it now is
-/// `a_query_near_a_short_arcs_end_is_placed_not_escalated` (the shape
-/// where they once parted) and the disc-class rows here and in
-/// `topo_ring_nesting`.
+/// It is the walk `boolean::contfp` places a point on a face with, so
+/// check 9 and the census read one loop through one instrument. The
+/// one-circle class is held by
+/// `a_query_near_a_short_arcs_end_is_placed_not_escalated` and the
+/// disc-class rows here and in `topo_ring_nesting`.
 ///
 /// **What the walk cannot read**, and what that costs. An outer edge on
 /// a spiric or spline carrier has no crossing row: the walk answers
@@ -12512,8 +12508,8 @@ mod offset_fit_door_rows {
     #[test]
     fn a_meter_refusal_renders_whole_at_rest() {
         use geom_brep::OffsetFitError;
-        use geom_brep::offset_meters::{Meter, MeterError, Refused};
-        use geom_brep::recourse::Classified;
+        use geom_brep::offset_meters::{Meter, MeterError};
+        use geom_brep::recourse::{Classified, Refused};
         use geom_core::{Indeterminate, MarginDiag};
         const LEAD: &str = "a face's fitted offset surface no longer certifies against the surface it approximates";
         const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
@@ -12684,6 +12680,8 @@ mod offset_fit_door_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod certify_escalation_rows {
+    use geom_brep::PlaneNurbsRefusal as P;
+    use geom_brep::recourse::{Classified, Definite, Refused};
     use geom_brep::{CertCheck, CertifyError};
     use geom_core::{Band, Indeterminate, MarginDiag};
 
@@ -12708,6 +12706,13 @@ mod certify_escalation_rows {
                 band: Band::new(1.0e-9, 1.0e-8).unwrap(),
                 predicate: Some("a_probe"),
             },
+        })
+    }
+
+    fn tube_zero(margin: f64) -> Refused {
+        Refused::Zero(Classified {
+            margin,
+            band: Band::new(1.0e-9, 1.0e-8).unwrap(),
         })
     }
 
@@ -12780,28 +12785,67 @@ mod certify_escalation_rows {
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
             ),
-            // The lane's tube refusal is the transversality decision's
-            // decided Zero-or-Negative verdict: its lever alone, whatever
-            // clearance the certificate proved inside the zero band.
+            // A zero span is a defect, not data; a reversed one, and a
+            // winding past a full turn, are stored contradictions at rest.
             (
-                says(CertifyError::PlaneNurbs(
-                    geom_brep::PlaneNurbsRefusal::TubeStraddles {
-                        certified_clearance: 0.0,
-                        boxes: 4,
-                    },
-                )),
+                says(CertifyError::IntervalNotForward {
+                    verdict: Definite::Zero,
+                }),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::IntervalNotForward {
+                    verdict: Definite::Negative,
+                }),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::WindingExceeded),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            // The tangent tube's margin is a lower bound: a Negative is
+            // the certificate's limit, which the lever reaches.
+            (
+                says(CertifyError::TubeNotSeparated {
+                    band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                    verdict: Definite::Negative,
+                }),
+                "its faces are not certainly curving apart along it, so the check cannot prove \
+                 they fix where it runs, which its description says they do. Recourse: move the \
+                 geometry so the faces curve apart more clearly where they touch",
+            ),
+            // The lane's tube refusal is the transversality decision's
+            // verdict: a Zero clearance is band-decided, and quotes the
+            // tolerance below `m/K` where the certificate proved one; a
+            // Negative one is a stored contradiction.
+            (
+                says(CertifyError::PlaneNurbs(P::TubeStraddles {
+                    verdict: tube_zero(0.0),
+                    boxes: 4,
+                })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
                  runs. Recourse: move the geometry so the faces cross at a clearer angle",
             ),
             (
-                says(CertifyError::PlaneNurbs(
-                    geom_brep::PlaneNurbsRefusal::TubeStraddles {
-                        certified_clearance: 3.0e-10,
-                        boxes: 4,
-                    },
-                )),
+                says(CertifyError::PlaneNurbs(P::TubeStraddles {
+                    verdict: tube_zero(3.0e-10),
+                    boxes: 4,
+                })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
-                 runs. Recourse: move the geometry so the faces cross at a clearer angle",
+                 runs. Recourse: move the geometry so the faces cross at a clearer angle, or, \
+                 if this angle is intended, tighten the tolerance below 3e-11 m",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(P::TubeStraddles {
+                    verdict: Refused::Negative { margin: -3.0e-9 },
+                    boxes: 4,
+                })),
+                "its faces are not certainly crossing along it, so they do not fix where it \
+                 runs. There is no way through: this is a kernel defect or a damaged file; \
+                 report it",
             ),
         ];
         for (msg, tail) in rows {

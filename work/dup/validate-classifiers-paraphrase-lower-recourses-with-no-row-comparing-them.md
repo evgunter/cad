@@ -103,5 +103,5 @@ Ev agreed (*"sounds good!"*) to this instead:
 
 `Reading` stays in `geom-brep`, and D4 gains no sentence.
 `CertifyError::ending` (#3351) stays as it is: there, the ending is
-the band decision's own. The design-fork record is row 8 of
+the band decision's own. The design-fork record is row 9 of
 `docs/DESIGN-FORK-LOG.md`.

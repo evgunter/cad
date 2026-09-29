@@ -1182,3 +1182,47 @@ class of 65 sites is PRED's row.
   - **Full review:** approve-with-fixes. It checked D4 conformance on every arm, and certify byte-identical over 660 rows apart from the disclosed note.
   - **Fix pass:** verdict-keyed at-rest leads; a report clause on the zero floor (`at_zero`); the "unreadable or collapsed" note; pins that tell floor from thinness; wider escalation pins; the D4 paraphrase in rows replaced by a pointer.
   - **Filed on other slates:** contact, paths, band, ssi, props, plus encl `checks-escalated-evidence-says-lower-the-tolerance`. Seam notes posted.
+- 2026-09-28 — Triaged the three rows the rollout filed:
+  - `certify-span-and-zero-arms-…` (P3/M) is dispatched on `encl/certify-span-zero-arms`.
+  - `checks-escalated-evidence-says-lower-the-tolerance` (P3/E) is dispatched on `encl/checks-escalated-evidence`.
+  - `validate-own-close-levers-…` (P3/M) is held until certify-span lands, because both touch `validate.rs`'s certify and own-close endings.
+- 2026-09-28 — PR 3392 merged (`277dcb052b`, head `7e4c4e52c1`, hosted green). Row `certify-span-and-zero-arms-…` closed.
+  - **Full review:** approve-with-fixes.
+  - **Fix pass:**
+    - The tangent tube is its own decision (`TubeNotSeparated`), with its Negative as the lever alone.
+    - The zero span is restored to a defect per Ev's `e1600790f9`; the conflict with D4 ¶1 (i) is recorded for the fork.
+    - The collision with PR 3380 is recorded.
+    - The verdict is pinned at the construction sites.
+  - **Filed:**
+    - `certify-zero-arms-quote-no-margin-without-a-seam` (P3/M, design: needs a fork after 3380 settles);
+    - `certify-collapsed-arm-gates-route-as-the-decision-they-guard` (P3/M).
+  - Seam notes posted.
+- 2026-09-28 — Dispatched `validate-own-close-levers-follow-the-d4-recourse-ruling` (P3/M) on `encl/validate-own-close-levers`.
+- 2026-09-28 — PR 3390: the delta re-review returned approve-with-fixes. Round 2 is in flight:
+  - the straddle is ε-decided, so it ends as `Zero(None)` and `RefusedArm::Straddles` is deleted;
+  - "zero at this tolerance";
+  - `lean()` reads only decided signs;
+  - `recourse` unit tests.
+- 2026-09-29 — PR 3390 merged (`719ef596a1`, head `a8f2106e3e`, hosted green). Row `checks-escalated-evidence-…` closed.
+  - **Style review:** REQUEST-CHANGES (C1: the shell volume sign is a sized decision under D4 ¶1 (i)).
+  - **Fix round 1:** routed through `SizedDecision` with `SizedPass::NonZero`; ending on the Display.
+  - **Delta re-review:** the straddle is ε-decided; "zero at this tolerance"; lean only on decided signs.
+  - **Fix round 2:** all taken, and merged with 3392.
+  - **Filed:** `checks-void-side-shell-escalation-has-no-live-fixture` (P3/E).
+  - Seam notes posted.
+- 2026-09-29 — PR 3398 (validate own-close) opened. CI was red on the payload-rung gate (`WedgeCheck`); fixed (argued non-carriage, and a LIB row filed). Full review running.
+- 2026-09-29 — Ev answered `[ev]` PR 3380: "the real fix should be filed as p1 … as a stopgap for the message it seems reasonable to suggest setting eps to eps_in".
+  - D4 ¶1 now carries the stopgap clause, and the fork-log second half is filled in. It is row 7, since main added a row 6.
+  - I answered the program question on the PR: EXCH.
+  - **Filed:**
+    - `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation` (P1/H), the D7 rebuild stage;
+    - `work/encl/adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` (P2/M), the follow-through. It is held until PR 3398 lands, since both touch `recourse.rs`.
+  - Closed `adoption-certification-has-no-eps-in-lever`.
+  - **Orchestrator slip:** committing the main merge on the `[ev]` branch left a conflict block in the fork log (`08eba8f88c`). I fixed it forward in `5bb3585ded`. Check `git merge`'s exit before editing, not only before committing.
+- 2026-09-29 — Opened design fork `encl-zero-arm-margin` on `certify-zero-arms-quote-no-margin-without-a-seam`. It covers the unvalued tighten on certify's Zero arms, the Bounds scope rule, and the zero span (D4 ¶1 (i) against Ev's `e1600790f9`), with 3380's door as the consumer. The blinding byte is on `analysis/design-fork/encl-zero-arm-margin` (protocol `bb10a4cdd4`). Two designers were dispatched concurrently with the same problem statement.
+- 2026-09-29 — Design fork `encl-zero-arm-margin` put to Ev as `[ev]` PR 3402. `certify-zero-arms-…` has `needs_ev: true`.
+  - **Both first reports converged:** the classifier's `MarginDiag` rides the Zero verdict; `Zero(None)`/`tighten(None)`/`Definite` are deleted; the zero span goes through D4 ¶1 (i) with an m ≤ 0 note; Bounds clause 2 gains one sentence (the diff); D4 ¶1 (i) is unchanged; the import door reads a structured verdict.
+  - **Split, on the mechanism:** A would have every outcome of `sign_within` carry the view; B would add a named `decide_sized` door. There was no reconciliation round.
+  - **Correction:** "a zero span is always a defect" (`e1600790f9`) is co-authored fix-pass text, not Ev's ruling, contrary to my brief and to the 3392 row's attribution. The PR says so.
+  - Void-side fixture PR 3401 is open and read; it merges on green.
+- 2026-09-29 — PR 3401 merged (`c7c44c49ab`): a live void-side shell escalation fixture (`dsc_checks::in_band_void_shell_escalates_with_its_valued_ending`) pins the valued ending at every eps. The direct thin-tool subtract refuses at the Boolean's own orientation read, which is correct fail-loud. Row closed.
