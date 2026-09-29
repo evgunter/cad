@@ -58,6 +58,7 @@
 
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::{Interval, Point3, SupSpeed, Vec3};
 
 use super::SsiError;
@@ -735,7 +736,7 @@ fn sweep_chart_plane(
             // arithmetic leaves the finite range before this sweep
             // runs, so that cause is named nowhere below.
             return Err(SsiError::UnsupportedCertificate {
-                what: "the NURBS control-net enclosure poisoned over a cell — \
+                what: "the NURBS control-net enclosure refused over a cell — \
                        a weight so small that the rational's own denominator \
                        underflows to zero",
             });

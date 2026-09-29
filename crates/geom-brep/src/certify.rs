@@ -4009,6 +4009,7 @@ mod tests {
     #[test]
     fn the_tangent_tube_site_carries_its_verdict() {
         use geom_core::Interval;
+        use geom_core::interval::certification::Certification;
         let band = Band::new(1e-9, 1e-8).unwrap();
         let point = Interval::point;
         let zero = |m| Refused::Zero(Classified { margin: m, band });

@@ -37,7 +37,7 @@ use std::f64::consts::{PI, TAU};
 use crate::common::approx::band;
 use crate::common::interval::{iv, p2, v2};
 use geom::Surface;
-use geom_core::{Bounds, Interval, Point2, Point3, Tol, Vec3};
+use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{

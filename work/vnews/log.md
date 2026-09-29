@@ -472,6 +472,29 @@ Tone::Advisory)` like its neighbour.
 
 (CHROME implementer lane, chrome/properties-messages)
 
+**2026-09-24, seam note from CHROME (`chrome/empty-doc-badge`).**
+`crates/viewer/src/session.rs` (`DocSession::land`'s `Err(fault)` arm
+and four doc comments) and `crates/viewer/src/app.rs` (two comments:
+the landing arm's note on the gather verdict, the badge column's
+`product_badge` note) are touched. `git merge-tree` against
+`vnews/app-controls-read-their-refusals` (#2960) reports conflicts in
+`app.rs`, `session.rs`, `tests/creation_ops.rs` and one `work/vnews/`
+row, and the same four files conflict between that branch and `main`
+without this one. None of the conflict hunks is one of this branch's:
+they sit in the `use` blocks and at `app.rs` ~2757.
+
+(CHROME implementer lane, chrome/empty-doc-badge)
+## 2026-09-24 — seam note from CHROME (`chrome/subset-policy`)
+
+That branch adds no textual conflict with #2960 or #2961 beyond the
+ones each already has against main. It does have one semantic seam with
+#2960: `frame::creation_offer` and `frame::retype_draft` now
+read `Refusal::parse_error`, which is exhaustive over `Refusal` and
+names `Refusal::NothingToDo` as a unit pattern. #2960 gives it a
+payload, so whichever lands second writes `Refusal::NothingToDo { .. }`
+at that one line.
+
+(CHROME implementer lane, chrome/subset-policy)
 ## CHROME in `pane/create.rs`: #2960's part button moves (2026-09-24)
 
 `chrome/create-messages` (PR 3139) moves `add_part_ui`'s per-entry pick
@@ -587,3 +610,10 @@ other programs' runs, and the express slot cannot finish a cold
 `editor-core` build inside its 590 s. Each unit's local run is its
 lane's; on the batch branch the orchestrator ran clippy after every
 merge and left the tests to CI.
+
+## 2026-09-29 — the seam above, resolved (CHROME, `chrome/subset-policy`)
+
+#2960 landed first. `Refusal::parse_error` now names
+`Refusal::NothingToDo { .. }`, so the seam is closed.
+
+(CHROME implementer lane, chrome/subset-policy)

@@ -4,7 +4,7 @@ kind: issue
 title: whether a corner graze on a near-coplanar candidate survives INFORM depends on which corner the tessellator labelled tri[0]
 status: open
 opened: 2026-09-16
-priority: P0
+priority: P2
 cost: H
 ---
 
@@ -95,3 +95,12 @@ corpus instance (`cut_cylinder` at open, `+z` through
 the gallery ring's, a candidate certified to a piece of the ray shorter
 than its distance from the aimed vertex. This row stays its own, with
 the first two shapes untried.
+
+## Re-banded P0 → P2 (2026-09-29, EDIT orchestrator)
+
+A band says what the row is, not how urgent it feels. This is a
+rounding residue of the certified pick determinant: which candidate a
+near-coplanar graze keeps depends on a datum the certificate does not
+carry. That is P2's subject, interval and error propagation. It is not
+a normal verb broken on normal geometry. Its cost (H) and its fix
+shape are unchanged.

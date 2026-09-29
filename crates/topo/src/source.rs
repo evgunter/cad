@@ -12,10 +12,36 @@
 //! descriptions, by D9 determinism of expression evaluation. The
 //! converse is deliberately NOT claimed — equal bits without shared
 //! source stay unglued (the coincidence ladder's ratified rung (b)).
-//! The bit comparison survives only as the debug assertions behind
-//! the lookup, read through [`plane_bits_witness`] — which answers
+//! The bit comparison survives only as debug assertions, read through
+//! `surface_bits_witness` and `data_bits_witness` — which answer
 //! nothing at a scalar with no bit channel, so the theorem is asserted
-//! exactly where its premise can be read.
+//! exactly where its premise can be read. Its home is
+//! [`crate::Body::set_surface_source`], against every key of the body
+//! as a stamp lands. Two readers assert it again, each over pairs that
+//! door never compared: the face merge, whose body may hold stamps a
+//! graft carried in (`Body::carry_surface_rows` copies rows unread),
+//! and `oriented_plane_eq`'s rung 1, whose planes may come from two
+//! bodies and whose mirrored pair no stamp states. Chart-region's
+//! cross-body read needs a verdict rather than an assertion, and
+//! decides it through its own exact-bracket comparator.
+//!
+//! # Two questions called "same chart"
+//!
+//! - **Do two keys hold one description?** Row carry asks it: a pcurve
+//!   row moves to another surface key only if it is about the value that
+//!   key holds. `Body::same_chart` answers from identity — one
+//!   key, or one shared payload `Arc`.
+//! - **Did the recipe declare two keys one surface?** Gluing and merging
+//!   ask it. `surface_declaration` answers from one key or one
+//!   `GeomSource` (N6); the face merge adds the faces' `sense`, since it
+//!   asks whether two faces are one region, and chart-region adds its
+//!   bracketed read of the descriptions.
+//!
+//! Neither reads the other's evidence. A stamp declares intent and
+//! proves no value, so a row carried on one could land on a surface it
+//! is not about; and identity is not a declaration, so gluing on it would
+//! glue what the recipe never said was one — the coincidence ladder's
+//! rung (b), turned from equal bits to a shared payload.
 //!
 //! **Layering**: the recipe vocabulary (node ids, expression paths)
 //! lives in `editor-core`, which depends on this crate — so the
@@ -181,11 +207,71 @@ impl core::fmt::Display for SourceAttachError {
 
 impl std::error::Error for SourceAttachError {}
 
-/// Debug-only bit agreement of two same-source plane descriptions —
-/// the DESIGN.md M4 "records agree with bits" assertion, N6's
-/// `debug_assert!(same_source ⇒ eq_bits)`. `opposite` = the sources'
-/// orients differ (a `revert` pair): the normal must then be the
-/// exact IEEE negation, the origin unchanged (see `revert`'s map).
+/// What the recipe declared about two surface keys — the module docs'
+/// second question, asked of keys on one body or on two. The key rung
+/// exists only when `body_a` and `body_b` are one body: arena keys mean
+/// nothing across arenas.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SurfaceDeclaration {
+    /// One key of one body.
+    SameKey,
+    /// Two keys stamped with one [`GeomSource`], orientation included.
+    SameSource,
+    /// One source base under opposite orientations: the recipe declared
+    /// the one surface and its reversal, whose charts mirror.
+    Mirrored,
+    /// Two different sources: equal-but-independent descriptions do not
+    /// glue.
+    DistinctSources,
+    /// A key with no source: nothing is declared.
+    Unsourced,
+}
+
+impl SurfaceDeclaration {
+    /// The recipe declared the two keys one surface.
+    pub(crate) fn one_surface(self) -> bool {
+        matches!(self, Self::SameKey | Self::SameSource)
+    }
+}
+
+/// [`SurfaceDeclaration`] of surface `a` on `body_a` and `b` on
+/// `body_b`: a provenance lookup that reads no scalar.
+pub(crate) fn surface_declaration<T: geom_core::Real>(
+    body_a: &crate::Body<T>,
+    a: crate::SurfaceKey,
+    body_b: &crate::Body<T>,
+    b: crate::SurfaceKey,
+) -> SurfaceDeclaration {
+    if core::ptr::eq(body_a, body_b) && a == b {
+        return SurfaceDeclaration::SameKey;
+    }
+    source_declaration(body_a.surface_source(a), body_b.surface_source(b))
+}
+
+/// [`SurfaceDeclaration`] of two descriptions by their sources alone —
+/// [`surface_declaration`] past its key rung, and the whole question
+/// where the descriptions have no keys (a face's outward plane, whose
+/// source has the face's `sense` composed into `orient`). Never
+/// [`SurfaceDeclaration::SameKey`].
+pub(crate) fn source_declaration(
+    a: Option<&GeomSource>,
+    b: Option<&GeomSource>,
+) -> SurfaceDeclaration {
+    match (a, b) {
+        (Some(x), Some(y)) if x == y => SurfaceDeclaration::SameSource,
+        (Some(x), Some(y)) if x.same_base(y) => SurfaceDeclaration::Mirrored,
+        (Some(_), Some(_)) => SurfaceDeclaration::DistinctSources,
+        _ => SurfaceDeclaration::Unsourced,
+    }
+}
+
+/// Assertion-build agreement of two surface descriptions of any kind:
+/// the analytic kinds through [`geom::Surface::paired_with`]'s one walk
+/// of their data, the spline kinds through their payloads. Two
+/// different kinds, or two NURBS nets of different shape, disagree at
+/// any scalar; a shared payload `Arc` agrees unread; otherwise every
+/// part is compared, and a part that differs decides the answer even
+/// where another part has no bit channel to read.
 ///
 /// **Tri-state, because the theorem's premise is not readable at
 /// every scalar.** `eq_bits` answers `None` where the scalar has no
@@ -201,164 +287,18 @@ impl std::error::Error for SourceAttachError {}
 /// (the CI tripwire allowlists this file on exactly that
 /// justification).
 #[cfg(debug_assertions)]
-pub(crate) fn plane_bits_witness<T: geom_core::Real>(
-    o1: geom_core::Point3<T>,
-    n1: geom_core::Vec3<T>,
-    o2: geom_core::Point3<T>,
-    n2: geom_core::Vec3<T>,
-    opposite: bool,
-) -> Option<bool> {
-    let n2 = if opposite { -n2 } else { n2 };
-    let pairs = [
-        (o1.x, o2.x),
-        (o1.y, o2.y),
-        (o1.z, o2.z),
-        (n1.x, n2.x),
-        (n1.y, n2.y),
-        (n1.z, n2.z),
-    ];
-    bits_witness(pairs)
-}
-
-/// Debug-only bit agreement of two vectors (the `u_ref` leg of the
-/// merge-site assertion; same posture and same tri-state as
-/// [`plane_bits_witness`]).
-#[cfg(debug_assertions)]
-pub(crate) fn vec3_bits_witness<T: geom_core::Real>(
-    a: geom_core::Vec3<T>,
-    b: geom_core::Vec3<T>,
-) -> Option<bool> {
-    bits_witness([(a.x, b.x), (a.y, b.y), (a.z, b.z)])
-}
-
-/// Assertion-build agreement of two surface descriptions of any kind — the
-/// check behind [`crate::Body::set_surface_source`], with the tri-state
-/// of [`plane_bits_witness`]. Two different kinds, or two NURBS nets of
-/// different shape, disagree at any scalar; a shared payload `Arc`
-/// agrees unread; otherwise every part is compared, and a part that
-/// differs decides the answer even where another part has no bit
-/// channel to read.
-#[cfg(debug_assertions)]
 pub(crate) fn surface_bits_witness<T: geom_core::Real>(
     a: &geom::Surface<T>,
     b: &geom::Surface<T>,
 ) -> Option<bool> {
-    use geom::Surface as S;
-    let p = |x: geom_core::Point3<T>, y: geom_core::Point3<T>| {
-        bits_witness([(x.x, y.x), (x.y, y.y), (x.z, y.z)])
-    };
-    let v = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
-        bits_witness([(x.x, y.x), (x.y, y.y), (x.z, y.z)])
-    };
-    let s = |x: T, y: T| bits_witness([(x, y)]);
-    match *a {
-        S::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
-            let S::Plane {
-                origin: o,
-                normal: n,
-                u_ref: r,
-            } = *b
-            else {
-                return Some(false);
-            };
-            joined([p(origin, o), v(normal, n), v(u_ref, r)])
-        }
-        S::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            let S::Cylinder {
-                origin: o,
-                axis: ax,
-                radius: r,
-                u_ref: u,
-            } = *b
-            else {
-                return Some(false);
-            };
-            joined([p(origin, o), v(axis, ax), s(radius, r), v(u_ref, u)])
-        }
-        S::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
-            let S::Cone {
-                apex: o,
-                axis: ax,
-                half_angle: h,
-                u_ref: u,
-            } = *b
-            else {
-                return Some(false);
-            };
-            joined([p(apex, o), v(axis, ax), s(half_angle, h), v(u_ref, u)])
-        }
-        S::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => {
-            let S::Sphere {
-                center: c,
-                radius: r,
-                axis: ax,
-                u_ref: u,
-            } = *b
-            else {
-                return Some(false);
-            };
-            joined([p(center, c), s(radius, r), v(axis, ax), v(u_ref, u)])
-        }
-        S::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => {
-            let S::Torus {
-                center: c,
-                axis: ax,
-                major_radius: big,
-                minor_radius: small,
-                u_ref: u,
-            } = *b
-            else {
-                return Some(false);
-            };
-            joined([
-                p(center, c),
-                v(axis, ax),
-                s(major_radius, big),
-                s(minor_radius, small),
-                v(u_ref, u),
-            ])
-        }
-        S::Nurbs(ref x) => {
-            let S::Nurbs(ref y) = *b else {
-                return Some(false);
-            };
-            if std::sync::Arc::ptr_eq(x, y) {
-                return Some(true);
-            }
-            nurbs_surface_bits_witness(x, y)
-        }
-        S::Approx(ref x) => {
-            let S::Approx(ref y) = *b else {
-                return Some(false);
-            };
-            if std::sync::Arc::ptr_eq(x, y) {
-                return Some(true);
-            }
+    use geom::SurfacePairing as P;
+    match a.paired_with(b) {
+        P::KindsDiffer => Some(false),
+        P::Analytic(data) => data_bits_witness(data.pairs().map(|(_, x, y)| (x, y))),
+        P::Nurbs(x, y) if std::sync::Arc::ptr_eq(x, y) => Some(true),
+        P::Nurbs(x, y) => nurbs_surface_bits_witness(x, y),
+        P::Approx(x, y) if std::sync::Arc::ptr_eq(x, y) => Some(true),
+        P::Approx(x, y) => {
             let (wx, wy) = (x.window(), y.window());
             let window = bits_witness([
                 (wx.u.0, wy.u.0),
@@ -369,6 +309,19 @@ pub(crate) fn surface_bits_witness<T: geom_core::Real>(
             joined([window, nurbs_surface_bits_witness(x.fit(), y.fit())])
         }
     }
+}
+
+/// Assertion-build agreement of paired data, datum by datum, with
+/// [`surface_bits_witness`]'s tri-state.
+#[cfg(debug_assertions)]
+pub(crate) fn data_bits_witness<T: geom_core::Real>(
+    pairs: impl IntoIterator<Item = (geom::DatumValue<T>, geom::DatumValue<T>)>,
+) -> Option<bool> {
+    joined(
+        pairs
+            .into_iter()
+            .map(|(x, y)| bits_witness(x.scalars().zip(y.scalars()))),
+    )
 }
 
 /// Assertion-build agreement of two NURBS surfaces: degrees and counts
@@ -682,3 +635,200 @@ impl core::fmt::Display for AxisAttachError {
 }
 
 impl std::error::Error for AxisAttachError {}
+
+#[cfg(test)]
+mod tests {
+    use geom::{Surface, SurfaceDatum as D};
+    use geom_core::{Point3, Vec3};
+
+    /// One analytic kind: a builder over a flat scalar list, the list,
+    /// and which scalars each datum owns — written against the
+    /// variant's fields, not read off the walk under test.
+    type Kind = (
+        fn(&[f64]) -> Surface<f64>,
+        Vec<f64>,
+        Vec<(D, core::ops::Range<usize>)>,
+    );
+
+    fn kinds() -> Vec<Kind> {
+        fn pt(x: &[f64]) -> Point3<f64> {
+            Point3::new(x[0], x[1], x[2])
+        }
+        fn dir(x: &[f64]) -> Vec3<f64> {
+            Vec3::new(x[0], x[1], x[2])
+        }
+        vec![
+            (
+                |x| Surface::Plane {
+                    origin: pt(&x[0..3]),
+                    normal: dir(&x[3..6]),
+                    u_ref: dir(&x[6..9]),
+                },
+                vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+                vec![(D::Origin, 0..3), (D::Normal, 3..6), (D::URef, 6..9)],
+            ),
+            (
+                |x| Surface::Cylinder {
+                    origin: pt(&x[0..3]),
+                    axis: dir(&x[3..6]),
+                    radius: x[6],
+                    u_ref: dir(&x[7..10]),
+                },
+                vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 2.0, 1.0, 0.0, 0.0],
+                vec![
+                    (D::Origin, 0..3),
+                    (D::Axis, 3..6),
+                    (D::Radius, 6..7),
+                    (D::URef, 7..10),
+                ],
+            ),
+            (
+                |x| Surface::Cone {
+                    apex: pt(&x[0..3]),
+                    axis: dir(&x[3..6]),
+                    half_angle: x[6],
+                    u_ref: dir(&x[7..10]),
+                },
+                vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 0.5, 1.0, 0.0, 0.0],
+                vec![
+                    (D::Apex, 0..3),
+                    (D::Axis, 3..6),
+                    (D::HalfAngle, 6..7),
+                    (D::URef, 7..10),
+                ],
+            ),
+            (
+                |x| Surface::Sphere {
+                    center: pt(&x[0..3]),
+                    radius: x[3],
+                    axis: dir(&x[4..7]),
+                    u_ref: dir(&x[7..10]),
+                },
+                vec![1.0, 2.0, 3.0, 2.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+                vec![
+                    (D::Center, 0..3),
+                    (D::Radius, 3..4),
+                    (D::Axis, 4..7),
+                    (D::URef, 7..10),
+                ],
+            ),
+            (
+                |x| Surface::Torus {
+                    center: pt(&x[0..3]),
+                    axis: dir(&x[3..6]),
+                    major_radius: x[6],
+                    minor_radius: x[7],
+                    u_ref: dir(&x[8..11]),
+                },
+                vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 3.0, 1.0, 1.0, 0.0, 0.0],
+                vec![
+                    (D::Center, 0..3),
+                    (D::Axis, 3..6),
+                    (D::MajorRadius, 6..7),
+                    (D::MinorRadius, 7..8),
+                    (D::URef, 8..11),
+                ],
+            ),
+        ]
+    }
+
+    /// Every field-by-field reader of a surface reads every scalar:
+    /// each scalar of each analytic kind, changed alone, is a
+    /// difference to both comparators (the assertion build's bit
+    /// witness and chart-region's bracketed read), and made NaN alone,
+    /// is named by check 1's poison read. A walk that skips a field, at
+    /// any of them, leaves that field's rows green where they must be
+    /// red.
+    #[test]
+    fn every_surface_reader_reads_every_scalar() {
+        for (build, base, fields) in kinds() {
+            let at_rest = build(&base);
+            let kind = format!("{at_rest:?}");
+            assert!(
+                crate::chart_region::surface_bits_equal(&at_rest, &build(&base)),
+                "{kind}: a surface must read bit-equal to its own copy"
+            );
+            #[cfg(debug_assertions)]
+            assert_eq!(
+                super::surface_bits_witness(&at_rest, &build(&base)),
+                Some(true),
+                "{kind}: the witness must read a copy as agreeing"
+            );
+            assert!(
+                crate::validate::poisoned_datums(&at_rest).is_empty(),
+                "{kind}: a finite surface has no poisoned datum"
+            );
+            assert_eq!(
+                fields.last().map(|(_, r)| r.end),
+                Some(base.len()),
+                "{kind}: the fixture's fields cover its scalars"
+            );
+            for (datum, scalars) in fields {
+                for i in scalars {
+                    let mut moved = base.clone();
+                    moved[i] += 0.5;
+                    let moved = build(&moved);
+                    assert!(
+                        !crate::chart_region::surface_bits_equal(&at_rest, &moved),
+                        "{kind}: chart-region's read missed a change to {} (scalar {i})",
+                        datum.name()
+                    );
+                    #[cfg(debug_assertions)]
+                    assert_eq!(
+                        super::surface_bits_witness(&at_rest, &moved),
+                        Some(false),
+                        "{kind}: the bit witness missed a change to {} (scalar {i})",
+                        datum.name()
+                    );
+                    let mut poisoned = base.clone();
+                    poisoned[i] = f64::NAN;
+                    assert_eq!(
+                        crate::validate::poisoned_datums(&build(&poisoned)),
+                        vec![datum],
+                        "{kind}: check 1 missed a NaN in {} (scalar {i})",
+                        datum.name()
+                    );
+                }
+            }
+        }
+    }
+
+    /// **What each declaration says, and how it is reached.** Only one
+    /// key or one source (orientation included) declares one surface;
+    /// a source and its reversal declare a surface and its mirror,
+    /// whose outward sides face apart, so a face on each does not glue.
+    #[test]
+    fn a_declaration_is_one_surface_only_for_one_key_or_one_source() {
+        use super::{GeomSource, SurfaceDeclaration as S, surface_declaration};
+        let plane = || Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let mut body = crate::Body::<f64>::new();
+        let [a, b, c, d, e] = [(); 5].map(|()| body.add_surface(plane()));
+        let source = GeomSource::minted(7, 0);
+        for (key, stamp) in [
+            (a, source.clone()),
+            (b, source.clone()),
+            (c, source.reverted()),
+            (d, GeomSource::minted(7, 1)),
+        ] {
+            assert_eq!(body.set_surface_source(key, stamp), Ok(()));
+        }
+        let other = crate::Body::<f64>::new();
+        for (x, y, on, declared, one) in [
+            (a, a, &body, S::SameKey, true),
+            (a, b, &body, S::SameSource, true),
+            (a, c, &body, S::Mirrored, false),
+            (a, d, &body, S::DistinctSources, false),
+            (a, e, &body, S::Unsourced, false),
+            // One key on two bodies is two arena slots, not one key.
+            (e, e, &other, S::Unsourced, false),
+        ] {
+            let answer = surface_declaration(&body, x, on, y);
+            assert_eq!(answer, declared, "{x:?} against {y:?}");
+            assert_eq!(answer.one_surface(), one, "{declared:?}.one_surface()");
+        }
+    }
+}

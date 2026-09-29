@@ -665,15 +665,10 @@ pub enum RankedVerdict {
 /// changing, where a door chosen by reading the callee's arms would
 /// have become a writer the ranking never saw.
 ///
-/// **Every arm is written out**, and a wildcard for the two
-/// non-`Show` ones would defeat the whole door: it would route a
-/// variant added later to the field by default, which is exactly the
-/// defect this exists to stop, and it would be added at a diff where
-/// nothing looked wrong. The variant that most wants that treatment is
-/// the one it would be most wrong for — a future `Show`-shaped arm is
-/// news by construction. So the compiler carries the rule, and the
-/// arms below say which side each of today's is on rather than
-/// leaving it to be read off a binding's name.
+/// **The variant that would most want the field by default is the one
+/// it would be most wrong for**: a future `Show`-shaped arm is news by
+/// construction. So the arms below say which side each of today's is
+/// on rather than leaving it to be read off a binding's name.
 ///
 /// A policy's verdict cannot be handed to the other door — this does
 /// not build:
@@ -749,7 +744,54 @@ pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
 /// expression-driven affordance off the screen the instant the mouse
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
-    !matches!(op, SessionOp::Hover(_))
+    match op {
+        SessionOp::Hover(_) => false,
+        SessionOp::Select(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::CancelGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Open(_)
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove { .. }
+        | SessionOp::CancelFreeMove
+        | SessionOp::AddMate { .. }
+        | SessionOp::NewDocument { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
+        | SessionOp::AddBoolean { .. }
+        | SessionOp::AddSplit { .. }
+        | SessionOp::AddTransform { .. }
+        | SessionOp::AddPattern { .. }
+        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFillet { .. }
+        | SessionOp::AddChamfer { .. }
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
+        | SessionOp::AddInstance { .. } => true,
+    }
 }
 
 /// The status line after a batch: the refusal worth showing, or the
@@ -856,8 +898,7 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// ([`Message::new`] has no default), not of the pair: the ranking
 /// reads it without asking what refused. **Which kinds ride is not
 /// listed here**, on purpose: each door that makes a notice answers
-/// for its own arms, where a new arm is a compile error until its
-/// author answers, and gives its reasons there — [`Withdrawal::notice`],
+/// for its own arms and gives its reasons there — [`Withdrawal::notice`],
 /// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
 /// every typed refusal door with its own one-line reason. A census here
 /// would be a second copy that nothing checks against the first.
@@ -916,8 +957,13 @@ pub fn frame_status(
                 .collect();
             RankedVerdict::Show(Message::joined(joined_subject(&line), &line))
         }
-        verdict if notices.is_empty() => verdict,
-        _ => RankedVerdict::Show(Message::joined(joined_subject(notices), notices)),
+        verdict @ (RankedVerdict::Keep | RankedVerdict::Clear) => {
+            if notices.is_empty() {
+                verdict
+            } else {
+                RankedVerdict::Show(Message::joined(joined_subject(notices), notices))
+            }
+        }
     }
 }
 
@@ -1275,12 +1321,11 @@ impl<'a> Withdrawal<'a> {
 
     /// This withdrawal as a notice for [`frame_status`]'s rank 2.
     ///
-    /// **Every kind answers [`Retold`] for itself**, so a fourth kind
-    /// is a compile error here rather than inheriting its siblings'
-    /// answer. All three are [`Retold::Never`] today, each over its own
-    /// symptom — the part drawn at its mated pose; the geometry drawn
-    /// again, or the instance gone; the part no longer following the
-    /// hand, and a later drag refused as having none in flight. None of
+    /// **Every kind answers [`Retold`] for itself.** All three are
+    /// [`Retold::Never`] today, each over its own symptom — the part
+    /// drawn at its mated pose; the geometry drawn again, or the
+    /// instance gone; the part no longer following the hand, and a
+    /// later drag refused as having none in flight. None of
     /// those says that an edit took the placement, the hide or the drag,
     /// or which fault took it; only this sentence does.
     pub fn notice(&self) -> Message {
@@ -1367,10 +1412,6 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 ///   row that names the ancestor, not the strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
-///
-/// The match names every arm, so a fifth is a compile error here
-/// rather than a row that reaches the outcome and is never worded —
-/// or is worded and silently given its siblings' answer.
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } => Retold::Never,
@@ -1390,7 +1431,12 @@ impl core::fmt::Display for Withdrawal<'_> {
             kind: which,
             withdrawn,
         } = self;
-        let fused = |w: &Withdrawn| matches!(w.cause, AdmissionFault::FusedGeometry { .. });
+        let fused = |w: &Withdrawn| match w.cause {
+            AdmissionFault::FusedGeometry { .. } => true,
+            AdmissionFault::NoSuchNode { .. }
+            | AdmissionFault::NotAnInstance { .. }
+            | AdmissionFault::MateConstrained { .. } => false,
+        };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
         // in flight, so it has no plural and is NOT given one: a
@@ -2013,10 +2059,6 @@ pub fn pick_refusal(error: &PickError) -> Message {
 /// and rides beside a refusal ([`frame_status`]). A **declined pick**
 /// took nothing: the held picks are untouched and the same pick says
 /// the same sentence again, so it is [`Retold::Again`].
-///
-/// Every arm of every tool's event vocabulary is named, each with its
-/// own answer, so an event added to one is a compile error here and its
-/// author decides which side it is on.
 pub fn tool_notice(notice: &ToolNotice) -> Message {
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
@@ -2062,9 +2104,8 @@ pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
-/// for a part document and before anything lands — which is
-/// [`crate::session::DocSession::at_rest`]'s own `None`, passed
-/// through.
+/// exactly when [`crate::session::DocSession::at_rest`] is — its own
+/// `None`, passed through; that doc says when.
 ///
 /// A certified assembly is [`Tone::Advisory`]: the verdict is good
 /// news and there is nothing to act on. A refusal is
@@ -2183,12 +2224,6 @@ enum BadgeSite {
 
 /// Which channel reports a refusal of this class, if any.
 ///
-/// A `match` rather than a predicate, and that is the point: it is
-/// exhaustive over [`ProductErrorKind`], so an eleventh class reds
-/// this crate — where a reader sees the consequence — instead of being
-/// silently badged or silently declined by whichever way an expression
-/// happened to be written.
-///
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
 /// `Failed`, `Poisoned`, `Unevaluated` — and
@@ -2197,8 +2232,9 @@ enum BadgeSite {
 /// the gather. That count is a MEASUREMENT of another module's enum,
 /// so it does not stand on this `match` being exhaustive:
 /// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
-/// is its guard, and a fourth non-`Ok` state reds there. The tree badges each AT the node and carries the typed
-/// cause with it, so a frame badge would say strictly less, in a
+/// is its guard, and a fourth non-`Ok` state reds there. The tree
+/// badges each AT the node and carries the typed cause with it, so a
+/// frame badge would say strictly less, in a
 /// louder colour, one row above a status line already reporting the
 /// same root's tessellation refusal. The tree's own tone goes further:
 /// [`crate::tree::RowStatus::tone`] makes a poisoned row
@@ -2220,11 +2256,10 @@ enum BadgeSite {
 /// `false` does and does not appoint: a class the tree already badges
 /// is the tree's, whichever way the cited rule answers it.
 ///
-/// **What the compiler buys here is exhaustiveness over the classes,
-/// not liveness of the citation.** A new class cannot dodge this
-/// `match`. Moving [`ProductErrorKind::NoBodyRoots`] into the first
-/// arm would instead leave a call that can never answer `true` — a
-/// dead citation, which nothing reds on and only
+/// **The match does not hold the citation live.** Moving
+/// [`ProductErrorKind::NoBodyRoots`] into the first arm would leave a
+/// call that can never answer `true` — a dead citation, which nothing
+/// reds on and only
 /// `the_gather_verdict_badges_only_the_faults_nothing_else_carries`
 /// catches.
 fn badge_site(kind: ProductErrorKind) -> BadgeSite {
@@ -2277,7 +2312,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 ///
 /// # The arms that stay silent, and why
 ///
-/// [`badge_site`] decides it, exhaustively over the error class: a
+/// [`badge_site`] decides it: a
 /// refusal another channel already carries, and a class that is no
 /// fault at all, are both `None` here, and the argument for each is
 /// there. What is left is what this channel is FOR — the
@@ -2408,9 +2443,6 @@ pub fn index_badge(
 /// to read, and [`index_badge`] asks it rather than reading the
 /// standing arm here. A tessellation or indexing refusal of a root
 /// that DID evaluate is news no other surface carries.
-///
-/// Exhaustive over both enums, so a new way for the build to refuse
-/// has to decide here whether it follows from a node's failure.
 fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
     match error {
         PickIndexError::Node { node, error } => match error {
@@ -2639,17 +2671,23 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 /// DIMENSION, so that stays the user's explicit pick there). `None`
 /// for every other refusal and for a clean batch.
 pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
-    match refusal {
-        Some(Refusal::Parse(error)) => match error.as_ref() {
-            // The parse error carries the identifier as text (it is a
-            // fact about the SOURCE); the offer mints the name the
-            // create door would declare. The text is a token the lexer
-            // read, so the constructor admits it; its answer is folded
-            // rather than trusted.
-            ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
-            _ => None,
-        },
-        _ => None,
+    match refusal.and_then(Refusal::parse_error)? {
+        // The parse error carries the identifier as text (it is a
+        // fact about the SOURCE); the offer mints the name the create
+        // door would declare. The text is a token the lexer read, so
+        // the constructor admits it; its answer is folded rather than
+        // trusted.
+        ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
+        ParseError::UnexpectedChar { .. }
+        | ParseError::UnexpectedEnd { .. }
+        | ParseError::UnexpectedToken { .. }
+        | ParseError::TrailingInput { .. }
+        | ParseError::MalformedNumber { .. }
+        | ParseError::IntegerOverflow { .. }
+        | ParseError::UnknownUnit { .. }
+        | ParseError::UnknownFunction { .. }
+        | ParseError::WrongArity { .. }
+        | ParseError::Dimension { .. } => None,
     }
 }
 
@@ -2667,9 +2705,7 @@ pub fn retype_draft(
     ops: &[SessionOp],
     refusal: Option<&Refusal>,
 ) -> Option<(RecipeNodeId, SlotId, String)> {
-    if !matches!(refusal, Some(Refusal::Parse(_))) {
-        return None;
-    }
+    refusal.and_then(Refusal::parse_error)?;
     ops.iter().rev().find_map(|op| match op {
         SessionOp::SetSlotExpression { node, slot, text } => Some((*node, *slot, text.clone())),
         _ => None,
