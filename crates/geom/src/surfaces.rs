@@ -563,14 +563,14 @@ impl SurfaceDatum {
 }
 
 /// One stored datum's value, by shape — what an [`AnalyticData`]
-/// yields beside the datum's name.
+/// yields beside the datum's name, for a surface or a curve.
 #[derive(Clone, Copy, Debug)]
 pub enum DatumValue<T: Real> {
     /// A location: an `origin`, `apex` or `center`.
     Point(Point3<T>),
-    /// A direction: a `normal`, `axis` or `u_ref`.
+    /// A direction: a `normal`, `axis`, `dir` or `u_ref`.
     Direction(Vec3<T>),
-    /// A number: a radius or a `half_angle`.
+    /// A number: a radius, a semi-axis, a `half_angle` or an `offset`.
     Scalar(T),
 }
 
@@ -588,23 +588,25 @@ impl<T: Real> DatumValue<T> {
     }
 }
 
-/// The most data any analytic kind stores (a torus's five).
-const ANALYTIC_DATA_MAX: usize = 5;
+/// The most data any analytic kind stores, surface or curve (a
+/// spiric's six).
+const ANALYTIC_DATA_MAX: usize = 6;
 
-/// **Every stored datum of an analytic surface**, in the variant's
+/// **Every stored datum of an analytic surface or curve**, named by
+/// `D` ([`SurfaceDatum`] or [`crate::CurveDatum`]), in the variant's
 /// field order, read by iterating it.
 #[derive(Clone, Copy, Debug)]
-pub struct AnalyticData<T: Real>([Option<(SurfaceDatum, DatumValue<T>)>; ANALYTIC_DATA_MAX]);
+pub struct AnalyticData<T: Real, D = SurfaceDatum>([Option<(D, DatumValue<T>)>; ANALYTIC_DATA_MAX]);
 
-impl<T: Real> AnalyticData<T> {
-    fn new<const N: usize>(data: [(SurfaceDatum, DatumValue<T>); N]) -> Self {
+impl<T: Real, D> AnalyticData<T, D> {
+    pub(crate) fn new<const N: usize>(data: [(D, DatumValue<T>); N]) -> Self {
         const {
             assert!(
                 N <= ANALYTIC_DATA_MAX,
                 "an analytic kind outgrew ANALYTIC_DATA_MAX"
             )
         };
-        let mut slots = [None; ANALYTIC_DATA_MAX];
+        let mut slots = [const { None }; ANALYTIC_DATA_MAX];
         for (slot, datum) in slots.iter_mut().zip(data) {
             *slot = Some(datum);
         }
@@ -612,11 +614,10 @@ impl<T: Real> AnalyticData<T> {
     }
 }
 
-impl<T: Real> IntoIterator for AnalyticData<T> {
-    type Item = (SurfaceDatum, DatumValue<T>);
-    type IntoIter = core::iter::Flatten<
-        core::array::IntoIter<Option<(SurfaceDatum, DatumValue<T>)>, ANALYTIC_DATA_MAX>,
-    >;
+impl<T: Real, D> IntoIterator for AnalyticData<T, D> {
+    type Item = (D, DatumValue<T>);
+    type IntoIter =
+        core::iter::Flatten<core::array::IntoIter<Option<(D, DatumValue<T>)>, ANALYTIC_DATA_MAX>>;
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter().flatten()
     }

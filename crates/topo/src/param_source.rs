@@ -102,17 +102,20 @@ impl ParamSource {
 
 /// **The stored scalar fields a surface description has**, closed.
 ///
-/// One variant per named scalar in [`Surface`]'s analytic arms. This is
-/// the declaration the side records are keyed at — a field a recipe
-/// parameter can land in gets a variant here, and every match over it
-/// is visited (D3, no wildcard arms). The spline arms (`Nurbs`,
+/// One variant per [`geom::DatumValue::Scalar`] datum that
+/// [`Surface::data`] yields for an analytic kind, named with its kind.
+/// This is the declaration the side records are keyed at — a field a
+/// recipe parameter can land in gets a variant here, and every match
+/// over it is visited (D3, no wildcard arms). The spline arms (`Nurbs`,
 /// `Approx`) have no named scalar a parameter flows into: their data is
 /// a control net, and a control point is not a stored parameter.
 ///
-/// Placement data — origins, axes, seam references — is deliberately
-/// ABSENT. Those are not motion-invariant, so a token attached to one
-/// would have to be composed through rigid placement, which is exactly
-/// the structure this channel does not carry (module docs).
+/// **The walk's `Point` and `Direction` data are excluded** — origins,
+/// apexes, centres, normals, axes, seam references. Those are placement
+/// data, not motion-invariant, so a token attached to one would have to
+/// be composed through rigid placement, which is exactly the structure
+/// this channel does not carry (module docs). The tests' census row
+/// holds the enum to exactly the walk's scalars.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SurfaceField {
     /// [`Surface::Cylinder`]'s `radius`.
@@ -338,6 +341,76 @@ mod tests {
         );
         for &field in SurfaceField::ALL {
             assert!(field.index() < SurfaceField::COUNT);
+        }
+    }
+
+    /// **The census is the walk's scalars**: on each analytic kind, the
+    /// fields that belong to it name exactly the
+    /// [`geom::DatumValue::Scalar`] data [`Surface::data`] yields, and
+    /// every other datum the walk yields is a point or a direction (the
+    /// enum's stated exclusion). A scalar a kind gains is walked the day
+    /// it is declared, and reds here until the census covers it.
+    #[test]
+    fn the_field_census_is_the_walks_scalar_data() {
+        use geom::{DatumValue, SurfaceData, SurfaceDatum as D};
+        fn datum(field: SurfaceField) -> D {
+            match field {
+                SurfaceField::CylinderRadius | SurfaceField::SphereRadius => D::Radius,
+                SurfaceField::ConeHalfAngle => D::HalfAngle,
+                SurfaceField::TorusMajorRadius => D::MajorRadius,
+                SurfaceField::TorusMinorRadius => D::MinorRadius,
+            }
+        }
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let kinds = [
+            Surface::Plane {
+                origin: o,
+                normal: z,
+                u_ref: x,
+            },
+            cyl(1.0),
+            Surface::Cone {
+                apex: o,
+                axis: z,
+                half_angle: 0.5,
+                u_ref: x,
+            },
+            Surface::Sphere {
+                center: o,
+                radius: 1.0,
+                axis: z,
+                u_ref: x,
+            },
+            Surface::Torus {
+                center: o,
+                axis: z,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: x,
+            },
+        ];
+        for surface in &kinds {
+            let SurfaceData::Analytic(data) = surface.data() else {
+                panic!("{surface:?}: an analytic kind reads as analytic data")
+            };
+            let mut scalars = Vec::new();
+            for (d, value) in data {
+                match value {
+                    DatumValue::Scalar(_) => scalars.push(d),
+                    DatumValue::Point(_) | DatumValue::Direction(_) => {}
+                }
+            }
+            let census: Vec<D> = SurfaceField::ALL
+                .iter()
+                .filter(|f| f.belongs_to(surface))
+                .map(|&f| datum(f))
+                .collect();
+            assert_eq!(
+                census, scalars,
+                "{surface:?}: the fields that belong to it are not the walk's scalars"
+            );
         }
     }
 

@@ -350,6 +350,13 @@ pub fn carrier_eq_verdict<T: Decide>(
 /// recipe source ⇒ same carrier by the N6 theorem, with the material
 /// side read off the descriptions' own `outward` bits.
 ///
+/// **Not [`crate::source::source_declaration`]'s ladder**, whose
+/// `orient` (with the face's sense composed in) is the plane rung's
+/// material side: a curved description cannot be reversed, so `revert`
+/// records a curved face's reversal on its `sense` AND its source's
+/// `orient`, and the composition cancels — a face against its reverted
+/// twin reads `SameSource` there and opposed here.
+///
 /// The plane arm's version additionally debug-asserts that the bits
 /// agree; the curved arms have no canonicalized bit form to assert
 /// against, and inventing one would be a second source of truth.
@@ -886,5 +893,56 @@ mod tests {
             crate::boolean::plane_eq::oriented_plane_eq(&p1, &p2, declared(), 1.0, band()).unwrap();
         assert_eq!(via_carrier, direct);
         assert_eq!(direct, CarrierRelation::SameOpposite);
+    }
+
+    /// **The curved rung's material side is the faces' `outward` bits,
+    /// which the composed `orient` does not track** (`source_rung`'s
+    /// docs). One sourced cylinder face against itself, against its
+    /// reverted body, and against a twin with its sense flipped, each
+    /// pair both ways: the rung reads the reverted pair opposed, where
+    /// the declaration ladder over the same sources reads it
+    /// `SameSource`.
+    #[test]
+    fn the_curved_source_rung_reads_a_reverted_face_as_opposed() {
+        use super::super::reduce::face_plane_source;
+        use crate::source::{GeomSource, SurfaceDeclaration as D, source_declaration};
+        use CarrierRelation::{SameOpposite, SameOriented};
+        let mut body = crate::Body::<f64>::new();
+        let (face, key) = crate::test_support_fixtures::unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.0, 1.0),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        body.set_surface_source(key, GeomSource::minted(7, 0))
+            .unwrap();
+        let reverted = body.revert().unwrap();
+        let mut flipped = body.clone();
+        flipped.set_face_sense(face, false).unwrap();
+        for (name, other, rung, declared) in [
+            ("itself", &body, SameOriented, D::SameSource),
+            ("its reverted body", &reverted, SameOpposite, D::SameSource),
+            ("its sense flipped", &flipped, SameOpposite, D::Mirrored),
+        ] {
+            for (x, y) in [(&body, other), (other, &body)] {
+                assert_eq!(
+                    crate::boolean::rest::carrier_pair_relation(x, face, y, face, false, band())
+                        .unwrap()
+                        .unwrap(),
+                    rung,
+                    "the curved rung, a face against {name}"
+                );
+                assert_eq!(
+                    source_declaration(
+                        face_plane_source(x, face).as_ref(),
+                        face_plane_source(y, face).as_ref()
+                    ),
+                    declared,
+                    "the declaration ladder, a face against {name}"
+                );
+            }
+        }
     }
 }

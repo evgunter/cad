@@ -413,6 +413,79 @@ impl CurveDatum {
     }
 }
 
+/// A carrier's stored data, by what kind of datum it stores
+/// ([`Curve3::data`]).
+#[derive(Debug)]
+pub enum CurveData<'a, T: Real> {
+    /// An analytic kind's fields.
+    Analytic(crate::AnalyticData<T, CurveDatum>),
+    /// A spline net, unread.
+    Nurbs(&'a Arc<NurbsCurve3<T>>),
+}
+
+impl<T: Real> Curve3<T> {
+    /// **The carrier's stored data** — the one walk of the analytic
+    /// kinds' fields, which each reader that visits them field by field
+    /// folds with its own question (a poison read, a hash key), and the
+    /// payload of the spline kind: the curve half of
+    /// [`crate::Surface::data`].
+    ///
+    /// The variants are destructured without `..`, so a field a variant
+    /// gains is a compile error here rather than a datum every reader
+    /// silently skips; a kind that is not read as fields is a new
+    /// [`CurveData`] arm, which every reader matches exhaustively.
+    pub fn data(&self) -> CurveData<'_, T> {
+        use crate::AnalyticData;
+        use crate::DatumValue::{Direction, Point, Scalar};
+        use CurveDatum as D;
+        CurveData::Analytic(match *self {
+            Curve3::Line { origin, dir } => {
+                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
+            }
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::Radius, Scalar(radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::Major, Scalar(major)),
+                (D::Minor, Scalar(minor)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::URef, Direction(u_ref)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::Offset, Scalar(offset)),
+            ]),
+            Curve3::Nurbs(ref n) => return CurveData::Nurbs(n),
+        })
+    }
+}
+
 impl<T: Real> Curve3<T> {
     /// **The representability margins of this carrier's datum
     /// conventions** — the curve half of

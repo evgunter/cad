@@ -152,7 +152,7 @@ pub mod surfaces;
 
 pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin};
 pub use curves::{
-    ComposeError, Curve3, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
+    ComposeError, Curve3, CurveData, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3,
     ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain, spiric_f_range,
 };
