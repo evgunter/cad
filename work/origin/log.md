@@ -141,3 +141,17 @@ stamping path went red on the old keying); false "0 for a plain
 Transform" docs; the sphere token's meaning stated; one home for the
 three per-surface side tables. Residues filed at adjudication (PR
 3420). Seam note on WIRE's log; the WIRE row's fired trigger pruned.
+
+## 2026-09-29 — PR 3424 lands (the Live guard reads nested items)
+
+Single STYLE review on `2ac6b113`: APPROVE conditional on green, with
+findings adjudicated into a fix pass (`b35a0fc42`): one reading of a
+host's text in `source_walk` (the mutation-door guard had credited a
+host with a never-called nested fn's pcurve mint — planted, now red);
+rows that go red on each mechanism's revert; a nested `pub fn` is not a
+door; point-free `Live::new` now reds. The row closes. Filed from it:
+`a-live-spliced-into-another-body-is-caught-by-nothing` (the "validator's
+business" claim had no validator row behind it) and
+`point-free-surgery-openers-read-as-no-scope` (a disclosed blind spot,
+scheduled). The lane's `window-site-scan-reads-items-by-line` moved to
+CONTACT with a seam note.

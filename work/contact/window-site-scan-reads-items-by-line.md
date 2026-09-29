@@ -4,6 +4,8 @@ kind: issue
 title: the window-site guard reads items line by line, and a nested fn keeps the name after it closes
 status: open
 opened: 2026-09-29
+priority: P3
+cost: E
 ---
 
 ## Finding
@@ -35,3 +37,14 @@ than keep a second, line-shaped reader.
 
 Found by the ORIGIN `origin-live` lane's sweep for item readers that
 assume no nesting, when `CodeOnly::fns` learned to recurse.
+
+## Home (2026-09-29, ORIGIN orchestrator)
+
+Filed in `work/issues/` by ORIGIN's Live-guard lane (PR 3424), then
+placed on CONTACT's slate by that PR's review: `wall_section_rows.rs`
+is in no program's `paths`, but the guard reads marks in `contain.rs`
+and `solid_contain.rs` (CONTACT's) and CONTACT last maintained the row
+(CONTACT-3). The fix it points at — read `sites` through
+`source_walk::CodeOnly::fns`, which now recurses into nested items and
+offers each item's own text (`FnItem::own_body`, PR 3424) — is
+ORIGIN's ground; announce the seam there.
