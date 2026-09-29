@@ -59,7 +59,7 @@ test_utils::gated_to![
 
 use geom::NurbsCurve3;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::compose::{CurveRingData, linear_composite};
+use geom_core::spline::compose::{CurveCertData, linear_composite};
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Interval, Point3};
 use test_utils::fuzz;
@@ -194,7 +194,7 @@ fn the_ring_bezier_decomposition_still_breaks_where_the_structure_says() {
                     .collect()
             })
             .collect();
-        let data = CurveRingData::new(&kv, &weights, &coords).expect("valid enclosure data");
+        let data = CurveCertData::new(&kv, &weights, &coords).expect("valid enclosure data");
         let form = linear_composite(&data, &[1.0, -2.0, 0.5], 0.75).expect("3 channels");
 
         let (lo, hi) = kv.domain();

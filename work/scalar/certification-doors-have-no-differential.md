@@ -2,8 +2,11 @@
 id: certification-doors-have-no-differential
 kind: issue
 title: no differential stands over the certification doors that are more than a delegate (hull, clamped_to, contains, width, mag)
-status: open
+status: closed
+branch: scalar/cert-diff
+pr: 3451
 opened: 2026-09-24
+closed: 2026-09-29
 priority: P3
 cost: M
 ---
@@ -31,3 +34,7 @@ A door-level differential: each of the five against a reference spelled
 over the backend's endpoints and decoration (`DInterval` directly), over
 the corner corpus the backend differential already has, asserting the
 refusal verdict first and the endpoints bit for bit.
+
+## Closed (2026-09-29) — PR 3451 (CERT-DIFF)
+
+The door-level differential (`crates/geom-core/tests/certification_door_differential.rs`) stands over hull, clamped_to, contains, width and mag with an independent reference per door; nine plants red; single review APPROVE-WITH-FIXES, fix pass took all.

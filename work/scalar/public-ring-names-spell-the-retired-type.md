@@ -2,8 +2,11 @@
 id: public-ring-names-spell-the-retired-type
 kind: issue
 title: CurveRingData, SurfaceRingData, ring_coords and apply_ring name the retired ring type's role in the public API
-status: open
+status: closed
+branch: scalar/cert-names
+pr: 3448
 opened: 2026-09-24
+closed: 2026-09-29
 priority: P4
 cost: E
 ---
@@ -35,3 +38,7 @@ A rename to say what they are now — certification coefficients
 best) — across `geom`, `geom-brep`, `mesh`, `step-import` and `topo`.
 A public-API change with no behaviour in it; nothing in RING-5's surface
 needed it.
+
+## Closed (2026-09-29) — PR 3448 (CERT-NAMES)
+
+Landed with the unit after a single review and its fix pass; the PR body has the classification table.
