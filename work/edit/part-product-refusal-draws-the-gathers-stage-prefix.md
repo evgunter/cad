@@ -2,7 +2,8 @@
 id: part-product-refusal-draws-the-gathers-stage-prefix
 kind: issue
 title: editor-core: a part with no product draws the gather's own 'product:' stage prefix inside PartFault::PartProduct, which the concision roster's made-up message hides
-status: spec
+status: review
+pr: 3482
 rides_with: product-error-root-arms-re-spell-the-standing
 branch: edit/part-product-refusals
 opened: 2026-09-29
@@ -46,3 +47,10 @@ one rewrite.
 ## Ruled (2026-09-29, EDIT orchestrator) — rides with `product-error-root-arms-re-spell-the-standing`
 
 One unit with its two siblings; the spec is in that row.
+
+## Built (2026-09-29, PR 3482)
+
+The part carries `ProductError::sentence` (no stage word) and states a
+recourse by class; the `Part/PartProduct` roster row is built from a
+real evaluation. Record in
+`product-error-root-arms-re-spell-the-standing`'s `## Built`.
