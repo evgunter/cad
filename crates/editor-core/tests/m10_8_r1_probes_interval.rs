@@ -13,7 +13,7 @@
 //!   — so it can neither run away nor downgrade a plain-form theorem.
 //!
 //! EVERY ROW IS EVIDENCE-ONLY (`#[ignore]`d, prints, asserts nothing a
-//! gate could read — [[test-suite-cost]]). Run:
+//! gate could read — implementer-discipline §8). Run:
 //!
 //! ```sh
 //! cargo test -p editor-core --test all -- \

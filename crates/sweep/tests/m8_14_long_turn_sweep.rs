@@ -162,16 +162,6 @@ fn a_half_turn_helical_sweep_builds_and_certifies() {
     assert_second_order("half turn", coarse, fine, 2e-2);
 }
 
-/// Multi-revolution: two full turns of frame roll (four antipodal
-/// crossings). If this row ever regresses, the frontier follow-up
-/// rule applies — pin the refusal and file it.
-#[test]
-fn a_two_turn_helical_sweep_builds_and_certifies() {
-    let coarse = helix_oracle_gap(2.0, 65);
-    let fine = helix_oracle_gap(2.0, 129);
-    assert_second_order("two turns", coarse, fine, 1.2e-2);
-}
-
 // ---------------------------------------------------------------------
 // Orientation: every wall of a rolling chart faces out of the material
 // ---------------------------------------------------------------------

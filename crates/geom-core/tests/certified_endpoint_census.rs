@@ -83,6 +83,12 @@
 //!    lexer. The door match is textual too, so a door reached under
 //!    another name (`use geom_core::Interval as Cert;`) is outside it;
 //!    no such alias exists in the tree.
+//! 7. **A read spelled as a path** — `Bounds::lo(x)`, or `Bounds::lo`
+//!    handed on as a function — carries no `.lo()` and is not counted.
+//!    The production ones in the population are `Bounds` reads on the
+//!    evaluation scalar (`ssi/certify.rs`'s tube-transversality refusal,
+//!    `ssi.rs`'s `TubeScale::uniform`) or the type's own body
+//!    (`interval.rs`'s `from_certified` and span locator).
 //!
 //! # Where it lives, and why here
 //!
@@ -215,14 +221,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        16,
+        15,
         8,
         "the 8 that ask are the mignitude (`zero_free_lower_bound`, 4), the \
          transversality span-hull window (2: `probe_tube_chart` refuses either window \
          hull by name before reading it — a refused hull is NaI, and a NaN window end \
          would land on the first span), and two `T: Bounds` reads of the pcurve's \
          tangent that share that function and count only by blind spot 2. The other \
-         8 are `T: Bounds` reads on the evaluation scalar and not certification \
+         7 are `T: Bounds` reads on the evaluation scalar and not certification \
          endpoints at all — blind spot 1",
     ),
     (

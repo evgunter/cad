@@ -7,6 +7,7 @@ opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart]
 priority: P0
 cost: H
+design: true
 ---
 
 Found by both reviewers of PR 2549 (R1 by execution as a MAJOR, R2 as
@@ -89,3 +90,12 @@ where an equal surface means equal scalars and nothing else. And the
 same caller shape is what a structural compare would make free: it
 holds two keys whose surfaces are equal field for field, with no
 recipe on either.
+
+## Scope after PR 3414 (2026-09-29)
+
+The row doors now read identity only, so two keys holding equal
+surfaces drop their rows whether or not a `GeomSource` ties them: the
+row's scope is wider than its title (stamped keys drop too), and the
+drop is the documented price. The lane measured every production path
+that moves rows re-minting afterwards, and no corpus row moved. Whether
+a production comparator should close this direction is PR 3410.

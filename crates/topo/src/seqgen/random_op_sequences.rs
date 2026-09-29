@@ -8,7 +8,7 @@
 //! the pinned selection) that must keep running on every leg. The
 //! helpers stay where their other callers are and are borrowed here.
 
-// Gated to the code it tests (TCOST-1), as `memories/test-suite-cost.md`
+// Gated to the code it tests (TCOST-1), as implementer-discipline §8
 // requires of every fuzzer: proptest draws this row's decision vectors
 // from entropy, so it is a counterexample search and pays for itself only
 // on a diff that could move what it searches. The claim is the Euler
@@ -91,7 +91,7 @@ use super::tests::{RoundtripTally, run_properties};
 ///
 /// **The case count rides `CAD_FUZZ_EFFORT`** through
 /// [`test_utils::fuzz::scaled`], like every other count in the tree
-/// (`memories/test-suite-cost.md`): 48 is the smoke level a gated run
+/// (implementer-discipline §8): 48 is the smoke level a gated run
 /// should cost, and depth is one env var away rather than an edit.
 /// The vector LENGTH is deliberately left alone — it sets the shape of
 /// a body the walk reaches, not how many bodies it draws, and scaling

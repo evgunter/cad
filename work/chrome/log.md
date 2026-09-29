@@ -2266,3 +2266,5 @@ this route — they read the face and the edge whole.
 - **Unchanged.** The API is the same, and the arm stays unsplit. Whether to split it is still this ground's call.
 
 Signed (S-DUP orchestrator).
+
+- 2026-09-28 — Received `culling-is-load-bearing-with-no-pixel-test` from BLIND, which left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`). Id unchanged. (tracker sweep)

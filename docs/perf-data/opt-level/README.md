@@ -1,9 +1,10 @@
 # opt-level calibration history
 
 One file per calibration, named `<epoch-seconds>-<short-sha>.json` so a
-lexicographic sort is a chronological one. Written and committed by
-`.github/workflows/nightly.yml`'s `opt-level calibration` job, on a hosted
-runner. Same idiom, same reasons, as `docs/perf-data/rebuild-latency/`.
+lexicographic sort is a chronological one. Each sample was taken on a hosted
+runner. **No job writes this history**: the calibration does not run, and the
+files here are the record it left. Same idiom as
+`docs/perf-data/rebuild-latency/`.
 
 **Append-only.** A run adds a filename; it never edits an existing one. An
 overwritten reference would launder a slow drift; an accumulating one cannot.
@@ -16,10 +17,7 @@ are measured against `runner_up` rather than always opt-0-against-opt-2 — the
 old orientation is kept beside them as `pair_opt0_over_opt2_ratio`.
 `schema: 3` replaces the letters with `arms: {"opt-N": {opt_level, source, a,
 E, …}}` plus `tree_opt_level`, because the letters were a proxy for the level
-and stopped being one when the tree moved off opt-2. `_arms_of()` in
-`scripts/opt-level-calibrate.py` reads every earlier schema into schema 3's
-shape, and replaying both schema-1 samples through the current code reproduces
-every value they already carry — checked in the selftest.
+and stopped being one when the tree moved off opt-2.
 
 ## The question it answers
 
@@ -67,16 +65,14 @@ level welded into the key names (`arm_a.a2`). Moving the gate to opt-1 without
 schema 3 would have left the free read filling `a2`/`E2` with opt-1 durations
 while a measured arm took opt-1 *again* — one sample carrying opt-1 twice,
 once mislabelled, and a verdict computed off it. Nothing would have gone red.
-Arms are keyed by level now, and `nightly.yml`'s `the arms add up` step
-refuses to run unless the free level and the measured levels partition
-{0, 1, 2}.
+Arms are keyed by level, and the free level and the measured levels of a
+schema-3 sample partition {0, 1, 2}.
 
-**Cadence: weekly, plus drift, plus a moved tree.** The free arm costs nothing
-to read, so every nightly asks whether its `E` has moved more than 20% since
-the last sample. A **change in the tree's opt level recalibrates
-unconditionally**: the previous sample's free arm was a different measurement,
-so there is no baseline to drift against. The measured arms run together or
-not at all — two arms taken on two different nights are two different trees.
+**Cadence: weekly, plus drift, plus a moved tree.** A sample exists for each
+week, for each night the free arm's `E` moved more than 20% since the last
+sample, and for each change in the tree's opt level. The measured arms of one
+sample are always taken together — two arms taken on two different nights are
+two different trees.
 
 ## Why there is a third arm (schema 2, 2026-08-25)
 
@@ -95,10 +91,8 @@ opt-2 at 427 + 58 = 485 s: opt-1 within 3% of opt-2's execution for 58% of its
 build penalty, winning outright on a box where opt-2 *loses* to opt-0.
 
 **That box is not this lane's box**, and the sweep is not evidence about CI.
-It is the same 4-core class the census used, and
-`scripts/check-ci-mirror-parity.py` declares this lane hosted-only precisely
-because "a developer box … its own ratio is the measurement this lane exists
-to distrust". The sweep is why arm C is wired up. Only arm C's own samples,
+It is the same 4-core class the census used, and a developer box's own ratio
+is the measurement this lane exists to distrust. The sweep is why arm C is wired up. Only arm C's own samples,
 taken on the runner, can say what the runner does.
 
 Two derived figures exist to make the opt-1 row readable at a glance:

@@ -65,6 +65,6 @@ and may read that as the finding having been handled.
 
 ## Related
 
-`work/tcost/nightly-demotions-c1-c3-were-bought-with-billed-minutes`
+`nightly-demotions-c1-c3-were-bought-with-billed-minutes` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)
 (closed at PR 2434) carries the re-cost, the hosted readings and the
 deletion rationale.

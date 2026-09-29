@@ -1,9 +1,10 @@
 //! R2 review probes, ADOPTED (PR #1131, #1031's pole half). They were
 //! written to falsify a GATE EXEMPTION, and they succeeded — the
-//! exemption was withdrawn. What ships is a repair in
-//! `merge_coplanar_faces` licensed by COLLINEARITY, and these
-//! fixtures' bent seams are its negative differential rows: each one
-//! must still refuse `NonMaximalFaces`.
+//! exemption was withdrawn, so each split operand here still refuses
+//! `NonMaximalFaces` at the boolean's gate. The repair is the caller's
+//! explicit `merge_coplanar_faces`, and it takes every one of these
+//! seams: once the faces are joined, a seam edge left dangling goes
+//! with its free end, at any angle and along a chain.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -13,7 +14,7 @@ use common::{brick, line, prism_z};
 use geom_core::{Point3, Tol};
 use topo::{
     Body, BooleanError, BooleanOp, FaceSurface, LoopBoundary, MefSite, MevSite, boolean_reduce,
-    validate,
+    validate, validate_closed,
 };
 
 fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
@@ -66,11 +67,10 @@ fn r2_control_single_chord_split_still_refuses() {
 /// whose edges separate the same face pair). Nothing here is a
 /// revolve, no pole, no axis — yet the gate exemption this probe was
 /// written against fired on BOTH shared edges, admitting the whole
-/// pair. **That exemption was WITHDRAWN because of this row.** What
-/// ships instead is a repair in `merge_coplanar_faces` gated on
-/// COLLINEARITY, and this fixture's mid vertex is deliberately off the
-/// chord — so the pair stays non-maximal and must still refuse
-/// `NonMaximalFaces`, which is what the row now pins.
+/// pair. **That exemption was WITHDRAWN because of this row**, so the
+/// pair must still refuse `NonMaximalFaces` at the gate, and the
+/// caller's explicit merge repairs it: `kef` takes one seam edge and
+/// `kev` the other with the mid vertex, bent seam or not.
 #[test]
 fn r2_attack_midvertex_chord_split() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
@@ -118,14 +118,38 @@ fn r2_attack_midvertex_chord_split() {
         Ok(_) => println!("R2-ATTACK mid-vertex chord split => Ok(reduction) — GATE ADMITTED"),
         Err(e) => println!("R2-ATTACK mid-vertex chord split => {e:?}"),
     }
-    // Does the kernel have any repair for it?
-    let mut c = b.clone();
-    let m = c.merge_coplanar_faces(Tol::witness());
-    println!("R2-ATTACK merge_coplanar_faces => {m:?}");
+    assert!(
+        matches!(res, Err(BooleanError::NonMaximalFaces { .. })),
+        "{res:?}"
+    );
+    assert_repairs(&mut b, 1);
+}
+
+/// The explicit merge takes the split top back to one face: one
+/// group, `kef` on one seam edge and `kev` on each of the chain's
+/// `interior` junctions with the edge dangling from it, tier 2 green.
+fn assert_repairs(b: &mut Body<f64>, interior: usize) {
+    let (f0, v0, e0) = (b.faces().count(), b.vertices().count(), b.edges().count());
+    let out = b
+        .merge_coplanar_faces(Tol::witness())
+        .expect("the split top repairs");
+    let [group] = &out.groups[..] else {
+        panic!("one group: {:?}", out.groups)
+    };
+    assert_eq!(group.killed_vertices.len(), interior);
+    assert!(group.rings_made.is_empty());
+    assert_eq!(
+        (b.faces().count(), b.vertices().count(), b.edges().count()),
+        (f0 - 1, v0 - interior, e0 - 1 - interior)
+    );
+    assert_eq!(validate_closed(b), Ok(()));
 }
 
 /// ATTACK, longer chain: TWO interior valence-2 vertices. The middle
-/// edge has valence-2 same-pair endpoints at BOTH ends.
+/// edge has valence-2 same-pair endpoints at BOTH ends. A seam chain
+/// of three edges: the gate refuses it, and the merge loses both
+/// interior junctions — whichever edge `kef` takes, the pruning then
+/// peels the chain one free end at a time.
 #[test]
 fn r2_attack_two_midvertex_chain_split() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
@@ -180,4 +204,9 @@ fn r2_attack_two_midvertex_chain_split() {
         Ok(_) => println!("R2-ATTACK two-mid chain => Ok(reduction) — GATE ADMITTED"),
         Err(e) => println!("R2-ATTACK two-mid chain => {e:?}"),
     }
+    assert!(
+        matches!(res, Err(BooleanError::NonMaximalFaces { .. })),
+        "{res:?}"
+    );
+    assert_repairs(&mut b, 2);
 }

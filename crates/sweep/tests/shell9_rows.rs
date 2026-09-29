@@ -1,21 +1,10 @@
-//! **Every stored pcurve row of a body, as text — one instrument, two
-//! readers.** [`rows`] is the bit-for-bit form (`{:?}` of every number
-//! is its shortest round-trip spelling, so equal text is equal bits):
-//! `shell9_probe` compares two bodies' rows with it, and [`print_rows`]
-//! is the dump form the corpora (`shell5_r1_dump`, `shell7_dump`,
-//! `shell8_dump`, `shell10_r2_dump`) call on every body they dump, for
-//! a base/head diff.
-//!
-//! **How to take that diff, exactly.** `--nocapture` prints from every
-//! test thread into one stream, so two suites' lines interleave and a
-//! line can be split across a write; both SHELL-10 review lanes hit
-//! the same spurious one-line diff that way. Run the corpora with
-//! `-- --test-threads=1 --nocapture`, filter with a grep ANCHORED at
-//! the tag (`grep -E '^\[rows\]'`, not a bare `[rows]`), then sort and
-//! diff. A diff of one line whose neighbours are identical is this
-//! artefact, not a moved row — re-run single-threaded before reading
-//! it as a finding. The row below shells
-//! `verbs_shell`'s fixtures the same way and asserts each BUILDS.
+//! **The `shell` verb's fixtures, shelled and dumped row by row.** The
+//! row below shells the block and [`crate::common::shell_operands`]'
+//! vessel and tube sealed and opened at their top, prints
+//! every stored pcurve row of the result through
+//! [`crate::common::pcurve_rows::print_rows`] (a corpus for a
+//! base/head diff, taken as that module says), and asserts each one
+//! BUILDS.
 //!
 //! The closing mint re-derives every row of every body `shell`
 //! returns: on a body whose transferred rows were content-correct the
@@ -28,33 +17,10 @@ use geom_core::{Tol, Vec3};
 use sweep::test_support::block;
 use topo::Body;
 
+use super::common::pcurve_rows::print_rows;
+use super::common::shell_operands::{tube, vessel};
 use super::shell7_common::tol;
 use super::shell8_common::cap;
-use super::verbs_shell::{tube, vessel};
-
-/// One line per stored row, in half-edge-slot order: the half-edge,
-/// its face, the parameter window and the image.
-pub(crate) fn rows(body: &Body<f64>) -> Vec<String> {
-    body.pcurves()
-        .map(|(he, cache)| {
-            format!(
-                "he {he:?} face {:?} params {:?} pcurve {:?}",
-                body.face_of_half_edge(he).unwrap(),
-                cache.params(),
-                cache.pcurve()
-            )
-        })
-        .collect()
-}
-
-/// [`rows`] printed under `label`, with the count.
-pub(crate) fn print_rows(label: &str, body: &Body<f64>) {
-    let rows = rows(body);
-    for row in &rows {
-        println!("[rows] {label}: {row}");
-    }
-    println!("[rows] {label}: {} rows", rows.len());
-}
 
 /// The top cap of a single-shell body revolved about `y`.
 fn top(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
@@ -67,8 +33,8 @@ fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[topo::FaceKey]) {
     print_rows(label, &out.body);
 }
 
-/// `verbs_shell`'s fixtures, sealed and opened at their top; every one
-/// builds.
+/// The `shell` verb's fixtures, sealed and opened at their top; every
+/// one builds.
 #[test]
 fn shell9_rows_verbs_shell_corpus() {
     let b = block(2.0, 3.0, 4.0, Tol::witness());

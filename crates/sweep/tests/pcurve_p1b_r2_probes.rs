@@ -23,6 +23,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::shell_operands::tube;
 use geom::Surface;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
@@ -126,13 +127,6 @@ fn revolved(points: &[(f64, f64)], revolution: Revolution<f64>) -> Body<f64> {
     .body
 }
 
-fn tube() -> Body<f64> {
-    revolved(
-        &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
-        Revolution::Full,
-    )
-}
-
 // ---------------------------------------------------------------
 // R2-S1 — THE FENCE, swept over the product verbs in ONE row
 // ---------------------------------------------------------------
@@ -153,7 +147,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
         ("euler cube", cube(1.0, Tol::witness())),
         ("extrude slab", slab(0.0, 0.0, 2.0, 0.0, 2.0)),
         ("extrude arc prism", arc_prism()),
-        ("revolve full tube", tube()),
+        ("revolve full tube", tube(0.4, 0.8, 0.6)),
         (
             "revolve full ball-ish annulus",
             revolved(
@@ -163,6 +157,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
         ),
         (
             "revolve partial wedge",
+            // NOT `common::shell_operands::tube`: its meridian turned 1.1 rad, a wedge.
             revolved(
                 &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
                 Revolution::Partial(1.1),
@@ -199,9 +194,13 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
         }
     }
     // A curved pair: a pocket cut out of the tube by a slab.
-    if let Some(body) = topo::subtract(&tube(), &slab(0.5, -1.0, 2.0, 0.2, 0.2), Tol::witness())
-        .ok()
-        .and_then(|r| r.body().map(|b| b.body.clone()))
+    if let Some(body) = topo::subtract(
+        &tube(0.4, 0.8, 0.6),
+        &slab(0.5, -1.0, 2.0, 0.2, 0.2),
+        Tol::witness(),
+    )
+    .ok()
+    .and_then(|r| r.body().map(|b| b.body.clone()))
     {
         bodies.push(("boolean curved subtract", body));
     }
@@ -212,7 +211,8 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     {
         bodies.push(("shell cube", body));
     }
-    if let Ok(topo::Shelled { body, .. }) = topo::shell(&tube(), 0.05, Tol::witness()) {
+    if let Ok(topo::Shelled { body, .. }) = topo::shell(&tube(0.4, 0.8, 0.6), 0.05, Tol::witness())
+    {
         bodies.push(("shell tube", body));
     }
 
@@ -293,7 +293,7 @@ fn declared_map(body: &Body<f64>) -> Vec<(EdgeKey, bool)> {
 /// edge of every face at both signs.
 #[test]
 fn r2_no_face_offset_flips_is_declared_silently() {
-    let base = tube();
+    let base = tube(0.4, 0.8, 0.6);
     let faces: Vec<FaceKey> = base.faces().map(|(k, _)| k).collect();
     let before = declared_map(&base);
     let mut findings: Vec<String> = Vec::new();
@@ -334,7 +334,7 @@ fn r2_no_face_offset_flips_is_declared_silently() {
 #[test]
 fn r2_a_rigid_transform_preserves_every_authority() {
     for (name, base) in [
-        ("tube", tube()),
+        ("tube", tube(0.4, 0.8, 0.6)),
         ("arc prism", arc_prism()),
         ("loft-free cube", cube(1.0, Tol::witness())),
     ] {
@@ -427,9 +427,10 @@ fn r2_the_converted_edges_have_measurable_epsilon_headroom() {
     let mut bodies: Vec<(&'static str, Body<f64>)> = vec![
         ("extrude slab", slab(0.0, 0.0, 2.0, 0.0, 2.0)),
         ("extrude arc prism", arc_prism()),
-        ("revolve full tube", tube()),
+        ("revolve full tube", tube(0.4, 0.8, 0.6)),
         (
             "revolve partial wedge",
+            // NOT `common::shell_operands::tube`: its meridian turned 1.1 rad, a wedge.
             revolved(
                 &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
                 Revolution::Partial(1.1),

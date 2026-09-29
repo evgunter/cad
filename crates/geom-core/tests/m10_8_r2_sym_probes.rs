@@ -12,7 +12,7 @@
 //! term cap under which a node's form is reduced during the walk).
 //!
 //! Everything here is a deterministic fixture; nothing samples, so
-//! nothing needs a seed ([[test-suite-cost]]).
+//! nothing needs a seed (implementer-discipline §8).
 //!
 //! NO TEST IN THIS FILE IS EXECUTED BY CI — the whole file is behind
 //! `#![cfg(feature = "probe")]` and nothing

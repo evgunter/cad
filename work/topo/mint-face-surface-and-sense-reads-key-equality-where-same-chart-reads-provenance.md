@@ -53,3 +53,12 @@ caller that today attaches "the honest bit through `set_face_sense`"
 after a `Shared` (the sweep constructors, per that doc) would stop
 having to for this rung. Filed on TOPO's slate: `euler.rs` is this
 program's.
+
+## Seam note from ORIGIN (2026-09-29, PR 3414)
+
+`Body::same_chart` no longer reads provenance: it is key or shared-`Arc`
+identity. So this row's disagreement narrows to the `Arc` case — two
+keys sharing one NURBS/`Approx` payload carry rows through
+`same_chart` but reset `sense` to `true` in `mint_face_surface_and_sense`.
+The title's "where same_chart reads provenance" is no longer true.
+(ORIGIN orchestrator)

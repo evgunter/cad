@@ -80,7 +80,7 @@ of the fifteen target `pncad`; the fifteenth is
 `editor-core` is not in `VIEWER_TOOLKIT_SEEDS`. So the bullet's *"that
 case is empty today"* was false and the hole it calls theoretical is
 open. The page now says so; the CI half is filed as
-`work/mirror/renderer-free-link-to-editor-core-opens-the-ungated-hole.md`,
+`renderer-free-link-to-editor-core-opens-the-ungated-hole` (deleted; `docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`),
 beside the parent row that owns the repair.
 
 **Three further citations in the same bullet, re-derived because a
@@ -90,7 +90,7 @@ citation fix is class-wide over the file.**
 - `ci.yml:1833-1836` → the `rustdoc (gate)` step's `if`/`else` at
   `ci.yml:1890-1894`, with the keying itself now cited where it
   happens, `scripts/ci-filter.py:2495`.
-- `work/view/renderer-free-cross-crate-links-are-ungated-off-the-seed-set.md`
+- `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` (deleted; `docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`)
   → the row moved to `work/mirror/` with CIW's 2026-09-20 cut; the
   page now names the row rather than a path.
 - `nightly.yml:291-293` was checked and is correct — the

@@ -21,8 +21,9 @@ use topo::{
     Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
 
-use crate::verbs_shell::{prism, roles_by_solid, v};
-use sweep::test_support::brick;
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::roles_by_solid;
+use sweep::test_support::{brick, corners, prism};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -214,7 +215,7 @@ fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
 #[test]
 fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
     let s_bend = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (1.0, 0.0),
             (1.0, 0.2),
@@ -223,8 +224,9 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
             (0.8, 0.5),
             (0.8, 0.3),
             (0.0, 0.3),
-        ],
+        ]),
         1.0,
+        tol(),
     );
     let (shell, _) = s_bend.shells().next().unwrap();
     let riser_r = face_on(&s_bend, shell, (1.0, 0.0, 0.0), 1.0); // x = 1, y ∈ [0, 0.2]
@@ -501,10 +503,10 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     // V(1.9,2.9,3.9)] and [V(1.6,2.6,3.6) hollowed to V(1.5,2.5,3.5)]
     // — each thicken every boundary at `t = 0.01`, giving four thin
     // solids, and the designated ceiling's wall loses its lid.
-    let want = (v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98))
-        + (v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9))
-        + (v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58))
-        + (v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5))
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.98, 2.98, 3.98))
+        + (box_volume(1.92, 2.92, 3.92) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.58, 2.58, 3.58))
+        + (box_volume(1.52, 2.52, 3.52) - box_volume(1.5, 2.5, 3.5))
         - 1.52 * 2.52 * 0.01;
     assert!(
         (props.volume - want).abs() < 1e-12,
@@ -544,7 +546,8 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         roles_by_solid(out)
     );
     let props = topo::mass_properties(out, tol()).expect("props");
-    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5))
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
         - 1.6 * 2.6 * 0.05;
     println!(
         "[e2e] opened volume={} want={want} rim={:?} ring_edges={}",

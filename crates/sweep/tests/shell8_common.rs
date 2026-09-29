@@ -195,6 +195,8 @@ pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKe
 
 /// The `(outer, void)` shells of a two-shell solid, decided through the
 /// shell classifier restricted to that solid's own shells.
+/// NOT `common::shell_operands::outer_and_void`, which reads a one-solid
+/// body whole: this is its per-SOLID twin on a multi-solid body.
 pub(crate) fn outer_and_void_of(body: &Body<f64>, solid: SolidKey) -> (ShellKey, ShellKey) {
     let shells = body.shells_of_solid(solid).unwrap();
     let roles = topo::classify_shells_of(body, shells, tol()).expect("the solid classifies");

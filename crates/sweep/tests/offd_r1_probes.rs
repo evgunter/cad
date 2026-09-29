@@ -22,6 +22,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
 use crate::common;
+use crate::common::shell_operands::tube;
 use common::approx::{prism, twisted_loft};
 
 fn revolved_by(points: &[(f64, f64)], rev: Revolution<f64>) -> Body<f64> {
@@ -85,6 +86,9 @@ fn cone_face(body: &Body<f64>) -> FaceKey {
         .expect("the fixture has a cone face")
 }
 
+/// The body's whole `Debug`, for an equality between two builds.
+/// NOT `common::bitdump::dump`, which writes a curated bit-faithful
+/// subset for a file diff.
 fn dump(body: &Body<f64>) -> String {
     format!("{body:?}")
 }
@@ -244,7 +248,7 @@ fn the_routed_mirror_cone_reaches_past_c5_and_refuses_at_the_caps() {
 #[test]
 fn every_err_path_leaves_the_body_bit_untouched() {
     // The radius floor (the suite's fixture, the stronger assert).
-    let tube = revolved(&[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)]);
+    let tube = tube(0.4, 0.8, 0.6);
     let inner = tube
         .faces()
         .find(|(_, f)| {
@@ -309,6 +313,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
 /// carriers.
 #[test]
 fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
+    // NOT `common::shell_operands::tube`: its meridian turned a quarter, a wedge.
     let mut body = revolved_by(
         &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
         Revolution::Partial(core::f64::consts::FRAC_PI_2),

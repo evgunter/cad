@@ -263,7 +263,10 @@ fn the_bracket_rounds_at_six_millimetres() {
 /// ANSWER rather than a refusal. The sum is asserted here so the row
 /// still carries the measurement it was opened with.
 ///
-/// It now refuses typed at the curved-extent scan's wall×wall gate.
+/// It now refuses typed at the fallback's section pass: equal radii
+/// with axes `1.5` apart are the cylinder pair's middle row, one null
+/// saddle loop, and its witness lies strictly inside both walls with
+/// no event anywhere (R-loop).
 ///
 /// **The base reproduction, recorded here rather than as a row.** At
 /// this unit's merge base the same two bodies returned
@@ -286,9 +289,12 @@ fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     assert!((va + vb - 30.0 * core::f64::consts::PI).abs() < 1e-9);
     let err = topo::union(&a, &b, tol).expect_err("the silence never re-opens");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-        panic!("expected the extent scan's wall pair gate, got {err:?}");
+        panic!("expected the fallback's section pass, got {err:?}");
     };
-    assert!(what.contains("two cylinder walls"), "{what}");
+    assert!(
+        what.contains("closed loop interior to both faces"),
+        "{what}"
+    );
 }
 
 /// Cylinder operands the gate must NOT touch: two walls standing clear
@@ -314,7 +320,7 @@ fn cylinders_standing_clear_of_each_other_still_answer() {
 /// reduction therefore finds no crossing at all and the operation falls
 /// through to the containment fallback with the boundaries genuinely
 /// meeting: the S12-silence shape, for a cylinder pair.
-pub(crate) fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
+fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
     let tol = Tol::witness();
     let a = cyl(0.0, 0.0, 1.0, 0.0, 10.0);
     let rod = cyl(0.0, 0.0, 1.0, -10.0, 10.0);

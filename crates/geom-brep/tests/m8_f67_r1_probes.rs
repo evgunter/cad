@@ -216,7 +216,9 @@ fn certify_poison_meter_escalates_invalid_at_the_meter() {
 #[test]
 fn certify_backwards_span_stays_interval_not_forward() {
     match certify_axis(axis_segment_f64(1.0), 1.0, 0.0) {
-        Err(CertifyError::IntervalNotForward) => {}
+        Err(CertifyError::IntervalNotForward {
+            verdict: geom_brep::recourse::Definite::Negative,
+        }) => {}
         other => panic!("a backwards span must stay IntervalNotForward: {other:?}"),
     }
 }

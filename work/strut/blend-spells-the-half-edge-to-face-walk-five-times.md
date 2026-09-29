@@ -44,7 +44,7 @@ two `edge_faces` become one is a crate-boundary question and is the
 second half of this row.
 
 `test_support.rs` is BLEND's by the announced seam
-(`work/dup/program.md`'s `keep_out`), which is why both of its sites are
+(`work/reroute/program.md`'s `keep_out`), which is why both of its sites are
 here rather than on a suite program's slate.
 
 ## What the instrument could not see

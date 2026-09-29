@@ -72,6 +72,7 @@ pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
+pub mod recourse;
 pub mod ssi;
 pub mod tangent;
 
@@ -84,8 +85,8 @@ pub use description::{
 };
 pub use dihedral::{
     DihedralClass, MaterialPairing, MaterialWedge, MustCarryVerdict, SecondOrder,
-    classify_dihedral, classify_material_pairing, folded_lever_arm, material_kappa_rel,
-    must_carry_over_edge, tangent_second_order,
+    classify_dihedral, classify_material_pairing, classify_material_pairing_as, folded_lever_arm,
+    material_kappa_rel, must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{

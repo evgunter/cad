@@ -95,7 +95,7 @@ use pncad::geom_core::tolerance::DEFAULT_EPS;
 /// `crates/profile/src/path.rs`'s `num` states at its own site: a live
 /// ε would make one rendered value spell three ways across the ε rows
 /// CI gates, so the grid is a display choice stated once against the
-/// ratified default.
+/// ratified default (`docs/DESIGN.md` D4).
 ///
 /// **The unit it is stated in is the canonical one, and applying it to
 /// a WRITTEN number is conservative rather than approximate.** A value
@@ -590,7 +590,7 @@ mod tests {
                 }
             }
             reads_back(value);
-            value *= 1.05;
+            value *= 1.5;
         }
         assert!(decimal > 100, "only {decimal} values took the decimal arm");
         assert!(

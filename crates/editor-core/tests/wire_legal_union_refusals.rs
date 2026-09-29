@@ -30,19 +30,29 @@ fn volume(body: &topo::Body<f64>) -> f64 {
         .volume
 }
 
-/// **A seam vertex no rule names refuses as a missing rule.**
+/// **A merged face no rule reads a seam chord through refuses as a
+/// missing rule.**
 ///
-/// `a` and `c` meet flush along x on all four families; `s` is stacked
-/// over both, declared against the two y-walls. Fold `a` in last and
-/// the vertex where `s`'s seam meets the merged y-wall has neither one
-/// operand-descended edge on each side nor two seam lines, so the
-/// emitter's case analysis has no arm for it.
+/// `a` and `c` meet flush along x on all four families; `s` rises
+/// through `a`'s top cap across its depth, declared against `a`'s two
+/// y-walls. Fold `a` in last and `c` and `s` are an assembly of two
+/// bodies when it joins: the declared y-walls glue a face of EACH into
+/// one merged wall together with `a`'s, and a seam chord bordering
+/// that wall reads through to its A-side constituent, of which there
+/// are two. Nothing picks the one the chord lies on.
+///
+/// These two orders once refused a seam VERTEX with no rule instead
+/// (`NamingError::SeamVertexParentage`): the merge then skipped the
+/// y-wall group, whose seam bends where `s` leaves `a`, and the vertex
+/// pass met the unglued walls first. The merge now glues the group, and
+/// no document in the corpus reaches that vertex refusal any more; its
+/// sentence stays pinned in `display_contract`.
 ///
 /// Nothing is wrong with this document, and the other four orders of
 /// the same three members are the proof: two of them fuse to a body
 /// with the volume the geometry says.
 #[test]
-fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
+fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() {
     let doc = ProfileDoc::empty_derived("wire_seam_vertex", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -65,17 +75,19 @@ fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
         let shown = match failure(&ev, union) {
             // Rendered at the NODE boundary, which is the only route by
             // which an emitter refusal reaches a human.
-            Some(e @ NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
-                e.to_string()
-            }
-            other => panic!("{order:?}: wanted the seam-vertex refusal, got {other:?}"),
+            Some(
+                e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents {
+                    several: 2, ..
+                }),
+            ) => e.to_string(),
+            other => panic!("{order:?}: wanted the merged-chord refusal, got {other:?}"),
         };
         assert!(
             !shown.contains(BUG_FRAMING),
             "{order:?}: a legal document was told the kernel is broken: {shown}"
         );
         assert!(
-            shown.contains("seam vertex"),
+            shown.contains("merged face"),
             "{order:?}: the refusal must name the construction: {shown}"
         );
         assert!(

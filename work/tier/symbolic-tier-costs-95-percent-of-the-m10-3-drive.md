@@ -11,7 +11,7 @@ cost: H
 
 
 Filed 2026-09-11 by S-TCOST, on Ev's direction in chat, out of the
-diagnosis of `work/tcost/m10-3-chamber-row-reads-ten-times-its-recorded-cost`.
+diagnosis of `m10-3-chamber-row-reads-ten-times-its-recorded-cost` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`).
 **Nothing here says the tier is wrong or should be off.** It says the
 tier is expensive, nobody has measured where inside it the time goes, and
 the first work is that measurement.
@@ -118,7 +118,7 @@ silently. Named here so the first lane does not discover it at
 ## Provenance
 
 The regression that surfaced this is
-`work/tcost/m10-3-chamber-row-reads-ten-times-its-recorded-cost`: the
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`): the
 M10-3 interval suite went 21.04 s -> 319.37 s between 2026-09-03 and
 2026-09-11, bisected to PR #1725, and the gate that was supposed to
 watch it skipped the suite on that very PR (the marker names
@@ -131,8 +131,8 @@ recorded anywhere — `work/m10/` records the tier's API costs and the
 Here because the work it asks for — a profile INSIDE the normal form — is in this
 program's file. **The measurement stays S-TCOST's**: that program filed it on Ev's
 direction, its figures and its successor rows
-(`work/tcost/m10-3-chamber-row-reads-ten-times-its-recorded-cost`,
-`work/tcost/one-test-is-the-whole-ci-critical-path`) are named in the body, and no
+(`m10-3-chamber-row-reads-ten-times-its-recorded-cost` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`),
+`one-test-is-the-whole-ci-critical-path` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)) are named in the body, and no
 row here is justified by a cpu-second without S-TCOST's measurement behind it.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
@@ -535,7 +535,7 @@ magnitudes do not. The rows are the ones in both runs' top-20 tables:
 | `m10_10_pins … eps_relative_ceilings_under_the_shipped_set` | 30.4 (default 1/2); 29.9 (1e-12 1/2) | 16.1 (default 2/2); 17.4 (1e-12 2/2) |
 | `m10_3_r2 … my_own_drive_is_bit_identical_across_repeats_and_schedules` | 19.6; 19.7 | 13.1; 12.3 |
 | `m10_3_driver … a_sliver_wrapped_in_the_ops_own_error…` | 14.1; 13.9 | 9.4; 10.6 |
-| **the chamber row** `m10_3_r1 … the_driven_chamber_replays_bit_identically…` | **121.96 (default 1/2); 130.98 (1e-12 1/2)** | **did not run** — the suite is gated to the driver's paths, not the tier's (`work/tcost/m10-3-chamber-probes-gated-away-from-the-symbolic-tier`) |
+| **the chamber row** `m10_3_r1 … the_driven_chamber_replays_bit_identically…` | **121.96 (default 1/2); 130.98 (1e-12 1/2)** | **did not run** — the suite is gated to the driver's paths, not the tier's (`m10-3-chamber-probes-gated-away-from-the-symbolic-tier` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)) |
 
 Shard walls, for the record and not for comparison: `test (interval,
 eps = default, 1/2)` 147 → 169 s, `2/2` 355 → 248 s, `1e-6 1/2` 129 →
@@ -765,3 +765,5 @@ rendered. Neither is scheduled.
 Cost class, not correctness: nothing is wrong with the pad or the
 report, and the row exists so the next unit that needs that table finds
 the reason rather than re-discovering it.
+
+**2026-09-28:** The chamber row cited above (`m10_3_r1_probes_interval::the_driven_chamber_replays_bit_identically_…`) was deleted in the 2026-09-28 CI-latency cut; the bounded chamber itself stays (`bounded_chamber`, `CHAMBER_LEAVES`).

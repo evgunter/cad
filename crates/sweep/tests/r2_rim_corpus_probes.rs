@@ -19,10 +19,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
-use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
+use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::cube;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::{ball_poled_z, cube};
+use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::rim_of;
 use topo::{Body, EdgeKey};
@@ -49,22 +49,6 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     .expect("the subtraction leaves a body")
     .body
     .clone()
-}
-
-/// A sphere of radius 0.3 centred at `c`, revolved from a half-disc.
-fn ball_at(c: Vec3<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the ball profile validates");
-    let axis = RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    let b = revolve(&vp, axis, Revolution::Full, tol())
-        .expect("the ball revolves")
-        .body;
-    topo::transform_rigid(&b, &Affine3::translation(c), tol()).expect("the ball moves to its pip")
 }
 
 /// Every circle carrier on the body, grouped by the rim the door names
@@ -136,7 +120,7 @@ fn every_rims_carriers_are_bit_identical(body: &Body<f64>, name: &str) -> usize 
 #[test]
 fn r2_a_boolean_made_rims_arcs_store_one_circle() {
     let block = cube(1.0, tol());
-    let pip = ball_at(Vec3::new(0.5, 0.5, 1.0));
+    let pip = ball_poled_z(0.3, Vec3::new(0.5, 0.5, 1.0), tol());
     let dimpled = subtract(&block, &pip);
     let rims = every_rims_carriers_are_bit_identical(&dimpled, "the dimpled block");
     assert!(rims > 0, "the pip left at least one rim to read");

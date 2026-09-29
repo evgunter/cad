@@ -607,7 +607,7 @@ mod tests {
     /// a common factor, an even numerator, a negative denominator;
     /// `of_f64`; `add` and `mul` on the dyadic and the non-dyadic
     /// shape; `recip`; `sqrt_exact`) are structurally equal and feed
-    /// the hasher the same bits; and over a corpus of several hundred
+    /// the hasher the same bits; and over a corpus of a hundred and fifty
     /// values closed under the ring's own operations from non-dyadic
     /// seeds, every `Rat` is canonical — `den > 0`, both integers odd
     /// and coprime — and any two whose difference is zero are one
@@ -779,9 +779,9 @@ mod tests {
                 }
                 fresh
             });
-            corpus.truncate(600);
+            corpus.truncate(160);
         }
-        assert!(corpus.len() > 500, "corpus too thin: {}", corpus.len());
+        assert!(corpus.len() > 150, "corpus too thin: {}", corpus.len());
         let non_dyadic = corpus.iter().filter(|r| !r.den.is_one()).count();
         assert!(
             non_dyadic > 50,

@@ -56,13 +56,13 @@
 //!    join's under-determined case — the arm in `upgrade_rim` says
 //!    why the second-order rule has nothing to add there);
 //!    Indeterminate ⇒ the typed [`ExtrudeError::SliverRim`].
-//! 7. **Declared contacts.** Every declared cusp joint
+//! 7. **Declared cusps.** Every declared cusp joint
 //!    ([`profile::ValidatedLoop::cusp_joints`]) sweeps a strut at
-//!    material wedge 0 (2π on a hole loop), legal at rest exactly where
-//!    its wall pair is declared in `Tangent` contact. The profile
-//!    declared it, so the result carries it
-//!    ([`Extruded::declared_contacts`]); a smooth declared joint is
-//!    wedge π and carries nothing.
+//!    material wedge 0 (2π on a hole loop). The profile's `.cusp()` is
+//!    where that tangency's intent is declared; at rest the strut is
+//!    legal because its tangency is jet-determinate — derived from the
+//!    body exactly as a π seam is — so the result carries no record
+//!    for it.
 //!
 //! Everything runs in a fixed, documented order (D9): loops outer
 //! first then holes in canonical order; per loop, struts in traversal
@@ -83,8 +83,8 @@ use geom_core::{
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
-    Body, DeclaredContact, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
-    MevSite, ShellKey, SolidKey, SurfaceKey,
+    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
+    SolidKey, SurfaceKey,
 };
 
 use crate::swept;
@@ -128,18 +128,12 @@ pub struct Extruded<T: Real> {
     /// The built body — a closed solid, tiers 1–2 by construction.
     ///
     /// **Tier 3 holds for every body whose joints and cap rims classify
-    /// definitely transverse, and these two shapes are the whole of
-    /// what it does not cover** — both minted here:
+    /// definitely transverse or jet-determinately tangent** — a
+    /// declared cusp joint (`.cusp()`) included: its strut subtends
+    /// material wedge 0 (2π on a hole loop), which tier 3 holds legal
+    /// because the tangency is jet-determinate. The one shape minted
+    /// here that it does not cover:
     ///
-    /// - a DECLARED cusp joint (`.cusp()`) gives a strut subtending
-    ///   material wedge 0 (2π on a hole loop), which tier 3 holds legal
-    ///   exactly where its wall pair carries a `Tangent` declaration.
-    ///   The declaration is the profile's own, carried out in
-    ///   [`Extruded::declared_contacts`]: validated through
-    ///   `topo::validate_geometric_declared` with it, the body passes;
-    ///   `topo::validate_geometric`, which declares nothing, refuses it
-    ///   as `topo::ValidationError::UndeclaredCusp` — correctly, since
-    ///   that call says nobody meant the cusp;
     /// - a cap rim the dihedral lever reads definitely SMOOTH keeps the
     ///   conventional description (`upgrade_rim`'s smooth arm) and is
     ///   refused as `topo::ValidationError::SliverDihedral` under
@@ -177,19 +171,6 @@ pub struct Extruded<T: Real> {
     /// rest in the previous wall's chart where it does not (M5 PR 9 —
     /// neither keeps the scaffolding `MappedCurve` the mint left).
     pub strut_edges: Vec<Vec<EdgeKey>>,
-    /// **The contacts the profile declared**: one `Tangent` pair per
-    /// declared cusp joint (module docs, step 7) — the side walls of
-    /// the two canonical segments meeting there, arriving wall first —
-    /// loops in canonical order, joints ascending. Empty for a profile
-    /// with no declared cusp.
-    ///
-    /// This is the record tier 3 reads the strut's wedge-0 (or 2π) end
-    /// against: pass it to `topo::validate_geometric_declared`. It is
-    /// the author's declaration carried through the verb, not a
-    /// discovery — a joint the profile did not declare contributes
-    /// nothing, and a declared SMOOTH joint (wedge π, legal undeclared)
-    /// contributes nothing either.
-    pub declared_contacts: Vec<DeclaredContact>,
 }
 
 /// Typed failure of [`extrude`] (closed enum, D4 ¶3). Loop indices
@@ -524,8 +505,7 @@ struct LoopBase {
 /// (`topo::surgery`), so tier 1 is not re-derived per operator and the
 /// tier-2 debug assertion on the finished body, which subsumes it, is
 /// what this door pays — and passes tier 3
-/// (`validate_geometric_declared` over
-/// [`Extruded::declared_contacts`]) except at the smooth cap rim
+/// (`topo::validate_geometric`) except at the smooth cap rim
 /// [`Extruded::body`] names. The caller re-validates at rest per the
 /// workspace convention.
 ///
@@ -794,22 +774,6 @@ pub fn extrude<T: Decide>(
         "extrude postcondition: result is not tier-2 valid (kernel bug)",
     );
 
-    // ---- Step 7: the profile's declared contacts, on the walls they
-    // name. `side_faces` is in swept order; the pairing is canonical,
-    // so each wall is looked up by the canonical segment it swept. ----
-    let declared_contacts = loops
-        .iter()
-        .zip(&side_faces)
-        .zip(profile.loops())
-        .flat_map(|((segs, faces), lp)| {
-            let mut by_canonical: Vec<Option<FaceKey>> = vec![None; segs.len()];
-            for (seg, &face) in segs.iter().zip(faces) {
-                by_canonical[seg.chord.canonical_segment] = Some(face);
-            }
-            swept::cusp_contacts(lp.cusp_joints(), segs.len(), |s| by_canonical[s])
-        })
-        .collect();
-
     Ok(Extruded {
         body: built,
         solid: seed.solid,
@@ -818,7 +782,6 @@ pub fn extrude<T: Decide>(
         bottom: bottom_face,
         side_faces,
         strut_edges,
-        declared_contacts,
     })
 }
 

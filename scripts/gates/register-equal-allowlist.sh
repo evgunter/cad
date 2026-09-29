@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # register-equal-allowlist.sh — `Real::register_equal` is called from
-# RATIFIED CONSTRUCTOR SITES only. ONE home; ci.yml's
-# "register_equal call-site allowlist" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# RATIFIED CONSTRUCTOR SITES only. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # WHY IT EXISTS. `Real::register_equal` (M10-9, ERROR-DESIGN E12's
 # provenance reserve) hands every generic `T: Real` body a value

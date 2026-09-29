@@ -172,7 +172,7 @@ fn build_on(lo: f64, hi: f64, degree: usize, interior: &[(f64, usize)]) -> KnotV
 }
 
 /// The written-down cases: the shapes a random draw is not guaranteed to
-/// produce, so they are constructed rather than hunted (test-suite-cost
+/// produce, so they are constructed rather than hunted (implementer-discipline §8
 /// shape 2). Every degree from 1 to 5 appears with an empty interior, a
 /// multiplicity-1 interior, and a multiplicity-`p` interior.
 fn enumerated() -> Vec<(String, KnotVector)> {

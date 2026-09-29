@@ -33,7 +33,7 @@
 //!   kept going and returned the last error would also satisfy. Two
 //!   different refusal arms in both orders pin the "first".
 //!
-//! # Randomised rows, per `memories/test-suite-cost.md`
+//! # Randomised rows, per implementer-discipline §8
 //!
 //! Three rows are counterexample searches (*for all sampled x, P(x)*),
 //! so they draw a fresh seed per run through `test_utils::fuzz` — the
@@ -108,7 +108,7 @@ fn built(delta: f64) -> viewer::SceneMesh {
 
 /// Every claim `Camera`'s module docs make about a reachable state,
 /// checked on one camera. Labelled per assertion so a merged row still
-/// names the property that broke (`memories/test-suite-cost.md`).
+/// names the property that broke (implementer-discipline §8).
 ///
 /// `provenance` is a THUNK, not a string: this runs once per step of a
 /// sweep whose depth rides `CAD_FUZZ_EFFORT`, and a message built eagerly

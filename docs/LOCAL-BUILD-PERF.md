@@ -241,8 +241,7 @@ that fails closed, and `scripts/**` was unrecognised ⇒ `TIER=all`).
   `ci-filter.py`, `check_admesh.sh`, `check_step.sh`,
   `step_import_check.py`, `k_probe_sweep.sh`. Changes here still force
   `TIER=all`; they can move a hosted result.
-* `local-scripts/` — everything else (`ci-local.sh`, `gate.sh`,
-  `with-build-slot.sh`, `test-fast.sh`, `new-lane.sh`, `clean-lanes.sh`,
+* `local-scripts/` — everything else (`with-build-slot.sh`, `test-fast.sh`, `new-lane.sh`, `clean-lanes.sh`,
   `fmt-all.sh`, `render-hosted.sh`, `setup-build-env.sh`, `hooks/`,
   `monitors/`, `review-lily/`). Classified non-triggering, like docs.
 
@@ -251,9 +250,6 @@ that fails closed, and `scripts/**` was unrecognised ⇒ `TIER=all`).
 reference to a local script fails loudly on the next run rather than
 silently coupling the hosted gate to a developer's machine — which is what
 makes it safe for the filter to skip CI on those changes.
-
-`ci-local.sh` and `gate.sh` are local despite appearing in `ci.yml`: those
-are comment mentions only, verified by checking for non-comment references.
 
 ### The stranded-hook trap (self-healing since 2026-08-11)
 

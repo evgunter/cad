@@ -18,7 +18,7 @@ use topo::validate::{ValidationError, validate_geometric};
 
 /// **One body, three orientations, two doors** — one row, because all
 /// three twins are clones of one revolve and nextest is
-/// process-per-test (`memories/test-suite-cost`); every assertion
+/// process-per-test (implementer-discipline §8); every assertion
 /// names the twin it speaks for.
 ///
 /// What it pins:

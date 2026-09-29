@@ -237,8 +237,10 @@ re-evaluation, which re-verifies crossings (A4).
 **A5 — The at-rest gate.** `assembly::assemble` gathers the product
 (`product::product_recorded`), mints every solved mate's declaration as
 a `MintedDeclaration` (declaring mates mint like determining ones), and
-runs the scalar's at-rest policy, `topo::validate_pseudomanifold`, over
-body plus records. Minting resolves each reference against the
+runs the scalar's at-rest policy, `topo::validate_pseudomanifold`'s
+verdict, over body plus records. The gather's own tier-3 verdict rides
+on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
+census over it rather than the local battery a second time. Minting resolves each reference against the
 product's table and, when that is silent, asks the operand the mate
 reads at whether the name is spelled in its own table — a name spelled
 there at a node the product does not list refuses

@@ -246,6 +246,20 @@ Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
 hit-testing (`resolve/hit.rs`) reads the table backwards, so the GUI never sees
 an arena key.
 
+**A tie's candidates keep their identity.** The node that mints an
+`Entry::Tied` row numbers its candidates, and the number belongs to the row: a
+tied row holds (candidate, entity) pairs, and a row that narrows to one
+candidate (a `Part`'s projection of the half that holds it, a split's
+pass-through of the uncut one) is a `Unique` row that keeps its candidate. The
+pass-through ops of N1 carry the candidate with the name; an op that wraps the
+name numbers afresh, as it mints a fresh name. The product's gather therefore
+has one rule for strict and tied names alike: a (name, candidate) pair reaches
+the product at most once. A strict name is its own only candidate, so two roots
+carrying it refuse; two roots carrying different candidates of one tie merge
+back into the tie; two carrying the same candidate refuse
+(`ProductError::Naming`), the tied case of one entity placed twice. The
+candidate is not part of the name and reaches no name digest.
+
 **The row is a shared handle.** A table keys on `NameRef` — one `Arc<StableName>`
 per row, held by both directions — and a role segment holds its argument name by
 the same type, so a downstream name EMBEDS its operand's row rather than copying
@@ -370,7 +384,8 @@ transform composes into `expr` (`SourceExpr::Placed`), `revert` flips `orient`
 same `GeomSource` ⇒ bit-identical descriptions (D9); the converse is not
 claimed, so equal bits without a shared source stay unglued. The declared
 coincidence rung is this lookup (`merge_faces.rs`, `oriented_plane_eq`); the bit
-comparison survives only as the debug assertions behind `plane_bits_witness`, and the gate
+comparison survives only in the debug assertions built on `crates/topo/src/source.rs`'s
+bit witnesses (`plane_bits_witness`, `vec3_bits_witness`, `surface_bits_witness`), and the gate
 `scripts/gates/bit-identity-consumer.sh` keeps the production allowlist empty.
 Identity holds per evaluation against the current document only.
 

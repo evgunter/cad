@@ -46,12 +46,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use geom_core::{Band, Point2, Point3, Tol, Vec2};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 
 use crate::common::charts::hollow_moves;
+use crate::common::poses::torax_pose;
+use crate::common::torus_walls::{klein_elbow, torus_barrel, torus_belly};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -84,31 +86,6 @@ const T: f64 = 1.0 / 128.0;
 /// above the larger measured residue, therefore replaces the two
 /// unexplained per-row tolerances this file used to carry.
 const GAP_REL: f64 = 1e-14;
-
-/// Revolved about the `y` axis through the origin, so a vertex's axial
-/// coordinates are `(hypot(x, z), y)`.
-fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the meridian validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        turn,
-        tol(),
-    )
-    .expect("the meridian revolves")
-    .body
-}
-
-/// The bulge (`tan(θ/4)`) of the arc from `a` to `b` about `c`.
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
 
 /// `p` in the `(ρ, h)` half-plane of the `y` axis.
 fn axial(p: Point3<f64>) -> (f64, f64) {
@@ -190,52 +167,8 @@ fn residual(s: &Surface<f64>, p: Point3<f64>) -> f64 {
 }
 
 // ---------------------------------------------------------------------
-// The two full-revolve consumers
+// The two full-revolve consumers: `common::torus_walls`' barrel and belly
 // ---------------------------------------------------------------------
-
-/// **The barrel bulged about a centre OFF the axis.** The same two
-/// junction stations and the same `5/64` meridian radius as the tour's
-/// sphere-zone barrel, about the OTHER centre on their perpendicular
-/// bisector — so the wall is a TORUS: `R = 6/64`, `r = 5/64`,
-/// `h_c = 4/64`, a 3-4-5 at each junction with both residuals exactly
-/// zero.
-pub(crate) fn torus_barrel() -> Body<f64> {
-    let c = Point2::new(6.0 / 64.0, 1.0 / 16.0);
-    let (lo, hi) = (
-        Point2::new(3.0 / 64.0, 0.0),
-        Point2::new(3.0 / 64.0, 8.0 / 64.0),
-    );
-    revolved(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (lo, bulge(lo, hi, c)),
-            (hi, 0.0),
-            (Point2::new(0.0, 8.0 / 64.0), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
-
-/// **The teapot's wall-1 belly.** The pot's own foot and mouth, its
-/// belly bulged about `(7/64, 5/64)` — off the axis, so a TORUS with
-/// `R = 7/64`, `r = 5/64`, `h_c = 5/64`.
-pub(crate) fn torus_belly() -> Body<f64> {
-    let c = Point2::new(7.0 / 64.0, 5.0 / 64.0);
-    let (lo, hi) = (
-        Point2::new(4.0 / 64.0, 1.0 / 64.0),
-        Point2::new(3.0 / 64.0, 8.0 / 64.0),
-    );
-    revolved(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(4.0 / 64.0, 0.0), 0.0),
-            (lo, bulge(lo, hi, c)),
-            (hi, 0.0),
-            (Point2::new(0.0, 8.0 / 64.0), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
 
 /// **The barrel's cap × wall corners solve as Station × torus-circle
 /// roots, in closed form.**
@@ -366,11 +299,7 @@ fn torax_every_torus_corner_lies_on_its_own_moved_surfaces() {
 /// `1e-12` this row was first written with.
 #[test]
 fn torax_the_torus_corners_survive_a_rigid_re_pose() {
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.25, -0.5, 0.125),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
-    );
+    let map = torax_pose();
     for (what, body) in [
         ("the torus barrel", torus_barrel()),
         ("the teapot's torus belly", torus_belly()),
@@ -433,11 +362,7 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
 /// cross the torus wall first, which is all the pose changed.
 #[test]
 fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.25, -0.5, 0.125),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
-    );
+    let map = torax_pose();
     let band = Band::linear(tol()).expect("the witness band");
     let barrel = torus_barrel();
     let hollow = hollowed("the torus barrel", &barrel);
@@ -630,28 +555,10 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 #[test]
 fn torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let r = 0.275_f64;
-    let elbow = {
-        let profile = Profile::new(
-            SketchPlane::xy(),
-            vec![bulge_loop(vec![
-                (Point2::new(-r, 0.0), 1.0),
-                (Point2::new(r, 0.0), 1.0),
-            ])],
-        )
-        .validate(tol())
-        .expect("the elbow's cross-section validates");
-        revolve(
-            &profile,
-            RevolveAxis {
-                origin: Point2::new(1.2, 0.0),
-                dir: Vec2::new(0.0, -1.0),
-            },
-            Revolution::Partial(-core::f64::consts::FRAC_PI_2),
-            tol(),
-        )
-        .expect("the elbow revolves")
-        .body
-    };
+    let elbow = klein_elbow(vec![bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])]);
     let e = topo::shell(&elbow, 0.05, tol())
         .expect_err("the equator seams' declarations cannot be re-authored off their plane");
     println!("[torax] the elbow's next door: {e}");
@@ -826,11 +733,7 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
 #[test]
 fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
     let (r, t) = (0.3_f64, 0.05_f64);
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.25, -0.5, 0.125),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
-    );
+    let map = torax_pose();
     let body = lune(r, core::f64::consts::FRAC_PI_2);
     let band = Band::linear(tol()).expect("band");
 

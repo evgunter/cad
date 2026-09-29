@@ -1,65 +1,54 @@
-//! CERT-3 review lane R2 — an independent re-derivation of the m10-p
-//! fence's coordinate-dump differential.
+//! The m10-p fence's corpus walk as tab-separated lines: one per node
+//! (`POISONED`, `FAILED` or `OK` with its kind) and one per body point
+//! (`PT`, its key, its bits and its decimal value), then a `SUMMARY`
+//! line counting nodes and coordinates. It prints the corpus half of
+//! `m10_p_fence::walk` and skips the arc-carrier fixture; the
+//! `RSTRUCT`/`RCOORD` form in `cert3r1_dump` prints both halves at
+//! both scalars.
 //!
-//! The fence header records the procedure as "the same corpus walk,
-//! dumping every coordinate rather than digesting it, on this tree and
-//! on a tree with only those two files reverted". This file is that
-//! walk, written from the fence's own `corpus_digest` shape but
-//! emitting a line per observable instead of folding into FNV. Run it
-//! on the reviewed head and again with `affine.rs`/`mat.rs` reverted,
-//! then diff the two outputs.
+//! `#[ignore]`d: it asserts nothing and gates nothing. Run it with
 //!
-//! Not a unit deliverable; a reviewer's instrument.
+//! ```text
+//! cargo test -p editor-core --test all \
+//!     -- --ignored --nocapture r2_cert3_coord_dump
+//! ```
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus;
+use crate::m10_p_fence::{Outcome, Seen, walk};
 
-use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
-use geom_core::Tol;
-
-/// Dump every observable the fence digests, in the same order.
+/// Dump every corpus observable the fence digests, in the same order.
 fn dump<T: editor_core::EvalScalar>(tag: &str, bits: impl Fn(&geom_core::Point3<T>) -> String) {
     let mut coords = 0usize;
     let mut nodes = 0usize;
-    for doc in corpus::documents() {
-        let ev = evaluate::<T>(
-            &doc.doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            Tol::witness(),
-        );
-        for (id, result) in ev.nodes.iter() {
+    walk::<T>(|seen| match seen {
+        Seen::Fixture(_)
+        | Seen::FixtureLoop { .. }
+        | Seen::FixtureVertex { .. }
+        | Seen::FixtureRefused(_)
+        | Seen::Document(_) => {}
+        Seen::Node { doc, id, outcome } => {
             nodes += 1;
-            match result {
-                NodeResult::Poisoned { through } => {
-                    println!("{tag}\t{}\t{}\tPOISONED\t{}", doc.name, id.0, through.0);
+            match outcome {
+                Outcome::Poisoned { through } => {
+                    println!("{tag}\t{doc}\t{id}\tPOISONED\t{through}");
                 }
-                NodeResult::Failed(_) => {
-                    println!("{tag}\t{}\t{}\tFAILED", doc.name, id.0);
-                }
-                NodeResult::Ok(v) => {
-                    println!(
-                        "{tag}\t{}\t{}\tOK\t{}",
-                        doc.name,
-                        id.0,
-                        v.payload.kind_name()
-                    );
-                    if let ValuePayload::Body(b) = &v.payload {
-                        for (pid, p) in b.points() {
-                            coords += 3;
-                            println!("{tag}\t{}\t{}\tPT\t{pid:?}\t{}", doc.name, id.0, bits(p));
-                        }
-                    }
-                }
+                Outcome::Failed => println!("{tag}\t{doc}\t{id}\tFAILED"),
+                Outcome::Ok { kind } => println!("{tag}\t{doc}\t{id}\tOK\t{kind}"),
             }
         }
-    }
+        Seen::Point {
+            doc, id, key, p, ..
+        } => {
+            coords += 3;
+            println!("{tag}\t{doc}\t{id}\tPT\t{key:?}\t{}", bits(p));
+        }
+    });
     println!("{tag}\tSUMMARY\tnodes={nodes}\tcoords={coords}");
 }
 
 #[test]
+#[ignore = "a diff instrument over the fence's walk; asserts nothing, run with --ignored"]
 fn r2_dump_corpus_coordinates_f64() {
     dump::<f64>("f64", |p| {
         format!(

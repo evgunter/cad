@@ -59,6 +59,8 @@ use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
+use crate::common::contact_edges::intrinsic_edges;
+
 /// The run's resolved linear band — the same one both verbs classify
 /// against, so a row's derived length is the one the kernel will read.
 fn band() -> Band {
@@ -182,20 +184,6 @@ const SMOOTH_LATITUDE_JOINS: usize = 1;
 // Reading a body back.
 // ---------------------------------------------------------------
 
-/// How many of `body`'s edges store the intrinsic tangency.
-fn tangent_intersections(body: &Body<f64>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(geom_brep::EdgeCurve::description),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count()
-}
-
 /// The conventional chart images among the edges `pick` selects — a
 /// COUNT OVER A NAMED SET, never over the whole body: a body's cap
 /// rims are chart images too, so `chart_images(body) >= n` is met by
@@ -266,7 +254,7 @@ fn an_extrude_strut_with_a_definite_positive_margin_stores_the_intrinsic_tangenc
     let body = filleted_block(free_length_for(definite_positive_margin()))
         .expect("a definitely-determinate join builds");
     assert_eq!(
-        tangent_intersections(&body),
+        intrinsic_edges(&body),
         SMOOTH_STRUTS,
         "every smooth strut stores the intrinsic tangency"
     );
@@ -280,7 +268,7 @@ fn an_extrude_strut_with_a_definite_zero_margin_stores_the_conventional_descript
     let body = filleted_block(free_length_for(definite_zero_margin()))
         .expect("an under-determined join builds");
     assert_eq!(
-        tangent_intersections(&body),
+        intrinsic_edges(&body),
         0,
         "an under-determined join stores no intrinsic tangency"
     );
@@ -317,7 +305,7 @@ fn a_revolve_latitude_join_with_a_definite_positive_margin_stores_the_intrinsic_
     let body = bored_ring(free_length_for(definite_positive_margin()))
         .expect("a definitely-determinate join builds");
     assert_eq!(
-        tangent_intersections(&body),
+        intrinsic_edges(&body),
         SMOOTH_LATITUDE_JOINS,
         "the smooth latitude join stores the intrinsic tangency"
     );
@@ -329,7 +317,7 @@ fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_d
     let r_bore = free_length_for(definite_zero_margin());
     let body = bored_ring(r_bore).expect("an under-determined join builds");
     assert_eq!(
-        tangent_intersections(&body),
+        intrinsic_edges(&body),
         0,
         "an under-determined join stores no intrinsic tangency"
     );
@@ -875,14 +863,7 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
         .filter(|s| s.predicate == "tangent_second_order")
         .count();
     assert_eq!(
-        body.edges()
-            .filter(|(_, e)| matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(geom_brep::EdgeCurve::description),
-                Some(EdgeDescription::TangentIntersection { .. })
-            ))
-            .count(),
+        intrinsic_edges(&body),
         SMOOTH_STRUTS,
         "the block's eight struts store the intrinsic tangency"
     );

@@ -2,11 +2,13 @@
 id: wire-rs-accumulation-residue-comment-ratio-and-wire-sweep
 kind: issue
 title: eval/wire.rs is about 47% comment by line and nothing decides whether that is wanted: a ratio budget or an editorial pass
-status: open
+status: closed
 opened: 2026-09-12
 priority: P4
 cost: M
-design: true
+branch: gather/wire-rs-editorial-pass
+closed: 2026-09-28
+pr: 3365
 ---
 
 
@@ -85,3 +87,12 @@ lines of `eval/wire.rs` commentary, is wanted at all. That pass is well
 over E, and the budget is a choice about process, not a code fix. The
 row should be re-priced (D or H) or deferred with a cited ruling rather
 than dispatched as E.
+
+## Ruled (Ev, in chat, 2026-09-28)
+
+No comment-ratio budget. A one-time editorial pass over the file
+instead: cut restatement, history, duplicated argument and argument
+that has a home elsewhere; keep invariants the code cannot express,
+the why of non-obvious choices, clause citations and the docs public
+items promise. Done on `gather/wire-rs-editorial-pass`; the PR body
+carries the before/after measure.

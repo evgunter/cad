@@ -2,9 +2,8 @@
 """Every tracked Python file in this repo is linted by ruff, and the set that is
 NOT linted is derived and named rather than assumed.
 
-This is the ONLY invocation of ruff in the tree. Both halves of CI call this
-script — `.github/workflows/ci.yml`'s `mirror` job and `local-scripts/
-ci-local.sh`'s tier-blind rows — and neither calls `ruff` directly, because the
+This is the ONLY invocation of ruff in the tree. `.github/workflows/ci.yml`'s
+`lint` job calls this script and never calls `ruff` directly, because the
 defect this whole change closes is a claim about a checker that nothing ran. A
 second, differently-scoped invocation would be the same defect in a new place:
 a config that says "the repo" and a CI row that reaches less of it.
@@ -180,8 +179,7 @@ def ci_pin_reader():
     documents — `sys.path` plus `import_module("ci-pin")`.
 
     IMPORTED BY THE HYPHENATED NAME because that is the name every caller
-    spells on a command line, and the two lines are the same two
-    `scripts/check-ci-mirror-parity.py` uses. The path is resolved against
+    spells on a command line. The path is resolved against
     THIS FILE, never against the repo root under check: the self-test hands
     `pinned_version` a miniature repo that contains a ci.yml and nothing else,
     and the reader it must use is this tree's.

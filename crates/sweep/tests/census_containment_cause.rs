@@ -2,10 +2,10 @@
 //!
 //! `contfp` has four typed refusals. One of them —
 //! `ContainError::Escalated` — carries an `Indeterminate` a predicate
-//! really metred. The other three carry no quantity at all: an
-//! arc-bearing loop no walk expresses, an exhausted parity schedule,
-//! unwalkable topology. The tier-3′ census used to answer all three
-//! with `CensusEscalated` over an `Indeterminate` it MINTED —
+//! really metred. The other three carry no quantity at all: a spiric
+//! or spline edge within the point's reach, an exhausted parity
+//! schedule, unwalkable topology. The tier-3′ census used to answer
+//! all three with `CensusEscalated` over an `Indeterminate` it MINTED —
 //! predicate `pm_census_containment`, margin `Invalid` — which claims
 //! a named predicate was posed and came back poisoned, in the one
 //! field a reader uses to judge how close the call was. Nothing was

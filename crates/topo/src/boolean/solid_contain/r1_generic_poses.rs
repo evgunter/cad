@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
-// Gated to the code it tests (TCOST-1), as `memories/test-suite-cost.md`
+// Gated to the code it tests (TCOST-1), as implementer-discipline §8
 // requires of every fuzzer. The sweep draws ray poses at random and holds
 // the CERTIFIED root count and the roots themselves against a geometric
 // oracle, so its claim is `line_torus_roots` and the `cbrt` chain it calls

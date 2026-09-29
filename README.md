@@ -98,8 +98,7 @@ and a second under `--skip-viewer-toolkit`, which puts `viewer` at default
 features too — and then re-reads every root that has a
 `#[cfg(not(feature = …))]` half at `--no-default-features`. Three passes over
 eight roots is a minutes-long run rather than a seconds-long one, which is why
-it is what nightly CI and `local-scripts/ci-local.sh` run and not something for
-a tight edit loop.
+it is what nightly CI runs and not something for a tight edit loop.
 
 A plain `cargo doc -D warnings` runs default features instead, and there prose
 that links to a feature-gated item cannot resolve, so rustdoc reports correct

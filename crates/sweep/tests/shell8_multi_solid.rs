@@ -22,10 +22,11 @@ use topo::{Body, ShellError, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::{hollow_box, vessel};
 use crate::shell8_common::{
     beside, bits, deep_dump, edge_rows, outer_and_void_of, points, solid_of, tol, top_chart, volume,
 };
-use crate::verbs_shell::{hollow_box, v, vessel};
 
 // ---------------------------------------------------------------------
 // Row 2 — two disjoint boxes in one body
@@ -39,7 +40,8 @@ use crate::verbs_shell::{hollow_box, v, vessel};
 #[test]
 fn two_disjoint_boxes_each_shell_and_the_gap_between_them_never_gates() {
     let t = 0.05;
-    let one_wall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
+    let one_wall =
+        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
 
     for dx in [10.0, 2.0 + 0.05] {
         let pair = beside(
@@ -86,7 +88,8 @@ fn a_box_beside_a_vessel_takes_one_door_each() {
     );
     let s = topo::shell(&pair, t, tol()).expect("each solid takes its own door");
     let body = &s.body;
-    let want = (v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
+    let want = (box_volume(2.0, 3.0, 4.0)
+        - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
         + PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
     println!(
         "[8] box+vessel: solids={} shells={} volume={} want={want}",
@@ -123,7 +126,8 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &torus, 20.0);
     let s = topo::shell(&pair, t, tol()).expect("each solid takes its own door");
     let body = &s.body;
-    let want = (v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
+    let want = (box_volume(2.0, 3.0, 4.0)
+        - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
         + 2.0 * PI * PI * big_r * (r * r - (r - t) * (r - t));
     println!(
         "[8] box+torus: solids={} shells={} volume={} want={want}",
@@ -156,9 +160,9 @@ fn a_hollow_solid_beside_a_plain_one_gives_three_thin_solids() {
     );
     let s = topo::shell(&pair, t, tol()).expect("both solids shell");
     let body = &s.body;
-    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9))
-        + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5))
-        + (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9));
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
+        + (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9));
     println!(
         "[8] hollow+plain: solids={} shells={} volume={} want={want} thickened={:?}",
         body.solids().count(),
@@ -190,7 +194,8 @@ fn designations_land_on_whichever_solid_carries_them() {
     );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let lid = |i: usize| top_chart(&pair, solids[i], 4.0);
-    let one_wall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
+    let one_wall =
+        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
     // An OUTER designation removes the lid over the CAVITY and leaves
     // the rim standing — the wall thickness is exactly what shows.
     let one_lid = (2.0 - 2.0 * t) * (3.0 - 2.0 * t) * t;

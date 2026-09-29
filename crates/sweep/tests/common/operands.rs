@@ -31,7 +31,9 @@
 //! - `super::approx::unit_box`, which is the boolean gate's FACE rule
 //!   fixture and belongs with the surgery vocabulary that reads it;
 //! - [`super::sphere_recut`]'s `plate`, a box that stays with the ball
-//!   it is cut by and the constant measured on the pair.
+//!   it is cut by and the constant measured on the pair;
+//! - [`super::shell_operands`]' vessel, tube and hollow boxes, which
+//!   stay beside the role readers the shell rows run over them.
 
 use geom_core::{Decide, Point2, Tol};
 use profile::test_support::bulge_loop;

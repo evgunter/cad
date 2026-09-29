@@ -2,7 +2,7 @@
 //! attacking review claims 2, 3 and 5 at the scalar itself, through the
 //! public doors (`Sym`, `with_session`, `k_stats::decide`).
 //!
-//! Sweep shape ([[test-suite-cost]]): every row is a witness that can be
+//! Sweep shape (implementer-discipline §8): every row is a witness that can be
 //! written down, so all are static fixtures and no seed appears. Rows
 //! marked EVIDENCE-ONLY print and assert nothing that gates.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

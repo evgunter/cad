@@ -190,7 +190,11 @@ impl core::fmt::Display for TransformError {
             Self::Pcurve { source } => write!(f, "{source}"),
             Self::Band(e) => write!(f, "{e}"),
             Self::Certify { edge, source } => {
-                write!(f, "mapped edge {edge:?} failed re-certification: {source}")
+                write!(
+                    f,
+                    "mapped edge {edge:?} failed re-certification: {}",
+                    source.render(geom_brep::recourse::Reading::Build)
+                )
             }
             Self::NotRigid { check } => write!(
                 f,

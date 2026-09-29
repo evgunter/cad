@@ -42,7 +42,7 @@ use geom_core::{InfSpeed, Margin, SupSpeed};
 /// Every value a rate or a span can be, including the ones that only
 /// a bit comparison can tell apart. Deliberately written down rather
 /// than drawn: this is a witness set, not a counterexample search
-/// (`memories/test-suite-cost.md`), so it is the same set every run.
+/// (implementer-discipline §8), so it is the same set every run.
 fn sample() -> Vec<f64> {
     vec![
         0.0,

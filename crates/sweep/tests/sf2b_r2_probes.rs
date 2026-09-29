@@ -6,6 +6,7 @@
 use core::f64::consts::PI;
 
 use crate::common::approx::band;
+use crate::common::bulge;
 use geom::Surface;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -301,17 +302,13 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         5.0 / 64.0,
     );
     let c = Point2::new(0.0, y_c);
-    let (u, v) = (
-        Point2::new(r_foot, y_foot) - c,
-        Point2::new(r_neck, y_mouth) - c,
-    );
-    let sweep = u.perp_dot(v).atan2(u.dot(v));
+    let (foot, mouth) = (Point2::new(r_foot, y_foot), Point2::new(r_neck, y_mouth));
     let pot = revolved(
         bulge_loop(vec![
             (Point2::new(0.0, 0.0), 0.0),
             (Point2::new(r_foot, 0.0), 0.0),
-            (Point2::new(r_foot, y_foot), (sweep / 4.0).tan()),
-            (Point2::new(r_neck, y_mouth), 0.0),
+            (foot, bulge(foot, mouth, c)),
+            (mouth, 0.0),
             (Point2::new(0.0, y_mouth), 0.0),
         ]),
         Revolution::Full,

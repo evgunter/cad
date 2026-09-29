@@ -55,8 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
-#[path = "band_declared_cusp_contacts.rs"]
-mod band_declared_cusp_contacts;
+#[path = "a_swept_cusp_is_legal_at_rest.rs"]
+mod a_swept_cusp_is_legal_at_rest;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -478,9 +478,6 @@ test_utils::every_suite_file_is_aggregated!();
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
 
-#[path = "reporting_door_bit_digest.rs"]
-mod reporting_door_bit_digest;
-
 #[path = "mass_props_are_thread_count_invariant.rs"]
 mod mass_props_are_thread_count_invariant;
 
@@ -510,10 +507,22 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "germ_circle_torus.rs"]
+mod germ_circle_torus;
+#[path = "germ_cone_apex_closure.rs"]
+mod germ_cone_apex_closure;
 #[path = "germ_cone_doors.rs"]
 mod germ_cone_doors;
+#[path = "germ_conic_plane_roots.rs"]
+mod germ_conic_plane_roots;
+#[path = "germ_coplanar_conic.rs"]
+mod germ_coplanar_conic;
 #[path = "germ_interior_oval.rs"]
 mod germ_interior_oval;
+#[path = "germ_interior_saddle.rs"]
+mod germ_interior_saddle;
+#[path = "germ_sphere_no_crossings.rs"]
+mod germ_sphere_no_crossings;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]
@@ -751,6 +760,9 @@ mod census_containment_cause;
 
 #[path = "wire_loft_end_profile_lift.rs"]
 mod wire_loft_end_profile_lift;
+
+#[path = "wedge_end_doors.rs"]
+mod wedge_end_doors;
 
 #[path = "review_recourse_roster_r1_probes.rs"]
 mod review_recourse_roster_r1_probes;

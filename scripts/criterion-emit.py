@@ -147,13 +147,12 @@ def cpu_identity() -> tuple[str | None, list[str] | None]:
     hosted runner pool while the CPU generation underneath it is not, so
     without this pair a sample cannot be attributed to a host at all.
 
-    PARITY OBLIGATION: two more copies of this parser exist, in
-    `scripts/opt-level-calibrate.py` and
-    `crates/editor-core/tests/m4_pr8_latency.rs`. They are copies rather
+    PARITY OBLIGATION: one more copy of this parser exists, in
+    `crates/editor-core/tests/m4_pr8_latency.rs`. It is a copy rather
     than one reader because no cheap home is shared across Rust and Python,
     so the obligation is manual and it is this: a change to the field names,
     to `HOST_CPU_FLAGS`, or to what a null means here is a change owed to
-    both of them in the same diff. Blocks that disagree do not compare, and
+    it in the same diff. Blocks that disagree do not compare, and
     comparing them is the entire point of the fields.
 
     `(None, None)` means the file could not be read; `[]` means the flags
@@ -305,8 +304,7 @@ def selftest() -> int:
 
     What it does NOT hold is the VALUE of most collected fields: `plant`
     writes one scalar into five of them, so a reader that swapped two is
-    invisible here. `work/ciw/criterion-selftest-fixture-is-one-scalar-in-five-fields`
-    carries the measurement and the repair.
+    invisible here.
     """
     failures = []
     with tempfile.TemporaryDirectory() as tmp:

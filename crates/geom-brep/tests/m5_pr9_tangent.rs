@@ -156,15 +156,22 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
     let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
-    let CertifyError::NotSecondOrderSeparated { band: b, .. } = err else {
+    let CertifyError::NotSecondOrderSeparated { .. } = err else {
         panic!("the zero-side margin is the definite refusal: {err}");
     };
-    // The two-tolerance shape: the definite arm quotes the band that
-    // decided and carries the shared recourse.
-    let msg = format!("{err}");
-    assert!(msg.contains("under-determine"), "{msg}");
-    assert!(msg.contains(&format!("{:e}", b.zero())), "{msg}");
-    assert!(msg.contains("declare the coincidence"), "{msg}");
+    // The two-tolerance shape (D4 ¶1 (iv)): the definite arm ends in the
+    // second-order decision's one recourse, the one its in-band sibling
+    // ends in, and certification takes no declaration.
+    let msg = err.render(geom_brep::recourse::Reading::Build);
+    assert!(msg.contains("agree to second order"), "{msg}");
+    assert!(
+        msg.ends_with(
+            "Recourse: move the geometry so the faces curve apart more clearly where they \
+             touch, or, if this curvature difference is intended, tighten the tolerance"
+        ),
+        "{msg}"
+    );
+    assert!(!msg.contains("declare"), "{msg}");
 }
 
 #[test]

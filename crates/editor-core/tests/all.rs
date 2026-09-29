@@ -80,6 +80,8 @@ mod asm_r2b_interface_wire;
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
+#[path = "assemble_one_local_battery.rs"]
+mod assemble_one_local_battery;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -377,8 +379,6 @@ mod m4_pr6_refusal;
 mod m4_pr6_review_probes;
 #[path = "m4_pr6_roundtrip.rs"]
 mod m4_pr6_roundtrip;
-#[path = "m4_pr6_roundtrip_interval.rs"]
-mod m4_pr6_roundtrip_interval;
 #[path = "m4_pr7_appearance.rs"]
 mod m4_pr7_appearance;
 #[path = "m4_pr7_appearance_interval.rs"]
@@ -543,9 +543,6 @@ mod unreadable_by_this_build;
 
 test_utils::every_suite_file_is_aggregated!();
 
-#[path = "cert_m2r1_corpus.rs"]
-mod cert_m2r1_corpus;
-
 #[path = "lib_tube_node.rs"]
 mod lib_tube_node;
 
@@ -563,9 +560,6 @@ mod lib_tube_r2_probes;
 
 #[path = "m10_7_r2_probes_interval.rs"]
 mod m10_7_r2_probes_interval;
-
-#[path = "m10_7_r2_drive_schedule_is_deterministic.rs"]
-mod m10_7_r2_drive_schedule_is_deterministic;
 
 #[path = "m10_8_arc_family_interval.rs"]
 mod m10_8_arc_family_interval;

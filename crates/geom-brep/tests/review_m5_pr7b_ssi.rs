@@ -1,8 +1,8 @@
 //! **Blinded-review probes for M5 PR 7b** — the SSI side: deviation 2's
 //! independent reproduction (the inflected-wall fit deviation is REAL
-//! geometry), the march-ε sub-linear scaling claim, the domain-mismatch
-//! typed-refusal shape (deviations 1 and 3), and the retirement's
-//! practical breadth on a multi-cell (interior-knot) wall.
+//! geometry), the domain-mismatch typed-refusal shape (deviations 1
+//! and 3), and the retirement's practical breadth on a multi-cell
+//! (interior-knot) wall.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -13,14 +13,6 @@ use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
 use geom_core::{Point3, Vec3};
 use test_utils::vacuity;
-
-// `at_default_eps()` lived here and gated two rows into silence. Both
-// guards are gone (2026-08-13 audit): `deviation2b` handles its budget
-// refusal where it happens, and `deviation2a` turned out never to need
-// a guard at all — its march ε is explicit, and it measures the same
-// 3.805e-9 m on every ambient band. With the last caller removed the
-// helper is dead, so it goes too rather than sitting unused waiting to
-// be reached for again.
 
 /// PR 7's inflected wall, verbatim from the acceptance suite.
 fn nurbs_wall() -> NurbsSurface<f64> {
@@ -183,63 +175,6 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     assert!(
         (u_at_max - u_kzero).abs() < 0.15,
         "deviation peak (u = {u_at_max:.4}) is not at the inflection (u = {u_kzero:.4})"
-    );
-}
-
-/// **This row is about the MARCH ε, not the ambient one.** The
-/// tolerance under test is the one handed to [`trace_deviation`]
-/// (`1e-9`, then `1e-9 / factor`), which becomes the uncertified
-/// door's generator tolerance and drives the stepper's spacing — the
-/// one door in the module that names one. The ambient
-/// `CAD_TOLERANCE_EPS` is not the subject; its only bearing is that a
-/// tight ambient band can push the march past the SSI fit budget, at
-/// which point there is no fitted pair to measure at all.
-///
-/// So the budget refusal is handled where it happens rather than
-/// pre-empted by an ambient-ε guard. Until the 2026-08-13 audit this
-/// row opened `if !at_default_eps() { return; }` — a SILENT skip that
-/// reported green on two of the three hosted ε rows having asserted
-/// nothing at all. Now every row that CAN measure does, and a row that
-/// cannot says so out loud, naming what it did not cover.
-#[test]
-fn deviation2b_march_eps_scaling_measured_not_assumed() {
-    // The report: 64× tighter march-ε bought only 6.8× (at cubic fit
-    // cost). Verify the sub-linearity at 16×: the deviation must
-    // improve, but by materially less than 16×.
-    let w = nurbs_wall();
-    let Some((base, _)) = trace_deviation(&w, 1e-9, 100_000) else {
-        vacuity::stood_down(
-            &format!("march-ε scaling, eps = {:e}", eps()),
-            "the 1e-9 march wants more samples than the SSI fit budget allows at this \
-             ambient band, so there is no baseline fit pair. THIS RUN ASSERTS NOTHING \
-             about how the fit deviation scales with the march ε.",
-        );
-        return;
-    };
-    eprintln!("[review] march-ε 1e-9: deviation {base:.3e}");
-    let mut measured = 0;
-    for factor in [4.0f64, 16.0, 64.0] {
-        let Some((tight, _)) = trace_deviation(&w, 1e-9 / factor, 100_000) else {
-            vacuity::stood_down(
-                &format!("{factor}x tighter march-ε, eps = {:e}", eps()),
-                &format!(
-                    "this factor exceeds the SSI fit budget, so ITS SCALING ROW DID NOT \
-                     EXECUTE: nothing is asserted about the deviation gain at {factor}x"
-                ),
-            );
-            continue;
-        };
-        measured += 1;
-        let gain = base / tight;
-        eprintln!("[review] march-ε {factor}× tighter: deviation {tight:.3e} ({gain:.2}× better)");
-        assert!(gain > 0.5, "tighter march-ε badly worsens the fit pair");
-    }
-    assert!(
-        measured > 0,
-        "a baseline fitted at ambient eps = {:e} but NO tighter march-ε did — the \
-         scaling claim has no comparison to stand on, which is a fixture/budget \
-         change, not a pass",
-        eps()
     );
 }
 

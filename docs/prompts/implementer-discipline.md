@@ -15,81 +15,28 @@ Final report ≤150 lines.
 **Hosted CI is the verification of record.** Push and let it run. It runs on
 hardware not shared with any other lane and its result is a durable artifact.
 
-**A code-tier run gates the whole configuration matrix** (Ev, 2026-09-04):
-every eps row {default, 1e-6, 1e-12} — over the one compile mode there is,
-which carries the certified interval lane — and every `k-lint (gate, <row>)`
-feature unification.
-The gates, the discipline and parity rows and the render lanes run on every
-code-tier run too. **The python suite runs whenever a seed is a crate a build
-of the wheel compiles** — `pncad-py`'s non-dev dependency closure, which on this
-tree is every workspace member except two: `viewer`, which sits above the wheel,
-and `test-utils`, which reaches the bindings along a dev-dependency edge
-`maturin build` does not follow. A closure seeded only in one of those two skips
-it; everything else buys it. The `change filter` job's log prints both the seed
-set and `RUN_PNCAD_PY`, so a run says which way it went. Three things follow for
-you:
+**The per-PR gate is sized for latency, and the nightly holds the rest.**
+`.github/workflows/ci.yml` runs the default-eps suite minus the slow set (the
+`ci` profile in `.config/nextest.toml`), the slow tests of the crates your diff
+touches, the 1e-6 and 1e-12 rows of the eps-sensitive crates your diff touches,
+lint (fmt, clippy `--all-features`, `scripts/gates/`), and the rows whose own
+subject you touched (viewer, python, demos, tools, mesh budget, topo release,
+step import, interval). `.github/workflows/nightly.yml` runs everything else:
+the whole suite at every eps row, the k-lint rows, the render lanes, rustdoc,
+wasm32. The `change filter` job's log prints what this run selected, and
+`gate ok` is the one check to read.
 
-- **A green run means green at every eps row and every k-lint
-  unification — and you establish that from the `change filter` log, not by
-  counting job names.** That job prints `EPS` and `KLINT_ROW`, which
-  answers narrowed-or-not directly. **A job's NAME is CI's to change**: a lane
-  that moves into a called workflow has its jobs prefixed with the caller's key,
-  so a reader matching the start of a name sees a fraction of a full matrix and
-  reads it as a narrowing. The roster is declared in `scripts/ci-filter.py`
-  (`EPS_ROWS`, `KLINT_ROWS`) and its `--selftest` re-derives `ci.yml`'s matrix
-  literals against them, so the count is held executably and does not need
-  restating here.
-- **Nothing in CI reads a commit trailer.** A `CI-Config:` line in a commit
-  message is inert text: the flag, the workflow plumbing and the parser do not
-  exist. Some specs and older briefs still instruct one — the run is the
-  authority, not the spec, so delete the line, and if the spec wanted one
-  configuration proved, dispatch the workflow instead. **To narrow
-  deliberately, dispatch the workflow** with the `eps` / `klint`
-  inputs — and say in the PR that you narrowed it: a reader cannot tell a
-  deliberate narrowing from a broken matrix except by being told.
-- **A green `k-lint` means green at every row `KLINT_ROWS` declares**, each
-  running as its own job, so a green sitting over a skipped step is not the
-  thing to check for there. A brief telling you to name one k-lint row on your
-  head commit names a spelling that does not exist; delete it.
-
-  **A filename decides nothing** (Ev's ruling, 2026-08-29, on #1122). Nothing
-  pins a configuration from a path — not a basename containing `interval`, not
-  a change under `interval-transcendentals/` — because nothing needs to pin
-  what the run already gates.
-
-**A missing run is not a slow queue — it is what a merge conflict looks like.**
-Read the PR's `mergeable_state` before you conclude anything from a run that has
-not shown up: `dirty` means no run was ever going to be created, and the remedy
-is to merge the base out and push. **A foreground poll that loops until a run
-concludes will loop forever here** — the rule below, that a hosted CI wait is
-polled in the foreground rather than slept on, assumes a run exists to poll.
-
-**When the hosted gate is not enough**, run `local-scripts/ci-local.sh`. What it
-adds over hosted is its opt-in `--nightly` row. Reach for it before a merge that
-would be expensive to get wrong, not routinely.
-
-**A row you DEMOTE to the nightly is verified AT the demotion.** Moving a
-check out of the per-PR gate into `.github/workflows/nightly.yml` costs it the
-thing that made it trustworthy: every PR ran it, so a mistake in the move
-surfaced in minutes on the branch that made it. In the nightly it surfaces at
-the next fire, to nobody, and **a row that fails to run at all reports the same
-green as a row that ran and passed**. So before the per-PR copy is deleted,
-`workflow_dispatch` the demoted job on the demoting PR's head, read the STEP
-that does the work rather than the job name, and name the run id in the PR
-body. Three rows demoted on 2026-09-03 first executed two nights later,
-unattended, and happened to be correct; a fourth (`c5263958`) had unbalanced
-quotes and never ran at all, and was caught only because a person read a log.
-
-**The same holds one level in, for a `--selftest`.** A guard sited only in a
-scheduled workflow is exercised only on a schedule, which is the same defect
-with a smaller subject. A script's inputs are `scripts/*.py` or `scripts/*.sh`
-— not a file class `scripts/ci-filter.py` reads as TIER=docs — so the change
-set that can break its selftest is exactly the change set the per-PR gate runs
-on, and that is where the row belongs. `scripts/check-ci-mirror-parity.py`'s
-claim 4 has a second arm that refuses a `--selftest` mode NO WORKFLOW invokes
-— a row in `local-scripts/` does not count, because every hosted job deletes
-that tree. That is the floor, not this rule: it cannot tell a per-PR row from
-a nightly one, and you can.
+- **A green PR is not a green nightly.** Running more locally is your call,
+  not a hoop: if a slow test, another eps row or a demo is directly relevant
+  to your change and you think it has a good chance of catching a bug, you
+  can run it (`cargo nextest run -p <crate>` includes the slow set;
+  `CAD_TOLERANCE_EPS=1e-12` picks a row). Otherwise let the nightly have it.
+- **A red nightly is a red main, and the orchestrator owns it.** An
+  implementer that notices one reports it to its orchestrator rather than
+  fixing it; the orchestrator assigns the fix.
+- **A test that costs ≥ 1 s goes in the slow set** unless it has caught
+  something the fast set would miss. Add it to `.config/nextest.toml`'s `ci`
+  filter in the PR that adds the test.
 
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.
@@ -150,16 +97,11 @@ When you do run locally:
   API, so a signature change breaks them the way it breaks a user: two
   lanes in one hour changed a return type, re-spelled every caller
   `--workspace` could see, and learned from CI that `demos/tour/tests/`
-  was still red. Those two and the `tools/*` roots are fmt+clippy'd on
-  every code-tier run and by `local-scripts/ci-local.sh`, so the gate
-  catches you even when your own check does not. **The other two are
-  weaker than that**: `benches` gets rustfmt in the PR gate and its only
-  clippy is a `nightly.yml` row with no local mirror, and
-  `interval-transcendentals`' clippy runs only when the change filter
-  buys that job. A green PR is not a claim about either. The cheap
-  version when you are not running the local gate is
+  was still red. The PR gate lints and tests those two and the `tools/*` roots only when
+  the diff touches them; the nightly takes them every night. So when you
+  change a public signature, run
   `(cd demos/tour && cargo clippy --all-targets -- -D warnings)` and the
-  same in `demos/wild`.
+  same in `demos/wild` before you push.
 - **A build is not a test.** `cargo build` cannot see a broken
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.
@@ -178,7 +120,7 @@ correct. "How do I get the old number back" is never the question, and a change
 whose justification is that output stayed identical has not been justified at
 all (`memories/output-stability-as-justification.md`).
 
-**k-lint.** If the gate fires, do **not** change geometry to silence it. A fired
+**k-lint** (nightly). If it fires, do **not** change geometry to silence it. A fired
 lint is distribution evidence: re-derive the baseline per the K-REPORT runbook,
 or escalate to the orchestrator.
 
@@ -192,7 +134,10 @@ itself — and it stops showing the friction a user would actually hit. A frame
 that changed is telling you the kernel changed. Never adjust
 a scene, tolerance, or camera to restore a frame. Decide whether the new output
 is right: if it is wrong, fix the kernel; if it is right, re-baseline and say in
-the PR what moved and why.
+the PR what moved and why. **PRs do not render**, so a change you expect to move
+frames renders itself: push, run `local-scripts/render-hosted.sh` (it dispatches
+`render.yml` on your branch, which commits the re-baselined cells there), pull,
+and look before you merge.
 
 ## 4. Comment style
 
@@ -200,6 +145,12 @@ Comments state the **invariant**, not the history. No retired-type archaeology,
 no unit tags, no milestone or PR archaeology. An argument about how the code
 used to work belongs in the PR description, which is where this repo documents
 the logic of a change.
+
+**Excess commentary is a defect, and cutting it is a drive-by.** When a file
+you are already editing carries comments that restate what the code plainly
+does, argue at length for code that reads for itself, or say the same thing
+twice, delete or shorten them in the same PR. Do not add commentary to justify
+your own change; that argument goes in the PR description.
 
 ## 5. Sweeps
 
@@ -253,3 +204,41 @@ Say in your report which rows you filed and where.
 
 **Cite by name; line numbers rot.** A number may ride along beside the
 name and is allowed to go stale; a bare `file.rs:NNN` is not a citation.
+
+## 8. Writing tests
+
+**First ask which SHAPE a randomized test is.** Three shapes; only the first
+wants a varying seed:
+
+1. **Counterexample search** (*for all sampled x, P(x)*): vary the seed. Cutting
+   its count loses detection power, never correctness.
+2. **A witness you can write down** (*at least K of class C*, C concisely
+   constructible): do not search. Build it as a static fixture.
+3. **A witness you cannot write down** ("a walk that reaches every op kind"):
+   fix the seed. It is a fixture identifier, and it cannot flake — provided K is
+   large enough that a lucky seed cannot pass it by accident.
+
+Do not mix 1 and 3 in one test: an anti-vacuity floor bolted onto a property
+sweep makes one count serve two obligations. Make the floor's witness static,
+or split the test. A sweep whose real content is an edge-value table is an
+enumeration; write it as one. Any other fixed seed says in-file why (a pinned
+counterexample too big to write out: "this seed reproduces #N"; cross-process
+byte-identical inputs).
+
+**A fuzzer** (shape 1) logs its seed on every run and in its assertion
+messages, takes an env override for exact replay, and scales its counts on
+the shared EFFORT dial (`CAD_FUZZ_EFFORT`). It runs at EFFORT = 1 in the
+default suite; its `gated_to!` marker names the paths whose change raises it.
+A genuine counterexample it finds is pinned as an ordinary deterministic test
+beside the fix.
+
+**Merge tests that rebuild the same expensive fixture**: nextest is
+process-per-test, so each pays in full. Label every assertion so the failing
+property is clear from the message alone.
+
+**A test that asserts nothing is never a gate.** It is evidence for a reviewer
+at the time; drop it, or `#[ignore]` it with its run command. The same holds
+for a one-shot comparison artefact once its comparison has been taken.
+
+**No silent skips.** A bare `return` at some ε reports green having asserted
+nothing; use `test_utils::loud_skip_marker!` so the absence shows in the log.

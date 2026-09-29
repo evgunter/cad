@@ -5977,8 +5977,9 @@ class CheckEvidence:
     `unsupported` (`reason`, `inner_variant`) — a shell's orientation
     read could not be decided at this tolerance, or a face is outside
     the flux inventory, so the count is UNKNOWABLE and says so rather
-    than guessing; `inner_variant` is which of the shell door's four
-    refusals it was (`band`, `props`, `escalated`, `zero_volume`).
+    than guessing; `inner_variant` is which of the shell door's five
+    refusals it was (`band`, `props`, `escalated`, `zero_volume`,
+    `straddles`).
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,

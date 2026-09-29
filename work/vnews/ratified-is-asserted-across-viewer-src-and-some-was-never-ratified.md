@@ -2,10 +2,12 @@
 id: ratified-is-asserted-across-viewer-src-and-some-was-never-ratified
 kind: issue
 title: ratified is asserted across crates/viewer/src and some of it names no clause anywhere
-status: open
+status: closed
 opened: 2026-09-20
 priority: P2
-cost: D
+cost: M
+closed: 2026-09-28
+branch: vnews/ratified-says-where
 ---
 
 **Read §The census (2026-09-24) first.** It is the population of
@@ -446,3 +448,98 @@ filed one row per owning slate:
   side-finding. `scripts/gates/README.md:111` cites
   `memories/interval-square-poison.md`, which `4ffcde545` deleted.
 - **No owner**: `work/issues/gui-design-holds-agent-text-that-reads-as-ratified`.
+
+## Closed (2026-09-28): the correction pass
+
+Comment-only edits on `vnews/ratified-says-where`, cut from
+`vnews/batch-2` at `ace8aa976`. The census's verdicts were re-run
+against that tree (line numbers below are the tree's, not the
+census's), and each claim got one disposition: **leave** (true, and
+names its source), **cite** (true, source added), **reword** (false or
+partial: the sentence now says which half is ratified and whose the
+rest is), or **listed** (held by another row, not edited here).
+
+Sweeps, re-run: rule 1 (`grep -rniI ratif --include=*.rs
+crates/viewer/src`) gave 40 lines before and 33 after; rule 2a as the
+census states it. Blind-spot pass: `\bEv\b|\bEvan\b` with no
+`ruled|ruling` gave 8 lines, the dated rulings already below plus four
+that name a symptom Ev reported (`app.rs:2592,3158`,
+`pane/viewport.rs:583`, `gpu.rs:1886`), which claim no ruling.
+Unsearchable as the census says: a claim made with no word for it
+(*"by design"*, *"as decided"*).
+
+### Population 1 (`ratif*`)
+
+| site | source | disposition |
+|---|---|---|
+| `app.rs` `perform_batch` (:1124) | G4 (a drag) | cite `(G4)` |
+| `widgets.rs` `number_text` (:292) | PARTIAL | listed: `work/vgeom/two-viewer-docs-cite-a-drag-clause-for-a-typed-value` |
+| `widgets.rs` `drag_ops` (:573, :584) | G1 | leave |
+| `session/select.rs` `Selection` (:168) | GUI plan rulings | leave |
+| `session/select.rs` `Standing` (:270) | `docs/SELECT-DESIGN.md` §4 | cite |
+| `readout.rs` `EPS_CAP` (:98) | D4 | cite `(docs/DESIGN.md D4)` |
+| `tree.rs` module (:5) | GQ2 | leave |
+| `tree.rs` module (:6) | G4 micro-decision 2 | cite: *"G4's ratified error rule"* |
+| `platform.rs` module (:16) | FALSE | reword: the gate *"requires"* one home |
+| `platform.rs` `prefs_path` (:206), `launch_dir` (:294) | OUT | leave |
+| `platform.rs` `running_under_wsl` (:275) | FALSE | reword: the allowlist entry *"records"* it |
+| `g1.rs` module (:5) | G1 | leave |
+| `blend.rs` module (:36), `FREEZE_NOTE` (:74) | #217 | leave |
+| `bounds.rs` module (:69) | `docs/ERROR-DESIGN.md` E6 | cite |
+| `frame.rs` `acts` (:749) | G4 | cite |
+| `frame.rs` `Affordance::Opens` (:1556) | FALSE | reword: *"the argument the checks badge carries"* |
+| `frame.rs` `creation_offer` (:2649) | PARTIAL | reword: G4 ratifies refuse-then-offer for a drag, this door extends it |
+| `lib.rs` module (:50) | G4 micro-decision 3 | cite *"G4's"* |
+| `camera.rs` `ray_through` (:850) | `scripts/gates/` (Ratified, PR 2067) | leave: it names the gate |
+| `theme.rs` module (:13) | G5; pointer was the README | reword: points at `GUI-DESIGN.md` G5 |
+| `display.rs` module (:14) | PARTIAL (G3, reversed by DI5) | reword: G3's boundary, which DI5 reverses once built |
+| `display.rs` `NoSuchNode` (:167) | PARTIAL | reword: survival cited to SELECT-DESIGN §4, switch-off named as `Standing`'s own |
+| `display.rs` `free_move` (:734) | DI5 | leave |
+| `pane/properties.rs` `slot_notes` (:1105) | PARTIAL | reword: *"Its wording comes from its one home"* |
+| `pane/properties.rs` test (:1410) | PARTIAL | **listed, not edited**: an assertion-message string literal, so outside a comment-only pass. Filed as `work/vnews/a-properties-test-message-calls-the-probe-refusal-ratified` |
+| `pane/profile.rs` test (:500) | D4 ¶1 | leave |
+| `pane/profile.rs` test (:525) | K = 10, `docs/DESIGN.md` | cite |
+| `session/refuse.rs` `DrivenByExpression` (:190) | PARTIAL | reword: G4 for a drag, extended by this layer to a typed write |
+| `session/refuse.rs` `rank` (:437, :443) | G4 | cite |
+| `session/refuse.rs` `affordance` (:589, :592) | PARTIAL | reword: G4 decides the behaviour and no wording; the one-home rule now rests on its own reason |
+| `session/refuse.rs` `Display::fmt` (:663) | PARTIAL | reword: *"this layer's own sentence"* |
+| `props.rs` module (:77) | PARTIAL | listed: the VGEOM row above |
+| `session/op.rs` `BeginParamGesture` (:220) | G1 | cite |
+| `session/op.rs` `AddFillet` (:670) | #217 | leave |
+| `session/op.rs` `permitted_during_value_gesture` (:1070) | DI5 | leave |
+
+### Population 2 (ruling words, no `ratif`)
+
+| site | source | disposition |
+|---|---|---|
+| `frame.rs` module (:66), `unindexed_refusal` (:1803) | VIEW log, Ev 2026-09-06 | leave |
+| `frame.rs` `prefs_badge` (:2543) | Ev on #2275, 2026-09-10 | cite |
+| `app.rs` `remember_prefs` (:1255) | the same | cite |
+| `platform.rs` `ChooserBackend::unusable` (:88) | the same | cite |
+| `pickcache.rs` (:589), `pane/viewport.rs` (:153, :155, :584, :1780) | Ev 2026-09-15 | leave |
+| `evalseam.rs` `crashed` (:897) | Ev 2026-09-17 | leave |
+| `combine.rs`, `blend.rs`, `revolvetool.rs` module docs (single-select *"stays ruled"*) | GUI plan; `GUI-DESIGN.md` GQ7 | cite `(GQ7)` |
+| `matetool.rs` (:2, :9, :60, :364) | GUI plan GUI-4, OQ-a; SELECT-DESIGN §4 | leave |
+| `app.rs` `ui` (:1945) | GUI plan GUI-4 | cite *"GUI plan's"* |
+| `props.rs` module (:10) | GUI plan units ruling | leave |
+| `platform.rs` `prefs_path` (:198) | FALSE | reword: the rule the gate *"enforces"* |
+| `prefs.rs` `FileStore::new` (:534) | FALSE | reword the same way; drive-by: the ambient reads live in `crate::platform`, not `crate::frame` |
+| `theme.rs` module (:31), `session/refuse.rs` import comment (:28) | FALSE | reword *"ruling"* to *"rule"* |
+| `session/refuse.rs` `EmptyName` (:265) | FALSE (GAUTH unilateral) | reword: the rule GAUTH's orchestrator decided |
+| `session/op.rs` (:423), `session.rs` (:1966), `forms.rs` (:52), `session/author.rs` (:220), `pickindex.rs` (:81), `session/select.rs` (:276), `session/probe.rs` (:269) | FALSE / PARTIAL | listed: `work/vseam/ratification-claims-in-session-docs-name-no-ruling` |
+
+### Counts
+
+By site (a doc paragraph with two hits is one site; population 1's 40
+lines are 12 left, 11 cited, 12 reworded, 3 listed and 2 out):
+
+- **true, names its source, left:** 25 (P1 12, P2 13)
+- **true, citation added:** 18 (P1 11, P2 7)
+- **false or partial, reworded:** 16 (P1 11, P2 5)
+- **listed, not edited:** 10 (`pane/properties.rs:1410`, a string
+  literal; 2 on VGEOM's row; 7 on VSEAM's row)
+- **out:** 2
+
+Populations 3 and 4 (tracker and tests) were not in this unit: the
+tests and the README are VDOC's
+(`work/vdoc/viewer-tests-assert-ratifications-that-are-not`).

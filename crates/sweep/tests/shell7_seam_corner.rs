@@ -25,6 +25,7 @@ use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use topo::{Body, ReplaceFaceError, ShellError};
 
+use super::common::shell_operands::vessel;
 use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
 
@@ -253,7 +254,7 @@ fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
 #[test]
 fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
     let (r, h) = (1.0, 2.0);
-    let mut body = drum(r, h);
+    let mut body = vessel(r, h);
     let seam = line_edge(&body, |o, d, same_surface| {
         same_surface && o.x > 0.0 && d.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
     });

@@ -2526,7 +2526,7 @@ mod tests {
     /// eight ULP of `1`, at `u = 1`), so INFORM admits every case in
     /// this row and the fixtures that catch it are the two below.
     ///
-    /// A static witness (memories/test-suite-cost: shape 2), not a
+    /// A static witness (implementer-discipline §8: shape 2), not a
     /// search.
     #[test]
     fn the_closed_boundaries_are_pinned_one_ulp_each_way() {

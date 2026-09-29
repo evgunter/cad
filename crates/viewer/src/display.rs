@@ -11,7 +11,10 @@
 //! the mate — and it involves no solver, enters no history, and is
 //! never persisted: `save` writes the document, and a reopened session
 //! starts with this state empty. That is not an accident of the code
-//! path; it is G3's ratified boundary, and the round-trip row pins it.
+//! path; it is G3's boundary, and the round-trip row pins it. DI5
+//! (`crates/editor-core/IDENTITY.md`) reverses it: a free-moved
+//! placement may be recorded persistently, and until that is built
+//! the tree keeps G3's.
 //!
 //! # Eligibility is derived from the document
 //!
@@ -164,9 +167,11 @@ pub enum AdmissionFault {
     /// the sentence is already on screen directly above it:
     /// `standing_ui` renders [`crate::session::Standing`]'s `Node`
     /// vanished arm from the SAME lookup on the SAME document in the
-    /// same frame, and that type's ratified rule is that a vanished
-    /// reference is rendered there *while the affordances that need a
-    /// live entity switch off*. The section switching off IS the second
+    /// same frame, and that type's rule is that a vanished reference
+    /// is rendered there (its survival is ratified,
+    /// `docs/SELECT-DESIGN.md` §4) *while the affordances that need a
+    /// live entity switch off* (`Standing`'s own clause, in no design
+    /// doc). The section switching off IS the second
     /// clause; a sentence at the affordance would be one fact spelled
     /// twice in one pane.
     NoSuchNode {

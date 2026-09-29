@@ -2,10 +2,12 @@
 id: tone-doc-argues-from-a-site-that-now-reads-the-value
 kind: issue
 title: The actionable-or-not rule is attributed to the pane in four prose homes the move made stale
-status: open
+status: closed
 opened: 2026-09-19
 priority: P4
 cost: E
+branch: vnews/three-small-words
+closed: 2026-09-28
 ---
 
 
@@ -153,3 +155,17 @@ The carrier those two rode on is closed, so `rides_with:` is removed:
 (`Theme::unresolved`'s doc re-deriving the classification), which the
 adjudication above leaves on the territory question `theme.rs` is
 waiting on. The `README.md` member was never this row's.
+
+## Closed, 2026-09-28 (`vnews/three-small-words`)
+
+The last member, `Theme::unresolved`'s doc in
+`crates/viewer/src/theme.rs`, no longer re-derives which row statuses
+are actionable. It says the palette does not decide that: it cites
+`tree::RowStatus::tone` as the classification and `app::toned` as the
+one place that turns `Tone::Actionable` into this colour. With the two
+`frame.rs` members landed on `vnews/frame-rs-prose-pass`, and the
+`README.md` member on VDOC's own row
+(`viewer-readme-attributes-the-tone-rule-to-the-pane`), nothing is left
+on this row. A re-grep of `crates/viewer/src` for `draws quiet`,
+`POISONED badge` and `goes further and draws` finds only `frame.rs`'s
+`Tone` header, which already credits `RowStatus::tone`.

@@ -401,7 +401,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // `Arc`s are the cache's, so every instance of one part shares
         // one row set.
         Ok(PartValue {
-            body: Arc::new(product.body),
+            body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
             minted: Arc::new(product.minted),

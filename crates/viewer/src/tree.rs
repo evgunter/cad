@@ -3,7 +3,7 @@
 //! # Failures are values, and this module invents none of them
 //!
 //! GQ2's ratified codomain is a per-node result — `Ok`, `Failed(e)`,
-//! `Poisoned { through }` — and the ratified error rule is that a
+//! `Poisoned { through }` — and G4's ratified error rule is that a
 //! failure is a typed value the GUI renders, never a string invented
 //! at the interaction layer. So a failing row's message is
 //! `NodeError`'s own `Display`, and nothing here composes a sentence

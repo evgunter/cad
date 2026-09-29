@@ -42,7 +42,7 @@ probe = [
 # the lane does between them. `demo-tour tess-budget` is the consumer
 # (via pncad's forward of the same name).
 #
-# Its own CI row (`mesh budget meter`, ci.yml + ci-local.sh) runs
+# Its own CI row (`mesh budget meter`, ci.yml) runs
 # clippy and the suite here, because the default rows exercise the
 # INERT half. That row also carries the per-triangle certificate
 # falsifier, whose measurements this feature is what produces.

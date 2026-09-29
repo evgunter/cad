@@ -300,6 +300,68 @@ pub mod test_support {
         body.arena_counts()
     }
 
+    /// **The section certificate's per-pair report** on the crossings
+    /// path: every in-scope pair of `a` × `b` whose boxes overlap, with
+    /// the events of the reduction `op` would run, as
+    /// `(A face, B face, outcome)`. The outcome is `Ok` with each
+    /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
+    /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
+    /// `Loop`, `Undecided`, `LoneVertex`), spelled by `Debug`.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's own refusals.
+    pub fn section_report(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
+        Ok(crate::boolean::section_report(op, a, b, tol)?
+            .into_iter()
+            .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+            .collect())
+    }
+
+    /// The no-crossings path's certificates on `a` × `b` — the sphere
+    /// extent scan, then the section pass — as that path runs them
+    /// before its vertex probe, whatever the crossing layer would find.
+    /// `Ok` with the number of sphere re-cuts the scan asked for.
+    ///
+    /// # Errors
+    ///
+    /// Either certificate's refusal.
+    pub fn no_crossings_certificates(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<usize, crate::BooleanError> {
+        crate::boolean::no_crossings_certificates(a, b, tol)
+    }
+
+    /// Does `face` describe for the section certificate's W2 — its
+    /// `chart_boundary` answers, or, on a cone face, its apex closure
+    /// closes? The verdict the certificate reads per face.
+    pub fn face_describes<T: geom_brep::PcurveFittedLane>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        band: geom_core::Band,
+    ) -> bool {
+        let Some(surface) = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+        else {
+            return false;
+        };
+        crate::boolean::ChartCache::default().describes(
+            crate::Operand::A,
+            body,
+            face,
+            &surface.clone(),
+            band,
+        )
+    }
+
     /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
     /// planar in-face test, which the ray sweep reaches only through a
     /// hit it decides to take — named here so a row can ask it about a
@@ -400,9 +462,9 @@ pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
-    ShellClassifyError, ShellDoor, ShellRole, SignCertificate, TargetUnreached, VolumeEnclosure,
-    classify_shells, classify_shells_of, classify_shells_structural, mass_properties,
-    mass_properties_structural,
+    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
+    TargetUnreached, VolumeEnclosure, classify_shells, classify_shells_of,
+    classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -430,12 +492,10 @@ pub use splitting::{
 };
 pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
-    StaleDeclaration, ValidationError, contact_marks, contact_marks_declared,
-    contact_marks_declared_structural, contact_marks_structural, validate, validate_closed,
-    validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
-    validate_geometric_certificate_declared_structural, validate_geometric_certificate_structural,
-    validate_geometric_declared, validate_geometric_declared_structural,
-    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
+    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
+    StaleDeclaration, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
+    validate, validate_closed, validate_geometric, validate_geometric_certificate,
+    validate_geometric_certificate_structural, validate_geometric_structural,
+    validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };

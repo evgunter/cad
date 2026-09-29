@@ -120,25 +120,25 @@ fn sans_epsilon(t: &str) -> String {
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xb374_4362_5948_39b7, 0x761a_f473_27a2_3b44),
     ("corner_table", 0x7eb2_f246_c561_7112, 0x0a37_a848_31df_bf60),
-    ("heat_sink", 0x2878_2ee0_37ac_5811, 0x3375_3cf0_fdb6_5919),
+    ("heat_sink", 0x7d09_ac22_52a7_47b9, 0x3375_3cf0_fdb6_5919),
     (
         "crossing_slots",
-        0xe5c7_fa72_79b3_7f62,
+        0xbd3b_93ee_2450_9ffa,
         0xbf26_b5e4_84a9_ad0a,
     ),
     (
         "nested_islands_105",
-        0xe39a_4614_ac9d_1714,
+        0x387b_3229_dce0_5a4c,
         0x1c75_f4e0_cce6_e417,
     ),
     (
         "nested_islands_106_depth1",
-        0x9308_8c0a_9258_4a75,
+        0xfa25_af41_b6b2_1ea5,
         0xf822_ee43_3d39_ee1a,
     ),
     (
         "nested_islands_106_depth2",
-        0xd9c8_4a3a_bb4f_6102,
+        0xc738_135b_72e9_6c2a,
         0xeea6_6bf6_d480_7d43,
     ),
     (
@@ -146,7 +146,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x30be_3e49_eeb2_29c2,
         0xe7ed_ae6e_23c3_1324,
     ),
-    ("kitchen_sink", 0x0369_ac51_745c_05bf, 0x1e96_2ad9_9ae0_695b),
+    ("kitchen_sink", 0x8c5f_54f8_1597_182f, 0x1e96_2ad9_9ae0_695b),
     ("cut_cylinder", 0x85fe_0bc1_dca6_e66f, 0x1acb_c031_25df_2455),
     ("measured_web", 0x1d3e_d965_4f21_be77, 0x2dcf_01be_e7f3_2f27),
     ("boss_union", 0x5b9a_c367_89e7_cb9d, 0xb687_201a_05b6_6f05),
@@ -162,10 +162,10 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("face_sketch", 0x3daa_e163_9d28_6ce0, 0x2fd6_61aa_8fe9_a4ef),
     ("part_select", 0x4c2a_35db_6554_94de, 0xb6d8_fba1_2403_14c9),
     ("loft_prism", 0x1732_9dcf_7d73_6ff8, 0x154a_59f7_74bc_9fdd),
-    ("die_composed", 0x1596_c18a_8d0a_78c3, 0xf6bf_0e99_9ea5_ff48),
+    ("die_composed", 0x5d90_737f_3765_fd41, 0xf6bf_0e99_9ea5_ff48),
     (
         "die_composed_tour",
-        0x5f0e_3d74_aec3_80cd,
+        0x54c3_d84b_3670_2e85,
         0x166a_646f_2bce_1e04,
     ),
     ("plate_param", 0xc9c5_9dfd_d322_3b42, 0xde95_ae41_3e46_e947),

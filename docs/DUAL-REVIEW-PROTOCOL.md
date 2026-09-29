@@ -97,14 +97,17 @@ under.
    main's merge order** (DR-1, DR-2, …); a collision on a concurrent
    merge is resolved by renumbering the later merge, never by
    renumbering a row already on main.
-9. **Pre-registered readout point: the first readout is owed when the
-   tally reaches EIGHT, or at TWELVE fair pairs, whichever comes
-   first** (v6 item 2's thresholds: the informative unit is the
-   tallied unilateral MAJOR, and zero-MAJOR pairs are nearly
-   uninformative). This is a readout, not a stop — duals continue
-   until Ev rules on the result. The orchestrator recording the
-   triggering row asks Ev per `CLAUDE.md` "Asking Ev". The running
-   tally and fair-pair count are kept at the foot of the log's rows table.
+9. **Readout point: a readout is owed when TWELVE fair pairs have
+   found any MAJOR, or when the tally reaches EIGHT, whichever comes
+   first** (Ev, 2026-09-28, PR 3342: "continue duals until there are
+   12 pairs which found any MAJOR"). A pair found a MAJOR when either
+   review raised at least one, bilateral or unilateral; zero-MAJOR
+   pairs are nearly uninformative, so they do not advance the count.
+   This is a readout, not a stop — duals continue until Ev rules on
+   the result. The orchestrator recording the triggering row asks Ev
+   per `CLAUDE.md` "Asking Ev". The running tally and the count of
+   fair pairs that found a MAJOR are kept at the foot of the log's
+   rows table.
 10. **Readouts are off-file**, on the standing A/B rule: a directional
     result ("the second review rarely finds anything") creates
     expectancy effects on how pairs are adjudicated and triaged. They

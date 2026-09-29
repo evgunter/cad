@@ -27,7 +27,7 @@
 //! identity-commit edge.
 //!
 //! No fuzzing, no seeds: every witness here is one that can be written
-//! down ([[test-suite-cost]]'s second shape), and the rows are merged so
+//! down (implementer-discipline §8's second shape), and the rows are merged so
 //! each expensive fixture is built once. Assertions are labelled so a
 //! red row names its own property.
 

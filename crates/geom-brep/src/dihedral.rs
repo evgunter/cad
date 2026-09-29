@@ -495,8 +495,8 @@ pub enum MustCarryVerdict {
 /// |---|---|---|
 /// | [`Transverse`](Self::Transverse) | ∈ (0, 2π) at the θ = ε/r margin | legal |
 /// | [`Seam`](Self::Seam) | π | legal |
-/// | [`Cusp`](Self::Cusp) | 0 | legal iff DECLARED `Tangent` and jet-determinate |
-/// | [`Slit`](Self::Slit) | 2π | legal iff DECLARED `Tangent` and jet-determinate |
+/// | [`Cusp`](Self::Cusp) | 0 | legal iff jet-determinate |
+/// | [`Slit`](Self::Slit) | 2π | legal iff jet-determinate |
 ///
 /// The two ends are one verdict under `revert`: reverting a body
 /// negates every face's outward normal, which negates the material
@@ -505,7 +505,7 @@ pub enum MustCarryVerdict {
 ///
 /// In-band κ_rel escalates and a collapsed κ_rel (osculation —
 /// conformal contact, the lamina) is neither: it fails the
-/// curve-locus condition, and no declaration cures it.
+/// jet-determinacy condition, and no contact declaration cures it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MaterialWedge {
     /// Wedge ∈ (0, 2π), bounded away from both ends: a genuine corner.
@@ -535,13 +535,6 @@ impl MaterialWedge {
             Self::Cusp => "cusp (wedge 0)",
             Self::Slit => "slit (wedge 2π)",
         }
-    }
-
-    /// Whether this verdict is one of the two DECLARED-arm ends
-    /// (wedge 0 or 2π) — the pair that needs a `Tangent` declaration
-    /// and a jet-determinate contact to be legal at all.
-    pub fn is_declared_arm(self) -> bool {
-        matches!(self, Self::Cusp | Self::Slit)
     }
 }
 
@@ -596,14 +589,41 @@ pub fn classify_material_pairing<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
+    classify_material_pairing_as(
+        "material_wedge_side",
+        s_plus,
+        sense_plus,
+        s_minus,
+        sense_minus,
+        p,
+        arm,
+        band,
+    )
+}
+
+/// [`classify_material_pairing`] under a caller's own predicate name:
+/// the same construction and margin, decided as `name` so a caller
+/// asking it about a different pair of planes keeps its own population
+/// in the K report instead of joining `material_wedge_side`'s.
+///
+/// # Errors
+///
+/// [`Indeterminate`] under `name`, as [`classify_material_pairing`]'s.
+#[allow(clippy::too_many_arguments)] // `classify_material_pairing`'s signature plus the name
+pub fn classify_material_pairing_as<T: Decide>(
+    name: &'static str,
+    s_plus: &Surface<T>,
+    sense_plus: bool,
+    s_minus: &Surface<T>,
+    sense_minus: bool,
+    p: Point3<T>,
+    arm: T,
+    band: Band,
+) -> Result<MaterialPairing, Indeterminate> {
     let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
     let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
     Ok(
-        match decide_nonzero(
-            "material_wedge_side",
-            Margin::levered(n_plus.dot(n_minus), arm),
-            band,
-        )? {
+        match decide_nonzero(name, Margin::levered(n_plus.dot(n_minus), arm), band)? {
             NonzeroSign::Positive => MaterialPairing::Aligned,
             NonzeroSign::Negative => MaterialPairing::Opposed,
         },
@@ -825,7 +845,7 @@ mod tests {
     /// Osculation: one surface against a coincident copy of itself.
     /// The pairing is opposed (a zero-thickness sheet), and the
     /// discriminant collapses exactly — no side to pick, which is the
-    /// lamina the declared arm refuses.
+    /// lamina the material arm refuses.
     #[test]
     fn coincident_surfaces_osculate_with_no_side() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());

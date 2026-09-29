@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # interval-square-allowlist.sh — the interval-square `powi(2)` allowlist
-# (ratified 2026-08-01). ONE home; ci.yml's "interval-square powi(2)
-# allowlist (ratified 2026-08-01)" step and local-scripts/ci-local.sh's
-# discipline row both call this file. Kernel comments that name that
-# step name still resolve: the step is still there, and it runs this.
+# (ratified 2026-08-01). ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # Interval-square discipline tripwire — the rule lives HERE, and
 # the kernel's comments point at this step. FOUR live bugs came

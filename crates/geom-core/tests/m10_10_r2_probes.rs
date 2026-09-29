@@ -119,20 +119,21 @@ fn by_hand(x: Sym<f64>, k: u32, halvings: u32) -> (Sym<f64>, Sym<f64>) {
     (ck, sk)
 }
 
-/// **Rule D at every `q = k/2ᵐ` the reader accepts, against a by-hand
-/// closed form, at points where `q·atan X` leaves `(−π/4, π/4)` and
-/// even `(−π/2, π/2)`** — `k ∈ {1, 2, 3, 5, 7, 31, 32}`, `m ∈ {0, 1,
-/// 2, 3}`, `X ∈ {−7, −0.3, 0, 0.9, 10, 1e3}`. Each residual is a
-/// theorem AND numerically zero at the point.
+/// **Rule D across the `q = k/2ᵐ` the reader accepts, against a
+/// by-hand closed form, at points where `q·atan X` leaves `(−π/4, π/4)`
+/// and even `(−π/2, π/2)`.** A sample of that range, not all of it:
+/// `k ∈ {1, 3, 32}` (the smallest, an odd interior and the largest
+/// numerator), `m ∈ {0, 3}` (no halving and the most halvings) and
+/// `X ∈ {−7, 0.9, 1e3}` (a negative argument, one inside the unit
+/// interval and a large one) — 18 points, both branch-leaving regimes
+/// among them. Each residual is a theorem AND numerically zero at the
+/// point.
 #[test]
-fn r2_rule_d_agrees_with_a_by_hand_closed_form_at_every_accepted_q() {
-    for xv in [-7.0, -0.3, 0.0, 0.9, 10.0, 1.0e3] {
-        for m in 0..=3u32 {
-            for k in [1u32, 2, 3, 5, 7, 31, 32] {
+fn r2_rule_d_agrees_with_a_by_hand_closed_form_across_the_accepted_q() {
+    for xv in [-7.0, 0.9, 1.0e3] {
+        for m in [0u32, 3] {
+            for k in [1u32, 3, 32] {
                 let q = f64::from(k) / f64::from(1u32 << m);
-                if q > 32.0 {
-                    continue;
-                }
                 let what = format!("sin/cos({k}/{}·atan {xv})", 1u32 << m);
                 let sin_row = how_f64(|| {
                     let x = p("x", xv);

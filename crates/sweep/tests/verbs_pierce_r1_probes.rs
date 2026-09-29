@@ -14,7 +14,7 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::Body;
 
 fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
     (Point2::new(x, y), bulge)
@@ -129,26 +129,26 @@ fn r1_a_box_down_the_bore_of_a_tube() {
 
 /// **Concentric circles, no ring.** Two coaxial cylinders of different
 /// radii is the boss row's shape; here the SMALL one is fully buried
-/// so the caps' discs decide by containment alone.
+/// so the caps' discs decide by containment alone. The retired wall-pair
+/// gate refused it on reach; the fallback's section pass clears it
+/// (coaxial walls are parallel and share no point; each wall against a
+/// cap plane is essential on a wall that describes), so the containment
+/// answer is certified: the union is the big cylinder.
 #[test]
 fn r1_concentric_buried_cylinder() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let b = cyl(0.0, 0.0, 0.4, 0.5, 1.5);
     let tol = Tol::witness();
-    let err = match topo::union(&a, &b, tol) {
-        Err(e) => e,
-        Ok(o) => panic!("R1[concentric-buried] unexpected body {o:?}"),
+    let out = match topo::union(&a, &b, tol) {
+        Ok(topo::BooleanResult::Body(r)) => r.body,
+        other => panic!("R1[concentric-buried] expected one solid, got {other:?}"),
     };
-    println!(
-        "R1[concentric-buried] REFUSED {err:?} (truth would be {})",
-        PI * 2.0
-    );
-    // D10's posture, untouched by this unit: two cylinder walls whose
-    // certified extents meet with no edge event refuse typed rather
-    // than answering from a vertex probe.
+    assert_eq!(topo::validate_geometric(&out, tol), Ok(()), "tier 3");
+    let v = topo::mass_properties(&out, tol).unwrap().volume;
     assert!(
-        matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
-        "the no-crossings silence never re-opens: {err:?}"
+        (v - PI * 2.0).abs() < 1e-9,
+        "R1[concentric-buried] volume {v}, truth {}",
+        PI * 2.0
     );
 }
 

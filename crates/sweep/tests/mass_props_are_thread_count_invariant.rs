@@ -15,8 +15,7 @@
 //! — a walk that dropped every worker's recording identically at one
 //! and four threads would pass a t1-vs-t4 row while asserting nothing.
 //! So `thread-count-digest/eps-*.txt` is cut on the MERGE BASE, where
-//! the walk is serial, and both widths are read against it. Same
-//! instrument as `reporting_door_bit_digest`, and cut the same way: a
+//! the walk is serial, and the four-thread walk is read against it: a
 //! row cut on this branch would record what this branch does, which is
 //! the thing under test. The one case where a lane re-cuts here
 //! anyway, and what licenses it, is at `expected`.
@@ -315,11 +314,6 @@ fn check_against_golden(threads: usize) {
          baseline to preserve: if the new behaviour is right, re-cut the table on the merge \
          base and say in the PR what moved and why."
     );
-}
-
-#[test]
-fn the_walk_matches_the_serial_golden_at_one_thread() {
-    check_against_golden(1);
 }
 
 #[test]

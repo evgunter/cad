@@ -13,8 +13,7 @@
 # different axis from KNOWN GAPS #4, which is about whether the items
 # behind the feature are cfg-gated at all.)
 #
-# ONE home; ci.yml's "test-only features are dev-dependency-only" step
-# and local-scripts/ci-local.sh's discipline row both call this file.
+# ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # WHAT THIS PROVES: across EVERY `Cargo.toml` in the repository — the
 # kernel workspace, its root, and the excluded roots `demos/`, `tools/`
@@ -50,7 +49,7 @@
 # sits in, while the tables that matter nest arbitrarily deep
 # (`[target.'cfg(unix)'.dependencies]`, `[workspace.dependencies]`). A
 # grep would have to reconstruct the section context it just discarded.
-# stdlib-only python3, like check-cache-prime-parity.py.
+# stdlib-only python3.
 #
 # THE ROUTES. This gate's self-test is derived from an enumeration of
 # every way a feature can be switched on for a non-dev edge, NOT from

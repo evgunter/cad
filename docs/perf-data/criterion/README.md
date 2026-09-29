@@ -144,5 +144,5 @@ right local act and neither writes anything here — deliberately. Your
 milliseconds are not comparable with a runner's, which is the design and
 not a limitation, and it is why nothing but a runner appends to this
 directory. The *emitter's* guard is not one-sided, though:
-`scripts/criterion-emit.py --selftest` runs in both halves of the merge
-gate, and `local-scripts/ci-local.sh` states the split at its own row.
+`scripts/criterion-emit.py --selftest` runs in nightly.yml's `criterion`
+job before the emitter does.

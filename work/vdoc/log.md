@@ -287,3 +287,5 @@ names a spelling as a literal any more where the grid could move it.
 The property that survives at the widget seam is that a drag's text
 parses back to exactly the value the drag commits, asserted over
 about 9000 magnitudes in `widgets.rs`'s own module.
+
+- 2026-09-28 — Received `a-citation-in-a-line-comment-is-not-checked` from BLIND, which left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`). Id unchanged. Also: `crates/viewer/README.md`'s renderer-free cross-crate-link bullet no longer cites MIRROR's deleted row; it now names the nightly rustdoc gate as the reader, though the bullet still describes the per-PR skip-mode pass, which no PR runs any more. (tracker sweep)

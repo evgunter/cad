@@ -2,10 +2,12 @@
 id: boolean-side-codes-lever-a-chord-direction-where-a-zero-is-read-as-on
 kind: issue
 title: The boolean and splitting lanes' side codes read a chord direction's side of a face plane times an arm, and a Zero there is read as ON: check per verdict whether the arm is the reading's own length
-status: open
+status: closed
 opened: 2026-09-28
 priority: P2
 cost: M
+parent: CONTACT-9
+closed: 2026-09-29
 ---
 
 

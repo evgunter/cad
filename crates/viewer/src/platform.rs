@@ -13,7 +13,7 @@
 //! running app.
 //!
 //! That is what makes this the crate's **ambient door**.
-//! `scripts/gates/no-ambient-env.sh` ratifies that the viewer's
+//! `scripts/gates/no-ambient-env.sh` requires that the viewer's
 //! runtime environment reads have ONE home and allowlists this file as
 //! that home; the argument it makes against its four rows — the reads
 //! observe the environment rather than steering the model, commit
@@ -85,7 +85,7 @@ impl ChooserBackend {
     /// held state, so the disabled control carrying it as its
     /// `on_disabled_hover_text` is the read and there is no
     /// status-line route beside it. The argument, its sweep rule and
-    /// Ev's ruling live in `crates/viewer/README.md`, under *"A
+    /// Ev's ruling (#2275, 2026-09-10) live in `crates/viewer/README.md`, under *"A
     /// missing file-chooser backend is not on the line at all"*.
     ///
     /// A match over every arm rather than a pattern over one, so an
@@ -195,8 +195,8 @@ fn session_bus_hinted() -> SessionBus {
 /// `$HOME/.config` as the XDG base-directory specification says to.
 ///
 /// **Here rather than in [`crate::prefs`], because this file is the
-/// viewer's ONE ambient door** — the ruling in
-/// `scripts/gates/no-ambient-env.sh`, which names this module by path
+/// viewer's ONE ambient door** — the rule
+/// `scripts/gates/no-ambient-env.sh` enforces, which names this module by path
 /// and says so in as many words. `prefs` stays a pure value over a
 /// document and a store; where the document lives is a fact about the
 /// machine, and facts about the machine are observed here beside the
@@ -272,7 +272,7 @@ pub fn prefs_path_in(
 ///
 /// Here rather than in `app` so the viewer's ambient-environment
 /// reads have ONE home, which is what the `no-ambient-env` gate's
-/// allowlist entry for this file ratifies — see the argument in
+/// allowlist entry for this file records — see the argument in
 /// `scripts/gates/no-ambient-env.sh`.
 #[cfg(target_os = "linux")]
 pub fn running_under_wsl() -> bool {

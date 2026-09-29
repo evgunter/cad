@@ -94,3 +94,5 @@ more files (`bool6_r2_probes.rs`, `vrev_reversed_chart_hazard.rs`,
   helper matches neither term at the call site.
 - **Accuracy is as of this branch's merge base.** A copy landed since
   is not in the list.
+
+**2026-09-28:** `reporting_door_bit_digest.rs` (with `arc_taper`) was deleted in the 2026-09-28 CI-latency cut.

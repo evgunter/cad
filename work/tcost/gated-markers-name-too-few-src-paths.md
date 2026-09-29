@@ -28,13 +28,11 @@ A `gated_to!` marker has two halves and only one of them is checked.
   one naming the right twelve. It verifies that every named path
   RESOLVES, never that every path that should be named IS.
 
-So the failure mode is: a marker names too few source paths, the suite
-is skipped on a diff that breaks it, and **a skipped test contributes no
-row to the cost report**, so the instrument that would show it cannot
-see it. This program has a live, expensive instance of exactly that
-shape — `m10-3-chamber-row-reads-ten-times-its-recorded-cost`, a suite
-gated to editor-core modules that a `geom-core` change made 15x slower,
-unread for weeks.
+So the failure mode is: a marker names too few source paths, and the
+suite is skipped on the PR that breaks it; the break surfaces in the
+nightly, on `main`, a day later and unattributed. The M10-3 chamber
+suite was an expensive instance: gated to editor-core modules, a
+`geom-core` change made it 15x slower and no PR run saw it.
 
 ## Measured on PR 2433's head, and this is the method for the sweep
 
@@ -85,8 +83,8 @@ re-sweep, and either should be written down rather than assumed.
 
 ## Not this row
 
-The nightly ungated re-take bounds the latency of exactly this failure
-to one day, and is not re-opened here. Neither is the EFFORT policy
+`nightly.yml`'s `full-suite` runs every gated suite and bounds the
+latency of exactly this failure to one day; that is not re-opened here. Neither is the EFFORT policy
 (`fuzz-depth-not-existence-run-everything-at-effort-1`), which would
 retire the existence question entirely — **if that lands, this row's
 consequence shrinks from "the suite does not run" to "the suite does not

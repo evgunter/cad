@@ -2,11 +2,13 @@
 id: three-spellings-say-a-parameter-is-not-declared
 kind: issue
 title: Three spellings say a parameter is not declared, and one of them is Refusal::NoSuchParam's own
-status: open
+status: closed
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
 priority: P3
 cost: E
+branch: vnews/a-missing-parameter-is-said-one-way
+closed: 2026-09-28
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`,
@@ -79,3 +81,26 @@ pane says a fact once: the panel's `"that parameter is gone"` line is
 spellings are left — the header's `"parameter {name} is no longer
 declared"` and the session refusal's — and which words they share is
 still this row's question.
+
+## Closed (2026-09-28)
+
+The fact has one composition, `Refusal::undeclared_wording`
+(`crates/viewer/src/session/refuse.rs`): *parameter {name} is not
+declared*. `Refusal::NoSuchParam`'s `Display` renders it and then the
+recourse, `editor_core::edit::UNDECLARED_PARAM_RECOURSE`; the
+properties pane's `standing_verdict` (`Standing::Param { present:
+false }`) draws it bare. So the recourse — an instruction to an
+attempt — stays on the refusal's half, and the fact reads the same on
+both surfaces. The pane's *no longer* went with the pane's literal:
+*not declared* is true at both doors, including a probe or a drag
+naming a parameter that was never declared, which *no longer* is not.
+
+The premise had moved since filing in one respect: the recourse had
+already been given a home in editor-core, beside the edit door's
+`EditError::DocParamNotDeclared` sentence, so the words chosen for the
+fact match that door's opening too. That door's opening is still its
+own literal — filed on EDIT's slate as
+`the-not-declared-fact-is-composed-on-both-sides-of-the-crate-edge`.
+The node-shaped sibling (the pane's *deleted* against `NoSuchSlot` for
+a drag on a deleted node's slot) is filed as
+`a-drag-on-a-deleted-nodes-slot-says-the-slot-is-missing`.

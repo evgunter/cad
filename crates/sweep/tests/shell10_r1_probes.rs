@@ -12,8 +12,8 @@ use topo::{Body, FaceKey, HalfEdgeKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::shell_operands::vessel;
 use crate::shell8_common::{beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume};
-use crate::verbs_shell::vessel;
 
 fn y() -> Vec3<f64> {
     Vec3::new(0.0, 1.0, 0.0)

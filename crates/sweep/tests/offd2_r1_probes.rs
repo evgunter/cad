@@ -6,45 +6,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands;
-use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::block;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use crate::common::shell_operands::{hollow_box, vessel};
+use crate::common::torus_walls::klein_elbow;
+use geom_core::{Point2, Tol};
+use profile::test_support::bulge_loop;
+use sweep::test_support::{block, corners, prism};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
-
-fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("polygon profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("polygon extrudes")
-        .body
-}
-
-fn vessel(r: f64, h: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(r, 0.0), 0.0),
-        (Point2::new(r, h), 0.0),
-        (Point2::new(0.0, h), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("meridian profile");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        Tol::witness(),
-    )
-    .expect("meridian revolves")
-    .body
-}
 
 fn plane_face_at(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
@@ -131,15 +99,16 @@ fn probe_exact_half_slab_fails_loud() {
 #[test]
 fn probe_lshape_colliding_cavity_fails_loud() {
     let l = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (3.0, 0.0),
             (3.0, 1.0),
             (1.0, 1.0),
             (1.0, 3.0),
             (0.0, 3.0),
-        ],
+        ]),
         2.0,
+        Tol::witness(),
     );
     let r = topo::shell(&l, 0.6, Tol::witness());
     match r {
@@ -159,7 +128,7 @@ fn probe_lshape_colliding_cavity_fails_loud() {
 #[test]
 fn probe_dumbbell_neck_collision_fails_loud() {
     let db = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (2.0, 0.0),
             (2.0, 0.8),
@@ -172,8 +141,9 @@ fn probe_dumbbell_neck_collision_fails_loud() {
             (2.0, 1.2),
             (2.0, 2.0),
             (0.0, 2.0),
-        ],
+        ]),
         2.0,
+        Tol::witness(),
     );
     let r = topo::shell(&db, 0.3, Tol::witness());
     // **MAJ-1, closed (ordinal 82 -> fix pass).** At `259fde04` this
@@ -209,9 +179,7 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 /// void with the dilated twin as its OUTER shell.
 #[test]
 fn probe_shell_of_a_hollow_thickens_every_boundary() {
-    let hollow = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, Tol::witness())
-        .expect("the first shell is the PR's own green row")
-        .body;
+    let hollow = hollow_box();
     let shelled = topo::shell(&hollow, 0.05, Tol::witness())
         .expect("a hollow operand thickens every boundary")
         .body;
@@ -436,7 +404,7 @@ fn probe_opened_vessel_cup() {
 fn probe_stale_designation_refuses_typed() {
     let body = block(2.0, 3.0, 4.0, Tol::witness());
     let big = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (2.0, 0.0),
             (2.0, 0.8),
@@ -449,8 +417,9 @@ fn probe_stale_designation_refuses_typed() {
             (2.0, 1.2),
             (2.0, 2.0),
             (0.0, 2.0),
-        ],
+        ]),
         2.0,
+        Tol::witness(),
     );
     let foreign = big
         .faces()
@@ -552,24 +521,10 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 /// held row by row in `intersect_table::route_inventory`.
 #[test]
 fn probe_late_err_leaves_body_untouched() {
-    let lp = bulge_loop(vec![
+    let elbow = klein_elbow(vec![bulge_loop(vec![
         (Point2::new(-0.3, 0.0), 1.0),
         (Point2::new(0.3, 0.0), 1.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("disc profile");
-    let elbow = revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(1.2, 0.0),
-            dir: Vec2::new(0.0, -1.0),
-        },
-        Revolution::Partial(-0.5 * core::f64::consts::PI),
-        Tol::witness(),
-    )
-    .expect("the elbow revolves")
-    .body;
+    ])]);
     let cap = elbow
         .faces()
         .find(|(_, f)| {

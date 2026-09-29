@@ -166,6 +166,11 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # argument and its falsifier are written once, at the carry
     # decision the pointer names, and this row does not restate them.
     "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `CensusUnsupportedCause`'s shape: the argument sits beside the
+    # declaration, and the carry is the façade crate's row.
+    "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
+                   "in crates/topo/src/validate.rs; the carry is "
+                   "work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md"),
 }
 
 # The same table for the CROSS-LIST set — a payload that IS curated, on no list

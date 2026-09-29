@@ -89,10 +89,8 @@ the job's `CAD_FUZZ_EFFORT` multiplies every count — and depth is cheap,
 because the job's cost is dominated by building GMP and MPFR from C
 source, not by the cases.
 
-The **local** gate does not cover it: `local-scripts/ci-local.sh` mirrors
-the cheap row and has no `oracle-certify` row, so under `gate.sh` — the
-merge gate when hosted Actions is unavailable — a dropped transcendental
-pad is not caught. Recorded as smell-scan **S127**.
+No local script runs `oracle-certify`, so a dropped transcendental pad
+is caught only by that hosted job.
 
 ## Big-argument contract (honest refusal)
 

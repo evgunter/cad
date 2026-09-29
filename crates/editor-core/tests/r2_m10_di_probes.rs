@@ -32,7 +32,7 @@
 //! current facts a reviewer needed visible, and may be retired with
 //! the review per the standing reviewer-suite policy. No fuzzing: every
 //! row is a static-fixture enumeration over the committed corpus
-//! (test-suite-cost: a witness you can write down is not a search).
+//! (implementer-discipline §8: a witness you can write down is not a search).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

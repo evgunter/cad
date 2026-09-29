@@ -2,7 +2,7 @@
 //! `bf67a734`). Independent derivations, written against the unit's
 //! claims rather than against its own fixtures.
 //!
-//! Row shapes, per `memories/test-suite-cost.md`: every row is a
+//! Row shapes, per implementer-discipline §8: every row is a
 //! written-down witness (a static fixture) — no sampling, no seeds.
 //! Rows whose subject was a finding red at that head arrived
 //! `#[ignore]`d with the finding named. **The fix pass un-ignored

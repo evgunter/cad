@@ -50,11 +50,6 @@ pub(crate) fn wedge(r: f64, h: f64, turn: f64) -> Body<f64> {
     )
 }
 
-/// The same rectangle, a full turn.
-pub(crate) fn drum(r: f64, h: f64) -> Body<f64> {
-    polyline(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)], Revolution::Full)
-}
-
 /// The tube door's full torus about `y`, seam at `u_ref = x`.
 pub(crate) fn tube_torus(major: f64, minor: f64) -> Body<f64> {
     tube_along_arc::<f64>(

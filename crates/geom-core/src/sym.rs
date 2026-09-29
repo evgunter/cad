@@ -1406,9 +1406,9 @@ pub struct SymCounts {
     /// pinned by `geom-core`'s
     /// `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`).
     /// No leaf of a drive reaches it — a drive mints every node inside
-    /// its own session — and `editor-core`'s
-    /// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
-    /// pins that over five drives.
+    /// its own session — measured over five drives with the profile's
+    /// `FreezeCause::Unrecorded` count; no gating row holds that
+    /// count.
     ///
     /// **The dial does not move it.** With the drive's memo off a leaf
     /// freezes every node of its closure that freezes at all, so its

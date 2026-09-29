@@ -54,7 +54,6 @@ sweep = { path = "../sweep" }
 # arena lengths, rather than re-walking the arenas beside it. Dev-only,
 # so no shipped build reaches the facade.
 topo = { path = "../topo", features = ["test-support"] }
-# review-probe only
 # `test-support` ON for the `profile::RawLoop` fixture door (that
 # trait's docs carry the argument); dev-only, so no shipped build of
 # this crate reaches it.

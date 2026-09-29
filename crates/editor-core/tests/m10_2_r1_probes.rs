@@ -8,7 +8,7 @@
 //! per `memories/review-and-dependency-policy.md`.
 //!
 //! No fuzzing here — every row is a written-down witness (shape 2 of
-//! `memories/test-suite-cost.md`), so no seeds and no effort dial.
+//! implementer-discipline §8), so no seeds and no effort dial.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

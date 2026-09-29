@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # panic-free-macro-bodies.sh — the stanza's macro-blind lints reach
-# INSIDE `macro_rules!` bodies. ci.yml's "panic family inside macro
-# bodies" step and local-scripts/ci-local.sh's discipline row both call
-# this file.
+# INSIDE `macro_rules!` bodies. ci.yml's `lint` job runs every gate in this directory.
 #
 # WHY IT EXISTS. `[workspace.lints.clippy]` sets `unwrap_used`,
 # `expect_used`, `panic`, `todo`, `unimplemented` and `dbg_macro` to

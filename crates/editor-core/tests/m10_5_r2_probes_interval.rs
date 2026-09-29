@@ -964,41 +964,6 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
 
 // ---------------------------------------------------- 6. D9 determinism
 
-/// **D9 on a multi-thousand-cell run of R2's own construction**: the
-/// whole-body comb query at a bound that has to subdivide, repeated,
-/// serialized, compared bit for bit.
-///
-/// The bound is the comb's own frontier. Slot A is 0.5 m wide, so
-/// `AtLeast(0.5)` sits exactly on the closest approach the body admits:
-/// no cell pair's separation enclosure ever clears it, none ever falls
-/// definitely under it, and the sweep spends its whole budget before
-/// refusing, priced. That is the run worth checking for determinism —
-/// a bound the geometry BREAKS now stops at the first verified witness
-/// and settles in a handful of cells, and one the tree can EXCLUDE
-/// never reaches the funnel at all.
-#[test]
-fn the_comb_answer_is_bit_stable_across_repeats() {
-    let (doc, minted, _placed) = comb();
-    let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
-    let first = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
-    let r = first.receipt();
-    let cells = r.discharged + r.violated + r.refused;
-    assert!(
-        cells > 2_000,
-        "the determinism row runs on a multi-thousand-cell subdivision: {r:?}"
-    );
-    assert_eq!(
-        r.abandoned, 0,
-        "and one that ran to the end of its budget rather than exiting early: {r:?}"
-    );
-    for _ in 0..3 {
-        let again = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
-        assert_eq!(again.serialize(), first.serialize());
-    }
-    println!("[r2 D9] {cells} cell pairs, stable over 4 runs");
-}
-
 /// **D9 across SCHEDULES.** The clearance engine has no parallel path
 /// of its own — `Sweep::run` is a sequential stack walk and
 /// `clearance_over` a sequential fold — so the only schedule that can

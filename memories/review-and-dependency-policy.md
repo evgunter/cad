@@ -67,7 +67,7 @@ as normal rows, and nothing about them is special afterwards: they
 share helpers where two files build the same thing, keep their own code
 only where a row's claim needs its own derivation, and are trimmed,
 gated or retired under the same rules as every other row
-([[test-suite-cost]]).
+(implementer-discipline §8).
 
 **Dependencies: install freely, with supply-chain sanity.** Installing
 tools/crates as needed is fine unless genuinely risky; put roughly a

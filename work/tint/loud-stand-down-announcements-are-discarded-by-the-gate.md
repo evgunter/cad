@@ -182,7 +182,7 @@ a per-row floor (C21's).
 - `work/ciw/gating-nextest-jobs-discard-every-passing-tests-stdout` —
   the `--success-output` half. Filed with the measurement and no
   hand-kept count.
-- `work/ciw/loud-skip-marker-text-is-unchecked-against-its-own-file` —
+- `loud-skip-marker-text-is-unchecked-against-its-own-file` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) —
   the cheap guard that would have caught this unit's own first push.
   **Routing corrected by the lane**: `scripts/check-*.py` is CIW's, not
   S-TCOST's, which holds only `ci-filter.py`, `slowest-tests.py` and

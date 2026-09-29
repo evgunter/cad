@@ -101,11 +101,11 @@ fn an_assembly_shaped_document_lands_on_one_gather() {
 /// **The landing's body is handed on, not gathered again**, on a part
 /// document — the path with no A5 gate to give it away.
 ///
-/// Delete `land`'s `Some(Arc::new(product.body))` and this row goes
-/// red on the `expect`, where the certified-assembly row below stays
-/// green; make `DocSession::landed_body` gather instead of borrow and
-/// it goes red on the count while the assembly row's count also
-/// moves.
+/// Delete `land`'s `Some(Arc::new(product.body.into_body()))` and
+/// this row goes red on the `expect`, where the certified-assembly row
+/// below stays green; make `DocSession::landed_body` gather instead of
+/// borrow and it goes red on the count while the assembly row's count
+/// also moves.
 #[test]
 fn a_part_documents_body_is_borrowed_from_its_landing() {
     let tol = Tol::witness();

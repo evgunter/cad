@@ -23,9 +23,10 @@
 //! badge for the landed product** ([`product_badge`]) and the rest of
 //! the badge family beside it. **The draft and the offer a refused
 //! batch leaves behind** ([`retype_draft`], [`creation_offer`]).
-//! **What a folded event stream amounts to** ([`folded_moved`],
-//! [`fold_status`]), **what a frame says about work outstanding**
-//! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
+//! **What a folded event stream amounts to**
+//! ([`folded_is_a_camera_event`], [`fold_status`]), **what a frame says
+//! about work outstanding** ([`progress`]), and **where a file dialog
+//! opens** ([`dialog_dir`]).
 //!
 //! The frame loop still decides WHEN to call one. It no longer decides
 //! what one MEANS.
@@ -237,7 +238,7 @@ use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
-use crate::pickcache::NotIndexed;
+use crate::pickcache::{IndexSeam, NotIndexed};
 use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
@@ -746,7 +747,7 @@ pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
 /// stale. Moving the pointer is not that: it emits an operation on
 /// every frame the cursor changes what it is over, refuses nothing by
 /// construction, and left unfiltered it wipes the ratified
-/// expression-driven affordance off the screen the instant the mouse
+/// expression-driven affordance (G4) off the screen the instant the mouse
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
     !matches!(op, SessionOp::Hover(_))
@@ -1552,7 +1553,7 @@ pub enum Tone {
 pub enum Affordance {
     /// A label. Its [`Badge::detail`], where it has one, is a tooltip.
     Read,
-    /// **A control, not a label** — the ratified argument the checks
+    /// **A control, not a label** — the argument the checks
     /// badge carries, and the reason this is part of the value rather
     /// than a shape the toolbar picks: the findings were once reachable
     /// only by hovering the badge, which is a poor home for text a
@@ -2540,7 +2541,7 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
 /// `None` while preferences are kept.
 ///
 /// **A badge, by the provenance rule**, and by the same argument Ev
-/// ruled on for the absent file chooser: the store's usability is
+/// ruled on for the absent file chooser (#2275, 2026-09-10): the store's usability is
 /// settled when the store is built and true for the whole run, so the
 /// sentence exists on a frame where nobody acted. That is a read of
 /// held state a reader consults, and a whole-run environmental fact
@@ -2579,7 +2580,20 @@ pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
 /// given the toolbar two indicators that can both be lit, for one
 /// wait, with no rule anywhere saying which the reader should believe.
 /// The rule is here instead, and it is a total function of what the
-/// session owes and whether the index seam is busy.
+/// session owes and what the index seam is doing.
+///
+/// **Two of its names are [`Outstanding`]'s, because they are the same
+/// facts.** `Progress::Evaluating` holds exactly when
+/// `Outstanding::Evaluating` does, and `Progress::Canceled` exactly
+/// when `Outstanding::Canceled` does; `Current` is the one session
+/// state the index seam splits, into [`Self::Indexing`] and no state
+/// at all. Where two vocabularies share a spelling for two meanings
+/// the spelling is the defect, and [`RankedVerdict`] exists to remove
+/// one; here a second spelling would be the defect, telling a reader
+/// the states differ where they do not. Nor is this [`Outstanding`]
+/// beside an [`IndexSeam`]: an evaluation outranks the index build
+/// behind it, so the six pairs are five states, and the one pair the
+/// chrome does not tell apart has no variant to be drawn from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Progress {
     /// A run is in flight: the picture is older than the document and
@@ -2589,10 +2603,10 @@ pub enum Progress {
     /// running** — what a cancel leaves behind. A spinner over that
     /// alone would be a lie about work nobody is doing.
     ///
-    /// `indexing` is whether a seam BELOW the evaluation is
-    /// nonetheless busy — an index build, or the display fit the index
-    /// waits on — and it is carried here rather than answered by a
-    /// second indicator because this is the one state where the seams
+    /// `index` is whether a seam BELOW the evaluation is nonetheless
+    /// busy — an index build, or the display fit the index waits on —
+    /// and it is carried here rather than answered by a second
+    /// indicator because this is the one state where the seams
     /// disagree about whether anything is happening: a build submitted
     /// before the cancel is still running, and it will change the
     /// picture. The rule the payload buys is **the spinner follows the
@@ -2601,8 +2615,8 @@ pub enum Progress {
     /// indexed* refusal agrees with the toolbar instead of describing
     /// the same moment a second way.
     Canceled {
-        /// Whether an index build is in flight behind the cancel.
-        indexing: bool,
+        /// Whether an index build is on its way behind the cancel.
+        index: IndexSeam,
     },
     /// The document is evaluated and its index is being built: the
     /// picture is the last one that finished, and picks are refused
@@ -2610,8 +2624,8 @@ pub enum Progress {
     Indexing,
 }
 
-/// The one state, from what the session owes and what the pick cache
-/// is doing.
+/// The one state, from what the session owes and what the index seam
+/// is doing ([`crate::pickcache::PickCache::index_seam`]).
 ///
 /// **Evaluation outranks indexing**, because an index built for a
 /// generation the session has already moved past is about to be
@@ -2619,12 +2633,12 @@ pub enum Progress {
 /// without cancel means both can be in flight at once, and naming the
 /// index build there would tell a reader the wait was nearly over when
 /// a whole evaluation is still ahead of it.
-pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
-    match outstanding {
-        Outstanding::Evaluating => Some(Progress::Evaluating),
-        Outstanding::Canceled => Some(Progress::Canceled { indexing }),
-        Outstanding::Current if indexing => Some(Progress::Indexing),
-        Outstanding::Current => None,
+pub fn progress(outstanding: Outstanding, index: IndexSeam) -> Option<Progress> {
+    match (outstanding, index) {
+        (Outstanding::Evaluating, _) => Some(Progress::Evaluating),
+        (Outstanding::Canceled, index) => Some(Progress::Canceled { index }),
+        (Outstanding::Current, IndexSeam::Building) => Some(Progress::Indexing),
+        (Outstanding::Current, IndexSeam::Idle) => None,
     }
 }
 
@@ -2632,7 +2646,8 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 ///
 /// The parse door's unknown-parameter refusal is deliberate
 /// typo-safety — text naming an undeclared parameter never creates
-/// one. The ratified pattern is refuse-then-offer, and this is the
+/// one. The pattern is refuse-then-offer — G4 ratifies it for a drag
+/// on a driven dimension, and this door extends it — and this is the
 /// offer as a value: the undeclared name, for the frame loop to
 /// prefill into the add-parameter affordance (name only — the
 /// expression's context does not determine the new parameter's
@@ -2680,7 +2695,6 @@ pub fn retype_draft(
 /// ([`Folded::applied`] is a prefix of the input). So `true` does not
 /// say whether the camera moved: a fold whose FIRST operation refused
 /// moved nothing, and one that refused later moved as far as it got.
-/// The name is narrower than the value.
 ///
 /// The stream carries cursor events too, and a stream that denotes no
 /// camera operation is not a camera event.
@@ -2695,7 +2709,7 @@ pub fn retype_draft(
 /// that stopped it — and calling it on frames with no camera event
 /// hands any writer later added to it per-frame behaviour nobody asked
 /// for.
-pub fn folded_moved(folded: &Folded) -> bool {
+pub fn folded_is_a_camera_event(folded: &Folded) -> bool {
     !folded.applied.is_empty() || folded.refused.is_some()
 }
 
@@ -2763,10 +2777,11 @@ mod tests {
         // fold decided the fate of every other writer's sentence.
         let folded = a_clean_fold();
         assert!(
-            folded_moved(&folded),
-            "the fold MOVED, so the frame loop lands it — a fold that \
-             is no camera event never reaches the line at all, and this \
-             row would be asserting about a case that cannot happen"
+            folded_is_a_camera_event(&folded),
+            "the fold applied an orbit, so it is a camera event and the \
+             frame loop lands it — a fold that is no camera event never \
+             reaches the line at all, and this row would be asserting \
+             about a case that cannot happen"
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Expire(Subject::Camera));
 
@@ -2966,7 +2981,10 @@ mod tests {
     #[test]
     fn a_refused_fold_is_news_about_the_camera() {
         let folded = a_refused_fold();
-        assert!(folded_moved(&folded), "a refusal is a camera event too");
+        assert!(
+            folded_is_a_camera_event(&folded),
+            "a refusal is a camera event too"
+        );
         let StatusUpdate::Show(message) = fold_status(&folded) else {
             panic!("a refused fold is news: {:?}", fold_status(&folded));
         };

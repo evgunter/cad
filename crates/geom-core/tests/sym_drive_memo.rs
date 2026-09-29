@@ -147,9 +147,8 @@ fn an_unrecorded_freeze_is_never_published_to_the_drive_memo() {
     // counted on the leaf's own side of the union — which is what makes
     // the reading the same whichever leaf ran first
     // (`a_leafs_need_does_not_move_with_the_order_across_the_unrecorded_branch`
-    // walks both orders). `editor-core`'s
-    // `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
-    // pins the branch at zero over every drive measured.
+    // walks both orders). The branch reads zero over every drive
+    // measured (the profile's `FreezeCause::Unrecorded` count).
     assert_eq!(
         a.frozen, 1,
         "the freeze A could not publish is still A's own need: {a:?}"
@@ -183,9 +182,9 @@ fn an_unrecorded_freeze_is_never_published_to_the_drive_memo() {
 /// not is order-INDEPENDENT: leaf 2's decision columns depend on
 /// whether leaf 1 ran first, so a drive that produced an unrecorded
 /// node would have a schedule-dependent receipt. It does not: no leaf
-/// of a drive reaches that branch at all, which `editor-core`'s
-/// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded` pins
-/// on both documents, and `sym::memo`'s header names as the condition.
+/// of a drive measured reaches that branch at all (the profile's
+/// `FreezeCause::Unrecorded` count, both documents), and `sym::memo`'s
+/// header names that as the condition.
 #[test]
 fn a_leaf_that_records_the_node_hands_a_later_leaf_a_theorem_it_would_have_missed() {
     let rules = SymRules {
@@ -673,8 +672,8 @@ fn an_inherited_form_does_not_move_the_leafs_need() {
 /// mean computing the form the memo just handed the leaf, which is the
 /// memo. Both readings are true of what the leaf did — its reasoning
 /// really is the stronger one in the second order — and the branch is
-/// pinned at zero on every drive measured (`editor-core`'s
-/// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`).
+/// measured at zero on every drive measured (the profile's
+/// `FreezeCause::Unrecorded` count).
 #[test]
 fn a_taint_induced_freeze_under_a_hit_is_read_by_order() {
     let sum = |base: Sym<f64>| base + p("a", 0.25) + p("b", 0.5);

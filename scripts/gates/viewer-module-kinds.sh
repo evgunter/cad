@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # viewer-module-kinds.sh — the viewer crate's vocabulary/driver rule,
-# checked. ONE home; ci.yml's "viewer module kinds" step in the `mirror`
-# job runs it and local-scripts/ci-local.sh runs it in `tier_blind_rows`
-# (and again in the directory loop on a building change set).
+# checked. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # `crates/viewer/README.md`'s `## Module boundaries` ratifies the rule:
 # **every module in that crate is a VOCABULARY or a DRIVER, and its
@@ -17,18 +15,11 @@
 # vocabulary module compiles, passes clippy, passes the doc gate, and
 # silently makes the README's vocabulary tables false.
 #
-# WHY THIS GATE IS SITED IN THE `mirror` JOB. *A gate must be sited
-# where it can fire on its own inputs* (Ev, 2026-08-20, on S61;
-# `.github/workflows/ci.yml` states it above that job).
-# `crates/viewer/README.md` is the subject of the table parse above
-# check 1 and of checks 3, 4, 6 and 6b; `crates/viewer/Cargo.toml` is
-# check 5's. A change set of only the README classifies TIER=docs,
-# `RUN_BUILD=false`, and every `if: run_build` job — `discipline`
-# included — is skipped. Sited there, a docs-only PR renaming a table
-# heading, adding a ghost row or deleting a table would merge with the
-# table parse and checks 3-4 unrun. `scripts/check-ci-mirror
-# -parity.py`'s TIER_BLIND names this gate, so the siting is enforced
-# rather than remembered.
+# WHERE THIS GATE RUNS. *A gate must be sited where it can fire on its
+# own inputs* (Ev, 2026-08-20, on S61). `crates/viewer/README.md` is the
+# subject of the table parse above check 1 and of checks 3, 4, 6 and 6b;
+# `crates/viewer/Cargo.toml` is check 5's. ci.yml's `lint` job runs
+# every gate on every tier, so a README-only change set fires it.
 #
 # WHERE A MODULE'S KIND IS DECLARED, and why it is not the README.
 # Each module says its own kind, once, in its own doc header:
@@ -196,9 +187,9 @@ VIEWER_FENCE_AWK=$GATE_REPO_ROOT/scripts/gates/viewer-readme-fence.awk
 # reason the tracker can. The tracker has ONE home because it is awk
 # source; a loader is SHELL, and the only shared shell homes are
 # `lib.sh` — code-quality's, read and called here and never edited —
-# and a second `.sh` in this directory, which `gate-roster.sh` reads as
-# a gate that runs nowhere (`viewer-readme-fence.awk`'s header argues
-# that at length). So this function, `VIEWER_FENCE_AWK` and
+# and a second `.sh` in this directory, which ci.yml's `lint` job would
+# run as a gate (`viewer-readme-fence.awk`'s header argues that at
+# length). So this function, `VIEWER_FENCE_AWK` and
 # `selftest_fence_load` are spelled twice, here and in the directory's
 # other viewer gate. What they can diverge about is bounded by what
 # they are — a path, an existence test and a message — and the part

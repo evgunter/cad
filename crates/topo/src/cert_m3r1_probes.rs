@@ -248,8 +248,8 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
 /// **The fold's content, pinned as the exact verdict at the four plain
 /// tier-3′/marks names** — not only which side of the line each door
 /// falls on, but what each says on the corrupt wall and what it no
-/// longer says. `validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
-/// `contact_marks` and `contact_marks_declared` each report ONE
+/// longer says. `validate_pseudomanifold`, `validate_pseudomanifold_certificate`
+/// and `contact_marks` each report ONE
 /// `EdgeCertification` per lane edge and nothing else: check 2
 /// re-derives the four certificates through the plane × NURBS lane and
 /// every one is false, so the pass stops there and check 7 — gated on
@@ -270,7 +270,7 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
     body.surfaces[wall] = nurbs_wall(0.05);
     let tol = Tol::witness();
     let records = ContactRecords::default();
-    let verdicts: [(&str, Result<(), Vec<ValidationError>>); 4] = [
+    let verdicts: [(&str, Result<(), Vec<ValidationError>>); 3] = [
         (
             "validate_pseudomanifold",
             validate::validate_pseudomanifold(&body, &records, tol),
@@ -282,10 +282,6 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
         (
             "contact_marks",
             validate::contact_marks(&body, tol).map(|_| ()),
-        ),
-        (
-            "contact_marks_declared",
-            validate::contact_marks_declared(&body, &[], tol).map(|_| ()),
         ),
     ];
     let mut expect = lane_edges.clone();

@@ -18,7 +18,7 @@
 //!    a two-seed pass with a SHARED subgraph, and asserts separation
 //!    exactly on the seeded cone and merging off it.
 //! 3. **A counterexample search for a value-only key collision**
-//!    (shape 1 of `memories/test-suite-cost.md`: a fresh seed per run
+//!    (shape 1 of implementer-discipline §8: a fresh seed per run
 //!    from `test_utils::fuzz`, logged unconditionally, replayed by
 //!    `CAD_FUZZ_SEED`, counts on `CAD_FUZZ_EFFORT`): can two `Dual64`s
 //!    with different (value, tangent) pairs feed one key, and in

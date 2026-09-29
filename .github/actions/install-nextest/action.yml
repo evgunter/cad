@@ -60,8 +60,7 @@
 # comment): this is a first-party composite in-repo, and the fetch is
 # the same official get.nexte.st URL at the same pinned version. And as
 # with the mold/linker knobs, this is a hosted-runner install detail,
-# not gate semantics — nothing here is mirrored into scripts/ci-local.sh,
-# which checks for a locally-installed cargo-nextest at the same pin.
+# not gate semantics.
 name: install cargo-nextest
 description: Install a pinned cargo-nextest prebuilt, from cache when available.
 

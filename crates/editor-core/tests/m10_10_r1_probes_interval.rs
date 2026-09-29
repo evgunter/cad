@@ -13,7 +13,7 @@
 //! and is the ceiling still a multiple of ε.
 //!
 //! EVERY ROW IS EVIDENCE-ONLY (`#[ignore]`d, prints, asserts nothing a
-//! gate could read — [[test-suite-cost]]). Run:
+//! gate could read — implementer-discipline §8). Run:
 //!
 //! ```sh
 //! cargo test -p editor-core --release --test all -- \

@@ -11,7 +11,7 @@
 //! # Where a colour comes from
 //!
 //! Two sources, with the precedence between them ratified in
-//! `crates/viewer/README.md`:
+//! `crates/viewer/GUI-DESIGN.md` G5:
 //!
 //! - **The theme — a USER preference.** It supplies every semantic
 //!   mark (selection, hover, probe, focus, unresolved) and the
@@ -28,7 +28,7 @@
 //! then a substitution of one value for another *within one colour
 //! space*, not a conversion between two spaces where drift can live.
 //! That type is `editor-core`'s, reached on a direct edge rather than
-//! through a new re-export on the façade's root — the ruling
+//! through a new re-export on the façade's root — the rule
 //! `pncad`'s own crate docs state for a type the façade does not
 //! carry, and the same one the `bvh` edge in this crate's manifest
 //! cites. It adds nothing to the build: `pncad` already depends on
@@ -285,9 +285,9 @@ pub struct Theme {
     pub focus: Mark,
     /// An unresolved selection, a deleted feature, a FAILED badge —
     /// everything that says "this does not denote anything". Chrome
-    /// only; it tints no geometry. (A POISONED badge is not on the
-    /// list: a row showing someone else's failure draws quiet, so the
-    /// colour stays on the row to act on.)
+    /// only; it tints no geometry. Which row statuses wear it is not
+    /// the palette's to say: `tree::RowStatus::tone` classifies them,
+    /// and `app::toned` draws this colour for `Tone::Actionable` only.
     pub unresolved: Rgba8,
     /// **Construction geometry**: the wireframe a datum plane, axis or
     /// point is drawn as (`crate::datums`).

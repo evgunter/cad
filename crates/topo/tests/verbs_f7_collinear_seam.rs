@@ -1,13 +1,10 @@
-//! **The collinear-seam differential** — the positive pole of the
-//! trigger the reviewers' attack fixtures are the negative pole of.
-//!
-//! R1's P2 and R2's mid-vertex probes both place their interior vertex
-//! deliberately OFF the chord ("not on segment V0–V2, so the chain is
-//! a genuine bent cut, not a degenerate straight edge split"). That
-//! parenthesis names exactly the shape this file builds: the same
-//! subdivided chord with the vertex ON the segment. It is the licence
-//! for the repair — a vertex interior to one straight carrier — and
-//! the reason the two arms' fixtures stay refusals.
+//! **The collinear-seam differential, closed.** R1's P2 and R2's
+//! mid-vertex probes placed their interior vertex deliberately OFF the
+//! chord; this file builds the same subdivided chord with the vertex
+//! ON it, so the two bodies differ in one coordinate. The merge's
+//! repair reads no coordinate — it deletes the seam edge left
+//! dangling once the faces are joined, with its free end — so the two
+//! must repair identically.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -67,38 +64,37 @@ fn split_top(on_segment: bool) -> topo::Body<f64> {
 }
 
 /// The DIFFERENTIAL, one screen tall: the same construction twice,
-/// differing only in whether the interior vertex sits on the chord.
-///
-/// Printed rather than asserted on the trigger itself (the trigger is
-/// private); what this row pins is that the two bodies are both legal
-/// and structurally identical apart from that one coordinate, so any
-/// difference in how the merge treats them is the collinearity and
-/// nothing else.
+/// differing only in whether the interior vertex sits on the chord,
+/// and the merge's outcome identical in every count.
 #[test]
 fn collinear_and_bent_seams_are_one_coordinate_apart() {
-    for on_segment in [true, false] {
-        let mut b = split_top(on_segment);
-        let planar_pairs = b
-            .edges()
-            .filter(|(_, e)| {
-                let f = |he| {
-                    let l = b.get_half_edge(he)?.parent_loop;
-                    Some(b.get_loop(l)?.face)
-                };
-                match (f(e.he_plus), f(e.he_minus)) {
-                    (Some(a), Some(c)) => {
-                        a != c
-                            && b.get_face(a).map(|x| x.surface) == b.get_face(c).map(|x| x.surface)
-                    }
-                    _ => false,
-                }
-            })
-            .count();
-        let merged = b.merge_coplanar_faces(Tol::witness());
-        println!(
-            "F7SEAM on_segment={on_segment} shared_same_key_edges={planar_pairs} \
-             merge={:?}",
-            merged.as_ref().map(|o| o.groups.len())
-        );
-    }
+    let outcomes: Vec<_> = [true, false]
+        .map(|on_segment| {
+            let mut b = split_top(on_segment);
+            let out = b
+                .merge_coplanar_faces(Tol::witness())
+                .unwrap_or_else(|e| panic!("on_segment={on_segment}: the seam repairs, got {e:?}"));
+            assert_eq!(validate_closed(&b), Ok(()), "on_segment={on_segment}");
+            let group = &out.groups[..];
+            let [g] = group else {
+                panic!("one group: {group:?}")
+            };
+            (
+                g.absorbed.len(),
+                g.killed_edges.len(),
+                g.killed_vertices.len(),
+                g.rings_made.len(),
+                b.faces().count(),
+                b.vertices().count(),
+            )
+        })
+        .into_iter()
+        .collect();
+    assert_eq!(outcomes[0], outcomes[1], "collinearity changes nothing");
+    let (absorbed, killed_edges, killed_vertices, rings, _, _) = outcomes[0];
+    assert_eq!(
+        (absorbed, killed_edges, killed_vertices, rings),
+        (1, 2, 1, 0),
+        "kef one seam edge, kev the other with its free end, no ring"
+    );
 }

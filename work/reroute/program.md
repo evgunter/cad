@@ -18,14 +18,15 @@ census-first method homes a class and then files the class's remainder as
 a row; those remainders are the whole of this program. Each row here names
 a door or a settled rule that already exists on main, and the work is to
 route the remaining members onto it — no door to design, no decision to
-take. A row that turns out to need a new door goes back to S-DUP by
-`git mv`.
+take. A row that turns out to need a new door goes by `git mv` to the
+program that owns the crate the door would live in (S-DUP, which minted
+doors, closed on 2026-09-28).
 
 Why a separate track: S-DUP measured 40.5 against its 30-point budget after
 two drain batches, because each drain filed its class's remainder as fast
 as it closed its head. A priority-seam cut was degenerate (all but two of
 S-DUP's rows are P4), so the cut is along the one line that separates the
 work by kind: a row that needs a door (S-DUP) against a row that needs
-only routing (here). Method and discipline: S-DUP's `work/dup/plan.md`
-method items apply unchanged, with this program's plan adding only what
-differs.
+only routing (here). Method and discipline: S-DUP's method items 1–29,
+moved into `work/reroute/plan.md` when S-DUP closed, apply unchanged, and
+that plan says what differs.

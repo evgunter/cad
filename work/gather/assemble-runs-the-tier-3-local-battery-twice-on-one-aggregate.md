@@ -2,11 +2,14 @@
 id: assemble-runs-the-tier-3-local-battery-twice-on-one-aggregate
 kind: issue
 title: assemble runs the tier-3 local battery twice on one aggregate: once in the product gather's gate, again inside tier 3′
-status: open
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: M
 refs: [product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares, product-per-part-gate-counts-solids-but-gates-sources]
+branch: gather/assemble-single-local-battery
+closed: 2026-09-28
+pr: 3374
 ---
 
 Found by the sweep of `gather/per-part-aggregate-gate`, which removed
@@ -45,3 +48,17 @@ Whatever that row decides about which gate the product runs decides
 this one's shape too, so this waits on it: once the product gate reads
 the records it carries, the assembly path could hand the product's
 verdict on the local battery to tier 3′ rather than re-derive it.
+
+## Update (branch `gather/derive-cusp-legality`)
+
+The difference above is gone. The row it waited on resolved by deriving
+wedge-end legality at rest (D1 tier 3, PR 3317): check 4 reads no
+declaration, `UndeclaredCusp` is retired, and tier 3′'s local battery
+no longer maps the aggregate's curve records to `Tangent` declarations
+(`pseudomanifold_certificate_via` calls `tier3_local_checks` with the
+body alone). So the product gate's `gate_at_rest` and the first half of
+`gate_at_rest_declared` now run the same checks on the same aggregate,
+differing only in the gating the door roster states (the composed door
+makes check 7 behind the whole structural phase, the battery behind
+checks 1–6), and the second run is a duplicate in substance: the
+assembly path could hand the product's local verdict to the census.

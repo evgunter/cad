@@ -27,9 +27,7 @@
 # ONE IMPLEMENTATION, NOT TWO. The marker's spelling, what counts as a path
 # and how a term is derived all live in `scripts/ci-filter.py`, which is the
 # file that ACTS on them; this gate calls it with `--gated-check` rather than
-# re-grepping for a syntax it would then own a second copy of. That is the
-# same arrangement `nightly.yml`'s demoted job has with
-# `nightly-only-selection.py --markers-present`.
+# re-grepping for a syntax it would then own a second copy of.
 #
 # CARGO IS NOT THIS GATE'S SUBJECT. `--gated-check` asks `cargo metadata` for
 # the package name behind each crate DIRECTORY, and falls back to the

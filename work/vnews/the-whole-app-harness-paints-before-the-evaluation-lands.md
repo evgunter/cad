@@ -71,3 +71,13 @@ second row for this (`an-undeclared-parameter-pane-row-compares-two-frames-acros
 that row was deleted in review as a duplicate of this one, and its one
 alternative fix, comparing only the properties pane's own region, is
 the one-row half-fix this row warns against.
+
+## A fourth frame body (2026-09-28)
+
+The add-profile unit (`vnews/the-frame-prompt-comes-first`) adds
+`painted_adding_a_profile` to the same module with its own frame body,
+at a 1600 by 4000 window and a set clock (`time`), so the "Add feature"
+section fits and its opening animation is past. `app_frame` fixes the
+window at 1600 by 1000, so this helper could not route through it as it
+stands; the fix this row owes should give `app_frame` the window size
+as an argument and fold this copy in with the wait.

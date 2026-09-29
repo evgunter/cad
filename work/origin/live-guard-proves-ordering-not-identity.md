@@ -6,8 +6,9 @@ status: open
 opened: 2026-09-05
 refs: [D50]
 track: P
-priority: P0
-cost: D
+priority: P3
+cost: M
+design: true
 ---
 
 ## What
@@ -63,3 +64,11 @@ closed should decide the scan question first.
 
 Track P — `crates/topo/src/live.rs`, and `source_walk.rs` if the item
 scan has to learn to recurse.
+
+## Re-banded P0 → P3 (2026-09-29, ORIGIN orchestrator)
+
+A guard does not inherit the band of what it guards (`work/README.md`,
+Priority): this row is a test that cannot go red on two shapes, which
+is P3's "tooling that prevents SILENT bugs", not a live wrong answer.
+`design: true` for the scan question above, which a taker decides
+first.

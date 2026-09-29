@@ -628,8 +628,9 @@ enum Outcome {
     /// before its pair's step: which face, and by what.
     Consumed(StableName, FoldConsumption),
     /// The emitter has no naming rule for the construction the order
-    /// reached (`tests/wire_legal_union_refusals.rs`).
-    SeamVertexNoRule,
+    /// reached: a seam chord bordering a merged face that holds several
+    /// faces of one operand (`tests/wire_legal_union_refusals.rs`).
+    MergedChordNoRule,
 }
 
 fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
@@ -643,8 +644,8 @@ fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
             } if name.node == union => Outcome::Consumed(name.clone(), *by),
             other => panic!("a declare refusal that names no composition: {other:?}"),
         },
-        Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
-            Outcome::SeamVertexNoRule
+        Some(NodeErrorKind::Naming(NamingError::MergedChordConstituents { .. })) => {
+            Outcome::MergedChordNoRule
         }
         Some(other) => panic!("unexpected outcome {other:?}"),
     }
@@ -672,9 +673,11 @@ fn split_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3], Vec<(SitedR
 /// the orders that fold it in before `c` meet `a`'s end cap as
 /// fragments only, and refuse naming the split — which fragment the
 /// pair meant is a geometric question the routing step does not ask
-/// (DM4). The orders that fold `s` before `a` never reach the
-/// declaration channel: the emitter has no rule for the seam vertex
-/// they build.
+/// (DM4). The orders that fold `c` and `s` before `a` never reach the
+/// declaration channel: `c` and `s` are an assembly of two bodies when
+/// `a` joins, the declared walls glue faces of BOTH into one merged
+/// wall, and the emitter has no rule for which of them a seam chord
+/// bordering it lies on.
 #[test]
 fn a_member_face_split_by_a_later_member_refuses_as_a_split() {
     let doc = ProfileDoc::empty_derived("docm8_split_order", Tol::witness());
@@ -683,22 +686,22 @@ fn a_member_face_split_by_a_later_member_refuses_as_a_split() {
     enum Want {
         Fused,
         Split,
-        SeamVertexNoRule,
+        MergedChordNoRule,
     }
     for (order, want) in [
         (vec![a, c, s], Want::Fused),
         (vec![c, a, s], Want::Fused),
         (vec![a, s, c], Want::Split),
         (vec![s, a, c], Want::Split),
-        (vec![c, s, a], Want::SeamVertexNoRule),
-        (vec![s, c, a], Want::SeamVertexNoRule),
+        (vec![c, s, a], Want::MergedChordNoRule),
+        (vec![s, c, a], Want::MergedChordNoRule),
     ] {
         let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         let want = match want {
             Want::Fused => Outcome::Fused,
             Want::Split => Outcome::Consumed(a_end(union), FoldConsumption::Split),
-            Want::SeamVertexNoRule => Outcome::SeamVertexNoRule,
+            Want::MergedChordNoRule => Outcome::MergedChordNoRule,
         };
         let got = outcome(&ev, union);
         assert_eq!(got, want, "{order:?}");
@@ -756,8 +759,11 @@ fn a_split_face_contained_in_every_piece_is_satisfied_and_one_with_a_piece_left_
 /// `cutter` rises through that cap across its whole depth — the shape
 /// both four-member rows below share.
 ///
-/// `capped` joining an accumulation that already holds `cutter` and a
-/// partner builds the seam vertex no rule names. Otherwise the pair
+/// `capped` joining an accumulation that already holds `cutter` and
+/// BOTH partners fuses. Joining one that holds `cutter` and only one
+/// partner, it glues a wall of each of two assembly members into one
+/// merged face, which the emitter has no rule to read a seam chord
+/// through (measured on both fixtures below). Otherwise the pair
 /// naming the cap against the LATER partner is what decides: fed
 /// before `cutter` joins, everything fuses; fed after it, the cap is
 /// fragments of a merged row when a partner joined before `cutter`,
@@ -772,8 +778,10 @@ fn cap_outcome(
     let pos = |m| order.iter().position(|x| *x == m).unwrap();
     let first_partner = pos(partners[0]).min(pos(partners[1]));
     let last_partner = pos(partners[0]).max(pos(partners[1]));
-    if pos(cutter) < pos(capped) && first_partner < pos(capped) {
-        Outcome::SeamVertexNoRule
+    if pos(cutter) < pos(capped) && last_partner < pos(capped) {
+        Outcome::Fused
+    } else if pos(cutter) < pos(capped) && first_partner < pos(capped) {
+        Outcome::MergedChordNoRule
     } else if pos(cutter) > last_partner {
         Outcome::Fused
     } else if first_partner < pos(cutter) {
@@ -784,8 +792,9 @@ fn cap_outcome(
 }
 
 /// Every order of `members` against [`cap_outcome`], and the tally of
-/// the four outcomes: fused, the missing seam-vertex rule, split, and
-/// fragmented merge.
+/// the four outcomes: fused, the missing merged-chord rule, split, and
+/// fragmented merge. Every fused body is checked against the analytic
+/// union: tier 3 green and volume `fused_volume`.
 fn every_cap_order(
     doc: &ProfileDoc,
     members: [RecipeNodeId; 4],
@@ -793,6 +802,7 @@ fn every_cap_order(
     capped: RecipeNodeId,
     partners: [RecipeNodeId; 2],
     cutter: RecipeNodeId,
+    fused_volume: f64,
 ) -> [usize; 4] {
     let mut tally = [0; 4];
     for order in permutations(&members) {
@@ -805,9 +815,19 @@ fn every_cap_order(
             cap_outcome(&order, capped, partners, cutter, cap),
             "{order:?}"
         );
+        if got == Outcome::Fused {
+            let b = body_of(&ev, union);
+            assert_eq!(
+                topo::validate::validate_geometric(b, Tol::witness()),
+                Ok(()),
+                "{order:?}: tier 3"
+            );
+            let v = volume(b);
+            assert!((v - fused_volume).abs() < 1e-9, "{order:?}: volume {v}");
+        }
         tally[match got {
             Outcome::Fused => 0,
-            Outcome::SeamVertexNoRule => 1,
+            Outcome::MergedChordNoRule => 1,
             Outcome::Consumed(_, FoldConsumption::Split) => 2,
             Outcome::Consumed(_, FoldConsumption::FragmentedMerge) => 3,
         }] += 1;
@@ -833,8 +853,8 @@ fn a_member_face_inside_a_merge_a_later_member_split_refuses_as_a_fragmented_mer
     let (doc, d) = block(doc, (-0.5, 0.1), (0.0, 1.0), 0.0, 1.0);
     pairs.extend(flush_pairs(&doc, (a, a), (d, d)));
     assert_eq!(
-        every_cap_order(&doc, [a, c, s, d], &pairs, a, [c, d], s),
-        [6, 10, 4, 4]
+        every_cap_order(&doc, [a, c, s, d], &pairs, a, [c, d], s, 2.1),
+        [12, 4, 4, 4]
     );
 }
 
@@ -860,8 +880,8 @@ fn the_three_neighbour_star_refuses_as_a_split_or_a_fragmented_merge() {
         ));
     }
     assert_eq!(
-        every_cap_order(&doc, [c, w, e, t], &pairs, c, [w, e], t),
-        [6, 10, 4, 4]
+        every_cap_order(&doc, [c, w, e, t], &pairs, c, [w, e], t, 2.1),
+        [12, 4, 4, 4]
     );
 }
 

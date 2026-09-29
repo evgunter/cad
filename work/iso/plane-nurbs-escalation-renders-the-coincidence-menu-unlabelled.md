@@ -18,10 +18,10 @@ one of four siblings, filed on each owner's slate.)
 whole, ending in `geom_core::COINCIDENCE_RECOURSE` unlabelled. So
 `test_utils::refusal::recourse_markers` counts zero on it, and it offers
 "declare the coincidence", while `topo::validate`'s `classify_certify`
-routes the same arm (`CertifyError::PlaneNurbs(P::Escalated(cause))`)
-through `own_close(&cause.margin, EDGE_CLOSE)` — an edge's own two
-faces, where a declaration has no object — and a poisoned margin to
-the defect ending.
+ends the same arm (`CertifyError::PlaneNurbs(P::Escalated(cause))`)
+through its decision's ending at rest (`CertifyError::ending`,
+`CertCheck::PlaneNurbsCertificate`'s last resort) — an edge's own two
+faces, where a declaration has no object.
 
 ## Repair shape
 

@@ -20,7 +20,7 @@
 //!    exact rational entry parameter, not against a re-run of the
 //!    same arithmetic.
 //!
-//! Sweep shape (per `memories/test-suite-cost.md`): counterexample
+//! Sweep shape (per implementer-discipline §8): counterexample
 //! search, varying seed, counts on the effort dial.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

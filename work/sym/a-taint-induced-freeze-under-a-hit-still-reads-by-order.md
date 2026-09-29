@@ -47,10 +47,11 @@ nothing-froze short circuit.
 ## Why it is not urgent
 
 It is inside the branch `geom_core::sym::memo`'s header already
-discloses and that `editor-core`'s
-`no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded` pins at
-zero over five drives — both measured documents and all three
-adversaries, `FreezeCause::Unrecorded` zero in every one. A drive
+discloses and that measured zero over five drives — both measured
+documents and all three adversaries, `FreezeCause::Unrecorded` zero in
+every one (`editor-core`'s
+`no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded` pinned
+that count until the 2026-09-28 CI-latency cut; no gating row holds it now). A drive
 mints every node inside its own session, so no leaf of a drive holds a
 foreign id at all; reaching this needs the scalar door and a node
 minted before the session was installed.

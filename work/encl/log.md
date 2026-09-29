@@ -1131,3 +1131,116 @@ class of 65 sites is PRED's row.
   - Fix pass sent back to the lane.
 - 2026-09-28 — PR 3354 merged (`260a8d3dba`), hosted green on `6a70b4c7de`. Closed `domain-grid-homing-residue` and posted seam notes on the props and nurbs logs.
   - The degree-3 repeated-knot pin can go red only when both halves (the raw filter and the missing dedup) are reverted together. That is inherent, because either half alone is the pre-change code; it is recorded in the test's doc.
+- 2026-09-28 14:45 — Ev commented on `[ev]` PR 3352, on the one split. The tolerance advice should either be symmetric (tighten or loosen as appropriate) or dropped entirely. Ev leans toward showing it only where changing ε may be the only recourse: tiny intended geometry (tighten), or a NURBS fitted to an edge at a given accuracy (loosen; likely STEP adoption only, or a lowered ε, which could warn at the change). Ev asked for thoughts.
+  - Reconciliation round 2: both designers were given Ev's comment verbatim and asked to answer it directly (≤60 lines each). The reply to Ev will carry both, labelled A/B.
+- 2026-09-28 — Fork round 2 on Ev's question: both designers converged.
+  - ε appears in refusal text only as a conditional, valued "if this size is intended, tighten below m/K", on band-decided arms of nonzero-sign decisions. It never appears on residuals or on sign-certain arms, and no refusal says "loosen".
+  - Loosening lives at the import door (ε_in, D7) and at an ε change. A found that `Edit::SetTolerance` already reports the predicates it flips.
+  - One sub-choice is left for Ev: whether kernel-limit sites that say "loosen" today (offset-fit stall, mass-props budget, built-curve residual) become "no way through yet" (B leans that way, unsure) or keep "loosen" as a last resort. A did not weigh it.
+  - D4 (i) on the `[ev]` branch updated to match (`7b494764a7`). Replied on 3352 with both round-2 For-Ev sections verbatim as A/B. The fork-log row's round-2 entry goes in with Ev's answer.
+- 2026-09-28 15:12 — **Ev ruled on `[ev]` PR 3352.** Ev took the recommendation. Sub-choice: kernel-limit sites with no other recourse keep "loosen the tolerance" as a last resort, saying it may indicate a kernel bug to report.
+  - D4 (i) updated (`8b30f7d6c7`). Fork-log row 5 decision half filled in: round 2, Ev's decision, match (converged; the sub-choice matched neither lean), and A/B = byte 235, A=Fable, B=Opus. The row was renumbered from 3 after main's rows 3–4.
+  - (The tool classifier was down 15:13–~16:00, which delayed this.)
+  - `certify-escalation…` is set `needs_ev: false` and back to dispatched. PR 3351's lane is briefed to reshape to the rule: route by `CertCheck` with a pass set, siblings through the same entry, residuals take the defect or last-resort ending, and `classify_certify` reads the same routing.
+  - Filed `offset-meters-follow-the-d4-recourse-ruling` (P3/M; the 3347 follow-up) and `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E).
+- 2026-09-28 — `[ev]` PR 3352 merged (`e31a096566`, docs-only green). Dispatched `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E) on `encl/kernel-limit-last-resort`: Opus, style review. `offset-meters-follow-the-d4-recourse-ruling` waits for 3351's reshape, whose pattern it follows.
+- 2026-09-28 — PR 3351 reshaped to the D4 ruling (head `127b991c4f`).
+  - Routing: one `certify::recourse(check, RefusedArm, Reading)` plus `CertCheck::passes()`, both exhaustive. The 45-name table, `EDGE_CLOSE_RECOURSE` and `MissingRecourse` are off this path.
+  - Checks: `ParamWinding` split out of `ParamSpan`. `PlaneNurbsRefusal::TransversalityEscalated` added.
+  - Residual families: exact constructions → defect; approximations → last resort.
+  - Siblings are routed, and the pair row is green over 4 pairs. `classify_certify` reads the same routing, fixing main's residual-as-angle defect.
+  - Filed: `certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending`, and SSI's `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
+  - Full review dispatched. It is the ruling's first implementation and the pattern the rollout copies.
+- 2026-09-28 — The kernel-limit lane opened PR 3363 (head `0d3966954c`).
+  - Adds a shared tail, `geom_core::KERNEL_LIMIT_LAST_RESORT`.
+  - offset_fit: two arms drop loosening (a real lever, split the face, remains); three keep it as the last resort, one of them (~769) missed by the row. topo `classify_offset_fit` mirrors this.
+  - PROPS' quadrature-budget sites are filed on PROPS' slate. topo flush is filed in issues. ssi evidence added.
+  - **Collision with 3351**, which adds `geom_core::LAST_RESORT_RECOURSE` (a whole sentence). Decision: 3363's tail is the one home, because it can carry a site's value. 3351's fix pass composes from it and deletes its own constant. The style review for 3363 is also checking that composition.
+- 2026-09-28 — Reviews adjudicated.
+  - **3363** (style review): APPROVE-WITH-FIXES, all taken. The doc now uses D4's own list. Adds `KERNEL_LIMIT_RECOURSE`, the whole no-value sentence, which topo now uses. Adds a checks-window endings pin: red with "loosen" re-added, then green. The `contains` pins are now whole-recourse. Merged at head `ae4283fcc4` → `c28651d7c3`, hosted green. Row closed.
+  - **3351** (full review): REQUEST-CHANGES.
+    - M1: the certify Display fixed `Reading::Build`, so a file's defect at STEP adoption read as a kernel defect or "loosen". Fix (a): Display renders the payload only; each door appends `recourse` at its own reading, and adoption never gives last resort or kernel defect.
+    - M2: tighten was offered on wrong-sign in-band margins. It is now gated on `passes()`.
+    - Minors: TubeStraddles/Limb/ChartImageUnavailable siblings get endings; the Invalid tail is reworded; mesh12 accepts ParamWinding only; the tube Zero|Negative conflation goes on the row; a row for validate's SliverDihedral/own_close "lower".
+    - Fix pass dispatched. It composes from `KERNEL_LIMIT_RECOURSE` now that 3363 is on main.
+- 2026-09-28 — PR 3351 merged (`e39a5c4cc4`, head `a4ef46c0ec`, hosted green). Row closed.
+  - **Round 1** (full review): M1 door-owned reading and `Reading::Adopt`; M2 sign-gated tighten; minors.
+  - **Round 2** (full re-review): MJ-1, a band-decided Zero arm is never "no way through" (only SignCertain is a defect, at rest and at adoption). validate routes through `ending(AtRest)`. Per-reading pair pins. Endings verified by mutation.
+  - **Round 3** (delta review, approve-with-fixes): `Straddles` → `ZeroOrNegative`; validate's own endings only where `ending` is `None`; a literal classification table; `Passes` deleted.
+  - **Filed:** `adoption-certification-has-no-eps-in-lever` (design fork), `validate-own-close-levers-follow-the-d4-recourse-ruling`, `certify-span-and-zero-arms-…` (extended), and ssi `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
+  - Seam notes posted to iso, exch, topo, offset, shell, restfront, tcost, tint, pcert and ssi.
+- 2026-09-28 — Design fork `encl-adoption-eps-in` put to Ev as `[ev]` PR 3380. `adoption-certification-has-no-eps-in-lever` has `needs_ev: true`.
+  - First reports: A (build D7's split) and B (delete `Reading::Adopt`, read import as at rest) split on the fix.
+  - Two reconciliation rounds brought them to one final state: read import as at rest now; build the split as filed follow-on work; ε_in is the file's coincidence distance, a lever only of interpretation refusals; an interim door-owned size decision; D4 ¶1's ε_in sentence reworded.
+  - One stated split: whether the coarse-but-correct text names the last resort.
+  - Row 6 recommendation half is committed on the `[ev]` branch. The mapping is on `analysis/design-fork/encl-adoption-eps-in`.
+  - Filing held until Ev answers: the EXCH row for the D7 rebuild stage, and the ENCL follow-through.
+- 2026-09-28 — Dispatched `offset-meters-follow-the-d4-recourse-ruling` (P3/M) on `encl/offset-meters-d4-recourse`, following 3351's pattern. Opus, full review.
+- 2026-09-28 — Design fork `encl-adoption-eps-in` opened on `adoption-certification-has-no-eps-in-lever`. The question: what lever a band-decided certification refusal names at STEP adoption, since the ladder certifies at the kernel ε, not ε_in; plus `TierInvalid`'s reading and an undecided approximation at adoption. Blinding byte is on `analysis/design-fork/encl-adoption-eps-in` (protocol `bb10a4cdd4`). Two designers dispatched concurrently with the same problem statement.
+- 2026-09-28 — PR 3382 merged (`9bf495c768`, head `00fcc7df1a`, hosted green). Row `offset-meters-follow-the-d4-recourse-ruling` closed.
+  - **Design:** shared `geom_brep::recourse` (`SizedDecision`, `StoredDefinite`, `Classified`), with certify delegating to it. The meters use a closed `Meter` type and carry a `Refused::{Zero(Classified), Negative}` verdict.
+  - **Full review:** approve-with-fixes. It checked D4 conformance on every arm, and certify byte-identical over 660 rows apart from the disclosed note.
+  - **Fix pass:** verdict-keyed at-rest leads; a report clause on the zero floor (`at_zero`); the "unreadable or collapsed" note; pins that tell floor from thinness; wider escalation pins; the D4 paraphrase in rows replaced by a pointer.
+  - **Filed on other slates:** contact, paths, band, ssi, props, plus encl `checks-escalated-evidence-says-lower-the-tolerance`. Seam notes posted.
+- 2026-09-28 — Triaged the three rows the rollout filed:
+  - `certify-span-and-zero-arms-…` (P3/M) is dispatched on `encl/certify-span-zero-arms`.
+  - `checks-escalated-evidence-says-lower-the-tolerance` (P3/E) is dispatched on `encl/checks-escalated-evidence`.
+  - `validate-own-close-levers-…` (P3/M) is held until certify-span lands, because both touch `validate.rs`'s certify and own-close endings.
+- 2026-09-28 — PR 3392 merged (`277dcb052b`, head `7e4c4e52c1`, hosted green). Row `certify-span-and-zero-arms-…` closed.
+  - **Full review:** approve-with-fixes.
+  - **Fix pass:**
+    - The tangent tube is its own decision (`TubeNotSeparated`), with its Negative as the lever alone.
+    - The zero span is restored to a defect per Ev's `e1600790f9`; the conflict with D4 ¶1 (i) is recorded for the fork.
+    - The collision with PR 3380 is recorded.
+    - The verdict is pinned at the construction sites.
+  - **Filed:**
+    - `certify-zero-arms-quote-no-margin-without-a-seam` (P3/M, design: needs a fork after 3380 settles);
+    - `certify-collapsed-arm-gates-route-as-the-decision-they-guard` (P3/M).
+  - Seam notes posted.
+- 2026-09-28 — Dispatched `validate-own-close-levers-follow-the-d4-recourse-ruling` (P3/M) on `encl/validate-own-close-levers`.
+- 2026-09-28 — PR 3390: the delta re-review returned approve-with-fixes. Round 2 is in flight:
+  - the straddle is ε-decided, so it ends as `Zero(None)` and `RefusedArm::Straddles` is deleted;
+  - "zero at this tolerance";
+  - `lean()` reads only decided signs;
+  - `recourse` unit tests.
+- 2026-09-29 — PR 3390 merged (`719ef596a1`, head `a8f2106e3e`, hosted green). Row `checks-escalated-evidence-…` closed.
+  - **Style review:** REQUEST-CHANGES (C1: the shell volume sign is a sized decision under D4 ¶1 (i)).
+  - **Fix round 1:** routed through `SizedDecision` with `SizedPass::NonZero`; ending on the Display.
+  - **Delta re-review:** the straddle is ε-decided; "zero at this tolerance"; lean only on decided signs.
+  - **Fix round 2:** all taken, and merged with 3392.
+  - **Filed:** `checks-void-side-shell-escalation-has-no-live-fixture` (P3/E).
+  - Seam notes posted.
+- 2026-09-29 — PR 3398 (validate own-close) opened. CI was red on the payload-rung gate (`WedgeCheck`); fixed (argued non-carriage, and a LIB row filed). Full review running.
+- 2026-09-29 — Ev answered `[ev]` PR 3380: "the real fix should be filed as p1 … as a stopgap for the message it seems reasonable to suggest setting eps to eps_in".
+  - D4 ¶1 now carries the stopgap clause, and the fork-log second half is filled in. It is row 7, since main added a row 6.
+  - I answered the program question on the PR: EXCH.
+  - **Filed:**
+    - `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation` (P1/H), the D7 rebuild stage;
+    - `work/encl/adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` (P2/M), the follow-through. It is held until PR 3398 lands, since both touch `recourse.rs`.
+  - Closed `adoption-certification-has-no-eps-in-lever`.
+  - **Orchestrator slip:** committing the main merge on the `[ev]` branch left a conflict block in the fork log (`08eba8f88c`). I fixed it forward in `5bb3585ded`. Check `git merge`'s exit before editing, not only before committing.
+- 2026-09-29 — Opened design fork `encl-zero-arm-margin` on `certify-zero-arms-quote-no-margin-without-a-seam`. It covers the unvalued tighten on certify's Zero arms, the Bounds scope rule, and the zero span (D4 ¶1 (i) against Ev's `e1600790f9`), with 3380's door as the consumer. The blinding byte is on `analysis/design-fork/encl-zero-arm-margin` (protocol `bb10a4cdd4`). Two designers were dispatched concurrently with the same problem statement.
+- 2026-09-29 — Design fork `encl-zero-arm-margin` put to Ev as `[ev]` PR 3402. `certify-zero-arms-…` has `needs_ev: true`.
+  - **Both first reports converged:** the classifier's `MarginDiag` rides the Zero verdict; `Zero(None)`/`tighten(None)`/`Definite` are deleted; the zero span goes through D4 ¶1 (i) with an m ≤ 0 note; Bounds clause 2 gains one sentence (the diff); D4 ¶1 (i) is unchanged; the import door reads a structured verdict.
+  - **Split, on the mechanism:** A would have every outcome of `sign_within` carry the view; B would add a named `decide_sized` door. There was no reconciliation round.
+  - **Correction:** "a zero span is always a defect" (`e1600790f9`) is co-authored fix-pass text, not Ev's ruling, contrary to my brief and to the 3392 row's attribution. The PR says so.
+  - Void-side fixture PR 3401 is open and read; it merges on green.
+- 2026-09-29 — PR 3401 merged (`c7c44c49ab`): a live void-side shell escalation fixture (`dsc_checks::in_band_void_shell_escalates_with_its_valued_ending`) pins the valued ending at every eps. The direct thin-tool subtract refuses at the Boolean's own orientation read, which is correct fail-loud. Row closed.
+- 2026-09-29 — Ev answered `[ev]` PR 3402. Ev took the recommendation and chose A (every outcome of the seam carries its margin), on the condition that the number is structurally usable only for error reporting.
+  - Clause 2 was reworded to carry the condition. Fork-log row 10 is complete (DUP took rows 8–9).
+  - Filed `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M). The adoption follow-through reads its structured verdict.
+  - Closed `certify-zero-arms-quote-no-margin-without-a-seam`.
+  - 3402's merge waits for the main-wide census fix (`encl/fix-main-census-tables`).
+- 2026-09-29 — Main red: two geom-core census tests.
+  - `certified_endpoint_census`: ssi/certify.rs has 15 reads against the table's 16, from 3392's refactor. This one is ENCL's.
+  - `sym_rule_f_rows` copysign: a new site at `topo/src/boolean/section_cert.rs:827`, from GERM.
+  - Fix lane dispatched. Both break the `test` job for 3398 and 3402.
+- 2026-09-29 — PR 3407 merged (`4b47a29dd9`): main's two red geom-core census rows are fixed. `ssi/certify.rs` endpoint reads go 16→15 (3392 spelled one as a path; blind spot 7 is documented). The `section_cert.rs` copysign site is registered as UNMEASURED, with evidence added to GERM's P1 row. Ported into 3402 before the merge.
+- 2026-09-29 — `[ev]` PR 3402 merged (`f20c3276e1`) on Ev's answer: Bounds clause 2 now carries the reporting-only margin, and fork-log row 10 is complete. `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M) is held until 3398 lands.
+- 2026-09-29 — PR 3398 merged (`3aac59af62`, head `fd666f46c8`, hosted green). Row `validate-own-close-levers-…` closed.
+  - **CI:** red on the payload-rung gate (`WedgeCheck`; fixed by an argued non-carriage) and on main's census tests (3407).
+  - **Full review:** approve-with-fixes, all nine taken. The planar corner ends as a defect. Azimuth is pinned against winding. No invented lever where the decision isn't carried. Neutral wedge and separation levers, each with its own `SizedDecision`. Per-check leads. The torus carries its verdict. Constructor pins. The exemption is scoped.
+  - Seam notes posted.
+- 2026-09-29 — Dispatched `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M; Ev's structural-fence condition; full review) on `encl/zero-verdicts-reporting-margin`. Held behind it, because they touch the same code:
+  - `adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` needs the structured verdict;
+  - `certify-collapsed-arm-gates-…` touches the same `decide_positive` gates.

@@ -263,7 +263,7 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
             let msg = CertifyError::NotTransverse { sample }.to_string();
             println!("M7-8 door tangential: {msg}");
             assert!(
-                msg.contains("tangent planes coincide"),
+                msg.contains("the faces meet tangentially"),
                 "the tangency vocabulary, verbatim: {msg}"
             );
         }

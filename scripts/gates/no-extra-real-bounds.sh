@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # no-extra-real-bounds.sh — no extra bounds on `Real`. ONE home;
-# ci.yml's "no extra bounds on Real" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# ci.yml's `lint` job runs every gate in this directory.
 #
 # Evaluation-code discipline tripwire (see the `real.rs` module docs):
 # a type parameter written `T: Real + PartialOrd` (or any other extra

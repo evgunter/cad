@@ -34,11 +34,10 @@ matches what the script prints. So:
   what make its answer a proof rather than a seed — execute only when
   someone runs it.
 
-It was moved OUT of `scripts/` precisely because
-`scripts/check-ci-mirror-parity.py` refuses an executable check under
-`scripts/` that neither CI half names. That refusal was right about the
-path and it does not reach this one: outside `scripts/` there is no
-roster property at all, which is the hole this row records.
+Nothing in the tree lists the executable checks a workflow is
+expected to run, under `scripts/` or anywhere else, so a check that no
+job invokes is invisible by construction; that is the hole this row
+records.
 
 ## What a fix looks like
 
@@ -48,15 +47,15 @@ the output against the table — which needs the table readable from the
 test, so the table moves to a data file both sides read, or the Rust row
 prints its own table in the same format and the test diffs the two.
 Python availability is the wrinkle: the hosted test job has it, and a
-`ci-local.sh` box might not, so the row wants the same
-degraded-box posture `check-python-lint.py` already spells out (hard
-failure where `GITHUB_ACTIONS` is set, a skip that says so elsewhere).
+local box might not, so the row wants the same degraded-box posture
+`check-python-lint.py` already spells out (hard failure where
+`GITHUB_ACTIONS` is set, a skip that says so elsewhere).
 
-Cheaper and weaker: run the script from the python-suite job, which
-already exists and already has Python, and have IT compare. That buys
+Cheaper and weaker: run the script from `nightly.yml`'s python job,
+which already has Python, and have IT compare. That buys
 the mathematics being executed and the script's own assertions firing,
 without pinning the Rust table.
 
-The general shape — "an executable check outside `scripts/` that no half
-names" — is the thing with no roster. This row is one instance; whether
+The general shape — "an executable check that no workflow names" — is
+the thing with no roster. This row is one instance; whether
 TINT wants the instance or the property is TINT's call.

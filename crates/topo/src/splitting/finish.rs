@@ -192,6 +192,19 @@ pub enum SplitFinishError {
         /// The winding's diagnostic, when it escalated.
         diag: Option<geom_core::Indeterminate>,
     },
+    /// The split plane is tangent to a curved face along the section's
+    /// boundary with the two faces' materials OPPOSED: the cut would
+    /// leave a wedge end — a knife edge no input declared, which D1
+    /// makes the minting op's refusal. (A cut piece lies on one side
+    /// of the plane, so the end it can reach is the cusp, wedge 0.) A
+    /// split has no declaration channel, so every such edge refuses; a
+    /// π seam (materials aligned) cuts.
+    SectionCusp {
+        /// The section-boundary edge the knife edge would be.
+        edge: EdgeKey,
+        /// The operand's curved face the plane is tangent to.
+        face: FaceKey,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -251,6 +264,12 @@ impl core::fmt::Display for SplitFinishError {
                 "which side of a cut face is material cannot be read: its outline \
                  encloses no area, or has an edge with no curve. Recourse: move the \
                  split plane"
+            ),
+            Self::SectionCusp { .. } => write!(
+                f,
+                "the split plane is tangent to a curved face where it cuts, so a piece \
+                 would taper to a knife edge nobody asked for. Recourse: move the split \
+                 plane off the tangency"
             ),
         }
     }
@@ -486,6 +505,10 @@ fn section_sense<T: Decide>(
 /// boundary with its transverse partner reassigned to the OTHER
 /// product, so the `Intersection` it honestly carried now names a
 /// surface that is not adjacent (and not even present) on this side.
+/// A curved wall smooth against the section is judged by its material
+/// pairing: aligned is a π seam and takes the conventional path,
+/// opposed is a wedge end nothing declared and refuses
+/// ([`SplitFinishError::SectionCusp`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
 fn describe_section_boundary<T: Decide>(
     body: &mut Body<T>,
@@ -605,25 +628,31 @@ fn describe_section_boundary<T: Decide>(
                 // legal either way since either adjacent chart
                 // certifies.
                 //
-                // No second-order ladder here (the boolean's smooth
-                // arm runs one): a determinate smooth pair at the
-                // section boundary would be the split plane tangent to
-                // a curved wall, and such a tangency's zero-width
-                // section polygon refuses typed in the JOIN stage
-                // (`SplitJoinError::DegenerateSection`), from the
-                // mirrored pinch rerun as much as the direct run —
-                // `bool1_r1_probes` / `bool1_r2_probes`' tangent
-                // cylinder rows are the measured witnesses. A STRAIGHT
-                // tangent contact that meets a real section in the
-                // rerun refuses there too, as a spur
-                // (`SplitJoinError::SectionSpur`); a CURVED one would
-                // not (the spur check decides straight tips only,
-                // `work/reach/split-section-spur-guard-skips-curved-spurs.md`),
-                // and no row has reached that case here. So no
-                // curved smooth pair reaches this arm, and a flush
-                // plane pair's exactly-zero jet is the
-                // under-determined regime.
+                // A curved wall smooth against the section plane is
+                // either a π seam or a wedge end, and only the material
+                // pairing tells them apart — tier 3's own reading
+                // (D1). The wedge end is a knife edge no input
+                // declared: this op's refusal.
                 Ok(geom_brep::DihedralClass::Smooth) => {
+                    if !matches!(surf_other, Surface::Plane { .. }) {
+                        let sense_of = |f| body.get_face(f).map(|d| d.sense).ok_or_else(corrupt);
+                        let pairing = geom_brep::classify_material_pairing(
+                            surf_self,
+                            sense_of(face)?,
+                            surf_other,
+                            sense_of(other_face)?,
+                            witness,
+                            geom_brep::folded_lever_arm(surf_self, surf_other, witness, arm),
+                            band,
+                        )
+                        .map_err(|diag| SplitFinishError::DescribeEscalated { edge, diag })?;
+                        if pairing == geom_brep::MaterialPairing::Opposed {
+                            return Err(SplitFinishError::SectionCusp {
+                                edge,
+                                face: other_face,
+                            });
+                        }
+                    }
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
                         // A seam image's two sides are one surface, so
                         // it is coherent only when both faces share
@@ -643,11 +672,8 @@ fn describe_section_boundary<T: Decide>(
                         geom_brep::EdgeDescription::Chart(ref ch) => {
                             ch.surface == s_self || ch.surface == s_other
                         }
-                        // Kept when honest for the CURRENT pair;
-                        // unreachable today for the ladder's reason
-                        // above (no tangency survives to the section
-                        // boundary), and spelled because the rule is
-                        // about coherence, not reachability.
+                        // Kept when honest for the CURRENT pair — a
+                        // curved wall meeting the section at a π seam.
                         geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
                             (s1 == s_self && s2 == s_other) || (s1 == s_other && s2 == s_self)
                         }

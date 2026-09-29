@@ -10,7 +10,7 @@
 //! whole rule (fill the first empty, replace the last, drop a seat on
 //! its own) says nothing about it. What it shares with the seated
 //! tools is the shape rather than the state: single-select stays
-//! ruled, the picks live in tool state, everything before the commit
+//! ruled (GQ7), the picks live in tool state, everything before the commit
 //! is transient, and the document transition is one [`SessionOp`]
 //! committing one `DocEdit::InsertNode`.
 //!

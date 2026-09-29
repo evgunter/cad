@@ -9,6 +9,7 @@ priority: P3
 cost: E
 branch: vnews/the-unit-picker-reads-its-refusal
 closed: 2026-09-25
+pr: 3391
 ---
 
 Found by the sweep of `vnews/properties-controls-read-their-refusals`

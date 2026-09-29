@@ -839,10 +839,10 @@ pub enum PathError<T: Real> {
     /// recourse, and it is now the same SHAPE as the tangent class's:
     /// if the cusp is intended, author it structurally with
     /// `.cusp()`, which reverses the incoming ray exactly and DECLARES
-    /// the joint; otherwise move the geometry. The declaration is what
-    /// the kernel's material-wedge invariant asks for at rest (D1's
-    /// tier-3 arm), and it is never inferred from a margin — which is
-    /// why an authored near-reverse still refuses here.
+    /// the joint; otherwise move the geometry. The declaration is where
+    /// a cusp's intent lives — D1 declares it where the tangency is
+    /// created and never infers it from a margin — which is why an
+    /// authored near-reverse still refuses here.
     JunctionCusp {
         /// The classified turn margin sin φ · arm, meters.
         margin: T,

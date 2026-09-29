@@ -14,8 +14,8 @@
 //!   answer would break: two half-bands of one frustum PARTITION their
 //!   wall, a quarter cone holds its quadrant and not the others, the
 //!   mirror nappe and the carrier past the slant window are outside,
-//!   and an apex-closed band beside a sibling, whose own window the
-//!   walk cannot pin, is the honest remainder.
+//!   and the apex-closed bands of one full cone partition their wall
+//!   too, their windows closed at the apex.
 //! - **The C5 gate** read `route(kind, kind).implemented`. A quarter
 //!   cone's wedge cap passes through the apex, which the plane×cone
 //!   arm serves; offset, it no longer does, and the pair cuts a
@@ -204,24 +204,68 @@ fn the_quarter_cone_face_holds_its_quadrant_and_no_other() {
     }
 }
 
-/// **An apex-closed band beside a sibling is the honest remainder.** The
-/// full cone's two bands meet at the apex, where every azimuth lands;
-/// the closed-form walk loses the band's azimuth window there and
-/// reports a full period for a face that covers half of one. The door
-/// cannot pin the band's own window, so it answers `None` — never a
-/// verdict read off the wrong window. The carrier test still runs
-/// FIRST: a point off the cone is `Out` of both bands whatever the
-/// trim can say.
+/// **The apex-closed bands of one full cone partition their wall, each
+/// holding its own half.** The two bands meet at the apex, where every
+/// azimuth lands; the apex closure pins each band's own half-period
+/// window there. A carrier point away from the seam meridians is `In`
+/// the band whose rim arc passes over it — read off the rim's own
+/// carrier, independently of any trim — and `Out` of the other. A walk
+/// that read either band as a full period answers `None` for both; one
+/// that handed each band the other's window answers the swapped band.
+/// The carrier test still runs FIRST: a point off the cone is `Out` of
+/// both bands whatever the trim can say.
 #[test]
-fn an_apex_closed_band_beside_a_sibling_is_the_honest_remainder() {
+fn the_apex_closed_bands_partition_their_wall() {
     let body = cone();
     let bands = cone_faces(&body);
     assert_eq!(bands.len(), 2);
+    let rim_azimuth = |f: FaceKey| -> f64 {
+        let topo::LoopBoundary::Cycle { first } = body
+            .get_loop(body.get_face(f).unwrap().outer)
+            .unwrap()
+            .boundary
+        else {
+            panic!("a band's outline is a cycle")
+        };
+        let rims: Vec<f64> = body
+            .loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .filter_map(|he| {
+                let e = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+                let c = body
+                    .get_curve_geom(e.curve)
+                    .and_then(topo::CurveGeom::certified)?;
+                let geom::Curve3::Circle { .. } = c.carrier() else {
+                    return None;
+                };
+                let (t0, t1) = c.params();
+                let m = c.carrier().eval(0.5 * (t0 + t1));
+                Some(m.z.atan2(m.x))
+            })
+            .collect();
+        let [phi] = rims[..] else {
+            panic!("one rim arc per band: {rims:?}")
+        };
+        phi
+    };
+    let mids: Vec<f64> = bands.iter().map(|&f| rim_azimuth(f)).collect();
     for k in 0..6 {
         let phi = 0.1 + f64::from(k) * core::f64::consts::TAU / 6.0;
         let p = at(0.5, 0.5, phi);
-        for &f in &bands {
-            assert_eq!(contain(&body, f, p), None, "phi {phi}");
+        for (&f, &mid) in bands.iter().zip(&mids) {
+            let d = (phi - mid).rem_euclid(core::f64::consts::TAU);
+            let holds = d.min(core::f64::consts::TAU - d) < core::f64::consts::FRAC_PI_2;
+            let want = if holds {
+                FaceContainment::In
+            } else {
+                FaceContainment::Out
+            };
+            assert_eq!(
+                contain(&body, f, p),
+                Some(want),
+                "phi {phi}: the band whose rim runs over {mid}"
+            );
             assert_eq!(
                 contain(&body, f, at(0.5 + 1e-3, 0.5, phi)),
                 Some(FaceContainment::Out)

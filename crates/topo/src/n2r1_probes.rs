@@ -124,7 +124,6 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
         let mut marks = slotmap::SecondaryMap::new();
         crate::validate::tier3_local_checks_marked::<f64>(
             &st.body,
-            &[],
             band,
             &mut marks,
             tol,

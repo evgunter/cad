@@ -18,7 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::pis_arc_capped_poses::poses;
+use crate::common::poses::poses;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{bored_cylinder, brick, prism_at};
 use topo::splitting::{SplitPart, SplitPlane, split};

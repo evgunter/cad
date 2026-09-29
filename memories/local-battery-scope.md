@@ -9,12 +9,10 @@ metadata:
 rule on local CI. local testing is only useful insofar as it speeds up
 iteration compared to waiting on CI."**
 
-Hosted Actions is THE merge gate (the nextest build-once/sharded
-matrix); `local-scripts/ci-local.sh` mirrors it and `gate.sh` is a
-billing-outage fallback only. **It is also the CHEAP option**: the
-hosted matrix runs its rows in parallel on GitHub hardware, while the
-same rows locally serialize behind one box's cores and a cold local
-build alone can outlast the whole hosted matrix. A local run is
+Hosted Actions is THE merge gate, and nothing mirrors it locally.
+**It is also the CHEAP option**: hosted rows run in parallel on GitHub
+hardware, while the same rows locally serialize behind one box's cores
+and a cold local build alone can outlast the hosted gate. A local run is
 justified exactly when it is likely to surface a failure faster than
 pushing — that is the whole calculus.
 

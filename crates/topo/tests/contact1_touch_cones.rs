@@ -1,10 +1,12 @@
-//! **One local material-cone analysis for every touch kind** at the
-//! census's instance arm.
+//! **One local touch analysis for every touch kind** at the census's
+//! instance arm.
 //!
 //! A touch between two solids is admitted as a rest only when the two
-//! materials' local cones at the touch point have disjoint interiors;
-//! a touch is the degenerate shape of a crossing, so anything else —
-//! the cones overlap, or the analysis cannot tell — refuses typed.
+//! solids' faces at the touch point, each read through its part visible
+//! from the point, lie within ε of complementary sides of one plane; a
+//! touch is the degenerate shape of a crossing, so anything else — the
+//! materials pass into each other, or the analysis cannot tell —
+//! refuses typed.
 //! These rows pose one container (the L-bracket) against a block in
 //! its concavity, so the extent gate hands every pair to the material
 //! test and the touches are what decide. Each rest row refused at the
@@ -273,13 +275,14 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
     );
 }
 
-/// **A sliver corner is read at its faces' levers.** A parallelepiped
-/// rests a corner on the wall `x = 1` with a 3 cm edge off the wall and
-/// a 0.8 m edge leaving it at an elevation `e` just past the run band's
-/// escalation threshold. Every reading is levered at the face it stands
-/// for (`census.rs`, `touch_lever`), so the long edge's faces read `e`
-/// or more — definitely off the wall, on the concavity's side — and the
-/// corner is a rest: the pair carries no placement finding.
+/// **A sliver corner is read at its faces' far vertices.** A
+/// parallelepiped rests a corner on the wall `x = 1` with a 3 cm edge
+/// off the wall and a 0.8 m edge leaving it at an elevation `e` just
+/// past the run band's escalation threshold. Every face is read by its
+/// vertices' distances from the wall (`census.rs`, `Star::within`), so
+/// the long edge's faces read `e` or more — definitely off the wall, on
+/// the concavity's side — and the corner is a rest: the pair carries no
+/// placement finding.
 #[test]
 fn a_sliver_corner_clears_on_its_long_edge_s_own_reading() {
     let band = Band::linear(Tol::witness()).unwrap();

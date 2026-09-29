@@ -2,10 +2,12 @@
 id: check-9-and-classify-contain-describe-contfps-retired-polygon-walk
 kind: issue
 title: validate.rs still describes contfp as walking the vertex polygon: classify_contain renders ArcLoopUnsupported as 'arcs over fewer than three corners', and check 9's gate comments say contfp walks ArcParity
-status: open
+status: closed
 opened: 2026-09-26
 priority: P2
 cost: E
+pr: 3388
+closed: 2026-09-28
 ---
 
 
@@ -73,3 +75,17 @@ the sites:
 ATREST-12's rewrite retired the other two (the `nesting_region` and
 `NestingRegion` docs). Its check 9 no longer reads `disc_side`, which
 has no caller left and is deleted.
+
+## Closed
+
+PR 3388 fixed the three sites main still had, plus the references to
+the deleted `disc_side`:
+- `classify_contain`'s `ArcLoopUnsupported` reason and recourse now say
+  a spiric or spline edge near the point, and to model the boundary with
+  lines, circles or ellipses (the variant's own `Display`).
+- `CensusUnsupportedCause::Containment`'s doc, and the header of
+  `crates/sweep/tests/census_containment_cause.rs`, name the same arm.
+- Check 9's instruments paragraph lists `contfp` among the
+  `point_in_arc_loop_*` pool. It drops the `disc_side` pointer.
+- `ring_nesting`'s doc no longer argues against `disc_side`, and
+  `docs/KERNEL-VERBS.md` no longer points at that argument.

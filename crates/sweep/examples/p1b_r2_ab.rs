@@ -8,7 +8,7 @@
 //! which does fit.
 //!
 //! It prints; it asserts nothing, so it cannot gate
-//! (`memories/test-suite-cost.md`). It is evidence for a review, and
+//! (implementer-discipline §8). It is evidence for a review, and
 //! nothing about having been written by one makes it special
 //! afterwards: it is trimmed or retired under the same rules as any
 //! other row (`memories/review-and-dependency-policy.md`).

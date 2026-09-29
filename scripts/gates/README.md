@@ -1,12 +1,9 @@
 # `scripts/gates/` — the invariants CI holds that Rust cannot express
 
 Each file here is one gate with one home. `.github/workflows/ci.yml`'s
-`discipline` job runs it as a named step and `local-scripts/ci-local.sh`'s
-`discipline` row runs the same file; `gate-roster.sh` derives the roster from
-this directory and reds if either half runs a different set, so neither the
-gate logic nor the gate list is maintained twice. Every gate takes `--root DIR`
-and `--selftest`, and both halves run the self-test before the real pass. The
-shared plumbing — the Rust reader, the test-only module resolver, the self-test
+`lint` job runs every `*.sh` here except `lib.sh`, so the roster is the
+directory and neither the gate logic nor the gate list is maintained twice.
+Every gate takes `--root DIR` and `--selftest`. The shared plumbing — the Rust reader, the test-only module resolver, the self-test
 harness — is `lib.sh`, and what each gate's own matcher can and cannot see is
 that gate's header.
 
@@ -89,16 +86,14 @@ Its costs are three, and the third is the one that decides:
    are pinned to an exact nightly; the repo pins a stable toolchain in
    `rust-toolchain.toml`. The pin becomes a second toolchain to bump, and a
    driver that stops building on a bump takes the gate down with it.
-2. **A build in the `discipline` job.** That job invokes no cargo at all: it
-   reads text and matches it. What the job costs, and what it cost before the
-   gates moved onto a shared reader, is `work/gates/D109.md`(e) — a reading with
-   its own home, not restated here. A dylint row makes it a compile job.
-3. **The CI-half parity rule.** Both halves of CI run every gate, and
-   `gate-roster.sh` holds that they run the same set by deriving the roster
-   from this directory. A lint runs where cargo runs; a shell gate runs
-   anywhere. Moving one rule into a lint means one rule is no longer in the
-   roster, and the property `gate-roster.sh` exists to hold stops being a
-   property of the whole set.
+2. **A build in the gates step.** The gates invoke no cargo at all: they
+   read text and match it. What they cost is `work/gates/D109.md`(e) — a
+   reading with its own home, not restated here. A dylint row makes it a
+   compile step.
+3. **One roster.** CI runs every gate by looping over this directory. A lint
+   runs where cargo runs; a shell gate runs anywhere. Moving one rule into a
+   lint means one rule is no longer in the roster, and the directory stops
+   being the whole set.
 
 ### Which greps are the right tool
 
@@ -148,7 +143,5 @@ A later reader who finds the weighing has changed — a second real gap, or
 
 ## What a gate proves, and what it does not
 
-`gate-roster.sh` is itself a grep over YAML, so it proves **wiring, not
-execution**: a step disabled by an `if:` condition keeps its `run:` line and
-satisfies the check while Actions skips it. Closing that needs a workflow
-evaluator; the hole is named in that script's header instead.
+The `lint` job runs the gates only when the change filter's `run_build` is
+true, so a change set that classifies TIER=docs runs none of them.

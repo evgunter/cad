@@ -11,18 +11,18 @@ refs: [error-and-check-text-overflows-its-region]
 ## What
 
 Refusal `Display` arms on ground no program owns that the viewer shows
-and that run past 50 words (literal words, before payload):
-
-| words | site | arm |
-|---|---|---|
-| 54 | `geom-brep/src/certify.rs` `CertifyError::NotSecondOrderSeparated` | plus `COINCIDENCE_RECOURSE` |
+and that ran past 50 words (literal words, before payload).
 
 The five `PcurveMintError` arms this row first listed
 (`SingularChartJoint` 89, `LoopDiscontinuity` 75, `OuterSpansPeriod`
 70, `LoopNotClosed` 56, `LoopWraps` 50) were rewritten at the source by
 the CHROME `concision-chains` pass, with the whole enum: no arm now
 opens with "pcurve minting:", and every arm is under 50 literal words.
-The row stays open on the certify arm and on the key dumps below.
+`CertifyError::NotSecondOrderSeparated` (54) was rewritten by ENCL's
+certify-escalation PR (2026-09-28), with `NotTransverse` and
+`Escalated`: none opens with `certification:`, and each ends in its
+decision's one routed recourse (`geom_brep::certify::recourse`). The
+row stays open on the key dumps and the prefixes below.
 
 **Arena keys in two forwarded refusals (CHROME concision-chains,
 2026-09-23).** `topo::ShellClassifyError` and `topo::MassPropsError`
@@ -48,9 +48,10 @@ found three on screen in files open PRs are reworking:
 - `mass properties:` on every `MassPropsError` arm
   (`crates/topo/src/props.rs:218-240`), reached through
   `ShellClassifyError::Props` in the checks window;
-- `certification:` on every `CertifyError` arm
-  (`crates/geom-brep/src/certify.rs:389-488`), reached through
-  `NodeErrorKind::Transform(TransformError::Certify)`.
+- `certification:` on the `CertifyError` arms other than
+  `Escalated`, `NotTransverse` and `NotSecondOrderSeparated`
+  (`crates/geom-brep/src/certify.rs`, `CertifyError`'s `Display`),
+  reached through `NodeErrorKind::Transform(TransformError::Certify)`.
 
 `props.rs` is in #3049 and #2861, `certify.rs` in #2861. The guard's
 `FILED` list admits exactly these labels on exactly the rows named

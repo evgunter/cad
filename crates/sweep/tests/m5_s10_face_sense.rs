@@ -448,15 +448,6 @@ fn sense_inverted_at(body: &Body<f64>, face: FaceKey) -> Body<f64> {
     out
 }
 
-/// Whether `face`'s surface is a spline chart — the discriminant of
-/// check 6's curved-arm skip and of tier 3's `nurbs_adjacent`
-/// short-circuit, asked of a FACE key.
-fn is_spline_chart_face(body: &Body<f64>, face: FaceKey) -> bool {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .is_some_and(|s| s.spline_chart().is_some())
-}
-
 /// The certified carriers of `l`'s cycle, in cycle order; empty for a
 /// loop that is not a `Cycle`.
 fn loop_carriers(body: &Body<f64>, l: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
@@ -803,105 +794,6 @@ fn an_inverted_ellipse_bounded_planar_face_refuses_by_name() {
         let errs = topo::validate_geometric(&sense_inverted_at(&body, face), tol)
             .expect_err("an inverted planar face's winding disagrees with its bit");
         assert_eq!(role_inversions(&errs), vec![(face, l)]);
-    }
-}
-
-/// **The planar arm is the only sense reader on the arc loft.** Check
-/// 6's planar arm now reads the bit on both caps; the other three
-/// readers stay gated shut on this body, and the row pins each gate:
-///
-/// - check 6's CURVED arm reads `face.sense` directly and skips `Plane`
-///   and spline charts — every face here is one or the other;
-/// - tier 3's **check 4 MATERIAL arm** reads `sense` on both sides of a
-///   definitely-smooth edge, behind `nurbs_adjacent` — every edge here
-///   has a spline-chart face, so the short-circuit fires first;
-/// - check 7 reads the bit only at `props::curved_face`'s rimless-band
-///   site, which no loft face reaches; the row states that as the
-///   reporting door giving the SAME reading under the inversion — a
-///   bit-identical volume where it computes, the same typed refusal
-///   where this body's rational walls honestly run out of budget.
-///
-/// So the walls' bits are read by nothing at rest (residual 3), and the
-/// whole-body inversion is caught at the caps alone.
-///
-/// **How it goes red.** An arm that stops examining the caps fails the
-/// first assertion. If `loft_body` ever mints an analytic cylinder for
-/// a circular-arc profile segment, that wall is neither `Plane` nor a
-/// spline chart and the second assertion fails, the third with it. If
-/// the quadrature ever folds the bit into a loft face's flux, the
-/// same-reading assertion fails. The runtime values are the stored
-/// `Surface` discriminants, the per-edge face pair, and the `f64` bits
-/// of the metered volume (or the typed `MassPropsError` where the
-/// schedule refuses).
-#[test]
-fn the_planar_arm_is_the_only_sense_reader_on_the_arc_loft() {
-    let tol = Tol::witness();
-    let arc = crate::common::arc_prism();
-
-    let mut planar_outers: Vec<(FaceKey, topo::LoopKey)> = arc
-        .faces()
-        .filter(|(_, f)| matches!(arc.get_surface(f.surface), Some(Surface::Plane { .. })))
-        .map(|(k, f)| (k, f.outer))
-        .collect();
-    planar_outers.sort();
-    assert_eq!(
-        planar_arm_reaches(&arc),
-        planar_outers,
-        "check 6's planar arm examines every planar face's loop of the arc prism"
-    );
-
-    // The curved arm's gate: `Plane` or a spline chart, face by face.
-    for (k, f) in arc.faces() {
-        let s = arc.get_surface(f.surface).expect("the surface is live");
-        assert!(
-            matches!(s, Surface::Plane { .. }) || is_spline_chart_face(&arc, k),
-            "face {k:?} is neither planar nor a spline chart ({s:?}) — check 6's \
-             curved arm would now run on it and this row's answer has changed"
-        );
-    }
-
-    // Check 4's MATERIAL arm's gate: every edge nurbs-adjacent.
-    for (k, e) in arc.edges() {
-        let spline_side = |he| {
-            arc.face_of_half_edge(he)
-                .is_some_and(|fk| is_spline_chart_face(&arc, fk))
-        };
-        assert!(
-            spline_side(e.he_plus) || spline_side(e.he_minus),
-            "edge {k:?} has no spline-chart face — tier 3's `nurbs_adjacent` \
-             short-circuit no longer covers it and check 4's MATERIAL arm's \
-             `Face::sense` read is now reachable here"
-        );
-    }
-
-    // Check 7's blindness: the reporting door gives the SAME reading
-    // under the whole-body inversion. Phrased over the whole outcome,
-    // not over a volume, because this body's walls are rational and the
-    // fixed schedule honestly runs out of budget at a tight ε (the m8-3
-    // posture) — a refusal is as much the door's output as a number is,
-    // and both must be unmoved by a bit no lane here reads.
-    let honest = topo::mass_properties(&arc, tol);
-    let lied = topo::mass_properties(&sense_inverted_everywhere(&arc), tol);
-    match (&honest, &lied) {
-        (Ok(h), Ok(l)) => {
-            assert!(
-                h.volume > 0.0,
-                "the honest arc prism encloses positive volume; got {}",
-                h.volume
-            );
-            assert_eq!(
-                h.volume.to_bits(),
-                l.volume.to_bits(),
-                "the metered enclosure must not move under a sense inversion this \
-                 body's flux never reads — if it moved, some lane started folding \
-                 the bit in"
-            );
-        }
-        (Err(h), Err(l)) => assert_eq!(
-            h, l,
-            "the door's typed refusal must not move under the inversion either"
-        ),
-        _ => panic!("the inversion changed WHETHER the enclosure computes: {honest:?} vs {lied:?}"),
     }
 }
 

@@ -13,16 +13,12 @@ use sweep::Revolution;
 use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
+use super::common::bulge;
 use super::common::charts::hollow_moves;
 use super::common::latitude_seam::two_arc_sphere;
-use super::shell7_common::{drum, polyline, revolved, tol};
+use super::common::shell_operands::vessel;
+use super::shell7_common::{polyline, revolved, tol};
 use super::shell8_common::beside;
-use super::verbs_shell::vessel;
-
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
 
 /// `sf2b_axial`'s sphere-zone vase.
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
@@ -205,7 +201,7 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
 /// `ShellError::Insert` before any pcurve pass runs.
 #[test]
 fn r2_drum_reverted_cavity_alone_is_the_reason() {
-    let d = drum(1.0, 2.0);
+    let d = vessel(1.0, 2.0);
     let mut cavity = d.clone();
     let band = geom_core::Band::linear(tol()).expect("band");
     topo::offset_charts_together(&mut cavity, &hollow_moves(&d, 0.1), band, tol())

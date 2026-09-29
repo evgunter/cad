@@ -73,7 +73,7 @@ warm workspace rebuilds are slower than sequential ones, and `-j` caps
 make it worse, so there is no jobs cap either. `CAD_SLOT_WIDTH=2`
 re-widens if the hardware changes; batteries then take ALL slots
 (`-x`), and two concurrent batteries are the documented OOM shape.
-`ci-local.sh` (hence `gate.sh`) and `test-fast.sh` self-acquire; wrap
+`test-fast.sh` self-acquires; wrap
 raw `cargo` invocations yourself.
 
 - **Express lane** (`--express [SECS]`): jobs under a ~10 min declared

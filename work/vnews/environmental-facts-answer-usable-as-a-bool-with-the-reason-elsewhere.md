@@ -9,6 +9,7 @@ priority: P3
 cost: E
 branch: vnews/the-chooser-says-why-it-is-unusable
 closed: 2026-09-25
+pr: 3391
 ---
 
 Disclosed by the close of

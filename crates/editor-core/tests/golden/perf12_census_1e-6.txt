@@ -165,7 +165,7 @@ UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(7v1), face: FaceKey
 UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), face: FaceKey(24v1) }, witness: "(0.5, 0.0, 0.375)" }
 UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(11v1), face: FaceKey(21v1) }, witness: "(0.5, 1.0, 0.375)" }
 UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(12v1), face: FaceKey(22v1) }, witness: "(0.0, 0.5, 0.375)" }
-UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(1v1), b: EdgeKey(41v1) }, witness: "(0.25, 0.0, 0.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(1v1), b: EdgeKey(41v11) }, witness: "(0.25, 0.0, 0.0)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(1v1), b: EdgeKey(46v1) }, witness: "(0.75, 0.0, 0.0)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(3v1), b: EdgeKey(42v1) }, witness: "(0.75, 1.0, 0.0)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(3v1), b: EdgeKey(47v1) }, witness: "(0.25, 1.0, 0.0)" }

@@ -508,3 +508,203 @@ Signed: (CONTACT orchestrator)
   amendment.
 
 Signed: (CONTACT orchestrator)
+
+- 2026-09-28 — Seam note from S-DUP: PR 3393 (`dup/b10-a`) folds `boolean/solid_contain.rs` `at_infinity_side` onto the shared shell-role reading `crate::props::ShellRole::decided_at`. The one `bool_point_in_solid_infinity` sign is read at both ends of the exact bracket: `Outer→Out`, `Void→In`, else `ZeroVolumeBody`. It is the same decide call and the same results, which a recorded probe shows byte-identical. (S-DUP lane, dup/b10-a)
+## 2026-09-28 — Ev ruled on #3350; CONTACT-6 landed (#3357); CONTACT-8 dispatched
+
+- **CONTACT-6** merged as `545ae86a9`.
+- **#3350: Ev took both decisions** ("sounds good!"). The second
+  commit filled in the design-fork row's decision and A/B mapping
+  (byte 58, A = Opus, B = Fable), and cleared `needs_ev`. GATHER's row
+  reached main first, so this fork is row 4. Merged as `d3a962cdb`.
+- **CONTACT-8** carries the ratified implementation, with a single full
+  review (the risk is record carriage).
+- **Process slip, fixed.** Twice a `work.py lint | tail -1 && git
+  commit` committed through a lint failure, because the pipe returns
+  `tail`'s status. My shell now runs `set -o pipefail`, and lane briefs
+  say the same.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-7 built; dual review dispatched
+
+- The lane's head is `d176506ec`. The four L-bracket rows are green.
+  Sweeps: brick grid 0/0, rebuilt rotated prisms 0 wrong / 12 false
+  refusals (the known saddle, the same at base), rebuilt crossed
+  ridges 0/0. No golden moved.
+- The lane made two departures from the spec, sent to the reviewers:
+  `EdgeInFace` reads at an overlap cell's midpoint, and a vertex star's
+  convexity reads pieces taken at the vertex.
+- **Dual review** (protocol `c3129311b`): two Opus reviewers,
+  concurrent, on identical briefs, on the frozen head. The dual stream
+  continues while the readout (#3342) waits for Ev (rule 9).
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — Ev ruled on the readout (#3359); CONTACT-8 built, in review
+
+- **#3342, Ev:** "continue duals until there are 12 pairs which found
+  any MAJOR". Rule 9 is re-stated in #3359, which is merged; the tally
+  trigger of eight is kept. Four fair pairs have found a MAJOR so far.
+  #3342 is closed unmerged; readouts stay off file.
+- **CONTACT-8** built at `f99bd79ef`.
+  - S4's history check: the collinearity licence existed only because
+    of the `merge_skip` pin (#1131). No wrong bent-seam result was ever
+    cited, so the licence and `redundant_subdivision_vertex` are gone.
+  - Curved groups are left unpruned. The orchestrator accepts this: the
+    ratified clause only requires a curved skip to be recorded.
+  - S2 has a reachable shape: an exactly plugged through-hole. It
+    shipped with skipped caps and now refuses `Merge(ResultNotClosed)`.
+  - A single full review is dispatched.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-8 review: no MAJOR; fix pass
+
+- S1 held under the reviewer's 22 unions (8 at an oblique pose), and
+  every mutant was caught.
+- Three MINORs, adjudicated:
+  - **The plugged hole now glues rather than refusing.** An isolated
+    doubled edge with both ends free goes with both ends, and its empty
+    ring goes too. Both are free ends of a dangling seam edge, which is
+    inside the ratified clause.
+  - **S3 gets a real-pipeline row**, or a pin on `absorb_merge` with a
+    real pruning's `Descendants`.
+  - **Stale prose** in `m4_pr5_declare`, `KERNEL-VERBS.md` and
+    `work/topo/D262.md`.
+- Filed: `a-curved-merge-group-with-a-dangling-seam-refuses-as-period-closure`
+  (P3).
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — container restart; CONTACT-8 landing check red
+
+- **A container restart** stopped the CONTACT-7 fix-pass lane (its
+  clone survived clean at its merge of main) and my CONTACT-8 landing
+  run. The lane was resumed, and the run restarted.
+- **CONTACT-8's landing check went red on four `editor-core` rows** the
+  lane's subset runs never ran. Caps that used to be skipped now merge,
+  so document unions go further: three rows hit a naming-emission error
+  ("merged face has several same-side constituents at a seam edge"),
+  and the three-neighbour star now fuses where it refused. The lane is
+  back on it, to root-cause each and fix at its home or re-sign with
+  ground truth.
+- **Lesson** (third time today, after CONTACT-3's concision row): a
+  unit that changes kernel behaviour runs ALL of `editor-core`, not a
+  subset. Briefs now say so.
+- **CONTACT-7's dual** is coded (byte 143, odd: A = R2), with no tally
+  candidate; the pair advances the found-a-MAJOR count to 5 at merge.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-7 fix pass in; delta review on the deleted readings
+
+- **The fix pass (`fab37e456`)** answers the dual's union:
+  - the behind-`p` edge skip, with the comb and channel rows and a
+    927-pose sweep (head equals base, 18 named false refusals);
+  - rows killing mutants (a), (c) and (d);
+  - a structural lever guard (`mod metric`, a private `Distance`);
+  - every style item;
+  - the Python suite, 857/857.
+- **Three readings were DELETED with proofs rather than pinned:** (b)
+  and (e), the face-corner reading, and (f), the co-convex guard on the
+  complement test. (f) can only admit more Rests, on the door every
+  consumer reads as proof, so a single delta review checks the proofs
+  by construction and by attack before landing.
+- **Needed before landing:** one more merge of main (59 commits,
+  15 touching `topo` or `geom-brep`).
+## 2026-09-28 — CONTACT-8 lands
+
+- **The second fix pass**, for the four red `editor-core` rows. The
+  emitter's several-constituents case was a legal body with no naming
+  rule. It is now the typed refusal `MergedChordConstituents`, and the
+  rule is filed on WIRE's slate. Six orders per fixture that used to
+  refuse now fuse, each tier-3 green at the analytic volume.
+  `SeamVertexParentage` lost its last live witness; its sentence stays
+  pinned by `display_contract`.
+- The orchestrator read it. The lane's stray fetch in the orchestrator
+  checkout was checked: the reflog shows no merge.
+- Filed: `a-cube-sunk-flush-into-a-block-refuses-ray-exhausted-on-every-order`
+  (P3).
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-8 landed (#3377); CONTACT-7 lands
+
+- **CONTACT-8** merged as `e056f1aff`. Hosted CI's Python suite caught
+  two north-star rows no Rust run covers. The fix gave the merge a
+  survivor rule: a plug kept as survivor had put itself on both sides
+  of its own rim. The orchestrator ran `topo` + `sweep` at 1e-6 and
+  1e-12 locally before merging (3,303 of 3,303 at each), because the
+  hosted `test` job's tolerances could not be confirmed.
+- **CONTACT-7 lands** with **DR-17**: no tally candidate, the one MAJOR
+  bilateral. The found-a-MAJOR count goes to 7 (DR-15 and DR-16 are GERM's).
+  Recorded under protocol `cb47d67c4`; dispatched under `c3129311b`,
+  whose only difference is rule 9's readout point.
+- **Process notes.**
+  - The lane stopped its own queued job script to yield the build slot,
+    by reading the slot's holder PID and killing that PID's parent. It
+    was its own process, but that is outside "kill only PIDs you
+    recorded"; briefs should say how to yield.
+  - Hosted CI now runs a single `test` job whose tolerance coverage is
+    not visible in its log. Check before relying on it for a
+    tolerance-sensitive change.
+
+Signed: (CONTACT orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/contact/contact-near-boundary-endings-say-lower-the-tolerance.md`. (ENCL orchestrator)
+
+## 2026-09-28 — PR 3383 (CONTACT-7) blocked by a red on main
+
+- **Hosted CI on #3383:**
+  - rustfmt drift, fixed in `f353ae8a4`;
+  - `geom-core`'s copysign census (`sym_rule_f_rows`), red on MAIN
+    itself. GERM's `section_cert.rs:824` (`T::one().copysign(delta)`,
+    `5ff0efd84`) is unregistered.
+- CONTACT-7's own `copysign` (`candidate_plane`) was never counted: it
+  sat below `census.rs`'s first `#[cfg(test)]`, where the census cuts.
+  The lane removed it anyway (`77caac41d`), taking the frame from the
+  On face, and the doors row now bans `copysign` and `abs(`.
+- **Filed** for GERM in a tracker-only PR (#3394), so it reaches them
+  now. #3383 stays unmerged until the fix exists, and then it is ported.
+- **The local combined run** (CONTACT-7 with CONTACT-8, the four crates)
+  passed 5,701/5,701.
+- **Process note:** the copysign register cuts each file at its first
+  `#[cfg(test)]`, so a shipped site below a mid-file test module is
+  invisible to it. That is a gap in the register, noted in the GERM row.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-9 traced: no wrong answer, false kernel-bug refusals
+
+- The boolean and splitting side codes, traced site by site. Every
+  levered Zero taken as a verdict either leaves the topology unchanged
+  or is caught at the join. A parity argument says a misread vertex
+  always leaves an unpaired section end, which holds for
+  `CAD_AMBIGUITY_K ≥ 2` (default 10).
+- **So there is no wrong answer, but the refusals are false.** Ordinary
+  geometry (a 1 mm edge dipping 50ε or more) refuses
+  `Join(UnpairedLooseEnds)` with "(kernel bug)".
+- **Ruled a failure.** The lane proceeds to step 3: line chords are
+  read at their far vertex in metres, as the splitting lane already
+  does; the K precondition is stated or removed. Single full review
+  after.
+
+Signed: (CONTACT orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `census.rs` `WitnessTooClose` drops ', or lower the tolerance'. Filed: `contain-escalation-carries-no-decision` (includes `ContainError::RayExhausted`'s own Display). (ENCL orchestrator)
+
+## 2026-09-29 — CONTACT-9 lands
+
+- A single full review of `9f414db16` asked for changes. There were no
+  wrong answers, but there was one MAJOR: the `pair_search` gate I
+  approved turned a corner near-coincidence's typed
+  `UndeclaredCoincidence` into an odd-germ invariant refusal. There
+  were also three unpinned changes, and a volume floor that went red
+  at ε values CI does not run.
+- The fix pass (`4063ed0a1`) root-caused the MAJOR: a pair parallel at
+  its shorter arm always has an On bound, so it stays a coincidence.
+  It pinned each change with a row and recalibrated the floor to
+  1e-12 m³, with a corner oracle below it. It filed the residues.
+- I read the fix pass and adjudicated every finding. Landing as
+  `contact/land-9`.
+
+Signed: (CONTACT orchestrator)

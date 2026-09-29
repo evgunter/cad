@@ -2,10 +2,10 @@
 //! the single-level reference they read the door against, and the two
 //! aims they fire.
 //!
-//! `index_memo`, `pick3_acceptance`, `review_pick_r2` and
-//! `review_pick2_r1` all open every parametric corpus document and the
-//! tour's gallery ring, index each landing at [`super::corpus_delta`],
-//! and walk the same rays over it. This is that walk, spelled once.
+//! `index_memo`, `pick3_acceptance` and `review_pick_r2` all open every
+//! parametric corpus document and the tour's gallery ring, index each
+//! landing at [`super::corpus_delta`], and walk the same rays over it.
+//! This is that walk, spelled once.
 //!
 //! # Which door here carries an oracle
 //!

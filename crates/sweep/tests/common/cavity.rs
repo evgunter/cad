@@ -18,6 +18,11 @@
 //! keeps a copy of one apart. What stays independent in the probes is
 //! their derivations, under [`super::oracles`]'s own rule.
 //!
+//! [`skewed_cavity_edges`] is the slim-wedge re-pose of
+//! `blend4_r1_probes`' skewed cavity: its vent and its scale are its
+//! own, so it is a different body from that probe's, and it is here
+//! because more than one suite carves it.
+//!
 //! **Deliberately not absorbed**, and the whole of it:
 //!
 //! - the SQUARE-vented cavity (`blend3_r2_probes::square_vented_cavity`)
@@ -186,4 +191,57 @@ pub fn cavity_corner(p: Point3<f64>) -> bool {
 /// [`vented_cavity`]'s twelve cavity edges.
 pub fn cavity_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     edges_with_corners(body, cavity_corner)
+}
+
+/// **The slim-wedge cavity**: `blend4_r1_probes`' skewed vented cavity
+/// re-posed — block `[0,4]³`, a parallelogram cavity prism of side
+/// `1.2` and skew `theta` over `z ∈ [1, 3]`, a narrower round vent from
+/// its centroid — with its twelve concave edges, the whole body scaled
+/// by `scale`. The pose is the point: at a slim skew the corner ball's
+/// arc against the band subtends the wedge angle, so the arc's EXTENT
+/// `r·θ` — not `r_band` — is the folded lever arm, and the
+/// second-order margin is `θ²·r/2`. `contact_edge_must_carry` and its
+/// review probes carve this one body.
+pub fn skewed_cavity_edges(theta: f64, scale: f64) -> (Body<f64>, Vec<EdgeKey>) {
+    let p = |x: f64, y: f64| Point2::new(x * scale, y * scale);
+    let s = 1.2;
+    let (ax, ay) = (1.0, 1.0);
+    let (dx, dy) = (s * theta.cos(), s * theta.sin());
+    let quad = [
+        p(ax, ay),
+        p(ax + s, ay),
+        p(ax + s + dx, ay + dy),
+        p(ax + dx, ay + dy),
+    ];
+    let block = prism(
+        &[p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)],
+        0.0,
+        4.0 * scale,
+    );
+    let centroid = Point2::new(
+        (quad[0].x + quad[1].x + quad[2].x + quad[3].x) / 4.0,
+        (quad[0].y + quad[1].y + quad[2].y + quad[3].y) / 4.0,
+    );
+    // A narrower vent than `blend4_r1_probes`' (`0.12·sin θ`, not
+    // `0.45·sin θ`): at the slim skews this pose is carved at, the
+    // cavity's own walls stay `0.48·sin θ` clear of it, so the clearance
+    // screen answers for the corner arcs and not for the vent.
+    let vent = rod(
+        centroid,
+        (theta.sin() * 0.12).min(0.25) * scale,
+        2.5 * scale,
+        5.0 * scale,
+    );
+    let cavity = prism(&quad, 1.0 * scale, 3.0 * scale);
+    let vented = cut("vent", &block, &vent);
+    let body = cut("cavity", &vented, &cavity);
+    let near = 1e-9 * scale;
+    let edges = edges_with_corners(&body, |q: geom_core::Point3<f64>| {
+        ((q.z - 1.0 * scale).abs() < near || (q.z - 3.0 * scale).abs() < near)
+            && quad
+                .iter()
+                .any(|c| (q.x - c.x).abs() < near && (q.y - c.y).abs() < near)
+    });
+    assert_eq!(edges.len(), 12, "the cavity's twelve concave edges");
+    (body, edges)
 }

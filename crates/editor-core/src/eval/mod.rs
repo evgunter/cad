@@ -1381,9 +1381,8 @@ pub enum NodeErrorKind {
         /// The pair's entity kinds, declaration order — the AUTHORED
         /// names' kinds, which is the only source available before
         /// resolution and which the name table makes every
-        /// candidate's kind (`NameTable::insert_ref` and
-        /// `insert_tied_ref` are its only two writers and both refuse
-        /// a row whose name's kind is not its key's).
+        /// candidate's kind (every `NameTable` door that seats a row
+        /// refuses one whose name's kind is not its key's).
         kinds: (crate::names::EntityKind, crate::names::EntityKind),
         /// Whether the two names LANDED in different operands — the
         /// side pick, made before resolution, so a tied name has a

@@ -3,7 +3,7 @@
 //! measure, and the walk of refusals past the plate's ceiling.
 //!
 //! EVERY ROW IS EVIDENCE-ONLY (`#[ignore]`d, prints; the D13 bit row is
-//! the one exception and it asserts) — [[test-suite-cost]]. Run:
+//! the one exception and it asserts) — implementer-discipline §8. Run:
 //!
 //! ```sh
 //! cargo test -p editor-core --test all -- \

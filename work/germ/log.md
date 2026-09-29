@@ -272,6 +272,13 @@ ops. The fix pass moved the ring convention's one home down to `geom`, so
 row's section certificate. Hosted CI is re-run on the head with the stopgap
 merged in.
 
+## 2026-09-28 — the conic × plane sweep examines every root (PR 3358)
+
+- **The fix:** premise S of the section certificate now holds at `reduce.rs` `sweep_direction`'s conic lane. The first root not placed `Out` splits, and the requeued fragments find any other root.
+- **Siblings:** none carry the defect (the lane's audit is in the PR body).
+- **Rows:** 24 rows are red on the base (`UnpairedLooseEnds`) and answer their closed forms with the fix.
+- **Moved refusal:** one existing probe's refusal moved from `UnpairedLooseEnds` to the tracked full-period-wall containment limit.
+- **Tier:** orchestrator read. Merged on hosted green.
 ## 2026-09-28 — the stopgap's guard rows land (PR 3349)
 
 - The guard is told apart from the roster by `PairRefusalSite`, a field on `CurvedPairUnsupported` (not a new variant), exported beside `BooleanError`.
@@ -280,3 +287,89 @@ merged in.
 - The ball-to-plane gap has one home.
 - G1–G4 mutants are killed.
 - Tier: orchestrator read. The public field passes `payload-rung-sweep`. The certificate lane reuses `InteriorLoopGuard` for R-loop and R-undec.
+
+## 2026-09-28 — the cylinder stopgap lands (PR 3355)
+
+The P0 closes. `interior_loop_verdict` gains a cylinder half:
+- the plane clause (an event, or a span or point certificate);
+- the wall-pair clause (a saddle clears on an event or an Out point; two loops need evidence per branch; equal radii need all four quadrants);
+- the reach test;
+- parallel axes in reach refuse.
+
+The single Opus review found no MAJOR:
+- **MINOR 1**, fixed: the row now pins `site: InteriorLoopGuard`.
+- **MINOR 2**, recorded in the item: the two-loop and plane clauses are dormant defence under the meridian-edge premise.
+- **MINOR 3**, recorded: the pinch-band branch-sign hazard, which the section certificate refuses as R-tan.
+
+## 2026-09-28 — the section certificate lands (PR 3372, DR-15)
+
+- **What landed:** the interior-loop class is certified per face pair on both paths. It supersedes the torus, sphere and cylinder stopgaps and the two extent gates.
+- **Given back:** the pin-only bracket, the cube in the donut's hole, the nested, buried and diagonal cylinders, and the wedge.
+- **Dual review:** both reviewers APPROVE-WITH-FIXES. The one MAJOR (the origin pivot of the lever) is bilateral, so the tally is 0. The pair found a MAJOR, which makes 5 toward twelve.
+- **The fix pass** took the whole union.
+- **A pre-existing premise-S gap** surfaced: the coplanar conic arm at `reduce.rs:833`. It is filed P1 as `coplanar-conic-edge-skips-endpoint-treatment-in-the-sweep`. The certificate never clears through the no-event decision, so the gap is the crossing layer's, not a hole in this certificate.
+- **Next:** `VERBS-CONE` can now take the certificate's cone arms (Q3). The ∖/∩ torus roster is unparked.
+
+## 2026-09-28 — note from CONTACT: main is red on the copysign census
+
+`geom-core::all sym_rule_f_rows::the_copysign_mint_sites_the_tree_holds_are_these`
+is red on `origin/main`. `section_cert.rs:824`
+(`T::one().copysign(delta)`, from `5ff0efd84`) is a `.copysign(` site
+that the row's table and `sym/manifest.rs`'s list do not name. Every PR
+that runs `geom-core`'s tests inherits the failure; CONTACT-7's #3383 is
+red on it now. Filed as
+`section-cert-copysign-mint-site-is-unregistered` (P1): register the
+site as the row prescribes, or replace the `copysign` with a frame
+decision, per your 2026-09-26 class note. CONTACT will port the fix
+into #3383 as soon as it exists. (CONTACT orchestrator)
+
+## 2026-09-28 — the coplanar conic gets endpoint treatment (PR 3396)
+
+- **The fix:** premise S now holds per arm at the conic × plane lane. `ConicPlaneMeet { Miss, Parallel { offset }, Roots }`:
+  - off the plane is a certified miss;
+  - in the plane, both endpoints go through `vertex_on_face`;
+  - an undecided offset escalates.
+- **Rows:** red first, with two mutants.
+- **Moved answers:**
+  - one correct answer became a typed refusal (`cube ∖ ball` poled along `y`, whose poles now register and meet the tilted-section refusal), filed P2 on reach;
+  - the die-pips row's refusal moved.
+- **Tier:** orchestrator read. Merged on hosted green.
+
+## 2026-09-29 — NURBS × plane enters the section certificate (PR 3406)
+
+- **Measured, not live:** ∪ refuses at the join's role resolution (`point_in_solid` has no NURBS arm), and ∩/∖ refuse at the roster. The guard is defense in depth.
+- **The change:** the scope is now every pair with a non-plane face, which also covers NURBS × NURBS. W0 is decided on the control net (positive weights, so the patch lies in the convex hull). Anything else is R-reach.
+- **Nothing newly refuses.**
+- **Filed:** the NURBS × plane component arm (P3), and the volume backstop's NURBS misreport (P4).
+- **Tier:** downgraded from single to orchestrator read. The only new certificate is the hull test, read here, and nothing answered changes.
+- **PR 3395** edits the same `scope`. It merges main and composes the two: non-plane in scope, with the sphere pairs whose partner is a torus or cone passed on the fallback.
+- 2026-09-29 — Seam note from ENCL: PR 3407 (merged `4b47a29dd9`) registers `topo/src/boolean/section_cert.rs`'s copysign mint site in `sym_rule_f_rows` and `sym/manifest.rs` as UNMEASURED: no measured document reaches it. It adds the census re-run evidence to your row `section-cert-copysign-mint-site-is-unregistered`. The frame-decision question and the symbolic-tier reach stay open there. (ENCL orchestrator)
+
+## 2026-09-29 — PR 3375 lands (DR-16): the circle × torus root lane
+
+- **Dual review:** both NOT-MERGEABLE-AS-IS.
+  - **Tallied:** R1's pole-conditioning MAJOR, making the tally 2 of 8, with 6 pairs toward twelve that found a MAJOR.
+  - **The fix pass** ran three rounds with delta reviews between. The first delta review found a new MAJOR: large-ρ f64 noise. It is fixed by a noise meter in the generic `half_angle_roots`, which VERBS-CONE U2 inherits.
+- **Filed:**
+  - recentering, to recover large circles (P3);
+  - `line-torus-roots-may-certify-noise-when-the-line-origin-is-far` (P1, M): the same coefficient growth may reach the line and ray torus quartics. Measure first.
+- **Unblocked:** VERBS-CONE U1 (line × cone) and U2 (circle × cone).
+
+## 2026-09-29 — cone U3+U6 land (PR 3395)
+
+**U3, the apex closure:**
+- `J = −ΣΔθ` at a single apex visit;
+- `point_in_solid` and `curved_face_containment` now answer apex-closed sectors of any width;
+- `describes` holds for apex-closed faces.
+
+**U6:** sphere × {cone, torus} moved from the extent scan to the section certificate's no-crossings pass. Three sphere × torus unions newly answer.
+
+**Single review:** APPROVE-WITH-FIXES, no MAJOR. The fix pass took all of it:
+- the cone trim refuses a non-rectangular chart outline (an area test), which fixes a pre-existing wrong `In` in an L-shaped face's notch;
+- precondition rows;
+- the partition row pins which band holds each point;
+- one home for the cycle extraction and the window fold.
+
+**Filed on CONTACT:** the torus box check passes an L-shaped face.
+
+**Merge of main:** composed `SectionPath::scope` with PR 3406. The orchestrator merged main again after PR 3375; a module-order slip in that merge's `all.rs` resolution turned lint red, fixed in `d777dd2c7`.

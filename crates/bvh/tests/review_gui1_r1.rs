@@ -15,7 +15,7 @@
 //!    ties by input index), no duplicate items, and bit-identical
 //!    repeats — asserted on every draw of both sweeps.
 //!
-//! Sweeps are counterexample searches per `memories/test-suite-cost.md`
+//! Sweeps are counterexample searches per implementer-discipline §8
 //! (varying seed via `test_utils::fuzz`, counts on the effort dial).
 //!
 //! 4. `overflow_prunes_a_truly_hit_box` is a PINNED COUNTEREXAMPLE

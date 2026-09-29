@@ -191,7 +191,9 @@ pub fn body(
     evaluation: &d::Evaluation<f64>,
     tol: Tol,
 ) -> Result<topo::Body<f64>, d::ProductError> {
-    memo.with(doc, evaluation, tol, |product| product.body.clone())
+    memo.with(doc, evaluation, tol, |product| {
+        topo::Body::clone(&product.body)
+    })
 }
 
 /// **`product_named`'s body**: the aggregate and the names its entities
@@ -204,7 +206,7 @@ pub fn body_and_names(
 ) -> Result<(topo::Body<f64>, Vec<pncad::prelude::StableName>), d::ProductError> {
     memo.with(doc, evaluation, tol, |product| {
         (
-            product.body.clone(),
+            topo::Body::clone(&product.body),
             product.names.iter().map(|(name, _)| name.clone()).collect(),
         )
     })

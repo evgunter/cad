@@ -148,10 +148,7 @@
 # — so there was no principled line to draw between them. The MC
 # density sheet joined later on exactly the same terms and needs no
 # separate argument: same producer, same format, same reproducibility. That ci.yml
-# row is retired and the obligation lives here; its local mirror in
-# local-scripts/ci-local.sh stays, because a developer box cannot
-# re-baseline itself and a failing check is the right shape there.
-# One gate per obligation, still.
+# row is retired and the obligation lives here. One gate per obligation.
 name: render (demos)
 
 on:

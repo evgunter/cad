@@ -30,10 +30,13 @@ use topo::{Body, FaceKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::{tube, vessel};
 use crate::shell8_common::{beside, cap, deep_dump, faces_of, solid_of, tol, volume};
-use crate::verbs_shell::{tube, v, vessel};
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
+/// NOT `common::pcurve_rows::rows`: scoped to one solid's faces, which
+/// is what these rows compare across a scoped walk.
 fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
     let mine: Vec<FaceKey> = faces_of(body, solid);
     body.pcurves()
@@ -143,7 +146,8 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     let top = cap(&pair, ves_shell, Vec3::new(0.0, 1.0, 0.0), 2.0);
 
     let hollow = topo::shell(&pair, t, tol()).expect("hollow both");
-    let want1 = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (cyl(1.0, 2.0) - cyl(0.95, 1.9));
+    let want1 =
+        (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9)) + (cyl(1.0, 2.0) - cyl(0.95, 1.9));
     println!(
         "[r2-10] e2e1 hollow: volume={:.12} closed form {:.12}",
         volume(&hollow.body),
@@ -162,8 +166,8 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     let opened = topo::shell_open(&hollow.body, t2, &chart, tol())
         .expect("open the vessel's void ceiling while the box stays sealed");
     let took = started.elapsed();
-    let want_box =
-        (v(2.0, 3.0, 4.0) - v(1.96, 2.96, 3.96)) + (v(1.94, 2.94, 3.94) - v(1.9, 2.9, 3.9));
+    let want_box = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
+        + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9));
     let want_ves = (cyl(1.0, 2.0) - cyl(0.98, 1.96)) + (cyl(0.97, 1.94) - cyl(0.95, 1.9));
     // The lid the opening removes: the designated face's TWIN's disc
     // (SHELL-8's e2e used the twin's rectangle for an outer lid).
@@ -203,10 +207,10 @@ fn r2_e2e_four_solids_hollowed_once_then_one_opened() {
     let started = Instant::now();
     let hollow = topo::shell(&four, t, tol()).expect("four solids hollow in one call");
     let took_hollow = started.elapsed();
-    let want1 = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9))
+    let want1 = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (cyl(1.0, 2.0) - cyl(0.95, 1.9))
         + (annulus(0.6, 1.0, 2.0) - annulus(0.65, 0.95, 1.9))
-        + (v(2.0, 2.0, 2.0) - v(1.9, 1.9, 1.9));
+        + (box_volume(2.0, 2.0, 2.0) - box_volume(1.9, 1.9, 1.9));
     println!(
         "[r2-10] e2e2 hollow: solids={} shells={} volume={:.12} closed form {:.12} took {took_hollow:?}",
         hollow.body.solids().count(),
@@ -224,14 +228,14 @@ fn r2_e2e_four_solids_hollowed_once_then_one_opened() {
     let opened = topo::shell_open(&hollow.body, t2, &lid, tol())
         .expect("one lid opens while the other three solids shell sealed");
     let took_open = started.elapsed();
-    let want2 = (v(2.0, 3.0, 4.0) - v(1.96, 2.96, 3.96))
-        + (v(1.94, 2.94, 3.94) - v(1.9, 2.9, 3.9))
+    let want2 = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
+        + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
         + (cyl(1.0, 2.0) - cyl(0.98, 1.96))
         + (cyl(0.97, 1.94) - cyl(0.95, 1.9))
         + (annulus(0.6, 1.0, 2.0) - annulus(0.62, 0.98, 1.96))
         + (annulus(0.63, 0.97, 1.94) - annulus(0.65, 0.95, 1.9))
-        + (v(2.0, 2.0, 2.0) - v(1.96, 1.96, 1.96))
-        + (v(1.94, 1.94, 1.94) - v(1.9, 1.9, 1.9))
+        + (box_volume(2.0, 2.0, 2.0) - box_volume(1.96, 1.96, 1.96))
+        + (box_volume(1.94, 1.94, 1.94) - box_volume(1.9, 1.9, 1.9))
         - 1.96 * 1.96 * t2;
     println!(
         "[r2-10] e2e2 opened: volume={:.12} closed form {:.12} took {took_open:?}",

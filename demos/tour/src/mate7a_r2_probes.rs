@@ -51,13 +51,15 @@ fn aabb(pts: &[Point3<f64>]) -> ([f64; 3], [f64; 3]) {
 /// **R2-1: re-measure lily wall 1 from the scene itself.**
 ///
 /// PR #1477's deviation 1 measured the gate's named pair at 2.08 m, an
-/// artefact of the stem wall's whole-ring box. Two things have moved
-/// since: the box is the wall's own chart window, and the torus is on
-/// the operand gate's KIND roster, so the gate names no pair. Wall 1
-/// now stops at the crossing layer, on one of the stem's EDGES against
-/// one of the arch's faces. This row prints both and asserts the pair
-/// is a real approach — the weld's annular gap — rather than an
-/// artefact of anything.
+/// artefact of the stem wall's whole-ring box. Three things have moved
+/// since: the box is the wall's own chart window, the torus is on the
+/// operand gate's KIND roster, so the gate names no pair, and the
+/// crossing layer has a circle × torus root lane, so the seams that
+/// cross the other tube's carrier are decided rather than refused.
+/// Wall 1 now stops at the join, on a germ pair: one of the stem's
+/// faces against one of the arch's. This row prints both and asserts
+/// the pair is a real approach — the weld — rather than an artefact of
+/// anything.
 #[test]
 fn r2_lily_wall_one_remeasured() {
     let tol = Tol::witness();
@@ -67,35 +69,22 @@ fn r2_lily_wall_one_remeasured() {
 
     let err = crate::booleans::try_union_declared(stem, arch, tol).expect_err("wall 1 refuses");
     println!("R2 wall-1 refusal: {err:?}");
-    let BooleanError::CurvedPierceUnsupported {
-        operand,
-        face,
-        edge,
-        ..
-    } = err
-    else {
-        panic!("expected the crossing layer's curved-pierce refusal: {err:?}")
+    let BooleanError::GermFrameUnsupported { a_face, b_face, .. } = err else {
+        panic!("expected the join's germ-frame refusal: {err:?}")
     };
-    assert_eq!(operand, pncad::topo::Operand::A, "the stem's edge crosses");
+    let sa = stem
+        .get_face(a_face)
+        .and_then(|f| stem.get_surface(f.surface))
+        .expect("stem face surface");
     let sb = arch
-        .get_face(face)
+        .get_face(b_face)
         .and_then(|f| arch.get_surface(f.surface))
         .expect("arch face surface");
-    let curve = stem
-        .get_edge(edge)
-        .and_then(|e| stem.get_curve_geom(e.curve))
-        .and_then(|c| c.certified())
-        .expect("stem edge curve");
+    println!("R2 stem face surface: {sa:?}");
     println!("R2 arch face surface: {sb:?}");
-    println!("R2 stem edge carrier: {:?}", curve.carrier());
 
-    // The stem EDGE, sampled along its own span, against the arch
-    // face's points off its tessellation.
-    let (t0, t1) = curve.params();
-    let pa: Vec<Point3<f64>> = (0..=400)
-        .map(|i| curve.carrier().eval(t0 + (t1 - t0) * f64::from(i) / 400.0))
-        .collect();
-    let pb = face_points(arch, face, 2e-3);
+    let pa = face_points(stem, a_face, 2e-3);
+    let pb = face_points(arch, b_face, 2e-3);
     let mut best = f64::INFINITY;
     for x in &pa {
         for y in &pb {
@@ -107,11 +96,15 @@ fn r2_lily_wall_one_remeasured() {
         pa.len(),
         pb.len()
     );
-    println!("R2 stem edge AABB: {:?}", aabb(&pa));
+    println!("R2 stem face AABB: {:?}", aabb(&pa));
     println!("R2 arch face AABB: {:?}", aabb(&pb));
     assert!(
+        matches!(sa, pncad::geom::Surface::Plane { .. }),
+        "R2: the stem's face is its weld cap"
+    );
+    assert!(
         matches!(sb, pncad::geom::Surface::Torus { .. }),
-        "R2: the pierced arch face is its tube wall"
+        "R2: the arch's face is its tube wall"
     );
     assert!(
         best < 0.02,
@@ -124,8 +117,8 @@ fn r2_lily_wall_one_remeasured() {
 /// identification can be checked rather than assumed — and asserts
 /// unconditionally that the far cap EXISTS, so a `find` that misses
 /// cannot make a row vacuous. The gate names no pair now (the torus is
-/// on its roster), and the refusal wall 1 does raise is a curved
-/// pierce, which never names a planar cap.
+/// on its roster), and the germ pair wall 1 does refuse on names the
+/// arch's tube wall, not a planar cap.
 #[test]
 fn r2_the_arch_far_cap_identification_is_not_conditional() {
     let tol = Tol::witness();
@@ -157,12 +150,12 @@ fn r2_the_arch_far_cap_identification_is_not_conditional() {
         "R2 wall-1 refusal {err:?}; far cap {:?}",
         far.map(|(k, _, _)| *k)
     );
-    let BooleanError::CurvedPierceUnsupported { face, .. } = err else {
-        panic!("expected the crossing layer's refusal: {err:?}")
+    let BooleanError::GermFrameUnsupported { b_face, .. } = err else {
+        panic!("expected the join's germ-frame refusal: {err:?}")
     };
     assert!(
-        planes.iter().all(|(k, _, _)| *k != face),
-        "R2: the pierced face is no planar cap of the arch"
+        planes.iter().all(|(k, _, _)| *k != b_face),
+        "R2: the arch's face in the refused germ pair is no planar cap"
     );
 }
 

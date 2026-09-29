@@ -174,7 +174,13 @@ neither. That reason goes **at the claim site**, not only in a PR body:
 *"unguardable, and here is why"* is complete where nothing computes with the
 number, and is a deferral owing a schedule where something does. (#651.)
 
-**Check `ci.yml` for a register before accepting an "unguardable"** (#667):
+**A codomain assertion beside a real one is vacuous and invisible.**
+`assert!(sup >= 0.0 || sup.is_nan())` on a fold of nonnegative magnitudes, or
+`prop_assert!(r >= 0.0)` on `sqrt(x)`, can only ever change a panic message,
+and it usually sits one line from the ceiling that does the work. Key on the
+assertion, not the test; the fix is a deletion.
+
+**Check `ci.yml` and `nightly.yml` for a register before accepting an "unguardable"** (#667):
 there is more than one and two of them gate, so a constant a register
 re-measures is a *scheduled register* row, not an unguarded extraction. Ask
 what it re-takes, not what it once produced — a register generally refreshes

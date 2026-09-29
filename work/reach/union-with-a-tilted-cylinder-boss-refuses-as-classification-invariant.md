@@ -59,3 +59,19 @@ refuses `Containment(VolumeUncertified)` — the containment door's
 at-infinity orientation probe also reads the closed-form volume.
 Pinned by `crates/sweep/tests/axis_lap.rs`
 `an_oblique_cap_flats_through_its_ellipse_arc`.
+
+## More evidence (GATHER, branch `gather/derive-cusp-legality`, 2026-09-28)
+
+No tilt and no oblique cut at all: an extruded half-disk (the profile
+from `(0, 4)` down the `x = 0` line to the origin and back along the
+radius-2 arc centred `(0, 2)`, height 1) minus an axis-aligned box
+(footprint `square(2, 2, 0.5)`, i.e. `x, y ∈ [1.5, 2.5]`, from
+`z = 0.5` up 2) refuses the same `ClassificationInvariant { "volume
+backstop: mass properties refused on a tier-valid planar body" }` at
+the boolean node. The box's two vertical faces cut the vertical
+cylinder wall along rulings and its floor along an arc, so the wall is
+trimmed by lines and a circle only. The same box through the `.cusp()`
+lune refuses identically, so the wedge arm is not involved; a notch in
+the lune's flat wall (`square(0, 3, 0.2)`) builds and gathers.
+Measured with a throwaway probe in `crates/editor-core/tests/m10_2_measure.rs`,
+not committed.

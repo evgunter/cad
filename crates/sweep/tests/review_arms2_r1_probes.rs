@@ -366,18 +366,16 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
 // Row 6: the C3 bit-identity dump — the plane–sphere ANNULUS carve
 // (the dome's one-edge rim), the path `bitdump.rs` does not cover and
 // the path this PR's host/mate surgery rewrite actually touched.
-// Armed by BITDUMP_DIR exactly as `bitdump.rs` is; clean skip unarmed.
+// Armed by BITDUMP_DIR through the same channel as `bitdump.rs`; clean
+// skip unarmed.
 // ------------------------------------------------------------------
 
-// The dump function has ONE home, `bitdump::dump` — this row used to
-// carry a copy that omitted the mass-properties line, which made it
-// blind to a volume, area or pad move on the very path it exists to
-// watch.
-use crate::bitdump::dump;
+// The dump and its arming channel have ONE home, `common::bitdump`.
+use crate::common::bitdump::{dump, dump_dir, save};
 
 #[test]
 fn bitdump_dome_annulus() {
-    let Some(dir) = std::env::var("BITDUMP_DIR").ok().filter(|d| !d.is_empty()) else {
+    let Some(dir) = dump_dir() else {
         return;
     };
     let source = revolved_about_y(
@@ -389,6 +387,5 @@ fn bitdump_dome_annulus() {
     let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(text, "band={:?}", out.band_faces);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(format!("{dir}/dome_annulus.txt"), text).unwrap();
+    save(&dir, "dome_annulus", &text);
 }

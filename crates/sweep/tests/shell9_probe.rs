@@ -28,8 +28,8 @@ use super::common::latitude_seam::{
     collinear_cap_drum, door_cavity, graft_recertify_failures, plane_images, two_arc_sphere,
     void_evidence,
 };
+use super::common::pcurve_rows::rows;
 use super::shell7_common::*;
-use super::shell9_rows::rows;
 
 /// **Drum, stage by stage.** The door's cavity re-certifies edge for
 /// edge, and so does its `revert()`: the two half-circles of the

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # no-ambient-env.sh — no ambient environment in the kernel. ONE home;
-# ci.yml's "no ambient environment in the kernel" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# ci.yml's `lint` job runs every gate in this directory.
 #
 # NO AMBIENT ENVIRONMENT IN THE KERNEL. A runtime env read inside
 # crates/*/src is a back channel: it changes shipped behaviour
