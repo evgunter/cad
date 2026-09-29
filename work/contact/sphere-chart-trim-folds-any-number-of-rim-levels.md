@@ -47,10 +47,10 @@ Read anything else by parity along the meridian, or refuse it as
 
 ## A second closing shape (CONTACT-11)
 
-The cone and torus trims now both decide the face-is-its-box question
-by area, on the one check `chord_join::chart_box_defect`
-(`bool_cone_chart_box`, `bool_torus_chart_box`). The sphere could share
-it instead of counting levels, provided a pole junction closes the
-chart polygon along the pole's own latitude (the cone's apex closure is
-the precedent). Either spelling closes this row; counting levels is
-still the cylinder's and the props door's.
+The cone and torus trims now decide whether a face is its box with one
+linear test, `solid_contain::chart_polygon_box`: every side of the
+chart polygon has to lie on a side of its bounding box, and each side's
+distance is decided in metres. The sphere could share that test, with
+the pole junction as a side on the pole's latitude, the way the cone's
+apex jump is one. Counting rim levels, as this row proposes and as the
+cylinder and the props door do, would also close it.

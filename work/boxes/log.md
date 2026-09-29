@@ -13,3 +13,7 @@ have several components that can be worked on in parallel."*
 unchanged. REACH keeps its band 6000-6099; band 7300-7399 claimed for
 this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched.
+
+**Seam note (CONTACT-11, 2026-09-29).** A dated section on `chart-window-walk-written-twice` records where the torus walk now stands: consecutive continuity, and the box through `solid_contain::chart_polygon_box`.
+
+Signed: (CONTACT-11 implementer)

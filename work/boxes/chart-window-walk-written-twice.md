@@ -30,3 +30,11 @@ The unification is a channel parameter with the pole arm gated on the azimuth ch
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Where the torus walk stands (CONTACT-11, 2026-09-29)
+
+`torus_chart_windows` now also checks that each entry equals the
+previous exit (`bool_torus_chart_closure`). It decides
+`bool_torus_chart_box` through `solid_contain::chart_polygon_box`,
+which it shares with the cone trim. The walk itself is still a second
+copy of `run_azimuth_window`.

@@ -130,3 +130,7 @@ The ATREST-9 rows are green on the change: `pis_arc_capped_poses::*` and `bool3_
   normal. The change is one line at `finish.rs`'s promotion loop.
 
 Signed: (CONTACT orchestrator)
+
+**Seam note (CONTACT-11, 2026-09-29).** `chord_join::chart_box_defect` and `ChartBox` are deleted; the cone and torus trims decide their box through `solid_contain::chart_polygon_box` instead, and nothing else called them.
+
+Signed: (CONTACT-11 implementer)
