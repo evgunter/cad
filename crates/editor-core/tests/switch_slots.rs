@@ -888,3 +888,282 @@ fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
         }
     }
 }
+
+// ------------------------------------------------------------------
+// Review probes (lane `slottables-rev`, PR 3438)
+// ------------------------------------------------------------------
+
+/// Every `SlotId` address a node-level door can be asked, plus the
+/// profile slots `extra` names. The exhaustive match welds it to the
+/// vocabulary: a new `SlotId` variant fails this compile.
+fn rev_slot_universe(extra: &[SlotId]) -> Vec<SlotId> {
+    use editor_core::Axis3;
+    let mut v = Vec::new();
+    for ax in Axis3::ALL {
+        v.extend([
+            SlotId::Origin(ax),
+            SlotId::Normal(ax),
+            SlotId::Direction(ax),
+            SlotId::U(ax),
+            SlotId::V(ax),
+            SlotId::Translation(ax),
+            SlotId::RotationAxis(ax),
+        ]);
+    }
+    v.extend([
+        SlotId::Distance,
+        SlotId::Radius,
+        SlotId::ChamferDistance,
+        SlotId::ShellThickness,
+        SlotId::RevolveAngle,
+        SlotId::Spin,
+        SlotId::TubeMajorRadius,
+        SlotId::TubeMinorRadius,
+        SlotId::TubeWindowStart,
+        SlotId::TubeWindowEnd,
+        SlotId::TubeWall,
+        SlotId::RotationAngle,
+        SlotId::Spacing,
+        SlotId::Step,
+        SlotId::Count,
+        SlotId::Instance,
+        SlotId::VDegree,
+        SlotId::Stations,
+        radius_slot(),
+    ]);
+    v.extend_from_slice(extra);
+    for s in &v {
+        match s {
+            SlotId::Origin(_)
+            | SlotId::Normal(_)
+            | SlotId::Direction(_)
+            | SlotId::U(_)
+            | SlotId::V(_)
+            | SlotId::Translation(_)
+            | SlotId::RotationAxis(_)
+            | SlotId::Distance
+            | SlotId::Radius
+            | SlotId::ChamferDistance
+            | SlotId::ShellThickness
+            | SlotId::RevolveAngle
+            | SlotId::Spin
+            | SlotId::TubeMajorRadius
+            | SlotId::TubeMinorRadius
+            | SlotId::TubeWindowStart
+            | SlotId::TubeWindowEnd
+            | SlotId::TubeWall
+            | SlotId::RotationAngle
+            | SlotId::Spacing
+            | SlotId::Step
+            | SlotId::Count
+            | SlotId::Instance
+            | SlotId::VDegree
+            | SlotId::Stations
+            | SlotId::Profile { .. } => {}
+        }
+    }
+    v.sort();
+    v.dedup();
+    v
+}
+
+/// The shapes the census walks, plus the two placement-rule shapes it
+/// leaves out: an `Explicit` rule that still holds a count expression.
+fn rev_shapes() -> Vec<ProfileNode> {
+    let mut nodes = one_of_every_node_shape();
+    nodes.push(Node::Pattern {
+        input: nid(1),
+        count: Expr::count(3),
+        kind: PatternKind::Explicit(Vec::new()),
+    });
+    nodes.push(Node::PlacedUnion {
+        input: nid(1),
+        count: Some(Expr::count(3)),
+        kind: PatternKind::Explicit(Vec::new()),
+    });
+    nodes
+}
+
+/// **The slot table as a FIELD map, dumped.** For each shape: its
+/// `slots()` in order; the node's `Debug` after slot `i` was written
+/// `scl(1000 + i)` through `expr_mut` (so the dump names the FIELD each
+/// slot lands in, independent of `expr`); what `expr` reads back at
+/// each; and, over the whole slot universe, which addresses `expr` and
+/// `expr_mut` answer. Written to `$SLOTTABLES_REV_DUMP` when set, so the
+/// same row run on two trees is diffed byte for byte.
+#[test]
+fn rev_slot_table_field_map_dump() {
+    use std::fmt::Write as _;
+    let nodes = rev_shapes();
+    let extra: Vec<SlotId> = nodes.iter().flat_map(ProfileNode::slots).collect();
+    let universe = rev_slot_universe(&extra);
+    let mut out = String::new();
+    for node in &nodes {
+        let slots = node.slots();
+        writeln!(out, "== {}", test_utils::f6::variant_identifier(node)).unwrap();
+        writeln!(out, "slots {slots:?}").unwrap();
+        let mut tagged = node.clone();
+        for (i, &slot) in slots.iter().enumerate() {
+            let tag = scl(1000.0 + i as f64);
+            *tagged.expr_mut(slot).expect("listed slot answers expr_mut") = tag;
+        }
+        writeln!(out, "tagged {tagged:?}").unwrap();
+        for &slot in &slots {
+            writeln!(out, "read {slot:?} -> {:?}", tagged.expr(slot)).unwrap();
+        }
+        let mut probe = node.clone();
+        for &slot in &universe {
+            let shared = node.expr(slot).is_some();
+            let exclusive = probe.expr_mut(slot).is_some();
+            writeln!(out, "answers {slot:?} expr={shared} expr_mut={exclusive}").unwrap();
+        }
+    }
+    if let Ok(path) = std::env::var("SLOTTABLES_REV_DUMP") {
+        std::fs::write(path, out).unwrap();
+    }
+}
+
+/// A payload with no program — the shape of the five test fakes, which
+/// all take `ProfilePayload`'s defaults.
+#[derive(Debug, Clone, PartialEq)]
+struct RevFake;
+impl ProfilePayload for RevFake {}
+
+/// **Claim 4: the dropped `S::Profile` guard.** A profile node answers
+/// no address outside its program's: every non-profile slot, and a
+/// profile slot its program does not carry, is `None` from `expr` and
+/// from `expr_mut` and absent from `slots` — for the real program and
+/// for a fake payload alike. And no non-profile node answers a profile
+/// slot.
+#[test]
+fn rev_profile_nodes_answer_no_foreign_slot() {
+    let nodes = rev_shapes();
+    let extra: Vec<SlotId> = nodes.iter().flat_map(ProfileNode::slots).collect();
+    let foreign = SlotId::Profile {
+        loop_: 7,
+        step: 3,
+        arg: StepArg::Radius,
+    };
+    let universe: Vec<SlotId> = rev_slot_universe(&[foreign]);
+    for node in &nodes {
+        let is_profile = matches!(node, Node::Profile(_));
+        let mut probe = node.clone();
+        let slots = node.slots();
+        for &slot in &universe {
+            let profile_slot = matches!(slot, SlotId::Profile { .. });
+            if is_profile && extra.contains(&slot) && profile_slot {
+                continue;
+            }
+            if !is_profile && !profile_slot {
+                continue;
+            }
+            assert_eq!(node.expr(slot), None, "{node:?} answers {slot:?} through expr");
+            assert!(
+                probe.expr_mut(slot).is_none(),
+                "{node:?} answers {slot:?} through expr_mut"
+            );
+            assert!(!slots.contains(&slot), "{node:?} lists {slot:?}");
+        }
+    }
+    let mut fake: Node<RevFake> = Node::Profile(RevFake);
+    assert!(fake.slots().is_empty());
+    for slot in rev_slot_universe(&extra) {
+        assert_eq!(fake.expr(slot), None, "fake payload answers {slot:?} through expr");
+        assert!(
+            fake.expr_mut(slot).is_none(),
+            "fake payload answers {slot:?} through expr_mut"
+        );
+    }
+}
+
+/// **Claim 5: the in-plane axis's missing `Z`.** Both 2-vector fields of
+/// `Datum::AxisInPlane` answer `X` and `Y` only: `Z` is unlisted, and
+/// `None` from both doors.
+#[test]
+fn rev_in_plane_axis_has_no_z() {
+    use editor_core::Axis3;
+    let mut node: ProfileNode = Node::Datum(Datum::AxisInPlane {
+        plane: nid(0),
+        origin: [len(1.0), len(2.0)],
+        direction: [scl(3.0), scl(4.0)],
+    });
+    assert_eq!(
+        node.slots(),
+        vec![
+            SlotId::Origin(Axis3::X),
+            SlotId::Origin(Axis3::Y),
+            SlotId::Direction(Axis3::X),
+            SlotId::Direction(Axis3::Y),
+        ]
+    );
+    for slot in [SlotId::Origin(Axis3::Z), SlotId::Direction(Axis3::Z)] {
+        assert_eq!(node.expr(slot), None);
+        assert!(node.expr_mut(slot).is_none());
+    }
+    assert_eq!(node.expr(SlotId::Origin(Axis3::Y)), Some(&len(2.0)));
+    assert_eq!(node.expr(SlotId::Direction(Axis3::Y)), Some(&scl(4.0)));
+}
+
+/// **Claim 6: the placement rule over an `Option` count.** The slot
+/// lists the retired `rule_slots` gave, pinned for every rule kind
+/// under `Pattern`, `PlacedUnion` with a count and `PlacedUnion`
+/// without one; and `Count` answers exactly where it is listed — never
+/// under `Explicit`, even when a count expression is held.
+#[test]
+fn rev_rule_slots_are_mains_over_an_option_count() {
+    use editor_core::Axis3;
+    let dir = || Axis3::ALL.map(SlotId::Direction).to_vec();
+    let kinds = [
+        PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(1.0),
+        },
+        PatternKind::Circular {
+            axis: nid(0),
+            step: ang(0.5),
+        },
+        PatternKind::Explicit(Vec::new()),
+    ];
+    let lists = |count: bool| -> [Vec<SlotId>; 3] {
+        let c = if count { vec![SlotId::Count] } else { Vec::new() };
+        [
+            [c.clone(), dir(), vec![SlotId::Spacing]].concat(),
+            [c, vec![SlotId::Step]].concat(),
+            Vec::new(),
+        ]
+    };
+    for (kind, (with, without)) in kinds.iter().zip(lists(true).into_iter().zip(lists(false))) {
+        let shapes: [(ProfileNode, &Vec<SlotId>); 3] = [
+            (
+                Node::Pattern {
+                    input: nid(1),
+                    count: Expr::count(3),
+                    kind: kind.clone(),
+                },
+                &with,
+            ),
+            (
+                Node::PlacedUnion {
+                    input: nid(1),
+                    count: Some(Expr::count(3)),
+                    kind: kind.clone(),
+                },
+                &with,
+            ),
+            (
+                Node::PlacedUnion {
+                    input: nid(1),
+                    count: None,
+                    kind: kind.clone(),
+                },
+                &without,
+            ),
+        ];
+        for (mut node, want) in shapes {
+            assert_eq!(&node.slots(), want, "{node:?}");
+            let listed = want.contains(&SlotId::Count);
+            assert_eq!(node.expr(SlotId::Count).is_some(), listed, "{node:?}");
+            assert_eq!(node.expr_mut(SlotId::Count).is_some(), listed, "{node:?}");
+        }
+    }
+}
