@@ -372,7 +372,9 @@ fn uses_blanked(code: &str) -> String {
         if raw || code[at + 3..].trim_start().starts_with('<') {
             continue;
         }
-        let end = code[at..].find(';').map_or(code.len(), |semi| at + semi + 1);
+        let end = code[at..]
+            .find(';')
+            .map_or(code.len(), |semi| at + semi + 1);
         for c in &mut out[at..end] {
             if *c != b'\n' {
                 *c = b' ';
@@ -820,9 +822,16 @@ pub fn capture(&mut self) { let f: (impl Sized + use<'a>, _) = (g, mint_pcurves)
             .iter()
             .map(|i| MutationDoor::of(std::path::Path::new("x.rs"), i))
             .collect();
-        let door = |name: &str| doors.iter().find(|d| d.name == name).expect("a fixture door");
-        let postures: Vec<(&str, SurgeryPosture)> =
-            doors.iter().map(|d| (d.name.as_str(), d.surgery_posture())).collect();
+        let door = |name: &str| {
+            doors
+                .iter()
+                .find(|d| d.name == name)
+                .expect("a fixture door")
+        };
+        let postures: Vec<(&str, SurgeryPosture)> = doors
+            .iter()
+            .map(|d| (d.name.as_str(), d.surgery_posture()))
+            .collect();
         assert_eq!(
             postures,
             vec![
