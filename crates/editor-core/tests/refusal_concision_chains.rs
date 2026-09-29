@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
+use test_utils::refusal::Admission;
 
 /// A `NodeErrorKind` as the feature tree's fault line draws it.
 pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
@@ -194,15 +195,40 @@ pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[
 /// `EllipseInvalid` entries).
 pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
 
-/// The rows that render a `Debug` form — a struct, or an arena key —
-/// by exact row id, each filed with its owner.
-pub(crate) const FILED_DEBUG: &[&str] = &[
+/// The rows that render a key or a hex id, by exact row id and the
+/// exact span, each filed with its owner.
+pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`)
     // renders the faces of `Unsupported` and `PoisonEnclosure`, the two
     // arms `min_separation` refuses with that carry evidence, as
-    // `FaceKey` `Debug`, and this arm prints it; PROPS's:
-    // work/props/props-refusal-prose-outgrows-the-viewer.md
-    "MeasureClearanceRefused",
+    // `FaceKey` `Debug`, and this arm prints it.
+    Admission {
+        row: "MeasureClearanceRefused",
+        span: "FaceKey(null)",
+        filed: "work/props/props-refusal-prose-outgrows-the-viewer.md",
+    },
+    // A document named by its hex id: the reference loop,
+    Admission {
+        row: "Part/ReferenceCycle",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    },
+    // and two mate refusals.
+    Admission {
+        row: "Mate/PosesOfAnotherDocument",
+        span: "3e23e8160039594a33894f6564e1b134",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Mate/PosesOfAnotherDocument",
+        span: "ca978112ca1bbdcafac231b39a23dc4d",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Mate/Unleverable",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
 ];
 
 /// The rows that state no recourse — no `Recourse:`, no "There is no way
@@ -466,16 +492,10 @@ fn admission(name: &str, text: &str, problem: &str) -> Option<String> {
         if KERNEL_KEYED.contains(&name) {
             return Some(format!("KERNEL_KEYED {name}"));
         }
-        if FILED_DEBUG.contains(&name) {
-            return Some(format!("FILED_DEBUG {name}"));
-        }
         return FILED_NAMESPACES
             .iter()
             .find(|(ns, _, keyed)| *keyed && name.starts_with(ns))
             .map(|(ns, _, _)| format!("FILED_NAMESPACES {ns} key"));
-    }
-    if rest.starts_with(" renders a Debug struct") && FILED_DEBUG.contains(&name) {
-        return Some(format!("FILED_DEBUG {name}"));
     }
     if rest.starts_with(" escalates without saying what was decided")
         && FILED_SUBJECTLESS.iter().any(|(row, _)| *row == name)
@@ -489,8 +509,10 @@ fn admission(name: &str, text: &str, problem: &str) -> Option<String> {
 }
 
 /// Every way the rows among `rows` fall short of the standard that no
-/// admission lets stand: [`test_utils::refusal::problems`] on each, less
-/// what [`admission`] admits. Each admission used is added to `used`.
+/// admission lets stand: [`test_utils::refusal::problems_admitting`] on
+/// each, with the exact spans [`ADMISSIONS`] names read as admitted (an
+/// admission its row no longer holds is itself a problem), less what
+/// [`admission`] admits. Each admission used is added to `used`.
 pub(crate) fn short_of_the_standard(
     rows: &[(String, String)],
     used: &mut std::collections::BTreeSet<String>,
@@ -498,7 +520,7 @@ pub(crate) fn short_of_the_standard(
     let mut problems = Vec::new();
     for (name, text) in rows {
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-        for problem in test_utils::refusal::problems(name, text, &[], false) {
+        for problem in test_utils::refusal::problems_admitting(name, text, &[], false, ADMISSIONS) {
             match admission(name, text, &problem) {
                 Some(entry) => {
                     used.insert(entry);
@@ -584,12 +606,6 @@ fn every_admission_admits_a_row_it_is_needed_for() {
         }
         stale.extend(entries.into_iter().filter(|e| !used.contains(e)));
     }
-    stale.extend(
-        FILED_DEBUG
-            .iter()
-            .map(|n| format!("FILED_DEBUG {n}"))
-            .filter(|e| !used.contains(e)),
-    );
     stale.extend(
         FILED_NO_RECOURSE
             .iter()
@@ -684,7 +700,11 @@ fn every_node_refusal_renders_within_the_budget() {
         .into_iter()
         .map(|(name, kind)| (name, as_the_viewer_shows_it(kind)))
         .collect();
-    let problems = over_budget(&rows);
+    let mut problems = over_budget(&rows);
+    problems.extend(test_utils::refusal::unclaimed_admissions(
+        ADMISSIONS,
+        rows.iter().map(|(name, _)| name.as_str()),
+    ));
     assert!(problems.is_empty(), "{}", problems.join("\n"));
     // The join is shared; its recourse is its caller's. A split takes
     // no declaration and a Boolean does, so the same arm offers
@@ -709,6 +729,141 @@ fn every_node_refusal_renders_within_the_budget() {
             }
         }
     }
+}
+
+/// A failure as the feature tree draws it: the failed node's own line,
+/// then each refusal it carries as a line of its own, one per level
+/// ([`NodeErrorKind::carried_chain`]).
+fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
+    let error = NodeError {
+        node: RecipeNodeId(5),
+        kind,
+        escalations: std::sync::Arc::new(Vec::new()),
+    };
+    core::iter::once(error.to_string())
+        .chain(error.kind.carried_chain().map(|level| level.line()))
+        .collect()
+}
+
+/// **Every line a carried refusal draws fits where it is drawn.** A
+/// part whose root failed and a mate whose placer refused each name
+/// that node and point at it; the refusal they carry is drawn as its
+/// own line, one per document level, and never inside theirs.
+///
+/// Held on the payloads that stress it: the longest refusal on this
+/// roster, carried one document down, three documents down, and under
+/// a mate's placer. Each carrying line is held to the budget and must
+/// not quote what it carries; the carried line is the roster row's own
+/// text, so it keeps that row's name and its filed allowances.
+#[test]
+fn every_carried_refusal_draws_within_the_budget_at_every_line() {
+    use editor_core::{MateFault, MateSide, PartFault};
+    let longest = node_refusals()
+        .into_iter()
+        .map(|(name, kind)| {
+            (
+                as_the_viewer_shows_it(kind).split_whitespace().count(),
+                name,
+            )
+        })
+        .max()
+        .map(|(_, name)| name)
+        .expect("the roster is not empty");
+    let inner = || {
+        node_refusals()
+            .into_iter()
+            .find(|(name, _)| *name == longest)
+            .map(|(_, kind)| kind)
+            .expect("the longest row is on the roster")
+    };
+    let inner_text = drawn_lines(inner()).remove(0);
+    let inner_sentence = inner_text
+        .strip_prefix("node 5 failed: ")
+        .expect("a node line opens with its node")
+        .to_owned();
+    let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
+        doc_ref: doc_ref(),
+        fault: PartFault::PartRootFailed {
+            node: RecipeNodeId(node),
+            refusal: refusal.into(),
+        },
+    };
+    let cases = [
+        ("Carried/Part", 1, part(7, inner())),
+        (
+            "Carried/Part/depth-3",
+            3,
+            part(7, part(4, part(3, inner()))),
+        ),
+        (
+            "Carried/PlacerRefused",
+            1,
+            NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
+                mate: RecipeNodeId(9),
+                side: MateSide::B,
+                placer: RecipeNodeId(4),
+                error: inner().into(),
+                placer_row: editor_core::PlacerRow::Silent,
+            })),
+        ),
+    ];
+    let mut rows = Vec::new();
+    for (case, depth, kind) in cases {
+        let lines = drawn_lines(kind);
+        assert_eq!(
+            lines.len(),
+            depth + 1,
+            "{case}: one line per carrying level, then the carried refusal: {lines:#?}"
+        );
+        let (last, carrying) = lines.split_last().expect("at least one line");
+        assert!(
+            last.ends_with(&inner_sentence),
+            "{case}: the last line is the carried refusal as its own tree draws it: {last}"
+        );
+        for (level, line) in carrying.iter().enumerate() {
+            assert!(
+                !line.contains(&inner_sentence),
+                "{case}: level {level} quotes the refusal it carries: {line}"
+            );
+            rows.push((format!("{case}/level-{level}"), line.clone()));
+        }
+        rows.push((longest.clone(), last.clone()));
+    }
+    let problems = over_budget(&rows);
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+
+    // A placer whose own row states its refusal is pointed at and not
+    // carried: the refusal is drawn once, on the placer's row.
+    let placer = |placer_row| {
+        NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
+            mate: RecipeNodeId(9),
+            side: MateSide::B,
+            placer: RecipeNodeId(4),
+            error: inner().into(),
+            placer_row,
+        }))
+    };
+    assert_eq!(
+        drawn_lines(placer(editor_core::PlacerRow::States)).len(),
+        1,
+        "a placer that states its own refusal is not carried"
+    );
+    // A mate's carried level inside a part is numbered in that part, as
+    // the part's own level is.
+    let in_part = part(7, placer(editor_core::PlacerRow::Silent));
+    let documents: Vec<_> = in_part
+        .carried_chain()
+        .map(|level| (level.document, level.node))
+        .collect();
+    let part_ref = doc_ref();
+    assert_eq!(
+        documents,
+        vec![
+            (editor_core::CarriedIn::Part(&part_ref), RecipeNodeId(7)),
+            (editor_core::CarriedIn::Part(&part_ref), RecipeNodeId(4)),
+        ],
+        "the placer's level is in the part the mate is in"
+    );
 }
 
 /// Every offset-fit refusal the feature tree shows ends exactly once,
@@ -3060,9 +3215,9 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ));
     }
-    // A part's root failure carries the part's own node refusal as its
-    // message: the representative one is an extrude refusal.
-    let inner = NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).to_string();
+    // A part's root failure carries the part's own node refusal, typed,
+    // and its sentence never renders it: the carried refusal is its own
+    // line ([`every_carried_refusal_draws_within_the_budget_at_every_line`]).
     let parts = [
         ("NoResolver", PartFault::NoResolver),
         (
@@ -3088,19 +3243,27 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "PartRootFailed(message)",
+            "PartRootFailed",
             PartFault::PartRootFailed {
                 node: RecipeNodeId(7),
-                cause: None,
-                message: inner,
+                refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "PartRootFailed(cause)",
+            "PartRootFailed(part)",
             PartFault::PartRootFailed {
                 node: RecipeNodeId(7),
-                cause: Some(Box::new(PartFault::DepthExceeded)),
-                message: String::new(),
+                refusal: NodeErrorKind::Part {
+                    doc_ref: doc_ref(),
+                    fault: PartFault::DepthExceeded,
+                }
+                .into(),
+            },
+        ),
+        (
+            "RootFailureUnrecorded",
+            PartFault::RootFailureUnrecorded {
+                node: RecipeNodeId(7),
             },
         ),
         (
@@ -3208,6 +3371,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 side: MateSide::B,
                 placer: n(4),
                 error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
+                placer_row: editor_core::PlacerRow::Silent,
             },
         ),
         (

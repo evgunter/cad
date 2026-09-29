@@ -313,10 +313,122 @@ pub fn debug_struct(text: &str) -> bool {
     })
 }
 
-/// Whether `text` names an arena key (`FaceKey(3v1)`, `EdgeKey(null)`).
+/// Whether `text` names an arena key (`FaceKey(3v1)`, `EdgeKey(null)`)
+/// or a document by its hex id (`3f9a…c2@81be…`, a `DocRef` or a
+/// `DocumentId`'s `Display`).
+///
+/// A hex id is read by shape ([`hex_ids`]).
 #[must_use]
 pub fn arena_key(text: &str) -> bool {
-    text.contains("Key(")
+    text.contains("Key(") || !hex_ids(text).is_empty()
+}
+
+/// **Every word of `text` that reads as a hex id**, by shape: a word
+/// of at least [`HEX_ID_MIN`] hex digits holding both a decimal digit
+/// and a letter, or one of decimal digits alone whose length is an id's
+/// ([`HEX_ID_LENGTHS`]: a hex id that happens to hold no letter) and
+/// which is not part of a decimal number.
+///
+/// An English word has no digit and a decimal number has no letter, so
+/// neither reads as the first shape; the second reads a bare integer of
+/// exactly an id's length as one, which a refusal has no other reason
+/// to print.
+#[must_use]
+pub fn hex_ids(text: &str) -> Vec<&str> {
+    let mut found = Vec::new();
+    let mut rest = text;
+    let mut before: Option<char> = None;
+    while let Some(start) = rest.find(|c: char| c.is_ascii_alphanumeric()) {
+        before = rest[..start].chars().next_back().or(before);
+        let tail = &rest[start..];
+        let len = tail
+            .find(|c: char| !c.is_ascii_alphanumeric())
+            .unwrap_or(tail.len());
+        let (word, after) = tail.split_at(len);
+        let hex = word.chars().all(|c| c.is_ascii_hexdigit());
+        let digits = word.chars().all(|c| c.is_ascii_digit());
+        let mixed = hex && !digits && word.chars().any(|c| c.is_ascii_digit());
+        let decimal_part = before == Some('.')
+            || (after.starts_with('.') && after[1..].starts_with(|c: char| c.is_ascii_digit()));
+        if (mixed && word.len() >= HEX_ID_MIN)
+            || (digits && HEX_ID_LENGTHS.contains(&word.len()) && !decimal_part)
+        {
+            found.push(word);
+        }
+        before = word.chars().next_back();
+        rest = after;
+    }
+    found
+}
+
+/// The shortest run of hex digits [`arena_key`] reads as a document id:
+/// a `DocRef`'s pin prefix, the shorter of its two halves.
+pub const HEX_ID_MIN: usize = 12;
+
+/// The lengths a hex id is printed at: a `DocRef`'s pin prefix, a
+/// `DocumentId`, and a whole pin.
+pub const HEX_ID_LENGTHS: [usize; 3] = [HEX_ID_MIN, 32, 64];
+
+/// **A filed row's admission**: the exact span of its rendering that the
+/// row filed at `filed` names, which the checks read as admitted and
+/// nothing wider — not the row's other text, not another row.
+#[derive(Clone, Copy, Debug)]
+pub struct Admission<'a> {
+    /// The row, by its exact name.
+    pub row: &'a str,
+    /// The span of the row's text the filed row names.
+    pub span: &'a str,
+    /// The work item that owns the fix.
+    pub filed: &'a str,
+}
+
+/// **[`problems`] with `admissions` applied**: each admitted span of
+/// this row is read as one uppercase placeholder word per word it holds,
+/// so every other shape in the text is still checked, and an admission
+/// whose span the text no longer holds is itself a problem — the list
+/// cannot outlive what it admits.
+#[must_use]
+pub fn problems_admitting(
+    name: &str,
+    text: &str,
+    allowed: &[&str],
+    keyed: bool,
+    admissions: &[Admission<'_>],
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut masked = text.to_owned();
+    for admission in admissions.iter().filter(|a| a.row == name) {
+        if !masked.contains(admission.span) {
+            out.push(format!(
+                "{name} no longer needs its admission of {:?} ({}): {text}",
+                admission.span, admission.filed
+            ));
+        }
+        let placeholder = vec!["ADMITTED"; admission.span.split_whitespace().count().max(1)];
+        masked = masked.replace(admission.span, &placeholder.join(" "));
+    }
+    out.extend(problems(name, &masked, allowed, keyed));
+    out
+}
+
+/// **Every admission that names no row in `names`**, as one problem
+/// each: a roster whose row went away takes its admission with it.
+#[must_use]
+pub fn unclaimed_admissions<'a>(
+    admissions: &[Admission<'_>],
+    names: impl IntoIterator<Item = &'a str>,
+) -> Vec<String> {
+    let names: std::collections::BTreeSet<&str> = names.into_iter().collect();
+    admissions
+        .iter()
+        .filter(|a| !names.contains(a.row))
+        .map(|a| {
+            format!(
+                "the admission for {} names no row on the roster ({})",
+                a.row, a.filed
+            )
+        })
+        .collect()
 }
 
 /// How many recourses `text` states: each `Recourse:`, each "there is no
@@ -429,6 +541,19 @@ mod tests {
         ));
         assert!(!debug_struct("a set {1, 2}"));
         assert!(arena_key("face FaceKey(null) is gone"));
+        assert!(arena_key(
+            "instantiating 3f9a0c41d2e87b6a5f10c9d8e7b6a5f1@81be0c2d4f6a: gone"
+        ));
+        assert!(arena_key(
+            "the document 3f9a0c41d2e87b6a5f10c9d8e7b6a5f1 is gone"
+        ));
+        assert!(!arena_key("the offset is 0.30000000000000004 mm"));
+        assert!(!arena_key("a deadbeef-like word, and 12345678901 items"));
+        // A pin prefix whose twelve hex digits are all decimal.
+        assert!(arena_key("the part pinned at 951583145512 is gone"));
+        assert!(!arena_key("the offset is 0.300000000000 mm"));
+        assert!(!arena_key("the offset is 123456789012.5 mm"));
+        assert!(!arena_key("i64::MAX is 9223372036854775807"));
         assert_eq!(
             recourse_markers("x. Recourse: a. There is no way through yet"),
             2
@@ -582,6 +707,52 @@ mod tests {
                 "x — move the geometry, or lower the tolerance. Recourse: move the split plane"
             ),
             2
+        );
+    }
+
+    /// An admission admits its row's exact span and nothing wider, and
+    /// reds once the row no longer holds it.
+    #[test]
+    fn an_admission_admits_its_span_and_nothing_else() {
+        const ID: &str = "3f9a0c41d2e87b6a5f10c9d8e7b6a5f1@81be0c2d4f6a";
+        let admissions = [Admission {
+            row: "Part/ReferenceCycle",
+            span: ID,
+            filed: "work/edit/x.md",
+        }];
+        let check =
+            |name: &str, text: &str| problems_admitting(name, text, &[], false, &admissions);
+        let admitted = format!("the loop returns to {ID}. Recourse: break it");
+        assert!(check("Part/ReferenceCycle", &admitted).is_empty());
+        for (what, text) in [
+            ("an arena key", format!("{admitted} at FaceKey(3v1)")),
+            ("a Debug struct", format!("{admitted} (DocRef {{ id: 1 }})")),
+            (
+                "another id",
+                format!("{admitted} and 11c1eee0e02516b19e263d060a3c9f80"),
+            ),
+        ] {
+            assert!(
+                !check("Part/ReferenceCycle", &text).is_empty(),
+                "{what} on an admitted row is still red"
+            );
+        }
+        assert!(
+            !check("Part/NoResolver", &admitted).is_empty(),
+            "another row is not admitted"
+        );
+        assert!(
+            !check(
+                "Part/ReferenceCycle",
+                "the loop returns. Recourse: break it"
+            )
+            .is_empty(),
+            "an admission its row no longer needs is red"
+        );
+        assert_eq!(
+            unclaimed_admissions(&admissions, ["Part/NoResolver"]).len(),
+            1,
+            "an admission naming no roster row is red"
         );
     }
 }

@@ -546,7 +546,7 @@ fn failed_badge(path: &Path, node: RecipeNodeId, tol: Tol) -> String {
         .find(|row| row.id == node)
         .expect("the instance has a row");
     let message = match &row.status {
-        RowStatus::Failed { message } => message.clone(),
+        RowStatus::Failed { message, .. } => message.clone(),
         other => panic!("expected the instance to fail, got {other:?}"),
     };
     assert_eq!(row.status.badge(), "FAILED");

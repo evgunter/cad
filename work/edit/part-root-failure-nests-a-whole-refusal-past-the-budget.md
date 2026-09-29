@@ -2,7 +2,9 @@
 id: part-root-failure-nests-a-whole-refusal-past-the-budget
 kind: issue
 title: editor-core: a part's root failure renders the part's own node refusal inside an 11-word wrapper, so it can outgrow the viewer's 75-word budget by construction
-status: spec
+status: closed
+closed: 2026-09-29
+pr: 3459
 branch: edit/part-root-carried-refusal
 priority: P3
 cost: M
@@ -155,3 +157,66 @@ a hypothesis: verify it against the tree and report any correction.
 - The shape check never flags a refusal with no recourse (`NoResolver`, `DepthExceeded`, `ReferenceCycle`, `PartProduct`).
 - The viewer has no door for `DocEdit::UpdateReference`.
 - The kernel says "node N" where the tree says "feature N".
+
+## Built (2026-09-29, PR 3459)
+
+- **The kernel value.**
+  - `PartFault::PartRootFailed { node, refusal: NodeRefusal }` holds the failed root's own refusal, typed and moved out of the nested evaluation. `message` and `cause` are gone.
+  - The "records no cause" placeholder is `PartFault::RootFailureUnrecorded { node }`, a typed kernel-bug arm.
+  - `NodeRefusal` is honestly `Eq`, so `PartFault` keeps its derive.
+  - There is one reading, `NodeErrorKind::carried`. It delegates to `PartFault::carried` and `MateFault::carried`, both exhaustive.
+  - `NodeRefusal::line_at` renders a carried refusal as its node's own `NodeError`.
+- **The sentences.**
+  - `PartRootFailed` names the part's node and points at it: "the part's node N failed, so the part has no body. Recourse: open the part and repair node N".
+  - `NodeErrorKind::Part`'s wrapper is "instantiating the part:" for every arm, with no hex.
+  - `MateFault::PlacerRefused` names its placer and points at it.
+  - The F6 comment carries the one exception.
+- **The viewer.**
+  - `RowStatus::Failed { message, carried }`.
+  - `tree::carried_lines` gives one line per level. Each line opens with its document's file name from `parts::PartFiles`, which is one scan per landing.
+  - The instance row names its part's file.
+  - `failure_lines` indents each level one step further.
+- **Python.**
+  - `str` is bounded.
+  - The carried refusal is `__cause__`, a chain of `EvaluationError`s.
+  - `MateError`'s `__cause__` and the new `MateFault.cause` carry the placer's refusal.
+- **Rows.**
+  - The concision chain's `Part/*` rows are re-baselined.
+  - New rows cover:
+    - the carried lines at depth 1, at depth 3 and under `PlacerRefused`, on the longest refusal on the roster;
+    - the viewer's depth-2 workspace;
+    - the pane's indent;
+    - Python's `__cause__` chain.
+  - `arena_key` flags a hex id.
+- **Not built, and filed.**
+  - The "no recourse" blind spot, as a new item on the chrome shape-guard row.
+  - `work/author/viewer-has-no-door-to-accept-a-parts-updated-version.md`.
+  - `work/chrome/kernel-refusals-say-node-where-the-tree-says-feature.md`.
+  - The hex rows the new detector found: `work/edit/part-refusals-name-documents-by-hex-id.md` and `work/msolve/mate-refusals-name-documents-by-hex-id.md`.
+  - A poisoned part root still crosses with no carried refusal: `work/edit/a-parts-poisoned-root-drops-the-failure-that-poisoned-it.md`.
+
+## Fix pass (2026-09-29, after the review)
+
+- **One kernel iterator.** `NodeErrorKind::carried_chain` (and
+  `MateFault::carried_chain`) yields each carried level with the
+  document its node is in (`CarriedIn::Part(&DocRef)`, or
+  `ThisDocument`). The viewer, Python and the tests all read it; a
+  mate's level inside a part is in that part.
+- **The document is a label, not words.** `RowStatus::Failed` carries
+  `CarriedLine { document, line }`; `line` is the node's own
+  `NodeError` rendering byte for byte, and the pane draws `document`
+  as a label heading each level.
+- **A placer that states its refusal is not carried.**
+  `MateFault::PlacerRefused` gains `placer_row: PlacerRow`, set where
+  the fault is raised: `Silent` at a placer on the chain the fold
+  derives (poisoned), `States` where the placer fails in its own
+  right.
+- **Admissions** are exact spans on exact rows
+  (`test_utils::refusal::Admission`), and one whose span is gone is
+  red. `hex_ids` also reads an all-digit id of an id's length.
+- **Python** exposes each level's `document` on the `EvaluationError`.
+- **`PartFiles`** says which of three things it knows: not scanned,
+  scan refused, no file for this id.
+- Filed: `work/edit/part-product-refusal-draws-the-gathers-stage-prefix.md`;
+  `Workspace::create`'s hex file names added to
+  `work/edit/part-refusals-name-documents-by-hex-id.md`.

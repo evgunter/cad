@@ -202,10 +202,11 @@ fn a_strand_on_a_declaration_rides_beside_a_refusal() {
     // Nothing else says it: the delete lands and no row fails.
     session.pump();
     let (landed, eval) = session.landed_pair().expect("the delete lands");
-    let faults: Vec<String> = viewer::tree::rows(landed, Some(eval))
-        .iter()
-        .filter_map(|row| row.status.message().map(str::to_owned))
-        .collect();
+    let faults: Vec<String> =
+        viewer::tree::rows(landed, Some(eval), &viewer::parts::PartFiles::default())
+            .iter()
+            .filter_map(|row| row.status.message().map(str::to_owned))
+            .collect();
     assert_eq!(faults, Vec::<String>::new(), "every row evaluates cleanly");
 
     // So a refusal in the same frame leaves it on the line.

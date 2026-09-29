@@ -39,6 +39,7 @@ use editor_core::{
     AssemblyError, AtRestFinding, Attribution, DocumentId, EntityKind, MintedDeclaration,
     ProductError, RecipeNodeId, Relation, RoleSeg, Route, SourceFinding, StableName,
 };
+use test_utils::refusal::Admission;
 use topo::{ContactClass, FaceKey, ValidationError};
 
 /// The labels a finding legitimately opens with, each on the routes
@@ -61,6 +62,14 @@ const LABELS: &[(&str, &str)] = &[
     // a sentence's: a numeral subject and a bare verb.
     ("InstanceInterference", "two instances overlap"),
 ];
+
+/// The routes whose attribution names the carrying document by its hex
+/// id (`Route`'s `Display`).
+const CARRIED_ROUTES: &[&str] = &["refuted, carried", "declined, carried"];
+
+/// The id [`carried`]'s route names its part by, as `Route` prints it:
+/// the one span a carried route's row is admitted.
+const CARRIED_FROM: &str = "a163123cd123758083caff1cee9c0882";
 
 /// The tier-1/2 structure arms: each reports a damaged body, where the
 /// arena key is what the bug report needs. Every other arm names what
@@ -212,7 +221,20 @@ fn every_at_rest_finding_renders_to_the_standard() {
                     used.insert(format!("LABELS {scope} {l}"));
                 }
             }
-            problems.extend(test_utils::refusal::problems(&name, &text, &allowed, keyed));
+            // A carried route's attribution names the part it was
+            // carried from by the part's hex id: that span, on this row.
+            let admitted = CARRIED_ROUTES.contains(&route).then(|| Admission {
+                row: &name,
+                span: CARRIED_FROM,
+                filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+            });
+            problems.extend(test_utils::refusal::problems_admitting(
+                &name,
+                &text,
+                &allowed,
+                keyed,
+                admitted.as_slice(),
+            ));
             // A header and ONE finding line: a line break inside a
             // finding (a `\` continuation left inside a literal) would
             // split it across the list.

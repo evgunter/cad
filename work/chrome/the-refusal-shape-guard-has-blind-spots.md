@@ -30,9 +30,12 @@ shapes it exists to catch. Each blind spot stays green:
 4. **Allowed labels are global.** `ALLOWED_LABELS`
    (`refusal_concision_chains.rs:92`) admits `check separation` and the
    rest on every row, not only on the checks-window rows that use them.
-5. **Exemptions are never required to fire.** `FILED`, `FILED_DECLARE`,
-   `FILED_DEBUG` and `KERNEL_KEYED` (`:104`, `:126`, `:130`, `:39`)
-   are never checked for use. When the owner's fix lands, the stale
+5. **Exemptions are never required to fire.** `FILED`, `FILED_DECLARE`
+   and `KERNEL_KEYED` are never checked for use. (The span admissions,
+   `ADMISSIONS` there and in `refusal_concision_edits.rs`, are:
+   `test_utils::refusal::problems_admitting` reds an admission whose
+   span its row no longer holds, and `unclaimed_admissions` one whose
+   row is gone.) When the owner's fix lands, the stale
    entry stays and the test stays green; it goes red only when someone
    reads the list.
 6. **The blend-detail reader.** It has no count floor: it asserts only
@@ -65,6 +68,33 @@ near-circular tilt reaches it, and a split takes no declaration. The
 chain test admits exactly this on `Split/Join/Section(Carrier)` and
 `Boolean/Join/Section(Carrier)` (`FILED`, `FILED_DECLARE`).
 
+## A ninth: a refusal with no recourse is never flagged (2026-09-29)
+
+`test_utils::refusal::problems` (`crates/test-utils/src/refusal.rs`)
+flags a message with MORE than one recourse marker and never one with
+none, so a refusal that states no recourse at all, and no "There is no
+way through" either, stays green in
+`crates/editor-core/tests/refusal_concision_chains.rs`. Live instances,
+all `PartFault` arms (`crates/editor-core/src/eval/parts.rs`,
+`impl core::fmt::Display for PartFault`), each rendered through
+`NodeErrorKind::Part`:
+
+- `NoResolver` ("this evaluation carries no part resolver, so a
+  referenced document cannot be reached");
+- `DepthExceeded`;
+- `ReferenceCycle`;
+- `PartProduct` (the gather's own sentence, whose recourse is
+  whatever the product door's arm states).
+
+`refusal_concision_at_rest.rs` already holds its rows to at least one
+marker (`every_at_rest_finding_renders_to_the_standard`); the chain
+test does not. Found by `edit/part-root-carried-refusal` (the designer
+pair's seam list,
+`work/edit/part-root-failure-nests-a-whole-refusal-past-the-budget.md`).
+
+The same unit closed one blind spot this row did not list: `arena_key`
+now flags a hex document id as well as `Key(`.
+
 ## Closed 2026-09-29 (`chrome/refusal-residue`)
 
 1–3. **The prefix check reads a label's shape, not its length.** A
@@ -87,8 +117,8 @@ chain test admits exactly this on `Split/Join/Section(Carrier)` and
    `mate 9` on `Mate/`, `at corner` on the corner-pair rows. The
    at-rest and edit suites scope theirs the same way.
 5. **Every exemption list must fire.** `KERNEL_KEYED`,
-   `ALLOWED_LABELS`, `FILED`, `FILED_NAMESPACES`, `FILED_DEBUG`,
-   `FILED_DECLARE` and `FILED_NO_RECOURSE` are checked by
+   `ALLOWED_LABELS`, `FILED`, `FILED_NAMESPACES`, `FILED_DECLARE`,
+   `FILED_NO_RECOURSE` and `FILED_SUBJECTLESS` are checked by
    `every_admission_admits_a_row_it_is_needed_for`; the at-rest and
    edit suites check their own lists in the same test. The entry
    `("Transform/Certify", "certification")` was already stale on main
@@ -114,3 +144,11 @@ phrases would see the next one. A stage label that happens to contain a
 sentence word (`the section stage:`) passes. A sentence with no such
 word reads as a label: `two instances overlap:` on the at-rest
 `InstanceInterference` row, admitted there by name.
+
+**The ninth.** `problems` flags a refusal that states no recourse
+(`a_lost_or_doubled_recourse_is_red`), so the chain test now holds
+every row to one; the `PartFault` rows above that state none are
+admitted by exact id in `FILED_NO_RECOURSE` under
+`work/edit/edit-refusals-short-of-the-shape-guard.md`, where a row still
+does. `ADMISSIONS` (the exact-span admissions the same EDIT unit added
+for hex ids) carries its own must-fire through `problems_admitting`.

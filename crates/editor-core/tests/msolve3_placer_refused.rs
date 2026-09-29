@@ -131,6 +131,15 @@ impl Scene {
         let ev = run(&self.doc, &self.opts());
         format!("{:?}", ev.result(self.placer))
     }
+
+    /// What `node`'s row in the MATED document fails with, when it
+    /// fails in its own right.
+    fn mated_refusal_of(&self, node: RecipeNodeId) -> Option<String> {
+        match run(&self.doc, &self.opts()).result(node) {
+            Some(NodeResult::Failed(err)) => Some(format!("{:?}", err.kind)),
+            _ => None,
+        }
+    }
 }
 
 /// A scene whose placer is a PATTERN of `kind` at `count`, mated onto
@@ -236,9 +245,24 @@ fn a1_a_non_finite_pattern_direction_names_the_direction() {
         kind.contains("NonFiniteDirection") && kind.contains("pattern direction"),
         "and it is the direction door's own: {kind}"
     );
+    // The fold path: the placer is poisoned, so the fault carries its
+    // refusal, one level, in the mate's own document.
+    let levels: Vec<_> = f
+        .carried_chain()
+        .map(|level| (level.document, level.node, level.line()))
+        .collect();
+    let [(document, node, line)] = levels.as_slice() else {
+        panic!("the fault carries the placer's refusal, one level: {levels:?}");
+    };
+    assert_eq!(
+        (*document, *node),
+        (editor_core::CarriedIn::ThisDocument, placer),
+        "the level is the placer, in the mate's document"
+    );
     assert!(
-        f.to_string().contains("pattern direction"),
-        "the prose says which vector: {f}"
+        line.contains("pattern direction") && !f.to_string().contains("pattern direction"),
+        "the carried line says which vector, and the mate's own sentence points at it: \
+         {line} / {f}"
     );
     assert!(
         scene.placer_row().contains("Poisoned"),
@@ -535,6 +559,19 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
     assert!(
         f.to_string().contains(&format!("node {}", datum.0)),
         "and the message names that node: {f}"
+    );
+    // Off the chain, the datum is not poisoned by the fault: its own
+    // row states the refusal, so the fault points there and carries
+    // nothing.
+    assert_eq!(
+        scene.mated_refusal_of(datum).as_deref(),
+        Some(kind.as_str()),
+        "the datum's own row in the mated document states it"
+    );
+    assert_eq!(
+        f.carried_chain().count(),
+        0,
+        "a refusal the placer's own row states is not carried: {f:?}"
     );
 }
 

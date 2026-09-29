@@ -483,6 +483,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload {
             side,
             placer,
             error,
+            ..
         } => MateFaultPayload {
             mate: Some(*mate),
             side: Some(*side),

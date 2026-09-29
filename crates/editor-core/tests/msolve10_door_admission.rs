@@ -734,11 +734,13 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             side,
             placer,
             error,
+            placer_row,
         } => MateFault::PlacerRefused {
             mate: r(mate),
             side,
             placer,
             error,
+            placer_row,
         },
         MateFault::PartSelectsAnotherCopy {
             mate,
