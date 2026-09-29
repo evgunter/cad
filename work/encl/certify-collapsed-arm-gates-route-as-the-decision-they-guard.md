@@ -4,6 +4,7 @@ kind: issue
 title: geom-brep: dihedral_arm and nurbs_span_meter refuse under the decision they guard, with the poisoned-margin note, because the funnel folds the gate's verdict into MarginDiag::Invalid
 status: dispatched
 branch: encl/collapsed-arm-gates
+pr: 3431
 opened: 2026-09-28
 priority: P3
 cost: M
