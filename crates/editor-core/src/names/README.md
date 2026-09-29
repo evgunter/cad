@@ -91,9 +91,12 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   one authored loop placed twice resolves to two ids, a value edit
   leaves the address valid, and a reshape that changes the prefix
   refuses it. An address is valid for the program it was authored for;
-  across a `SetProgram` an author holds the `StepId`. The roles a step
-  may draw come from one per-verb list, which the doors check and the
-  authoring surfaces' role accessors are generated from.
+  across a `SetProgram` an author holds the `StepId`. The check is the
+  prefix alone, so a wrong loop of the same shape, or a stale address
+  whose prefix the program still has, binds without error; and equal
+  addresses are one key in a keep map. The roles a step may draw come
+  from one per-verb list, which the piece door (`ProfileProgram::piece`)
+  checks and the authoring surfaces' role accessors are generated from.
 - **The role.** A step draws its pieces from a fixed list of roles, one list
   per verb:
   - every verb that draws one segment has one role, `Leg`: `line`,

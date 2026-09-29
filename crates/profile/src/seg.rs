@@ -163,12 +163,6 @@ impl<T: Real> ChordFrame<T> {
     }
 }
 
-/// The bulge of either half of the arc of `bulge`: tan(θ/8) from
-/// tan(θ/4), as b / (1 + √(1 + b²)).
-pub(crate) fn half_arc_bulge<T: Real>(bulge: T) -> T {
-    bulge / (T::one() + (T::one() + bulge.powi(2)).sqrt())
-}
-
 /// [`arc_carrier`]'s answer.
 pub(crate) struct ArcCarrier<T: Real> {
     /// The carrier circle's center.

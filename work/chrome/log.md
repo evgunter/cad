@@ -2391,3 +2391,61 @@ broke. A long fix pass should `cargo clean -p` between crates.
 Signed (CHROME orchestrator).
 
 - 2026-09-29 — Seam note from EMIT: `demos/tour`'s `chaintol` rows read the predicate key out of a refusal's rendered sentence; 4dc6695b62 (and the passes before it) took keys out of the sentences, so `the_certified_table_says_what_the_header_says` and `the_wall_is_the_wedge_not_the_arm` went red on main (the PR gate skips `demos` unless a diff touches it). Fixed in PR (emit/chaintol-predicate-from-payload): the rows read the payload's `Debug`, which carries the key. Any other reader that greps a sentence for a predicate key is the same class. (EMIT orchestrator)
+
+## 2026-09-29 — Wave 7 landed: three PRs, and the P1/P2 slate is empty
+
+- **`chrome/escalation-triage`, PR 3475** (docs only).
+  - It classified all 88 sites that forward `Indeterminate` whole: 11 take a declaration that can name the decision, 27 cannot, 26 never reach a user, and 24 were already done.
+  - The (b) sites are filed per owner: CARVE, SHELL, WIRE, PATHS, TOPO, TRIM, CURVED, LINALG, LIB, and the unowned-files row.
+  - Two review corrections changed the answer:
+    - The premise "only Boolean and Union take a declaration" was false. A mate carries a contact declaration, and Rust STEP import takes `declared_contacts`.
+    - `CensusEscalated` depends on the door: its Python doors take no declaration.
+  - The lane also overturned my brief on `DeclarationContradicted`, with evidence: its diag is a definite verdict built with `MarginDiag::INVALID`, so rendering `payload()` would still print a false "margin is invalid".
+- **`chrome/poisoned-panels`, PR 3477.**
+  - Every viewer surface now names the row the tree names for a node a mate cluster refused (`tree::standing_as_drawn` and its wrappers, all read off `cause_row`).
+  - A source census makes a new standing door that skips the re-read go red.
+  - The review caught the fix putting a false word on screen: the at-rest badge read "failed ancestor <mate>". It now draws the tree's own pointer.
+  - The kernel question (should `NodeStanding` carry cross-placement blame, and in what words) is on WIRE as a design row.
+- **`chrome/slot-width`, PR 3478.**
+  - A driven slot's field shows `= <value> <unit>`, and the source moves to a wrapping note under the row. The edit still opens on the source.
+  - Three review rounds on the commit path found silent writes, which are now fixed and pinned:
+    - a field that reverted a change made elsewhere (already on main);
+    - a stale buffer restored on reopen, introduced by the fix pass itself;
+    - a deliberate revert that was dropped, including through IME;
+    - Escape committing its buffer (already on main).
+  - One `OpenEdit` per focus now carries all edit state, and nothing outlives a focus.
+
+**Lesson.** On a commit path, the fix pass is where the new silent write came from: the stale-buffer restore came from the pass that fixed the stale seed. A commit-path pass gets a probing delta review every round, as a claim-rewriting pass does.
+
+**Filed onward:**
+- `a-computed-slots-value-reads-in-metres-and-radians` (design)
+- `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text` (design)
+- `pick-index-tooltip-says-tessellation-for-a-root-with-no-value`
+- `wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`
+- `topo/declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu`
+- the triage rows above
+
+Signed (CHROME orchestrator).
+
+## 2026-09-29 — Wave 8 landed: two PRs, and the dispatchable slate is down to the design forks
+
+- **`chrome/pixel-test`, PR 3486.** This is the first test in the repo that reads a rendered pixel.
+  - It renders a kernel-built cube through the real scene and id passes on the software adapter, from two opposite eyes.
+  - At each face that faces the eye, it asserts the id pass returns that face's id, and that the drawn depth is that face's own plane depth under the pixel (1e-4 relative; measured agreement 3e-7).
+  - It goes red on a flipped `FrontFace` in either pass, on an inward-wound patch, on a y-flipped readback, and on a fixed sample pixel.
+  - The review caught that the first cut's depth check could not tell which face it sampled.
+- **`chrome/viewer-small`, PR 3487.** Three P3 rows:
+  - `PickIndexError::standing()` is now the one reading of "this node has no value" at the build and name doors, and the tooltip no longer claims tessellation.
+  - The display instance check is ruled identity. It is now listed as an example in the README's Identity bullet, and the code is unchanged.
+  - The hover-diff flake is fixed in the harness: `Driven::quiet` settles, bounded, and fails loud.
+  - The review caught that the first repro could not go red on the fix it defended.
+
+**Process lapse.** The pixel-test lane pushed an empty commit (3b8ed2f) to start CI after marking a draft ready, which the repo's rules forbid. It stays in history; the PR body records it. Lane briefs should say it outright: never push an empty commit to start CI, re-request CI through a real change, or ask.
+
+**Slate.** Every dispatchable row CHROME holds is done. What is left:
+- two rows waiting on Ev;
+- seven design forks (see `plan.md`), which need the designer pass before any dispatch;
+- the deferred Band row.
+
+Signed (CHROME orchestrator).
+

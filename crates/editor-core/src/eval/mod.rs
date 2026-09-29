@@ -29,6 +29,7 @@ pub use parts::PartFault;
 mod schedule;
 pub(crate) mod slots;
 mod wire;
+pub(crate) use wire::decision_words;
 
 pub(crate) use wire::{
     DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar,
@@ -189,9 +190,7 @@ impl<T: Decide> Evaluation<T> {
             // propagation writes nothing else there); answering `None`
             // on a broken invariant is fail-honest — the caller sees
             // "no root cause", not a wrong one.
-            Err(NodeStanding::Failed { node } | NodeStanding::Poisoned { through: node, .. }) => {
-                self.nodes.get(&node)?.error()
-            }
+            Err(standing) => self.nodes.get(&standing.failed_node()?)?.error(),
         }
     }
 }
@@ -250,6 +249,35 @@ impl NodeStanding {
             Self::Poisoned { through, .. } => Some(through),
             Self::NotEvaluated { .. } | Self::NotInDocument { .. } | Self::Failed { .. } => None,
         }
+    }
+
+    /// The node whose failure explains the standing, which is where
+    /// the repair is: the node itself when it failed, its nearest
+    /// failed ancestor when it was poisoned, and `None` when the node
+    /// has no entry.
+    #[must_use]
+    pub fn failed_node(self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Failed { node } | Self::Poisoned { through: node, .. } => Some(node),
+            Self::NotEvaluated { .. } | Self::NotInDocument { .. } => None,
+        }
+    }
+
+    /// The standing of a document ROOT, as a door whose subject is the
+    /// document's roots states it under its own stage word: `root`,
+    /// then the standing.
+    pub(crate) fn of_root(self) -> RootStanding {
+        RootStanding(self)
+    }
+}
+
+/// [`NodeStanding::of_root`]'s rendering: the one sentence for a root
+/// with no value.
+pub(crate) struct RootStanding(NodeStanding);
+
+impl core::fmt::Display for RootStanding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "root {}", self.0)
     }
 }
 
@@ -934,8 +962,9 @@ pub struct NodeError {
 
 /// **An evaluation refusal, carried into a document-layer
 /// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault),
-/// [`EditError::PlacementAxis`](crate::EditError) and
-/// [`PartFault::PartRootFailed`](crate::PartFault) hold one.
+/// [`EditError::PlacementAxis`](crate::EditError),
+/// [`PartFault::PartRootFailed`](crate::PartFault) and
+/// [`PartFault::PartRootPoisoned`](crate::PartFault) hold one.
 ///
 /// It exists because [`NodeErrorKind`] carries kernel refusals
 /// UNALTERED (D2) and those kernel types have neither `Clone` nor
@@ -2052,8 +2081,8 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // ([`crate::finding`]): subject, story, its two-armed recourse.
 //
 // The one exception is a CARRIED refusal: another node's refusal, with
-// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`,
-// `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
+// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`
+// and `PartRootPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
 // never rendered inside this sentence, which names that node and points
 // at it; it is drawn as its own line, read off
 // [`NodeErrorKind::carried_chain`].
@@ -2229,15 +2258,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Escalated { predicate, source } => {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
-                let what = match *predicate {
-                    wire::EVAL_DIRECTION_NORM | topo::DATUM_UNIT_NORM => {
-                        "whether a direction has any length"
-                    }
-                    "revolve_full_vs_partial" => "whether the revolve makes a full turn",
-                    "bool_plane_parallel" => "whether the two planes are parallel",
-                    "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-                    _ => geom_core::UNNAMED_DECISION,
-                };
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(f, "{what} is too close to call: {source}")
             }
             Self::AxisInDifferentPlane {
@@ -2461,7 +2482,8 @@ impl NodeErrorKind {
     /// over this type's `Display`, as a value.
     ///
     /// Two arms carry one. A part whose root failed carries that root's
-    /// refusal, in the REFERENCED document's id space; a mate whose
+    /// refusal, and one whose root was poisoned carries the refusal of
+    /// the node that poisoned it, in the REFERENCED document's id space; a mate whose
     /// placer's own row cannot state its refusal carries the placer's,
     /// in the mate's document. One step only: a surface reads the whole
     /// chain through [`NodeErrorKind::carried_chain`].

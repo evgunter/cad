@@ -45,7 +45,7 @@
 use std::collections::BTreeSet;
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyDict, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -54,6 +54,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::{Doc, DocEdit, NodeId, name_text};
+use super::step::StepId;
 use super::store::ContentPin;
 
 /// Parse the canonical 32-hex-digit identity spelling — the store
@@ -304,6 +305,18 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     )
 }
 
+/// A step map as a `dict[StepId, StepId]`.
+fn step_dict<'py>(
+    py: Python<'py>,
+    map: &std::collections::BTreeMap<d::StepId, d::StepId>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    for (from, to) in map {
+        dict.set_item(StepId(*from), StepId(*to))?;
+    }
+    Ok(dict)
+}
+
 /// What a split produced: the two document VALUES and the recorded
 /// edits that make each.
 ///
@@ -320,7 +333,7 @@ pub(crate) struct SplitOutcome {
     part_maintenance: Vec<d::Maintenance>,
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
-    step_map: Vec<(u64, u64)>,
+    step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
 }
 
 #[pymethods]
@@ -388,12 +401,12 @@ impl SplitOutcome {
     }
 
     /// Each cut profile step's id → the id the part document minted
-    /// for it, as pairs in the part's own order: a name the caller
+    /// for it: a name the caller
     /// holds on a cut profile's piece is spelled in the part by this
     /// map, as its node is by `node_map`.
     #[getter]
-    fn step_map(&self) -> Vec<(u64, u64)> {
-        self.step_map.clone()
+    fn step_map<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        step_dict(py, &self.step_map)
     }
 
     fn __repr__(&self) -> String {
@@ -450,7 +463,7 @@ pub(crate) fn split(
             .into_iter()
             .map(|(a, b)| (NodeId(a), NodeId(b)))
             .collect(),
-        step_map: out.step_map.into_iter().map(|(a, b)| (a.0, b.0)).collect(),
+        step_map: out.step_map,
     })
 }
 
@@ -606,7 +619,7 @@ pub(crate) struct InlineOutcome {
     edits: Vec<d::DocEdit<d::ProfileProgram>>,
     maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
-    step_map: Vec<(u64, u64)>,
+    step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
 }
 
 #[pymethods]
@@ -644,8 +657,8 @@ impl InlineOutcome {
     /// Each part profile step's id → the id the host minted for it on
     /// the splice, the step half of `node_map`.
     #[getter]
-    fn step_map(&self) -> Vec<(u64, u64)> {
-        self.step_map.clone()
+    fn step_map<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        step_dict(py, &self.step_map)
     }
 
     fn __repr__(&self) -> String {
@@ -685,7 +698,7 @@ pub(crate) fn inline(
             .into_iter()
             .map(|(a, b)| (NodeId(a), NodeId(b)))
             .collect(),
-        step_map: out.step_map.into_iter().map(|(a, b)| (a.0, b.0)).collect(),
+        step_map: out.step_map,
     })
 }
 

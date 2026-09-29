@@ -897,6 +897,21 @@ impl ViewerApp {
         }
     }
 
+    /// **The one wait the toolbar names**, read from the session and
+    /// the two seams behind the picture.
+    ///
+    /// **The spinner follows the work, never the name**
+    /// (`frame::Progress::Canceled`). A fit in flight is the index
+    /// build's first step from a user's seat — nothing is on screen for
+    /// it, the build follows it with no gap, and the one progress state
+    /// is what says a picture is coming.
+    fn progress(&self) -> Option<frame::Progress> {
+        frame::progress(
+            self.session.outstanding(),
+            self.picks.indexing() || self.fit.busy(),
+        )
+    }
+
     /// Take whatever the seam finished and, if the picture is behind
     /// the document, rebuild it.
     ///
@@ -1612,15 +1627,7 @@ impl ViewerApp {
             // the session owes against what the index seam is
             // doing, so the toolbar never lights two spinners for
             // the same moment.
-            // **The spinner follows the work, never the name**
-            // (`frame::Progress::Canceled`). A fit in flight is the
-            // index build's first step from a user's seat — nothing is
-            // on screen for it, the build follows it with no gap, and
-            // the one progress state is what says a picture is coming.
-            match frame::progress(
-                self.session.outstanding(),
-                self.picks.indexing() || self.fit.busy(),
-            ) {
+            match self.progress() {
                 Some(frame::Progress::Evaluating) => {
                     ui.separator();
                     ui.spinner();
@@ -3429,7 +3436,7 @@ mod tests {
 #[cfg(test)]
 mod properties_pane_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
-    #![allow(clippy::expect_used)]
+    #![allow(clippy::expect_used, clippy::panic)]
 
     use eframe::egui;
     use pncad::document::{Axis3, ParamName, RecipeNodeId, SlotId};
@@ -3465,22 +3472,14 @@ mod properties_pane_tests {
         crate::pane::headless::landed_in(&output.shapes)
     }
 
-    /// Every text the app painted on the second of two frames with
-    /// `selection` made, in paint order.
+    /// Every text the app painted with `selection` made, once it has
+    /// settled ([`Driven::quiet`]), in paint order.
     fn painted_with(selection: Selection) -> Vec<String> {
-        let ctx = egui::Context::default();
-        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
-            .expect("startup that needs no graphics device");
-        app.perform_batch(vec![SessionOp::Select(selection)]);
-        let mut frame = eframe::Frame::_new_kittest();
-        let mut texts = Vec::new();
-        for _ in 0..2 {
-            texts = app_frame(&ctx, &mut app, &mut frame, None, Vec::new())
-                .into_iter()
-                .map(|landed| landed.text)
-                .collect();
-        }
-        texts
+        Driven::with(vec![SessionOp::Select(selection)])
+            .quiet()
+            .into_iter()
+            .map(|(text, _)| text)
+            .collect()
     }
 
     /// Every text the app painted once the startup document has
@@ -3644,12 +3643,18 @@ mod properties_pane_tests {
         /// The startup document with `ops` performed, a node selected
         /// among them, and one frame drawn.
         fn with(ops: Vec<SessionOp>) -> Self {
+            Self::with_seams(ops, |_| {})
+        }
+
+        /// [`Self::with`], over the seams `seams` puts in first.
+        fn with_seams(ops: Vec<SessionOp>, seams: impl FnOnce(&mut ViewerApp)) -> Self {
             let ctx = egui::Context::default();
             // A tooltip this row waited for would be a row about
             // `tooltip_delay`.
             ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
             let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
                 .expect("startup that needs no graphics device");
+            seams(&mut app);
             app.perform_batch(ops);
             let mut driven = Self {
                 ctx,
@@ -3674,11 +3679,64 @@ mod properties_pane_tests {
                 .collect()
         }
 
-        /// Two frames with the pointer parked away from everything:
-        /// the second is what the app draws when nothing is hovered.
+        /// **Nothing the toolbar's progress read names can change
+        /// before the next op**: no wait is outstanding, and the index
+        /// attempt for the picture on screen is answered.
+        ///
+        /// Every input to it moves only inside a frame (the session's
+        /// and the two seams' `pump`/`poll`, then the cache's `sync`),
+        /// so read after one it holds until something submits, and
+        /// only an op or a new δ does. An index that is neither held
+        /// nor refused is one `sync` forgot or has not asked for yet.
+        fn settled(&self) -> bool {
+            let picks = &self.app.picks;
+            self.app.progress().is_none() && (picks.index().is_some() || picks.error().is_some())
+        }
+
+        /// Quiet frames until [`Self::settled`].
+        fn settle(&mut self) {
+            for _ in 0..3000 {
+                self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+                if self.settled() {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            let picks = &self.app.picks;
+            panic!(
+                "the app did not settle in 30 s: progress {:?}, index held {}, refusal held {}",
+                self.app.progress(),
+                picks.index().is_some(),
+                picks.error().is_some(),
+            );
+        }
+
+        /// The app once [`Self::settled`], in two frames with the
+        /// pointer parked away from everything: the second is what the
+        /// app draws when nothing is hovered.
         fn quiet(&mut self) -> Vec<(String, egui::Rect)> {
+            self.settle();
             self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
             self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)])
+        }
+
+        /// Two frames with the pointer resting on `at`: egui decides
+        /// hover against the rect the previous frame left behind.
+        fn hovered(&mut self, at: egui::Pos2) -> Vec<(String, egui::Rect)> {
+            self.frame(vec![egui::Event::PointerMoved(at)]);
+            self.frame(vec![egui::Event::PointerMoved(at)])
+        }
+
+        /// The runs `hovered` painted that `quiet` did not.
+        fn gained(
+            quiet: &[(String, egui::Rect)],
+            hovered: Vec<(String, egui::Rect)>,
+        ) -> Vec<String> {
+            hovered
+                .into_iter()
+                .map(|(run, _)| run)
+                .filter(|run| !quiet.iter().any(|(before, _)| before == run))
+                .collect()
         }
 
         /// Where the ONE text run reading exactly `text` was painted.
@@ -3702,15 +3760,8 @@ mod properties_pane_tests {
         fn gained_hovering(&mut self, text: &str) -> Vec<String> {
             let quiet = self.quiet();
             let at = Self::only(&quiet, text);
-            // Two frames on it: egui decides hover against the rect
-            // the previous frame left behind.
-            self.frame(vec![egui::Event::PointerMoved(at)]);
-            let hovered = self.frame(vec![egui::Event::PointerMoved(at)]);
-            hovered
-                .into_iter()
-                .map(|(run, _)| run)
-                .filter(|run| !quiet.iter().any(|(before, _)| before == run))
-                .collect()
+            let hovered = self.hovered(at);
+            Self::gained(&quiet, hovered)
         }
 
         /// Click the one run reading `text`, then draw a frame with
@@ -3727,6 +3778,24 @@ mod properties_pane_tests {
             self.frame(vec![egui::Event::PointerMoved(at)]);
             self.frame(vec![press(true), press(false)]);
             self.frame(Vec::new());
+        }
+
+        /// One quiet frame, with where each run landed and the clip
+        /// it was painted under.
+        fn landed(&mut self) -> Vec<crate::pane::headless::Landed> {
+            self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+            self.time += 1.0;
+            let time = Some(self.time);
+            let Self {
+                ctx, app, frame, ..
+            } = self;
+            app_frame(
+                ctx,
+                app,
+                frame,
+                time,
+                vec![egui::Event::PointerMoved(Self::ELSEWHERE)],
+            )
         }
 
         /// One slot's row, as the document now holds it.
@@ -3810,6 +3879,110 @@ mod properties_pane_tests {
         assert_eq!(pane.row(EXTRUDE, SlotId::Distance), before);
     }
 
+    /// A seam that answers a request only on the poll after
+    /// `hold` polls have come back empty: a run that lands a known
+    /// number of frames late.
+    struct Late<S> {
+        inner: S,
+        hold: usize,
+        polls: usize,
+    }
+
+    impl<S> Late<S> {
+        fn new(inner: S, hold: usize) -> Self {
+            Self {
+                inner,
+                hold,
+                polls: 0,
+            }
+        }
+
+        /// Whether this poll is one the seam holds back.
+        fn holds(&mut self) -> bool {
+            self.polls += 1;
+            self.polls <= self.hold
+        }
+    }
+
+    impl crate::evalseam::EvalService for Late<crate::evalseam::InlineEvaluator> {
+        fn submit(&mut self, request: crate::evalseam::EvalRequest) {
+            self.polls = 0;
+            self.inner.submit(request);
+        }
+
+        fn cancel(&mut self) {
+            self.inner.cancel();
+        }
+
+        fn poll(&mut self) -> Option<crate::evalseam::EvalDone> {
+            if self.holds() {
+                None
+            } else {
+                self.inner.poll()
+            }
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    impl crate::evalseam::IndexService for Late<crate::evalseam::InlineIndexer> {
+        fn submit(&mut self, request: crate::evalseam::IndexRequest) {
+            self.polls = 0;
+            self.inner.submit(request);
+        }
+
+        fn poll(&mut self) -> Option<crate::evalseam::IndexDone> {
+            if self.holds() {
+                None
+            } else {
+                self.inner.poll()
+            }
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// **The hover diff settles the app first.** The diff is of the
+    /// whole app, so a run that lands between its quiet frame and its
+    /// hovered one turns the toolbar's `evaluating…` into `indexing…`,
+    /// and the new label reads as the hover's.
+    ///
+    /// Forced here: the startup evaluation is held for the frame
+    /// [`Driven::with`] draws and the two a quiet read draws unsettled,
+    /// and lands on the first hovered frame; the index build it asks
+    /// for is held a frame more, so the second hovered frame is
+    /// still indexing. Only [`Driven::quiet`]'s settle keeps it out.
+    #[test]
+    fn a_hover_diff_waits_for_a_run_that_lands_between_its_frames() {
+        let mut pane =
+            Driven::with_seams(vec![SessionOp::Select(Selection::Node(EXTRUDE))], |app| {
+                let tol = pncad::tolerance::witness();
+                app.session = crate::session::DocSession::new(
+                    app.session.doc().clone(),
+                    tol,
+                    Box::new(Late::new(crate::evalseam::InlineEvaluator::new(), 3)),
+                );
+                app.picks = crate::pickcache::PickCache::new(Box::new(Late::new(
+                    crate::evalseam::InlineIndexer::new(),
+                    1,
+                )));
+            });
+        assert_eq!(
+            pane.app.session.outstanding(),
+            crate::session::Outstanding::Evaluating,
+            "the startup run is still held after the first frame"
+        );
+        let gained = pane.gained_hovering("m");
+        assert!(
+            gained.is_empty(),
+            "the diff holds only what the hover drew: {gained:?}"
+        );
+    }
+
     /// **The same drive on a literal slot opens the picker and the
     /// pick lands** — the row that keeps the one above from passing
     /// because the harness missed the combo, and that no sentence is
@@ -3890,6 +4063,94 @@ mod properties_pane_tests {
             status(&pane),
             None,
             "the pick pushed nothing the op refused"
+        );
+    }
+
+    /// **A driven slot's row stays inside the Properties pane however
+    /// long its expression** — drawn by the real `slot_group_ui`. The
+    /// field shows the value, and the source is said under the row,
+    /// wrapped inside the pane.
+    #[test]
+    fn a_long_driven_source_stays_inside_the_properties_pane() {
+        let source = vec!["1 mm"; 40].join(" + ");
+        let mut pane = Driven::with(vec![
+            SessionOp::SetSlotExpression {
+                node: EXTRUDE,
+                slot: SlotId::Distance,
+                text: source.clone(),
+            },
+            SessionOp::Select(Selection::Node(EXTRUDE)),
+        ]);
+        let row = pane.row(EXTRUDE, SlotId::Distance);
+        assert_eq!(row.source.as_deref(), Some(source.as_str()));
+        let field = crate::props::field_text(&row);
+        assert_eq!(field, "= 0.04 m");
+        let quoted = format!("{} = {source}", SlotId::Distance.label());
+        let landed = pane.landed();
+        for text in [field.as_str(), quoted.as_str()] {
+            let run = landed
+                .iter()
+                .find(|landed| landed.text == text)
+                .unwrap_or_else(|| panic!("`{text}` was never painted"));
+            for line in &run.rows {
+                assert!(
+                    line.right() <= run.clip.right() + crate::pane::headless::SLACK,
+                    "`{text}` ends {} points past the pane",
+                    line.right() - run.clip.right()
+                );
+            }
+        }
+        assert!(
+            !landed.iter().any(|landed| landed.text == source),
+            "the source is not the field's text"
+        );
+    }
+
+    /// **Each component of a driven vector opens its edit on its OWN
+    /// source**, and clicking away from it writes nothing.
+    #[test]
+    fn each_driven_vector_component_edits_its_own_source() {
+        let axes = [Axis3::X, Axis3::Y, Axis3::Z];
+        let sources = ["1 mm + 1 mm", "2 mm + 1 mm", "3 mm + 1 mm"];
+        let mut ops: Vec<SessionOp> = axes
+            .iter()
+            .zip(sources)
+            .map(|(axis, source)| SessionOp::SetSlotExpression {
+                node: FRAME,
+                slot: SlotId::Origin(*axis),
+                text: source.to_owned(),
+            })
+            .collect();
+        ops.push(SessionOp::Select(Selection::Node(FRAME)));
+        let mut pane = Driven::with(ops);
+        let history = pane.app.session.history().len();
+        for (axis, source) in axes.iter().zip(sources) {
+            let shown = crate::props::field_text(&pane.row(FRAME, SlotId::Origin(*axis)));
+            pane.click(&shown);
+            let open = pane.frame(Vec::new());
+            assert!(
+                open.iter().any(|(run, _)| run == source),
+                "the {axis:?} field's edit opens on `{source}`: {open:?}"
+            );
+            for other in sources.iter().filter(|other| **other != source) {
+                assert!(
+                    !open.iter().any(|(run, _)| run == other),
+                    "and not on `{other}`"
+                );
+            }
+            let away = |pressed| egui::Event::PointerButton {
+                pos: Driven::ELSEWHERE,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            pane.frame(vec![away(true), away(false)]);
+            pane.quiet();
+        }
+        assert_eq!(
+            pane.app.session.history().len(),
+            history,
+            "clicking into each field and away wrote nothing"
         );
     }
 

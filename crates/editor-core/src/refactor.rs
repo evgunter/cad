@@ -572,12 +572,18 @@ impl core::fmt::Display for SplitError {
                     "split: the new document's pin would not compute: {error}"
                 )
             }
-            Self::PartEdit { error } => {
-                write!(f, "split: a part-side edit refused: {error}")
-            }
-            Self::RemainderEdit { error } => {
-                write!(f, "split: a remainder-side edit refused: {error}")
-            }
+            Self::PartEdit { error } => write!(
+                f,
+                "split: a part-side edit refused: {}{}",
+                error.problem(),
+                ReplayTail(error, Replay::SplitPart)
+            ),
+            Self::RemainderEdit { error } => write!(
+                f,
+                "split: a remainder-side edit refused: {}{}",
+                error.problem(),
+                ReplayTail(error, Replay::SplitRemainder)
+            ),
             Self::StepMapDiverged(d) => write!(f, "split: {d}"),
         }
     }
@@ -758,13 +764,196 @@ impl core::fmt::Display for InlineError {
                  longer has — repair the stranded reference before inlining",
                 missing.0
             ),
-            Self::Edit { error } => write!(f, "inline: an edit refused: {error}"),
+            Self::Edit { error } => write!(
+                f,
+                "inline: an edit refused: {}{}",
+                error.problem(),
+                ReplayTail(error, Replay::Inline)
+            ),
             Self::StepMapDiverged(d) => write!(f, "inline: {d}"),
         }
     }
 }
 
 impl core::error::Error for InlineError {}
+
+/// Which of this module's edit replays refused. The user authored none
+/// of those edits, so the edit door's own recourse — written for the
+/// person who typed the edit — is not theirs to follow; the replay's
+/// door states its own ([`ReplayTail`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Replay {
+    /// The part document, rebuilt from empty in the cut's document
+    /// order.
+    SplitPart,
+    /// The remainder: the instance inserted, the crossing names rebound
+    /// onto it, the cut deleted.
+    SplitRemainder,
+    /// The part's nodes spliced into the host in the part's document
+    /// order, its records carried, the instance's names rebound.
+    Inline,
+}
+
+/// The ending a replaying door gives a forwarded [`EditError`]: a
+/// recourse where the replay cannot re-author a document state the
+/// user can change, the kernel-defect ending where the replay only
+/// re-writes what a document already holds, or nothing where the
+/// forwarded sentence is another layer's whole refusal.
+struct ReplayTail<'a>(&'a EditError, Replay);
+
+impl core::fmt::Display for ReplayTail<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let defect =
+            |f: &mut core::fmt::Formatter<'_>| write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING);
+        let Self(error, replay) = *self;
+        match error {
+            // A payload name on a node inserted AFTER the one carrying
+            // it — a Declare or a blend selection rebound forward. The
+            // replay inserts in document order, so no order satisfies
+            // it. The remainder inserts one instance, whose names the
+            // replay wrote itself.
+            EditError::DeclareNamesMissingNode { .. } => match replay {
+                Replay::SplitPart => f.write_str(
+                    ". Recourse: rebind that reference to an entity of a node that comes \
+                     before the node carrying it, since the split rebuilds the part in \
+                     document order",
+                ),
+                Replay::Inline => f.write_str(
+                    ". Recourse: in the part document, rebind that reference to an entity of \
+                     a node that comes before the node carrying it, since the inline splices \
+                     the part in its document order",
+                ),
+                Replay::SplitRemainder => defect(f),
+            },
+            // Inline carries the part's appearance records onto the
+            // spliced names and THEN rebinds this document's
+            // instance-qualified names onto them, so a record on both
+            // sides collides. A split's rebind targets are names of an
+            // instance it has just minted, which carry nothing.
+            EditError::RebindAppearanceCollision { .. }
+            | EditError::RebindMetadataCollision { .. } => match replay {
+                Replay::Inline => f.write_str(
+                    ". Recourse: clear what this document sets on the instance's name, since \
+                     the part carries its own",
+                ),
+                Replay::SplitPart | Replay::SplitRemainder => defect(f),
+            },
+            // The solve levers through the parts the replay's resolver
+            // holds, and a split may be given none. Any other solve
+            // fault is the forwarded mate refusal's whole sentence,
+            // which the mate solve owns.
+            EditError::MaintenanceRefused {
+                fault: Some(fault), ..
+            }
+            | EditError::MateRefused { fault, .. } => {
+                if !unresolved_part(fault) {
+                    return Ok(());
+                }
+                f.write_str(match replay {
+                    Replay::SplitPart | Replay::SplitRemainder => {
+                        ". Recourse: give the split a resolver that holds every part the \
+                         document places"
+                    }
+                    Replay::Inline => {
+                        ". Recourse: give the inline a resolver that holds every part the \
+                         referenced document places"
+                    }
+                })
+            }
+            // Every other edit re-writes what the source document or
+            // the part already holds, each validated at its own door
+            // when it was written: a refusal here is this module's
+            // construction bug. Listed arm by arm, so a new arm is
+            // classified here or does not compile.
+            EditError::UnknownNode { .. }
+            | EditError::ProfileProgramRefused { .. }
+            | EditError::UnresolvedInput { .. }
+            | EditError::WouldCycle { .. }
+            | EditError::DuplicateInput { .. }
+            | EditError::RepeatedDesignation { .. }
+            | EditError::SelectionNotCanonical { .. }
+            | EditError::SetMembersOnNonList { .. }
+            | EditError::SetProgramOnNonProfile { .. }
+            | EditError::StepIdsRefused { .. }
+            | EditError::TooFewMembers { .. }
+            | EditError::DeleteWouldDangle { .. }
+            | EditError::UnknownSlot { .. }
+            | EditError::SlotDimensionMismatch { .. }
+            | EditError::MaintenanceRefused { fault: None, .. }
+            | EditError::MaintenanceUnrecorded { .. }
+            | EditError::StructuralSlotNeedsStructuralEdit { .. }
+            | EditError::NotStructuralSlot { .. }
+            | EditError::SlotUnknownDocParam { .. }
+            | EditError::SlotDocParamDimension { .. }
+            | EditError::PayloadUnknownDocParam { .. }
+            | EditError::PayloadDocParamDimension { .. }
+            | EditError::MeasureMalformed { .. }
+            | EditError::AssertionTarget { .. }
+            | EditError::DeclareInputNotDeclare { .. }
+            | EditError::AssertionDimension { .. }
+            | EditError::ContinuousParamCannotBeCount { .. }
+            | EditError::DocParamNotDeclared { .. }
+            | EditError::DocParamCountHasNoUnit { .. }
+            | EditError::DocParamCountHasNoDistribution { .. }
+            | EditError::DocParamUnitMismatch { .. }
+            | EditError::DocParamValueKindMismatch { .. }
+            | EditError::PathOffTree { .. }
+            | EditError::Dimension(_)
+            | EditError::NameStepNeverMinted { .. }
+            | EditError::ReadSiteMissingNode { .. }
+            | EditError::NonFiniteDocParam { .. }
+            | EditError::InvalidDistribution { .. }
+            | EditError::RebindTargetMissingNode { .. }
+            | EditError::RebindUnknownName { .. }
+            | EditError::RebindKindMismatch { .. }
+            | EditError::RebindIdentity { .. }
+            | EditError::RebindNoReferences { .. }
+            | EditError::WitnessOnNonSketch { .. }
+            | EditError::DuplicateWitnessEntry { .. }
+            | EditError::EmptyWitnessBulk
+            | EditError::NameUnresolvedInEvaluation { .. }
+            | EditError::EvaluationOfAnotherDocument { .. }
+            | EditError::AppearanceWrongKind { .. }
+            | EditError::AppearanceNamesMissingNode { .. }
+            | EditError::AppearanceNotSet { .. }
+            | EditError::InvalidTolerance { .. }
+            | EditError::MetaUnversioned { .. }
+            | EditError::MetaNonFinite { .. }
+            | EditError::MetaNotSet { .. }
+            | EditError::Roots(_)
+            | EditError::PlacementOnNonInstance { .. }
+            | EditError::PlacementRuleMismatch { .. }
+            | EditError::EmptyPlacementList { .. }
+            | EditError::ImproperPlacement { .. }
+            | EditError::NonFinitePlacement { .. }
+            | EditError::PlacementAxis { .. }
+            | EditError::NonFiniteAlignment { .. }
+            | EditError::UpdateOnNonInstance { .. }
+            | EditError::PinUnchanged { .. } => defect(f),
+        }
+    }
+}
+
+/// Whether a mate solve refused because a part it levers through did
+/// not resolve at all — the one solve fault a replaying door's
+/// resolver answers.
+fn unresolved_part(fault: &crate::mate::MateFault) -> bool {
+    use crate::eval::PartFault;
+    matches!(
+        fault,
+        crate::mate::MateFault::Unleverable {
+            refusal: crate::mate::LeverRefusal::PartUnresolved {
+                fault: PartFault::NoResolver
+                    | PartFault::Unresolved {
+                        fault: crate::part::ResolveFault::Unresolved,
+                        ..
+                    },
+                ..
+            },
+            ..
+        }
+    )
+}
 
 /// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
