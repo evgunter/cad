@@ -864,7 +864,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         ev.result(profile)
     );
 
-    let rows = tree::rows(&doc, Some(&ev));
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
     let row = |id| {
         rows.iter()
             .find(|row| row.id == id)
