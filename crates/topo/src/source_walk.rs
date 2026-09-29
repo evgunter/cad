@@ -118,9 +118,11 @@ impl CodeOnly {
     /// every slice a view of the blanked text.
     ///
     /// **Nested items included.** A `fn` declared inside another's body
-    /// is an item of its own, yielded after its host in source order;
-    /// the host's [`FnItem::body`] still holds its text, and a consumer
-    /// that wants the host's own work alone blanks the nested spans.
+    /// is an item of its own, yielded after its host in source order.
+    /// The host's [`FnItem::body`] still holds its text;
+    /// [`FnItem::own_body`] is the host with it blanked, and is the
+    /// reading every guard of what an item DOES takes, so a nested
+    /// item's call is credited to the nested item and to nothing else.
     ///
     /// **Scanned on the `fn` token, not on a `pub fn ` literal.** The
     /// literal misses `pub const fn`, `pub async fn`, `pub unsafe fn`
@@ -175,6 +177,8 @@ impl CodeOnly {
                         body: &code[start..end - 1],
                         span: body,
                         kw,
+                        own: String::new(),
+                        fn_local: false,
                     });
                 }
                 None if matches!(
@@ -184,20 +188,44 @@ impl CodeOnly {
                 None => gave_up(code, kw),
             }
         }
+        for i in 0..out.len() {
+            let (start, end) = (out[i].span.start, out[i].span.end);
+            let mut own = out[i].body.as_bytes().to_vec();
+            // Items come in source order, so the ones inside this body
+            // are the run that follows it, up to its closing brace.
+            for inner in out[i + 1..].iter().take_while(|inner| inner.kw < end) {
+                // From the end of the statement before it, so the
+                // nested item's `pub` and attributes go with it.
+                let head = code[..inner.kw].rfind([';', '{', '}']).map_or(0, |n| n + 1);
+                for c in &mut own[head - start..inner.span.end - start] {
+                    if *c != b'\n' {
+                        *c = b' ';
+                    }
+                }
+            }
+            out[i].own = String::from_utf8(own).expect("a blanked range starts and ends on ASCII");
+            let hosted = out[..i].iter().any(|host| host.span.contains(&out[i].kw));
+            out[i].fn_local = hosted && !directly_in_an_impl(code, out[i].kw, &out[..i]);
+        }
         out
     }
 
-    /// Every `pub fn` item in this file, as `(name, parameter list,
-    /// body)` — the [`Self::fns`] scan narrowed to the items a bare
-    /// `pub` precedes, across any run of `const` / `async` / `unsafe` /
-    /// `extern` qualifiers. `pub(crate) fn` is rejected: its preceding
-    /// token is `)`.
-    pub(crate) fn public_fns(&self) -> Vec<(&str, &str, &str)> {
+    /// Every `pub fn` item in this file — the [`Self::fns`] scan
+    /// narrowed to the items a bare `pub` precedes, across any run of
+    /// `const` / `async` / `unsafe` / `extern` qualifiers.
+    /// `pub(crate) fn` is rejected: its preceding token is `)`.
+    ///
+    /// **A [`FnItem::fn_local`] item is rejected too**, `pub` or not: a
+    /// path cannot name an item declared in a function body from
+    /// outside it (`m::host::stamp` is E0433), so the `pub` on one
+    /// reaches nothing. A method of an `impl` block standing in a body
+    /// is not fn-local — the block applies to its type wherever the type
+    /// is used, so a `pub` method there is as reachable as any.
+    pub(crate) fn public_fns(&self) -> Vec<FnItem<'_>> {
         let b = self.0.as_bytes();
         self.fns()
             .into_iter()
-            .filter(|item| public_qualifiers_precede(b, item.kw))
-            .map(|item| (item.name, item.params, item.body))
+            .filter(|item| !item.fn_local && public_qualifiers_precede(b, item.kw))
             .collect()
     }
 }
@@ -228,11 +256,58 @@ pub(crate) struct FnItem<'a> {
     pub(crate) span: std::ops::Range<usize>,
     /// The byte offset of the `fn` token.
     pub(crate) kw: usize,
+    /// [`Self::body`] with every item declared inside it blanked.
+    own: String,
+    /// Whether the item stands in another item's body, outside any
+    /// `impl` block there — so that no path outside that body names it.
+    pub(crate) fn_local: bool,
+}
+
+impl FnItem<'_> {
+    /// The body with every item declared inside it blanked to spaces,
+    /// byte offsets and lines kept: what this item does, apart from what
+    /// the items it hosts do, each of which is an item of its own.
+    pub(crate) fn own_body(&self) -> &str {
+        &self.own
+    }
+}
+
+/// Whether the innermost block holding the `fn` at `kw` is an `impl`
+/// block's, given the items before it. A block that opens a `fn` body
+/// is not one, which is what keeps `-> impl Trait {` from reading as
+/// an `impl` header.
+fn directly_in_an_impl(code: &str, kw: usize, before: &[FnItem<'_>]) -> bool {
+    let b = code.as_bytes();
+    let mut depth = 0usize;
+    let Some(open) = (0..kw).rev().find(|&i| match b[i] {
+        b'}' => {
+            depth += 1;
+            false
+        }
+        b'{' if depth == 0 => true,
+        b'{' => {
+            depth -= 1;
+            false
+        }
+        _ => false,
+    }) else {
+        return false;
+    };
+    if before.iter().any(|item| item.span.start == open) {
+        return false;
+    }
+    let head_start = code[..open].rfind([';', '{', '}']).map_or(0, |n| n + 1);
+    code[head_start..open]
+        .match_indices("impl")
+        .any(|(at, _)| is_token(b, head_start + at, 4))
 }
 
 /// A named `fn` head this scan recognised and then could not read —
 /// public or not, because [`CodeOnly::fns`] returns both and a guard
-/// asserting an item is NOT public is as blind to a dropped one.
+/// asserting an item is NOT public is as blind to a dropped one — and
+/// wherever it stands: the scan resumes inside every body it carves,
+/// so an unreadable `fn` nested in a body panics here as one at item
+/// level does.
 ///
 /// **Loud on purpose.** Every guard built on this walk asserts about
 /// *all* doors, so an item the scan drops is a door with no
@@ -428,9 +503,10 @@ const DOORS_MEASURED: usize = 57;
 
 /// Every public mutation door into a [`crate::Body`] declared in this
 /// crate's `src/`: a public `fn` whose parameter list takes
-/// `&mut self` or `&mut Body<T>`. A `fn` declared inside another's
-/// body is read like any item — a door of its own when it is itself
-/// `pub` and takes one, and part of its host's text either way.
+/// `&mut self` or `&mut Body<T>`. A door is read by its
+/// [`FnItem::own_body`]: a `fn` declared inside it is not its text, and
+/// is a door only as [`CodeOnly::public_fns`] admits it — never when it
+/// is [`FnItem::fn_local`], `pub` or not.
 ///
 /// **This is the shared concept.** Two guards classify this one
 /// population by two different properties — the tier-1 postcondition
@@ -474,8 +550,16 @@ const DOORS_MEASURED: usize = 57;
 ///   counts as present and a door under one counts as a door.
 /// - **Aliasing.** A call reached under a re-exported or renamed path
 ///   does not match its needle.
+/// - **A call named point-free.** Every needle the guards pass to
+///   [`MutationDoor::code_contains`] ends in `(`, so that a `use` line
+///   cannot satisfy it, and a call spelled as a function value
+///   (`.map(Body::leave_surgery)`) matches none. That reads as the call
+///   not made: a red for a close, a backing assertion, a postcondition
+///   or an undeclared door's re-mint, but silent for an opening
+///   (`begin_surgery(`, `enter_surgery(`: the door reads `NoScope`) and
+///   for a re-mint by a door `pcurves`' table declares non-`Maintains`.
 ///
-/// The first, fourth and fifth are the ones that cost coverage, and
+/// The first, fourth, fifth and sixth are the ones that cost coverage, and
 /// none of them is a lexing problem — see the module docs on why a
 /// parser is not the answer to them.
 pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
@@ -483,14 +567,14 @@ pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
     for file in crate_sources() {
         let text = std::fs::read_to_string(&file).expect("a readable source file");
         let code = CodeOnly::of(&text);
-        for (name, params, body) in code.public_fns() {
-            if !params.contains("&mut self") && !params.contains("&mut Body") {
+        for item in code.public_fns() {
+            if !item.params.contains("&mut self") && !item.params.contains("&mut Body") {
                 continue;
             }
             out.push(MutationDoor {
                 file: file.clone(),
-                name: name.to_string(),
-                code: body.to_string(),
+                name: item.name.to_string(),
+                code: item.own_body().to_string(),
             });
         }
     }
@@ -550,7 +634,7 @@ pub(crate) fn restricted(&mut self) { mint_pcurves(&mut b); }
 pub fn not_a_door(&self) {}
 ";
         let code = CodeOnly::of(src);
-        let found: Vec<&str> = code.public_fns().iter().map(|(n, _, _)| *n).collect();
+        let found: Vec<&str> = code.public_fns().iter().map(|i| i.name).collect();
         assert_eq!(
             found,
             vec![
@@ -570,8 +654,8 @@ pub fn not_a_door(&self) {}
         let doors: Vec<(&str, bool)> = code
             .public_fns()
             .iter()
-            .filter(|(_, p, _)| p.contains("&mut self"))
-            .map(|(n, _, b)| (*n, b.contains("mint_pcurves(")))
+            .filter(|i| i.params.contains("&mut self"))
+            .map(|i| (i.name, i.own_body().contains("mint_pcurves(")))
             .collect();
         assert_eq!(
             doors,
@@ -619,13 +703,13 @@ pub fn unbacked(&mut self) { let s = self.begin_surgery(); s.close_already_check
         let postures: Vec<(&str, SurgeryPosture)> = code
             .public_fns()
             .iter()
-            .map(|(n, _, b)| {
+            .map(|i| {
                 let door = MutationDoor {
                     file: std::path::PathBuf::from("x.rs"),
-                    name: (*n).to_string(),
-                    code: (*b).to_string(),
+                    name: i.name.to_string(),
+                    code: i.own_body().to_string(),
                 };
-                (*n, door.surgery_posture())
+                (i.name, door.surgery_posture())
             })
             .collect();
         assert_eq!(
@@ -650,13 +734,13 @@ pub fn unbacked(&mut self) { let s = self.begin_surgery(); s.close_already_check
         let backing: Vec<(&str, bool)> = code
             .public_fns()
             .iter()
-            .map(|(n, _, b)| {
+            .map(|i| {
                 let door = MutationDoor {
                     file: std::path::PathBuf::from("x.rs"),
-                    name: (*n).to_string(),
-                    code: (*b).to_string(),
+                    name: i.name.to_string(),
+                    code: i.own_body().to_string(),
                 };
-                (*n, door.debug_asserts_the_whole_body())
+                (i.name, door.debug_asserts_the_whole_body())
             })
             .filter(|(n, _)| *n == "backed" || *n == "unbacked" || *n == "own_assert")
             .collect();
@@ -711,49 +795,66 @@ pub async unsafe fn open(&mut self) -> Option<Live> { self.get(he) }
             ],
             "the scan lost an item, read a function-pointer type as one, or mis-carved a head"
         );
-        let public: Vec<&str> = code.public_fns().iter().map(|(n, _, _)| *n).collect();
+        let public: Vec<&str> = code.public_fns().iter().map(|i| i.name).collect();
         assert_eq!(public, vec!["open"], "the narrowing over that same scan");
     }
 
-    /// **An item declared inside a body is a row of its own.** `forge`
-    /// is the forging helper a door could hide, and it has to come back
-    /// under its own name so a guard's red names it rather than its
-    /// host; `stamp` is the nested mutation that has to reach the
-    /// mutation-door population; `after` is the scan resuming past the
-    /// host once the items inside it are read.
+    /// **An item declared inside a body is an item of its own, and not
+    /// its host's text.** `forge` is the forging helper a door could
+    /// hide, with `deeper` a second level down; `stamp` is a nested
+    /// `pub` mutation no path outside `host` can name; `reached` is a
+    /// method of an `impl` block standing in the same body, which every
+    /// user of the type can call; `after` is the scan resuming past the
+    /// host.
     #[test]
     fn the_item_scan_reads_an_item_nested_in_a_body_as_its_own() {
         let src = "
 pub fn host(&mut self, he: K) -> Option<Live> {
-    fn forge(k: K) -> Live { Live::new(k) }
+    fn forge(k: K) -> Live {
+        fn deeper(k: K) -> Live { Live::new(k) }
+        deeper(k)
+    }
     pub fn stamp(b: &mut Body<T>) { mint_pcurves(b); }
+    impl Body<T> { pub fn reached(&mut self) { self.begin_surgery(); } }
     self.get(he)
 }
 fn after() {}
 ";
         let code = CodeOnly::of(src);
         let items = code.fns();
-        let read: Vec<(&str, &str)> = items.iter().map(|i| (i.name, i.body.trim())).collect();
+        let words = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let read: Vec<(&str, String, bool)> = items
+            .iter()
+            .map(|i| (i.name, words(i.own_body()), i.fn_local))
+            .collect();
+        let expect = |name, own: &str, local| (name, own.to_string(), local);
         assert_eq!(
-            read[1..],
-            [
-                ("forge", "{ Live::new(k)"),
-                ("stamp", "{ mint_pcurves(b);"),
-                ("after", "{"),
+            read,
+            vec![
+                expect("host", "{ impl Body<T> { } self.get(he)", false),
+                expect("forge", "{ deeper(k)", true),
+                expect("deeper", "{ Live::new(k)", true),
+                expect("stamp", "{ mint_pcurves(b);", true),
+                expect("reached", "{ self.begin_surgery();", false),
+                expect("after", "{", false),
             ],
-            "a nested item was lost or mis-carved, or the scan did not resume past its host"
+            "a nested item was lost, mis-carved, left in its host's own text, or its \
+             reachability misread"
         );
-        assert_eq!(read[0].0, "host", "the host comes first, in source order");
+        assert!(
+            items[0].body.contains("Live::new(k)") && items[0].body.contains("mint_pcurves(b)"),
+            "the host's `body` is its whole text, nested items included"
+        );
         let doors: Vec<&str> = code
             .public_fns()
             .iter()
-            .filter(|(_, p, _)| p.contains("&mut"))
-            .map(|(n, _, _)| *n)
+            .filter(|i| i.params.contains("&mut"))
+            .map(|i| i.name)
             .collect();
         assert_eq!(
             doors,
-            vec!["host", "stamp"],
-            "a nested `pub` door is a door"
+            vec!["host", "reached"],
+            "a fn-local `pub fn` is no door, and an `impl` method in a body is one"
         );
     }
 
