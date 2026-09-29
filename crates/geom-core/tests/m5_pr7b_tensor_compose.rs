@@ -15,12 +15,12 @@
 //!    `S(P(t)) ≡ C(t)` exactly — the composite bound lands at ring
 //!    rounding (~1e-15), where any hull-then-difference enclosure is
 //!    O(1) (the review M2 finding, pinned as behavior).
-//! 3. Poison-on-zero-denominator: a weight extension that changes sign
-//!    inside the reachable window poisons the bound (NaN), never
+//! 3. Refusal-on-zero-denominator: a weight extension that changes sign
+//!    inside the reachable window refuses the bound (NaN), never
 //!    panics, never understates.
 //! 4. Degree budget: the largest SSI-realistic composition (bicubic ×
 //!    bicubic against cubic curves, composite degree 21 of the 54
-//!    budget) completes finite; a beyond-budget pair poisons loudly.
+//!    budget) completes finite; a beyond-budget pair is refused loudly.
 //! 5. Ring-lane bit-replay: the whole pipeline is deterministic to the
 //!    bit (D9).
 //! 6. Typed refusals at the entry points (closed `ComposeError`).
@@ -442,17 +442,17 @@ fn an_exact_composite_bounds_at_ring_rounding_not_at_the_variation() {
 }
 
 // ---------------------------------------------------------------------
-// Row 3: zero-touching denominator poisons loudly
+// Row 3: zero-touching denominator is refused loudly
 // ---------------------------------------------------------------------
 
 #[test]
-fn a_sign_changing_weight_extension_poisons_the_bound() {
+fn a_sign_changing_weight_extension_refuses_the_bound() {
     // Bilinear patch on [0,1]² whose weight function along v is
     // w(u,·) = 1 + 99u; the pcurve runs u from −0.5 to 1, so the
     // boundary cell's polynomial extension (the documented domain
     // posture) sees the weight change sign inside the reachable
     // window. Interval arithmetic refuses the zero-touching divisor: the bound is
-    // NaN — poisoned, not panicked, and it fails any ≤ ε comparison.
+    // NaN — refused, not panicked, and it fails any ≤ ε comparison.
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let w = (
@@ -477,7 +477,7 @@ fn a_sign_changing_weight_extension_poisons_the_bound() {
         vec![vec![0.0, 1.0], vec![0.0, 0.0], vec![0.0, 0.0]],
     );
     let sup = sup_of(&w, &p, &c, &[]);
-    assert!(sup.is_nan(), "expected poison, got {sup:e}");
+    assert!(sup.is_nan(), "expected a refusal, got {sup:e}");
 }
 
 // ---------------------------------------------------------------------
@@ -533,7 +533,7 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
     let w = elevated_patch(3, 3);
     let (p, c) = (pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
-    assert!(sup.is_finite(), "in-budget composition poisoned: {sup:e}");
+    assert!(sup.is_finite(), "in-budget composition refused: {sup:e}");
     Sup::new("bicubic x bicubic at degree 21", sup, max)
         .truth_at_least(
             1e-1,
@@ -551,14 +551,14 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
 }
 
 #[test]
-fn a_beyond_budget_composition_poisons_rather_than_rounds() {
+fn a_beyond_budget_composition_refuses_rather_than_rounds() {
     // Degrees (9, 9) against cubic curves: composite numerator degree
-    // 3·(9+9)+3 = 57 > 54 — the binomial row poisons and the bound is
-    // NaN. Loud, never a silently rounded weight.
+    // 3·(9+9)+3 = 57 > 54 — the binomial row is all-NaN, the composite
+    // is refused and the bound is NaN. Loud, never a silently rounded weight.
     let w = elevated_patch(9, 9);
     let (p, c) = (pcurve_data(), carrier_data());
     let sup = sup_of(&w, &p, &c, &[]);
-    assert!(sup.is_nan(), "expected the budget poison, got {sup:e}");
+    assert!(sup.is_nan(), "expected the budget refusal, got {sup:e}");
 }
 
 // ---------------------------------------------------------------------

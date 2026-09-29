@@ -277,7 +277,7 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
 }
 
 // `!(a < b)` forms below are deliberate, NaN-catching negations: a
-// poisoned quantity must REFUSE, and the positive form would silently
+// NaN quantity must REFUSE, and the positive form would silently
 // accept it (the file's standing convention).
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 /// The line candidate (module docs; the locus certificate INV-C3,

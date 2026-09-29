@@ -204,8 +204,8 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     let b = v_ref.dot(plane_normal) * s_v;
     // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
     // frames (a rim circle against a perpendicular side plane), and a
-    // plain interval product's spurious negative low end poisons the
-    // sqrt — the M2 interval-square bug class, found live here when
+    // plain interval product's spurious negative low end makes the
+    // sqrt refuse — the M2 interval-square bug class, found live here when
     // the boolean's IDEALIZED sweep (M5 PR 9) first drove this lane
     // over distant conic×plane pairs under the Interval scalar (the
     // realized lane's boxes never examine them, so only the brute

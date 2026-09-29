@@ -2600,11 +2600,11 @@ pub(crate) mod tests {
         }
     }
 
-    /// The refusal row: an ILLEGAL rational (non-positive
-    /// or non-finite weight) cannot even be described —
-    /// `NurbsSurface::new` refuses at the door, which is why
-    /// `rational_face_bound`'s own licence check is a defensive
-    /// backstop rather than a reachable lane.
+    /// The row the CONSCIOUS FLIP (M8-5) above keeps: an ILLEGAL
+    /// rational (non-positive or non-finite weight) cannot even be
+    /// described — `NurbsSurface::new` returns `Err` at construction,
+    /// which is why `rational_face_bound`'s own licence check is a
+    /// defensive backstop rather than a reachable lane.
     #[test]
     fn illegal_rational_weight_refuses_at_the_door() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);

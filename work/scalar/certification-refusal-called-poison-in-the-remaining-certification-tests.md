@@ -2,7 +2,9 @@
 id: certification-refusal-called-poison-in-the-remaining-certification-tests
 kind: issue
 title: certification test files outside CERT-NAMES' list still call the certification refusal 'poison'
-status: open
+status: review
+branch: scalar/cert-names
+pr: 3448
 opened: 2026-09-29
 priority: P4
 cost: M
@@ -59,3 +61,40 @@ The same pass CERT-NAMES made: each hit read against RING-5's rule
 `Real::is_poison` and evaluation's NaN/NaI), certification refusals
 re-worded with any asserted message moved alongside its test, and test
 names renamed with `.config/nextest.toml`'s slow set checked.
+
+## Folded into CERT-NAMES
+
+This row rides PR #3448: its fix pass took the whole table above, so
+the unit's boundary is the class (the certification refusal's
+vocabulary in certification code and tests) rather than a file list.
+Occurrences at the fix pass's merge base, each read against RING-5's
+rule:
+
+| file | hits | re-worded | kept, and why |
+| --- | --- | --- | --- |
+| `geom-core/tests/ring2_r2_probes.rs` | 32 | 8 | 24: the retired ring's `Old::poison`/`is_poison`, ported verbatim |
+| `geom-brep/tests/m5_pr7_ssi.rs` | 26 | 25 ("poison arm" → "refusal arm", two test names) | 1: `rect_box`'s midpoint `0/0` at the lane `T` |
+| `geom-core/tests/interval_exact_fuzz.rs` | 17 | 17 | 0 |
+| `geom-core/tests/m5_pr7b_tensor_compose.rs` | 11 | 11 (two test names) | 0 |
+| `geom-core/tests/review_m5_pr2_scratch.rs` | 10 | 10 | 0 |
+| `geom-core/tests/spline_hull.rs` | 9 | 9 (one test name) | 0 |
+| `geom/tests/curves/review_m5_pr4_adversarial.rs` | 8 | 2 | 6: F2's NaN control point at `f64` |
+| `geom-core/tests/review_m5_pr7b_tensor.rs` | 8 | 8 (one test name) | 0 |
+| `geom-core/tests/r2_cert3_probes.rs` | 7 | 6 (one test name) | 1: `normalize` at `f64` |
+| `geom-core/examples/r2_onb_dl6.rs` | 3 | 0 | 3: `is_poison` printed beside `is_certified`, and lane evaluation |
+| `geom-core/tests/review_m5_pr2_scratch_hull.rs` | 2 | 2 | 0 |
+| `geom-brep/tests/cert10_r1_probes.rs` | 2 | 2 | 0 |
+| `geom-brep/tests/approx_surface.rs` | 2 | 0 | 2: `implicit_residual`'s `f64` NaN |
+| `geom/tests/curves/review_m5_pr2_e2e.rs` | 1 | 1 | 0 |
+| `geom-core/tests/ring0_review_probes.rs` | 1 | 1 | 0 |
+| `geom-core/tests/coeffs_pair_identity.rs` | 1 | 1 | 0 |
+| `geom-core/tests/certified_endpoint_census.rs` | 1 | 0 | 1: names `Real::is_poison` |
+| `geom-brep/tests/review_m5_pr7_enclosure.rs` | 1 | 1 | 0 |
+
+Totals: 142 hits, 104 re-worded, 38 kept.
+
+The 19-versus-18 count: the sweep's own list, less the files the row
+names and the three sets it excludes, is 18. The nineteenth was most
+likely `geom-brep/src/ssi/certify.rs`, which the row reports reading
+in full and moves to its "Not listed" paragraph.
+

@@ -28,26 +28,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign};
+use crate::refusal::assert_refused;
+use geom_core::{Band, Bounds, Decide, Interval, Real, Sign};
 
 /// The fixed pure band used throughout (identical to `interval.rs`'s
 /// `band_1e9`): built via `Band::new`, so this file never touches the
 /// global tolerance and may hold many `#[test]`s.
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
-}
-
-/// Asserts that `x` refuses to classify *because it is not certified* — the
-/// `Invalid` margin, not merely a straddling enclosure.
-#[track_caller]
-fn assert_refused(name: &str, x: Interval) {
-    match x.sign_within(band()).map(|d| d.sign) {
-        Err(Indeterminate {
-            margin: MarginDiag::INVALID,
-            ..
-        }) => {}
-        other => panic!("{name}: expected a refusal, got {other:?}"),
-    }
 }
 
 /// Asserts that `x` classifies definitely — the pre-swap verdict for

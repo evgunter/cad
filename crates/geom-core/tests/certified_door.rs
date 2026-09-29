@@ -162,7 +162,7 @@ fn the_f64_door_refuses_exactly_its_nans() {
 /// sides, plus every value the certification doors and operators reach
 /// from them. `x / [0, 0]` and `[0, 0] * [−∞, ∞]` are how refusals
 /// arrive without being written down.
-fn ring_corpus() -> Vec<(String, Interval)> {
+fn interval_certification_corpus() -> Vec<(String, Interval)> {
     let seeds = [
         ("[0,0]", Interval::point(0.0)),
         ("[1,2]", Interval::from_bounds(1.0, 2.0)),
@@ -190,16 +190,47 @@ fn ring_corpus() -> Vec<(String, Interval)> {
     out
 }
 
+/// `sqrt([a, 4])` degrades exactly when `a < 0` forces a clamp, so
+/// this corpus walks the operand across the domain boundary instead of
+/// probing one side of it. Empty (`sqrt([−4, −1])`) and NaI store NaN
+/// brackets, so they are the members that would show a laundering door
+/// as NaN rather than as a merely-uncertified answer.
+fn domain_boundary_corpus() -> Vec<(String, Interval)> {
+    let mut out: Vec<(String, Interval)> = Vec::new();
+    for a in [-4.0, -1.0, -0.25, -1e-300, 0.0, 1e-300, 0.25, 1.0, 4.0] {
+        out.push((
+            format!("sqrt([{a}, 4])"),
+            geom_core::Real::sqrt(Interval::from_bounds(a, 4.0)),
+        ));
+        out.push((
+            format!("sqrt([-4, {a}])"),
+            geom_core::Real::sqrt(Interval::from_bounds(-4.0, a)),
+        ));
+    }
+    out.push((
+        "NaI".to_string(),
+        <Interval as geom_core::Real>::from_f64(f64::NAN),
+    ));
+    out.push((
+        "entire".to_string(),
+        Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY),
+    ));
+    out
+}
+
 /// **The row S86 is about.** A refusal is the decoration it
 /// carries (`dec < Def`, NaI and empty below that), so `is_certified` is
 /// its whole domain-violation channel and the door has to consult it — a
 /// refused enclosure's endpoints are ordinary numbers and certify
 /// nothing. A door that certified on the endpoints alone reds here on
-/// the first refused member.
+/// the first refused member, from either corpus.
 #[test]
-fn the_certification_door_refuses_exactly_what_is_not_certified() {
+fn the_interval_door_refuses_exactly_below_def() {
     let (mut certified, mut refused) = (0, 0);
-    for (tag, r) in ring_corpus() {
+    for (tag, r) in interval_certification_corpus()
+        .into_iter()
+        .chain(domain_boundary_corpus())
+    {
         let ok = door_certifies(&tag, r);
         assert_eq!(
             ok,
@@ -315,7 +346,7 @@ fn a_backend_refusal_can_carry_real_endpoints() {
 #[test]
 fn every_refused_value_crosses_still_refused() {
     let (mut certified, mut refused) = (0, 0);
-    for (tag, r) in ring_corpus() {
+    for (tag, r) in interval_certification_corpus() {
         let crossed = Interval::from_certified(r);
         if r.certified_bracket().is_none() {
             assert!(
@@ -371,49 +402,7 @@ fn the_f64_crossing_admits_exactly_the_finite() {
     assert_non_vacuous("the f64 crossing", crossed, refused);
 }
 
-// -------------------------------------------- the interval implementors
-
-mod interval_lane {
-    use geom_core::{Interval, Real};
-
-    use super::{assert_non_vacuous, door_certifies};
-
-    /// `sqrt([a, 4])` degrades exactly when `a < 0` forces a clamp, so
-    /// the sweep walks the operand across the domain boundary instead of
-    /// probing one side of it. Empty (`sqrt([−4, −1])`) and NaI store NaN
-    /// brackets, so they are the members that would show a laundering
-    /// door as NaN rather than as a merely-uncertified answer.
-    #[test]
-    fn the_interval_door_refuses_exactly_below_def() {
-        let (mut certified, mut refused) = (0, 0);
-        let mut corpus: Vec<(String, Interval)> = Vec::new();
-        for a in [-4.0, -1.0, -0.25, -1e-300, 0.0, 1e-300, 0.25, 1.0, 4.0] {
-            corpus.push((
-                format!("sqrt([{a}, 4])"),
-                Interval::from_bounds(a, 4.0).sqrt(),
-            ));
-            corpus.push((
-                format!("sqrt([-4, {a}])"),
-                Interval::from_bounds(-4.0, a).sqrt(),
-            ));
-        }
-        corpus.push(("NaI".to_string(), Interval::from_f64(f64::NAN)));
-        corpus.push((
-            "entire".to_string(),
-            Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY),
-        ));
-        for (tag, x) in corpus {
-            let ok = door_certifies(&tag, x);
-            assert_eq!(
-                ok,
-                x.is_certified(),
-                "{tag}: the interval door and the `Def` threshold disagree"
-            );
-            if ok { certified += 1 } else { refused += 1 }
-        }
-        assert_non_vacuous("Interval", certified, refused);
-    }
-}
+// ----------------------------------------------------------- Probe
 
 #[cfg(feature = "probe")]
 mod probe_lane {

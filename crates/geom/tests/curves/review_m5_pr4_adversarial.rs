@@ -649,7 +649,7 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
             let bound = form.sup_bound();
             assert!(
                 bound.is_finite(),
-                "case {case}: poisoned bound for {surface:?} — {}",
+                "case {case}: refused bound for {surface:?} — {}",
                 fuzz::replay()
             );
             // Exactness: num/den midpoint evaluation == f(C(t)).
@@ -754,7 +754,7 @@ fn f4_binomial_row_exactness_probe() {
     // The MINOR-1 pin: the recurrence is exact through n = 54 and
     // FIRST inexact at n = 55 (the intermediate product exceeds 2^53
     // although C(55, 26) is representable) — which is why
-    // compose::binom_row documents BINOM_EXACT_MAX = 54 and poisons
+    // compose::binom_row documents BINOM_EXACT_MAX = 54 and refuses
     // beyond it rather than serving a rounded weight.
     match first_bad {
         None => panic!("[F4] recurrence unexpectedly exact through n = 60"),

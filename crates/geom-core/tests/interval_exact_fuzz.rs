@@ -33,7 +33,7 @@
 //!   results).
 //! - **Interval soundness**: for random brackets, the exact `x ∘ y` of
 //!   sampled members is contained.
-//! - **Poison paths**: NaN/inverted construction, and division by a
+//! - **Refusal paths**: NaN/inverted construction, and division by a
 //!   divisor that straddles or touches zero.
 //!
 //! # Depth
@@ -247,7 +247,7 @@ fn cmp_f64_vs_quot(x: f64, a: f64, b: f64) -> Ordering {
 fn assert_brackets(r: Interval, v: &Big, what: &str) {
     assert!(
         r.is_certified(),
-        "{what}: unexpected poison — {}",
+        "{what}: unexpected refusal — {}",
         fuzz::replay()
     );
     assert!(
@@ -297,14 +297,14 @@ fn check_point_ops(a: f64, b: f64) {
     if b == 0.0 {
         assert!(
             !quo.is_certified(),
-            "division by zero must poison — {}",
+            "division by zero must refuse — {}",
             fuzz::replay()
         );
         return;
     }
     assert!(
         quo.is_certified(),
-        "{a:e} / {b:e}: unexpected poison — {}",
+        "{a:e} / {b:e}: unexpected refusal — {}",
         fuzz::replay()
     );
     assert!(
@@ -356,7 +356,7 @@ fn check_interval_ops(a0: f64, a1: f64, b0: f64, b1: f64) {
             if blo > 0.0 || bhi < 0.0 {
                 assert!(
                     quo.is_certified(),
-                    "interval div: unexpected poison — {}",
+                    "interval div: unexpected refusal — {}",
                     fuzz::replay()
                 );
                 assert!(
@@ -372,7 +372,7 @@ fn check_interval_ops(a0: f64, a1: f64, b0: f64, b1: f64) {
             } else {
                 assert!(
                     !quo.is_certified(),
-                    "zero-straddling divisor must poison — {}",
+                    "zero-straddling divisor must refuse — {}",
                     fuzz::replay()
                 );
             }
@@ -545,7 +545,7 @@ fn check_powi(v: f64, neg: bool, m: u128, e: i32, n: i32) {
     // cross-multiplication with the (nonzero, sign-known) denominator.
     assert!(
         r.is_certified(),
-        "{v:e}^{n}: unexpected poison — {}",
+        "{v:e}^{n}: unexpected refusal — {}",
         fuzz::replay()
     );
     let one = Big::term(false, 1, 0);
@@ -616,34 +616,38 @@ fn powi_is_sound_against_exact_arithmetic() {
 }
 
 #[test]
-fn poison_paths_are_total() {
-    let mut rng = fuzz::start("interval_exact_fuzz::poison");
+fn refusal_paths_are_total() {
+    let mut rng = fuzz::start("interval_exact_fuzz::refusal");
     let mut n = 0u64;
     for _ in 0..fuzz::scaled(25_000) {
         let a = f64_raw(&mut rng);
         let b = f64_raw(&mut rng);
-        // Non-finite points are poison, and poison flows.
+        // Non-finite points are refused, and the refusal flows.
         if !a.is_finite() {
             let p = Interval::point(a);
             assert!(!p.is_certified(), "{}", fuzz::replay());
             let q = Interval::point(if b.is_finite() { b } else { 1.0 });
             for r in [p + q, q + p, p - q, p * q, p / q, q / p, -p, p.sqr()] {
-                assert!(!r.is_certified(), "poison must flow — {}", fuzz::replay());
+                assert!(
+                    !r.is_certified(),
+                    "the refusal must flow — {}",
+                    fuzz::replay()
+                );
             }
             n += 1;
         }
-        // Inverted or NaN brackets are poison.
+        // Inverted or NaN brackets are refused.
         if a.is_finite() && b.is_finite() && a > b {
             assert!(
                 !Interval::from_bounds(a, b).is_certified(),
-                "inverted bracket must poison — {}",
+                "inverted bracket must refuse — {}",
                 fuzz::replay()
             );
             n += 1;
         }
         assert!(
             !Interval::from_bounds(f64::NAN, b).is_certified(),
-            "NaN bracket must poison — {}",
+            "NaN bracket must refuse — {}",
             fuzz::replay()
         );
         // Any divisor whose bracket touches zero is refused.
@@ -653,12 +657,12 @@ fn poison_paths_are_total() {
                 let d = Interval::from_bounds(lo, hi);
                 assert!(
                     !(Interval::point(1.0) / d).is_certified(),
-                    "divisor [{lo:e}, {hi:e}] touches zero and must poison — {}",
+                    "divisor [{lo:e}, {hi:e}] touches zero and must refuse — {}",
                     fuzz::replay()
                 );
                 n += 1;
             }
         }
     }
-    println!("[poison] {n} refusal cases, 0 leaks");
+    println!("[refusal] {n} refusal cases, 0 leaks");
 }
