@@ -1,0 +1,49 @@
+---
+id: topo-escalations-offer-a-declaration-the-door-cannot-take
+kind: issue
+title: topo: split_edge's in-band interiority forwards the declare menu to the split and blend doors, which take no declaration
+status: open
+opened: 2026-09-29
+priority: P2
+cost: E
+---
+
+
+(CHROME, from the triage in
+`work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`.)
+
+## What
+
+`EulerOpError::SplitParamEscalated` (`crates/topo/src/euler.rs`, the
+variant near :852, its `Display` arm near :1065) renders
+`split_edge: interiority test on edge {edge:?} escalated ({diag})`:
+the whole `Indeterminate`, so it ends in `COINCIDENCE_RECOURSE`
+("declare the coincidence, …"), after a stage label and an arena key.
+
+`Body::split_edge` raises it (`crates/topo/src/split.rs`, the
+`split_edge_param_interior` decision near :246). Three doors wrap it
+whole:
+
+- the split: `SplitReduceError::CrossingInsertion`
+  (`crates/topo/src/splitting/classify.rs` near :442, rendered by
+  `crates/topo/src/splitting/mod.rs` near :430). A split takes no
+  declarations (`geom_core::SPLIT_PLANE_RECOURSE`'s doc;
+  `Node::Split`, `crates/editor-core/src/node.rs` near :2018, has no
+  `declare`).
+- the blend: `BlendError::Op` through `surgery::op`
+  (`crates/sweep/src/blend/surgery.rs` near :269, :2605, :3487). A
+  blend takes no declarations (`Node::Fillet`/`Node::Chamfer`,
+  `node.rs` near :1910/:1953).
+- the Boolean: `BooleanError::CrossingInsertion`
+  (`crates/topo/src/boolean/reduce.rs` near :2345). This door takes
+  declarations, but a declared face pair has nothing to say about where
+  on an edge a crossing lands.
+
+## Repair shape
+
+Render `diag.payload()` with a subject in plain words ("whether the
+crossing lands strictly inside the edge") and a routed recourse. The
+lever that reaches the split's case is the split plane or the geometry.
+See `sweep::blend::BlendError::Escalated`'s `Display` (one match
+returning subject and recourse) and `profile::validate::decision_subject`.
+The guard is `test_utils::refusal::subjectless_escalations`.

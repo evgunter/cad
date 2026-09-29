@@ -73,3 +73,30 @@ words, with the name left to `Debug`:
   holds that against `src`, so a name decided later without words goes
   red there. A name from outside the crate reads `geom_core::UNNAMED_DECISION`,
   which the shape guard reads as no subject.
+## Escalations that offer a declaration the door cannot take (CHROME triage)
+
+(From the triage in `work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`.) 
+
+- `StructureRefusalKind::Indeterminate` (`crates/profile/src/structure.rs`
+  near :685, `Display` near :830) renders
+  "{decision} cannot be re-verified at this scalar: {source}. The
+  structure stays unconfirmed; narrow the parameter box and try again".
+  That is the whole `Indeterminate` (ending in `COINCIDENCE_RECOURSE`)
+  followed by a second lever of its own. The viewer reaches it as
+  `NodeErrorKind::ProfileLaneReplay` (`crates/editor-core/src/eval/mod.rs`
+  near :2069). A lane re-verification takes no declaration, and the
+  lever the arm already names (narrowing the box) is the one to route
+  in place of the menu.
+
+For this program's judgement, not listed as a defect:
+`ProfileError::Escalated` (`crates/profile/src/validate.rs` near
+:1090) and `PathError::Escalated`'s fall-through arm
+(`crates/profile/src/path.rs` near :2011) forward the menu whole for
+every name in `validate::SHARED_CLAUSE_ONLY`. A profile's one
+declaration is a tangent joint (`ProfileLoop::tangent_joints`). So the
+declare lever is real for the junction and carrier names, and the
+near-tangency note says how to pull it. It has no object for names
+such as `loop_orientation`, `canonical_order_x`, `ray_side` or
+`path_arc_bulge`. The list's doc says each listed name's levers are
+"exactly the three" the menu names; for those, the first lever is not
+one.
