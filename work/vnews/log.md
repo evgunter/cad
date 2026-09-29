@@ -587,3 +587,22 @@ other programs' runs, and the express slot cannot finish a cold
 `editor-core` build inside its 590 s. Each unit's local run is its
 lane's; on the batch branch the orchestrator ran clippy after every
 merge and left the tests to CI.
+
+## 2026-09-28 — lane pool, and P4s in one lane
+
+Ev asked why the slate was taking so long. Most lane wall-clock was
+queueing for the machine-wide build slot. Every lane began in a fresh
+worktree, and cargo fingerprints workspace crates by source path, so
+each lane's first build was cold. A cold `editor-core` build does not
+fit the express slot's 590 s, so each lane waited for the regular slot
+(hours, behind other programs' batteries) at least once per build step.
+
+From here:
+- **A pool of lane worktrees at fixed paths**, each with a target
+  directory that stays warm between units. A new unit checks out its
+  branch in a free pool slot instead of a fresh worktree, so its builds
+  are incremental and usually fit the express slot. A finished lane's
+  worktree and target become a pool slot instead of being deleted.
+- **P4 rows are batched into one implementer lane** covering several
+  rows (Ev: "batch a bunch of them together into a single implementer
+  lane"), rather than one lane each.
