@@ -2,8 +2,11 @@
 id: contain-escalation-carries-no-decision
 kind: issue
 title: topo: ContainError::Escalated and the point-in-solid refusals collapse their decisions, so their endings name the lever alone
-status: open
+status: dispatched
 opened: 2026-09-29
+priority: P3
+cost: M
+parent: CONTACT-10
 ---
 
 

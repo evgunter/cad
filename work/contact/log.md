@@ -732,3 +732,25 @@ Signed: (CONTACT orchestrator)
 - The lanes' clones and targets are removed.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — CONTACT-10 and CONTACT-11 dispatched
+
+- **CONTACT-10** carries two rows that edit the same refusals in
+  `boolean/contain.rs`:
+  - `contact-near-boundary-endings-say-lower-the-tolerance`. ENCL's
+    #3398 already did its `census.rs` half; the grazed-parity ending
+    remains.
+  - `contain-escalation-carries-no-decision`, which ENCL filed into
+    this program.
+
+  Priced P3, M. Review: single style. It touches RESTFRONT's
+  `validate.rs`, and the lane leaves a seam note there.
+- **CONTACT-11** carries `torus-chart-box-check-passes-an-l-shaped-face`,
+  which VERBS-CONE filed here. The torus trim may serve an L-shaped
+  face its box, a wrong answer that no one has measured. The lane makes
+  it fail first. The fix shares the cone's area check. Priced P1, M.
+  Review: single full.
+- The two touch disjoint files, so they run in parallel with the
+  declared-only designers.
+
+Signed: (CONTACT orchestrator)

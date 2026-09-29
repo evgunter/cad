@@ -2,8 +2,11 @@
 id: contact-near-boundary-endings-say-lower-the-tolerance
 kind: issue
 title: topo: the census's WitnessTooClose and contfp's grazed-parity refusal say 'lower the tolerance' where D4 ¶1 now says 'if this size is intended, tighten below m/K'
-status: open
+status: dispatched
 opened: 2026-09-28
+priority: P3
+cost: E
+parent: CONTACT-10
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)

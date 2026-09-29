@@ -2,8 +2,11 @@
 id: torus-chart-box-check-passes-an-l-shaped-face
 kind: issue
 title: bool_torus_chart_box compares total variation to twice the span, which an L-shaped (orthogonally convex) face also satisfies, so the torus trim can serve an L its bounding box
-status: open
+status: dispatched
 opened: 2026-09-29
+priority: P1
+cost: M
+parent: CONTACT-11
 ---
 
 
