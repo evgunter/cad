@@ -692,7 +692,9 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     // badge draws it with the tree's pointer, never "ancestor" for a
     // mate.
     let root = match session.product_fault() {
-        Some(ProductError::RootFailed { node } | ProductError::RootPoisoned { node, .. }) => *node,
+        Some(ProductError::Root(
+            NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
+        )) => *node,
         other => panic!("the gather refuses on a root, got {other:?}"),
     };
     assert!(
@@ -893,7 +895,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
 /// ancestor.
 #[test]
 fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
-    use pncad::document::{Node, ProductError, RecipeNodeId};
+    use pncad::document::{Node, NodeStanding, ProductError, RecipeNodeId};
 
     let tol = Tol::witness();
 
@@ -917,10 +919,10 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
         &EvalOptions::default(),
         tol,
     );
-    let failed = ProductError::RootFailed { node: extrude };
+    let failed = ProductError::Root(NodeStanding::Failed { node: extrude });
     assert_eq!(
         tree::product_refusal_wording(&failed, &ev),
-        "product: root 2 failed to evaluate (ask `Evaluation::node_error` for the typed cause)",
+        "product: root node 2 failed, so it has no value — fix the node's own failure",
         "a root that is its own cause keeps the gather's sentence"
     );
 
@@ -938,13 +940,14 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
         &EvalOptions::default(),
         tol,
     );
-    let poisoned = ProductError::RootPoisoned {
+    let poisoned = ProductError::Root(NodeStanding::Poisoned {
         node: moved,
         through: extrude,
-    };
+    });
     assert_eq!(
         tree::product_refusal_wording(&poisoned, &ev),
-        "product: root 3 never ran — poisoned through failed ancestor 2",
+        "product: root node 3 is poisoned by the failure at node 2, so it has no value — the \
+         repair is upstream, at node 2",
         "a root poisoned through the row the tree names keeps the gather's sentence"
     );
 }

@@ -813,10 +813,12 @@ pub fn resolution_as_drawn(resolution: Resolution, evaluation: &Evaluation<f64>)
 /// tree's.
 pub fn product_refusal_wording(fault: &ProductError, evaluation: &Evaluation<f64>) -> String {
     let (root, named) = match fault {
-        ProductError::RootFailed { node } => (*node, *node),
-        ProductError::RootPoisoned { node, through } => (*node, *through),
-        ProductError::EvaluationOfAnotherDocument { .. }
-        | ProductError::UnknownNode { .. }
+        ProductError::Root(NodeStanding::Failed { node }) => (*node, *node),
+        ProductError::Root(NodeStanding::Poisoned { node, through }) => (*node, *through),
+        ProductError::Root(
+            NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. },
+        )
+        | ProductError::EvaluationOfAnotherDocument { .. }
         | ProductError::PlacedUnderTwoRoots { .. }
         | ProductError::Naming { .. }
         | ProductError::NoBodyRoots
