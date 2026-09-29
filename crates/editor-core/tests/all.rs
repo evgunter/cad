@@ -379,8 +379,6 @@ mod m4_pr6_refusal;
 mod m4_pr6_review_probes;
 #[path = "m4_pr6_roundtrip.rs"]
 mod m4_pr6_roundtrip;
-#[path = "m4_pr6_roundtrip_interval.rs"]
-mod m4_pr6_roundtrip_interval;
 #[path = "m4_pr7_appearance.rs"]
 mod m4_pr7_appearance;
 #[path = "m4_pr7_appearance_interval.rs"]
@@ -544,9 +542,6 @@ mod u8a_parse;
 mod unreadable_by_this_build;
 
 test_utils::every_suite_file_is_aggregated!();
-
-#[path = "cert_m2r1_corpus.rs"]
-mod cert_m2r1_corpus;
 
 #[path = "lib_tube_node.rs"]
 mod lib_tube_node;

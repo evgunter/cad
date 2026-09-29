@@ -70,10 +70,10 @@ gone under an axis nothing reads.
   same fact from the other side: it asks whether the computed-and-unread
   AXIS should be given a consumer or deleted. It does not touch the
   standing doc, and the doc is wrong whichever way that is decided.
-- `work/ciw/python-suite-axis-skips-only-two-members` (open) asks
+- `python-suite-axis-skips-only-two-members` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) (open) asks
   whether the exception earns its machinery. Same axis, same
   independence from this row.
-- `work/ciw/ciw-rows-and-ci-local-prose-rotted-by-the-c1-c3-restore`
+- `ciw-rows-and-ci-local-prose-rotted-by-the-c1-c3-restore` (deleted; `docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`)
   (open) is the prose-rot row for exactly the commit that caused this —
   but it enumerates THREE sites, all of them CIW's own
   (`local-scripts/*` and two CIW items), and says so in its own header.
