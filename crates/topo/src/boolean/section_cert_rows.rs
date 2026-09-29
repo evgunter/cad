@@ -355,6 +355,63 @@ fn intractable_poses_refuse_on_reach() {
     ));
 }
 
+/// A bicubic bump over `[−2, 2]²`: boundary rows in `z = 0`, the inner
+/// four control points at `z = 2`.
+fn bump() -> Surface<f64> {
+    use geom_core::spline::KnotVector;
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let mut control = Vec::new();
+    for i in 0..4 {
+        for j in 0..4 {
+            let inner = (1..3).contains(&i) && (1..3).contains(&j);
+            control.push(p(
+                -2.0 + 4.0 * f64::from(i) / 3.0,
+                -2.0 + 4.0 * f64::from(j) / 3.0,
+                if inner { 2.0 } else { 0.0 },
+            ));
+        }
+    }
+    Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 16]).unwrap(),
+    ))
+}
+
+/// **NURBS × plane: W0 on the control net, else R-reach**, in both
+/// orders. A plane clear of every control point, on either side and
+/// either orientation, is apart; a plane that cuts the net, one that
+/// touches its top row, and a placeholder's poison net have no arm. Red
+/// against W0 reading any one point clear rather than all (the cut and
+/// touching planes), and against W0 dropped (the clear ones).
+#[test]
+fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_on_reach() {
+    let placeholder = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder()));
+    let apart =
+        |s: &Section<f64>| matches!(s, Section::Components { parts, .. } if parts.is_empty());
+    for (what, pl, want_apart) in [
+        ("above", plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0)), true),
+        (
+            "above, flipped",
+            plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, -1.0)),
+            true,
+        ),
+        ("below", plane(p(0.0, 0.0, -0.1), v(0.0, 0.0, 1.0)), true),
+        ("oblique", plane(p(0.0, 0.0, 2.4), v(-0.3, 0.0, 1.0)), true),
+        ("cutting", plane(p(0.0, 0.0, 0.8), v(0.0, 0.0, 1.0)), false),
+        ("touching", plane(p(0.0, 0.0, 2.0), v(0.0, 0.0, 1.0)), false),
+    ] {
+        for s in [classify(&bump(), &pl), classify(&pl, &bump())] {
+            if want_apart {
+                assert!(apart(&s), "{what}: {s:?}");
+            } else {
+                assert!(matches!(s, Section::Intractable), "{what}: {s:?}");
+            }
+        }
+    }
+    let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
+    assert!(matches!(classify(&placeholder, &pl), Section::Intractable));
+    assert!(matches!(classify(&bump(), &bump()), Section::Intractable));
+}
+
 // -------------------------------------------------------------------
 // Cylinder × cylinder and × plane
 // -------------------------------------------------------------------

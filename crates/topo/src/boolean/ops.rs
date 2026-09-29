@@ -663,8 +663,7 @@ fn boolean_op_recut<
 /// module docs carry the argument).
 ///
 /// Every undeclared cross-operand pair whose certified boxes overlap,
-/// where either face is a torus, a sphere, a cylinder or a cone, is
-/// classified and certified. A DECLARED pair is exempt: its contact is
+/// where either face is not a plane, is classified and certified. A DECLARED pair is exempt: its contact is
 /// the verified carrier the declared rungs walk along its edges. The
 /// first refusing pair, in arena order (A's faces, then B's), refuses
 /// the operation as the operand gate refuses a pair with no arm —
@@ -793,30 +792,22 @@ fn apex_closure_describes<T: Decide>(
 /// they examine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SectionPath {
-    /// The crossings path: every pair with a torus, sphere, cylinder or
-    /// cone face.
+    /// The crossings path: every pair with a face that is not a plane.
     Crossings,
-    /// The no-crossings fallback: every pair with a torus, cylinder or
-    /// cone face, except a sphere against a plane, a sphere or a
-    /// cylinder — those are the extent scan's
-    /// ([`sphere_extent_scan`]), which runs first and keeps its re-cut.
-    /// A sphere against a torus or a cone is certified here: neither is
-    /// ever an escape face, so the scan's only question of the pair is
-    /// disjointness, and with no event anywhere "every component
-    /// cleared" is disjointness.
+    /// The no-crossings fallback: every pair with a face that is not a
+    /// plane, except a sphere against a plane, a sphere, a cylinder or a
+    /// spline — those are the extent scan's ([`sphere_extent_scan`]),
+    /// which runs first and keeps its re-cut. A sphere against a torus
+    /// or a cone is certified here: neither is ever an escape face, so
+    /// the scan's only question of the pair is disjointness, and with no
+    /// event anywhere "every component cleared" is disjointness.
     Fallback,
 }
 
 impl SectionPath {
     fn scope<T: Real>(self, x: &geom::Surface<T>, y: &geom::Surface<T>) -> bool {
         use geom::Surface as S;
-        let curved = |s: &geom::Surface<T>| match self {
-            Self::Crossings => matches!(
-                s,
-                S::Torus { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. }
-            ),
-            Self::Fallback => matches!(s, S::Torus { .. } | S::Cylinder { .. } | S::Cone { .. }),
-        };
+        let curved = |s: &geom::Surface<T>| !matches!(s, S::Plane { .. });
         let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
         let passed = |s: &geom::Surface<T>| matches!(s, S::Torus { .. } | S::Cone { .. });
         let scanned = (sphere(x) && !passed(y)) || (sphere(y) && !passed(x));
