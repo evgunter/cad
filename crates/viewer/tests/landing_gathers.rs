@@ -35,7 +35,7 @@ use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::evalseam::EvalDone;
-use viewer::session::{AtRestBadge, DocSession, Landing};
+use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
 
 /// Re-land the result a session already holds, and answer how many
 /// times the gather ran while it did.
