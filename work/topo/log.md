@@ -2555,3 +2555,31 @@ the two rows PR 3472 filed, and they could share one unit because they
 touch one error family's rendering.
 
 Lanes: PR 3467's re-aim implementer and PR 3472's fix pass are live.
+
+## PR 3472's fix pass delivered; the item closes on the branch (2026-09-29)
+
+The fix pass took 235,235 tokens, 110 tools and 55 min (harness).
+Head `e12922d1b5` passed `gate ok` on run 36601125342. The two runs
+before it were red on `corrupt input (release profile)`, a pinned
+count the fix moved.
+
+The orchestrator read the diff:
+- `mev_fan_plan`'s strut arm is gone, so a strut walks, closes and
+  proves its start vertices like a split does.
+- The start proof is `Body::require_orbit_starts_at`, one helper
+  shared with `kev_plan`. A dead member reads as `OrbitBroken`, not a
+  panic.
+- A strut whose walk does not close now refuses `FanOrbitBroken`
+  (tier-1-invalid input). That moved `review_d18::SPENT_GRAFT_EXPOSURE`
+  for `mev_line` from 78 to 54. Instrumentation confirmed the 24 lost
+  calls are exactly those refusals, and it was re-baselined with the
+  reason.
+- Tear search: the strut residue went from 120 to 0, the non-strut
+  numbers are unchanged, and there is no over-refusal.
+- Four `assert_err_*` helpers fold into the deep one. The copy that
+  was weaker gives its 13 callers a stronger check.
+- The three snapshot functions are filed as
+  `deep-snapshot-is-written-three-times`.
+
+The item closes on the branch. Merge once CI on the closing head is
+green.
