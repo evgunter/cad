@@ -153,6 +153,20 @@ impl<T: Real> ChordFrame<T> {
             normal,
         }
     }
+
+    /// The midpoint of the arc on this frame with `bulge`: the sagitta
+    /// L·bulge/2 off the chord's midpoint, against the left normal (a
+    /// positive bulge winds counter-clockwise). The one spelling of an
+    /// arc's apex.
+    pub(crate) fn apex(&self, bulge: T) -> Point2<T> {
+        self.mid - self.normal * (self.len * bulge * T::from_f64(0.5))
+    }
+}
+
+/// The bulge of either half of the arc of `bulge`: tan(θ/8) from
+/// tan(θ/4), as b / (1 + √(1 + b²)).
+pub(crate) fn half_arc_bulge<T: Real>(bulge: T) -> T {
+    bulge / (T::one() + (T::one() + bulge.powi(2)).sqrt())
 }
 
 /// [`arc_carrier`]'s answer.
@@ -225,7 +239,6 @@ pub(crate) fn build_seg<T: Decide>(
         Sign::Zero | Sign::Negative => return Err(SegIssue::Degenerate { margin: len }),
     }
     let half = T::from_f64(0.5);
-    let sagitta = len * bulge * half;
     let straightness = decide(
         "segment_straightness",
         Margin::levered(bulge * half, len),
@@ -245,7 +258,7 @@ pub(crate) fn build_seg<T: Decide>(
             sweep,
         } => {
             let turn = straightness;
-            let apex = frame.mid - frame.normal * sagitta;
+            let apex = frame.apex(bulge);
             let span_chord = a.distance(apex);
             let clearance = radius + radius - span_chord;
             match decide("arc_diameter_clearance", Margin::of(clearance), band)
