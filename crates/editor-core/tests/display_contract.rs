@@ -1428,9 +1428,9 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     }
 }
 
-/// A predicate flip names the two signs as words: `Sign` has a
-/// `Display`, and a diagnosis's payload-holding arms forward the
-/// payload's own rendering.
+/// A predicate flip names the two signs as words and says what was
+/// decided in words: `Sign` has a `Display`, and the predicate's name
+/// is routing, kept to `Debug`.
 #[test]
 fn a_predicate_flip_names_its_signs_as_words() {
     let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
@@ -1442,12 +1442,32 @@ fn a_predicate_flip_names_its_signs_as_words() {
             to: geom_core::predicate::Sign::Negative,
             source: editor_core::FlipSource::VerdictLog,
         },
-        &["name_frag_side_of", "flipped from positive to negative"],
+        &[
+            "the side of a cut a face lies on",
+            "flipped from positive to negative",
+        ],
         // Every `Sign`, not the two this row happens to construct: a
         // rendering that leaked `Zero` would be just as much a dump.
         // `PredicateFlip` is `Diagnosis`'s own identifier, and this row
         // renders that one arm.
-        &[sign_words.as_slice(), &["PredicateFlip"]].concat(),
+        &[
+            sign_words.as_slice(),
+            &["PredicateFlip", "name_frag_side_of"],
+        ]
+        .concat(),
+    );
+    // A predicate with no words says so in the kernel's one phrase for
+    // it, never by its name.
+    let unnamed = Diagnosis::PredicateFlip {
+        predicate: "coincidence",
+        from: geom_core::predicate::Sign::Zero,
+        to: geom_core::predicate::Sign::Positive,
+        source: editor_core::FlipSource::VerdictLog,
+    }
+    .to_string();
+    assert!(
+        unnamed.starts_with(geom_core::UNNAMED_DECISION) && !unnamed.contains("coincidence"),
+        "{unnamed}"
     );
 }
 
@@ -1469,7 +1489,7 @@ fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
             },
         },
         &[
-            "name_frag_side_of",
+            "the side of a cut a face lies on",
             "flipped from positive to negative",
             &face_name().to_string(),
             "recovered by re-running the pair at diagnosis time",
@@ -1477,7 +1497,12 @@ fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
         ],
         &[
             sign_words.as_slice(),
-            &["PredicateFlip", "ShadowExec", "FlipSource"],
+            &[
+                "PredicateFlip",
+                "ShadowExec",
+                "FlipSource",
+                "name_frag_side_of",
+            ],
         ]
         .concat(),
     );
@@ -1664,8 +1689,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 to: Sign::Positive,
                 source: editor_core::FlipSource::VerdictLog,
             },
-            "predicate bool_point_in_solid_plane flipped from negative to positive on the \
-             name's derivation path"
+            "which side of a face's plane a point lies on flipped from negative to positive on \
+             the name's derivation path"
                 .to_owned(),
         ),
         (
@@ -1700,8 +1725,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 to: Sign::Positive,
             }),
             format!(
-                "predicate bool_point_in_solid_plane flipped from negative to positive at node \
-                 10{tail}"
+                "which side of a face's plane a point lies on flipped from negative to positive \
+                 at node 10{tail}"
             ),
         ),
         (
@@ -2666,7 +2691,8 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         &also_banned,
     );
     // One clause, two subjects: whatever the sentence says, the two
-    // doors say it in the same words about the same address.
+    // doors say it in the same words about the same address. The edit
+    // door adds its recourse after it.
     for slot in [profile_slot, scalar_slot, component_slot] {
         let at_load = SnapshotError::SlotDimension {
             node,
@@ -2679,7 +2705,14 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
             expected: Dimension::Length,
             found: Dimension::Angle,
         };
-        assert_eq!(at_load.to_string(), format!("node 7: {at_edit}"));
+        let at_load = at_load.to_string();
+        let clause = at_load
+            .strip_prefix("node 7: ")
+            .unwrap_or_else(|| panic!("the load door names the node first: {at_load}"));
+        assert_eq!(
+            at_edit.to_string(),
+            format!("{clause}. Recourse: give the slot a length expression")
+        );
     }
 }
 

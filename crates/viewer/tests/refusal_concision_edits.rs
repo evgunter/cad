@@ -695,6 +695,35 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
             },
         ));
     }
+    // Each states its own recourse, so each is rendered, not only the
+    // representative row's.
+    for (arm, fault) in [
+        ("NotLive", RootFault::NotLive { root: n(9) }),
+        ("Duplicate", RootFault::Duplicate { root: n(3) }),
+        ("Uncovered", RootFault::Uncovered { node: n(4) }),
+    ] {
+        rows.push((format!("Roots({arm})"), EditError::Roots(fault)));
+    }
+    for (arm, fault) in [
+        (
+            "SigmaNotPositive",
+            DistributionFault::SigmaNotPositive { sigma: 0.0 },
+        ),
+        (
+            "NonFinite",
+            DistributionFault::NonFinite {
+                field: DistributionField::Sigma,
+            },
+        ),
+    ] {
+        rows.push((
+            format!("InvalidDistribution({arm})"),
+            EditError::InvalidDistribution {
+                name: param(),
+                fault,
+            },
+        ));
+    }
     for (arm, fault) in mate_faults() {
         rows.push((
             format!("MaintenanceRefused({arm})"),
@@ -734,70 +763,16 @@ const LABELS: &[(&str, &str)] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/edit/edit-refusals-short-of-the-shape-guard.md
-    "Edit/AppearanceNamesMissingNode",
-    "Edit/AppearanceNotSet",
-    "Edit/AppearanceWrongKind",
-    "Edit/AssertionDimension",
-    "Edit/AssertionTarget",
-    "Edit/ContinuousParamCannotBeCount",
-    "Edit/DeclareInputNotDeclare",
-    "Edit/DeclareNamesMissingNode",
-    "Edit/DeleteWouldDangle",
-    "Edit/Dimension",
-    "Edit/DocParamCountHasNoDistribution",
-    "Edit/DocParamCountHasNoUnit",
-    "Edit/DocParamNotDeclared",
-    "Edit/DocParamUnitMismatch",
-    "Edit/DocParamValueKindMismatch",
-    "Edit/DuplicateInput",
-    "Edit/DuplicateWitnessEntry",
+    // work/edit/edit-refusals-short-of-the-shape-guard.md, held for
+    // work/edit/placement-is-spelled-three-ways-node-registry-and-rule.md:
+    // the placement unit reshapes or deletes these arms.
     "Edit/EmptyPlacementList",
-    "Edit/EmptyWitnessBulk",
-    "Edit/EvaluationOfAnotherDocument",
     "Edit/ImproperPlacement",
-    "Edit/InvalidDistribution",
-    "Edit/InvalidTolerance",
     "Edit/MaintenanceUnrecorded",
-    "Edit/MeasureMalformed",
-    "Edit/MetaNonFinite",
-    "Edit/MetaNotSet",
-    "Edit/MetaUnversioned",
-    "Edit/NameUnresolvedInEvaluation",
-    "Edit/NonFiniteAlignment",
-    "Edit/NonFiniteDocParam",
     "Edit/NonFinitePlacement",
-    "Edit/NotStructuralSlot",
-    "Edit/PathOffTree",
-    "Edit/PayloadDocParamDimension",
-    "Edit/PayloadUnknownDocParam",
-    "Edit/PinUnchanged",
     "Edit/PlacementAxis",
     "Edit/PlacementOnNonInstance",
     "Edit/PlacementRuleMismatch",
-    "Edit/ReadSiteMissingNode",
-    "Edit/RebindAppearanceCollision",
-    "Edit/RebindIdentity",
-    "Edit/RebindKindMismatch",
-    "Edit/RebindMetadataCollision",
-    "Edit/RebindNoReferences",
-    "Edit/RebindTargetMissingNode",
-    "Edit/RebindUnknownName",
-    "Edit/RepeatedDesignation",
-    "Edit/Roots",
-    "Edit/SelectionNotCanonical",
-    "Edit/SetMembersOnNonList",
-    "Edit/SlotDimensionMismatch",
-    "Edit/SlotDocParamDimension",
-    "Edit/SlotUnknownDocParam",
-    "Edit/StructuralSlotNeedsStructuralEdit",
-    "Edit/TooFewMembers",
-    "Edit/UnknownNode",
-    "Edit/UnknownSlot",
-    "Edit/UnresolvedInput",
-    "Edit/UpdateOnNonInstance",
-    "Edit/WitnessOnNonSketch",
-    "Edit/WouldCycle",
     // work/msolve/msolve-refusals-short-of-the-shape-guard.md
     "Edit/MaintenanceRefused",
     "Edit/MaintenanceRefused(ClassNotAdmitted)",

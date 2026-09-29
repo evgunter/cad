@@ -1459,16 +1459,28 @@ impl From<crate::AxisRefusal> for EditError {
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(f, "node {} is not live", id.0),
+            Self::UnknownNode { id } => write!(
+                f,
+                "node {} is not live. Recourse: aim the edit at a node the document holds",
+                id.0
+            ),
             Self::ProfileProgramRefused { node, refusal } => {
                 write!(f, "node {}'s sketch refused: {refusal}", node.0)
             }
-            Self::UnresolvedInput { input } => {
-                write!(f, "input {} does not resolve to a live node", input.0)
-            }
-            Self::WouldCycle { at } => {
-                write!(f, "the recipe graph would cycle (through node {})", at.0)
-            }
+            Self::UnresolvedInput { input } => write!(
+                f,
+                "input {} does not resolve to a live node. Recourse: take the input from a \
+                 node the document holds",
+                input.0
+            ),
+            // Only `SetMembers` can close a loop: an insert's inputs are
+            // already live, so none of them can be built from it.
+            Self::WouldCycle { at } => write!(
+                f,
+                "the recipe graph would cycle (through node {}). Recourse: take the members \
+                 from nodes that are not built from the node being edited",
+                at.0
+            ),
             // Forwarded, not restated: `InputFault` owns this
             // vocabulary and `node.rs` promises every door that renders
             // it forwards. The door adds its own frame — which edit the
@@ -1492,13 +1504,15 @@ impl core::fmt::Display for EditError {
             // its own sentence carries the count that is required.
             Self::DuplicateInput { input, .. } => write!(
                 f,
-                "the node this edit writes would be invalid: {}. Replace one of the two with a \
-                 different node.",
+                "the node this edit writes would be invalid: {}. Recourse: replace one of the \
+                 two with a different node",
                 crate::node::InputFault::Duplicate { input: *input }
             ),
             Self::SetMembersOnNonList { node } => write!(
                 f,
-                "node {} carries no list input, so it has no members to set",
+                "node {} carries no list input, so it has no members to set. Recourse: set \
+                 the members of a node that takes a list, or insert a new node over the \
+                 inputs you want",
                 node.0
             ),
             Self::SetProgramOnNonProfile { node } => write!(
@@ -1513,13 +1527,14 @@ impl core::fmt::Display for EditError {
             }
             Self::TooFewMembers { found, .. } => write!(
                 f,
-                "the node this edit writes would be invalid: {}",
+                "the node this edit writes would be invalid: {}. Recourse: list two or more \
+                 entries",
                 crate::node::InputFault::TooFew { found: *found }
             ),
             Self::RepeatedDesignation { first, again, .. } => write!(
                 f,
-                "the node this edit writes would be invalid: {}. Build it through `Node::shell`, \
-                 which keeps the first occurrence.",
+                "the node this edit writes would be invalid: {}. Recourse: build it through \
+                 `Node::shell`, which keeps the first occurrence",
                 crate::node::InputFault::RepeatedDesignation {
                     first: *first,
                     again: *again,
@@ -1527,19 +1542,22 @@ impl core::fmt::Display for EditError {
             ),
             Self::SelectionNotCanonical { at, .. } => write!(
                 f,
-                "the node this edit writes would be invalid: {}. Build it through \
-                 `Node::fillet` or `Node::chamfer`, which sort and deduplicate.",
+                "the node this edit writes would be invalid: {}. Recourse: build it through \
+                 `Node::fillet` or `Node::chamfer`, which sort and deduplicate",
                 crate::node::InputFault::SelectionNotCanonical { at: *at }
             ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
-                "node {} is still an input to node {} — delete node {} first, \
+                "node {} is still an input to node {}. Recourse: delete node {} first, \
                  or delete node {} together with everything downstream of it",
                 id.0, referenced_by.0, referenced_by.0, id.0
             ),
-            Self::UnknownSlot { id, slot } => {
-                write!(f, "node {} has no slot {}", id.0, slot.label())
-            }
+            Self::UnknownSlot { id, slot } => write!(
+                f,
+                "node {} has no slot {}. Recourse: edit a slot this node has",
+                id.0,
+                slot.label()
+            ),
             // The rule's own clause, forwarded rather than restated:
             // this door's subject IS the slot, so the sentence is the
             // clause and nothing more.
@@ -1549,27 +1567,31 @@ impl core::fmt::Display for EditError {
                 found,
             } => write!(
                 f,
-                "{}",
+                "{}. Recourse: give the slot {} {expected} expression",
                 SlotDimensionFault {
                     slot: *slot,
                     expected: *expected,
                     found: *found
-                }
+                },
+                expected.article()
             ),
-            Self::StructuralSlotNeedsStructuralEdit { slot } => {
-                write!(
-                    f,
-                    "slot {} is structural — use a structural edit",
-                    slot.label()
-                )
-            }
-            Self::NotStructuralSlot { slot } => {
-                write!(f, "slot {} is continuous, not structural", slot.label())
-            }
+            Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
+                f,
+                "slot {} is structural, so a continuous edit cannot set it. Recourse: set it \
+                 with a structural edit",
+                slot.label()
+            ),
+            Self::NotStructuralSlot { slot } => write!(
+                f,
+                "slot {} is continuous, not structural. Recourse: set it with a continuous \
+                 edit",
+                slot.label()
+            ),
             Self::PayloadUnknownDocParam { name, node } => write!(
                 f,
                 "document parameter {name} does not exist (referenced by node {}'s \
-                 payload expression)",
+                 payload expression). Recourse: {UNDECLARED_PARAM_RECOURSE}, or reference a \
+                 declared parameter",
                 node.0
             ),
             Self::PayloadDocParamDimension {
@@ -1580,22 +1602,27 @@ impl core::fmt::Display for EditError {
             } => write!(
                 f,
                 "document parameter {name} is declared {declared} but node {}'s \
-                 payload expression references it as {referenced}",
+                 payload expression references it as {referenced}. {}",
+                node.0,
+                ParamDimensionRecourse(*referenced)
+            ),
+            Self::MeasureMalformed { node, fault } => write!(
+                f,
+                "measure node {}: {fault}. Recourse: read only a reference the measure \
+                 carries, or add the one it reads to its reference list",
                 node.0
             ),
-            Self::MeasureMalformed { node, fault } => {
-                write!(f, "measure node {}: {fault}", node.0)
-            }
             Self::AssertionTarget { node, measure } => write!(
                 f,
                 "assertion node {} references node {}, which is not a measure — an \
-                 assertion constrains a measurement",
+                 assertion constrains a measurement. Recourse: point the assertion at a \
+                 measure node",
                 node.0, measure.0
             ),
             Self::DeclareInputNotDeclare { node, input } => write!(
                 f,
-                "node {}'s declare input names node {}, which is not a declaration — \
-                 wire a Declare node there, or leave the input empty",
+                "node {}'s declare input names node {}, which is not a declaration. \
+                 Recourse: wire a Declare node there, or leave the input empty",
                 node.0, input.0
             ),
             Self::AssertionDimension {
@@ -1606,15 +1633,18 @@ impl core::fmt::Display for EditError {
             } => write!(
                 f,
                 "assertion node {} bounds {} {measured} measure (node {}) with {} \
-                 {bound} expression — an assertion compares like with like or not at all",
+                 {bound} expression — an assertion compares like with like or not at all. \
+                 Recourse: bound it with {} {measured} expression",
                 node.0,
                 measured.article(),
                 measure.0,
-                bound.article()
+                bound.article(),
+                measured.article()
             ),
             Self::SlotUnknownDocParam { name, node, slot } => write!(
                 f,
-                "document parameter {name} does not exist (referenced by node {}, slot {})",
+                "document parameter {name} does not exist (referenced by node {}, slot {}). \
+                 Recourse: {UNDECLARED_PARAM_RECOURSE}, or reference a declared parameter",
                 node.0,
                 slot.label()
             ),
@@ -1627,32 +1657,38 @@ impl core::fmt::Display for EditError {
             } => write!(
                 f,
                 "parameter {name} is declared {declared} but node {} (slot {}) references it as \
-                 {referenced}",
+                 {referenced}. {}",
                 node.0,
-                slot.label()
+                slot.label(),
+                ParamDimensionRecourse(*referenced)
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "parameter {name} is continuous, and a continuous parameter cannot be a count — \
-                 use a count parameter"
+                "parameter {name} is continuous, and a continuous parameter cannot be a count. \
+                 Recourse: declare it as a count parameter, or give it a quantity's dimension"
             ),
-            // The closing clause is `UNDECLARED_PARAM_RECOURSE`, which
-            // the viewer's `Refusal::NoSuchParam` renders too; the
-            // const's own doc says why the two doors converge there.
+            // The recourse is `UNDECLARED_PARAM_RECOURSE`, which the
+            // viewer's `Refusal::NoSuchParam` renders too; the const's
+            // own doc says why the two doors converge there.
             Self::DocParamNotDeclared { name, door } => write!(
                 f,
                 "parameter {name} is not declared, so {door} has no declaration to carry \
-                 forward — {UNDECLARED_PARAM_RECOURSE}"
+                 forward. Recourse: {UNDECLARED_PARAM_RECOURSE}"
             ),
+            // A count is structural by declaration: no edit gives it a
+            // unit or a distribution, so the sentence ends where the
+            // request does.
             Self::DocParamCountHasNoUnit { name } => write!(
                 f,
-                "parameter {name} is a count, and a count is an integer rather than a quantity — \
-                 it has no display unit to change"
+                "parameter {name} is a count, and a count is an integer rather than a quantity, \
+                 so it has no display unit to change. There is no way through: a count carries \
+                 no unit"
             ),
             Self::DocParamCountHasNoDistribution { name } => write!(
                 f,
                 "parameter {name} is a count, and a count is a structural parameter that is fixed \
-                 under any error analysis — it has no distribution to change"
+                 under any error analysis, so it has no distribution to change. There is no way \
+                 through: a count carries no distribution"
             ),
             Self::DocParamUnitMismatch {
                 name,
@@ -1661,7 +1697,7 @@ impl core::fmt::Display for EditError {
             } => write!(
                 f,
                 "parameter {name} is declared {declared} but the display unit offered measures \
-                 {unit}"
+                 {unit}. Recourse: offer a unit that measures {declared}"
             ),
             Self::DocParamValueKindMismatch {
                 name,
@@ -1670,122 +1706,182 @@ impl core::fmt::Display for EditError {
             } => write!(
                 f,
                 "parameter {name} is declared {declared} but the value edit offered a \
-                 {offered} — changing a parameter's kind is a redeclaration"
+                 {offered}, and changing a parameter's kind is a redeclaration. Recourse: offer \
+                 a value of the declared kind, or redeclare the parameter"
             ),
             Self::PathOffTree { path } => {
                 let steps: Vec<String> = path.path.iter().map(u8::to_string).collect();
                 write!(
                     f,
-                    "the expression path [{}] in node {}'s {} slot runs off the tree",
+                    "the expression path [{}] in node {}'s {} slot runs off the tree. \
+                     Recourse: address a subexpression the slot's expression holds",
                     steps.join(", "),
                     path.node.0,
                     path.slot.label()
                 )
             }
-            Self::Dimension(e) => write!(f, "{e}"),
+            Self::Dimension(e) => write!(
+                f,
+                "{e}. Recourse: splice in an expression whose dimension fits its place"
+            ),
             Self::NameStepNeverMinted { name, step } => write!(
                 f,
                 "the {name} spells the profile step id #{}, which this document never minted (its \
                  mint log does not hold it)",
                 step.0
             ),
-            Self::DeclareNamesMissingNode { name } => {
-                write!(f, "the declared {name} refers to a node that is not live")
-            }
+            Self::DeclareNamesMissingNode { name } => write!(
+                f,
+                "the declared {name} refers to a node that is not live. Recourse: name an \
+                 entity of a node the document holds"
+            ),
             Self::ReadSiteMissingNode { at } => write!(
                 f,
-                "the reference is read at node {}, which is not live",
+                "the reference is read at node {}, which is not live. Recourse: read it at a \
+                 node the document holds",
                 at.0
             ),
             Self::NonFiniteDocParam { name, field } => write!(
                 f,
                 "parameter {name}'s {field} is not finite — the value and every distribution \
-                 offset must be a number"
+                 offset must be a number. Recourse: give each of them a finite value"
             ),
             Self::InvalidDistribution { name, fault } => {
-                write!(f, "parameter {name} has an invalid distribution: {fault}")
+                let recourse = match fault {
+                    DistributionFault::NonFinite { .. } => "give each field a finite value",
+                    DistributionFault::SigmaNotPositive { .. } => "give it a sigma above zero",
+                    DistributionFault::NominalOutsideSupport { .. } => {
+                        "set lo at or below zero and hi at or above it"
+                    }
+                };
+                write!(
+                    f,
+                    "parameter {name} has an invalid distribution: {fault}. Recourse: {recourse}"
+                )
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,
-                "the rebind target ({name}) refers to a node that is not live"
+                "the rebind target ({name}) refers to a node that is not live. Recourse: \
+                 rebind to a name of a node the document holds"
             ),
             Self::RebindUnknownName { name } => write!(
                 f,
-                "the rebind source ({name}) was never minted by this document"
+                "the rebind source ({name}) was never minted by this document. Recourse: \
+                 rebind a name this document minted"
             ),
             Self::RebindKindMismatch { from, to } => write!(
                 f,
-                "a rebind cannot cross entity kinds ({} to {})",
+                "a rebind cannot cross entity kinds ({} to {}). Recourse: rebind it to \
+                 another {} name",
                 from.noun(),
-                to.noun()
+                to.noun(),
+                from.noun()
             ),
             Self::RebindIdentity { name } => write!(
                 f,
-                "rebinding the {name} to itself is a recorded no-op — refused"
+                "rebinding the {name} to itself would change nothing. Recourse: rebind it to \
+                 a different name"
             ),
             Self::RebindNoReferences { name } => write!(
                 f,
-                "no document site references the {name} — nothing to repair"
+                "no document site references the {name}, so there is nothing to repair. \
+                 Recourse: rebind a name the document references"
             ),
             Self::WitnessOnNonSketch { node } => write!(
                 f,
-                "node {} is not sketch-bearing — nothing to re-witness",
+                "node {} is not sketch-bearing, so it has nothing to re-witness. Recourse: \
+                 re-witness a sketch-bearing node",
                 node.0
             ),
-            Self::DuplicateWitnessEntry { node } => {
-                write!(f, "node {} appears twice in the re-witness bulk", node.0)
-            }
-            Self::EmptyWitnessBulk => {
-                f.write_str("a re-witness bulk with no entries is a no-op — refused")
-            }
+            Self::DuplicateWitnessEntry { node } => write!(
+                f,
+                "node {} appears twice in the re-witness bulk. Recourse: list each node once",
+                node.0
+            ),
+            Self::EmptyWitnessBulk => f.write_str(
+                "a re-witness bulk with no entries would change nothing. Recourse: list at \
+                 least one node to re-witness",
+            ),
             Self::NameUnresolvedInEvaluation { name } => write!(
                 f,
                 "the {name} does not resolve in the supplied evaluation — recording the \
-                 reference would strand it"
+                 reference would strand it. Recourse: name an entity the evaluation holds"
             ),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
                 "the supplied evaluation is of document {found}, not of document \
                  {expected} — its names would be checked against another document's \
-                 tables"
+                 tables. Recourse: evaluate this document and supply that evaluation"
             ),
             Self::RebindAppearanceCollision { name, kind } => write!(
                 f,
-                "the rebind would land two {} attributes on the {name} — clear one first",
+                "the rebind would land two {} attributes on the {name}. Recourse: clear one \
+                 of the two first",
                 kind.noun()
             ),
             Self::AppearanceWrongKind { name } => write!(
                 f,
-                "appearance attaches to faces and bodies only (refused for the {name})"
+                "appearance attaches to faces and bodies only (refused for the {name}). \
+                 Recourse: set it on a face or a body"
             ),
             Self::AppearanceNamesMissingNode { name } => write!(
                 f,
-                "the appearance target ({name}) refers to a node that is not live"
+                "the appearance target ({name}) refers to a node that is not live. Recourse: \
+                 name an entity of a node the document holds"
             ),
-            Self::AppearanceNotSet { name, kind } => {
-                write!(f, "no {} attribute is set on the {name}", kind.noun())
-            }
-            Self::InvalidTolerance { value } => {
-                write!(f, "tolerance {value:e} is not finite and strictly positive")
-            }
+            Self::AppearanceNotSet { name, kind } => write!(
+                f,
+                "no {} attribute is set on the {name}. Recourse: clear only an attribute the \
+                 name carries",
+                kind.noun()
+            ),
+            Self::InvalidTolerance { value } => write!(
+                f,
+                "tolerance {value:e} is not finite and strictly positive. Recourse: set a \
+                 finite tolerance above zero"
+            ),
             Self::MetaUnversioned { name, key, error } => write!(
                 f,
-                "metadata {key:?} on the {name} does not carry the D7 integer \"v\" \
-                 version field: {error}"
+                "metadata {key:?} on the {name} does not carry an integer \"v\" version \
+                 field: {error}. Recourse: store a map with an integer \"v\" entry"
             ),
             Self::MetaNonFinite { name, key, path } => write!(
                 f,
-                "metadata {key:?} on the {name} carries a non-finite float at {path}"
+                "metadata {key:?} on the {name} carries a non-finite float at {path}. \
+                 Recourse: store a finite number there"
             ),
-            Self::MetaNotSet { name, key } => {
-                write!(f, "no metadata {key:?} is set on the {name}")
-            }
+            Self::MetaNotSet { name, key } => write!(
+                f,
+                "no metadata {key:?} is set on the {name}. Recourse: clear only a key the \
+                 name carries"
+            ),
             Self::RebindMetadataCollision { name, key } => write!(
                 f,
-                "the rebind would land two values under metadata {key:?} on the {name} — \
-                 clear one first"
+                "the rebind would land two values under metadata {key:?} on the {name}. \
+                 Recourse: clear one of the two first"
             ),
-            Self::Roots(fault) => write!(f, "{fault}"),
+            // `RootFault`'s sentence is the load door's too; the repair
+            // is this door's, since only an edit re-lists the roots.
+            Self::Roots(fault) => {
+                write!(f, "{fault}. Recourse: ")?;
+                match fault {
+                    RootFault::NotLive { .. } => {
+                        f.write_str("list only live nodes as product roots")
+                    }
+                    RootFault::Duplicate { .. } => f.write_str("list each product root once"),
+                    RootFault::Ancestor { ancestor, .. } => write!(
+                        f,
+                        "drop root {} from the list, since its material reaches the product \
+                         through the other",
+                        ancestor.0
+                    ),
+                    RootFault::Uncovered { node } => write!(
+                        f,
+                        "list node {} or a node built from it as a product root",
+                        node.0
+                    ),
+                }
+            }
             Self::PlacementOnNonInstance { node } => write!(
                 f,
                 "node {} does not instantiate a part, so it has no placement cluster to \
@@ -1822,7 +1918,8 @@ impl core::fmt::Display for EditError {
             ),
             Self::NonFiniteAlignment { node } => write!(
                 f,
-                "the mate at node {} carries a non-finite alignment coordinate",
+                "the mate at node {} carries a non-finite alignment coordinate. Recourse: give \
+                 every alignment coordinate a finite value",
                 node.0
             ),
             Self::MateRefused { node, fault } => write!(
@@ -1832,12 +1929,14 @@ impl core::fmt::Display for EditError {
             ),
             Self::UpdateOnNonInstance { node } => write!(
                 f,
-                "node {} does not instantiate a part, so it has no pinned version to update",
+                "node {} does not instantiate a part, so it has no pinned version to update. \
+                 Recourse: aim the update at a node that instantiates a part",
                 node.0
             ),
             Self::PinUnchanged { node, pin } => write!(
                 f,
-                "node {} already pins {pin}, so this update would record no version move",
+                "node {} already pins {pin}, so this update would record no version move. \
+                 Recourse: offer a version other than the one it pins",
                 node.0
             ),
             Self::MaintenanceRefused { gauge, fault } => {
@@ -1864,6 +1963,24 @@ impl core::fmt::Display for EditError {
 }
 
 impl core::error::Error for EditError {}
+
+/// The recourse of a parameter reference whose dimension disagrees
+/// with the declaration, as either door that reaches it states it: the
+/// write that made the reference, or a redeclaration that moved the
+/// dimension out from under it (`write_doc_param` re-checks every
+/// slot). Either side of the pair can be made to agree.
+struct ParamDimensionRecourse(Dimension);
+
+impl core::fmt::Display for ParamDimensionRecourse {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let referenced = self.0;
+        write!(
+            f,
+            "Recourse: reference a parameter declared {referenced}, or declare this one \
+             {referenced}"
+        )
+    }
+}
 
 /// What an accepted edit did (spec D6: structural edits are FLAGGED
 /// in the returned record; the record also returns the minted id —

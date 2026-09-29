@@ -538,16 +538,8 @@ impl core::fmt::Display for NamingError {
                  ambiguity K below 2), so two coincidences in a row could be decided apart"
             ),
             Self::Escalated { predicate, source } => {
-                use super::discriminate::{CHORD_ON_RIM, ON_MEMBER_EDGE, ORDER_ALONG, SIDE_OF};
-                // What the naming decision was deciding, in words; the
-                // name is routing and rides `Debug`.
-                let what = match *predicate {
-                    SIDE_OF => "the side of a cut a face lies on",
-                    ORDER_ALONG => "the order of two pieces along an edge",
-                    ON_MEMBER_EDGE => "a point's place along an edge",
-                    CHORD_ON_RIM => "whether a chord lies on its rim",
-                    _ => geom_core::UNNAMED_DECISION,
-                };
+                let what = super::discriminate::decision_words(predicate)
+                    .unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(
                     f,
                     "no name can be decided because {what} is too close to call: {source}"

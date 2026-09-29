@@ -288,7 +288,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         format!(
             "the edit was refused: the node this edit writes would be invalid: \
              node {} is taken as an input twice — a node's inputs are pairwise \
-             distinct. Replace one of the two with a different node.",
+             distinct. Recourse: replace one of the two with a different node",
             a.0
         )
     );
