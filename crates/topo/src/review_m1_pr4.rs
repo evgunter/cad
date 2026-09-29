@@ -654,9 +654,19 @@ fn kev_mirror_has_no_single_op_remake() {
         )
         .unwrap();
     // seg.vertex carries fan [seg−, strut+]; strut.he_minus starts at
-    // the valence-1 tip and points at it — the mirror kill.
+    // the valence-1 tip and points at it — the mirror kill. `seg` would
+    // keep a chord to the dying vertex's point, so the kill re-describes
+    // it as the chord it runs along after the merge.
     let before = canonical_form(&body);
-    body.kev(strut.he_minus).unwrap();
+    body.kev_describing(
+        strut.he_minus,
+        &[(
+            seg.edge,
+            geom_brep::EdgeCurveSpec::line_between(p(0.0), p(2.0)),
+        )],
+        tol,
+    )
+    .unwrap();
     assert_eq!(validate(&body), Ok(()));
     let coords = [p(0.0), p(1.0), p(2.0)];
     assert!(
@@ -1283,8 +1293,20 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     body.points.remove(vpoint);
     let _ = stray;
     let started = std::time::Instant::now();
+    // The kills' subject here is their shared plan phase: this tear
+    // leaves no kill a well-formed site, so each door refuses typed
+    // (a torn orbit, a self-loop, an unclaimed half) before its own
+    // gate and never reaches the mutation. `review_d18`'s hammer is the
+    // row that drives the mutation phase on a tear it survives.
     for &he in &halves {
-        let _ = body.clone().kev(he);
+        assert!(
+            body.clone().kev(he).is_err(),
+            "kev({he:?}) on the torn chain"
+        );
+        assert!(
+            body.clone().kev_describing(he, &[], tol).is_err(),
+            "kev_describing({he:?}) on the torn chain"
+        );
         let _ = body.clone().kef(he);
     }
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
@@ -1581,8 +1603,34 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     assert!(matches!(err, EulerOpError::SameFace { .. }));
     assert_eq!(deep_snapshot(&body), before);
     // kev (the error text's advice): endpoints are distinct cube
-    // corners, so it kills the edge (and the far vertex, fan merged).
-    body.kev(bridge).unwrap();
+    // corners, so the kill is well-formed — but the far corner's two
+    // other edges would merge onto the near one keeping chords to the
+    // far corner, so the keys-only kill refuses, naming both, and the
+    // describing kill, handed the chords they run along after the
+    // merge, kills the edge (and the far vertex, fan merged).
+    let before = deep_snapshot(&body);
+    let err = body.kev(bridge).map(|_| ()).unwrap_err();
+    let EulerOpError::MergeRebasesCarriers { edges } = err else {
+        panic!("{err:?}")
+    };
+    assert_eq!(edges.len(), 2, "a cube corner's two other edges");
+    assert_eq!(deep_snapshot(&body), before);
+    let members = body.kev_merged_members(bridge).unwrap();
+    assert_eq!(
+        members.iter().map(|m| m.edge).collect::<Vec<_>>(),
+        edges,
+        "the read door names the members the refusal names, in its order"
+    );
+    let chords: Vec<_> = members
+        .iter()
+        .map(|m| {
+            (
+                m.edge,
+                geom_brep::EdgeCurveSpec::line_between(m.start, m.end),
+            )
+        })
+        .collect();
+    body.kev_describing(bridge, &chords, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
 }
 

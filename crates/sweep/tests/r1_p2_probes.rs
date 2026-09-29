@@ -358,7 +358,6 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
         window,
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
-        <f64 as topo::AtRestPolicy>::scalar_name(),
     );
     assert!(
         verdict.is_err(),
@@ -818,7 +817,6 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         window,
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
-        <f64 as topo::AtRestPolicy>::scalar_name(),
     )
     .expect("General certifies a partial column against its operand pair");
     let cert = cache.certificate();
