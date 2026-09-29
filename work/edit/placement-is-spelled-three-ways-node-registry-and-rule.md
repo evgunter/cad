@@ -123,3 +123,97 @@ MSOLVE's ground. Whether `Transform` stops being a node and becomes an
 edited slot is not decided. It stays this row's later question, with
 the two obstacles recorded above (`roots` as the sink set, and names as
 role paths through the node).
+
+## Put to Ev (2026-09-29) — where a placement lives, after two designer pairs
+
+**The first pair.** It weighed the unit's design: one parametric type
+for the registry and `Transform`, and maintenance that mints only a
+literal (`docs/DESIGN-FORK-LOG.md` row 17). Ev did not choose between
+its two sides. Ev asked what the recorded literal is for, found it "a
+weird side channel through which to keep the source", accepted that a
+part may jump when the thing putting it there is gone, and proposed a
+gauge that attaches to several members at once.
+
+**The second pair.** It weighed that widened problem (row 18) and
+converged. A11 (2)–(5) now state the result:
+- **The gauge is a node.** It holds a parametric placement, a chain of
+  rigid `Expr` steps and literal matrices; `Transform` holds the same
+  type.
+- **An instance's pose** is its gauge's frame composed with an offset.
+- **Mates place only within one gauge.** Contact across gauges is
+  declared and verified, never placed.
+- **Extra statements of where a placed instance sits** are verified,
+  never dormant.
+- **No edit records a frame.** Maintenance, its logged rows and its
+  solve at the edit door all go.
+- **The accepted jump.** A part whose placing source is gone sits at
+  its gauge's origin.
+
+**Ev's answers so far (2026-09-29, on #3441):**
+- Membership: (a) is leaned towards, since a "copy x's gauge to y, then
+  mate" shortcut stays possible as one compound edit.
+- Deleting a gauge: "definitely not refused".
+- Ev asked whether a group nothing places can be shown without a jump,
+  with the displayed location "only a convenience" that never enters
+  the logic.
+
+**The third pair (row 19).** It weighed what such a group becomes. Both
+designers agreed:
+- the viewer holds the group where it was last shown, as display state
+  (G3's probe, widened to a group);
+- placing it "where shown" is one edit whose frame the user supplies.
+
+A11 (2) now states these points and the settled ones.
+
+**What Ev rules on:** the pair split, and crossed in reconciliation, on
+one question. When nothing places a group, does the logic:
+- **answer at a default pose?** Evaluation stays total and A9's "one
+  deterministic body" holds. The jump reaches export and the gate, and
+  the GUI annotates it. Deleting a gauge re-gauges its instances to the
+  world.
+- **or refuse?** "Unplaced" is a state. Export, the gate and cross-group
+  queries refuse with a recourse, and nothing unauthored enters the
+  logic. Deleted-gauge references are kept, so the refusal names the
+  cause.
+
+**Sequencing (orchestrator).** The box and seed lanes still solve mates
+at the nominal, a silent class filed on MSOLVE as
+`work/msolve/a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`.
+The placement unit ships no parametric placement into the lanes
+without that refusal.
+
+## RULED (2026-09-29, Ev on `[ev]` #3441) — gauges, and an unplaced group lives in its own space
+
+Ev settled the design over the comments on #3441. A11 (2)–(5) and A9 now
+state it.
+
+- **Placement lives on a gauge.** A gauge is a document node holding a
+  parametric placement: a chain of rigid `Expr` steps and literal proper
+  matrices, the type `Node::Transform` shares.
+- **Membership is (a).** Each instance names its gauge (the world by
+  default) and may carry an offset in it.
+  - Mates place parts only within one gauge.
+  - Contact across gauges is declared and verified, never placed.
+  - "Copy x's gauge to y, then mate" is one compound edit.
+- **No edit records a frame.** Maintenance, its logged rows and its solve
+  at the edit door all go; replay re-applies edits alone.
+- **Deleting a gauge, a placed member or a placing mate is never refused.**
+- **A group nothing places lives in its own space.** Ev: "sounds perfect!
+  STEP can complain about unplaced parts, that sounds good."
+  - It is evaluated in its own frame.
+  - Nothing outside the group is compared with it: the at-rest gate and
+    cross-group measures do not ask.
+  - STEP export refuses unplaced parts, naming how to place them.
+  - The viewer draws the group where it was last shown, as display
+    state no logic reads (G3's free-move probe, widened to a whole
+    group).
+  - "Place where shown" is one edit whose frame the user supplies.
+
+The designer pairs are in `docs/DESIGN-FORK-LOG.md` rows 17, 18 and 19.
+Their blinding bytes are on
+`analysis/design-fork/edit-placement-type-2026-09-29`.
+
+**Next.** The unit's spec is rewritten from this ruling in
+`docs/EDIT-PLACEMENT-SPEC.md`, and it is built with a dual review. The
+box/seed MSOLVE row still gates shipping any parametric placement into
+the lanes.
