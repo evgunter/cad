@@ -521,3 +521,12 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
   - should the saddle witness's side choice be a frame decision rather than `copysign`;
   - the opaque atom under the symbolic tier;
   - which document exercises the branch.
+## 2026-09-29 — PR 3375 lands (DR-16): the circle × torus root lane
+
+- **Dual review:** both NOT-MERGEABLE-AS-IS.
+  - **Tallied:** R1's pole-conditioning MAJOR, making the tally 2 of 8, with 6 pairs toward twelve that found a MAJOR.
+  - **The fix pass** ran three rounds with delta reviews between. The first delta review found a new MAJOR: large-ρ f64 noise. It is fixed by a noise meter in the generic `half_angle_roots`, which VERBS-CONE U2 inherits.
+- **Filed:**
+  - recentering, to recover large circles (P3);
+  - `line-torus-roots-may-certify-noise-when-the-line-origin-is-far` (P1, M): the same coefficient growth may reach the line and ray torus quartics. Measure first.
+- **Unblocked:** VERBS-CONE U1 (line × cone) and U2 (circle × cone).

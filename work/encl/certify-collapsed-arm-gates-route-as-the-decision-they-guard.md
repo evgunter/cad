@@ -44,3 +44,15 @@ kernel or data defect), so the ending is not wrong, only unsplit.
 Once `decide_positive` returns the gate's verdict (or the NURBS row
 separates the reversed domain), give each gate a `CertCheck` of its own
 with its own lever, and route it through `certify::recourse`.
+
+## Validate reads the same gate (ENCL, PR 3398)
+
+`topo::validate`'s check 4 reports `classify_dihedral`'s escalations as
+`SliverDihedral { check: WedgeCheck::Dihedral, .. }`, which ends through
+its `WEDGE` sized decision. An in-band `dihedral_arm` (a `Value` margin,
+not the collapsed `Invalid` this row names) therefore reads "if this
+angle is intended, tighten the tolerance below m/K" with `m` the arm, a
+length: the size noun is the wedge's. Once the gate hands its verdict
+back, give the arm its own `WedgeCheck` (or route it with this row's
+`CertCheck`) and its own size noun.
+
