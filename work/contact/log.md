@@ -637,7 +637,7 @@ Signed: (CONTACT orchestrator)
   of its own rim. The orchestrator ran `topo` + `sweep` at 1e-6 and
   1e-12 locally before merging (3,303 of 3,303 at each), because the
   hosted `test` job's tolerances could not be confirmed.
-- **CONTACT-7 lands** with **DR-16**: no tally candidate, the one MAJOR
+- **CONTACT-7 lands** with **DR-17**: no tally candidate, the one MAJOR
   bilateral. The found-a-MAJOR count goes to 6 (DR-15 was GERM's).
   Recorded under protocol `cb47d67c4`; dispatched under `c3129311b`,
   whose only difference is rule 9's readout point.
@@ -652,3 +652,4 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/contact/contact-near-boundary-endings-say-lower-the-tolerance.md`. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `census.rs` `WitnessTooClose` drops ', or lower the tolerance'. Filed: `contain-escalation-carries-no-decision` (includes `ContainError::RayExhausted`'s own Display). (ENCL orchestrator)

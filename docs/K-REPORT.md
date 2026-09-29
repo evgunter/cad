@@ -2175,8 +2175,7 @@ Both defects are fixed in M10-7's PR (1725): k-lint learns the token and
 counts it in its own column, the outcome vocabulary gets one home on
 `SampleOutcome::token()` with a k-lint test pinning the two across the
 workspace boundary, and the ci.yml step captures `PIPESTATUS` on the
-pipeline line. The `PIPESTATUS` pattern elsewhere in `ci.yml` is CIW's
-to sweep: `work/ciw/pipestatus-after-assignment-in-ci-yml.md`.
+pipeline line.
 
 The largest symbolic columns are `carrier_matches_mapped_source`,
 `carrier_on_surface_1` and `carrier_on_surface_2` (7,128 each),

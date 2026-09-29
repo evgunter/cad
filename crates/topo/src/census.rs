@@ -3032,8 +3032,8 @@ impl Undecided {
             }
             Self::WitnessTooClose => {
                 "a corner of one lies too close to the other's boundary to place at this \
-                 tolerance. Recourse: move the parts until \
-                 their bounding boxes no longer overlap, or lower the tolerance"
+                 tolerance. Recourse: move the parts until their bounding boxes no longer \
+                 overlap"
             }
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \

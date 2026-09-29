@@ -68,6 +68,7 @@
 
 pub(crate) mod boxes;
 pub mod carrier_eq;
+mod circle_torus;
 pub(crate) mod combine;
 pub mod contact_verify;
 mod contain;
@@ -80,7 +81,9 @@ mod join;
 mod ops;
 pub(crate) mod section_cert;
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use ops::section_report;
+pub(crate) use ops::no_crossings_certificates;
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use ops::{ChartCache, section_report};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
@@ -1056,7 +1059,7 @@ pub enum BooleanError {
     /// operand gate and the ∖/∩ revert roster refuse UP FRONT, on the
     /// operands' kinds and boxes. The crossings path's interior-loop
     /// guard (`ops::interior_loop_verdict`) refuses AFTER the pipeline
-    /// would have answered: a torus, sphere, cylinder or cone face pair
+    /// would have answered: a face pair, one of them not a plane, that
     /// the section certificate cannot clear of a loop no edge event
     /// marks (the reduction saw crossings elsewhere, and the join and
     /// face-region propagation cannot see the loop).

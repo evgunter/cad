@@ -39,5 +39,8 @@ exactly that reason. So the remedy is a **demo-side** home — one of the
 three, or a new module beside them — and nothing that reaches into a
 test-support feature.
 
-`demos/tour/` is claimed by no open program, so this sits on S-DUP's
-slate as a duplication finding with no other owner.
+`demos/tour/` is claimed by no open program, so this was filed on
+S-DUP's slate as a duplication finding with no other owner, and came
+here in the 2026-09-26 cut. S-DUP has since closed, so if the demo-side
+home counts as a new door, it goes to `work/issues/` (no program owns
+`demos/tour/`).

@@ -1070,9 +1070,8 @@ fn resolve_face<P, T: Decide>(
     match entry {
         Entry::Unique(ent) => {
             // A face by the head's type and the table's own rule that
-            // a row's kind is its name's — `NameTable::insert` and
-            // `NameTable::insert_tied` are the only doors that seat a
-            // row, and both refuse a key whose kind disagrees with the
+            // a row's kind is its name's — every `NameTable` door that
+            // seats a row refuses a key whose kind disagrees with the
             // name's. A key that is not a face here is that rule
             // broken, which is this crate's bug and not a document:
             // asserted, and answered with the silence in release.

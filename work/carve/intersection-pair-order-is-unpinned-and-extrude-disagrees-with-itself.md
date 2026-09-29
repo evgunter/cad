@@ -4,7 +4,7 @@ kind: issue
 title: EdgeDescription::Intersection's (s1, s2) order is unpinned, and extrude writes it one way on cap rims and another on struts
 status: open
 opened: 2026-09-16
-refs: [brick-has-two-constructions-and-two-homes]
+refs: [2842]
 priority: P0
 cost: D
 ---

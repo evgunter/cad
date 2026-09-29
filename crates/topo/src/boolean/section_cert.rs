@@ -70,13 +70,10 @@
 //!
 //! - **R-reach**: a kind pair or pose with no arm (torus against an
 //!   oblique cylinder, a non-coaxial torus, any cone; a NURBS or
-//!   approximated face paired with a torus, sphere, cylinder or cone).
-//!   Only pairs with one of those four kinds are examined at all: a
-//!   NURBS face paired with a PLANE is outside the certificate's scope.
-//!   On the no-crossings path the extent scan's NURBS re-gate refuses
-//!   every such entry first; on the crossings path nothing examines that
-//!   pair, which is filed as its own row
-//!   (`nurbs-face-meeting-a-plane-in-an-interior-loop-is-unguarded-on-the-crossings-path`).
+//!   approximated face paired with anything but a plane, and a NURBS
+//!   face whose control net a plane cuts). Every pair with a face that
+//!   is not a plane is examined; two planes meet in a line, which W1
+//!   clears.
 //! - **R-tan**: a classification margin `Zero` or undecided — a
 //!   tangency, where components pinch and the count is not certified.
 //! - **R-loop** and **R-undec**: the no-event decision, above.
@@ -85,8 +82,11 @@
 //! # Premises, each at its site
 //!
 //! - **S**, sweep completeness. It holds with the conic × plane lane
-//!   examining every root (`reduce.rs` `sweep_direction`), not only the
-//!   first.
+//!   (`reduce.rs` `sweep_direction`) examining every root, not only the
+//!   first, and giving a conic that lies in the face's plane the line
+//!   lane's endpoint treatment: its endpoints are recorded or
+//!   certified `Out`, and its interior is evidenced through the
+//!   neighbour faces as a coplanar line's is.
 //! - **The ring torus**, `R > r > 0` (`geom::require_ring_torus`): the
 //!   component counts of the torus arms need genus 1.
 //! - **Event vertices lie on `Σ` within the band**, the posture every
@@ -167,6 +167,10 @@
 //!   (axis offset `e`): one loop when `|e − ρc| < ρs < e + ρc`,
 //!   witnessed on the nearest ruling; two loops encircling the cylinder
 //!   when `e + ρc < ρs`.
+//! - **NURBS × plane**: W0 when the control net's every point is
+//!   certified strictly on one side of the plane — the patch lies in the
+//!   net's convex hull, its weights being positive. Any other pose has
+//!   no arm: nothing counts the section's components on a spline.
 //! - **Cone pairs** have no arm yet and refuse on reach; the arms land
 //!   with the cone's operand admission, in [`classify`]'s match.
 //!
@@ -453,12 +457,47 @@ pub(crate) fn classify<T: Decide>(
             rc,
             band,
         )),
+        (S::Nurbs(patch), &S::Plane { origin, normal, .. })
+        | (&S::Plane { origin, normal, .. }, S::Nurbs(patch)) => {
+            nurbs_plane(patch, origin, unit(normal), band)
+        }
         // The cone arms (plane: every component essential or unbounded;
         // sphere: one null loop or encircling ones; coaxial and
         // parallel-axis partners: encircling) land here with the cone's
         // operand admission. Until then a cone pair, like every pair
         // with no arm, refuses on reach.
         _ => Section::Intractable,
+    }
+}
+
+/// **NURBS × plane: W0 or no arm.** A patch lies in the convex hull of
+/// its control net (the weights are strictly positive), so a net whose
+/// every point is certified strictly on one side of the plane meets it
+/// nowhere. A net the plane cuts, touches or cannot place has no arm:
+/// the section's components are not classified, and the pair refuses on
+/// reach.
+fn nurbs_plane<T: Decide>(
+    patch: &geom::NurbsSurface<T>,
+    origin: Point3<T>,
+    n: Vec3<T>,
+    band: Band,
+) -> Section<T> {
+    let sides: Vec<_> = patch
+        .control()
+        .iter()
+        .map(|&c| {
+            sign(
+                "section_nurbs_plane_hull",
+                Margin::of((c - origin).dot(n)),
+                band,
+            )
+        })
+        .collect();
+    let apart = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
+    if apart(Sign::Positive) || apart(Sign::Negative) {
+        none()
+    } else {
+        Section::Intractable
     }
 }
 

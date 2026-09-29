@@ -41,7 +41,7 @@ type-checks, so it never warns. The eight are
 `m3_pr3_split.rs` (~:385), `verbs_f7_collinear_seam.rs` (~:84),
 `bool4r1_probes.rs` (~:198) and `trim_3_chart_bound.rs` (~:582).
 
-This row is `tint`'s rather than `tcost`'s per `work/dup/program.md`'s
+This row is `tint`'s rather than `tcost`'s per `work/reroute/program.md`'s
 `keep_out`: both claim `crates/*/tests/*`, and a row that is both a
 duplication row and a test-integrity row goes to S-TINT first.
 
