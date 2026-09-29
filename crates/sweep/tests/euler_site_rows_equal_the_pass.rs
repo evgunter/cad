@@ -162,6 +162,12 @@ fn assert_the_passs_rows(label: &str, body: &Body<f64>) {
     assert_eq!(rows_deep(&pass), rows, "{label}: the pass rewrote a row");
 }
 
+/// A revolve profile: points with their bulges.
+type Profile = Vec<(Point2<f64>, f64)>;
+
+/// Whether a surface is the chart kind a row is about.
+type OnChart = fn(&Surface<f64>) -> bool;
+
 fn v(x: f64, y: f64) -> (Point2<f64>, f64) {
     (Point2::new(x, y), 0.0)
 }
@@ -388,7 +394,7 @@ fn strut_and_chord(label: &str, body0: &Body<f64>, face: FaceKey) -> usize {
 fn the_site_rows_are_the_passs_on_every_revolved_chart() {
     let trapezoid = vec![v(1.0, 0.0), v(2.0, 0.0), v(1.5, 1.0), v(1.0, 1.0)];
     let circle = vec![(Point2::new(1.5, 0.0), 1.0), (Point2::new(2.5, 0.0), 1.0)];
-    let kinds: [(&str, Vec<(Point2<f64>, f64)>, fn(&Surface<f64>) -> bool); 4] = [
+    let kinds: [(&str, Profile, OnChart); 4] = [
         ("cone", trapezoid.clone(), |s| {
             matches!(s, Surface::Cone { .. })
         }),

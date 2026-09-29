@@ -2037,6 +2037,9 @@ fn mint_face<T: AtRestPolicy>(
     Ok(())
 }
 
+/// The rows [`certify_walked`] certified, in walk order.
+type Certified<T, K> = Vec<(K, PcurveCache<T>)>;
+
 /// A fitted-grade certifier for a `General` image ([`certify_walked`]).
 type GeneralDoor<'a, T, K> = &'a dyn Fn(
     &Walked<T, K>,
@@ -2078,7 +2081,7 @@ fn certify_walked<T: Decide, K: Copy>(
     surface: &Surface<T>,
     band: Band,
     general: Option<GeneralDoor<'_, T, K>>,
-) -> Result<Vec<(K, PcurveCache<T>)>, (K, PcurveCertifyError)> {
+) -> Result<Certified<T, K>, (K, PcurveCertifyError)> {
     let Some(window) = hull_of(walked.iter().map(|w| w.pcurve.chart_box(w.t0, w.t1))) else {
         return Ok(Vec::new());
     };
@@ -2191,7 +2194,7 @@ pub(crate) enum SiteRows<T: Real> {
     Leave,
     /// Every row of the loops the surgery rewires, the two new halves'
     /// among them. A loop the surgery keeps keeps its rows.
-    Mint(Vec<(SiteHalf, PcurveCache<T>)>),
+    Mint(Certified<T, SiteHalf>),
     /// The face as the surgery leaves it has no closed-form row set
     /// that certifies, so it stores nothing ([`site_rows`] says when).
     /// Every half-edge of the face after the surgery.
