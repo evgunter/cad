@@ -476,7 +476,7 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the stored parameter interval runs backwards — increasing parameter must \
-                 run start → end of he_plus (the ratified vertices-derive-bounds convention)"
+                 run from the edge's start vertex to its end vertex"
             ),
             Self::WindingExceeded => write!(
                 f,

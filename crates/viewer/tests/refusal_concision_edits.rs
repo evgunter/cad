@@ -712,14 +712,133 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     rows
 }
 
+/// The clause labels an edit refusal legitimately opens with, each on
+/// the row namespace that writes it: the node, measure, sketch step or
+/// mate the refusal is about, and a pair's corner list.
+const LABELS: &[(&str, &str)] = &[
+    ("Edit/PlacementRuleMismatch", "node 5"),
+    ("Edit/EmptyPlacementList", "node 5"),
+    ("Edit/MeasureMalformed", "measure node 5"),
+    ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
+    (
+        "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",
+        "at corner",
+    ),
+    ("Edit/MaintenanceRefused(", "mate 9"),
+    ("Edit/MateRefused(", "mate 9"),
+];
+
+/// The rows that state no recourse — no `Recourse:`, no "There is no way
+/// through", and none of the shared unlabelled repairs — by exact row
+/// id, filed with their owners:
+/// `work/edit/edit-refusals-short-of-the-shape-guard.md` (the
+/// `EditError` arms), `work/msolve/msolve-refusals-short-of-the-shape-guard.md`
+/// (the mate faults) and `work/paths/paths-refusals-short-of-the-shape-guard.md`
+/// (the sketch program's).
+const FILED_NO_RECOURSE: &[&str] = &[
+    "Edit/AppearanceNamesMissingNode",
+    "Edit/AppearanceNotSet",
+    "Edit/AppearanceWrongKind",
+    "Edit/AssertionDimension",
+    "Edit/AssertionTarget",
+    "Edit/ContinuousParamCannotBeCount",
+    "Edit/DeclareInputNotDeclare",
+    "Edit/DeclareNamesMissingNode",
+    "Edit/DeleteWouldDangle",
+    "Edit/Dimension",
+    "Edit/DocParamCountHasNoDistribution",
+    "Edit/DocParamCountHasNoUnit",
+    "Edit/DocParamNotDeclared",
+    "Edit/DocParamUnitMismatch",
+    "Edit/DocParamValueKindMismatch",
+    "Edit/DuplicateInput",
+    "Edit/DuplicateWitnessEntry",
+    "Edit/EmptyPlacementList",
+    "Edit/EmptyWitnessBulk",
+    "Edit/EvaluationOfAnotherDocument",
+    "Edit/ImproperPlacement",
+    "Edit/InvalidDistribution",
+    "Edit/InvalidTolerance",
+    "Edit/MaintenanceRefused",
+    "Edit/MaintenanceRefused(ClassNotAdmitted)",
+    "Edit/MaintenanceRefused(Contradictory)",
+    "Edit/MaintenanceRefused(DanglingHead)",
+    "Edit/MaintenanceRefused(Indeterminate)",
+    "Edit/MaintenanceRefused(PartSelectsAnotherCopy)",
+    "Edit/MaintenanceRefused(PlacerRefused)",
+    "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
+    "Edit/MaintenanceRefused(SelfMate)",
+    "Edit/MaintenanceRefused(TableLacks)",
+    "Edit/MaintenanceRefused(Under)",
+    "Edit/MaintenanceRefused(Unleverable)",
+    "Edit/MaintenanceUnrecorded",
+    "Edit/MateRefused",
+    "Edit/MateRefused(ClassNotAdmitted)",
+    "Edit/MateRefused(Contradictory)",
+    "Edit/MateRefused(DanglingHead)",
+    "Edit/MateRefused(Indeterminate)",
+    "Edit/MateRefused(PartSelectsAnotherCopy)",
+    "Edit/MateRefused(PlacerRefused)",
+    "Edit/MateRefused(PosesOfAnotherDocument)",
+    "Edit/MateRefused(SelfMate)",
+    "Edit/MateRefused(TableLacks)",
+    "Edit/MateRefused(Under)",
+    "Edit/MateRefused(Unleverable)",
+    "Edit/MeasureMalformed",
+    "Edit/MetaNonFinite",
+    "Edit/MetaNotSet",
+    "Edit/MetaUnversioned",
+    "Edit/NameUnresolvedInEvaluation",
+    "Edit/NonFiniteAlignment",
+    "Edit/NonFiniteDocParam",
+    "Edit/NonFinitePlacement",
+    "Edit/NotStructuralSlot",
+    "Edit/PathOffTree",
+    "Edit/PayloadDocParamDimension",
+    "Edit/PayloadUnknownDocParam",
+    "Edit/PinUnchanged",
+    "Edit/PlacementAxis",
+    "Edit/PlacementOnNonInstance",
+    "Edit/PlacementRuleMismatch",
+    "Edit/ProfileProgramRefused(Resolve)",
+    "Edit/ProfileProgramRefused(Transition)",
+    "Edit/ProfileProgramRefused(Validate)",
+    "Edit/ReadSiteMissingNode",
+    "Edit/RebindAppearanceCollision",
+    "Edit/RebindIdentity",
+    "Edit/RebindKindMismatch",
+    "Edit/RebindMetadataCollision",
+    "Edit/RebindNoReferences",
+    "Edit/RebindTargetMissingNode",
+    "Edit/RebindUnknownName",
+    "Edit/RepeatedDesignation",
+    "Edit/Roots",
+    "Edit/SelectionNotCanonical",
+    "Edit/SetMembersOnNonList",
+    "Edit/SlotDimensionMismatch",
+    "Edit/SlotDocParamDimension",
+    "Edit/SlotUnknownDocParam",
+    "Edit/StructuralSlotNeedsStructuralEdit",
+    "Edit/TooFewMembers",
+    "Edit/UnknownNode",
+    "Edit/UnknownSlot",
+    "Edit/UnresolvedInput",
+    "Edit/UpdateOnNonInstance",
+    "Edit/WitnessOnNonSketch",
+    "Edit/WouldCycle",
+];
+
 /// **Every edit refusal the status line draws meets the standard.**
 /// Each `EditError` arm, and each forwarding arm over what it forwards,
 /// rendered through [`Refusal::Edit`] and held to
 /// [`test_utils::refusal::problems`]: the budget, no stage prefix, no
-/// `Debug` struct, no arena key.
+/// `Debug` struct, no arena key, one recourse. Every admission must
+/// admit something a row renders, so one its owner's fix made stale goes
+/// red.
 #[test]
 fn every_edit_refusal_renders_within_the_budget() {
     let mut problems = Vec::new();
+    let mut used = std::collections::BTreeSet::new();
     let rows = edit_refusals()
         .into_iter()
         .map(|(arm, e)| (arm.to_owned(), e))
@@ -728,7 +847,40 @@ fn every_edit_refusal_renders_within_the_budget() {
         let text = shown(e);
         let name = format!("Edit/{arm}");
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-        problems.extend(test_utils::refusal::problems(&name, &text, &[], false));
+        let scoped: Vec<&(&str, &str)> = LABELS
+            .iter()
+            .filter(|(ns, _)| name.starts_with(ns))
+            .collect();
+        for prefix in test_utils::refusal::stage_prefixes(&text, &[]) {
+            let prefix = prefix.trim_end_matches(':');
+            if let Some((ns, l)) = scoped.iter().find(|(_, l)| *l == prefix) {
+                used.insert(format!("LABELS {ns} {l}"));
+            }
+        }
+        let allowed: Vec<&str> = scoped.iter().map(|(_, l)| *l).collect();
+        let no_recourse = format!("{name} states no recourse");
+        for problem in test_utils::refusal::problems(&name, &text, &allowed, false) {
+            if FILED_NO_RECOURSE.contains(&name.as_str()) && problem.starts_with(&no_recourse) {
+                used.insert(format!("FILED_NO_RECOURSE {name}"));
+            } else {
+                problems.push(problem);
+            }
+        }
+    }
+    for entry in LABELS
+        .iter()
+        .map(|(ns, l)| format!("LABELS {ns} {l}"))
+        .chain(
+            FILED_NO_RECOURSE
+                .iter()
+                .map(|n| format!("FILED_NO_RECOURSE {n}")),
+        )
+    {
+        if !used.contains(&entry) {
+            problems.push(format!(
+                "the admission {entry} admits nothing a row renders"
+            ));
+        }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

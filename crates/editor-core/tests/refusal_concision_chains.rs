@@ -61,18 +61,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/Euler",
     "Split/Pcurves",
     "Transform/Pcurve",
-    "Transform/Certify",
-    // Keyed because `topo::TransformError::Certify`'s `Display` prints
-    // the mapped edge as `{edge:?}`, not because these are kernel bugs;
-    // filed on CHROME's slate:
-    // work/chrome/transform-certify-refusal-names-the-edge-by-arena-key.md
-    "Transform/Certify/Routed/transversality",
-    "Transform/Certify/Routed/not-transverse",
-    "Transform/Certify/Routed/not-transverse, tangent",
-    "Transform/Certify/Routed/span",
-    "Transform/Certify/Routed/invalid",
-    "Transform/Certify/Routed/endpoint",
-    "Transform/Certify/Routed/surface-residual",
     "Transform/NullScaffold",
     "Loft/Euler",
     "Loft/Pcurve",
@@ -90,56 +78,100 @@ const KERNEL_KEYED: &[&str] = &[
     "Shell/Rim",
     "Shell/Corrupt",
     "Shell/Pcurve",
-    // `topo::ShellClassifyError` and `topo::MassPropsError` still name
-    // their shell and face by key; both sit in `topo/src/props.rs`,
-    // which open PRs are reworking, and are filed rather than edited.
-    "Shell/Roles",
-    "Check/Unsupported",
 ];
 
-/// The clause labels a refusal legitimately opens with that read, by
-/// shape, like a stage prefix: one or two lowercase words and a colon.
-/// A label here is English the person reads, not a pipeline stage.
-pub(crate) const ALLOWED_LABELS: &[&str] = &[
-    // The checks window's finding labels (`check separation: …`): the
-    // check the person ran, named as the menu names it.
-    "check separation",
-    "check connectedness",
-    "check chart-coherence",
+/// The clause labels a surface legitimately opens with that read, by
+/// shape, like a stage prefix — a clause with no word only a sentence
+/// has — each on the row namespace whose surface writes it. A label
+/// here is English the person reads, not a pipeline stage.
+pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
+    // The checks window's finding labels (`check separation: root 4
+    // output 0: …`): the check the person ran, named as the menu names
+    // it, and the root it ran on.
+    ("Check/", "check separation"),
+    ("Check/", "check connectedness"),
+    ("Check/", "check chart-coherence"),
+    ("Check/", "root 4 output 0"),
+    // The mate solve names the mate it refused (`mate 9: …`).
+    ("Mate/", "mate 9"),
+    // A pair's corner list names each corner it could not fillet.
+    ("ProfileReplay/Path/NoCornerOfPair(", "at corner"),
 ];
 
-/// The rows whose stage prefix sits in a file an open PR is reworking,
-/// each with the one prefix it may still carry. An exact row id and an
-/// exact label: a new prefix on the same row, or the same prefix on
-/// another row, is still red. Each is filed with its owner, named here.
+/// The rows whose stage prefix is filed with its owner, each with the
+/// one prefix it may still carry. An exact row id and an exact label:
+/// a new prefix on the same row, or the same prefix on another row, is
+/// still red.
 pub(crate) const FILED: &[(&str, &str)] = &[
-    // `topo/src/replace_face.rs` (#2861), SHELL's:
+    // `topo/src/replace_face.rs`, SHELL's:
     // work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
     ("Shell/Face", "replace_face_offset"),
     ("Shell/Lift", "replace_face_offset"),
-    // `topo/src/props.rs` (#2861, #3049), unowned:
-    // work/issues/unowned-refusal-prose-outgrows-the-viewer.md
-    ("Shell/Roles", "shell classification"),
-    ("Check/Unsupported", "shell classification"),
-    ("Check/Unsupported", "mass properties"),
-    // `geom-brep/src/certify.rs` (#2861), unowned: the same row.
-    ("Transform/Certify", "certification"),
     // `geom/src/curves.rs` (#2861): `EllipseInvalid` opens with
     // "ellipse construction:" and offers "declare" under a split:
     // work/chrome/the-refusal-shape-guard-has-blind-spots.md
     ("Split/Join/Section(Carrier)", "ellipse construction"),
     ("Boolean/Join/Section(Carrier)", "ellipse construction"),
+    // work/paths/paths-refusals-short-of-the-shape-guard.md
+    (
+        "ProfileReplay/Path/Escalated(path_junction_turn)",
+        "path junction classification",
+    ),
+    (
+        "ProfileReplay/Path/CircleSplitCount",
+        "circle_split needs between 2 and 4294967295 arcs",
+    ),
+    ("ProfileReplay/Path/SeamRetrimsArcFirstSide", "p"),
+    (
+        "Profile/TangentialContact",
+        "tangential contact between loop 0 segment 1 and loop 0 segment 3",
+    ),
+    (
+        "Profile/RayCastingExhausted",
+        "containment of loop 1 in loop 0",
+    ),
+    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    (
+        "Split/Join/SectionInvariant",
+        "curved-section invariant at face FaceKey",
+    ),
+    (
+        "Boolean/Join/SectionInvariant",
+        "curved-section invariant at face FaceKey",
+    ),
+    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    ("Blend/SurgeryInvariant", "at face FaceKey"),
+    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    (
+        "Naming/SplitLineage",
+        "split lineage of edge EdgeKey  cycles",
+    ),
+    (
+        "Naming/FragmentLineage",
+        "fragment lineage of face FaceKey  cycles",
+    ),
 ];
 
-/// Row namespaces whose wrapper sits in a file SHELL is reworking, each
-/// with the one stage prefix its rows may carry and leave to name their
-/// face by key: a generated family, one row per `OffsetFitError` sample
-/// ([`offset_fit_routes`]), so it is admitted by namespace rather than
-/// by listing every generated id. Any other prefix, a `Debug` struct,
-/// or a row outside the namespace is still red.
-// `topo/src/replace_face.rs`, SHELL's:
-// work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
-pub(crate) const FILED_NAMESPACES: &[(&str, &str)] = &[("Shell/Face/Fit/", "replace_face_offset")];
+/// Row namespaces admitted a prefix by namespace rather than row by
+/// row, each with the one label its rows may carry, and — where the
+/// flag says so — leave to name a key. Any other prefix, a `Debug`
+/// struct, or a row outside the namespace is still red.
+pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[
+    // A generated family, one row per `OffsetFitError` sample
+    // ([`offset_fit_routes`]), whose wrapper sits in
+    // `topo/src/replace_face.rs`, SHELL's:
+    // work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
+    ("Shell/Face/Fit/", "replace_face_offset", true),
+    // A part's wrapper names the referenced document by its id
+    // (`instantiating <id>@<version>: …`); how the tree draws a part's
+    // failure is open with Ev on EDIT's #3444:
+    // work/edit/edit-refusals-short-of-the-shape-guard.md
+    (
+        "Part/",
+        "instantiating 11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        false,
+    ),
+];
 
 /// The split rows that may still offer "declare", which a split has no
 /// door for, each filed with its owner (the note above `FILED`'s
@@ -157,42 +189,369 @@ pub(crate) const FILED_DEBUG: &[&str] = &[
     "MeasureClearanceRefused",
 ];
 
-/// Every way the rows among `rows` fall short of the standard:
-/// [`test_utils::refusal::problems`] on each, with the labels
-/// [`ALLOWED_LABELS`] and [`FILED`] admit, the `Debug` rows [`FILED_DEBUG`]
-/// admits, the label and key [`FILED_NAMESPACES`] admits on its
-/// namespace, and the keys [`KERNEL_KEYED`] admits.
-pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
+/// The rows that state no recourse — no `Recourse:`, no "There is no way
+/// through", and none of the shared unlabelled repairs — by exact row
+/// id, grouped under the row that files them with their owner.
+pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
+    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    "AssertionDimension",
+    "AxisInDifferentPlane",
+    "BlendSelectionEmpty",
+    "BlendSelectionKind",
+    "BlendSelectionResolve/Ambiguous",
+    "BlendSelectionResolve/NodeGone",
+    "BlendSelectionResolve/Vanished",
+    "CrossingUnverified",
+    "CurvedSolidFrontier",
+    "DeclareResolve/Ambiguous",
+    "DeclareResolve/NodeGone",
+    "DeclareResolve/Vanished",
+    "DeclareSiteNotAnOperand",
+    "DeclareUnsupportedPair",
+    "DegenerateDirection",
+    "DerivedFrameSection",
+    "EmptyHalf",
+    "EmptyOperand",
+    "Expr",
+    "Expr/ContinuousExprInCountEval",
+    "Expr/CountExprInContinuousEval",
+    "Expr/CountOverflow",
+    "Expr/CountToScalarOutOfRange",
+    "Expr/NonFiniteResult",
+    "Expr/ParamDimensionMismatch",
+    "Expr/UnknownParam",
+    "FaceFrameKind",
+    "FaceFrameNotPlanar",
+    "FaceFrameReadback/Dangling",
+    "FaceFrameReadback/NoCanonicalFrame",
+    "FaceFrameReadback/NoCarrier",
+    "FaceFrameResolve/Ambiguous",
+    "FaceFrameResolve/NodeGone",
+    "FaceFrameResolve/Vanished",
+    "FrameDirection/Degenerate",
+    "InstanceOutOfRange",
+    "MeasureClearanceRefused",
+    "MeasureMalformed",
+    "MeasureNonFinite",
+    "MeasureNotParallel",
+    "MeasureRefResolve/Ambiguous",
+    "MeasureRefResolve/NodeGone",
+    "MeasureRefResolve/Vanished",
+    "MeasureRefUnreadable/Ambiguous",
+    "MeasureRefUnreadable/NoBodies",
+    "MeasureRefUnreadable/NoSuchBody",
+    "MeasureRefUnreadable/NoSuchName",
+    "MeasureRefUnreadable/NodeFailed",
+    "MeasureRefUnreadable/NodeNotEvaluated",
+    "MeasureRefUnreadable/NodePoisoned",
+    "MeasureRefUnreadable/Readback",
+    "MeasureRefUnreadable/WholeBody",
+    "MeasureRefUnreadable/WrongKind",
+    "MeasureSelectionKind",
+    "MeasureUnsupported",
+    "MissingInput",
+    "MissingSlot",
+    "Naming/Duplicate",
+    "Naming/Emission",
+    "Naming/FragmentLineage",
+    "Naming/MissingUpstream",
+    "Naming/SeamVertexParentage",
+    "Naming/SharedRim",
+    "Naming/SplitLineage",
+    "Naming/Unnamed",
+    "NonPositiveCount",
+    "ParamBox/AxisUnrepresentable",
+    "ParamBox/UnknownParam",
+    "ParamSourceAttach/FieldNotOnKind",
+    "ParamSourceAttach/StaleKey",
+    "PayloadExpr",
+    "PlacementRule/CountSpelling",
+    "PlacementRule/ImproperFrame",
+    "PlacementRule/NoPlacements",
+    "PlacementRule/NonFiniteFrame",
+    "PlacementsUncertified",
+    "ProfileAnchor",
+    "ProfileLaneReplay(Flipped)",
+    "ProfileLaneReplay(None)",
+    "ProfilePieces",
+    "Seed/CountParam",
+    "Seed/TangentUnrepresentable",
+    "Seed/UnknownParam",
+    "SeedPinnedSection",
+    "ShellLaneUnsupported",
+    "ShellOpenKind",
+    "ShellOpenResolve/Ambiguous",
+    "ShellOpenResolve/NodeGone",
+    "ShellOpenResolve/Vanished",
+    "ToleranceConflict",
+    "UnschedulableCycle",
+    "VerbArity",
+    "WitnessBifurcation",
+    "WrongOperand",
+    // work/paths/paths-refusals-short-of-the-shape-guard.md
+    "Profile/DegenerateSegment",
+    "Profile/EmptyProfile",
+    "Profile/MultipleOuterLoops",
+    "Profile/NearFullArc",
+    "Profile/NestingTooDeep",
+    "Profile/NonSimple",
+    "Profile/RayCastingExhausted",
+    "Profile/SliverLoop",
+    "Profile/Structure",
+    "Profile/TangencyContradicted",
+    "Profile/TangentJointOutOfRange",
+    "Profile/TooFewVertices",
+    "Profile/UndeclaredTangency",
+    "ProfileReplay/Path/ArcCenterNotEquidistant",
+    "ProfileReplay/Path/ArcLegOnOpenFillet",
+    "ProfileReplay/Path/ArcViaCollinear",
+    "ProfileReplay/Path/CircleSplitCount",
+    "ProfileReplay/Path/DegenerateArcCenter",
+    "ProfileReplay/Path/DegenerateArcChord",
+    "ProfileReplay/Path/DegenerateArcSpec",
+    "ProfileReplay/Path/NoCornerForFillet",
+    "ProfileReplay/Path/NoCornerForFillet(disjoint)",
+    "ProfileReplay/Path/NoCornerOfPair",
+    "ProfileReplay/Path/NonpositiveCircleRadius",
+    "ProfileReplay/Path/NonpositiveFilletRadius",
+    "ProfileReplay/Path/NonpositiveLeg",
+    "ProfileReplay/Path/OverdeterminedJunction",
+    "ProfileReplay/Path/PolygonTooFewVertices",
+    "ProfileReplay/Path/SeamRetrimsArcFirstSide",
+    "ProfileReplay/Path/Structure",
+    "ProfileReplay/Path/UnderdeterminedLeg",
+    "ProfileReplay/Path/ZeroDirection",
+    "ProfileReplay/Transition",
+    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    "Boolean/Join/Corrupt",
+    "Boolean/Join/CutInvariant",
+    "Boolean/Join/Euler",
+    "Boolean/Join/Section",
+    "Boolean/Join/SectionInvariant",
+    "Boolean/Join/SectionLoopMixed",
+    "Boolean/Join/UnpairedLooseEnds",
+    "Split/Finish/Corrupt",
+    "Split/Finish/Euler",
+    "Split/Finish/NotSingleSolid",
+    "Split/Finish/TornComponent",
+    "Split/Finish/UnclassifiableComponent",
+    "Split/Join/Corrupt",
+    "Split/Join/CutInvariant",
+    "Split/Join/Euler",
+    "Split/Join/Section",
+    "Split/Join/SectionInvariant",
+    "Split/Join/SectionLoopMixed",
+    "Split/Join/UnpairedLooseEnds",
+    "Split/Reduce/ConsecutiveOnSectors",
+    "Split/Reduce/CorruptOperand",
+    "Split/Reduce/CrossingInsertion",
+    "Split/Reduce/Euler",
+    "Split/Reduce/ScaffoldingOperand",
+    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    "Blend/Op",
+    "Blend/SurgeryInvariant",
+    "Extrude/CapPlane",
+    "Extrude/Op",
+    "Extrude/SidePlane",
+    "Loft/CapPlane",
+    "Loft/Euler",
+    "Loft/SectionStructure",
+    "Revolve/CapPlane",
+    "Revolve/FullRangeAngle",
+    "Revolve/Op",
+    "Revolve/VoidInsertion",
+    "Skin/BadDegree",
+    "Skin/DomainNotUnit",
+    "Skin/KnotAlgebra",
+    "Skin/SectionProfile",
+    "Tube/DegenerateWindow",
+    "Tube/FullRangeWindow",
+    // work/shell/shell-refusals-short-of-the-shape-guard.md
+    "Shell/ChartSenseMixed",
+    "Shell/Corrupt",
+    "Shell/Face",
+    "Shell/Insert",
+    "Shell/Lift",
+    "Shell/NoSolid",
+    "Shell/NotValid",
+    "Shell/OpenFaceRimNotExpressible",
+    "Shell/OpenFaceStale",
+    "Shell/OperandOuterShells",
+    "Shell/Partition",
+    "Shell/Rim",
+    // work/msolve/msolve-refusals-short-of-the-shape-guard.md
+    "Mate/ClassNotAdmitted",
+    "Mate/Contradictory",
+    "Mate/DanglingHead",
+    "Mate/Indeterminate",
+    "Mate/PartSelectsAnotherCopy",
+    "Mate/PlacerRefused",
+    "Mate/PosesOfAnotherDocument",
+    "Mate/SelfMate",
+    "Mate/TableLacks",
+    "Mate/Under",
+    "Mate/Unleverable",
+    // work/edit/edit-refusals-short-of-the-shape-guard.md
+    "Part/DepthExceeded",
+    "Part/NoResolver",
+    "Part/PartProduct",
+    "Part/PartRootFailed(cause)",
+    "Part/ReferenceCycle",
+    "Part/Unresolved(EpsilonSeam)",
+    "Part/Unresolved(PinMismatch)",
+    "Part/Unresolved(Unresolved)",
+    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    "Check/ChartCoherence(meridian closure)",
+    "Check/ChartCoherence(rim)",
+    "Check/ChartCoherenceUnexamined(corrupt)",
+    "Check/ChartCoherenceUnexamined(non-iso)",
+    "Check/ChartCoherenceUnexamined(scaffold)",
+    "Check/SeparationUnavailable/Containment(CorruptFace)",
+    "Check/SeparationUnavailable/Containment(NoSuchSolid)",
+    "Check/SeparationUnavailable/Containment(ZeroVolumeBody)",
+];
+
+/// Which admission, if any, lets `problem` — one line
+/// [`test_utils::refusal::problems`] reported on row `name`, rendered
+/// `text` — stand, as the entry's own id.
+fn admission(name: &str, text: &str, problem: &str) -> Option<String> {
+    use test_utils::refusal::stage_prefixes;
+    let labels = stage_prefixes(text, &[]);
+    let rest = problem.strip_prefix(name)?;
+    if rest.starts_with(" carries the stage prefix ") {
+        let label = labels.iter().map(|l| l.trim_end_matches(':')).find(|l| {
+            rest.starts_with(&format!(" carries the stage prefix {:?}", format!("{l}:")))
+        })?;
+        if let Some((ns, _)) = ALLOWED_LABELS
+            .iter()
+            .find(|(ns, l)| name.starts_with(ns) && *l == label)
+        {
+            return Some(format!("ALLOWED_LABELS {ns} {label}"));
+        }
+        if FILED.contains(&(name, label)) {
+            return Some(format!("FILED {name} {label}"));
+        }
+        return FILED_NAMESPACES
+            .iter()
+            .find(|(ns, l, _)| name.starts_with(ns) && *l == label)
+            .map(|(ns, _, _)| format!("FILED_NAMESPACES {ns} {label}"));
+    }
+    if rest.starts_with(" dumps an arena key") {
+        if KERNEL_KEYED.contains(&name) {
+            return Some(format!("KERNEL_KEYED {name}"));
+        }
+        if FILED_DEBUG.contains(&name) {
+            return Some(format!("FILED_DEBUG {name}"));
+        }
+        return FILED_NAMESPACES
+            .iter()
+            .find(|(ns, _, keyed)| *keyed && name.starts_with(ns))
+            .map(|(ns, _, _)| format!("FILED_NAMESPACES {ns} key"));
+    }
+    if rest.starts_with(" renders a Debug struct") && FILED_DEBUG.contains(&name) {
+        return Some(format!("FILED_DEBUG {name}"));
+    }
+    if rest.starts_with(" states no recourse") && FILED_NO_RECOURSE.contains(&name) {
+        return Some(format!("FILED_NO_RECOURSE {name}"));
+    }
+    None
+}
+
+/// Every way the rows among `rows` fall short of the standard that no
+/// admission lets stand: [`test_utils::refusal::problems`] on each, less
+/// what [`admission`] admits. Each admission used is added to `used`.
+pub(crate) fn short_of_the_standard(
+    rows: &[(String, String)],
+    used: &mut std::collections::BTreeSet<String>,
+) -> Vec<String> {
     let mut problems = Vec::new();
     for (name, text) in rows {
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-        let mut allowed = ALLOWED_LABELS.to_vec();
-        allowed.extend(FILED.iter().filter(|(row, _)| row == name).map(|(_, l)| *l));
-        let namespace = FILED_NAMESPACES
-            .iter()
-            .find(|(prefix, _)| name.starts_with(prefix));
-        allowed.extend(namespace.map(|(_, l)| *l));
-        let key_filed = format!("{name} dumps an arena key");
-        let debug_filed = [
-            format!("{name} renders a Debug struct"),
-            format!("{name} dumps an arena key"),
-        ];
-        problems.extend(
-            test_utils::refusal::problems(
-                name,
-                text,
-                &allowed,
-                KERNEL_KEYED.contains(&name.as_str()),
-            )
-            .into_iter()
-            .filter(|p| {
-                !(FILED_DEBUG.contains(&name.as_str())
-                    && debug_filed.iter().any(|d| p.starts_with(d.as_str())))
-            })
-            .filter(|p| !(namespace.is_some() && p.starts_with(key_filed.as_str()))),
-        );
+        for problem in test_utils::refusal::problems(name, text, &[], false) {
+            match admission(name, text, &problem) {
+                Some(entry) => {
+                    used.insert(entry);
+                }
+                None => problems.push(problem),
+            }
+        }
     }
     problems
+}
+
+/// [`short_of_the_standard`], for a test that reads only the problems.
+pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
+    short_of_the_standard(rows, &mut std::collections::BTreeSet::new())
+}
+
+/// **Every admission is used.** An entry above that no rendered row
+/// needs is stale — its owner's fix landed, or the row it names was
+/// renamed — and a stale entry would admit the same shortfall again the
+/// day it came back. So each list's every entry must admit something on
+/// the rows the feature tree and the checks window render.
+#[test]
+fn every_admission_admits_a_row_it_is_needed_for() {
+    let mut rows: Vec<(String, String)> = node_refusals()
+        .into_iter()
+        .map(|(name, kind)| (name, as_the_viewer_shows_it(kind)))
+        .collect();
+    rows.extend(
+        check_findings()
+            .into_iter()
+            .map(|(name, finding)| (format!("Check/{name}"), finding.to_string())),
+    );
+    let mut used = std::collections::BTreeSet::new();
+    let _ = short_of_the_standard(&rows, &mut used);
+    let mut stale: Vec<String> = Vec::new();
+    stale.extend(
+        KERNEL_KEYED
+            .iter()
+            .map(|n| format!("KERNEL_KEYED {n}"))
+            .filter(|e| !used.contains(e)),
+    );
+    stale.extend(
+        ALLOWED_LABELS
+            .iter()
+            .map(|(ns, l)| format!("ALLOWED_LABELS {ns} {l}"))
+            .filter(|e| !used.contains(e)),
+    );
+    stale.extend(
+        FILED
+            .iter()
+            .map(|(n, l)| format!("FILED {n} {l}"))
+            .filter(|e| !used.contains(e)),
+    );
+    for (ns, label, keyed) in FILED_NAMESPACES {
+        let mut entries = vec![format!("FILED_NAMESPACES {ns} {label}")];
+        if *keyed {
+            entries.push(format!("FILED_NAMESPACES {ns} key"));
+        }
+        stale.extend(entries.into_iter().filter(|e| !used.contains(e)));
+    }
+    stale.extend(
+        FILED_DEBUG
+            .iter()
+            .map(|n| format!("FILED_DEBUG {n}"))
+            .filter(|e| !used.contains(e)),
+    );
+    stale.extend(
+        FILED_NO_RECOURSE
+            .iter()
+            .map(|n| format!("FILED_NO_RECOURSE {n}"))
+            .filter(|e| !used.contains(e)),
+    );
+    for row in FILED_DECLARE {
+        let offers = rows.iter().any(|(n, t)| n == row && t.contains("declare"));
+        if !offers {
+            stale.push(format!("FILED_DECLARE {row}"));
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "admissions no rendered row needs (remove each, and close its row if it was the \
+         last):\n{}",
+        stale.join("\n")
+    );
 }
 
 mod payloads {
@@ -3425,8 +3784,9 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
 /// apiece. So this reads every detail the blend module raises those arms
 /// with — the second argument of each `unbuilt_chain`,
 /// `unbuilt_run_out`, `unbuilt_geometry` and `not_intact` call in
-/// `sweep/src/blend`, a literal or a `const` resolved in the same tree —
-/// and renders each through the feature tree's chain, under both verbs.
+/// `sweep/src/blend`, and the `detail:` of each of those arms built
+/// directly, a literal or a `const` resolved in the same tree — and
+/// renders each through the feature tree's chain, under both verbs.
 /// A raise site added later is read the day it is written.
 #[test]
 fn every_blend_detail_renders_within_the_budget() {
@@ -3457,7 +3817,10 @@ fn every_blend_detail_renders_within_the_budget() {
             ));
         }
     }
-    // A reader that found nothing would pass vacuously.
+    // A reader that found nothing, or lost most of what it reads, would
+    // pass vacuously: every helper is read, and the count holds its
+    // floor — the sites the module raised when this floor was set. A
+    // floor that a real removal crosses is lowered with it.
     for helper in [
         "unbuilt_chain",
         "unbuilt_run_out",
@@ -3469,36 +3832,32 @@ fn every_blend_detail_renders_within_the_budget() {
             "no `{helper}` detail was read from sweep/src/blend"
         );
     }
-    let keyed: Vec<(String, String)> = rows
-        .into_iter()
-        .map(|(n, t)| {
-            // `BodyNotIntact` names the entity that did not resolve: a
-            // corrupt body, whose report needs the key.
-            let n = if n.starts_with("Blend/not_intact@") {
-                "Blend/BodyNotIntact".to_owned() + &n["Blend/not_intact".len()..]
-            } else {
-                n
-            };
-            (n, t)
-        })
-        .collect();
-    let problems: Vec<String> = keyed
+    assert!(
+        details.len() >= BLEND_DETAIL_FLOOR,
+        "{} blend details read, below the floor of {BLEND_DETAIL_FLOOR}",
+        details.len()
+    );
+    // `BodyNotIntact` names the entity that did not resolve: a corrupt
+    // body, whose report needs the key. Keyed by the arm the detail is
+    // raised with, not by the row's name.
+    let problems: Vec<String> = rows
         .iter()
-        .flat_map(|(name, text)| {
+        .zip(details.iter().flat_map(|d| [d, d]))
+        .flat_map(|((name, text), (helper, _, _))| {
             eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-            test_utils::refusal::problems(
-                name,
-                text,
-                ALLOWED_LABELS,
-                name.starts_with("Blend/BodyNotIntact@"),
-            )
+            test_utils::refusal::problems(name, text, &[], *helper == "not_intact")
         })
         .collect();
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+/// How many detail-carrying raise sites [`blend_details`] read from
+/// `sweep/src/blend` when this floor was set.
+const BLEND_DETAIL_FLOOR: usize = 187;
+
 /// Every `(helper, file:line, detail)` the blend module raises a
-/// detail-carrying refusal with, read from its source.
+/// detail-carrying refusal with, read from its source: each helper call,
+/// and each of the helpers' arms built directly with a `detail:` field.
 fn blend_details() -> Vec<(&'static str, String, String)> {
     use test_utils::source::{
         balanced_end, boundary_before, code_and_literals, code_only, crate_dir, line, rust_sources,
@@ -3564,6 +3923,47 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
                     constant(arg)
                 };
                 out.push((helper, site, detail));
+            }
+        }
+        // An arm built directly rather than through its helper, with its
+        // detail as a field: `BlendError::BodyNotIntact { at, detail: … }`.
+        // A pattern (`{ .. }`, `{ detail, .. }`) or the helper's own
+        // shorthand (`{ at, detail }`) states no `detail:` field and is
+        // not a raise site.
+        for (arm, helper) in [
+            ("UnsupportedChain", "unbuilt_chain"),
+            ("UnsupportedRunOut", "unbuilt_run_out"),
+            ("UnsupportedGeometry", "unbuilt_geometry"),
+            ("BodyNotIntact", "not_intact"),
+        ] {
+            let needle = format!("{arm} {{");
+            for (at, _) in code.match_indices(&needle) {
+                // A path to the arm, not the enum's own declaration.
+                if !(code[..at].ends_with("BlendError::") || code[..at].ends_with("Self::")) {
+                    continue;
+                }
+                let open = at + arm.len() + 1;
+                let close = balanced_end(code, open).expect("the braces close");
+                for field in top_level_split(&code[open + 1..close], ',') {
+                    let field = field.start + open + 1..field.end + open + 1;
+                    let text = &code[field.clone()];
+                    if !text.trim_start().starts_with("detail:") {
+                        continue;
+                    }
+                    let value_at = field.start + text.find("detail:").unwrap() + "detail:".len();
+                    let arg = view[value_at..field.end].trim();
+                    let site = format!(
+                        "{}:{}",
+                        path.file_name().unwrap().to_string_lossy(),
+                        line(code, at)
+                    );
+                    let detail = if arg.starts_with('"') {
+                        decode(arg)
+                    } else {
+                        constant(arg)
+                    };
+                    out.push((helper, site, detail));
+                }
             }
         }
     }
