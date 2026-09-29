@@ -100,7 +100,7 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 /// own value rather than a second computation, and no comparison of
 /// VALUES can check that — a second computation would agree bit for
 /// bit. The count is the only witness, and it is exact: a single-solid
-/// file skips the per-solid gate as an identity at one instance, so the
+/// file owes no per-solid gate (`topo::per_part_gate_owed`), so the
 /// whole import runs exactly the certificates its aggregate tier-3′
 /// gate runs, which must be one measurement's worth.
 ///
@@ -123,7 +123,13 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     let (body, enclosure) = match imported.expect("the closure ran") {
         Ok(StepImport::Solid {
             body, enclosure, ..
-        }) => (body, enclosure),
+        }) => (
+            body,
+            enclosure.expect(
+                "IDENTITY: the ε-scaled prism converges in round 0 at every ε row, so its \
+                 enclosure is measured",
+            ),
+        ),
         other => panic!(
             "ONE CERTIFICATE: the ε-scaled rational prism is a single-solid file that \
              certifies at every ε row, so the reader must ship a Solid: {other:?}"

@@ -21,11 +21,12 @@ use sweep::{TubeWindow, tube_along_arc};
 use topo::{Body, ShellError, SolidKey};
 
 use crate::common::approx::band;
+use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::{hollow_box, vessel};
 use crate::shell8_common::{
-    beside, bits, charts_of, deep_dump, edge_rows, outer_and_void_of, points, solid_of,
-    solid_of_vertex, tol, top_chart, volume,
+    beside, bits, deep_dump, edge_rows, outer_and_void_of, points, solid_of, tol, top_chart, volume,
 };
-use crate::verbs_shell::{hollow_box, v, vessel};
 
 // ---------------------------------------------------------------------
 // Row 2 — two disjoint boxes in one body
@@ -39,7 +40,8 @@ use crate::verbs_shell::{hollow_box, v, vessel};
 #[test]
 fn two_disjoint_boxes_each_shell_and_the_gap_between_them_never_gates() {
     let t = 0.05;
-    let one_wall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
+    let one_wall =
+        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
 
     for dx in [10.0, 2.0 + 0.05] {
         let pair = beside(
@@ -86,7 +88,8 @@ fn a_box_beside_a_vessel_takes_one_door_each() {
     );
     let s = topo::shell(&pair, t, tol()).expect("each solid takes its own door");
     let body = &s.body;
-    let want = (v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
+    let want = (box_volume(2.0, 3.0, 4.0)
+        - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
         + PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
     println!(
         "[8] box+vessel: solids={} shells={} volume={} want={want}",
@@ -123,7 +126,8 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &torus, 20.0);
     let s = topo::shell(&pair, t, tol()).expect("each solid takes its own door");
     let body = &s.body;
-    let want = (v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
+    let want = (box_volume(2.0, 3.0, 4.0)
+        - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
         + 2.0 * PI * PI * big_r * (r * r - (r - t) * (r - t));
     println!(
         "[8] box+torus: solids={} shells={} volume={} want={want}",
@@ -156,9 +160,9 @@ fn a_hollow_solid_beside_a_plain_one_gives_three_thin_solids() {
     );
     let s = topo::shell(&pair, t, tol()).expect("both solids shell");
     let body = &s.body;
-    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9))
-        + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5))
-        + (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9));
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
+        + (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9));
     println!(
         "[8] hollow+plain: solids={} shells={} volume={} want={want} thickened={:?}",
         body.solids().count(),
@@ -190,7 +194,8 @@ fn designations_land_on_whichever_solid_carries_them() {
     );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let lid = |i: usize| top_chart(&pair, solids[i], 4.0);
-    let one_wall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
+    let one_wall =
+        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
     // An OUTER designation removes the lid over the CAVITY and leaves
     // the rim standing — the wall thickness is exactly what shows.
     let one_lid = (2.0 - 2.0 * t) * (3.0 - 2.0 * t) * t;
@@ -247,15 +252,8 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
         10.0,
     );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
-    let moves = |body: &Body<f64>, solid: SolidKey, d: f64| -> Vec<topo::ChartMove<f64>> {
-        charts_of(body, solid)
-            .into_iter()
-            .map(|faces| topo::ChartMove { faces, distance: d })
-            .collect()
-    };
-
     // A solid named in PART still refuses, naming the face nothing moved.
-    let mut partial = moves(&pair, solids[0], -0.1);
+    let mut partial = moves_by(charts_of(&pair, solids[0]), -0.1);
     partial.pop();
     let mut work = pair.clone();
     let e = topo::offset_planes_together(&mut work, &partial, band(), tol())
@@ -269,14 +267,20 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
     // Every face of ONE solid: builds, and the other is bitwise.
     let before = points(&pair);
     let mut work = pair.clone();
-    topo::offset_planes_together(&mut work, &moves(&pair, solids[0], -0.1), band(), tol())
-        .expect("one solid's charts move together");
+    topo::offset_planes_together(
+        &mut work,
+        &moves_by(charts_of(&pair, solids[0]), -0.1),
+        band(),
+        tol(),
+    )
+    .expect("one solid's charts move together");
     let after = points(&work);
     assert_eq!(before.len(), after.len(), "no vertex minted or killed");
+    let owners = topo::SolidOwners::of(&pair);
     let mut moved = 0usize;
     for ((k, b), (k2, a)) in before.iter().zip(after.iter()) {
         assert_eq!(k, k2, "the vertex arena kept its order");
-        if solid_of_vertex(&pair, *k) == solids[1] {
+        if owners.vertex(*k).expect("every vertex has an owning solid") == solids[1] {
             assert_eq!(
                 bits(b),
                 bits(a),
@@ -357,7 +361,8 @@ fn the_lift_re_authors_only_the_designated_faces_solid() {
         for (key, row) in edge_rows(&opened.body) {
             // An edge of the designated solid is expected to differ —
             // that solid is what the surgery re-authored.
-            if solid_of(&opened.body, face_of_he_pub(&opened.body, key)) == rim_solid {
+            let plus = opened.body.get_edge(key).unwrap().he_plus;
+            if solid_of(&opened.body, opened.body.face_of_half_edge(plus).unwrap()) == rim_solid {
                 continue;
             }
             let Some((_, want)) = sealed_rows.iter().find(|(k, _)| *k == key) else {
@@ -388,9 +393,4 @@ fn the_lift_re_authors_only_the_designated_faces_solid() {
             );
         }
     }
-}
-
-/// The face an edge's positive half belongs to.
-fn face_of_he_pub(body: &Body<f64>, edge: topo::EdgeKey) -> topo::FaceKey {
-    crate::shell8_common::face_of_he(body, body.get_edge(edge).unwrap().he_plus)
 }

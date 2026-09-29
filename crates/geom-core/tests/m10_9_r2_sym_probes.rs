@@ -14,7 +14,7 @@
 //! - the shipped rim identity at the shape the constructor builds, with
 //!   a bulge at |b| = 1 (a semicircle), |b| > 1 (a major arc) and b < 0.
 //!
-//! Every row is a deterministic fixture ([[test-suite-cost]]). NOT
+//! Every row is a deterministic fixture (implementer-discipline §8). NOT
 //! proposed for merge: the branch carries a probe instrument in
 //! `geom_core::sym::report` (the enclosure column).
 
@@ -52,7 +52,9 @@ fn lit(x: f64) -> Sym<Interval> {
 }
 
 fn sign_of(m: Sym<Interval>) -> Result<Sign, String> {
-    m.sign_within(band()).map_err(|e| format!("{e:?}"))
+    m.sign_within(band())
+        .map(|d| d.sign)
+        .map_err(|e| format!("{e:?}"))
 }
 
 fn shipped<R>(f: impl FnOnce() -> R) -> (R, SymCounts) {

@@ -10,12 +10,13 @@
 
 use std::collections::BTreeSet;
 
+use crate::common;
+
 use editor_core::drive::DriveConfig;
 use editor_core::range::{RangeField, RangeSeed, certified_range};
 use editor_core::{
-    CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, apply,
-    evaluate,
+    CancelToken, Dimension, DocEdit, DocParam, DocParamValue, EvalOptions, Evaluation, Expr, Node,
+    NodeResult, ParamName, ProfileDoc, RecipeNodeId, evaluate,
 };
 use geom_core::Tol;
 use viewer::bounds::{Bound, BoundsProbe, probe};
@@ -28,67 +29,28 @@ fn name(n: &str) -> ParamName {
     ParamName::new(n)
 }
 
-fn lit(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length literal")
-}
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar literal")
-}
-
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>) -> RecipeNodeId {
-    let applied = apply(
-        doc,
-        &DocEdit::InsertNode { node },
-        tol(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the node inserts");
-    let id = applied.record.minted.expect("one minted id");
-    *doc = applied.doc;
-    id
-}
-
 /// A unit square extruded by a document parameter — the same branch
 /// fixture `editor-core`'s own suite uses, so the two suites are
 /// talking about one document.
 fn slab(depth: f64) -> ProfileDoc {
     let mut doc = ProfileDoc::empty_derived("docm9", tol());
-    doc = apply(
-        &doc,
-        &DocEdit::SetDocParam {
+    common::edit_into(
+        &mut doc,
+        DocEdit::SetDocParam {
             name: name("depth"),
             value: DocParam::continuous(Dimension::Length, depth),
         },
         tol(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the parameter declares")
-    .doc;
-    let f = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [lit(0.0), lit(0.0), lit(0.0)],
-            u: [scalar(1.0), scalar(0.0), scalar(0.0)],
-            v: [scalar(0.0), scalar(1.0), scalar(0.0)],
-        }),
     );
-    let p = insert(
-        &mut doc,
-        Node::Profile(ProfileProgram {
-            plane: f,
-            loops: vec![
-                LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
-                    .expect("finite square corners"),
-            ],
-        }),
-    );
-    insert(
+    let f = common::insert_into(&mut doc, common::xy_frame(), tol());
+    let p = common::insert_into(&mut doc, common::square(f, 1.0), tol());
+    common::insert_into(
         &mut doc,
         Node::Extrude {
             profile: p,
             distance: Expr::param(name("depth"), Dimension::Length),
         },
+        tol(),
     );
     doc
 }
@@ -129,17 +91,14 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
     let doc = slab(1.0);
     let baseline = failing(&doc);
     let valid = |v: f64| {
-        let moved = apply(
+        let (moved, _) = common::edited(
             &doc,
-            &DocEdit::SetDocParamValue {
+            DocEdit::SetDocParamValue {
                 name: name("depth"),
                 value: DocParamValue::Continuous(v),
             },
             tol(),
-            &pncad::document::RefusingReach,
-        )
-        .expect("a value edit applies")
-        .doc;
+        );
         failing(&moved).is_subset(&baseline)
     };
 

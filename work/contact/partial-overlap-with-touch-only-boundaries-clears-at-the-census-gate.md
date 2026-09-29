@@ -2,11 +2,13 @@
 id: partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate
 kind: issue
 title: Two half-overlapping cubes whose boundaries meet only in touches (coplanar faces, edges in faces) clear the census's instance arm at the box gate — the census has no arm for a partial overlap that produces no pierce
-status: open
+status: closed
 opened: 2026-09-16
 refs: [2767, 750]
 priority: P0
 cost: H
+parent: CONTACT-5
+closed: 2026-09-28
 ---
 
 Found by both of BOOL-4's reviews (PR 2767) as the class beside the
@@ -28,3 +30,14 @@ boundary is made of faces of each solid lying inside the other, which
 a material test over the touch findings' incident faces (or the
 exclusion ring, when it lands) can decide. Measured, not acted on;
 difficulty M.
+
+## Closed
+
+Fixed by CONTACT-5. Arm 2's box gate clears a pair only when nothing
+on record says the two boundaries meet and every outer shell of each
+separates from the other's reach. A pair that meets is probed both
+ways, and every finding about it must read as a rest. The two
+half-overlapping cubes now refuse as `MixedTouch`
+(`bool4r2_probes::two_half_overlapping_cubes_refuse_as_a_mixed_touch`).
+A pair whose only meetings are declared is the residue, kept open at
+P0 as `declared-only-meetings-clear-at-the-census-gate-unread`.

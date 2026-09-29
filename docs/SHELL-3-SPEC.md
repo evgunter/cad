@@ -60,9 +60,26 @@ disclose if it turns out differently in the tree:
   as `topo::clearance::ClearanceRefusal`; the document-level arms
   `Selection(SelectionRefusal)` and `NothingCertified` stay in an
   editor-core enum that wraps the moved one (`Engine(topo::…)`).
-  Every `Display` text is unchanged. `MinClearanceRefusal`
-  (`measure.rs`, the stringly twin M10 filed) is NOT touched — its
-  issue is M10's.
+  Every `Display` text is unchanged. The measure layer carries the
+  editor-core enum unaltered, and its producer
+  (`min_separation`) refuses only with body-level arms (`EmptyScope`,
+  `NoAdmittedPair`, `Unsupported`, `PoisonEnclosure`), so the split
+  is where that carrier narrows. Outside `clearance.rs` it reaches:
+  - the carriers: `measure.rs`'s `MinClearanceLane::min_separation`
+    error and `eval/mod.rs`'s `NodeErrorKind::MeasureClearanceRefused`
+    (its `Display` arm reads only `name()` / `payload()`);
+  - `drive.rs`'s `box_independent_measure_class`, which matches all
+    eleven arms;
+  - `pncad/src/document.rs`, which re-exports `ClearanceRefusal`,
+    `CellBudget` and `SelectionRefusal`, and the matching `SHAPE`
+    entries in `pncad-py/tests/test_binding_census.py`;
+  - the fixtures that build arms directly: `pncad-py/src/tests.rs`
+    (`EmptyScope`, `NoAdmittedPair`, `Unsupported`,
+    `PoisonEnclosure`) and `editor-core/tests/refusal_concision_chains.rs`
+    (`Unsupported`);
+  - the tests that match arms: `m10_5_clearance_interval.rs`,
+    `m10_5_r1_probes_interval.rs`, `m10_5_r2_probes_interval.rs`,
+    `trim_3_windows_interval.rs`.
 - **`Window`.** Its `at: RecipeNodeId` / `body: u32` fields exist so
   the `f64` witness rebuild resolves the same face at its own node
   (the docs say why: two nodes can carry the same arena key). The

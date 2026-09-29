@@ -62,6 +62,7 @@ fn pr4_dry_run_rounded_rect_arc_frames_on_a_tilted_plane() {
             center,
             radius,
             turn,
+            ..
         } = seg.kind
         else {
             continue;
@@ -126,6 +127,7 @@ fn pr4_dry_run_hole_arcs_flip_axis() {
             center,
             radius,
             turn,
+            ..
         } = seg.kind
         else {
             panic!("hole is all arcs");

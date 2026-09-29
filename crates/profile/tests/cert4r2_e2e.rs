@@ -10,10 +10,6 @@
 use geom_core::Tol;
 use profile::{ArcSweep, Center, Open, SketchPlane, Start};
 
-fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
-    geom_core::Point2::new(x, y)
-}
-
 /// My own fused pocket: carriers about (-0.7, 0.2) and (0.8, -0.3)
 /// through the entry (0.0, -1.5), fillet r = 0.4 — asymmetric, entry
 /// at a generic carrier crossing, nothing axis-aligned. What a
@@ -23,13 +19,13 @@ fn an_asymmetric_fused_pocket_replays_at_f64() {
     let built = Open
         .arc_fillet_arc(
             Center {
-                c: p2(-0.7, 0.2),
+                c: geom_core::Point2::new(-0.7, 0.2),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -1.5),
+                p: geom_core::Point2::new(0.0, -1.5),
             },
             0.4f64,
             Center {
-                c: p2(0.8, -0.3),
+                c: geom_core::Point2::new(0.8, -0.3),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -69,13 +65,13 @@ fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
     let f = Open
         .arc_fillet_arc(
             Center {
-                c: p2(-0.7, 0.2),
+                c: geom_core::Point2::new(-0.7, 0.2),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -1.5),
+                p: geom_core::Point2::new(0.0, -1.5),
             },
             0.4f64,
             Center {
-                c: p2(0.8, -0.3),
+                c: geom_core::Point2::new(0.8, -0.3),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -91,9 +87,9 @@ fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
         .enumerate()
     {
         for (what, exact, enc) in [
-            ("x", a.pos().x, b.pos().x),
-            ("y", a.pos().y, b.pos().y),
-            ("bulge", a.bulge(), b.bulge()),
+            ("x", a.x, b.x),
+            ("y", a.y, b.y),
+            ("bulge", f.loop_.bulges()[k], iv.loop_.bulges()[k]),
         ] {
             let w = enc.hi() - enc.lo();
             assert!(
@@ -117,15 +113,15 @@ fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
 #[test]
 fn a_true_tangency_classifies_as_an_exact_fit_through_the_public_door() {
     let built = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(geom_core::Point2::new(0.0, 2.0))
+        .line_to(geom_core::Point2::new(0.0, 0.0), Tol::witness())
         .expect("the straight run")
         .toward(1.0, 0.0, Tol::witness())
         .expect("the incoming ray runs +x")
         .fillet_arc(
             1.0f64,
             Center {
-                c: p2(0.0, 0.0),
+                c: geom_core::Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },

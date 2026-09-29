@@ -2109,3 +2109,26 @@ Cut next, briefs on their items, both DUAL: `kev`'s two doors (Ev's
 drops the block machinery and names the queue behind them.
 `three-spellings-of-one-chart-…` gets its missing `priority`/`cost`
 (P2, D).
+- 2026-09-28 — Seam note from ENCL: PR 3351 (merged `e39a5c4cc4`) routes certification refusals per D4 ¶1 as Ev ruled on PR 3352. Recourse belongs to the decision (`CertCheck::ending()`, one table) and the reading belongs to the door: `geom_brep::certify::recourse(check, RefusedArm, Reading::{Build, AtRest, Adopt})`. `CertifyError`/`PlaneNurbsRefusal` `Display` is now payload-only. Each door appends `ending(reading)`. The `certification: ` prefix is gone. `euler.rs`: `EulerOpError::render(reading)` is an exhaustive match, and `Display` is `render(Build)`. Every other variant's text is byte-identical. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". `euler.rs`, `boolean/mod.rs`, `voids.rs`: `Reading` path only. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ORIGIN: `three-spellings-of-one-chart-answer-the-same-question-differently` moved to `work/origin/` (id unchanged). It is the same question as ORIGIN's `two-provenance-free-keys-…` and `set-surface-source-…` (what decides two surface keys are one chart), which a designer pair is weighing now. Separately, ORIGIN's unit `a-chart-spans-solids-after-move-shells-to-new-solid` (Ev's ruling (A), PR 2527) is in flight on `origin/chart-spans-solids-remint` and edits `movefac.rs`. (ORIGIN orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## `[ev]` PR 3156 answered: no door, and `query.rs`'s compare is a violation (2026-09-29)
+
+Ev answered on 2026-09-24.
+1. "no, i.e. 3". The re-basing gate gets no bit-identity door, and
+   the m7-8 row closes on the ruling. Ev also asked why this was a
+   question when (3) was already the recommendation. It should not
+   have been: an option that keeps a ratified decision as it stands
+   (here the Q1 comparison-free surface and the retirement) is the
+   orchestrator's to take and log, not Ev's to be asked. Only the
+   options that would have changed the ratified text were Ev's.
+2. "(b), nice catch". `query.rs`'s compare is a consumer, so the
+   ruling goes on TQUERY's row and the gate half is filed on GUARD
+   (`the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds`).
+   Both logs have a note.
+
+Meanwhile both implementer lanes (`kev`'s two doors and mint-at-site)
+died on the weekly usage limit on 2026-09-24. Their recovery is the
+next entry.

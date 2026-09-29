@@ -13,10 +13,12 @@ workspace = true
 # crate and can name neither a `#[cfg(test)]` item nor a `pub(crate)`
 # one:
 #
-#   1. `RawLoop`, the vertex-table FIXTURE door. Under this feature the
-#      trait is declared `pub`; under its negation it is declared
-#      `pub(crate)`, so a shipped build has no route to it and no
-#      re-export of it compiles. Its own docs carry the argument.
+#   1. the FIXTURE doors: `RawLoop`, which takes the canonical form, and
+#      `test_support::bulge_loop`, which hands a bulge chain to the
+#      lowering. Under this feature the trait is declared `pub`; under
+#      its negation it is declared `pub(crate)`, so a shipped build has
+#      no route to it and no re-export of it compiles, and the helper's
+#      module does not exist. The trait's own docs carry the argument.
 #   2. the fillet recourse SENTENCES — the prose one `Display` arm
 #      appends. A suite asserting that a caller reads them would
 #      otherwise restate them, and a restated sentence agrees with

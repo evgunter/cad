@@ -8,7 +8,7 @@
 //! per `memories/review-and-dependency-policy.md`.
 //!
 //! No fuzzing here — every row is a written-down witness (shape 2 of
-//! `memories/test-suite-cost.md`), so no seeds and no effort dial.
+//! implementer-discipline §8), so no seeds and no effort dial.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,7 +23,7 @@ use editor_core::{
     RecipeNodeId, Selector, SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload,
     apply, evaluate, face_frame, load, save, select_where, vertex_position,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, len, len2, scl};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -36,13 +36,13 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
 
-fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode { node },
@@ -134,6 +134,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             plane: xy,
             loops: vec![outer],
+            ids: Vec::new(),
         }),
     );
     let (doc, slab) = insert(
@@ -410,12 +411,11 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
 
 /// A ball of radius `r` centred `c` up the y-axis: the natural
 /// meridian (bulge-1 semicircle) revolved 2π about y.
-fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
+fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
     let meridian = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, c - r)),
+        ProgramStep::At(len2([0.0, c - r])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.0, c + r)),
+            target: ProgramTarget::Point(len2([0.0, c + r])),
             b: scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
@@ -426,6 +426,7 @@ fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             plane: xy,
             loops: vec![meridian],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(
@@ -495,6 +496,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
             }],
+            ids: Vec::new(),
         })
     };
     let (doc, p1) = insert(&doc, circle(0.0, bore_r));
@@ -622,6 +624,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
             }],
+            ids: Vec::new(),
         }),
     );
     let (doc, bore) = insert(
@@ -639,6 +642,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
                 centre: [len(0.0), len(1.0)],
                 radius: len(0.2),
             }],
+            ids: Vec::new(),
         }),
     );
     let (doc, pin) = insert(
@@ -715,7 +719,7 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+            bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -816,7 +820,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(DEPTH, Dimension::Length).expect("finite"),
+            bound: len(DEPTH),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -833,7 +837,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(DEPTH - 5.0 * eps, Dimension::Length).expect("finite"),
+            bound: len(DEPTH - 5.0 * eps),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -864,7 +868,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+            bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -980,7 +984,7 @@ fn corruptible() -> ProfileDoc {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.777, Dimension::Length).expect("finite"),
+            bound: len(0.777),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -1123,6 +1127,7 @@ fn r1_own_document_web_and_flip() {
                 centre: [len(cx), len(0.0)],
                 radius: Expr::param(ParamName::new("r"), Dimension::Length),
             }],
+            ids: Vec::new(),
         })
     };
     let (d2, p1) = insert(&doc, circle(-0.25));
@@ -1157,7 +1162,7 @@ fn r1_own_document_web_and_flip() {
         &d6,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.05, Dimension::Length).expect("finite"),
+            bound: len(0.05),
             dir: AssertionDir::AtLeast,
         },
     );

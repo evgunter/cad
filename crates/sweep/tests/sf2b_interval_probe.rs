@@ -32,18 +32,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use crate::common::interval::{iv, p2, v2};
+use geom_core::{Bounds, Interval, Real, Tol};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
 
 fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Interval> {
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
@@ -53,7 +46,7 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
+            dir: v2(0.0, 1.0),
         },
         turn,
         Tol::witness(),
@@ -76,11 +69,11 @@ fn interval_offset_charts_together_sphere_zone() {
     let (u, v) = (p2(r, 0.0) - c, p2(r, h) - c);
     let sweep = u.perp_dot(v).atan2(u.dot(v));
     let body = revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, 0.0), (sweep / iv(4.0)).tan()),
-            ProfileVertex::new(p2(r, h), iv(0.0)),
-            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(r, 0.0), (sweep / iv(4.0)).tan()),
+            (p2(r, h), iv(0.0)),
+            (p2(0.0, h), iv(0.0)),
         ]),
         Revolution::Full,
     );
@@ -133,11 +126,11 @@ fn interval_offset_charts_together_partial_wedge() {
     let tol = Tol::witness();
     let (r, h, t) = (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, h), iv(0.0)),
-            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(r, 0.0), iv(0.0)),
+            (p2(r, h), iv(0.0)),
+            (p2(0.0, h), iv(0.0)),
         ]),
         Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
     );
@@ -170,11 +163,11 @@ fn interval_offset_charts_together_cone_frustum() {
     let tol = Tol::witness();
     let (r0, r1, h, t) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r1, h), iv(0.0)),
-            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(r0, 0.0), iv(0.0)),
+            (p2(r1, h), iv(0.0)),
+            (p2(0.0, h), iv(0.0)),
         ]),
         Revolution::Full,
     );
@@ -208,11 +201,11 @@ fn interval_offset_charts_together_drum() {
     let tol = Tol::witness();
     let (r, h, t) = (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, h), iv(0.0)),
-            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(r, 0.0), iv(0.0)),
+            (p2(r, h), iv(0.0)),
+            (p2(0.0, h), iv(0.0)),
         ]),
         Revolution::Full,
     );

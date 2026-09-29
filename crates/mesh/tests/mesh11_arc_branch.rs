@@ -166,8 +166,6 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     use geom_core::{Band, Point3, Vec3};
     use topo::Chart;
 
-    let p3 = |x, y, z| Point3::<f64>::new(x, y, z);
-    let v3 = |x, y, z| Vec3::<f64>::new(x, y, z);
     let band = Band::linear(Tol::witness()).unwrap();
     let edge = |c: Curve3<f64>, a: f64, b: f64, s: u32, e: u32| {
         let (t0, t1, fwd) = if a < b { (a, b, true) } else { (b, a, false) };
@@ -177,38 +175,38 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     let pi = core::f64::consts::PI;
 
     let sphere = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::<f64>::new(0.0, 0.0, 0.0),
         radius: 1.0,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let cone = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        apex: Point3::<f64>::new(0.0, 0.0, 0.0),
+        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let cylinder = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        origin: Point3::<f64>::new(0.0, 0.0, 0.0),
+        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
         radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let torus = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::<f64>::new(0.0, 0.0, 0.0),
+        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
 
     // A great-circle arc from latitude 0.5 OVER the north pole.
     let sphere_face = vec![edge(
         Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, -1.0, 0.0),
+            center: Point3::<f64>::new(0.0, 0.0, 0.0),
+            axis: Vec3::<f64>::new(0.0, -1.0, 0.0),
             radius: 1.0,
-            u_ref: v3(1.0, 0.0, 0.0),
+            u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
         },
         0.5,
         pi - 0.5,
@@ -218,8 +216,8 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     // A generator segment THROUGH the apex.
     let cone_face = vec![edge(
         Curve3::Line {
-            origin: p3(0.0, 0.0, 0.0),
-            dir: v3(s2, 0.0, s2),
+            origin: Point3::<f64>::new(0.0, 0.0, 0.0),
+            dir: Vec3::<f64>::new(s2, 0.0, s2),
         },
         -1.0,
         1.0,
@@ -230,8 +228,8 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     // nearest analogue, and no singularity is there to cross.
     let cylinder_face = vec![edge(
         Curve3::Line {
-            origin: p3(1.0, 0.0, 0.0),
-            dir: v3(0.0, 0.0, 1.0),
+            origin: Point3::<f64>::new(1.0, 0.0, 0.0),
+            dir: Vec3::<f64>::new(0.0, 0.0, 1.0),
         },
         -5.0,
         5.0,
@@ -241,10 +239,10 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     // A minor circle wrapping one and a half turns.
     let torus_face = vec![edge(
         Curve3::Circle {
-            center: p3(1.0, 0.0, 0.0),
-            axis: v3(0.0, 1.0, 0.0),
+            center: Point3::<f64>::new(1.0, 0.0, 0.0),
+            axis: Vec3::<f64>::new(0.0, 1.0, 0.0),
             radius: 0.25,
-            u_ref: v3(1.0, 0.0, 0.0),
+            u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
         },
         0.0,
         1.5 * core::f64::consts::TAU,

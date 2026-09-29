@@ -143,7 +143,7 @@ verification, and
 `work/props/the-gating-corpus-reaches-no-collapsed-arm-gate.md` is what
 closing that costs.
 
-**Also filed**: `work/props/should-classify-replays-error-enum-arms-be-deleted.md`
+**Also filed**: `work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`
 (the precondition is discharged; the measurement is not) and
 `work/props/nurbs-span-meter-cannot-tell-a-reversed-domain-from-a-collapsed-one.md`.
 

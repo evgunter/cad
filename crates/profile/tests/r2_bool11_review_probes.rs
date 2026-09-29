@@ -29,10 +29,6 @@ use common::pinned;
 use geom_core::{Point2, Tol};
 use profile::{Open, PathError, Start};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// R2 PROBE 1: the band's edges land exactly where the doctrine puts
 /// them, at 1-ulp resolution — accept INCLUSIVE at eps, escalate
 /// strictly inside (eps, K*eps), refuse INCLUSIVE at K*eps — and the
@@ -44,12 +40,12 @@ fn r2_probe_band_edges_at_one_ulp() {
     let eps = t.eps();
     let keps = t.k() * t.eps();
     let attempt = |dy: f64| {
-        Open.at(p2(0.0, 0.0))
+        Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, t)
             .unwrap()
             .line(1.0, t)
             .unwrap()
-            .continue_to(p2(2.0, dy), t)
+            .continue_to(Point2::new(2.0, dy), t)
     };
     assert!(attempt(eps).is_ok(), "exactly eps must accept (<= zero)");
     assert!(
@@ -88,12 +84,12 @@ fn r2_probe_the_threshold_does_not_scale_with_the_leg() {
     let keps = t.k() * eps;
     for len in [1e-3, 1.0, 1e6] {
         let attempt = |dy: f64| {
-            Open.at(p2(0.0, 0.0))
+            Open.at(Point2::new(0.0, 0.0))
                 .angle(0.0, t)
                 .unwrap()
                 .line(len, t)
                 .unwrap()
-                .continue_to(p2(2.0 * len, dy), t)
+                .continue_to(Point2::new(2.0 * len, dy), t)
         };
         assert!(attempt(0.5 * eps).is_ok(), "len={len}: 0.5*eps accepts");
         assert!(
@@ -115,12 +111,12 @@ fn r2_probe_escalation_at_the_geometric_midpoint() {
     let t = Tol::witness();
     let mid = (t.eps() * t.k() * t.eps()).sqrt();
     let att = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, mid), t);
+        .continue_to(Point2::new(2.0, mid), t);
     assert!(
         matches!(att, Err(PathError::Escalated { .. })),
         "the geometric midpoint of the band must escalate: {att:?}"
@@ -137,7 +133,7 @@ fn r2_probe_the_along_extent_rides_the_same_band() {
     let t = Tol::witness();
     let eps = t.eps();
     let run = || {
-        Open.at(p2(0.0, 0.0))
+        Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, t)
             .unwrap()
             .line(1.0, t)
@@ -145,14 +141,14 @@ fn r2_probe_the_along_extent_rides_the_same_band() {
     };
     assert!(
         matches!(
-            run().continue_to(p2(-3.0, 1.0), t),
+            run().continue_to(Point2::new(-3.0, 1.0), t),
             Err(PathError::ContinuationTargetOffRay { .. })
         ),
         "behind AND off-ray: the lateral miss wins"
     );
     assert!(
         matches!(
-            run().continue_to(p2(1.0 + 0.5 * eps, 0.0), t),
+            run().continue_to(Point2::new(1.0 + 0.5 * eps, 0.0), t),
             Err(PathError::NonpositiveLeg { .. })
         ),
         "sub-eps ahead is a degenerate leg"
@@ -160,7 +156,7 @@ fn r2_probe_the_along_extent_rides_the_same_band() {
     let mid = (eps * t.k() * eps).sqrt();
     assert!(
         matches!(
-            run().continue_to(p2(1.0 + mid, 0.0), t),
+            run().continue_to(Point2::new(1.0 + mid, 0.0), t),
             Err(PathError::Escalated { .. })
         ),
         "the along extent escalates in its band too"
@@ -178,14 +174,14 @@ fn r2_probe_the_closer_boundary_is_the_point_forms() {
     let eps = t.eps();
     let keps = t.k() * eps;
     let attempt = |dy: f64| {
-        Open.at(p2(2.0, dy))
-            .line_to(p2(2.0, 2.0), t)
+        Open.at(Point2::new(2.0, dy))
+            .line_to(Point2::new(2.0, 2.0), t)
             .unwrap()
-            .line_to(p2(0.0, 2.0), t)
+            .line_to(Point2::new(0.0, 2.0), t)
             .unwrap()
-            .line_to(p2(0.0, 0.0), t)
+            .line_to(Point2::new(0.0, 0.0), t)
             .unwrap()
-            .line_to(p2(1.0, 0.0), t)
+            .line_to(Point2::new(1.0, 0.0), t)
             .unwrap()
             .continue_to(Start, t)
     };

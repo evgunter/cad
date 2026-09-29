@@ -22,7 +22,7 @@ use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::k_stats::Verdict;
 use geom_core::{Sign, Tol};
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -485,7 +485,7 @@ fn the_prior_only_empty_direction_also_triggers() {
 /// The partner names are minted at the bar's EXTRUDE node and carried
 /// through the transform's table, so making them unresolvable means
 /// removing both carrying nodes.
-fn without_nodes(doc: &ProfileDoc, nodes: &[RecipeNodeId]) -> Evaluation<f64> {
+fn without_nodes(doc: &editor_core::ProfileDoc, nodes: &[RecipeNodeId]) -> Evaluation<f64> {
     let mut ev = run(doc, None);
     for n in nodes {
         ev.nodes.remove(n);

@@ -404,11 +404,13 @@ impl std::error::Error for StoreError {}
 /// keeps nothing. The reason is what the field IS: the backing store's
 /// own words, exactly as [`StoreError::because`] is, and a store need
 /// not know them statically — a browser store refused by a privacy
-/// mode is handed a message. [`crate::platform::ChooserBackend`] is
-/// `Copy` over the same shape of fact and is NOT the precedent here,
-/// because it is a probe over a closed three-value vocabulary whose
-/// reason is a const the value never carries; that a store carries its
-/// own is the whole of this type.
+/// mode is handed a message. [`crate::platform::ChooserBackend`]
+/// answers the same question with the same polarity and stays `Copy`,
+/// and is NOT the precedent for the words' type: it is a probe over a
+/// closed three-value vocabulary whose one unusable arm has one fixed
+/// sentence, so [`crate::platform::ChooserBackend::unusable`] hands
+/// back a `&'static str`. That a store's words are its own is the
+/// whole of this type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unusable {
     /// The backing store's own words for why it can hold nothing.

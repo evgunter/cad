@@ -20,9 +20,9 @@
 //!
 //!   **What holds "the same fixture" is the compiler, not this
 //!   sentence.** E2 builds its operands from
-//!   `crate::m5_s12_curved_ops_interval::certified`'s `plate` and
-//!   `recut_ball`, and reads that module's
-//!   `RECUT_MAPPED_ENCLOSURE_HI`. One plate, one ball, one constant.
+//!   `crate::common::sphere_recut`'s `plate` and `recut_ball`, and
+//!   reads that module's `RECUT_MAPPED_ENCLOSURE_HI`, as the m5 row
+//!   does. One plate, one ball, one constant.
 //!   Each was two until 2026-09-19, held together by a sentence here —
 //!   which is precisely what a staleness pin must not rest on.
 //!
@@ -48,11 +48,10 @@
 mod certified {
     use core::f64::consts::PI;
 
-    use geom_core::{Bounds, Interval, Tol};
+    use geom_core::{Bounds, Interval, Real, Tol, Vec3};
 
-    use crate::m5_s12_curved_ops_interval::certified::{
-        RECUT_MAPPED_ENCLOSURE_HI, ball, plate, recut_ball,
-    };
+    use crate::common::sphere_recut::{RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball};
+    use sweep::test_support::ball_poled_y;
     use topo::{Body, mass_properties};
 
     /// A block covering the ball laterally, spanning `z ∈ [z0, z0 + len]`
@@ -69,8 +68,16 @@ mod certified {
     fn e1_ball_minus_cap_block_decides_definitely_at_interval() {
         const R: f64 = 0.6;
         const Z_CUT: f64 = 0.3;
-        let cut = topo::subtract(&ball(R), &block(Z_CUT, 1.0), Tol::witness())
-            .expect("the cap cut decides at Interval");
+        let cut = topo::subtract(
+            &ball_poled_y(
+                Interval::from_f64(R),
+                Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+                Tol::witness(),
+            ),
+            &block(Z_CUT, 1.0),
+            Tol::witness(),
+        )
+        .expect("the cap cut decides at Interval");
         let cut = &cut.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
         let h = R - Z_CUT;
@@ -117,7 +124,9 @@ mod certified {
             panic!("expected a certification escalation, got {source:?}");
         };
         assert_eq!(check, geom_brep::CertCheck::MappedSource);
-        let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            cause.margin.diagnostic_f64_for_error_text()
+        else {
             panic!("expected an enclosure margin, got {:?}", cause.margin);
         };
         assert_eq!(lo, 0.0);

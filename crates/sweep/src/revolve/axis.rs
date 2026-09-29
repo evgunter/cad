@@ -602,8 +602,7 @@ pub(super) fn analyze_contact<T: Real>(
 mod tests {
     use geom_core::Tol;
 
-    use profile::RawLoop;
-    use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+    use profile::{Profile, SketchPlane, test_support::bulge_loop};
 
     use super::*;
 
@@ -615,10 +614,7 @@ mod tests {
         let (cx, r) = (2.0, 1.0);
         let at = |phi: f64| Point2::new(cx + r * phi.cos(), r * phi.sin());
         let span = phi_b - phi_a; // counterclockwise, radians
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(at(phi_a), (span / 4.0).tan()),
-            ProfileVertex::new(at(phi_b), 0.0),
-        ]);
+        let lp = bulge_loop(vec![(at(phi_a), (span / 4.0).tan()), (at(phi_b), 0.0)]);
         Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
             .unwrap()

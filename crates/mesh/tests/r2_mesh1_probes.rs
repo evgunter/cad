@@ -8,7 +8,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 
 const TAU: f64 = core::f64::consts::TAU;
@@ -162,9 +162,9 @@ fn r2_ordinary_placements_agree_between_anchors() {
 #[test]
 fn r2_e2e_placed_ball_volume_is_the_balls() {
     let (cx, cy) = (1.3e3, -2.7e3);
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(cx, cy - 1.0), 1.0),
-        ProfileVertex::new(Point2::new(cx, cy + 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(cx, cy - 1.0), 1.0),
+        (Point2::new(cx, cy + 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

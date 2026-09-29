@@ -18,9 +18,9 @@ Opened 2026-08-26; 0 comments.
 
 The gap is exactly the certificate's `hull_sup`: the fit is within ε_precision of `S + d·n`, so a mesh certified to δ against the fit is certified to `δ + hull_sup` against the offset the modeller asked for. Nothing in the pipeline says so today — the delegation is plain, deliberately, per VERBS-OFF-C's spec ("delegate plainly, note the widening as a scheduled follow-on").
 
-**What to build.** Fold the re-derived `hull_sup` into the chord/UV-step budget for `Approx` faces so the emitted mesh's certificate is a statement about the description. The same omission is stated at the second delegating site, `topo::props`' quadrature lane (`quad_lane::cut_face`), whose flux and area are likewise the fit's.
+**What to build.** Fold the re-derived `hull_sup` into the chord/UV-step budget for `Approx` faces so the emitted mesh's certificate is a statement about the description. The same omission is stated at the second delegating site, `topo::props`' quadrature lane (`quad_lane::cut_face_rounds`), whose flux and area are likewise the fit's.
 
-**Where the comments already point at this**: `crates/mesh/src/tessellate.rs` (the `Surface::Nurbs(_) | Surface::Approx(_)` arm) and `crates/topo/src/props.rs` (`cut_face`'s spline-lane arm).
+**Where the comments already point at this**: `crates/mesh/src/tessellate.rs` (the `Surface::Nurbs(_) | Surface::Approx(_)` arm) and `crates/topo/src/props.rs` (`cut_face_rounds`'s spline-lane arm).
 
 Filed from VERBS-OFF-C (#1012), MINOR-3.
 

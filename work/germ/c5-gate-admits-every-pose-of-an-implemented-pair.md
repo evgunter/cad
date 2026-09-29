@@ -2,11 +2,14 @@
 id: c5-gate-admits-every-pose-of-an-implemented-pair
 kind: issue
 title: The C5 gate reads PairRoute::implemented per KIND pair - a pose the arm would refuse passes the gate; sibling arms divide unguarded
-status: open
+status: closed
 opened: 2026-09-05
 refs: [VERBS-C5ARMS, VERBS-CONE, 1864]
 priority: P0
 cost: D
+branch: germ/cone-containment-and-pose-gate
+closed: 2026-09-28
+pr: 3322
 ---
 
 
@@ -39,3 +42,7 @@ CURVED's C5 ground, best taken with VERBS-CONE's operand lanes.
 
 CURVED — the C5 section arms and their gate are this program's
 (`VERBS-C5ARMS`, `VERBS-CONE`).
+
+## Closed (PR 3322, 2026-09-28)
+
+Landed with the cone lane (single full review, APPROVE-WITH-FIXES; fix pass taken whole). See the PR body.

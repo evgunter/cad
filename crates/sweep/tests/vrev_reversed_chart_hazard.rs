@@ -47,9 +47,10 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
         topo::validate(&body).is_ok(),
         "the lofted body validates structurally before the surgery"
     );
-    assert!(
-        topo::validate_geometric_structural(&body, tol).is_ok(),
-        "and geometrically-structurally too: the pcurves match their charts"
+    assert_eq!(
+        topo::validate_geometric(&body, tol),
+        Ok(()),
+        "and geometrically too: the pcurves match their charts"
     );
 
     let faces: Vec<_> = body.faces().map(|(fk, f)| (fk, f.surface)).collect();
@@ -77,6 +78,14 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
          exactly why a caller can be surprised here"
     );
 
+    // The two halves ask different doors, and on purpose. The premise
+    // above is "this body is valid", which on NURBS walls only the
+    // composed door can say: it alone makes check 7 through the certified
+    // quadrature, and the `_structural` door's closed form refuses those
+    // walls typed. This half is about check 2's stale descriptions, and
+    // the `_structural` door reports them with check 7 gated behind them
+    // and without the composed door's certified plane × NURBS lane, whose
+    // own re-derivations would join a list this row pins exactly.
     let errs = topo::validate_geometric_structural(&body, tol)
         .expect_err("the reversed charts stranded the edge descriptions recorded against them");
     let mut stale_descriptions = 0usize;

@@ -39,6 +39,7 @@ use pncad::document::DocumentId;
 use pncad::workspace::WorkspaceError;
 
 use crate::docio::DirResolver;
+use crate::frame::Tone;
 use crate::session::Refusal;
 
 /// One document the catalogue offers, as the chooser shows it: which
@@ -189,6 +190,29 @@ impl PartChooser {
         match &self.census.offered {
             Ok(entries) => Ok(entries.as_slice()),
             Err(refusal) => Err(refusal),
+        }
+    }
+
+    /// **How loud the chooser's answer is drawn** — read off the scan,
+    /// so the arms of [`Self::offered`] are not each given a voice at
+    /// the call site.
+    ///
+    /// A listing with entries in it is [`Tone::Advisory`]: a report of
+    /// what is on offer. Every other answer is [`Tone::Actionable`],
+    /// because the chooser offers nothing until the reader acts:
+    ///
+    /// - a refusal — no file to list beside (save the document), or
+    ///   the directory's own fault (repair it) — and then a rescan;
+    /// - an EMPTY listing, which is worse news than it looks. A saved
+    ///   session's own file is in its own directory, so a clean scan
+    ///   that finds nothing means that file has gone from under the
+    ///   session, and the instances already placed will stop
+    ///   resolving.
+    #[must_use]
+    pub fn tone(&self) -> Tone {
+        match &self.census.offered {
+            Ok(entries) if !entries.is_empty() => Tone::Advisory,
+            Ok(_) | Err(_) => Tone::Actionable,
         }
     }
 }

@@ -183,6 +183,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Node::Profile(ProfileProgram {
             plane: hub_plane,
             loops: vec![hub_polygon()],
+            ids: Vec::new(),
         }),
     );
     let hub_e = insert(
@@ -199,6 +200,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Node::Profile(ProfileProgram {
             plane: blade_plane,
             loops: vec![blade_polygon()],
+            ids: Vec::new(),
         }),
     );
     let blade_e = insert(

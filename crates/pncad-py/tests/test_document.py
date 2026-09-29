@@ -1511,8 +1511,10 @@ EDIT_ATTRS = (
 
 
 class TestTheWholeProgramEdit(unittest.TestCase):
-    """`DocEdit.set_program` — a live profile's program replaced whole,
-    and the names its reshaping touches reported or rebound."""
+    """`DocEdit.set_program` — a live profile's program replaced whole.
+    Each step carries the id the document minted for it
+    (`Doc.step_ids`); the edit states, per new step, the id it keeps or
+    `None` for a new step, and a name follows the steps it spells."""
 
     @staticmethod
     def chain(points):
@@ -1530,29 +1532,34 @@ class TestTheWholeProgramEdit(unittest.TestCase):
             Node.profile(self.chain([(0, 0), (2, 0), (2, 2), (0, 2)]), plane=frame)
         )
         box = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+        piece = doc.pieces(profile)[0][2]
         rim = [
             name
             for name in evaluate(doc).all_edges(box)
-            if "RimEdge" in name and '"segment":2' in name and '"End"' in name
+            if "RimEdge" in name and piece in name and '"End"' in name
         ]
         self.assertEqual(len(rim), 1, rim)
         doc.insert(Node.fillet(box, Expr.length_in(0.1, m), rim))
         return doc, profile, box, rim[0]
 
-    def test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it(self):
+    def test_the_insert_door_mints_one_id_per_authored_step(self):
+        doc, profile, _box, _rim = self.filleted_box()
+        (ids,) = doc.step_ids(profile)
+        self.assertEqual(len(ids), 5, "the start, four legs")
+        self.assertEqual(len(set(ids)), 5, "each step its own id")
+
+    def test_a_reshaped_program_keeping_the_step_keeps_the_fillets_name(self):
         """A leg inserted before the filleted wall's step moves the
-        wall from segment 2 to segment 3; the fillet's name follows,
-        and the accepted edit says so as a `rebound` carrying both
-        spellings. The document round-trips through the persisted
-        form with the reshaping in its log."""
+        wall from segment 2 to segment 3; the step that draws it is
+        kept, so the fillet's name still denotes it and the accepted
+        edit reports nothing. The document round-trips through the
+        persisted form."""
         doc, profile, _box, rim = self.filleted_box()
+        (s,) = doc.step_ids(profile)
         reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
-        doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, None, 2, 3, 4])]))
-        (row,) = doc.last_maintenance
-        self.assertEqual(row.variant, "rebound")
-        self.assertEqual(row.name, rim)
-        self.assertIn('"segment":3', row.rebound_to)
-        self.assertIsNone(row.node)
+        doc.apply(DocEdit.set_program(profile, reshaped, [[s[0], s[1], None, s[2], s[3], s[4]]]))
+        self.assertEqual(doc.last_maintenance, [])
+        self.assertEqual(evaluate(doc).resolve(rim).status, "resolved")
         # `Doc.save` writes the document as a SNAPSHOT with no log
         # (the binding holds a value, not a history), so the reshaped
         # program crosses in the snapshot and the loaded document
@@ -1562,41 +1569,34 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(loaded.edit_count, 0)
         self.assertEqual(loaded.doc.save(), text)
 
-    def test_a_step_the_provenance_drops_strands_the_fillets_name(self):
-        """The same program with the wall's step stated as new — wall
-        2 is drawn by the step arriving at `(0, 2)`, old step 3, new
-        step 4 — so the fillet's name is retired to the floor of the
-        retired index space (`editor_core::RETIRED_FLOOR + 2`, the
-        exact spelling asserted) and reported as a `strand` on the
-        fillet node, with `rebound_to` empty. Pushed back through
-        `Evaluation.resolve`, the retired spelling is a typed
-        `vanished` failure and never an error: the resolver does no
-        arithmetic on a locator's index."""
+    def test_a_step_the_edit_drops_strands_the_fillets_name(self):
+        """The same program with the wall's step stated as new: the
+        fillet's name keeps its spelling and is reported as a `strand`
+        on the fillet node. Pushed back through `Evaluation.resolve`,
+        it is a typed `vanished` failure — the new step's leg is under
+        an id never minted before, so the name never comes to denote
+        it."""
         doc, profile, _box, rim = self.filleted_box()
         fillet = doc.order()[-1]
+        (s,) = doc.step_ids(profile)
         reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
-        doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, None, 2, None, 4])]))
+        doc.apply(DocEdit.set_program(profile, reshaped, [[s[0], s[1], None, s[2], None, s[4]]]))
         (row,) = doc.last_maintenance
         self.assertEqual(row.variant, "strand")
         self.assertEqual(row.node, fillet)
-        # `RETIRED_FLOOR` is `u32::MAX / 2`; the retired wall is the
-        # floor plus its old segment.
-        retired_floor = 2**31 - 1
-        self.assertEqual(
-            row.name, rim.replace('"segment":2', f'"segment":{retired_floor + 2}')
-        )
-        self.assertIsNone(row.rebound_to)
+        self.assertEqual(row.name, rim)
         verdict = evaluate(doc).resolve(row.name)
         self.assertEqual(verdict.status, "failed")
         self.assertEqual(verdict.variant, "vanished")
 
-    def test_a_malformed_provenance_refuses_before_the_program_is_read(self):
+    def test_ids_of_the_wrong_shape_refuse_before_the_program_is_read(self):
         doc, profile, _box, _rim = self.filleted_box()
+        (s,) = doc.step_ids(profile)
         reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, 2, 3, 4])]))
-        self.assertEqual(caught.exception.variant, "provenance_malformed")
-        self.assertEqual(caught.exception.inner_variant, "step_count")
+            doc.apply(DocEdit.set_program(profile, reshaped, [s]))
+        self.assertEqual(caught.exception.variant, "step_ids_refused")
+        self.assertEqual(caught.exception.inner_variant, "shape")
         self.assertEqual(caught.exception.node, profile)
         self.assertEqual(doc.last_maintenance, [])
 

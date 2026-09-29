@@ -320,22 +320,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     let mut roots = Vec::new();
     for _ in 0..2 {
         let plane = common::insert_into(&mut doc, common::xy_frame(), tol);
-        let profile = common::insert_into(
-            &mut doc,
-            pncad::document::Node::Profile(pncad::document::ProfileProgram {
-                plane,
-                loops: vec![
-                    pncad::prelude::LoopProgram::polygon([
-                        (0.0, 0.0),
-                        (1.0, 0.0),
-                        (1.0, 1.0),
-                        (0.0, 1.0),
-                    ])
-                    .expect("a square"),
-                ],
-            }),
-            tol,
-        );
+        let profile = common::insert_into(&mut doc, common::square(plane, 1.0), tol);
         roots.push(common::insert_into(
             &mut doc,
             pncad::document::Node::Extrude {

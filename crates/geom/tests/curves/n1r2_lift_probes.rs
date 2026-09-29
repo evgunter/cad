@@ -224,16 +224,14 @@ fn n1r2_approx_lift_carries_record_and_evaluates_to_source() {
         },
         fit: (*fit).clone(),
         window: ApproxWindow::of(&*fit),
-        tolerance: 1e-7,
     };
-    let approx = ApproxSurface::certify(spec, |_, _, _, _| Ok::<_, ()>(certificate)).unwrap();
+    let approx = ApproxSurface::certify(spec, |_, _, _| Ok::<_, ()>(certificate)).unwrap();
     let s = Surface::Approx(Arc::new(approx));
     let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
     let Surface::Approx(l) = &sd else {
         panic!("variant")
     };
     assert_eq!(format!("{:?}", l.certificate()), format!("{certificate:?}"));
-    assert_eq!(l.tolerance(), 1e-7);
     let SurfaceDescription::Offset { base, d } = l.description();
     assert_eq!(d.value.to_bits(), 0.5f64.to_bits());
     assert_eq!(base.weights(), fit.weights());

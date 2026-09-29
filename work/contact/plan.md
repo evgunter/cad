@@ -3,39 +3,68 @@
 Touches, overlaps and declared contacts: the ordinary solids the boolean lane will not combine.
 
 Opened 2026-09-20 by REACH's priority-seam cut (`work/README.md`,
-Track size). Nothing dispatched yet.
+Track size). Landed: CONTACT-1 through CONTACT-5 (the log has each).
+In flight: CONTACT-6, the cut-cavity false `Out`, which turned out to
+be `split`'s section-face sense bit (in review).
 
 ## The slate
 
-**23.5 budget points** of dispatchable work against a ceiling of 30.
+`python3 scripts/work.py status --program contact` is the live table;
+this section says only what the table cannot.
 
-| pri | item | cost | title |
-|---|---|---|---|
-| P0 | `area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step` | D | A declared area-overlap cap contact is admitted without a merge, and the F7 gate refuses the two coplanar rows at the next boolean |
-| P0 | `axis-coincident-lap-trips-the-planar-join-invariant` | H | A box lap whose plane CONTAINS the cylinder axis reaches the all-planar join lane's conic guard through the public subtract door |
-| P0 | `overlap-lane-boundary-crossing-cuts` | H | The overlap lane cuts only at coincident boundary vertices: boundary-crossing cuts (the D3 reach gap blocking the ef_bound_backed migration) |
-| P0 | `partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate` | H | Two half-overlapping cubes whose boundaries meet only in touches (coplanar faces, edges in faces) clear the census's instance arm at the box gate — the census has no arm for a partial overlap that produces no pierce |
-| P0 | `touch-kinds-without-a-local-side-analysis-block-the-material-test` | H | VertexVertex, VertexOnEdge, EdgeEdgeOverlap and ConformalPatch touches between two solids block the census's material test because only the vertex-on-face and edge-in-face kinds have a local side analysis |
-| P3 | `declared-faces-has-no-cross-solid-check` | E | Declared.faces has no cross-solid check, so a contact record naming two faces of the SAME solid would back events within it |
+**Two tracks, by the file they edit.** Arm 2 of
+`sweep_cross_solid_backstop` in `census.rs` is one track: three open
+rows edit it, and they run one at a time. The boolean's rest door and
+face merge (`boolean/rest.rs`, `merge_faces.rs`) is the other, and it
+runs in parallel.
 
-## Order
+### The census track, in order
 
-`touch-kinds-without-a-local-side-analysis-block-the-material-test`
-first. Four touch kinds have no local side analysis and that one
-absence blocks the material test for all of them, so it is the row the
-other refusals in this track sit behind.
+1. **`touch-cone-readings-are-levered-directions-not-face-distances`**
+   (P1, H), with **`census-touch-cones-are-a-third-vertex-sector-builder`**
+   (P1) riding along. This comes first although the next row is a P0.
+   The analysis reads unit directions times a lever, and five review
+   rounds have each found that lever wrong somewhere (the `sin α` gap is
+   open). CONTACT-5 now routes every meeting pair through this analysis,
+   so every later census unit stands on it. The fix reads face
+   distances, which is a redesign, so a designer pair weighs it first
+   (`docs/prompts/designer.md`).
+2. **`declared-only-meetings-clear-at-the-census-gate-unread`** (P0,
+   H). Read each face-pair-backed event through `TouchSite::verdict`,
+   and decide what a curved declared rest owes. The second half is a
+   design question. No wrong clear has been built, so it waits for the
+   analysis it will extend.
+3. **`overlap-lane-boundary-crossing-cuts`** (P0, H), the D3 cut
+   schedule. This is the blocker for the `ef_bound_backed` migration,
+   not a wrong answer standing today.
 
-Then `partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate`,
-which is the same absence seen from the census gate, and
-`axis-coincident-lap-trips-the-planar-join-invariant`, which is
-independent and can run in parallel.
-`declared-faces-has-no-cross-solid-check` is class `E` and a drive-by
-for whoever opens `census.rs` first.
+### The boolean track
+
+- **`area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step`**
+  (P0). The row names three fixes: merge the caps, accept an operand
+  pair a prior step admitted, or rename the refusal. That is a design
+  fork, so a designer pair weighs it first.
+
+### Smaller rows, taken when a unit opens their file
+
+- `revolved-tube-wall-refuses-bool-wall-trim-period` (P1).
+- The P2s: `a-touch-at-a-saddle-corner-refuses-unanalysed`,
+  `ray-wall-and-cone-near-root-cancels-over-a-small-lead`,
+  `torus-split-lead-escalates-a-legitimately-small-resolvent-root`.
+- The P3s, and the unprioritised `cone-chart-trim-…`,
+  `sphere-chart-trim-…` and `contact-refusal-prose-outgrows-the-viewer`.
+
+### Ev's channel
+
+`the-dual-review-streams-first-readout-is-owed` (`needs_ev`). The
+readout is off-file on `analysis/dual-review/readout-1`; the orchestrator
+does not read it.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. REACH inherited protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. This program's units are candidates where
-the failure mode is a confident WRONG answer rather than a refusal —
-the first orchestrator names which of its rows those are.
+Named per unit in its item file. The lesson of this track, stated so
+that briefs carry it: **every defect the reviews found in CONTACT-1, 4
+and 5 was a lever or a bound that is conservative for one verdict and
+unsound for another** (a Zero that abandons a ray, against a Zero that
+is a verdict). A brief for any unit that levers a `decide` asks, per
+verdict, which bound makes that verdict sound.

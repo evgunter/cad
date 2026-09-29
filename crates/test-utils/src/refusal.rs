@@ -22,8 +22,9 @@ pub const BUDGET: usize = 75;
 
 /// Every stage prefix in `text`, structurally: each clause — the text's
 /// start, or what follows `": "`, `"— "`, `"; "` or `"("` — made of one
-/// or two lowercase tokens (`a-z`, digits, `_`, `-`) and ending in a
-/// colon, minus the labels in `allowed`.
+/// or two lowercase tokens (`a-z`, digits, `_`, `-`, and the prime `′`
+/// a tier label carries, `tier-3′ census:`) and ending in a colon,
+/// minus the labels in `allowed`.
 #[must_use]
 pub fn stage_prefixes(text: &str, allowed: &[&str]) -> Vec<String> {
     let mut found = Vec::new();
@@ -46,7 +47,7 @@ pub fn stage_prefixes(text: &str, allowed: &[&str]) -> Vec<String> {
                 let mut chars = t.chars();
                 chars.next().is_some_and(|c| c.is_ascii_lowercase())
                     && chars.all(|c| {
-                        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-'
+                        c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-' | '′')
                     })
             });
         if stage_like && !allowed.contains(&clause) {
@@ -150,6 +151,10 @@ mod tests {
             .is_empty()
         );
         assert!(stage_prefixes("check separation: root 4", &["check separation"]).is_empty());
+        assert_eq!(
+            stage_prefixes("tier-3′ census: an edge crossing a face", &[]),
+            vec!["tier-3′ census:"]
+        );
         assert!(debug_struct(
             "refused `budget` (Depth { max_cell_depth: 20 })"
         ));

@@ -27,7 +27,7 @@
 //!
 //! **NO TEST IN THIS FILE IS EXECUTED BY CI** — every row is an
 //! `#[ignore]`d evidence probe that prints and asserts nothing a gate
-//! could read ([[test-suite-cost]]); the positive pins the measurement
+//! could read (implementer-discipline §8); the positive pins the measurement
 //! justifies live in `m10_8_pins_interval.rs`. Run them:
 //!
 //! ```sh

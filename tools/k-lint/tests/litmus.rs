@@ -34,8 +34,9 @@ use geom_core::Point2;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use k_lint::{BASELINE_FLOOR_MARGIN, Reason, is_eps_coupled, lint_sample};
-use profile::RawLoop;
-use profile::{Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start, bulge_from_via};
+use profile::{
+    Open, Profile, ProfileLoop, SketchPlane, Start, bulge_from_via, test_support::bulge_loop,
+};
 
 fn p2(x: f64, y: f64) -> Point2<Probe> {
     Point2::new(Probe(x), Probe(y))
@@ -71,8 +72,8 @@ fn old_bracket_loop() -> ProfileLoop<Probe> {
     // vertex table, so it is written as one; the bulge comes from the
     // same public constructor the raw builder called.
     let (start, via, end) = (p2(1.5, 1.0), p2(1.146, 1.146), p2(1.0, 1.5));
-    let v = |pos, bulge| ProfileVertex::new(pos, bulge);
-    ProfileLoop::new(vec![
+    let v = |pos, bulge| (pos, bulge);
+    bulge_loop(vec![
         v(p2(0.0, 0.0), Probe(0.0)),
         v(p2(3.0, 0.0), Probe(0.0)),
         v(p2(3.0, 1.0), Probe(0.0)),

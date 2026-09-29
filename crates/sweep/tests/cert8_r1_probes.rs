@@ -14,7 +14,7 @@
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::test_support::stacked_at;
 use topo::{Body, FaceKey};
 
@@ -109,9 +109,9 @@ fn probe(name: &str, surface: &Surface<f64>) {
 #[test]
 fn probe_loft_wall_digits_and_sampled_soundness() {
     // The bowed IsoLine wall, the unit's polynomial acceptance row.
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let square = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(-1.0, -1.0),
             v(1.0, -1.0),
             v(1.0, 1.0),
@@ -134,9 +134,9 @@ fn probe_loft_wall_digits_and_sampled_soundness() {
     probe("iso-line-wall", sref);
 
     // The bulged IsoArc (rational) wall, the rational acceptance row.
-    let vb = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    let vb = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     let bulged = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             vb(0.0, 0.0, 0.0),
             vb(2.0, 0.0, 0.4),
             vb(2.0, 2.0, 0.0),

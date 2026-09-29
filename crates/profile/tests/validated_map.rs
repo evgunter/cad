@@ -32,8 +32,8 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
         (3.0, 1.0, 0.0),
         (3.0, 0.0, 0.0),
     ]);
-    // A rotated start: canonicalization starts each loop at its
-    // lex-min vertex, so the carried start is a decision too.
+    // A rotated start: canonicalization keeps each loop's authored
+    // start, so the carried start is the author's too.
     let rotated = chain(&[
         (2.0, 0.0, 0.0),
         (2.0, 1.0, 0.0),
@@ -104,9 +104,9 @@ fn rounded_hole(x0: f64, y0: f64, w: f64, h: f64, r: f64) -> profile::ProfileLoo
 }
 
 /// Every scalar a validated profile stores, in one fixed order: the
-/// plane's placement, then per loop each vertex's position and bulge,
-/// then each segment's endpoints, bulge and (for an arc) center and
-/// radius. (`editor-core`'s `pinned_lift_validates_once` suite carries
+/// plane's placement, then per loop each vertex's position, then each
+/// segment's endpoints, bulge and (for an arc) center, radius and
+/// sweep. (`editor-core`'s `pinned_lift_validates_once` suite carries
 /// the same walk: `test-utils` is a dependency-free leaf and cannot
 /// host a walk over this crate's types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
@@ -127,12 +127,18 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
     ];
     for lp in vp.loops() {
         for v in lp.vertices() {
-            out.extend([v.pos().x, v.pos().y, v.bulge()]);
+            out.extend([v.x, v.y]);
         }
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
-            if let SegmentKind::Arc { center, radius, .. } = s.kind {
-                out.extend([center.x, center.y, radius]);
+            if let SegmentKind::Arc {
+                center,
+                radius,
+                sweep,
+                ..
+            } = s.kind
+            {
+                out.extend([center.x, center.y, radius, sweep]);
             }
         }
     }
@@ -284,18 +290,18 @@ fn the_lift_to_interval_equals_validating_at_interval() {
 
 /// The decided facts, read at `Dual64` on the fixtures whose input
 /// contradicts them: the clockwise rectangle comes back
-/// counterclockwise, the rotated one starts at its lex-min vertex, the
+/// counterclockwise, the rotated one keeps its authored start, the
 /// hole listed first comes back behind its outer, the annulus's hole
 /// arcs turn clockwise.
 #[test]
 fn the_carried_decisions_are_the_f64_ones() {
     // Twice the signed area of a polygonal loop (every segment a
     // line); an arc loop's winding is read from its turns instead.
-    let shoelace = |vs: &[profile::ProfileVertex<Dual64>]| -> f64 {
+    let shoelace = |vs: &[geom_core::Point2<Dual64>]| -> f64 {
         let n = vs.len();
         (0..n)
             .map(|i| {
-                let (a, b) = (vs[i].pos(), vs[(i + 1) % n].pos());
+                let (a, b) = (vs[i], vs[(i + 1) % n]);
                 a.x.value * b.y.value - b.x.value * a.y.value
             })
             .sum()
@@ -322,14 +328,14 @@ fn the_carried_decisions_are_the_f64_ones() {
                     LoopRole::Hole => assert!(twice_area < 0.0, "{name} loop {li}: hole runs CW"),
                 }
             }
-            let start = lu.vertices()[0].pos();
-            for v in lu.vertices() {
-                let p = v.pos();
-                assert!(
-                    (start.x.value, start.y.value) <= (p.x.value, p.y.value),
-                    "{name} loop {li}: the canonical start is the lex-min vertex"
-                );
-            }
+            let start = lu.vertices()[0];
+            let authored: Vec<_> = raw.loops.iter().map(|lp| lp.vertices()[0]).collect();
+            assert!(
+                authored
+                    .iter()
+                    .any(|p| (p.x, p.y) == (start.x.value, start.y.value)),
+                "{name} loop {li}: the canonical start is an input loop's authored start"
+            );
         }
     }
     let ring = annulus()

@@ -20,7 +20,6 @@
 
 use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol, Vec3};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
@@ -71,16 +70,12 @@ fn rim_vertices(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<VertexKey> {
 
 /// The one edge at `v` that is not a rim arc: the meridian into the cap.
 fn meridian_at(body: &Body<f64>, v: VertexKey, arcs: &[EdgeKey]) -> EdgeKey {
-    let he = body.get_vertex(v).unwrap().emanating.unwrap();
-    let mut ms: Vec<EdgeKey> = body
-        .vertex_orbit(he)
+    let ms: Vec<EdgeKey> = body
+        .edges_of_vertex(v)
         .unwrap()
         .into_iter()
-        .map(|h| body.get_half_edge(h).unwrap().edge)
         .filter(|e| !arcs.contains(e))
         .collect();
-    ms.sort_unstable();
-    ms.dedup();
     let [m] = ms[..] else {
         panic!("a ladder rim vertex drops exactly one meridian into the cap, got {ms:?}")
     };
@@ -264,11 +259,11 @@ fn r2_a_profile_authored_in_reverse_mints_the_same_meridian_direction() {
     // the leg (0,1.5) -> (0.5,1.0) and its bulge sign flips.
     let mut reversed2 = revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 1.5), -q),
-            ProfileVertex::new(Point2::new(0.5, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.0, 1.5), -q),
+            (Point2::new(0.5, 1.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
         ],
         Revolution::Full,
         tol(),

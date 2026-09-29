@@ -52,6 +52,7 @@
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
+use crate::readable::Readable;
 use std::borrow::Cow;
 
 pub mod patch;
@@ -108,7 +109,10 @@ impl core::fmt::Display for ComposeError {
                     "compose: a shared-parameter composite needs one knot domain, \
                      got [{}, {}] and [{}, {}] — refit the pair on one \
                      parameterization (the shared-parameter identity) before composing",
-                    a.0, a.1, b.0, b.1
+                    Readable(a.0),
+                    Readable(a.1),
+                    Readable(b.0),
+                    Readable(b.1)
                 )
             }
         }

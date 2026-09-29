@@ -148,6 +148,11 @@ fn fmt_in(
 /// (`250.0` → `250`) — the stripped form parses to the identical f64
 /// (`from_str("250")` and `from_str("250.0")` agree), and it matches
 /// the spec's `25 mm` surface shape.
+///
+/// This is the same rendering as `geom_core::Readable`, character for
+/// character. It is a second copy because neither crate depends on the
+/// other, and a dependency edge added for one formatting function would
+/// be the larger cost.
 fn render_shortest(d: f64) -> String {
     let repr = format!("{d:?}");
     match repr.strip_suffix(".0") {

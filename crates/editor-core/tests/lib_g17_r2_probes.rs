@@ -26,7 +26,7 @@ fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
         .expect("the cup's blank")
 }
 
-fn refusal(doc: &ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
+fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
     let mut ev = evaluate::<f64>(
         doc,
         None,
@@ -56,10 +56,10 @@ fn names_minus_rim(t: &editor_core::NameTable) -> Vec<StableName> {
 #[test]
 fn p1_order_swap_changes_only_the_rim_name() {
     let a = vessel::document();
-    let b = vessel::document_with_open(|pot| {
+    let b = vessel::document_with_open(|doc, pot| {
         [
-            editor_core::band_pi(pot, 0, vessel::SEG_MOUTH),
-            editor_core::band(pot, 0, vessel::SEG_MOUTH),
+            editor_core::band_pi(pot, vessel::mouth(doc, pot)),
+            editor_core::band(pot, vessel::mouth(doc, pot)),
         ]
     });
     let (ea, eb) = (eval::<f64>(&a.doc), eval::<f64>(&b.doc));
@@ -194,9 +194,9 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
 fn p3_rebind_keeps_the_earlier_position() {
     let d = cup::document();
     let blank = blank_of(&d.doc);
-    let a = fixture::fname(blank, fixture::wall(0));
-    let b = fixture::fname(blank, fixture::wall(1));
-    let c = fixture::fname(blank, fixture::wall(2));
+    let a = fixture::fname(blank, fixture::wall(&d.doc, blank, 0));
+    let b = fixture::fname(blank, fixture::wall(&d.doc, blank, 1));
+    let c = fixture::fname(blank, fixture::wall(&d.doc, blank, 2));
     let (doc, id) = fixture::insert(
         d.doc.clone(),
         Node::shell(
@@ -430,6 +430,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![outer, hole],
+        ids: Vec::new(),
     }));
     let blank = r.insert(Node::Extrude {
         profile,

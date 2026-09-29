@@ -86,7 +86,7 @@
 //! have to move control points. This door never moves a control point.
 
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Band, Indeterminate, Margin, Point3, Sign, Vec3, k_stats};
+use geom_core::{Band, Indeterminate, Margin, Point3, Readable, Sign, Vec3, k_stats};
 
 use crate::curves::NurbsCurve3;
 
@@ -217,12 +217,17 @@ impl core::fmt::Display for ComposeError {
                 )
             }
             Self::SeamGap { seam, gap } => {
-                write!(f, "seam {seam}: the legs are definitely apart ({gap} m)")
+                write!(
+                    f,
+                    "seam {seam}: the legs are definitely apart ({} m)",
+                    Readable(*gap)
+                )
             }
             Self::SeamNotTangent { seam, deviation } => {
                 write!(
                     f,
-                    "seam {seam}: tangents are not parallel ({deviation} m deviation)"
+                    "seam {seam}: tangents are not parallel ({} m deviation)",
+                    Readable(*deviation)
                 )
             }
             Self::SeamTangentReversed { seam } => {
@@ -243,7 +248,11 @@ impl core::fmt::Display for ComposeError {
                 )
             }
             Self::DegenerateSpan { total } => {
-                write!(f, "the chain's total parameter span is {total}, not usable")
+                write!(
+                    f,
+                    "the chain's total parameter span is {}, not usable",
+                    Readable(*total)
+                )
             }
             Self::Knots(e) => write!(f, "composed knot vector refused: {e}"),
             Self::Structure(e) => write!(f, "composed curve refused: {e}"),

@@ -372,11 +372,12 @@ from and no verb that follows it.
 It authors **no seam**. That is the load-bearing property. PQ4 (§6: a
 closed loop's seam sits at a junction or fillet; closing mid-side is
 refused) is a rule about CHAINS, and it is untouched — a chain still
-cannot close mid-carrier. The conventional split into two semicircles
-at the ±x poles is the primitive's PRIVATE lowering, exactly the M2
-closed-carrier precedent: a detail of how a closed carrier reaches a
-vertex+bulge document, not a junction anyone said. The two joints are
-same-carrier identities, so nothing is declared tangent — there is no
+cannot close mid-carrier. The primitive lowers exactly as
+`circle_split(c, r, 1, 0)` does — one kernel — to ONE segment: a full
+turn (Δθ = 2π) on its carrier at one vertex, at +x (angle 0 from the
+centre). It stays its own verb in the program, so a program reads back
+as it was written. That vertex is where a swept wall's seam sits; it is not
+a junction anyone said, and nothing is declared tangent — there is no
 tangency to declare, it is one circle.
 
 §6's PQ4 entry records that same M2 precedent as "considered and
@@ -393,13 +394,13 @@ downstream naming depends on the seam structure (the tour's boss wants
 three 120° arcs so a boolean can cross a three-face rim seam) authors
 it with `circle_split(centre, r, n, phase)` instead — the
 declared-subdivision closed carrier: `n` arcs of equal sweep, first
-vertex at `phase` from +x, `n ≥ 2` or `CircleSplitCount`. Its vertices
+vertex at `phase` from +x, `n ≥ 1` or `CircleSplitCount`. Its vertices
 are DECLARED TANGENT JOINTS on one carrier — the sixth round's word for
 what an earlier draft called "structural subdivisions": the "one
 carrier" fact is the emission layer's bookkeeping, not a lattice
 decision — so it too authors no seam and PQ4 stays untouched; the
-count and phase are simply authored data rather than a
-private lowering detail.
+count and phase are simply authored data. `n = 1` is `circle` with an
+authored phase: one full-turn segment whose vertex sits at `phase`.
 
 **Refusals**: `r` not definitely positive (`NonpositiveCircleRadius`),
 through the same funnel as the other sign gates.
@@ -667,14 +668,16 @@ seam) to the re-spell unit's spec.
 **Shipped form: the invariant NOW HOLDS (LIB-RTABLE).** The one
 declaration is `transition_table!` in
 `crates/profile/src/path/program.rs`: one row per (state, verb,
-kernel fn, next state), expanded into all six projections — the
+kernel fn, next state), expanded into all nine projections — the
 typed method (rustdoc and signature carried by the row, geometry
 by the kernel fn it names), the driver arm, the `Step` variant,
-the `Verb` tag, the verb's row set (`Verb::states`) and, for an
-arc-spec verb, the forms its spec takes at each state
-(`arc_specs_at`, read off the arc-spec dispatchers, each declared
-once by `spec_dispatch!`) — so deleting a row breaks all six at
-compile, and there is no second place to write a transition.
+the `Verb` tag with its `Verb::ALL` membership, its
+`Step::verb` read-back arm and its `Display` word, the verb's row
+set (`Verb::states`) and, for an arc-spec verb, the forms its spec
+takes at each state (`arc_specs_at`, read off the arc-spec
+dispatchers, each declared once by `spec_dispatch!`) — so deleting
+a row breaks every projection it feeds at compile, and there is no
+second place to write a transition.
 
 **The family (line is the unmarked middle-position default):**
 
@@ -972,13 +975,12 @@ and the angle slot bound.
    geometry (or lower the tolerance)". The margin rides the payload
    as data; the message never forks on exactly-on vs in-band.
    Within ε_input of the REVERSE direction refuses as a cusp (the
-   reverse-tangent class).
-   Declared cusps are legal kernel geometry (D1 tier 3's declared
-   second-order wedge arm; #131 ruled 2026-08-23), but the
-   authoring door — a cusp analogue of `.tangent()` that authors
-   the reverse-tangent junction exactly and emits the declaration
-   — is unbuilt (#941); until it ships the junction refuses, and
-   the refusal names the absent verb.
+   reverse-tangent class), and the refusal names the authoring door:
+   `.cusp()`, the cusp analogue of `.tangent()`, authors the
+   reverse-tangent junction exactly and emits the declaration.
+   Declared cusps are legal kernel geometry (D1 tier 3's
+   second-order wedge arm: legal at rest iff jet-determinate, the
+   intent declared where the tangency is created).
 2. **No tangency without declaration**: tangency enters only via
    `.tangent()` or fillet construction; the lowering emits the
    declared flags — declaration by construction, never inference.
@@ -1405,9 +1407,8 @@ runtime but unreachable through the surface.
 Decided during review (details in #124): mixed authoring is OUT —
 a loop is authored either in the algebra or as a raw vertex+bulge
 chain, never both (representation uniqueness); declared cusps are
-legal at the kernel (#131 ruled into D1 tier 3's declared
-second-order wedge arm) with the authoring verb banked at #941 —
-cusps refuse here until it ships; there is no
+legal at the kernel (D1 tier 3's second-order wedge arm) and are
+authored through `.cusp()`; there is no
 path-concatenation operator (builder functions instead).
 
 **PQ4 — mid-carrier seams: REVISED (Ev, in-chat, 2026-09-01,

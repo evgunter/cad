@@ -136,6 +136,7 @@ pub mod boolean;
 pub(crate) mod census;
 pub mod chart;
 pub mod chart_bound;
+pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
@@ -168,9 +169,14 @@ pub(crate) mod source_walk;
 #[cfg(test)]
 mod cert_m3r1_probes;
 pub mod instance;
+pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
 pub(crate) mod live;
+// The one statement of a stored planar loop's signed winding, shared by
+// the merge's role assigner and tier 3's check 6. Non-doc comment for
+// the same rustdoc reason as the sector modules below.
+pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod movefac;
 #[cfg(test)]
@@ -245,6 +251,12 @@ mod test_support_impl;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_fixtures;
+// One `ValidationError` of every arm, for the rows that render them —
+// this crate's Display-coverage row and a downstream refusal-budget
+// row — so it sits behind the same door, on the same gate.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_samples;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
@@ -271,13 +283,14 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::test_support_fixtures::{
-        CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, StraddleSeat,
+        CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
         assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
         cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, face_surface_of_he,
-        flush_declarations, geometric_cube, line, mapped_cube, plane, prism, prism_ops, prism_z,
-        straddle_seat,
+        flush_declarations, geometric_cube, holed_block, identity_map, line, mapped_cube, plane,
+        plant_ring_face, prism, prism_ops, prism_z, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+    pub use crate::test_support_samples::validation_error_samples;
 
     /// The topology-arena lengths of `body`. A free function because
     /// `Body::arena_counts` is `pub(crate)` — an inherent method's
@@ -287,11 +300,91 @@ pub mod test_support {
     pub fn arena_counts<T: Real>(body: &Body<T>) -> ArenaCounts {
         body.arena_counts()
     }
+
+    /// **The section certificate's per-pair report** on the crossings
+    /// path: every in-scope pair of `a` × `b` whose boxes overlap, with
+    /// the events of the reduction `op` would run, as
+    /// `(A face, B face, outcome)`. The outcome is `Ok` with each
+    /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
+    /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
+    /// `Loop`, `Undecided`, `LoneVertex`), spelled by `Debug`.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's own refusals.
+    pub fn section_report(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
+        Ok(crate::boolean::section_report(op, a, b, tol)?
+            .into_iter()
+            .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+            .collect())
+    }
+
+    /// The no-crossings path's certificates on `a` × `b` — the sphere
+    /// extent scan, then the section pass — as that path runs them
+    /// before its vertex probe, whatever the crossing layer would find.
+    /// `Ok` with the number of sphere re-cuts the scan asked for.
+    ///
+    /// # Errors
+    ///
+    /// Either certificate's refusal.
+    pub fn no_crossings_certificates(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<usize, crate::BooleanError> {
+        crate::boolean::no_crossings_certificates(a, b, tol)
+    }
+
+    /// Does `face` describe for the section certificate's W2 — its
+    /// `chart_boundary` answers, or, on a cone face, its apex closure
+    /// closes? The verdict the certificate reads per face.
+    pub fn face_describes<T: geom_brep::PcurveFittedLane>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        band: geom_core::Band,
+    ) -> bool {
+        let Some(surface) = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+        else {
+            return false;
+        };
+        crate::boolean::ChartCache::default().describes(
+            crate::Operand::A,
+            body,
+            face,
+            &surface.clone(),
+            band,
+        )
+    }
+
+    /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
+    /// planar in-face test, which the ray sweep reaches only through a
+    /// hit it decides to take — named here so a row can ask it about a
+    /// point directly: `Some(true)` inside, `Some(false)` outside,
+    /// `None` on the boundary.
+    ///
+    /// # Errors
+    ///
+    /// The walk's own [`crate::PointInSolidError`]; a face that is not
+    /// planar is `KindUnsupported`.
+    pub fn point_in_face<T: geom_core::Decide>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        p: geom_core::Point3<T>,
+        band: geom_core::Band,
+    ) -> Result<Option<bool>, crate::PointInSolidError> {
+        let (_, normal) = crate::boolean::solid_contain::face_plane(body, face)?;
+        crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
+    }
 }
 #[cfg(test)]
 mod r2_probes;
-#[cfg(test)]
-mod shell10_r2_probes;
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;
@@ -303,14 +396,15 @@ pub use boolean::{
     BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
     CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
     ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
-    NullEdgePairRecord, Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc,
-    PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment,
-    SolidFaces, SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with,
-    boolean_reduce, boolean_reduce_declared, carrier_eq, contfp, curved_face_containment,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
-    subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
+    NullEdgePairRecord, Operand, OperandKeys, PairRefusalSite, PairSite, PatchContact,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
+    SideCode, SolidContainment, SolidFaces, SweepStrategy, SweepTrace, TangentLocus,
+    TangentLocusError, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
+    VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
+    curved_face_containment, face_carrier, flush_pair_relation, insert_void, insert_voids,
+    intersect, intersect_with, oriented_plane_eq, point_in_solid, point_in_solid_faces,
+    point_in_solid_of, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
+    union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -323,8 +417,8 @@ pub use census::{CensusStrategy, CensusTrace, SweepPairs};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
-    DeclaredContact, FIT_DEFERRAL,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
+    ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -357,7 +451,7 @@ pub use geom_brep::{
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
-    graft_disjoint_all_onto_keyed,
+    graft_disjoint_all_onto_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
     MergeCoplanarError, MergeCoplanarOutcome, MergeKind, MergedGroup, SkippedMerge,
@@ -369,8 +463,9 @@ pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
-    ShellClassifyError, ShellDoor, ShellRole, SignCertificate, VolumeEnclosure, classify_shells,
-    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_structural,
+    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
+    TargetUnreached, VolumeEnclosure, classify_shells, classify_shells_of,
+    classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -388,7 +483,10 @@ pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, S
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
-pub use source::{GeomOrigin, GeomSource, Or, SourceAttachError, SourceExpr};
+pub use source::{
+    AxisAttachError, AxisPlacement, AxisRecord, AxisSource, GeomOrigin, GeomSource, Or,
+    SourceAttachError, SourceExpr,
+};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,
@@ -398,12 +496,10 @@ pub use splitting::{
 };
 pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
-    StaleDeclaration, ValidationError, contact_marks, contact_marks_declared,
-    contact_marks_declared_structural, contact_marks_structural, validate, validate_closed,
-    validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
-    validate_geometric_declared, validate_geometric_structural,
-    validate_geometric_structural_declared, validate_pseudomanifold,
-    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_structural,
-    validate_pseudomanifold_structural,
+    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
+    StaleDeclaration, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
+    validate, validate_closed, validate_geometric, validate_geometric_certificate,
+    validate_geometric_certificate_structural, validate_geometric_structural,
+    validate_pseudomanifold, validate_pseudomanifold_certificate,
+    validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };

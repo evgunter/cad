@@ -124,7 +124,7 @@ where
             let m = build();
             (
                 geom_core::k_stats::decide("sym11_witness_kind", Margin::of(m), band()),
-                m.value.sign_within(band()),
+                m.value.sign_within(band()).map(|d| d.sign),
             )
         });
         let numeric = match probe {

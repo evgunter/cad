@@ -214,6 +214,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
+            ids: Vec::new(),
         }),
     );
     // The axis of revolution, written in the sketch it turns: the

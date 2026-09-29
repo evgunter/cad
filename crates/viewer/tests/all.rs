@@ -92,6 +92,8 @@ mod docm1_face_frame;
 mod docm9_range_vs_probe;
 #[path = "edge_pick.rs"]
 mod edge_pick;
+#[path = "edit_maintenance.rs"]
+mod edit_maintenance;
 #[path = "error_display.rs"]
 mod error_display;
 #[path = "eval_seam.rs"]
@@ -164,8 +166,6 @@ mod review_pick_r2;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
-#[path = "review_pick2_r1.rs"]
-mod review_pick2_r1;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]

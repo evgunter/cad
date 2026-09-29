@@ -25,18 +25,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Real, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Section, loft_body};
 use topo::{Body, EdgeKey};
 
 /// A circle as a two-vertex bulge loop — an ARC-bearing section, so
 /// the canonical form carries real decisions (segment classification,
-/// traversal sense, the lex-min start) and the lift has arc carriers
+/// traversal sense) and the lift has arc carriers
 /// to rebuild.
 fn circle(r: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-r, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(r, 0.0), 1.0),
+    bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
     ])
 }
 
@@ -61,7 +61,7 @@ fn canonical_world_points(section: &Section, place: &Affine3<f64>) -> Vec<Point3
     validated.loops()[0]
         .vertices()
         .iter()
-        .map(|v| place.transform_point(Point3::new(v.pos().x, v.pos().y, 0.0)))
+        .map(|v| place.transform_point(Point3::new(v.x, v.y, 0.0)))
         .collect()
 }
 
@@ -118,7 +118,7 @@ fn each_seam_strut_joins_its_canonical_vertexs_two_world_points() {
 mod interval {
     use super::{Bits, cone_sections, edge_points, expected_struts};
     use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
     use sweep::{LoftError, Section, SkinError, loft_body};
 
     fn bits(p: Point3<Interval>) -> Bits {
@@ -141,10 +141,7 @@ mod interval {
     /// `Interval`: the same numbers, decided by one arithmetic and refused
     /// by the other.
     fn wide_arc(h: f64, b: f64) -> ProfileLoop<f64> {
-        ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(-h, 0.0), b),
-            ProfileVertex::new(Point2::new(h, 0.0), b),
-        ])
+        bulge_loop(vec![(Point2::new(-h, 0.0), b), (Point2::new(h, 0.0), b)])
     }
 
     fn wide_arc_pair(h: f64, b: f64) -> (Vec<Section>, Vec<Affine3<f64>>) {

@@ -65,7 +65,9 @@ use super::table::{EntityRef, Entry};
 pub enum OpGroup {
     /// Shared across body-producing ops ([`RoleSeg::OutputBody`]).
     Shared,
-    /// Extrude.
+    /// Extrude — and the loft, a swept solid of the same shape, whose
+    /// caps, rims and cap vertices are the extrude's roles and whose
+    /// walls and seams pair one piece per section.
     Extrude,
     /// Revolve (the M2 band/pole/seam taxonomy).
     Revolve,
@@ -133,6 +135,9 @@ seg_tags! {
     RimEdge,
     LateralEdge,
     CapVertex,
+    // Loft
+    LoftWall,
+    LoftSeam,
     // Revolve
     Band,
     BandRim,
@@ -229,6 +234,8 @@ impl SegTag {
             RoleSeg::RimEdge(..) => Self::RimEdge,
             RoleSeg::LateralEdge(..) => Self::LateralEdge,
             RoleSeg::CapVertex(..) => Self::CapVertex,
+            RoleSeg::LoftWall(..) => Self::LoftWall,
+            RoleSeg::LoftSeam(..) => Self::LoftSeam,
             RoleSeg::Band(..) => Self::Band,
             RoleSeg::BandRim(..) => Self::BandRim,
             RoleSeg::BandRimPi(..) => Self::BandRimPi,
@@ -259,9 +266,9 @@ impl SegTag {
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
-            RoleSeg::BandCross(..) => Self::BandCross,
+            RoleSeg::BandCross { .. } => Self::BandCross,
             RoleSeg::BandCut(..) => Self::BandCut,
-            RoleSeg::BandSlit(..) => Self::BandSlit,
+            RoleSeg::BandSlit { .. } => Self::BandSlit,
             RoleSeg::Inner(..) => Self::Inner,
             RoleSeg::Rim(..) => Self::Rim,
             RoleSeg::HoleRim { .. } => Self::HoleRim,
@@ -274,9 +281,13 @@ impl SegTag {
     pub fn group(self) -> OpGroup {
         match self {
             Self::OutputBody => OpGroup::Shared,
-            Self::Cap | Self::Lateral | Self::RimEdge | Self::LateralEdge | Self::CapVertex => {
-                OpGroup::Extrude
-            }
+            Self::Cap
+            | Self::Lateral
+            | Self::RimEdge
+            | Self::LateralEdge
+            | Self::CapVertex
+            | Self::LoftWall
+            | Self::LoftSeam => OpGroup::Extrude,
             Self::Band
             | Self::BandRim
             | Self::BandRimPi
@@ -341,6 +352,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         RoleSeg::OutputBody
         | RoleSeg::Lateral(_)
         | RoleSeg::LateralEdge(_)
+        | RoleSeg::LoftWall(_)
+        | RoleSeg::LoftSeam(_)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
         | RoleSeg::BandRimPi(_)
@@ -361,9 +374,9 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::EndArc { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCross { .. }
         | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
+        | RoleSeg::BandSlit { .. }
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
@@ -373,9 +386,10 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 }
 
 /// A segment's sub-NAME arguments, in declaration order (the set-
-/// valued variants [`RoleSeg::Merged`] and [`RoleSeg::BandFace`]
-/// contribute their members in the canonical name order they are
-/// stored in). [`RoleSeg::Fragment`]'s [`Qualifier`]
+/// valued [`RoleSeg::Merged`] and [`RoleSeg::BandFace`], and the
+/// `band` set of [`RoleSeg::BandCross`] and [`RoleSeg::BandSlit`]
+/// after their `edge`, contribute their members in the canonical name
+/// order they are stored in). [`RoleSeg::Fragment`]'s [`Qualifier`]
 /// carries verdicts rather than a role argument and contributes none.
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
 /// future [`RoleSeg`] or [`Qualifier`] variant embedding names must be
@@ -399,9 +413,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
         | RoleSeg::BandFoot(n)
-        | RoleSeg::BandCross(n)
         | RoleSeg::BandCut(n)
-        | RoleSeg::BandSlit(n)
         | RoleSeg::Inner(n)
         | RoleSeg::Rim(n)
         | RoleSeg::HoleRim { of: n, .. }
@@ -417,6 +429,9 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
         RoleSeg::EndArc { vertex, edge } => vec![vertex, edge],
         RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().collect(),
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            std::iter::once(&**edge).chain(band).collect()
+        }
         // A verdict qualifier, not a role argument (see the doc note).
         RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
         name_free_seg!() => Vec::new(),

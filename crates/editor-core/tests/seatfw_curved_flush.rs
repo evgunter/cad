@@ -64,15 +64,13 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         centre: [len(0.0), len(0.0)],
         radius: len(r),
     };
-    let (doc, peg_plane) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, peg_plane) = insert(doc, fixture::xy_frame());
     let (doc, peg_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
             plane: peg_plane,
             loops: vec![circle(PEG_R)],
+            ids: Vec::new(),
         }),
     );
     let (doc, peg) = insert(
@@ -94,6 +92,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 LoopProgram::polygon(square(0.0, 0.0, 1.0)).expect("finite corners"),
                 circle(bore_r),
             ],
+            ids: Vec::new(),
         }),
     );
     let (doc, block) = insert(

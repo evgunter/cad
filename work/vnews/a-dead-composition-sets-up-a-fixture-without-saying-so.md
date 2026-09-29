@@ -2,11 +2,12 @@
 id: a-dead-composition-sets-up-a-fixture-without-saying-so
 kind: issue
 title: One of the two dead apply-over-fold_status compositions discloses that it is dead and the other does not
-status: open
+status: closed
 opened: 2026-09-20
 priority: P4
 cost: E
 rides_with: frame-rs-says-the-per-subject-line-is-a-question-for-ev
+closed: 2026-09-24
 ---
 
 
@@ -66,3 +67,19 @@ paragraph.**
 VNEWS's: `crates/viewer/src/frame.rs`, which is serialized. It rides
 `work/vnews/frame-rs-says-the-per-subject-line-is-a-question-for-ev`,
 group A of `work/vnews/plan.md` §Order 7.
+
+## Closed 2026-09-24 (`vnews/frame-rs-prose-pass`)
+
+Re-derived first, as the row asked: `frame::apply` still takes a
+`StatusUpdate` (`ranked-and-unranked-verdicts-are-one-type` has not
+landed), so both compositions still compile and the paragraph is owed.
+
+`a_clean_fold_retires_the_camera_refusal_it_did_write` now carries a
+doc comment mirroring its sibling's: its first `apply` of a
+`fold_status` `Show` is not a live composition — a refused fold reaches
+the line through `deliver` and the ranking — and it is there only to
+put a camera refusal on the line so the row can ask what the next clean
+fold's `Expire` does to it. It names
+`pane::viewport`'s `landing_a_clean_fold_retires_the_camera_refusal_it_landed_before`
+as the live-path row and says the two are not duplicates and this one
+does not cover that path — the two misreadings the row named.

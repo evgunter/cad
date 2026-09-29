@@ -2,10 +2,11 @@
 id: kernel-direct-origin-does-not-separate-hand-built-from-derived
 kind: issue
 title: GeomOrigin::KernelDirect holds two of the four origins: nothing inside the kernel can tell a hand-built description from a derived one
-status: open
+status: closed
 opened: 2026-09-14
 priority: P1
-cost: D
+cost: E
+closed: 2026-09-29
 ---
 
 
@@ -74,3 +75,15 @@ reads.
 
 Found by `geom-source-absence-conflates-four-origins` (TOPO block
 TOPO-B4 slot 0), whose PR states the deviation and this row's number.
+
+## Closed (2026-09-29, ORIGIN orchestrator)
+
+The honest close this row's own "What a taker owes" names. No reader
+in the tree asks hand-built from derived: the import consumer needs
+`Imported` told from the rest, which ships, and N6 reads only the
+`Recipe` arm. A per-door stamp would be a channel with no consumer.
+`GeomOrigin`'s docs in `crates/topo/src/source.rs` now state the
+arm as one origin and no longer frame it as a missing fourth
+separation. A future reader that needs the split reopens the design
+at that reader; the `Constructed`/`Derived` shape above is where it
+would start.

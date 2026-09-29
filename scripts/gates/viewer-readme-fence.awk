@@ -21,12 +21,11 @@
 # already makes for prepending ONE helper to both of its own programs;
 # it holds with more force across two gates than within one, because
 # nothing reads the two files together. The shared home is a sidecar
-# rather than a sourced `.sh` because `gate-roster.sh` derives the gate
-# roster from `scripts/gates/*.sh` and excludes exactly one member by
-# name (`lib.sh`): a second sourced fragment there would read as a gate
-# that runs nowhere, and teaching that roster about it means editing
-# it. A `.awk` file cannot be mistaken for a gate by any glob in this
-# repo, and its extension says what it is.
+# rather than a sourced `.sh` because ci.yml's `lint` job runs every
+# `scripts/gates/*.sh` except exactly one member by name (`lib.sh`): a
+# second sourced fragment there would run as a gate. A `.awk` file
+# cannot be mistaken for a gate by any glob in this repo, and its
+# extension says what it is.
 #
 # CALLED ONCE PER LINE, held by convention. `md_fence` MUTATES
 # `FENCE_CHAR`/`FENCE_LEN`, so a second call on the same line advances

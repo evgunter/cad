@@ -295,9 +295,9 @@
 //! ([`ValidationError::RingOutsideOuter`], with
 //! [`ValidationError::RingNestingUndecided`] for the pair it cannot
 //! certify). That is the statement an inverted host/guest pick at the
-//! rim glue below falsifies, and it reaches a planar face whose outer
-//! loop bears no arc; check 9's own banner enumerates what it leaves
-//! out.
+//! rim glue below falsifies, and it reaches every planar face whose
+//! outer loop carries lines, circle arcs or ellipse arcs; check 9's own
+//! banner enumerates what it leaves out.
 //!
 //! **An UNDECIDABLE separation refuses too** and never proceeds to
 //! build ([`ShellError::Escalated`]) — the glue is a write, and
@@ -315,6 +315,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_voids};
+use crate::chart_groups::ChartGroups;
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey as HeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
     VertexKey,
@@ -402,32 +403,16 @@ pub enum ShellError<T: Real> {
         /// The wall the two offsets would need, `2t`.
         needed: T,
     },
-    /// A chart is worn by faces of two different SOLIDS. A chart moves
-    /// as one and the door that moves it is its solid's, so such a
-    /// chart has neither a single door nor a single corner problem.
-    ///
-    /// **Reachable through public doors**, so this is a refusal rather
-    /// than an assertion of the impossible: a [`crate::subtract`] whose
-    /// cut DISCONNECTS its operand leaves the two components under one
-    /// solid still wearing the operand's own surface keys — a slab cut
-    /// in half keeps one plane key across both halves — and
-    /// [`crate::Body::move_shells_to_new_solid`] then files them as two
-    /// solids. The result is a valid body this verb cannot thicken
-    /// chart by chart, and it says so naming the pair.
-    ChartSpansSolids {
-        /// The chart's first face, in face-arena order.
-        face: FaceKey,
-        /// A face of the same chart on a different solid.
-        other: FaceKey,
-    },
-    /// A chart worn by several faces has faces with DIFFERENT
-    /// orientation bits, so "inward" is not one direction for it. The
-    /// group door moves a chart as one; a mixed-sense chart has no
-    /// single inward to move it by.
+    /// A chart worn by several faces of ONE solid has faces with
+    /// DIFFERENT orientation bits, so "inward" is not one direction for
+    /// it. A solid moves its wearers of a chart as one; a mixed-sense
+    /// group has no single inward to move them by. Wearers on different
+    /// solids are different groups, so two solids resting on one chart
+    /// with opposed senses shell independently.
     ChartSenseMixed {
         /// A face of the chart.
         face: FaceKey,
-        /// A face of the same chart with the opposite sense.
+        /// A face of the same chart and solid with the opposite sense.
         other: FaceKey,
     },
     /// A face's inward offset refused. This is the validity gate AND
@@ -476,14 +461,14 @@ pub enum ShellError<T: Real> {
         /// Its surface kind.
         kind: geom_brep::SurfaceKind,
     },
-    /// A designated face shares its chart with faces that were NOT
-    /// designated. The rim surgery lifts a chart as one — the group
-    /// door's own contract — so a partially designated chart has no
-    /// coherent lift.
+    /// A designated face shares its chart with faces of its own solid
+    /// that were NOT designated. The rim surgery lifts a solid's wearers
+    /// of a chart as one — the group door's own contract — so a
+    /// partially designated group has no coherent lift.
     OpenFaceChartPartial {
         /// The designated face.
         face: FaceKey,
-        /// A face on the same chart that was not designated.
+        /// A face of the same chart and solid that was not designated.
         other: FaceKey,
     },
     /// The rim stage's outward LIFT refused — the step that puts a
@@ -591,11 +576,6 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "two faces face each other across {gap:?} m of material and the two walls \
                  need {needed:?} m, so the cavity would self-intersect. Recourse: use a \
                  thinner wall"
-            ),
-            Self::ChartSpansSolids { .. } => write!(
-                f,
-                "two faces on one chart lie on different solids, so the chart cannot move \
-                 as one"
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -1018,52 +998,51 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         );
     }
 
-    // ---- Decide: every chart has ONE orientation, and ONE solid. ----
+    // ---- Decide: each solid's charts, each with ONE orientation. ----
     //
-    // A chart moves as one, and the door that moves it is its solid's,
-    // so a chart worn by faces of two solids has no single door and no
-    // single corner problem. The state is reachable — a disconnecting
-    // subtract leaves both components wearing one surface key, and the
-    // ownership door can file them as two solids — so the second gate
-    // is a refusal, not an assertion.
-    let charts = chart_groups(body);
-    let chart_solid = |group: &[FaceKey]| -> Result<SolidKey, ShellError<T>> {
-        partition.solid_of(group[0]).ok_or(ShellError::Corrupt {
-            key: EntityId::Face(group[0]),
-        })
-    };
-    for group in &charts {
-        let sense = |f: FaceKey| -> Result<bool, ShellError<T>> {
-            Ok(body
-                .get_face(f)
-                .ok_or(ShellError::Corrupt {
-                    key: EntityId::Face(f),
-                })?
-                .sense)
-        };
-        let first = sense(group[0])?;
-        let home = chart_solid(group)?;
-        for &member in &group[1..] {
-            if sense(member)? != first {
-                return Err(ShellError::ChartSenseMixed {
-                    face: group[0],
-                    other: member,
-                });
+    // A chart is body-wide — faces of several solids may wear one key —
+    // and the door that moves a chart is its solid's, so what moves as
+    // one is a solid's OWN wearers of it. Two solids resting on one
+    // chart with opposed senses are two groups, each moved inward by
+    // its own solid.
+    let mut scope = partition.clone();
+    let mut solid_charts: Vec<(SolidKey, ChartGroups)> = Vec::with_capacity(solids.len());
+    for &solid in &solids {
+        scope.re_scope(body, &[solid]).ok_or(ShellError::Corrupt {
+            key: EntityId::Solid(solid),
+        })?;
+        let charts = ChartGroups::within(body, scope.faces_in_scope()).map_err(|face| {
+            ShellError::Corrupt {
+                key: EntityId::Face(face),
             }
-            if partition.solid_of(member) != Some(home) {
-                return Err(ShellError::ChartSpansSolids {
-                    face: group[0],
-                    other: member,
-                });
+        })?;
+        for (_, group) in charts.iter() {
+            let sense = |f: FaceKey| -> Result<bool, ShellError<T>> {
+                Ok(body
+                    .get_face(f)
+                    .ok_or(ShellError::Corrupt {
+                        key: EntityId::Face(f),
+                    })?
+                    .sense)
+            };
+            let first = sense(group[0])?;
+            for &member in &group[1..] {
+                if sense(member)? != first {
+                    return Err(ShellError::ChartSenseMixed {
+                        face: group[0],
+                        other: member,
+                    });
+                }
             }
         }
+        solid_charts.push((solid, charts));
     }
 
     // ---- Decide: the walls are thick enough to hold two offsets. ----
     wall_clearance(body, &partition, thickness, band)?;
 
     // ---- Decide: the designation. ----
-    check_designation(body, open_faces)?;
+    check_designation(body, &solid_charts, open_faces)?;
 
     // ---- The record: the outer wall, one row per undesignated face.
     // Written HERE, off the operand's own face walk, because this is
@@ -1079,9 +1058,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     //
     // By chart, not by face: a full revolve splits its wall into two
     // bands over one cylinder, and such a surface has to move as one
-    // (the face-replacement door's own group form says why). Grouping
-    // is by surface key, in face-arena order, so the walk is
-    // deterministic.
+    // (the face-replacement door's own group form says why). The groups
+    // are each solid's own, read above in face-arena order, so the walk
+    // is deterministic.
     // The cavity is built under one surgery scope (`crate::surgery`):
     // the offset doors it runs each preserve tier 1, and what certifies
     // the cavity is the transplant's own postcondition in
@@ -1120,16 +1099,15 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // **What that sharing buys is one walk here, not one walk per
     // call.** Each simultaneous door the loop reaches builds its own
     // one-solid scope from its move set (`scope_of_moves`), so the
-    // solids ARE walked again, once each: eight solid-walks on the
-    // hollow-hollow-open body, nine on box-beside-vessel opened. What
-    // is saved is this verb's own reading, which is a whole-body walk
-    // and would otherwise be one per solid.
-    let mut scope = partition.clone();
-    for &solid in &solids {
+    // solids ARE walked again. What is saved is this verb's own
+    // reading, which is a whole-body walk and would otherwise be one
+    // per solid.
+    for (solid, charts) in &solid_charts {
+        let solid = *solid;
         scope.re_scope(body, &[solid]).ok_or(ShellError::Corrupt {
             key: EntityId::Solid(solid),
         })?;
-        let mine: Vec<&Vec<FaceKey>> = charts.iter().filter(|g| scope.holds_face(g[0])).collect();
+        let mine: Vec<&[FaceKey]> = charts.iter().map(|(_, group)| group).collect();
         let fallback =
             mine.first()
                 .and_then(|g| g.first())
@@ -1147,7 +1125,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                     Vec::with_capacity(mine.len());
                 for group in &mine {
                     moves.push(crate::offset_together::ChartMove {
-                        faces: (*group).clone(),
+                        faces: group.to_vec(),
                         distance: inward(&cavity, group[0], thickness)?,
                     });
                 }
@@ -1171,12 +1149,12 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 for group in &mine {
                     let face = group[0];
                     let d = inward(&cavity, face, thickness)?;
-                    crate::replace_faces_offset(&mut cavity, group, d, band, tol).map_err(
-                        |error| ShellError::Face {
+                    crate::replace_faces_offset(&mut cavity, group, d, tol).map_err(|error| {
+                        ShellError::Face {
                             face,
                             error: Box::new(error),
-                        },
-                    )?;
+                        }
+                    })?;
                 }
             }
         }
@@ -1323,25 +1301,38 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // merge into one, so a designation read after its own chart's turn
     // would name a key that no longer resolves.
     //
-    // The RESULT's own partition, read once here rather than per
-    // designation: the thin solids have just been minted, so this is
-    // the first moment it exists, and every designation's lift is a
-    // re-aiming of it.
+    // The RESULT's own partition, read once here: the thin solids have
+    // just been minted, so this is the first moment it exists, and it
+    // names the solid each designation's surgery happens in.
     let result_partition =
         crate::offset_together::Scope::whole(&out).ok_or(ShellError::Corrupt {
             key: EntityId::Solid(solids[0]),
         })?;
-    // A designation naming a face that no longer resolves is not a
-    // silent skip: `check_designation` has already refused a stale one,
-    // so every key here groups.
+    // The designations grouped by chart within the solid each lies in on
+    // the result, in the order their first face was designated. A
+    // designation naming a face that no longer resolves is not a silent
+    // skip: `check_designation` has already refused a stale one, so every
+    // face here resolves or the body is corrupt.
+    let corrupt_face = |face: FaceKey| ShellError::Corrupt {
+        key: EntityId::Face(face),
+    };
+    let mut by_solid: Vec<(SolidKey, Vec<FaceKey>)> = Vec::new();
     for &designated in open_faces {
-        if out.get_face(designated).is_none() {
-            return Err(ShellError::Corrupt {
-                key: EntityId::Face(designated),
-            });
+        let solid = result_partition
+            .solid_of(designated)
+            .ok_or_else(|| corrupt_face(designated))?;
+        match by_solid.iter_mut().find(|(s, _)| *s == solid) {
+            Some((_, faces)) => faces.push(designated),
+            None => by_solid.push((solid, vec![designated])),
         }
     }
-    for (_, group) in group_by_chart(&out, open_faces.iter().copied()) {
+    let mut rims: Vec<Vec<FaceKey>> = Vec::new();
+    for (_, faces) in by_solid {
+        let charts = ChartGroups::within(&out, faces).map_err(corrupt_face)?;
+        rims.extend(charts.iter().map(|(_, group)| group.to_vec()));
+    }
+    rims.sort_by_key(|group| open_faces.iter().position(|f| *f == group[0]));
+    for group in rims {
         let designated = group[0];
         let sources: Vec<FaceKey> = group
             .iter()
@@ -1388,7 +1379,6 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 key: EntityId::Face(sources[0]),
             })?
             .surface;
-        let lift_group = faces_wearing(&out, counterpart_chart);
         let back = lift_to(&out, sources[0], designated)?;
         // **The lift is the same corner problem as the cavity**, with
         // one chart moving instead of all of them: the counterpart's
@@ -1417,43 +1407,37 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // solid of their own — and the door that lifts them is that
         // solid's, over that solid's charts, exactly as the cavity's
         // door was its solid's.
-        let mut lift_scope = result_partition.clone();
-        lift_scope
-            .re_scope(&out, &[lift_solid])
-            .ok_or(ShellError::Corrupt {
+        // Walked on the body as it stands at this rim, after the
+        // earlier rims' surgery: the door, its move set and its
+        // counterpart group all read this one scope.
+        let lift_scope = crate::offset_together::Scope::of_solids(&out, &[lift_solid]).ok_or(
+            ShellError::Corrupt {
                 key: EntityId::Solid(lift_solid),
-            })?;
+            },
+        )?;
+        let lift_charts =
+            ChartGroups::within(&out, lift_scope.faces_in_scope()).map_err(corrupt_face)?;
         let lift_door = offset_door(&out, &lift_scope, band).map_err(|error| ShellError::Lift {
             face: designated,
             error: Box::new(error),
         })?;
         let outcome = match lift_door {
             OffsetDoor::ChartsTogether => {
-                let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::new();
-                for group in chart_groups(&out) {
-                    if !lift_scope.holds_face(group[0]) {
-                        continue;
-                    }
-                    let key = out
-                        .get_face(group[0])
-                        .ok_or(ShellError::Corrupt {
-                            key: EntityId::Face(group[0]),
-                        })?
-                        .surface;
-                    let distance = if key == counterpart_chart {
-                        back
-                    } else {
-                        T::zero()
-                    };
-                    moves.push(crate::offset_together::ChartMove {
-                        faces: group,
-                        distance,
-                    });
-                }
+                let moves: Vec<crate::offset_together::ChartMove<T>> = lift_charts
+                    .iter()
+                    .map(|(key, group)| crate::offset_together::ChartMove {
+                        faces: group.to_vec(),
+                        distance: if key == counterpart_chart {
+                            back
+                        } else {
+                            T::zero()
+                        },
+                    })
+                    .collect();
                 crate::offset_charts_together(&mut out, &moves, band, tol)
             }
             OffsetDoor::PlanesTogether | OffsetDoor::PerChart => {
-                crate::replace_faces_offset(&mut out, &lift_group, back, band, tol)
+                crate::replace_faces_offset(&mut out, lift_charts.of(counterpart_chart), back, tol)
             }
         };
         outcome.map_err(|error| ShellError::Lift {
@@ -1492,16 +1476,17 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // unexplainable, is tier 3's check 9: its nesting half says a
         // ring lies strictly inside its face's outer loop and refuses
         // the inverted body by name, on the shapes that half reaches
-        // — a planar face whose outer loop bears no arc (check 9's
-        // banner enumerates the rest). Nothing in this verb
-        // relies on that arm; what it buys is the class being loud
-        // wherever else it is minted. On a rim outside its reach — an
-        // annular rim between two CIRCLES, every shelled vessel of
-        // revolution — the assignment here is pinned only
+        // — every planar face whose outer loop carries lines, circle
+        // arcs or ellipse arcs, which covers the annular rim of every
+        // shelled vessel of revolution and a rim that mixes arcs with
+        // lines (check 9's banner enumerates the rest). Nothing in
+        // this verb relies on that arm; what it buys is the class
+        // being loud wherever else it is minted. On a rim outside its
+        // reach — a non-planar rim, or an outer loop carrying a spiric
+        // or spline edge — the assignment here is pinned only
         // structurally: the void-ceiling row asserts the designated
         // void face DIES, and the pairing row reads each thin solid's
-        // twin through the record
-        // (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
+        // twin through the record.
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),
@@ -2259,7 +2244,8 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
-        | ReplaceFaceError::ReanchorOffCarrier { edge, .. } => {
+        | ReplaceFaceError::ReanchorOffCarrier { edge, .. }
+        | ReplaceFaceError::NeighborPoseUnroutable { edge, .. } => {
             face_of_he(body.get_edge(*edge)?.he_plus)
         }
         _ => None,
@@ -2590,43 +2576,6 @@ fn face_boundary_points<T: Real>(
     Ok(out)
 }
 
-/// The body's faces grouped by the surface they wear, in face-arena
-/// order — the unit a chart moves in.
-fn chart_groups<T: Real>(body: &Body<T>) -> Vec<Vec<FaceKey>> {
-    group_by_chart(body, body.faces().map(|(k, _)| k))
-        .into_iter()
-        .map(|(_, faces)| faces)
-        .collect()
-}
-
-/// `faces` gathered by the chart each wears, in first-appearance order
-/// with each group in the order the faces arrived — the one grouping
-/// this verb does, wherever it does it.
-fn group_by_chart<T: Real>(
-    body: &Body<T>,
-    faces: impl Iterator<Item = FaceKey>,
-) -> Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> {
-    let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for face in faces {
-        let Some(data) = body.get_face(face) else {
-            continue;
-        };
-        match out.iter_mut().find(|(k, _)| *k == data.surface) {
-            Some((_, group)) => group.push(face),
-            None => out.push((data.surface, vec![face])),
-        }
-    }
-    out
-}
-
-/// Every face of `body` wearing `chart`, in face-arena order.
-fn faces_wearing<T: Real>(body: &Body<T>, chart: crate::geometry::SurfaceKey) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, f)| f.surface == chart)
-        .map(|(k, _)| k)
-        .collect()
-}
-
 /// The signed offset distance that moves `face` INTO the material: the
 /// chart normal points out of the solid on a positively-sensed face and
 /// into it on a reversed one, so the caller's thickness magnitude never
@@ -2641,9 +2590,15 @@ fn inward<T: Real>(body: &Body<T>, face: FaceKey, thickness: T) -> Result<T, She
     Ok(if sense { -thickness } else { thickness })
 }
 
-/// The designation gates: every named face resolves, is named once, and
-/// leaves its shell with a nonempty, connected remainder.
-fn check_designation<T: Real>(body: &Body<T>, open_faces: &[FaceKey]) -> Result<(), ShellError<T>> {
+/// The designation gates: every named face resolves, is named once,
+/// takes its solid's whole group on its chart (`solid_charts`, each
+/// solid's own), and leaves its shell with a nonempty, connected
+/// remainder.
+fn check_designation<T: Real>(
+    body: &Body<T>,
+    solid_charts: &[(SolidKey, ChartGroups)],
+    open_faces: &[FaceKey],
+) -> Result<(), ShellError<T>> {
     for (i, face) in open_faces.iter().enumerate() {
         let Some(data) = body.get_face(*face) else {
             return Err(ShellError::OpenFaceStale { face: *face });
@@ -2664,19 +2619,20 @@ fn check_designation<T: Real>(body: &Body<T>, open_faces: &[FaceKey]) -> Result<
     if open_faces.is_empty() {
         return Ok(());
     }
-    // A chart is lifted as ONE by the rim stage (the group door's own
-    // contract), so a partially designated chart has no coherent lift.
+    // A solid's wearers of a chart are lifted as ONE by the rim stage
+    // (the group door's own contract), so a partially designated group
+    // has no coherent lift.
     for &face in open_faces {
-        let key = body
-            .get_face(face)
-            .ok_or(ShellError::Corrupt {
-                key: EntityId::Face(face),
-            })?
-            .surface;
-        if let Some((other, _)) = body
-            .faces()
-            .find(|(k, f)| !open_faces.contains(k) && f.surface == key)
-        {
+        let corrupt = || ShellError::Corrupt {
+            key: EntityId::Face(face),
+        };
+        let key = body.get_face(face).ok_or_else(corrupt)?.surface;
+        let group = solid_charts
+            .iter()
+            .map(|(_, charts)| charts.of(key))
+            .find(|group| group.contains(&face))
+            .ok_or_else(corrupt)?;
+        if let Some(&other) = group.iter().find(|f| !open_faces.contains(f)) {
             return Err(ShellError::OpenFaceChartPartial { face, other });
         }
     }

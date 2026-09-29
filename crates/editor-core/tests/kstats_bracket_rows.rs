@@ -30,7 +30,7 @@ use editor_core::{
     ProfileLift, ProfileProgram, RecipeNodeId, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{frame, insert, len, on_frame, run, square, step};
+use fixture::{insert, len, on_frame, run, square, step, xy_frame};
 use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::{Bracket, Verdict};
@@ -88,7 +88,7 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// assembled profile. The plane's two axes are NOT among them — the
 /// frame node decides its own placement, at both scalars, and the
 /// precompute READS it (`NodeValue::placement`).
-const PRE_PASS: usize = 73;
+const PRE_PASS: usize = 69;
 /// The one-solid part's log sizes by node: frame, profile, extrude.
 /// Under the pinned lift (the default) the Profile node's op reuses
 /// the pre-pass's validated form and decides nothing, so its log is
@@ -296,10 +296,7 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
 #[test]
 fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-lone-frame"), Tol::witness());
-    let (doc, lone) = insert(
-        doc,
-        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, lone) = insert(doc, xy_frame());
     let ev = run(&doc, &EvalOptions::default());
     assert_eq!(
         per_node(&ev),
@@ -581,10 +578,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             value: DocParam::continuous(Dimension::Length, 0.25),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, plane) = insert(doc, xy_frame());
     let at_edge = || Expr::param(edge.clone(), Dimension::Length);
     let island = LoopProgram::polygon_expr([
         [len(0.0), len(-0.25)],
@@ -598,6 +592,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             LoopProgram::polygon(square(0.0, 0.0, 0.5)).expect("finite corners"),
             island,
         ],
+        ids: Vec::new(),
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, extrude) = insert(
@@ -659,10 +654,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             value: DocParam::continuous(Dimension::Scalar, 1.0),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, plane) = insert(doc, xy_frame());
     let over = || {
         Expr::div(len(1.0), Expr::param(divisor.clone(), Dimension::Scalar))
             .expect("a length over a scalar")
@@ -675,6 +667,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             [over(), len(1.0)],
             [len(0.0), len(1.0)],
         ])],
+        ids: Vec::new(),
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, _) = step(
