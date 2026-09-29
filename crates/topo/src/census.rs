@@ -1631,7 +1631,7 @@ fn ef_bound_backed<T: Decide>(
                 )
             });
         }
-        CutAt::ConicCrossing(_) => return false,
+        CutAt::ConicCrossing => return false,
         CutAt::Vertex => {}
     }
     let Some(ve) = edge_vertex_at(e, cut.s, band, errors) else {
@@ -1787,7 +1787,7 @@ enum CutAt {
     /// Where a conic boundary edge of the face crosses the edge's
     /// line inside the edge's span, a point no census lane examines as
     /// an event of its own.
-    ConicCrossing(EdgeKey),
+    ConicCrossing,
 }
 
 /// One cut of an edge's span: its arc length from the edge's start,
@@ -2058,7 +2058,7 @@ fn boundary_crossings<T: Decide>(
                         Ok(ConicPlaneMeet::Miss) => {}
                         Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
                             for t in roots {
-                                cut_at(curve.carrier().eval(t), CutAt::ConicCrossing(key), errors)?;
+                                cut_at(curve.carrier().eval(t), CutAt::ConicCrossing, errors)?;
                             }
                         }
                         Ok(ConicPlaneMeet::Roots(Err(cause))) => {
