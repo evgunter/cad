@@ -66,7 +66,8 @@ moves.
 *An upper bound on a norm assembled by an `f64` fold of ring
 endpoints, used as a divisor.* The three members found are this one,
 `offset_fit::Composite::cell_bound`'s `m_sq`/`y_sq` (fixed at #2469)
-and `ssi::certify`'s `stretch`.
+and the plane×NURBS `stretch` (now `ssi::enclose`'s
+`chart_transverse_margin`).
 
 ## Still live after RATE-PAIR (2026-09-15)
 
