@@ -156,6 +156,8 @@ mod edit_one_predicate;
 mod edit_pair_apply_names;
 #[path = "edit_placement_corpus_bits.rs"]
 mod edit_placement_corpus_bits;
+#[path = "edit_placement_type.rs"]
+mod edit_placement_type;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
