@@ -179,7 +179,7 @@ area `api`; prefix `edit/`; tag `(EDIT orchestrator)`; ab_band `4800-4899`.
 | P2 | `pick-refuses-a-crossing-within-rounding-of-a-plane` | issue | H | open | the certified determinant refuses a crossing whose ray lies within rounding of the triangle's plane |  |  |
 | P3 | `part-root-failure-nests-a-whole-refusal-past-the-budget` | issue | M | spec | editor-core: a part's root failure renders the part's own node refusal inside an 11-word wrapper, so it can outgrow the viewer's 75-word budget by construction |  |  |
 | P4 | `param-names-are-not-unicode-normalised` | issue | M +design | open | Parameter names are not Unicode-normalised: two look-alike spellings are two admissible keys |  |  |
-| P4 | `the-standing-ladder-speaks-as-a-hit-test-at-every-door` | issue | M +design | open | The standing arms of HitTestError say "hit test:" through NodePick::build and the name doors, where no hit test runs |  |  |
+| P4 | `the-standing-ladder-speaks-as-a-hit-test-at-every-door` | issue | M | open | The standing arms of HitTestError say "hit test:" through NodePick::build and the name doors, where no hit test runs |  |  |
 | P4 | `tour-re-gates-an-assembled-body-at-tier-3-prime-after-assemble` | issue | M | open | the tour re-runs tier 3′ over a body assemble already passed, because Assembly hands back no certificate |  |  |
 | — | `load-door-is-the-construction-door-for-expressions-and-not-for-profile-programs` | issue | — | open | persist/wire.rs carries two rebuild policies and states one: expressions rebuild through their constructors, profile programs do not |  |  |
 
