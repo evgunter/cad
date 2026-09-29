@@ -33,4 +33,3 @@ A door-level differential: each of the five against a reference spelled
 over the backend's endpoints and decoration (`DInterval` directly), over
 the corner corpus the backend differential already has, asserting the
 refusal verdict first and the endpoints bit for bit.
-

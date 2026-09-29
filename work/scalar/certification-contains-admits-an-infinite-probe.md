@@ -10,7 +10,6 @@ priority: P2
 cost: E
 ---
 
-
 ## Finding
 
 Found by `crates/geom-core/tests/certification_door_differential.rs`

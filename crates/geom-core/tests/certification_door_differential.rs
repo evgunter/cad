@@ -17,17 +17,29 @@
 //! **One carve-out, and why.** Where an endpoint is chosen between two
 //! zeros of opposite sign (`hull([-0, 1], [0, 1])`, a clamp of `[-0, 1]`
 //! to `[0, 1]`), the reference compares the zero by value: neither door
-//! states a sign, and `f64::min`/`max`, which both are built on, do not
-//! fix one for zeros of opposite sign (on x86-64 the second operand's
-//! wins, so `hull` is not bit-commutative there). Every other endpoint
+//! states a sign, and `f64::min`/`max`, which both are built on, leave
+//! the sign of that choice unspecified; this build's codegen picks the
+//! second operand at the door, so `hull` is not bit-commutative there.
+//! A zero chosen against a non-zero candidate, and every other endpoint,
 //! is compared by its bits.
 //!
-//! The corpus is an enumeration: every bracket over
-//! `interval_backend_differential`'s [`CORNERS`] plus [`EXTRAS`], each at
-//! its own decoration, capped at `Def`, and at `Trv` with its real
-//! endpoints kept; the empty set; and, for `clamped_to` and `contains`,
-//! every window bound and probe one ulp either side of the operand's
-//! endpoints.
+//! Every reference reads its door's doc (`certification.rs`). One of
+//! them agrees by definition: `DInterval::contains` is itself the
+//! real-number membership `contains_reference` spells, so what the
+//! `contains` row adds is the enumeration — every refusal, every
+//! endpoint and its neighbours, every infinity and NaN, each tried.
+//!
+//! The corpus is an enumeration. Operands: every bracket over
+//! `interval_backend_differential`'s [`CORNERS`] plus [`EXTRAS`] at its
+//! own decoration (`Com` bounded, `Dac` unbounded), capped at `Def`, and
+//! at `Trv` with its real endpoints kept; every bounded one at `Dac`
+//! too, minted by `clamped_to` from its upper half-line (the door keeps
+//! the enclosure's `Dac` on the bounded result); and the empty set. Each
+//! is paired with its `DInterval` twin and checked to be the same stored
+//! value. `clamped_to` takes every window over the probe set: the fixed
+//! edges `±inf`, `±1`, `±0` and NaN, and each of the operand's endpoints
+//! with one ulp either side. `contains` probes the same set and every
+//! value of `CORNERS` and `EXTRAS` besides.
 
 use geom_core::Interval;
 use geom_core::interval::certification::Certification;
@@ -48,11 +60,13 @@ const EXTRAS: [f64; 4] = [
 ];
 
 /// One operand: the scalar and its backend twin, built by the same
-/// recipe and checked to be the same stored value.
+/// recipe and checked to be the same stored value, and whether that
+/// recipe builds an enclosure that certifies.
 #[derive(Clone, Copy)]
 struct Operand {
     ring: Interval,
     back: DInterval,
+    certifies: bool,
 }
 
 impl core::fmt::Display for Operand {
@@ -67,6 +81,8 @@ impl core::fmt::Display for Operand {
     }
 }
 
+/// [`Interval::repr_bits`]' decoration code, copied: that table reads an
+/// `Interval`, and the references hold a `DInterval`.
 fn dec_code(d: Decoration) -> u8 {
     match d {
         Decoration::Ill => 0,
@@ -77,7 +93,12 @@ fn dec_code(d: Decoration) -> u8 {
     }
 }
 
-fn operand(ring: Interval, back: DInterval) -> Operand {
+fn operand(ring: Interval, back: DInterval, certifies: bool) -> Operand {
+    assert_eq!(
+        refuses(back),
+        !certifies,
+        "corpus: {back:?} against its recipe's verdict (certifies: {certifies})"
+    );
     let twin = (
         back.lo().to_bits(),
         back.hi().to_bits(),
@@ -88,7 +109,11 @@ fn operand(ring: Interval, back: DInterval) -> Operand {
         twin,
         "corpus: the scalar {ring:?} and its backend twin {back:?} are not the same value"
     );
-    Operand { ring, back }
+    Operand {
+        ring,
+        back,
+        certifies,
+    }
 }
 
 fn corpus() -> Vec<Operand> {
@@ -99,26 +124,48 @@ fn corpus() -> Vec<Operand> {
         (Interval::from_bounds(-2.0, -1.0) / Interval::from_bounds(-1.0, 1.0)) * Interval::zero(),
         (DInterval::from_bounds(-2.0, -1.0) / DInterval::from_bounds(-1.0, 1.0))
             * DInterval::point(0.0),
+        false,
     );
     let mut out = Vec::new();
     for (i, &x) in values.iter().enumerate() {
         for &y in &values[i..] {
             let (lo, hi) = if x <= y { (x, y) } else { (y, x) };
+            // `[+inf, +inf]` and `[-inf, -inf]` hold no real number and
+            // are NaI at every recipe.
+            let real = lo != f64::INFINITY && hi != f64::NEG_INFINITY;
             let ring = Interval::from_bounds(lo, hi);
             let back = DInterval::from_bounds(lo, hi);
-            out.push(operand(ring, back));
+            out.push(operand(ring, back, real));
             out.push(operand(
                 Interval::from_certified(ring),
                 back.with_dec_capped(Decoration::Def),
+                real,
             ));
-            out.push(operand(ring + trv_zero.ring, back + trv_zero.back));
+            out.push(operand(
+                ring + trv_zero.ring,
+                back + trv_zero.back,
+                false,
+            ));
+            if lo.is_finite() && hi.is_finite() {
+                out.push(operand(
+                    Interval::from_bounds(lo, f64::INFINITY).clamped_to(lo, hi),
+                    back.with_dec_capped(Decoration::Dac),
+                    true,
+                ));
+            }
         }
     }
     out.push(operand(
         Interval::one() / Interval::zero(),
         DInterval::point(1.0) / DInterval::point(0.0),
+        false,
     ));
     out
+}
+
+/// How many of `ops` the corpus built to certify.
+fn certifying(ops: &[Operand]) -> usize {
+    ops.iter().filter(|o| o.certifies).count()
 }
 
 /// The backend's refusal, read off the twin: below `Def`, which takes in
@@ -150,7 +197,8 @@ fn probes(x: DInterval) -> Vec<f64> {
 // ------------------------------------------------ interval-valued doors
 
 /// An expected endpoint. `zero_sign_open` marks the one case the doors
-/// leave unspecified: a choice between two zeros of opposite sign.
+/// leave unspecified: a choice between two zeros of opposite sign, which
+/// compare equal and differ in bits.
 #[derive(Clone, Copy)]
 struct End {
     v: f64,
@@ -167,7 +215,7 @@ fn chosen(a: f64, b: f64, want_lesser: bool) -> End {
     };
     End {
         v,
-        zero_sign_open: a.to_bits() != b.to_bits(),
+        zero_sign_open: a == b && a.to_bits() != b.to_bits(),
     }
 }
 
@@ -193,8 +241,8 @@ fn hull_reference(a: DInterval, b: DInterval) -> Option<Want> {
 }
 
 /// `clamped_to`: NaI for a refused enclosure, a NaN window bound, or an
-/// intersection holding no real number; otherwise the intersection, at
-/// the enclosure's own decoration.
+/// intersection holding no real number — empty, or an infinity alone;
+/// otherwise the intersection, at the enclosure's own decoration.
 fn clamp_reference(x: DInterval, lo: f64, hi: f64) -> Option<Want> {
     if refuses(x) || lo.is_nan() || hi.is_nan() {
         return None;
@@ -221,7 +269,7 @@ fn same_end(got: f64, want: End) -> bool {
 
 /// Verdict first, then NaI's shape or the bracket bit for bit.
 #[track_caller]
-fn assert_bracket(door: &str, case: &str, got: Interval, want: Option<Want>) {
+fn assert_bracket(door: &str, case: &dyn core::fmt::Display, got: Interval, want: Option<Want>) {
     let (lo_bits, hi_bits, dec) = got.repr_bits();
     let (lo, hi) = (f64::from_bits(lo_bits), f64::from_bits(hi_bits));
     assert_eq!(
@@ -251,17 +299,22 @@ fn assert_bracket(door: &str, case: &str, got: Interval, want: Option<Want>) {
     }
 }
 
-/// Both verdicts reached, or the sweep says nothing about one of them.
-fn assert_both_verdicts(door: &str, certified: usize, refused: usize) {
+/// Each verdict reached at least as often as the corpus's construction
+/// guarantees.
+fn assert_verdict_floors(door: &str, certified: usize, refused: usize, floors: (usize, usize)) {
     assert!(
-        certified > 0 && refused > 0,
-        "{door}: the corpus reached {certified} certified and {refused} refused cases"
+        certified >= floors.0 && refused >= floors.1,
+        "{door}: the corpus reached {certified} certified and {refused} refused cases, \
+         below its construction's {} and {}",
+        floors.0,
+        floors.1
     );
 }
 
 #[test]
 fn hull_is_its_reference_over_every_operand_pair() {
     let ops = corpus();
+    let (n, c) = (ops.len(), certifying(&ops));
     let (mut certified, mut refused) = (0, 0);
     for a in &ops {
         for b in &ops {
@@ -273,19 +326,25 @@ fn hull_is_its_reference_over_every_operand_pair() {
             }
             assert_bracket(
                 "hull",
-                &format!("{a}, {b}"),
+                &format_args!("{a}, {b}"),
                 Interval::hull(a.ring, b.ring),
                 want,
             );
         }
     }
-    assert_both_verdicts("hull", certified, refused);
+    // A pair certifies exactly when both of its operands were built to.
+    assert_eq!(
+        (certified, refused),
+        (c * c, n * n - c * c),
+        "hull: certified and refused pairs, against the corpus's construction"
+    );
 }
 
 #[test]
 fn clamped_to_is_its_reference_over_every_operand_and_window() {
+    let ops = corpus();
     let (mut certified, mut refused) = (0, 0);
-    for x in corpus() {
+    for &x in &ops {
         let bounds = probes(x.back);
         for &lo in &bounds {
             for &hi in &bounds {
@@ -297,14 +356,21 @@ fn clamped_to_is_its_reference_over_every_operand_and_window() {
                 }
                 assert_bracket(
                     "clamped_to",
-                    &format!("{x}, [{lo:e}, {hi:e}]"),
+                    &format_args!("{x}, [{lo:e}, {hi:e}]"),
                     x.ring.clamped_to(lo, hi),
                     want,
                 );
             }
         }
     }
-    assert_both_verdicts("clamped_to", certified, refused);
+    // Every certifying operand is clamped to its own bracket, which
+    // certifies; every operand is clamped to a NaN bound, which refuses.
+    assert_verdict_floors(
+        "clamped_to",
+        certified,
+        refused,
+        (certifying(&ops), ops.len()),
+    );
 }
 
 // ------------------------------------------------------------ readings
@@ -317,8 +383,9 @@ fn contains_reference(x: DInterval, p: f64) -> bool {
 
 #[test]
 fn contains_is_its_reference_over_every_operand_and_probe() {
+    let ops = corpus();
     let (mut inside, mut outside) = (0, 0);
-    for x in corpus() {
+    for &x in &ops {
         let mut points = probes(x.back);
         points.extend(CORNERS.iter().chain(&EXTRAS));
         for p in points {
@@ -338,7 +405,14 @@ fn contains_is_its_reference_over_every_operand_and_probe() {
             }
         }
     }
-    assert_both_verdicts("contains", inside, outside);
+    // Every certifying operand holds a finite probe (an endpoint, or 0
+    // on `entire`); every operand is probed with NaN.
+    assert_verdict_floors(
+        "contains",
+        inside,
+        outside,
+        (certifying(&ops), ops.len()),
+    );
 }
 
 /// `x` exactly, in units of the least subnormal `2^-1074`.
@@ -442,8 +516,9 @@ fn assert_reading(door: &str, x: Operand, got: f64, want: f64) {
 
 #[test]
 fn width_and_mag_are_their_references_over_every_operand() {
+    let ops = corpus();
     let (mut certified, mut refused) = (0, 0);
-    for x in corpus() {
+    for &x in &ops {
         let w = width_reference(x.back);
         assert_reading("width", x, x.ring.width(), w);
         assert_reading("mag", x, x.ring.mag(), mag_reference(x.back));
@@ -453,5 +528,10 @@ fn width_and_mag_are_their_references_over_every_operand() {
             certified += 1;
         }
     }
-    assert_both_verdicts("width and mag", certified, refused);
+    let c = certifying(&ops);
+    assert_eq!(
+        (certified, refused),
+        (c, ops.len() - c),
+        "width and mag: certified and refused operands, against the corpus's construction"
+    );
 }

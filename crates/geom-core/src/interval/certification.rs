@@ -101,11 +101,12 @@ pub trait Certification: sealed::Sealed + Copy {
     #[must_use]
     fn one() -> Self;
 
-    /// The smallest enclosure containing both arguments. A refusal in
-    /// either argument makes the hull NaI — a hull that quietly dropped
-    /// a refused member would certify geometry it never bounded, and the
-    /// backend's `hull` treats the empty set as an identity, which is a
-    /// different operation from this one. The evaluation scalar's hull,
+    /// The smallest enclosure containing both arguments, at the weaker
+    /// of their two decorations. A refusal in either argument makes the
+    /// hull NaI — a hull that quietly dropped a refused member would
+    /// certify geometry it never bounded, and the backend's `hull` treats
+    /// the empty set as an identity, which is a different operation from
+    /// this one. The evaluation scalar's hull,
     /// through which a refusal flows at the minimum decoration, is
     /// [`crate::SpanLocate::enclosure_hull`]: a different operation
     /// under a different name.
@@ -124,7 +125,11 @@ pub trait Certification: sealed::Sealed + Copy {
     /// refused enclosure as the window itself — a plausible,
     /// sound-looking bracket with no argument behind it, which is the
     /// laundering D4 ¶2 exists to prevent. A refused enclosure, a NaN
-    /// window, and a window disjoint from the enclosure all yield NaI.
+    /// window bound, and a window whose intersection with the enclosure
+    /// holds no real number all yield NaI: the intersection
+    /// `[max(x.lo, lo), min(x.hi, hi)]` is refused when it is empty
+    /// (lower above upper, an inverted window included) and when it is
+    /// an infinity alone (lower `+inf`, or upper `-inf`).
     ///
     /// Spelled over the endpoints, keeping the enclosure's own
     /// decoration, rather than through the backend's `intersection`,
@@ -135,14 +140,15 @@ pub trait Certification: sealed::Sealed + Copy {
     fn clamped_to(self, lo: f64, hi: f64) -> Self;
 
     /// Whether `x` lies in the enclosure. False for a refusal (nothing is
-    /// known to lie in a bracket that may not certify) and for a `x` that
+    /// known to lie in a bracket that may not certify) and for an `x` that
     /// is not a real number — NaN, or `±inf` even on an unbounded side.
     #[must_use]
     fn contains(self, x: f64) -> bool;
 
-    /// The bracket's width, rounded **up** by one step (`hi − lo` is
-    /// inexact in general); `0` for a point, `+inf` for an infinite
-    /// side, and `NaN` for a refusal.
+    /// An upper bound on the bracket's width: `hi − lo` rounded to
+    /// nearest, then one step up (`next_up`), since the difference is
+    /// inexact in general; `0` for a point, `+inf` for an infinite side
+    /// or a difference that overflows, and `NaN` for a refusal.
     #[must_use]
     fn width(self) -> f64;
 
