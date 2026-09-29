@@ -1859,3 +1859,17 @@ kept in scratch). Main's protocol changes read:
 - a test costing ≥1 s goes in the slow set.
 
 Main's tally is 2 of 8, so LANE-4's candidate makes 3, not 1.
+
+**2026-09-29 — RING-5 and LANE-4 landed.**
+- **RING-5** (#3174, `e58625a9ee`) merged on Ev's sign-off, after a
+  merge-main lane (12 conflicts per hunk, run 36544973086 green); its
+  review-log row is DR-20 (fair pair, no MAJOR).
+- **LANE-4** (#3194, `8436d852da`) merged after its fix pass:
+  - the base's refusal order is restored in both fitted arms;
+  - R2's public-API body is a five-scalar fixture;
+  - the `m6_2` dual row runs genuine `Dual64`;
+  - R2's table reads identical from base to head.
+  I merged main (with RING-5) at `9cf42f97e1`, and run 36546984842 was
+  green. Its review-log row is DR-21, the first SCALAR tally candidate
+  (MINT-ORDER). The tally is now 3 of 8, and fair pairs that found a
+  MAJOR are 8 of 12.
