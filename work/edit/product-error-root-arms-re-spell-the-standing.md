@@ -2,7 +2,9 @@
 id: product-error-root-arms-re-spell-the-standing
 kind: issue
 title: ProductError's three root arms re-spell the node standing instead of carrying it
-status: spec
+status: closed
+closed: 2026-09-29
+pr: 3482
 branch: edit/part-product-refusals
 opened: 2026-09-29
 priority: P4
@@ -101,3 +103,60 @@ merges and extends the class and its witness census for any arm it adds.
 - the `PartProduct` row with real text passes `problems`;
 - the product tag table is unchanged;
 - the class census covers any new arm.
+
+## Built (2026-09-29, `edit/part-product-refusals`, PR 3482)
+
+With its two riders, as one unit.
+
+- **`ProductError::Root(NodeStanding)`** replaces `UnknownNode`,
+  `RootFailed` and `RootPoisoned`, rendered `product: root {standing}`;
+  `From<NodeStanding> for ProductError` is gone (the gather maps with
+  `ProductError::Root`). `ProductErrorKind` keeps its three classes,
+  derived from the standing, so the viewer's badge placement and
+  `product_error_tag`'s words (`unknown_node`, `root_failed`,
+  `root_poisoned`) do not move — pinned by `pncad-py`'s
+  `every_door_keeps_its_word_for_each_standing`, whose product row is
+  main's table. The stage word is written once; `ProductError::sentence`
+  is the refusal without it.
+- **A poisoned root crosses carrying its failure**:
+  `PartFault::PartRootPoisoned { root, through, refusal }`, the refusal
+  at `through` carried through `carried()` and so through
+  `carried_chain`, the viewer's `carried_lines` and Python's
+  `__cause__`. New class `NodeErrorClass::PartRootPoisoned`, tag
+  `part_root_poisoned`. `RootFailureUnrecorded` now also covers a
+  poisoned root's `through` with no failure recorded.
+- **`PartProduct`** carries the gather's sentence without its stage
+  word and states a recourse by class (none for the three classes that
+  forward a kernel refusal, which states its own). The roster's
+  `Part/PartProduct` row is raised through a real evaluation, with a
+  second row for `PlacedUnderTwoRoots`; its `FILED_NO_RECOURSE` entry
+  went.
+
+Sibling found by the sweep and filed:
+`part-unresolved-refusal-draws-the-workspaces-stage-prefix`.
+
+## Fix pass (2026-09-29, review `partprod-rev`)
+
+- **One sentence for a root with no value**: `root {standing}`
+  (`NodeStanding::of_root`), under the gather's `product:` and the
+  checks registry's `checks:`. The viewer's at-rest badge renders the
+  root's standing re-read by `standing_as_drawn` through the same
+  sentence, and its own "is a root with no value" wording went.
+- **The class is read in one place**, `ProductError::kind`:
+  `product_error_tag` and the viewer read it; the kernel census's
+  expected classes are literals. `NodeStanding::failed_node` answers
+  which node's failure explains a standing (`product_fault`,
+  `Evaluation::node_error`).
+- **`ProductError::sentence` (now public) strips the gather's labels**:
+  a carried `RootInvalid` names its roots in its header and lists the
+  findings bare; `Graft` is a sentence everywhere.
+- **One recourse per `PartProduct`**: the wrapper adds one only where
+  the gather's sentence states none (`NoBodyRoots`, `Naming`), through
+  one helper; `PlacedUnderTwoRoots` labels its own.
+- The roster gained `Part/PartProduct(Naming)` from a real part, and
+  `RootInvalid`, `ProductInvalid` and `Graft` rows built from the
+  gather's own error, which no document reaches.
+- `PartRootFailed` and `PartRootPoisoned` stay two arms: a
+  `PartRoot { standing, refusal }` would admit the two standings that
+  carry no failure beside a carried failure, with no honest class or
+  sentence for them.

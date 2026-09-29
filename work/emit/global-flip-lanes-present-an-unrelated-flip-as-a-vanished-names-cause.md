@@ -18,7 +18,7 @@ doc-diff lanes on that path. When those come up empty, it falls to
 "global fallbacks (off-path evidence, in the same order)" and returns the
 FIRST recorded flip anywhere in the document as
 `Diagnosis::PredicateFlip { source: VerdictLog }`. That arm's sentence
-reads *"predicate {p} flipped from {from} to {to} on the name's
+reads *"the margin deciding {what} flipped from {from} to {to} on the name's
 derivation path"*, so the global lane asserts a location it did not
 check. The same lane also outranks every rung below `diagnose`:
 `qualifier_delta`, `group_resized` and the fallback.

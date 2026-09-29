@@ -1076,3 +1076,15 @@ orders across those fixtures. It is WIRE's chord-rule row.
 **Also found on the way:** EDIT's new hex-id check in test-utils read
 a float's exponent as an id, which turned main red at ε = 1e-6. EMIT
 fixed it in #3466, with a seam note to EDIT.
+
+## 2026-09-29: Python step handles (PR 3481), ruled on [ev] #3473
+
+Ev ruled that the author states the loop, that there is one role list per verb with the accessors generated from it, and that `set_program` takes one keep dict per loop.
+
+**The review found a real defect.** The first version bypassed `rides` for a fused step's own emission. That missed Radius/Via arrivals, whose arc a later binder step emits. Far from the origin at ε 1e-11, those panicked the new role check: 106 of 3,600 grid cases.
+
+**The fix is structural:** the fused verb claims `RunOut` where it emits the arc. #3266's circle measurement is gone, and only the ray arm still decides geometrically.
+
+**Friction noted:**
+- Twice today, main went red where the PR gate had skipped the rows: the 1e-6 hex-id row (#3466) and the demo `chaintol` rows (#3479). Both were fixed by EMIT, with seam notes to EDIT and CHROME.
+- #3266's test job took about 14 minutes.

@@ -255,13 +255,9 @@ the 30-point ceiling, in two families and the class behind the second.
 3457. Both P0 rows are closed, and `work/chrome/log.md` has the
 record.
 
-**Wave 7 LANDED 2026-09-29**: PRs 3475, 3477 and 3478. No P0–P2 row is live, and `work/chrome/log.md` has the record.
+**Waves 7 and 8 LANDED 2026-09-29**: PRs 3475, 3477, 3478, 3486 and 3487. No non-design row is dispatchable, and `work/chrome/log.md` has the record.
 
-**After Wave 7.** The dispatchable slate is P3/P4 and small. Next, grouped by ground:
-- `pick-index-tooltip-says-tessellation-for-a-root-with-no-value` and `display-reads-an-instance-off-one-node-kind`, both on viewer ground (frame/display).
-- `a-hover-diff-counts-the-index-builds-progress-label` (a test flake).
-- `culling-is-load-bearing-with-no-pixel-test`.
-- `chrome-weight-is-outside-the-palette` (P4).
+**Next is the designer pass on the design forks below.** Nothing else is dispatchable.
 
 **On Ev:**
 - `a-long-cascades-maintenance-crowds-the-status-line`: options (a)–(d) were asked in chat.
@@ -274,6 +270,7 @@ record.
 - `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`
 - `a-computed-slots-value-reads-in-metres-and-radians`
 - `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text`
+- `chrome-weight-is-outside-the-palette` (its first decision is a theme-contract question)
 
 **The board's in-flight column is a claim, not a fact** — see
 `work/chrome/log.md`, 2026-09-22. A row is marked `dispatched` here only

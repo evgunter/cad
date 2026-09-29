@@ -239,6 +239,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
             ErrorClass::Mc => "McRefusal",
+            ErrorClass::StepHandle => "StepHandleError",
         }
     }
     for class in [
@@ -280,6 +281,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::MeasureUnavailableAt,
         ErrorClass::AnalysisPolicy,
         ErrorClass::Mc,
+        ErrorClass::StepHandle,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
@@ -1340,7 +1342,7 @@ fn every_door_keeps_its_word_for_each_standing() {
         ),
         (
             "product",
-            |s| product_error_tag(&ProductError::from(s)),
+            |s| product_error_tag(&ProductError::Root(s)),
             [
                 "unknown_node",
                 "unknown_node",
@@ -2360,6 +2362,7 @@ fn node_error_tags_are_the_published_words() {
         PartEpsilonSeam => "part_epsilon_seam",
         PartUnresolved => "part_unresolved",
         PartRootFailed => "part_root_failed",
+        PartRootPoisoned => "part_root_poisoned",
         PartRootFailureUnrecorded => "part_root_failure_unrecorded",
         PartProduct => "part_product",
         PartReferenceCycle => "part_reference_cycle",
@@ -2623,9 +2626,9 @@ fn edit_inner_variant_tags_are_stable() {
 /// attributes it CARRIES, in publication order, with the rest `None`.
 ///
 /// It is here rather than in `tests/*.py` because most of these arms
-/// have no Python door — the bound `DocEdit` surface is ten verbs, and
-/// a rebind, a witness, an appearance write or an expression-path edit
-/// is not among them. A rename or a re-slotting of any arm's payload
+/// have no Python door: the bound `DocEdit` surface binds a rebind
+/// (`DocEdit.rebind`), but not a witness, an appearance write or an
+/// expression-path edit. A rename or a re-slotting of any arm's payload
 /// is a breaking change to the bindings whether or not a Python row
 /// can provoke it, so it is pinned where it can be provoked: by
 /// construction, on the row with no interpreter.
@@ -5126,6 +5129,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_reference_cycle",
             "part_root_failed",
             "part_root_failure_unrecorded",
+            "part_root_poisoned",
             "payload_expr",
             "placement_rule_mismatch",
             "placements_uncertified",
@@ -5687,6 +5691,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "step_handle_refusal_tag",
+        values: &[
+            "handle_off_program",
+            "role_not_drawn",
+            "step_ids",
+            "unminted",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "step_id_fault_tag",
         values: &[
             "collides",
@@ -6048,7 +6062,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("slot_unknown_doc_param", 2),
     ("smooth_join_refuted", 2),
     ("split", 2),
-    ("step_ids", 2),
+    ("step_ids", 3),
     ("step_map_diverged", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
@@ -6057,6 +6071,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("underflowed_direction", 2),
     ("unknown_node", 5),
     ("unknown_param", 4),
+    ("unminted", 2),
     ("unnamed", 2),
     ("unreadable", 2),
     ("validate", 2),
@@ -7408,10 +7423,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 35,
+        literals: 36,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
-            holds: "the 35 class names, against a SECOND exhaustive match, so a new \
+            holds: "the 36 class names, against a SECOND exhaustive match, so a new \
                     class stops the build",
         }],
     },
