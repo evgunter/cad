@@ -4962,7 +4962,7 @@ fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 /// Asked through the value channel ([`geom_core::is_finite_length`]),
 /// with no bracket read and no threshold: whether a stored number is a
 /// number is not a decision about geometry. The fields are
-/// [`geom::Surface::analytic_data`]'s, the one walk every field-by-field
+/// [`geom::Surface::data`]'s, the one walk every field-by-field
 /// reader of a surface folds, so a datum a variant gains is read here
 /// the day the walk names it.
 ///
@@ -4985,10 +4985,11 @@ fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 /// `work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo`.
 pub(crate) fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
     use geom::DatumValue as V;
-    surface
-        .analytic_data()
-        .unwrap_or_default()
-        .into_iter()
+    let data = match surface.data() {
+        geom::SurfaceData::Analytic(data) => data,
+        geom::SurfaceData::Nurbs(_) | geom::SurfaceData::Approx(_) => return Vec::new(),
+    };
+    data.into_iter()
         .filter_map(|(datum, value)| {
             let is_number = match value {
                 V::Point(p) => is_finite_point(&p),

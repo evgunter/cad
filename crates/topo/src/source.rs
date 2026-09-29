@@ -282,7 +282,7 @@ pub(crate) fn surface_bits_witness<T: geom_core::Real>(
     use geom::SurfacePairing as P;
     match a.paired_with(b) {
         P::KindsDiffer => Some(false),
-        P::Analytic(data) => data_bits_witness(data.into_iter().map(|(_, x, y)| (x, y))),
+        P::Analytic(data) => data_bits_witness(data.pairs().map(|(_, x, y)| (x, y))),
         P::Nurbs(x, y) if std::sync::Arc::ptr_eq(x, y) => Some(true),
         P::Nurbs(x, y) => nurbs_surface_bits_witness(x, y),
         P::Approx(x, y) if std::sync::Arc::ptr_eq(x, y) => Some(true),
