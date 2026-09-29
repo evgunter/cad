@@ -2457,6 +2457,19 @@ fn the_export_door_refuses_typed_not_vaguely() {
     ));
     // The typed root cause is one door away, F3's promise.
     assert!(ev.node_error(downstream).is_some());
+
+    // Each standing renders one way: the door's subject, then the
+    // standing's own sentence (`editor-core`'s `node_standing` rows
+    // hold the other doors to the same shape).
+    for node in [RecipeNodeId(u64::MAX), cut, downstream] {
+        let standing = ev.usable(node).expect_err("no value");
+        let refusal = door(node).expect_err("refuses");
+        assert_eq!(
+            refusal.to_string(),
+            format!("export: {standing}"),
+            "{standing:?}"
+        );
+    }
 }
 
 #[test]

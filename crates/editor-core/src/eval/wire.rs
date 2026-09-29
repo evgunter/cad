@@ -637,8 +637,10 @@ fn value_of<T: Decide>(
     // Failed/Poisoned inputs never reach run_op (the node is poisoned
     // first), so the one standing that arrives is an absent entry: a
     // dangling reference.
-    super::usable_in(results, input, || super::NodeStanding::NotInDocument { node: input })
-        .map_err(|_| NodeErrorKind::MissingInput { input })
+    super::usable_in(results, input, || super::NodeStanding::NotInDocument {
+        node: input,
+    })
+    .map_err(|_| NodeErrorKind::MissingInput { input })
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's

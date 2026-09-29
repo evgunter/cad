@@ -13,7 +13,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{Mispaired, NameLookupError, NodeStanding};
 use editor_core::ParamNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
@@ -26,6 +25,7 @@ use editor_core::{
     ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
     SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
+use editor_core::{Mispaired, NameLookupError, NodeStanding};
 use geom_core::BandError;
 
 /// The gate's refusal over ONE of this document's own mates: the arm

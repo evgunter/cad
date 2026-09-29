@@ -56,8 +56,8 @@ use crate::py::doc::{NodeId, name_text};
 use crate::py::mesh::Mesh;
 use crate::py::quantity::Length;
 use crate::py::select::entity_kind;
-use crate::py::typed_err;
 use crate::py::value::{Evaluation, lengths};
+use crate::py::{standing_fields, typed_err};
 use crate::tags::{
     hit_test_error_tag, mesh_pick_error_tag, name_lookup_error_tag, node_pick_error_tag,
 };
@@ -110,13 +110,10 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
     };
 
     match err {
-        s::HitTestError::Standing(standing) => [
-            node(standing.node()),
-            standing.through().map_or_else(none, node),
-            none(),
-            none(),
-            none(),
-        ],
+        s::HitTestError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            [which, through, none(), none(), none()]
+        }
         // The pairing arm names two DOCUMENTS, which this
         // node/through/kind/body quadruple cannot carry; the message
         // states both, and the tag is what a caller branches on (the
@@ -188,15 +185,13 @@ fn hit_test_err(py: Python<'_>, err: &s::HitTestError) -> PyErr {
 /// which names no hit test because none ran.
 fn name_lookup_err(py: Python<'_>, err: &s::NameLookupError) -> PyErr {
     let none = || py.None();
-    let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
-    let node = |n: pncad::document::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
     let (which, through) = match err {
         // The pairing names two DOCUMENTS; the message states both.
         s::NameLookupError::EvaluationOfAnotherDocument(_) => (none(), none()),
-        s::NameLookupError::Standing(standing) => (
-            node(standing.node()),
-            standing.through().map_or_else(none, node),
-        ),
+        s::NameLookupError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            (which, through)
+        }
     };
     typed_err(
         py,
@@ -272,13 +267,10 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
     // Exhaustive on purpose: an arm added kernel-side is a compile
     // error here, not a silently unprojected payload.
     let [which, through, kind, body, hits] = match err {
-        s::NodePickError::Standing(standing) => [
-            node(standing.node()),
-            standing.through().map_or_else(none, node),
-            none(),
-            none(),
-            none(),
-        ],
+        s::NodePickError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            [which, through, none(), none(), none()]
+        }
         s::NodePickError::NotABody { node: n } => [node(*n), none(), none(), none(), none()],
         s::NodePickError::NoSuchBody { node: n, body } => {
             [node(*n), none(), none(), int(*body), none()]

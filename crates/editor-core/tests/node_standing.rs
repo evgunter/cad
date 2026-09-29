@@ -1,32 +1,38 @@
 //! **A node's standing: one type, one read, every door.**
 //!
-//! "This node has no usable value" is one fact with three shapes — no
-//! result in this evaluation, failed, poisoned through its nearest
-//! failed ancestor — and it is [`NodeStanding`], read by
-//! [`Evaluation::usable`]. Each door that needs a node's value refuses
-//! with the standing as its payload, under its own subject; none
-//! re-spells the three arms or their sentences.
+//! "This node has no usable value" is one fact with four shapes — the
+//! run stopped before it, not a node of this document, failed,
+//! poisoned through its nearest failed ancestor — and it is
+//! [`NodeStanding`], read by [`Evaluation::usable`]. Each door that
+//! needs a node's value refuses with the standing as its payload, under
+//! its own subject; none re-spells the arms or their sentences.
 //!
 //! The rows:
 //!
 //! - the census: every reader of a node's result in shipped `src` goes
 //!   through the one read, or is listed with its reason;
-//! - the three standings render one way through every door that
-//!   carries them, each door's subject in front;
+//! - every standing renders one way through every door that carries
+//!   it, each door's subject in front;
 //! - no door that runs no hit test says "hit test" for a standing;
 //! - a poisoned datum reaching the distance query carries `through`;
+//! - the checks registry's root refusal names the node the repair is
+//!   at;
 //! - `RunStatus`, the standing's persisted projection, keeps its JSON
 //!   words and its key bytes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, insert, len, minted, on_frame, step};
+use editor_core::analysis::ParamBox;
+use editor_core::clearance::{
+    ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal, clearance,
+};
 use editor_core::{
-    CancelToken, Cmp, DocEdit, EntityKind, EvalOptions, Evaluation, GeomPred, HitTestError,
-    InterrogateError, NameLookupError, NamePat, Node, NodePick, NodePickError, NodeStanding,
-    ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate, RoleSeg, RunCtx, RunStatus,
-    SelectRefusal, Selector, SlotId, VerdictRow, VerdictVector, body_name, denotation, evaluate,
-    resolve, select_where,
+    CancelToken, ChecksConfig, ChecksError, Cmp, DocEdit, EntityKind, EvalOptions, Evaluation,
+    GeomPred, HitTestError, InterrogateError, NameLookupError, NamePat, Node, NodePick,
+    NodePickError, NodeStanding, ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate,
+    RoleSeg, RunCtx, RunStatus, SelectRefusal, Selector, SlotId, VerdictRow, VerdictVector,
+    body_name, denotation, evaluate, find_flush_candidates, resolve, run_checks, select_where,
 };
 use geom_core::Tol;
 
@@ -122,62 +128,138 @@ fn speaks(door: &str, prefix: &str, refusal: &dyn core::fmt::Display, standing: 
     );
 }
 
-/// **The three standings render one way through every door that
-/// carries them**, each under that door's own subject: the hit test,
-/// the pick-index build, the name lookup, the name read, the
-/// resolution verdict and the distance query. Each door's payload IS
-/// the standing [`Evaluation::usable`] answers, so no door can name a
-/// different node, lose `through`, or word the state its own way.
+/// **Every standing renders one way through every door that carries
+/// it**, each under that door's own subject: the hit test, the
+/// pick-index build, the name lookup, the name read, the resolution
+/// verdict, the distance and flush queries, the checks registry and the
+/// clearance engine's selection (`pncad`'s suite holds the export door
+/// to the same shape, and `viewer`'s the duplicate and the blend tool).
+/// Each door's payload IS the standing [`Evaluation::usable`] answers,
+/// so no door can name a different node, lose `through`, or word the
+/// state its own way.
 #[test]
-fn the_three_standings_render_one_way_through_every_door() {
+fn every_standing_renders_one_way_through_every_door() {
     let s = Standings::new();
     let foreign = RecipeNodeId(9999);
-    let mut standings = s.broken_standings().to_vec();
-    standings.push(NodeStanding::NotEvaluated { node: foreign });
+    let [failed, poisoned] = s.broken_standings();
+    let cases = [
+        (&s.broken, failed),
+        (&s.broken, poisoned),
+        (&s.broken, NodeStanding::NotInDocument { node: foreign }),
+        (&s.canceled, NodeStanding::NotEvaluated { node: s.failed }),
+    ];
 
-    for standing in standings {
+    for (eval, standing) in cases {
         let node = standing.node();
         assert_eq!(
-            s.broken.usable(node).err(),
+            eval.usable(node).err(),
             Some(standing),
             "the one read answers {standing:?}"
         );
 
-        let hit = body_name(&s.broken, node, 0).expect_err("no table to invert");
+        let hit = body_name(eval, node, 0).expect_err("no table to invert");
         assert_eq!(hit, HitTestError::Standing(standing));
         speaks("the hit test", "hit test: ", &hit, standing);
 
-        let pick = NodePick::build(&s.broken, node, 0, DELTA, Tol::witness())
-            .expect_err("no body to index");
+        let pick =
+            NodePick::build(eval, node, 0, DELTA, Tol::witness()).expect_err("no body to index");
         assert_eq!(pick, NodePickError::Standing(standing));
         speaks("the pick-index build", "pick: ", &pick, standing);
 
         let name = minted(EntityKind::Body, node, RoleSeg::OutputBody);
-        let read = denotation(&s.broken, node, &name).expect_err("no table to read");
+        let read = denotation(eval, node, &name).expect_err("no table to read");
         assert_eq!(read, InterrogateError::Standing(standing));
         speaks("the name read", "", &read, standing);
 
-        let query = select_where(
-            &s.broken,
-            s.profile,
-            &Selector::of(NamePat::of_kind(EntityKind::Face)),
-            &[GeomPred::DatumDistance {
-                datum: node,
-                cmp: Cmp::Approx,
-                value: len(0.0),
-            }],
-            &s.doc.param_env::<f64>(),
-            Tol::witness(),
-        )
-        .expect_err("a datum with no value");
+        // The distance query reads its datum only for a queried node
+        // that has a value, which the canceled run has none of.
+        if eval.usable(s.profile).is_ok() {
+            let query = select_where(
+                eval,
+                s.profile,
+                &Selector::of(NamePat::of_kind(EntityKind::Face)),
+                &[GeomPred::DatumDistance {
+                    datum: node,
+                    cmp: Cmp::Approx,
+                    value: len(0.0),
+                }],
+                &s.doc.param_env::<f64>(),
+                Tol::witness(),
+            )
+            .expect_err("a datum with no value");
+            assert!(
+                matches!(query, SelectRefusal::DatumHasNoValue(carried) if carried == standing),
+                "{query:?}"
+            );
+            speaks(
+                "the distance query",
+                "select: the distance query's datum has no value: ",
+                &query,
+                standing,
+            );
+        }
+
+        let flush = find_flush_candidates(eval, node, s.profile, Tol::witness())
+            .expect_err("a node with no value");
         assert!(
-            matches!(query, SelectRefusal::DatumHasNoValue(carried) if carried == standing),
-            "{query:?}"
+            matches!(flush, SelectRefusal::NodeHasNoValue(carried) if carried == standing),
+            "{flush:?}"
         );
         speaks(
-            "the distance query",
-            "select: the distance query's datum has no value: ",
-            &query,
+            "the flush query",
+            "select: the flush query's node has no value: ",
+            &flush,
+            standing,
+        );
+    }
+
+    // The checks registry reads the document's roots, and a root is
+    // never an ancestor of another: the poisoned transform is the one
+    // root here, in the broken run and the canceled one, and the failed
+    // extrude is the root of a document of its own (below).
+    let (rooted, _) = step(
+        s.doc.clone(),
+        DocEdit::SetRoots {
+            roots: vec![s.poisoned],
+        },
+    );
+    for (eval, standing) in [
+        (&s.broken, poisoned),
+        (&s.canceled, NodeStanding::NotEvaluated { node: s.poisoned }),
+    ] {
+        let checks = run_checks(&rooted, eval, &ChecksConfig::default(), Tol::witness())
+            .expect_err("a root with no value refuses the registry");
+        assert_eq!(checks, ChecksError::Root(standing));
+        speaks(
+            "the checks registry",
+            "checks: a root has no value: ",
+            &checks,
+            standing,
+        );
+    }
+
+    // The clearance engine replays the document itself, so its
+    // standings are the uncanceled run's.
+    let leaf = ParamBox::from_axes(std::collections::BTreeMap::new());
+    for standing in [
+        failed,
+        poisoned,
+        NodeStanding::NotInDocument { node: foreign },
+    ] {
+        let sel = Selection::body_of(standing.node());
+        let report = clearance(&s.doc, &leaf, &sel, &sel, 0.1, Tol::witness());
+        let ClearanceVerdict::Refused(ClearanceRefusal::Selection(refusal)) = report.verdict()
+        else {
+            panic!(
+                "{standing:?}: a selection refusal, got {:?}",
+                report.verdict()
+            );
+        };
+        assert_eq!(refusal, &SelectionRefusal::NodeDidNotBuild(standing));
+        speaks(
+            "the clearance selection",
+            "the selection has no faces to measure a clearance between in this leaf's replay: ",
+            refusal,
             standing,
         );
     }
@@ -223,6 +305,71 @@ fn the_three_standings_render_one_way_through_every_door() {
             }
         }
     }
+}
+
+/// **The checks registry's root refusal names the node the repair is
+/// at.** A root with no value refuses the registry; a poisoned root's
+/// repair is upstream, at the failure that poisoned it, and a failed
+/// root's is its own. The refusal carries the standing, so it says
+/// which — where it used to tell the author to "fix or remove the
+/// failing root" about a root that had not failed.
+#[test]
+fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
+    let s = Standings::new();
+    let (rooted, _) = step(
+        s.doc.clone(),
+        DocEdit::SetRoots {
+            roots: vec![s.poisoned],
+        },
+    );
+    let refusal = run_checks(&rooted, &s.broken, &ChecksConfig::default(), Tol::witness())
+        .expect_err("a poisoned root refuses the registry");
+    assert_eq!(
+        refusal,
+        ChecksError::Root(NodeStanding::Poisoned {
+            node: s.poisoned,
+            through: s.failed
+        })
+    );
+    assert!(
+        refusal
+            .to_string()
+            .contains(&format!("the repair is upstream, at node {}", s.failed.0)),
+        "{refusal}"
+    );
+
+    // A failed root, the leaf of a document of its own.
+    let (doc, profile) = on_frame(
+        ProfileDoc::empty_derived("node_standing_checks", Tol::witness()),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, failed) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(0.0),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetRoots {
+            roots: vec![failed],
+        },
+    );
+    let ev = run(&doc, &CancelToken::new());
+    let standing = NodeStanding::Failed { node: failed };
+    let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
+        .expect_err("a failed root refuses the registry");
+    assert_eq!(refusal, ChecksError::Root(standing));
+    speaks(
+        "the checks registry",
+        "checks: a root has no value: ",
+        &refusal,
+        standing,
+    );
 }
 
 /// **No door that runs no hit test says it ran one.** The pick-index
@@ -375,66 +522,96 @@ fn run_status_round_trips_its_json_and_keeps_its_key_bytes() {
     );
 }
 
-/// The needles a reader of a node's result is spelled with: a pattern
-/// over `NodeResult`'s arms, or the poisoned arm's own accessor.
-const NEEDLES: [&str; 2] = ["NodeResult::", ".poisoned_through("];
+/// Hits of one reader of a node's result in `code`: the type's name as
+/// a whole word — every path to it names it, an alias included, since
+/// `use … NodeResult as R` spells it — plus the poisoned arm's own
+/// accessor and [`Evaluation::result`] called with an id.
+fn reads(code: &str) -> usize {
+    let name = "NodeResult";
+    let named = code
+        .match_indices(name)
+        .filter(|&(at, _)| test_utils::source::word_at(code, at, name))
+        .count();
+    let through = code.matches(".poisoned_through(").count();
+    let result = code.matches(".result(").count() - code.matches(".result()").count();
+    named + through + result
+}
 
 /// **Every reader of a node's result outside the one read, and why.**
 ///
-/// A file here reads `NodeResult`'s arms itself because it needs what
-/// the standing does not carry — a failed node's own error, a value's
-/// payload beside a failure's kind — or because it is where results are
-/// written. The count is the needle's hits in the file's code; a hit
-/// added anywhere reds, and the answer is to read through
-/// `Evaluation::usable` or to give the file its line here.
-const READERS: [(&str, usize, &str); 8] = [
+/// A file here names `NodeResult` or reads [`Evaluation::result`]
+/// because it needs what the standing does not carry — a failed node's
+/// own error, a value's payload beside a failure's kind — or because it
+/// is where results are written or re-exported. The count is
+/// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
+/// the answer is to read through `Evaluation::usable` or to give the
+/// file its line here.
+const READERS: [(&str, usize, &str); 11] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        13,
+        23,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder",
     ),
     (
+        "crates/editor-core/src/eval/wire.rs",
+        2,
+        "the op wiring holds the result map as it is written, and reads it through `usable_in`",
+    ),
+    ("crates/editor-core/src/lib.rs", 1, "re-exports the type"),
+    (
+        "crates/pncad/src/document.rs",
+        1,
+        "re-exports the type on the public surface",
+    ),
+    (
         "crates/editor-core/src/drive.rs",
-        3,
+        4,
         "reads a failed node's escalation log, which the standing does not carry",
     ),
     (
         "crates/editor-core/src/stackup.rs",
-        13,
+        23,
         "the pairing compares two runs arm by arm — values, failure kinds, poison sources \
          — and labels each arm in its prose",
     ),
     (
         "crates/editor-core/src/mate/member.rs",
-        3,
+        9,
         "unit-test assertions about a node's own row",
     ),
     (
-        "crates/pncad-py/src/py/value.rs",
-        3,
-        "`Evaluation.value` raises a failed node's own `NodeError`, which the standing does \
-         not carry",
-    ),
-    (
         "crates/viewer/src/bounds.rs",
-        3,
+        4,
         "collects the failed nodes a bounds verdict names, poisoned ones deliberately not",
     ),
     (
         "crates/viewer/src/tree.rs",
-        4,
+        8,
         "the tree row renders a failed node's own error, and a poisoned row its source's",
     ),
     (
         "demos/tour/src/chaintol.rs",
-        2,
+        4,
         "prints a failed node's typed kind, as a consumer of the public result enum",
+    ),
+    (
+        "crates/editor-core/src/eval/parts.rs",
+        3,
+        "moves a failed part root's own error out of the part's evaluation, which the \
+         standing does not carry",
     ),
 ];
 
 /// **The census.** Every file of shipped `src` — each crate's and each
-/// demo's — whose code spells a read of `NodeResult`'s arms is in
-/// [`READERS`] with its count and its reason, and no other file does.
+/// demo's — whose code reads a node's result other than through
+/// [`Evaluation::usable`] is in [`READERS`] with its count and its
+/// reason, and no other file does.
+///
+/// Blind spot: a read that never names the type nor calls
+/// `Evaluation::result` — `ev.nodes.get(&id)` followed by a method on
+/// the unnamed result. `Evaluation::nodes` stays `pub` (its readers in
+/// every crate's tests would all move for a rule `result()` would
+/// still leave open), so that shape is swept by hand in the PR.
 #[test]
 fn every_node_result_reader_goes_through_usable_or_is_listed() {
     let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
@@ -447,8 +624,7 @@ fn every_node_result_reader_goes_through_usable_or_is_listed() {
             }
             for path in test_utils::source::rust_sources(&src) {
                 let text = std::fs::read_to_string(&path).expect("readable source file");
-                let code = test_utils::source::code_only(&text);
-                let hits: usize = NEEDLES.iter().map(|n| code.matches(n).count()).sum();
+                let hits = reads(&test_utils::source::code_only(&text));
                 if hits == 0 {
                     continue;
                 }
@@ -472,4 +648,26 @@ fn every_node_result_reader_goes_through_usable_or_is_listed() {
         "a node's result is read somewhere other than `Evaluation::usable`; read it \
          through that door, or give the file its line in `READERS` with a reason"
     );
+}
+
+/// The census's needle sees an aliased import, a module-qualified path
+/// and the accessor, and not a longer identifier or the no-argument
+/// `result()` of another type.
+#[test]
+fn the_census_needle_sees_every_path_to_the_result() {
+    for (code, want) in [
+        (
+            "use crate::eval::NodeResult as R; match r { R::Ok(_) => 1 }",
+            1,
+        ),
+        ("match x { Some(d::NodeResult::Failed(e)) => e }", 1),
+        ("ev.result(id).and_then(|r| r.poisoned_through())", 2),
+        ("r.poisoned_through()", 1),
+        ("ev.result(id)", 1),
+        ("probe.result()", 0),
+        ("NodeResultish::Ok", 0),
+        ("MyNodeResult", 0),
+    ] {
+        assert_eq!(reads(code), want, "{code}");
+    }
 }

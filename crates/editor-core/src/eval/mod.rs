@@ -180,8 +180,9 @@ impl<T: Decide> Evaluation<T> {
     /// succeeded or has no entry.
     pub fn node_error(&self, id: RecipeNodeId) -> Option<&NodeError> {
         match self.usable(id) {
-            Ok(_)
-            | Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => None,
+            Ok(_) | Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
+                None
+            }
             // Every `through` names a `Failed` entry (the poison
             // propagation writes nothing else there); answering `None`
             // on a broken invariant is fail-honest — the caller sees
@@ -3560,7 +3561,9 @@ where
     for input in node.inputs() {
         // Every input the document has precedes this node in the
         // order and so has its result: an absent one is not in it.
-        match usable_in(results, input, || NodeStanding::NotInDocument { node: input }) {
+        match usable_in(results, input, || NodeStanding::NotInDocument {
+            node: input,
+        }) {
             Ok(v) => {
                 upstream_keys.push(v.content_key);
                 upstream_naming.push((input, v.naming_key));

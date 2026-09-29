@@ -148,7 +148,9 @@ fn refused(
     };
     typed_err(
         py,
-        ErrorClass::Evaluation(EvalReason::Standing(d::NodeStanding::Failed { node: node.0 })),
+        ErrorClass::Evaluation(EvalReason::Standing(d::NodeStanding::Failed {
+            node: node.0,
+        })),
         message,
         &[
             ("node", node_obj),
@@ -213,7 +215,10 @@ fn poisoning(
     root: Option<&d::NodeError>,
 ) -> PyErr {
     let standing = d::NodeStanding::Poisoned { node, through };
-    let objs = (NodeId(node).into_pyobject(py), NodeId(through).into_pyobject(py));
+    let objs = (
+        NodeId(node).into_pyobject(py),
+        NodeId(through).into_pyobject(py),
+    );
     let (node_obj, through_obj) = match objs {
         (Ok(n), Ok(t)) => (n.unbind().into_any(), t.unbind().into_any()),
         (Err(failed), _) | (_, Err(failed)) => return failed,
@@ -1740,12 +1745,8 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
     ];
     match err {
         E::Standing(standing) => {
-            if let Some(through) = standing.through() {
-                match NodeId(through).into_pyobject(py) {
-                    Ok(bound) => fields[2] = ("through", bound.unbind().into_any()),
-                    Err(failed) => return failed,
-                }
-            }
+            let [_, through] = super::standing_fields(py, *standing);
+            fields[2] = ("through", through);
         }
         E::NotABody { kind, .. } => {
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());

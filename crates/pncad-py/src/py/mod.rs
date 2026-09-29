@@ -682,6 +682,25 @@ pub(crate) fn typed_err(
     raise_typed(py, class, message, fields)
 }
 
+/// **A node's standing as the `node` and `through` attributes** every
+/// door that carries one sets: `through` is `None` unless the node is
+/// poisoned. An attribute whose construction fails degrades to `None`
+/// rather than replacing the refusal the caller asked about.
+pub(crate) fn standing_fields(
+    py: Python<'_>,
+    standing: pncad::document::NodeStanding,
+) -> [Py<PyAny>; 2] {
+    let node = |n| {
+        Py::new(py, doc::NodeId(n))
+            .map(|v| v.into_any())
+            .unwrap_or_else(|_| py.None())
+    };
+    [
+        node(standing.node()),
+        standing.through().map_or_else(|| py.None(), node),
+    ]
+}
+
 /// The class table and the attribute loop.
 ///
 /// Split out from [`typed_err`] when a second raising door existed. It

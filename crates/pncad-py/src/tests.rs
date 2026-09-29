@@ -1282,16 +1282,42 @@ fn every_door_keeps_its_word_for_each_standing() {
         S::Poisoned { node, through },
     ];
     type Door = (&'static str, fn(S) -> &'static str, [&'static str; 4]);
-    let ladder = ["node_not_evaluated", "node_not_evaluated", "node_failed", "node_poisoned"];
+    let ladder = [
+        "node_not_evaluated",
+        "node_not_evaluated",
+        "node_failed",
+        "node_poisoned",
+    ];
     let doors: [Door; 9] = [
-        ("hit test", |s| hit_test_error_tag(&HitTestError::Standing(s)), ladder),
-        ("pick", |s| node_pick_error_tag(&NodePickError::Standing(s)), ladder),
-        ("name lookup", |s| name_lookup_error_tag(&NameLookupError::Standing(s)), ladder),
-        ("read-back", |s| interrogate_error_tag(&InterrogateError::Standing(s)), ladder),
+        (
+            "hit test",
+            |s| hit_test_error_tag(&HitTestError::Standing(s)),
+            ladder,
+        ),
+        (
+            "pick",
+            |s| node_pick_error_tag(&NodePickError::Standing(s)),
+            ladder,
+        ),
+        (
+            "name lookup",
+            |s| name_lookup_error_tag(&NameLookupError::Standing(s)),
+            ladder,
+        ),
+        (
+            "read-back",
+            |s| interrogate_error_tag(&InterrogateError::Standing(s)),
+            ladder,
+        ),
         (
             "evaluation",
             |s| eval_reason_tag(EvalReason::Standing(s)),
-            ["node_not_evaluated", "unknown_node", "node_failed", "poisoned"],
+            [
+                "node_not_evaluated",
+                "unknown_node",
+                "node_failed",
+                "poisoned",
+            ],
         ),
         (
             "export",
@@ -1311,7 +1337,12 @@ fn every_door_keeps_its_word_for_each_standing() {
         (
             "product",
             |s| product_error_tag(&ProductError::from(s)),
-            ["unknown_node", "unknown_node", "root_failed", "root_poisoned"],
+            [
+                "unknown_node",
+                "unknown_node",
+                "root_failed",
+                "root_poisoned",
+            ],
         ),
         (
             "checks",
@@ -1321,7 +1352,11 @@ fn every_door_keeps_its_word_for_each_standing() {
     ];
     for (door, tag, words) in doors {
         for (standing, word) in arms.into_iter().zip(words) {
-            assert_eq!(tag(standing), word, "the {door} door's word for {standing:?}");
+            assert_eq!(
+                tag(standing),
+                word,
+                "the {door} door's word for {standing:?}"
+            );
         }
     }
 }

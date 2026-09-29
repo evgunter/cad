@@ -39,11 +39,11 @@ use crate::fixture;
 
 use std::collections::BTreeSet;
 
-use editor_core::{Mispaired, NodeStanding};
 use editor_core::{
     CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, HitTestError,
     NameLookupError, Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
 };
+use editor_core::{Mispaired, NodeStanding};
 use fixture::{ename, insert, len, on_frame};
 use geom_core::Tol;
 

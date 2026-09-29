@@ -3203,7 +3203,10 @@ fn duplicating_a_failed_body_says_its_standing() {
         matches!(fault, DuplicateFault::NoValue(carried) if *carried == standing),
         "{fault:?}"
     );
-    assert_eq!(fault.to_string(), format!("there is no body to copy: {standing}"));
+    assert_eq!(
+        fault.to_string(),
+        format!("there is no body to copy: {standing}")
+    );
     assert!(session.committed_doc().bit_eq(&before), "nothing committed");
 }
 

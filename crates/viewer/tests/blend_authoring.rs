@@ -1075,7 +1075,10 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     );
     assert_eq!(
         refused.map(|event| event.to_string()),
-        Some(format!("{} has no edges to select: {standing}", whole(target))),
+        Some(format!(
+            "{} has no edges to select: {standing}",
+            whole(target)
+        )),
     );
     assert_eq!(
         blend(&tools).count(),

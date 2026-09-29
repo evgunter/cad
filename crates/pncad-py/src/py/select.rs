@@ -854,11 +854,8 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
         // The standing's own words carry which state and where the
         // repair is; `datum` is the node they are about.
         R::DatumHasNoValue(standing) => {
-            let datum_obj = match NodeId(standing.node()).into_pyobject(py) {
-                Ok(bound) => bound.unbind().into_any(),
-                Err(failed) => return failed,
-            };
-            fill(&mut fields, "datum", datum_obj);
+            let [datum, _] = super::standing_fields(py, *standing);
+            fill(&mut fields, "datum", datum);
             format!("the node `datum_distance` references has no value: {standing}")
         }
         R::NodeHasNoValue(standing) => {

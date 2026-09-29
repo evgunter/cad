@@ -30,11 +30,10 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString};
 
 use crate::errors::ErrorClass;
-use crate::py::doc::NodeId;
 use crate::py::quantity::Length;
 use crate::py::select::entity_kind;
-use crate::py::typed_err;
 use crate::py::value::lengths;
+use crate::py::{standing_fields, typed_err};
 use crate::tags::interrogate_error_tag;
 use pncad::select as s;
 
@@ -222,7 +221,6 @@ pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
             Ok(value) => value.into_any().unbind(),
         }
     };
-    let node = |n: pncad::document::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
     let kind = |k: s::EntityKind| obj(Py::new(py, entity_kind(k)).map(|v| v.into_any()));
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
 
@@ -233,16 +231,19 @@ pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
     // added kernel-side arrives here as a compile error rather than
     // as a silently unprojected payload.
     let (which, through, candidates, wanted, found, index, payload, carrier) = match err {
-        E::Standing(standing) => (
-            node(standing.node()),
-            standing.through().map_or_else(none, node),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
+        E::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            (
+                which,
+                through,
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+            )
+        }
         E::Ambiguous { candidates } => (
             none(),
             none(),
