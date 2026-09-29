@@ -1219,3 +1219,4 @@ class of 65 sites is PRED's row.
     - `work/encl/adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` (P2/M), the follow-through. It is held until PR 3398 lands, since both touch `recourse.rs`.
   - Closed `adoption-certification-has-no-eps-in-lever`.
   - **Orchestrator slip:** committing the main merge on the `[ev]` branch left a conflict block in the fork log (`08eba8f88c`). I fixed it forward in `5bb3585ded`. Check `git merge`'s exit before editing, not only before committing.
+- 2026-09-29 — Opened design fork `encl-zero-arm-margin` on `certify-zero-arms-quote-no-margin-without-a-seam`. It covers the unvalued tighten on certify's Zero arms, the Bounds scope rule, and the zero span (D4 ¶1 (i) against Ev's `e1600790f9`), with 3380's door as the consumer. The blinding byte is on `analysis/design-fork/encl-zero-arm-margin` (protocol `bb10a4cdd4`). Two designers were dispatched concurrently with the same problem statement.
