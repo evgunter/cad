@@ -25,21 +25,21 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
 
-fn band() -> Band {
+pub(super) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-const LEVER: f64 = 5.0;
+pub(super) const LEVER: f64 = 5.0;
 
-fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
+pub(super) fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
 }
 
-fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
+pub(super) fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
 }
 
-fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
+pub(super) fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     let normal = normal.normalize();
     Surface::Plane {
         origin,
@@ -48,7 +48,7 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     }
 }
 
-fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
+pub(super) fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Cylinder {
         origin,
@@ -58,7 +58,7 @@ fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
     }
 }
 
-fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
+pub(super) fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
         center,
         radius,
@@ -67,7 +67,7 @@ fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     }
 }
 
-fn torus(center: Point3<f64>, major: f64, minor: f64) -> Surface<f64> {
+pub(super) fn torus(center: Point3<f64>, major: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
         center,
         axis: Vec3::unit_z(),
@@ -84,7 +84,7 @@ fn donut() -> Surface<f64> {
 
 /// The rows' reach: a ball of diameter [`LEVER`] about the origin,
 /// where every row's torus and walls stand.
-fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
+pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
         g,
@@ -98,9 +98,9 @@ fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
 
 /// `(count, single, essential on F, essential on G, unbounded)`, per
 /// component.
-type Shape = (usize, bool, Vec<bool>, Vec<bool>, Vec<bool>);
+pub(super) type Shape = (usize, bool, Vec<bool>, Vec<bool>, Vec<bool>);
 
-fn shape(s: &Section<f64>) -> Shape {
+pub(super) fn shape(s: &Section<f64>) -> Shape {
     match s {
         Section::Components { parts, single } => (
             parts.len(),
@@ -114,7 +114,7 @@ fn shape(s: &Section<f64>) -> Shape {
 }
 
 /// The lone component's witness.
-fn witness(s: &Section<f64>) -> Point3<f64> {
+pub(super) fn witness(s: &Section<f64>) -> Point3<f64> {
     match s {
         Section::Components {
             parts,
@@ -127,14 +127,14 @@ fn witness(s: &Section<f64>) -> Point3<f64> {
 }
 
 /// The witness lies on both carriers.
-fn on_both(w: Point3<f64>, f: &Surface<f64>, g: &Surface<f64>) {
+pub(super) fn on_both(w: Point3<f64>, f: &Surface<f64>, g: &Surface<f64>) {
     for s in [f, g] {
         let r = geom_brep::implicit_residual(s, w);
         assert!(r.abs() < 1e-12, "witness {w:?} is {r} off {s:?}");
     }
 }
 
-fn tangent(s: &Section<f64>) -> &'static str {
+pub(super) fn tangent(s: &Section<f64>) -> &'static str {
     match s {
         Section::Tangent(name) => name,
         other => panic!("not a tangency: {other:?}"),
@@ -220,7 +220,7 @@ fn a_plane_tangent_to_the_tube_refuses_as_a_tangency() {
 /// A length strictly inside the run's band sliver — past `zero`, short
 /// of `escalate` — where a margin decides neither way, at whatever
 /// eps the run carries.
-fn in_sliver() -> f64 {
+pub(super) fn in_sliver() -> f64 {
     let b = band();
     0.5 * (b.zero() + b.escalate())
 }
@@ -330,7 +330,8 @@ fn a_parallel_axis_cylinder_every_class() {
 
 /// **R-reach**: an oblique cylinder (the backstop's tilted rod,
 /// `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`),
-/// a non-coaxial torus, and any cone.
+/// a non-coaxial torus; a cone against an oblique cylinder, a tilted
+/// cone, a parallel-axis cone, a non-coaxial torus and a spline.
 #[test]
 fn intractable_poses_refuse_on_reach() {
     let rod = cylinder(
@@ -349,10 +350,34 @@ fn intractable_poses_refuse_on_reach() {
         half_angle: 0.4,
         u_ref: Vec3::unit_x(),
     };
-    assert!(matches!(
-        classify(&cone, &plane(p(0.0, 0.0, 1.0), v(0.1, 0.0, 1.0))),
-        Section::Intractable
-    ));
+    let tilted = Surface::Cone {
+        apex: p(0.5, 0.0, -1.0),
+        axis: v(0.3, 0.0, 1.0).normalize(),
+        half_angle: 0.3,
+        u_ref: Vec3::unit_y(),
+    };
+    let beside = Surface::Cone {
+        apex: p(0.5, 0.0, -1.0),
+        axis: Vec3::unit_z(),
+        half_angle: 0.4,
+        u_ref: Vec3::unit_x(),
+    };
+    for (what, partner) in [
+        ("an oblique cylinder", rod),
+        ("a tilted cone", tilted),
+        ("a parallel-axis cone", beside),
+        ("a non-coaxial torus", torus(p(1.0, 0.0, 0.0), 2.0, 0.5)),
+        ("a spline", bump()),
+    ] {
+        assert!(
+            matches!(classify(&cone, &partner), Section::Intractable),
+            "the cone and {what}"
+        );
+        assert!(
+            matches!(classify(&partner, &cone), Section::Intractable),
+            "{what} and the cone"
+        );
+    }
 }
 
 /// A bicubic bump over `[−2, 2]²`: boundary rows in `z = 0`, the inner
@@ -574,15 +599,15 @@ fn lone_at(w: Point3<f64>) -> Section<f64> {
     }
 }
 
-fn at(
+pub(super) fn at(
     f: Option<FaceContainment>,
     g: Option<FaceContainment>,
 ) -> impl FnMut(Point3<f64>) -> [Option<FaceContainment>; 2] {
     move |_| [f, g]
 }
 
-const IN: Option<FaceContainment> = Some(FaceContainment::In);
-const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
+pub(super) const IN: Option<FaceContainment> = Some(FaceContainment::In);
+pub(super) const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 
 /// **The no-event decision.** A lone component with no event: `Out` of
 /// either face clears (W3, whichever face); `In` both is R-loop; a
@@ -739,7 +764,7 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 
 /// The verdict of every pair of `a`'s `face` against `b`'s faces on the
 /// crossings path, with no events.
-fn scan(a: &Body<f64>, face: FaceKey, b: &Body<f64>) -> Vec<Result<Vec<Cleared>, Refusal>> {
+pub(super) fn scan(a: &Body<f64>, face: FaceKey, b: &Body<f64>) -> Vec<Result<Vec<Cleared>, Refusal>> {
     ops::section_pairs(
         a,
         b,
@@ -758,7 +783,7 @@ fn scan(a: &Body<f64>, face: FaceKey, b: &Body<f64>) -> Vec<Result<Vec<Cleared>,
 
 /// A slab tilted by 0.2 rad about `y`, crossing the unit wall about `z`
 /// in ellipses through `z ∈ [−0.3, 0.3]`.
-fn tilted_slab() -> Body<f64> {
+pub(super) fn tilted_slab() -> Body<f64> {
     let b = brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness());
     let tilt = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, 0.0), Vec3::unit_y(), 0.2);
     crate::transform::transform_rigid(&b, &tilt, Tol::witness()).unwrap()
@@ -873,7 +898,7 @@ fn a_lone_vertex_ring_refuses_the_pair() {
 
 /// The classification of a torus pair whose region is the ball
 /// `(centre, radius)`: the overlap box's centre and half-diagonal.
-fn classify_near(
+pub(super) fn classify_near(
     f: &Surface<f64>,
     g: &Surface<f64>,
     centre: Point3<f64>,
@@ -935,7 +960,7 @@ fn a_far_origin_does_not_make_a_wall_coaxial() {
 // -------------------------------------------------------------------
 
 /// The verdict of every pair of `b`'s `face` against `a`'s faces.
-fn scan_b(a: &Body<f64>, b: &Body<f64>, face: FaceKey) -> Vec<Result<Vec<Cleared>, Refusal>> {
+pub(super) fn scan_b(a: &Body<f64>, b: &Body<f64>, face: FaceKey) -> Vec<Result<Vec<Cleared>, Refusal>> {
     ops::section_pairs(
         a,
         b,
@@ -1108,7 +1133,7 @@ fn a_declaration_exempts_its_own_pair_only() {
 
 /// The unit cone about `z`, apex at the origin, half-angle π/4: the
 /// rim at `z = 1` has radius 1.
-fn unit_cone() -> Surface<f64> {
+pub(super) fn unit_cone() -> Surface<f64> {
     Surface::Cone {
         apex: p(0.0, 0.0, 0.0),
         axis: Vec3::unit_z(),
@@ -1273,7 +1298,7 @@ fn a_bow_tie_through_the_apex_twice_does_not_describe() {
 
 /// One step of a [`cone_sheet`] chain.
 #[derive(Clone, Copy)]
-enum Step {
+pub(super) enum Step {
     /// A straight edge to the point.
     Line(Point3<f64>),
     /// A rim arc at height `h` (radius `|h|`), azimuth `t0` to `t1`,
@@ -1283,7 +1308,7 @@ enum Step {
 
 /// The point at height `h` and azimuth `t` on [`unit_cone`] (either
 /// nappe: `h < 0` is the mirror one).
-fn cone_at(h: f64, t: f64) -> Point3<f64> {
+pub(super) fn cone_at(h: f64, t: f64) -> Point3<f64> {
     p(h.abs() * t.cos(), h.abs() * t.sin(), h)
 }
 
@@ -1291,7 +1316,7 @@ fn cone_at(h: f64, t: f64) -> Point3<f64> {
 /// `start` closed back to it by a straight edge.** The chain is grown by
 /// `mev` from the seed vertex and closed by `mef`; the face returned is
 /// the one the chain bounds in its own order.
-fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
+pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(start).unwrap();
@@ -1359,7 +1384,7 @@ fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
     (body, face)
 }
 
-fn contain_at(body: &Body<f64>, face: FaceKey, q: Point3<f64>) -> Option<FaceContainment> {
+pub(super) fn contain_at(body: &Body<f64>, face: FaceKey, q: Point3<f64>) -> Option<FaceContainment> {
     crate::curved_face_containment(body, face, q, band()).unwrap()
 }
 

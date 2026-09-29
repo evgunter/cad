@@ -60,16 +60,18 @@
 //!
 //! One witness point per component is complete on the arms below: a
 //! lone component is cleared by W4 or decided by its point, and every
-//! multi-component section is essential or unbounded on a carrier, which
-//! W1 and W2 clear. A pair that has an event and a multi-component
-//! section with a component no witness clears refuses R-undec: no arm
-//! below produces one on faces that describe, and the refusal is the
-//! guard for the day an arm does.
+//! other multi-component section is essential or unbounded on a
+//! carrier, which W1 and W2 clear. The exception is cone × sphere, where
+//! a ball beside the apex can meet one nappe in a null loop and the
+//! other in essential curves: its null loop is cleared by its witness
+//! or, with an event on the pair, refuses R-undec, since the event may
+//! lie on another component.
 //!
 //! # The refusals
 //!
 //! - **R-reach**: a kind pair or pose with no arm (torus against an
-//!   oblique cylinder, a non-coaxial torus, any cone; a NURBS or
+//!   oblique cylinder, a non-coaxial torus; a cone against an oblique
+//!   cylinder, a tilted or parallel-axis cone or a non-coaxial torus; a NURBS or
 //!   approximated face paired with anything but a plane, and a NURBS
 //!   face whose control net a plane cuts). Every pair with a face that
 //!   is not a plane is examined; two planes meet in a line, which W1
@@ -171,8 +173,21 @@
 //!   certified strictly on one side of the plane — the patch lies in the
 //!   net's convex hull, its weights being positive. Any other pose has
 //!   no arm: nothing counts the section's components on a spline.
-//! - **Cone pairs** have no arm yet and refuse on reach; the arms land
-//!   with the cone's operand admission, in [`classify`]'s match.
+//! - **Cone × plane**: an ellipse on one nappe (essential, one
+//!   component), a hyperbola or two lines through the apex (unbounded),
+//!   or near the parabola either (essential, no witness), decided on
+//!   the aperture margin alone.
+//! - **Cone × sphere**: per nappe, two essential curves, one null loop
+//!   (the arc of generators that meet the ball) or none; the apex inside
+//!   the ball, one essential curve per nappe; the apex on the sphere,
+//!   R-tan.
+//! - **Cone × coaxial {cylinder, cone, torus}**: parallels, essential on
+//!   both. **Cone × parallel-axis cylinder**: two components, one per
+//!   nappe, essential on the cylinder, and on the cone iff the cylinder
+//!   encloses its axis.
+//!
+//! Cone components are listed on the DOUBLE cone: one on the other
+//! nappe from the face carries a witness the face's trim places `Out`.
 //!
 //! # What this replaced
 //!
@@ -278,7 +293,7 @@ impl Refusal {
             Self::Reach => {
                 "a curved face's box overlaps a face of the other solid, no crossing layer saw \
                  an event, and the pair has no section classification (an oblique or \
-                 non-coaxial pose, a cone or a spline face) to prove the two faces do not meet \
+                 non-coaxial pose, or a spline face) to prove the two faces do not meet \
                  in a closed loop interior to both"
             }
             Self::Tangent(_) => {
@@ -393,10 +408,18 @@ pub(crate) fn classify<T: Decide>(
     match (f, g) {
         (
             S::Torus { .. },
-            S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. },
+            S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. } | S::Torus { .. },
         ) => torus_pair(f, g, reach, band),
-        (S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. }, S::Torus { .. }) => {
-            swapped(torus_pair(g, f, reach, band))
+        (
+            S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
+            S::Torus { .. },
+        ) => swapped(torus_pair(g, f, reach, band)),
+        (
+            S::Cone { .. },
+            S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
+        ) => cone_pair(f, g, reach, band),
+        (S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. }, S::Cone { .. }) => {
+            swapped(cone_pair(g, f, reach, band))
         }
         (
             &S::Cylinder {
@@ -461,11 +484,6 @@ pub(crate) fn classify<T: Decide>(
         | (&S::Plane { origin, normal, .. }, S::Nurbs(patch)) => {
             nurbs_plane(patch, origin, unit(normal), band)
         }
-        // The cone arms (plane: every component essential or unbounded;
-        // sphere: one null loop or encircling ones; coaxial and
-        // parallel-axis partners: encircling) land here with the cone's
-        // operand admission. Until then a cone pair, like every pair
-        // with no arm, refuses on reach.
         _ => Section::Intractable,
     }
 }
@@ -575,6 +593,37 @@ fn torus_pair<T: Decide>(
                     ) {
                         Ok([true, true]) => essential_pair(true, true),
                         Ok(_) => none(),
+                        Err(tan) => tan,
+                    }
+                }
+                Pose::Parallel { .. } | Pose::Other => Section::Intractable,
+            }
+        }
+        geom::Surface::Cone {
+            apex,
+            axis: d,
+            half_angle,
+            ..
+        } => {
+            let d = unit(d);
+            match axis_pose(c, a, apex, d, reach, band) {
+                Pose::Coaxial => {
+                    // In the meridian half-plane about the apex, each
+                    // nappe's generator is a line through it at `α` from
+                    // the axis; the tube circle, centred `(R, z)`, lies in
+                    // `ρ > 0`, which only the nappe's own half of the line
+                    // reaches.
+                    let (s, co) = half_angle.sin_cos();
+                    let z = (c - apex).dot(d);
+                    match signs(
+                        [
+                            ("section_torus_coaxial_cone_near", r - (big_r * co - z * s).abs()),
+                            ("section_torus_coaxial_cone_far", r - (big_r * co + z * s).abs()),
+                        ],
+                        band,
+                    ) {
+                        Ok([false, false]) => none(),
+                        Ok(_) => essential_pair(true, true),
                         Err(tan) => tan,
                     }
                 }
@@ -786,6 +835,320 @@ fn torus_parallel_cylinder<T: Decide>(
         (false, true, true, true) => lone(c + toward * rho_max + a * height(rho_max)),
         // Across the outer bound only: the null loop at θ = π.
         (true, true, true, false) => lone(c + toward * (e - rc) + a * height(rho_min)),
+    }
+}
+
+/// The cone arms: `k` is a cone, `p` its partner. Components are listed
+/// on the DOUBLE cone: one on the other nappe from the face has a
+/// witness the face's trim places `Out`, so `classify` never needs the
+/// face's nappe.
+fn cone_pair<T: Decide>(
+    k: &geom::Surface<T>,
+    p: &geom::Surface<T>,
+    reach: Reach<T>,
+    band: Band,
+) -> Section<T> {
+    let &geom::Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        u_ref,
+    } = k
+    else {
+        return Section::Intractable;
+    };
+    let cone = Cone {
+        apex,
+        a: unit(axis),
+        sc: half_angle.sin_cos(),
+        u_ref,
+    };
+    match *p {
+        geom::Surface::Plane { origin, normal, .. } => {
+            cone_plane(&cone, origin, unit(normal), reach, band)
+        }
+        geom::Surface::Sphere { center, radius, .. } => cone_sphere(&cone, center, radius, band),
+        geom::Surface::Cylinder {
+            origin,
+            axis: d,
+            radius: rc,
+            ..
+        } => match axis_pose(apex, cone.a, origin, unit(d), reach, band) {
+            // The meridians meet at `h = ±r_c/τ`: a parallel per nappe.
+            Pose::Coaxial => essential_pair(true, true),
+            Pose::Parallel { e, toward } => cone_parallel_cylinder(&cone, e, toward, rc, band),
+            Pose::Other => Section::Intractable,
+        },
+        geom::Surface::Cone {
+            apex: apex2,
+            axis: d,
+            ..
+        } => match axis_pose(apex, cone.a, apex2, unit(d), reach, band) {
+            // The meridians `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet in one or
+            // two parallels, each essential on both; a common apex is the
+            // cones touching there or coinciding.
+            Pose::Coaxial => match signs(
+                [(
+                    "section_cone_coaxial_apexes",
+                    (apex2 - apex).dot(cone.a).abs(),
+                )],
+                band,
+            ) {
+                Ok(_) => essential_pair(true, true),
+                Err(tan) => tan,
+            },
+            Pose::Parallel { .. } | Pose::Other => Section::Intractable,
+        },
+        _ => Section::Intractable,
+    }
+}
+
+/// A cone's carrier, read once: apex, unit axis, `(sin α, cos α)`, and
+/// the seam direction.
+struct Cone<T: Real> {
+    apex: Point3<T>,
+    a: Vec3<T>,
+    sc: (T, T),
+    u_ref: Vec3<T>,
+}
+
+impl<T: Real> Cone<T> {
+    /// The unit direction of the generator line at the radial direction
+    /// `r` (unit, `⊥ a`): `t > 0` along it is the `v > 0` nappe.
+    fn generator(&self, r: Vec3<T>) -> Vec3<T> {
+        let (s, c) = self.sc;
+        self.a * c + r * s
+    }
+}
+
+/// **Cone × plane**, the plane through `p0` with unit normal `n`.
+///
+/// The aperture margin `μ = |n·a| − sin α` decides the conic: Positive,
+/// the plane's directions miss the cone's asymptotic ones and it meets
+/// one nappe in a closed curve, met once by every generator of that
+/// nappe, so essential (an ellipse, or at the apex a point); Negative,
+/// a hyperbola or two lines through the apex, every component
+/// unbounded; Zero, a parabola or anything near one, each component
+/// unbounded or essential. The apex's offset from the plane is never
+/// read: every class holds at any offset, the ellipse's witness
+/// included, and a small offset does not bound the ellipse (near the
+/// parabola it runs `m_A / sin γ` along a generator).
+///
+/// `μ` is levered by how far a tilt can act within the pair's reach:
+/// the reach's farthest distance from the apex (the generator's pivot)
+/// plus its farthest distance from the plane (the plane's pivot is its
+/// point nearest the reach's centre).
+fn cone_plane<T: Decide>(
+    cone: &Cone<T>,
+    p0: Point3<T>,
+    n: Vec3<T>,
+    reach: Reach<T>,
+    band: Band,
+) -> Section<T> {
+    let (s, _) = cone.sc;
+    let lever = (reach.centre - cone.apex).norm()
+        + (reach.centre - p0).dot(n).abs()
+        + reach.radius
+        + reach.radius;
+    let na = n.dot(cone.a);
+    match sign(
+        "section_cone_plane_aperture",
+        Margin::levered(na.abs() - s, lever),
+        band,
+    ) {
+        Some(Sign::Negative) => {
+            let c = Component {
+                unbounded: true,
+                essential_f: false,
+                essential_g: false,
+                witness: None,
+            };
+            Section::Components {
+                parts: vec![c, c],
+                single: false,
+            }
+        }
+        Some(Sign::Zero) => Section::Components {
+            parts: vec![Component {
+                unbounded: false,
+                essential_f: true,
+                essential_g: false,
+                witness: None,
+            }],
+            single: false,
+        },
+        None => Section::Tangent("section_cone_plane_aperture"),
+        Some(Sign::Positive) => {
+            // The witness is the vertex nearer the apex: the generator in
+            // the meridian plane of `n` that leans toward it, which the
+            // frame facing `a` names. Any generator meets the plane on the
+            // ellipse's own nappe or its line's other half; this one does
+            // at `g·n = cos(α − β)`, never small.
+            let facing = match sign(
+                "section_cone_plane_facing",
+                Margin::levered(na, lever),
+                band,
+            ) {
+                Some(Sign::Positive) => n,
+                Some(Sign::Negative) => -n,
+                _ => return Section::Tangent("section_cone_plane_facing"),
+            };
+            let across = facing - cone.a * facing.dot(cone.a);
+            let r = match sign(
+                "section_cone_plane_meridian",
+                Margin::levered(across.norm(), lever),
+                band,
+            ) {
+                Some(Sign::Positive) => across / across.norm(),
+                Some(Sign::Zero) => cone.u_ref,
+                _ => return Section::Tangent("section_cone_plane_meridian"),
+            };
+            let g = cone.generator(r);
+            let t = (p0 - cone.apex).dot(facing) / g.dot(facing);
+            Section::Components {
+                parts: vec![Component {
+                    unbounded: false,
+                    essential_f: true,
+                    essential_g: false,
+                    witness: Some(cone.apex + g * t),
+                }],
+                single: true,
+            }
+        }
+    }
+}
+
+/// **Cone × sphere**, the ball `(cs, rho)`.
+///
+/// With `δ = A − c_s`, the generator line `A + t·w` meets the sphere at
+/// `t² + 2bt + k = 0`, `b = w·δ`, `k = |δ|² − ρ²`; `t > 0` is the `v > 0`
+/// nappe. Over the azimuth `b` is extreme on the two generators in the
+/// meridian plane of the centre, `w₊` (largest `b`) and `w₋`.
+///
+/// - The apex inside the ball: every generator line crosses it once on
+///   each side of the apex, so each nappe carries one essential
+///   component.
+/// - The apex outside: a line's two roots share `sign(−b)`. Nappe `+`
+///   is met on the generators with `b < −√k`: all of them (two essential
+///   curves) when `w₊`'s line meets the ball with `b₊ < 0`, an arc of
+///   them — ONE null loop — when only `w₋`'s does, none otherwise; nappe
+///   `−` alike with the signs and the two lines exchanged.
+///
+/// Each margin is a length: the apex's distance to the sphere, and each
+/// extreme line's distance to the centre against the radius (Zero is a
+/// generator tangent to the ball, where an arc ends in a pinch). Every
+/// component carries a witness on its extreme line.
+fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> Section<T> {
+    let delta = cone.apex - cs;
+    let apex_out = match signs([("section_cone_sphere_apex", delta.norm() - rho)], band) {
+        Ok([out]) => out,
+        Err(tan) => return tan,
+    };
+    let across = delta - cone.a * delta.dot(cone.a);
+    let r = match sign(
+        "section_cone_sphere_axis",
+        Margin::of(across.norm()),
+        band,
+    ) {
+        Some(Sign::Positive) => across / across.norm(),
+        Some(Sign::Zero) => cone.u_ref,
+        _ => return Section::Tangent("section_cone_sphere_axis"),
+    };
+    let (hi, lo) = (cone.generator(r), cone.generator(-r));
+    // The line `w`'s `b`, and its roots `−b ± √(ρ² − d²)` with `d` the
+    // line's distance from the centre.
+    let roots = |w: Vec3<T>| {
+        let b = delta.dot(w);
+        let d = (delta - w * b).norm();
+        let half = ((rho - d) * (rho + d)).sqrt();
+        (b, d, [-b - half, -b + half])
+    };
+    let part = |w: Vec3<T>, t: T, essential: bool| Component {
+        unbounded: false,
+        essential_f: essential,
+        essential_g: false,
+        witness: Some(cone.apex + w * t),
+    };
+    let (b_hi, d_hi, t_hi) = roots(hi);
+    let (b_lo, d_lo, t_lo) = roots(lo);
+    if !apex_out {
+        return Section::Components {
+            parts: vec![part(hi, t_hi[1], true), part(hi, t_hi[0], true)],
+            single: false,
+        };
+    }
+    // Whether each extreme line meets the ball, and on which side of the
+    // apex: its roots' side is `−b`'s, and `|b| > √k > 0` wherever it
+    // meets.
+    let meets = |b: T, d: T, name: &'static str| -> Result<Option<bool>, Section<T>> {
+        match signs([("section_cone_sphere_generator", rho - d)], band)? {
+            [false] => Ok(None),
+            [true] => match signs([(name, b)], band)? {
+                [up] => Ok(Some(!up)),
+            },
+        }
+    };
+    let (on_hi, on_lo) = match (
+        meets(b_hi, d_hi, "section_cone_sphere_side"),
+        meets(b_lo, d_lo, "section_cone_sphere_side"),
+    ) {
+        (Ok(x), Ok(y)) => (x, y),
+        (Err(tan), _) | (_, Err(tan)) => return tan,
+    };
+    let mut parts = Vec::new();
+    // Nappe `+`: `w₊` on it means every generator is; `w₋` alone, an arc.
+    match (on_hi == Some(true), on_lo == Some(true)) {
+        (true, true) => {
+            parts.extend([part(hi, t_hi[0], true), part(hi, t_hi[1], true)]);
+        }
+        (false, true) => parts.push(part(lo, t_lo[1], false)),
+        (false, false) => {}
+        (true, false) => return Section::Tangent("section_cone_sphere_generator"),
+    }
+    // Nappe `−`: `w₋`'s line meets it (roots negative) only if every
+    // generator line does; `w₊`'s alone, an arc.
+    match (on_lo == Some(false), on_hi == Some(false)) {
+        (true, true) => {
+            parts.extend([part(lo, t_lo[0], true), part(lo, t_lo[1], true)]);
+        }
+        (false, true) => parts.push(part(hi, t_hi[0], false)),
+        (false, false) => {}
+        (true, false) => return Section::Tangent("section_cone_sphere_generator"),
+    }
+    let single = parts.len() == 1;
+    Section::Components { parts, single }
+}
+
+/// **Cone × a cylinder whose axis is parallel to the cone's**, at offset
+/// `e` in the direction `toward`. Each ruling, at distance
+/// `ρ₀ ∈ [|e − r_c|, e + r_c]` from the cone's axis, meets each nappe
+/// once, at `h = ±ρ₀/τ`: two components, each a graph over the
+/// cylinder's azimuth (essential on it), essential on the cone iff the
+/// cylinder encloses the cone's axis. `e − r_c` Zero is a ruling through
+/// the apex. The witnesses sit on the ruling nearest the axis.
+fn cone_parallel_cylinder<T: Decide>(
+    cone: &Cone<T>,
+    e: T,
+    toward: Vec3<T>,
+    rc: T,
+    band: Band,
+) -> Section<T> {
+    let (s, c) = cone.sc;
+    let outside = match signs([("section_cone_cylinder_apex", e - rc)], band) {
+        Ok([outside]) => outside,
+        Err(tan) => return tan,
+    };
+    let foot = cone.apex + toward * (e - rc);
+    let h = (e - rc).abs() * c / s;
+    let part = |h: T| Component {
+        unbounded: false,
+        essential_f: !outside,
+        essential_g: true,
+        witness: Some(foot + cone.a * h),
+    };
+    Section::Components {
+        parts: vec![part(h), part(-h)],
+        single: false,
     }
 }
 
@@ -1028,6 +1391,9 @@ pub(crate) fn certify<T: Decide>(
     Ok(out)
 }
 
+#[cfg(test)]
+#[path = "section_cert_cone_rows.rs"]
+mod section_cert_cone_rows;
 #[cfg(test)]
 #[path = "section_cert_rows.rs"]
 mod section_cert_rows;
