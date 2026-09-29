@@ -112,9 +112,11 @@ pub enum NamingError {
     /// ACCESS.** Both chases (`emit_topo`'s `chase_edge_to_table` and
     /// `chase_b`) advance only on `Body::edge_provenance`, which is
     /// `pub(crate)` to `topo`: `Body::split_edge` records the parent on
-    /// a child it has just minted, and a graft carries that chain
-    /// across with every key forwarded, so a chain is strictly
-    /// decreasing in age and no caller can close it.
+    /// a child it has just minted, so a chain is strictly decreasing in
+    /// age in the arena that wrote it; a graft forwards it injectively
+    /// (each source key to its own result key, live or dead on
+    /// arrival), which maps an acyclic chain to an acyclic one. No
+    /// caller can close it.
     SplitLineage(SplitLineageCycle),
     /// A face's FRAGMENT lineage cycles, caught where an emitter
     /// chased it to its root through a split's or a boolean's

@@ -283,3 +283,194 @@ impl<T: geom_core::Real> crate::Body<T> {
         Err(SplitLineageCycle { edge })
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod forwarding_rows {
+    use std::collections::BTreeMap;
+
+    use slotmap::SlotMap;
+
+    use super::{ForwardKeys, Provenance};
+    use crate::entity::{EdgeKey, HalfEdgeKey, LoopKey, ShellKey, SolidKey};
+    use crate::euler::{MefSite, MevSite};
+    use crate::euler_ring::MekrSite;
+    use crate::null::NewVertexSide;
+
+    /// A payload key, tagged by kind.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    enum K {
+        He(HalfEdgeKey),
+        L(LoopKey),
+        E(EdgeKey),
+        S(ShellKey),
+        So(SolidKey),
+    }
+
+    /// Every payload key of `p`, in field order — derived here, apart
+    /// from [`Provenance::forwarded`], so a slot swapped inside one of
+    /// its arms reads back in the wrong position.
+    fn payload(p: &Provenance) -> Vec<K> {
+        let mev = |s: &MevSite| match *s {
+            MevSite::Fan { he1, he2 } => vec![K::He(he1), K::He(he2)],
+            MevSite::Lone { r#loop } => vec![K::L(r#loop)],
+        };
+        match p {
+            Provenance::Primordial { .. } | Provenance::Mvfs => vec![],
+            Provenance::Mev { site } | Provenance::MevNull { site, .. } => mev(site),
+            Provenance::Mef { site } => match *site {
+                MefSite::Chords { he1, he2 } => vec![K::He(he1), K::He(he2)],
+                MefSite::Lone { r#loop } => vec![K::L(r#loop)],
+            },
+            Provenance::Kemr { he1, he2 } => vec![K::He(*he1), K::He(*he2)],
+            Provenance::Mekr { site } => match *site {
+                MekrSite::Cycles { target, ring } => vec![K::He(target), K::He(ring)],
+                MekrSite::EmptyRing { target, ring } => vec![K::He(target), K::L(ring)],
+                MekrSite::EmptyTarget { target, ring } => vec![K::L(target), K::He(ring)],
+                MekrSite::BothEmpty { target, ring } => vec![K::L(target), K::L(ring)],
+            },
+            Provenance::Mfkrh { ring } => vec![K::L(*ring)],
+            Provenance::SplitEdge { edge } => vec![K::E(*edge)],
+            Provenance::Movefac { shell } => vec![K::S(*shell)],
+            Provenance::MoveShells { solid } => vec![K::So(*solid)],
+        }
+    }
+
+    /// Forwards through an injective table, or leaves every key where
+    /// it is when the table is empty.
+    struct Table(BTreeMap<K, K>);
+
+    impl Table {
+        fn get(&self, k: K) -> K {
+            if self.0.is_empty() { k } else { self.0[&k] }
+        }
+    }
+
+    impl ForwardKeys for Table {
+        fn half_edge(&mut self, k: HalfEdgeKey) -> HalfEdgeKey {
+            let K::He(d) = self.get(K::He(k)) else {
+                panic!("the table keeps kinds")
+            };
+            d
+        }
+        fn loop_(&mut self, k: LoopKey) -> LoopKey {
+            let K::L(d) = self.get(K::L(k)) else {
+                panic!("the table keeps kinds")
+            };
+            d
+        }
+        fn edge(&mut self, k: EdgeKey) -> EdgeKey {
+            let K::E(d) = self.get(K::E(k)) else {
+                panic!("the table keeps kinds")
+            };
+            d
+        }
+        fn shell(&mut self, k: ShellKey) -> ShellKey {
+            let K::S(d) = self.get(K::S(k)) else {
+                panic!("the table keeps kinds")
+            };
+            d
+        }
+        fn solid(&mut self, k: SolidKey) -> SolidKey {
+            let K::So(d) = self.get(K::So(k)) else {
+                panic!("the table keeps kinds")
+            };
+            d
+        }
+    }
+
+    fn keys<Key: slotmap::Key>(n: usize) -> Vec<Key> {
+        let mut arena = SlotMap::<Key, ()>::with_key();
+        (0..n).map(|_| arena.insert(())).collect()
+    }
+
+    /// **Every arm of [`Provenance::forwarded`] rewrites each payload
+    /// key in its own slot and keeps everything else.** One record per
+    /// variant and per site shape, with two distinct keys wherever a
+    /// payload holds two of one kind: forwarded through an injective
+    /// table, each slot holds the image of what it held; forwarded
+    /// through the identity, the record comes back equal (the non-key
+    /// fields, `op` and `new_side`, survive).
+    #[test]
+    fn every_arm_forwards_each_key_in_its_own_slot() {
+        let he: Vec<HalfEdgeKey> = keys(4);
+        let l: Vec<LoopKey> = keys(4);
+        let e: Vec<EdgeKey> = keys(2);
+        let s: Vec<ShellKey> = keys(2);
+        let so: Vec<SolidKey> = keys(2);
+        let mut table = Table(BTreeMap::from([
+            (K::He(he[0]), K::He(he[2])),
+            (K::He(he[1]), K::He(he[3])),
+            (K::L(l[0]), K::L(l[2])),
+            (K::L(l[1]), K::L(l[3])),
+            (K::E(e[0]), K::E(e[1])),
+            (K::S(s[0]), K::S(s[1])),
+            (K::So(so[0]), K::So(so[1])),
+        ]));
+        let (h0, h1, l0, l1) = (he[0], he[1], l[0], l[1]);
+        let fan = MevSite::Fan { he1: h0, he2: h1 };
+        let lone = MevSite::Lone { r#loop: l0 };
+        let records = [
+            Provenance::Primordial { op: "row" },
+            Provenance::Mvfs,
+            Provenance::Mev { site: fan },
+            Provenance::Mev { site: lone },
+            Provenance::MevNull {
+                site: fan,
+                new_side: NewVertexSide::Above,
+            },
+            Provenance::MevNull {
+                site: lone,
+                new_side: NewVertexSide::Below,
+            },
+            Provenance::Mef {
+                site: MefSite::Chords { he1: h0, he2: h1 },
+            },
+            Provenance::Mef {
+                site: MefSite::Lone { r#loop: l0 },
+            },
+            Provenance::Kemr { he1: h0, he2: h1 },
+            Provenance::Mekr {
+                site: MekrSite::Cycles {
+                    target: h0,
+                    ring: h1,
+                },
+            },
+            Provenance::Mekr {
+                site: MekrSite::EmptyRing {
+                    target: h0,
+                    ring: l0,
+                },
+            },
+            Provenance::Mekr {
+                site: MekrSite::EmptyTarget {
+                    target: l0,
+                    ring: h0,
+                },
+            },
+            Provenance::Mekr {
+                site: MekrSite::BothEmpty {
+                    target: l0,
+                    ring: l1,
+                },
+            },
+            Provenance::Mfkrh { ring: l0 },
+            Provenance::SplitEdge { edge: e[0] },
+            Provenance::Movefac { shell: s[0] },
+            Provenance::MoveShells { solid: so[0] },
+        ];
+        for p in &records {
+            let want: Vec<K> = payload(p).into_iter().map(|k| table.get(k)).collect();
+            assert_eq!(
+                payload(&p.forwarded(&mut table)),
+                want,
+                "{p:?}: each slot holds its own key's image"
+            );
+            assert_eq!(
+                &p.forwarded(&mut Table(BTreeMap::new())),
+                p,
+                "{p:?}: the identity forwarding changes nothing"
+            );
+        }
+    }
+}

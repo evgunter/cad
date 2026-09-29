@@ -4,9 +4,9 @@
 //! it — outside the unit's own fixtures, and prints what it found:
 //!
 //! * the lineage after a graft: `Provenance::SplitEdge { edge }` is
-//!   copied VERBATIM into the destination arena, so the recorded
-//!   parent is a key of the SOURCE arena — does a split-seam donut
-//!   still fold after `graft_disjoint` / a disjoint `union`?;
+//!   forwarded into the destination arena's keys — does a split-seam
+//!   donut still fold after `graft_disjoint` / a disjoint `union`, into
+//!   a destination that already holds edges, in either operand order?;
 //! * `set_edge_curve` on a split child (the PR's disclosed unmeasured
 //!   limit): a child re-parametrised on the same carrier — what does
 //!   every consumer answer?;

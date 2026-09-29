@@ -148,9 +148,11 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, Namin
 /// door that writes a `SplitEdge` record is `Body::split_edge`, and it
 /// records the parent on the child it has just minted, so every record
 /// points at a key that already existed and a chain is strictly
-/// decreasing in age; a graft carries such a chain across with every
-/// key forwarded, which keeps that order. Nothing outside `topo` can
-/// close it. `chase_b` below walks the same records and reads the
+/// decreasing in age in the arena that wrote it. A graft does not keep
+/// that order — a dead-on-arrival key is minted after the grafted
+/// edges whose records name it — but it forwards injectively (each
+/// source key to its own result key), and an injective image of an
+/// acyclic chain is acyclic. Nothing outside `topo` can close it. `chase_b` below walks the same records and reads the
 /// caller's graft rows only to decide where to stop, so the argument
 /// covers it too.
 fn chase_edge_to_table<T: Decide>(

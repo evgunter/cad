@@ -1319,7 +1319,7 @@ impl<T: Real> EdgeCurve<T> {
     /// and nothing else. The certificate — a residual over the
     /// description, the carrier, the interval and the surfaces' VALUES
     /// — is therefore still the certificate of exactly this geometry,
-    /// and travels verbatim, like provenance.
+    /// and travels verbatim.
     ///
     /// One of two doors that mint an `EdgeCurve` without a run of the
     /// schedule (the other is [`EdgeCurve::with_chart_v_mirrored`]),
