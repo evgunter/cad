@@ -2896,3 +2896,30 @@ Head `5f8f70ed3c` passed `gate ok` on run 36642762807.
 Tier SINGLE, full. One Opus reviewer is on the frozen head. Its brief
 names D4 ¶1 (i)–(iv) and PR 3352 as the governing ruling, and asks
 it to derive every pass set from the deciding code.
+
+## The loop-anchor unit delivered as PR 3495; its single review out (2026-09-29)
+
+PR 3495 is green at `984122b9d8` (353,494 tokens, 180 tools, 84 min,
+harness).
+- **One helper:** `require_kill_anchors` gains a `KillRun`. The moved
+  run's members must claim the walked loop, and each loop write is
+  proved: a `Cycle` first in its loop, and an `Empty` keeping no
+  member and holding a proven-`None` vertex. Failures refuse
+  `LoopCycleBroken`.
+- **Plan-phase decisions:** `kev`'s plan picks the unsplice arm
+  (`KevUnsplice`), and `kef` decides `l2`'s boundary in the plan.
+- **Measurement:** the probe's loop column goes from 788, 45 and
+  25,725 to 0 (`NextForeign`), and all three columns are asserted 0.
+- **Not closed:** the mate-edge row stays open, because a foreign mate
+  still leaves its own edge dangling.
+- **Filed:**
+  - `kef`/`mekr` kill a loop that others still claim;
+  - `mef`/`mekr`'s walked run;
+  - `LoopCycleBroken`'s Display, left alone to stay clear of PR 3493's
+    lane.
+- **Disclosed:** the red-first rows used mutant stand-ins, not a base
+  checkout. The reviewer is asked to reproduce them at the real base.
+
+Tier SINGLE, full. One Opus reviewer is on the frozen head, and its
+brief names D1's atomic per-op contract and the tier-1 guarantee as
+the governing text.
