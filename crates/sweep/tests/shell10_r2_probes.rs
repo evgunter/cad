@@ -32,7 +32,7 @@ use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{tube, vessel};
-use crate::shell8_common::{beside, cap, deep_dump, faces_of, solid_of, tol, volume};
+use crate::shell8_common::{beside, cap, deep_dump, faces_of, solid_of, tol, volume, wearers};
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
 /// NOT `common::pcurve_rows::rows`: scoped to one solid's faces, which
@@ -55,14 +55,12 @@ fn dead_rows(body: &Body<f64>) -> usize {
         .count()
 }
 
-/// The whole chart `face` wears. NOT `common::charts::charts`: one
-/// chart, filtered by one surface key, rather than the partition.
+/// The chart `face` wears, as its solid's wearers of it. NOT
+/// `common::charts::charts`: one chart, filtered by one surface key,
+/// rather than the partition.
 fn chart_of(body: &Body<f64>, face: FaceKey) -> Vec<FaceKey> {
     let key = body.get_face(face).unwrap().surface;
-    body.faces()
-        .filter(|(_, f)| f.surface == key)
-        .map(|(k, _)| k)
-        .collect()
+    wearers(body, solid_of(body, face), key)
 }
 
 /// The chart of the plane normal to `z` at `z = at`, over the whole

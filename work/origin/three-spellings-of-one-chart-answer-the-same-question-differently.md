@@ -2,12 +2,12 @@
 id: three-spellings-of-one-chart-answer-the-same-question-differently
 kind: issue
 title: three predicates in topo answer 'are these one chart' with different rungs and different bounds, and the pcurve doors use the weakest
-status: open
+status: dispatched
 opened: 2026-09-14
 refs: [two-provenance-free-keys-holding-one-surface-read-as-two-charts, 2594]
 priority: P2
 cost: M
-design: true
+branch: origin/one-surface-walk
 ---
 
 

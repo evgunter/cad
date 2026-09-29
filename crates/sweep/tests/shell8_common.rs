@@ -148,11 +148,12 @@ pub(crate) fn edge_rows(body: &Body<f64>) -> Vec<(EdgeKey, String)> {
 }
 
 /// The whole CHART of `shell` whose plane is normal to `axis` (a unit
-/// world direction) and sits at `value` along it — every face wearing
-/// it, since a full revolve splits a cap into two half-discs and the
-/// rim surgery lifts a chart as one.
+/// world direction) and sits at `value` along it — every face of the
+/// shell's SOLID wearing it, since a full revolve splits a cap into two
+/// half-discs and the rim surgery lifts a solid's chart as one.
 pub(crate) fn cap(body: &Body<f64>, shell: ShellKey, axis: Vec3<f64>, value: f64) -> Vec<FaceKey> {
-    for &face in &body.get_shell(shell).unwrap().faces {
+    let data = body.get_shell(shell).unwrap();
+    for &face in &data.faces {
         let f = body.get_face(face).unwrap();
         let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
             continue;
@@ -161,19 +162,23 @@ pub(crate) fn cap(body: &Body<f64>, shell: ShellKey, axis: Vec3<f64>, value: f64
             continue;
         }
         if (Vec3::new(origin.x, origin.y, origin.z).dot(axis) - value).abs() < 1e-9 {
-            let chart = f.surface;
-            return body
-                .faces()
-                .filter(|(_, g)| g.surface == chart)
-                .map(|(k, _)| k)
-                .collect();
+            return wearers(body, data.solid, f.surface);
         }
     }
     panic!("no cap of {shell:?} normal to {axis:?} at {value}")
 }
 
+/// `solid`'s faces wearing `chart`, in arena order: a chart is
+/// body-wide, and what a door takes as one is one solid's wearers.
+pub(crate) fn wearers(body: &Body<f64>, solid: SolidKey, chart: topo::SurfaceKey) -> Vec<FaceKey> {
+    faces_of(body, solid)
+        .into_iter()
+        .filter(|&g| body.get_face(g).unwrap().surface == chart)
+        .collect()
+}
+
 /// The whole chart of `solid` whose plane is normal to `+z` and sits at
-/// `z`.
+/// `z` — the solid's own wearers of it.
 pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKey> {
     for face in faces_of(body, solid) {
         let f = body.get_face(face).unwrap();
@@ -183,12 +188,7 @@ pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKe
         if normal.x.abs() > 1e-9 || normal.y.abs() > 1e-9 || (origin.z - z).abs() > 1e-9 {
             continue;
         }
-        let chart = f.surface;
-        return body
-            .faces()
-            .filter(|(_, g)| g.surface == chart)
-            .map(|(k, _)| k)
-            .collect();
+        return wearers(body, solid, f.surface);
     }
     panic!("no z = {z} cap on {solid:?}")
 }

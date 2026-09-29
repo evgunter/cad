@@ -2,12 +2,12 @@
 id: surface-field-walks-and-source-theorem-checks-have-no-one-home
 kind: issue
 title: four field-by-field surface walks and four checks of 'same source => same bits', with no shared spelling
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P1
 cost: M
-design: true
 refs: [set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree, three-spellings-of-one-chart-answer-the-same-question-differently]
+branch: origin/one-surface-walk
 ---
 
 
