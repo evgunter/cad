@@ -4,6 +4,9 @@ kind: issue
 title: geom-brep: certify's zero arms render the tighten offer without its value, because a margin derived at T: Decide is no refusal payload outside a ratified Bounds seam
 status: open
 opened: 2026-09-28
+priority: P3
+cost: M
+design: true
 ---
 
 
