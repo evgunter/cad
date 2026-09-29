@@ -1075,6 +1075,31 @@ pub(crate) fn section_report<
     )
 }
 
+/// **The section pass's per-pair report on the no-crossings path**:
+/// every pair the pass examines, with no event anywhere, whatever the
+/// crossing layer would find. The pass itself stops at the first
+/// refusal; this reads every pair.
+///
+/// # Errors
+///
+/// [`section_pairs`]'.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn no_crossings_section_report(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    section_pairs(
+        a,
+        b,
+        Band::linear(tol)?,
+        SectionPath::Fallback,
+        |_, _| false,
+        |_, _| false,
+        false,
+    )
+}
+
 /// **The no-crossings path's two certificates**, run as the path runs
 /// them before the vertex probe: the sphere extent scan, then — when
 /// it asks for no re-cut — the section pass. `Ok` with the number of

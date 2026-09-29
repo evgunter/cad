@@ -16,10 +16,11 @@
 //!   `point_in_solid`. A ball scraping the tube in an oval interior to
 //!   both faces refuses R-loop, typed as the fallback's extent refusal
 //!   naming the torus face.
-//! - **Sphere × cone** is examined by the pass, and refuses on reach
-//!   until the certificate's cone rows land: the rows run the path's
-//!   two certificates directly, since the operand gate keeps every cone
-//!   pair off the operations.
+//! - **Sphere × cone** is examined by the pass: a ball strictly inside
+//!   the cone is certified apart, and a ball meeting the lateral face in
+//!   a loop with no crossing refuses R-loop, naming the cone face. The
+//!   rows run the path's two certificates directly, since the operand
+//!   gate keeps every cone pair off the operations.
 //!
 //! The mutant is the scan stepping past the pair without the pass
 //! taking it up: then nothing examines the pair, the scraping ball's
@@ -248,9 +249,9 @@ fn quarter_cone() -> Body<f64> {
     .body
 }
 
-/// The path's certificates refuse on reach, naming the cone face: the
-/// pass examined the pair and has no cone arm yet.
-fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &str) {
+/// The path's certificates refuse, naming the cone face, with the
+/// refusal whose sentence contains `why_has`.
+fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &str, why_has: &str) {
     for (a, b, operand) in [
         (cone, ball, topo::Operand::A),
         (ball, cone, topo::Operand::B),
@@ -269,7 +270,7 @@ fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &st
                     ),
                     "{what}: the refusal names the cone face"
                 );
-                assert!(why.contains("no section classification"), "{what}: {why}");
+                assert!(why.contains(why_has), "{what}: {why}");
             }
             other => panic!("{what}: {other:?}"),
         }
@@ -278,16 +279,23 @@ fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &st
 
 /// **A ball strictly inside the cone, and one meeting its lateral face
 /// in a loop with no crossing.** Both boxes meet the cone face's, so the
-/// scan refused both by the cone's kind. The pass takes both up now,
-/// and both refuse on reach until the certificate's cone rows land.
+/// pass takes both up. The ball inside meets the double cone nowhere
+/// (W0), and the path certifies it with no re-cut. The ball on the
+/// lateral face meets it in one null loop whose witness lies inside
+/// both faces, with no event: R-loop. The mutant reading that loop's arc
+/// of generators as the whole circle claims two essential curves, which
+/// W2 clears on the apex-closed face: the certificates pass, red.
 #[test]
 fn a_ball_against_a_cone_face_is_the_section_passs() {
     let cone = quarter_cone();
-    refused_by_the_pass_on_the_cone(
-        &cone,
-        &ball_at(0.05, Vec3::new(0.2, 0.3, -0.2)),
-        "the ball inside",
-    );
+    let inside = ball_at(0.05, Vec3::new(0.2, 0.3, -0.2));
+    for (a, b) in [(&cone, &inside), (&inside, &cone)] {
+        assert_eq!(
+            topo::test_support::no_crossings_certificates(a, b, Tol::witness()).unwrap(),
+            0,
+            "the ball inside is apart"
+        );
+    }
     // The foot `(0.45 cos φ, 0.55, 0.45 sin φ)` at `φ = −π/4`, and the
     // centre `0.045` out along the outward normal `(r̂ + ŷ)/√2`: the ball
     // meets the face in a cap of half-angle `acos 0.9 ≈ 26°`, clear of
@@ -299,5 +307,6 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
         &cone,
         &ball_at(0.05, centre),
         "the ball on the lateral face",
+        "the loop is certified",
     );
 }

@@ -339,6 +339,24 @@ pub mod test_support {
         crate::boolean::no_crossings_certificates(a, b, tol)
     }
 
+    /// **The section pass's per-pair report on the no-crossings path**,
+    /// spelled as [`section_report`]'s: every pair the pass examines,
+    /// with no event, as `(A face, B face, outcome)`.
+    ///
+    /// # Errors
+    ///
+    /// The box builder's own errors.
+    pub fn no_crossings_section_report(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
+        Ok(crate::boolean::no_crossings_section_report(a, b, tol)?
+            .into_iter()
+            .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+            .collect())
+    }
+
     /// Does `face` describe for the section certificate's W2 — its
     /// `chart_boundary` answers, or, on a cone face, its apex closure
     /// closes? The verdict the certificate reads per face.
