@@ -226,6 +226,7 @@ RUN_FLOOR=(
   plain:topo:review_m3_pr2:9
   plain:topo:rim_dim_boolean_twins:1
   plain:topo:rim_dim_review_probes:2
+  plain:topo:stated_general_image_mint:10
 )
 
 # EVERY CENSUSED SUITE DECLARES WHICH SIDE IT IS ON. What the executed
