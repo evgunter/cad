@@ -63,6 +63,7 @@ cone only because `boolean_arm_exists` keeps it off the roster:
 clearance's second-derivative match (`f2`, a `_ => frontier()` door),
 and `wall_crossing`'s root lane (`_ => Unsettled`).
 
+<<<<<<< HEAD
 **2026-09-28, the interior-loop class previewed on the cone** (the GERM
 measurement lane). `Cone` was added to `boolean_arm_exists` AND
 `revert_arm_exists` in a scratch patch, never landed. The cone is the
@@ -107,6 +108,34 @@ What came back:
 
 A plane × cone ellipse always encircles the axis and so crosses the
 cone's seams, but no plane fixture reached the join to confirm it.
+=======
+**2026-09-28, the preview is superseded.** The interior-loop preview
+this item carried was measured on `378f66744`, before the section
+certificate (PR 3372) merged. The spec's §0 re-ran every fixture on
+`e6f3eaaf9` (`docs/GERM-VERBS-CONE-SPEC.md`, deleted when the last unit
+merges): with `Cone` on both rosters, every fixture now refuses typed
+and none answers wrong. The preview's two wrong answers — the
+no-crossings path with no cone gate, the crossings path with no
+interior-loop guard — are closed by the certificate's per-pair pass,
+which scopes cone faces on both paths and answers R-reach for every
+cone pair until its cone rows land. The extent gates the preview named
+(`cylinder_extent_gate`, `torus_extent_gate`) no longer exist; the
+no-crossings path runs `sphere_extent_scan`, then the section pass.
+
+**What a cone admission must carry** is the spec's §3, in order:
+
+- **the root lanes first** (U1, U2). The one silent arm is
+  `curved_face_arm`'s `(Negative, Negative) => None`, which clears on a
+  convexity the double cone lacks (§0's P3: four crossings near the
+  apex cleared silently, masked today only by R-reach). Every W1 or W2
+  clearance rests on premise S, which that arm breaks.
+- **the apex closure** (U3) and **the certificate's cone rows** (U4),
+  then the sphere pairs on the no-crossings pass (U6), then the roster
+  flip (U7).
+
+U3 and U6 land together in the PR titled "germ: the cone apex closure,
+and sphere pairs certified on the no-crossings path".
+>>>>>>> origin/main
 
 **2026-09-28, from the section-certificate lane's premise-S audit.** Two more arms must learn the cone before `boolean_arm_exists` admits it:
 

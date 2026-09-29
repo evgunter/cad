@@ -1598,9 +1598,9 @@ impl<T: Decide> Body<T> {
     /// **Pcurve rows** ([`crate::pcurves`]): the moved run's stored
     /// rows are curves stated in the OLD face's chart. Where the new
     /// face is on the same chart — [`FaceSurface::Inherit`], a
-    /// [`FaceSurface::Shared`] naming the old key or one the body
-    /// records as the same description ([`Body::same_chart`]) — they
-    /// stand; under any other surface the run's rows are DROPPED, for
+    /// [`FaceSurface::Shared`] naming the old key or one sharing its
+    /// payload ([`Body::same_chart`]) — they stand; under any other
+    /// surface the run's rows are DROPPED, for
     /// the reasons and with the consequences [`Body::drop_rows`]
     /// states. The old face's remaining rows are untouched either way.
     /// The two halves this op mints carry no row on either face: a

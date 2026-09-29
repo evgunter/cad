@@ -411,7 +411,7 @@ where
     // frame: any other value could round, and `transform_rigid` is what
     // decides whether it stayed rigid.
     let map = (!placement.is_identity_bits()).then(|| placement.affine::<T>());
-    let placed = place(&part.body, map.as_ref(), id, 0, tol)?;
+    let placed = place(&part.body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
     // instantiation UNCHANGED, because `transform_rigid` is key-stable
@@ -522,53 +522,74 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
     idx
 }
 
-/// Re-stamps `placed`'s descriptions with `input`'s sources wrapped
-/// by placing node `by` at `instance` (N6). Keys are stable across
-/// `transform_rigid`, so the input's rows map key-for-key. Unsourced
-/// input descriptions stay unsourced.
+/// **Which of a node's rigid maps placed a body, and which output body
+/// it became** — the two keys a placement stamps with, derived together
+/// so no caller can spell one without the other.
 ///
-/// **The ordinal.** `instance` is the body's OUTPUT index in the
-/// placing node's value (a pattern's flat index is `j·M + i`). A
-/// pattern's placement 0 is the master's own bodies VERBATIM, never
-/// stamped by the pattern, so distinct bodies of one node never share
-/// a source: placed bodies differ in the ordinal, and placement 0
-/// differs from every placed body in the wrapping node.
-fn compose_placed<T: Decide>(
-    input: &Body<T>,
-    placed: &mut Body<T>,
+/// They are different keys because the two channels ask different
+/// questions. A description's `GeomSource` keys on the output `body`:
+/// distinct bodies of one node never share a source (a pattern's
+/// placement 0 is the master verbatim, never stamped, and differs from
+/// every placed body in the wrapping node). An axis row keys on the
+/// `map`: coaxiality survives a motion applied to both carriers, so
+/// every body one map places carries its axes to the same lines, and
+/// the ratified table's "both placed by one node/instance" row holds
+/// between bodies of one placement.
+#[derive(Clone, Copy, Debug)]
+struct Placing {
     by: RecipeNodeId,
-    instance: u32,
-) {
-    let surfaces: Vec<_> = input
-        .surfaces()
-        .filter_map(|(k, _)| {
-            input
-                .surface_source(k)
-                .map(|s| (k, s.placed(by.0, instance)))
-        })
-        .collect();
-    for (k, src) in surfaces {
-        let _ = placed.set_surface_source(k, src);
-    }
-    let curves: Vec<_> = input
-        .curves()
-        .filter_map(|(k, _)| input.curve_source(k).map(|s| (k, s.placed(by.0, instance))))
-        .collect();
-    for (k, src) in curves {
-        let _ = placed.set_curve_source(k, src);
-    }
-    let points: Vec<_> = input
-        .points()
-        .filter_map(|(k, _)| input.point_source(k).map(|s| (k, s.placed(by.0, instance))))
-        .collect();
-    for (k, src) in points {
-        let _ = placed.set_point_source(k, src);
+    /// Which of `by`'s maps: 0 where the node has one, the placement
+    /// index for a pattern or a group boolean.
+    map: u32,
+    /// The body's output ordinal in `by`'s value: `map·per + i`.
+    body: u32,
+}
+
+impl Placing {
+    /// Node `by`'s map `map` applied to body `i` of a `per`-body
+    /// operand.
+    fn of(by: RecipeNodeId, map: usize, per: usize, i: usize) -> Result<Self, NodeErrorKind> {
+        let map = names::output_body(map).map_err(NodeErrorKind::Naming)?;
+        let body = names::output_body(per)
+            .and_then(|per| names::output_body(i).and_then(|i| names::flat_body_index(map, per, i)))
+            .map_err(NodeErrorKind::Naming)?;
+        Ok(Self { by, map, body })
     }
 }
 
-/// **A rigid placement of `body` by node `by`, stamped** — the one site
-/// that pairs `transform_rigid` with [`compose_placed`]. `None` is the
-/// bit-exact identity the instantiate door admits: a clone, so no
+/// Re-stamps `placed`'s descriptions with `input`'s sources wrapped by
+/// the placing node at the output ordinal `at.body` (N6), and its
+/// surfaces' axis rows by the same node at `at.map`
+/// ([`topo::AxisSource::placed`]) — see [`Placing`] for why the keys
+/// differ. Keys are stable across `transform_rigid`, so the input's
+/// rows map key-for-key. Unsourced input descriptions stay unsourced,
+/// and an axis row the input held `Cleared` stays so: there is no
+/// source left to place.
+fn compose_placed<T: Decide>(input: &Body<T>, placed: &mut Body<T>, at: Placing) {
+    let by = at.by.0;
+    for (k, _) in input.surfaces() {
+        if let Some(src) = input.surface_source(k) {
+            let _ = placed.set_surface_source(k, src.placed(by, at.body));
+        }
+        if let Some(axis) = input.surface_axis_source(k) {
+            let _ = placed.set_surface_axis_source(k, axis.placed(by, at.map));
+        }
+    }
+    for (k, _) in input.curves() {
+        if let Some(src) = input.curve_source(k) {
+            let _ = placed.set_curve_source(k, src.placed(by, at.body));
+        }
+    }
+    for (k, _) in input.points() {
+        if let Some(src) = input.point_source(k) {
+            let _ = placed.set_point_source(k, src.placed(by, at.body));
+        }
+    }
+}
+
+/// **A rigid placement of `body`, stamped** — the one site that pairs
+/// `transform_rigid` with [`compose_placed`]. `None` is the bit-exact
+/// identity the instantiate door admits: a clone, so no
 /// re-certification is owed, stamped like any other placement.
 ///
 /// # Errors
@@ -578,16 +599,34 @@ fn compose_placed<T: Decide>(
 fn place<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
     body: &Body<T>,
     map: Option<&Affine3<T>>,
-    by: RecipeNodeId,
-    ordinal: u32,
+    at: Placing,
     tol: Tol,
 ) -> Result<Body<T>, NodeErrorKind> {
     let mut placed = match map {
         None => body.clone(),
         Some(map) => transform_rigid(body, map, tol).map_err(NodeErrorKind::Transform)?,
     };
-    compose_placed(body, &mut placed, by, ordinal);
+    compose_placed(body, &mut placed, at);
     Ok(placed)
+}
+
+/// Every body of `bodies` placed by node `by`'s map number `j`, in
+/// order: one placement of a pattern's master.
+fn place_each<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+    bodies: &[Arc<Body<T>>],
+    map: &Affine3<T>,
+    by: RecipeNodeId,
+    j: usize,
+    tol: Tol,
+) -> Result<Vec<Arc<Body<T>>>, NodeErrorKind> {
+    bodies
+        .iter()
+        .enumerate()
+        .map(|(i, body)| {
+            let at = Placing::of(by, j, bodies.len(), i)?;
+            place(body, Some(map), at, tol).map(Arc::new)
+        })
+        .collect()
 }
 
 /// The (Ok) value of an input node.
@@ -4059,10 +4098,9 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
     let map = transform_map(translation, rot_axis, angle);
-    let payload = placeable.map(|body, i| {
-        let ordinal = names::output_body(i).map_err(NodeErrorKind::Naming)?;
-        place(body, Some(&map), id, ordinal, tol)
-    })?;
+    let per = placeable.bodies().len();
+    let payload =
+        placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)))
 }
 
@@ -4187,18 +4225,11 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
         return Err(NodeErrorKind::NonPositiveCount { count: n });
     }
     let naming = NodeErrorKind::Naming;
-    let per = names::output_body(master.len()).map_err(naming)?;
     let mut instances: Vec<Arc<Body<T>>> = master.to_vec();
     for j in 1..n {
         let map = stepped_map(kind, j, results, vals, tol)?;
-        let placement =
-            names::output_body(usize::try_from(j).unwrap_or(usize::MAX)).map_err(naming)?;
-        for (i, body) in master.iter().enumerate() {
-            let ordinal = names::output_body(i)
-                .and_then(|i| names::flat_body_index(placement, per, i))
-                .map_err(naming)?;
-            instances.push(Arc::new(place(body, Some(&map), id, ordinal, tol)?));
-        }
+        let j = usize::try_from(j).unwrap_or(usize::MAX);
+        instances.extend(place_each(master, &map, id, j, tol)?);
     }
     let table =
         names::name_pattern(id, &value.name_table, n, master.len(), &instances).map_err(naming)?;
@@ -4265,9 +4296,8 @@ fn wire_placed_union<
     let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
     let mut targets: Vec<topo::SolidKey> = Vec::new();
     for (i, map) in maps.iter().enumerate() {
-        // Distinct instances are distinct sources.
-        let ordinal = names::output_body(i).map_err(NodeErrorKind::Naming)?;
-        let placed = place(&body, Some(map), id, ordinal, tol)?;
+        // Distinct instances are distinct sources, and distinct maps.
+        let placed = place(&body, Some(map), Placing::of(id, i, 1, 0)?, tol)?;
         // Placement 0 MINTS the destination solids; every later
         // placement grafts ONTO them, so the fused body has the
         // prototype's solid structure with N shells in each — the shape
@@ -5293,6 +5323,182 @@ mod loop_coordinates_tests {
                 Err(NodeErrorKind::Naming(NamingError::Emission { .. }))
             ),
             "one loop past u32::MAX is refused"
+        );
+    }
+}
+
+#[cfg(test)]
+mod place_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{Placing, place, place_each};
+    use crate::node::RecipeNodeId;
+    use geom_core::{Affine3, Point3, Tol, Vec3};
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+    use topo::{AxisPlacement, AxisRecord, AxisSource, Body, FaceSurface, GeomSource, SurfaceKey};
+
+    /// A unit brick `dy` along y with one face on a cylinder — its axis
+    /// stamped `D`, its description minted `(7, 0)` — and a second
+    /// cylinder face whose axis row is already `Cleared`. Deterministic,
+    /// so every call returns the same keys.
+    fn fixture(dy: f64) -> (Body<f64>, SurfaceKey, SurfaceKey, AxisSource) {
+        let tol = Tol::witness();
+        let mut b = topo::test_support::brick::<f64>((0.0, 1.0), (dy, dy + 1.0), (0.0, 1.0), tol);
+        let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
+        let cylinder = |r: f64| {
+            FaceSurface::New(geom::Surface::Cylinder {
+                origin: Point3::new(0.5, dy + 0.5, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: r,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            })
+        };
+        let stamped = b.set_face_surface(faces[0], cylinder(0.25)).unwrap();
+        let pending = b.set_face_surface(faces[1], cylinder(0.3)).unwrap();
+        let axis = AxisSource::from_lowered(b"D");
+        b.set_surface_axis_source(stamped, axis.clone()).unwrap();
+        b.set_surface_axis_source(pending, axis.clone()).unwrap();
+        let aside = Affine3::translation(Vec3::new(3.0, 0.0, 0.0));
+        let mut b = topo::transform::transform_rigid(&b, &aside, tol).unwrap();
+        b.set_surface_axis_source(stamped, axis.clone()).unwrap();
+        b.set_surface_source(stamped, GeomSource::minted(7, 0))
+            .unwrap();
+        (b, stamped, pending, axis)
+    }
+
+    fn lift(dz: f64) -> Affine3<f64> {
+        Affine3::translation(Vec3::new(0.0, 0.0, dz))
+    }
+
+    /// **A placement composes the axis row** — the kernel clears it and
+    /// `place` re-stamps the input's token wrapped by the placing node
+    /// and map, at a real map and at the identity clone alike. A row
+    /// the input held `Cleared` has no source to place and stays
+    /// `Cleared`.
+    #[test]
+    fn a_placement_composes_the_axis_row() {
+        let (b, stamped, pending, axis) = fixture(0.0);
+        let map = Affine3::translation(Vec3::new(0.0, 5.0, 0.0));
+        for m in [Some(&map), None] {
+            let at = Placing::of(RecipeNodeId(41), 2, 1, 0).unwrap();
+            let placed = place(&b, m, at, Tol::witness()).unwrap();
+            assert_eq!(
+                placed.surface_axis_source(stamped),
+                Some(&axis.placed(41, 2)),
+                "map {m:?}"
+            );
+            assert_eq!(
+                placed.surface_axis_record(pending),
+                Some(&AxisRecord::Cleared),
+                "map {m:?}"
+            );
+        }
+    }
+
+    /// **The ratified staleness table, through the placement door** —
+    /// every row of `docs/AXIS-DECLARATION-DESIGN.md`'s table on
+    /// carriers stamped by `place`, with the [`Placing`] each caller
+    /// derives. Row 2's carriers are two bodies of ONE Transform's
+    /// value (`wire_transform`'s spelling): one map, so one line, while
+    /// their description sources stay distinct.
+    #[test]
+    fn the_staleness_table_through_the_placement_door() {
+        let tol = Tol::witness();
+        let (a, wall, _, d) = fixture(0.0);
+        let (b, _, _, _) = fixture(3.0);
+        let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
+        let geom = |body: &Body<f64>| body.surface_source(wall).cloned().unwrap();
+        let transform = RecipeNodeId(9);
+
+        // Row 1, neither placed: equal.
+        assert_eq!(axis(&a), axis(&b), "row 1: neither placed");
+        assert_eq!(axis(&a), d);
+
+        // Row 2, both placed by one node and map: equal.
+        let a1 = place(
+            &a,
+            Some(&lift(5.0)),
+            Placing::of(transform, 0, 2, 0).unwrap(),
+            tol,
+        )
+        .unwrap();
+        let b1 = place(
+            &b,
+            Some(&lift(5.0)),
+            Placing::of(transform, 0, 2, 1).unwrap(),
+            tol,
+        )
+        .unwrap();
+        assert_eq!(
+            axis(&a1),
+            axis(&b1),
+            "row 2: one Transform, two output bodies"
+        );
+        assert_ne!(
+            geom(&a1),
+            geom(&b1),
+            "distinct output bodies keep distinct description sources"
+        );
+
+        // Row 3, one placed: stale, naming the placement that broke it.
+        assert_ne!(axis(&a), axis(&a1), "row 3: one carrier placed");
+        assert!(axis(&a).same_base(&axis(&a1)), "one axis, moved");
+        assert_eq!(
+            axis(&a1).placements(),
+            &[AxisPlacement { node: 9, index: 0 }],
+            "the chain names the placing node"
+        );
+
+        // Row 3, both placed by different chains: stale.
+        let other = place(
+            &b,
+            Some(&lift(5.0)),
+            Placing::of(RecipeNodeId(10), 0, 1, 0).unwrap(),
+            tol,
+        )
+        .unwrap();
+        assert_ne!(axis(&a1), axis(&other), "row 3: another placing node");
+    }
+
+    /// **A pattern keeps a two-body master's shared axis in every
+    /// placement**: `place_each` (`wire_pattern`'s loop) stamps both
+    /// bodies of placement `j` onto one line, different placements onto
+    /// different lines, and every placed body its own description
+    /// source.
+    #[test]
+    fn a_pattern_keeps_the_masters_shared_axis_in_every_placement() {
+        let tol = Tol::witness();
+        let (a, wall, _, d) = fixture(0.0);
+        let (b, _, _, _) = fixture(3.0);
+        let master = vec![Arc::new(a), Arc::new(b)];
+        let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
+        let pattern = RecipeNodeId(12);
+
+        // Placement 0 is the master verbatim.
+        assert_eq!(axis(&master[0]), axis(&master[1]), "placement 0");
+        assert_eq!(axis(&master[0]), d);
+
+        let mut lines = Vec::new();
+        let mut sources = BTreeSet::new();
+        for j in 1..=2 {
+            let placed = place_each(&master, &lift(5.0 * j as f64), pattern, j, tol).unwrap();
+            assert_eq!(placed.len(), 2);
+            assert_eq!(
+                axis(&placed[0]),
+                axis(&placed[1]),
+                "placement {j}: both master bodies on one line"
+            );
+            lines.push(axis(&placed[0]));
+            for body in &placed {
+                sources.insert(body.surface_source(wall).cloned().unwrap());
+            }
+        }
+        assert_ne!(lines[0], lines[1], "placements 1 and 2 are different maps");
+        assert_eq!(
+            sources.len(),
+            4,
+            "every placed body its own description source"
         );
     }
 }

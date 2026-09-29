@@ -46,3 +46,14 @@ cannot see which of the three differences are decisions.
 What would close it: one page that names the three, says which
 question each answers and which bound it needs, and either unifies the
 two that ask the same question or records why they cannot be one.
+
+## After PR 3414 (2026-09-29)
+
+The first spelling no longer trusts the provenance channel:
+`Body::same_chart` answers "one description?" from key or shared-`Arc`
+identity, a different question from the other two, which answer
+"declared one surface?" (N6). What this row still owes: whether
+`chart_region::same_chart` and `merge_faces::planes_declared_equal`
+become one declared-identity predicate (the merge door adding `sense`),
+and one page naming the two questions. The per-kind field walks behind
+them are `surface-field-walks-and-source-theorem-checks-have-no-one-home`.
