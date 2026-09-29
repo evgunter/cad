@@ -2,7 +2,8 @@
 id: edit-refusals-short-of-the-shape-guard
 kind: issue
 title: edit: refusals the viewer draws that state no recourse, by the shape guard's census
-status: open
+status: spec
+branch: edit/edit-refusal-recourse
 opened: 2026-09-29
 priority: P2
 cost: M
@@ -57,3 +58,48 @@ words, with the name left to `Debug`:
 
 - `crates/editor-core/src/resolve/mod.rs`, the three flip reports:
   "predicate {predicate} flipped from {from} to {to} …".
+
+## Ruled and spec'd (2026-09-29, EDIT orchestrator) — the status-line half, single review
+
+**Tier:** single review (one Opus FULL). A recourse is a claim about what
+the user can do, so every added one is checked against its raise site.
+
+**Scope: the `EditError` status-line rows only.** That is
+`crates/viewer/tests/refusal_concision_edits.rs`'s `FILED_NO_RECOURSE`,
+raised through `crates/editor-core/src/edit.rs`. Two groups are out of
+scope:
+- **The eight feature-tree rows** (`refusal_concision_chains.rs`, the
+  `Part` family). They wait for PR #3482 (part/product refusals), which
+  is live on those rows.
+- **Arms the placement unit reshapes or deletes.** The placement design
+  on `[ev]` #3441 removes maintenance and moves placement onto gauges.
+  These arms are skipped, not rewritten:
+  - `Edit/MaintenanceRefused`, `Edit/MaintenanceUnrecorded`;
+  - `Edit/ImproperPlacement`, `Edit/NonFinitePlacement`,
+    `Edit/PlacementOnNonInstance`, `Edit/PlacementAxis`,
+    `Edit/PlacementRuleMismatch`, `Edit/EmptyPlacementList`;
+  - `Edit/MateRefused`, whose carried text MSOLVE owns.
+
+  Leave their entries with a comment naming the placement row.
+
+**The rule, per the row's repair shape:**
+1. Read each arm's raise site or sites. Then either add the recourse
+   the site supports, or end with "There is no way through" where none
+   exists, using the shared endings. Never invent a recourse the edit
+   door cannot honour.
+2. Drop the arm's `FILED_NO_RECOURSE` entry. The must-fire check reds a
+   stale entry.
+3. Stay within the 75-word budget, and pass `problems` in full.
+4. Keep every Python tag word frozen, because tags do not change. Any
+   Display text a Python or viewer test pins is re-baselined and named
+   in the PR body.
+5. The predicate-name sites in `resolve/mod.rs` (the three flip reports)
+   are in scope: say the decision in words, and leave the name to
+   `Debug`.
+
+**Rows:** the edits roster, green with the list shortened. Add one
+planted mutant per family class (a recourse removed) that reds, and
+record it.
+
+**When done:** the feature-tree half and the placement arms remain on
+this row, so it stays open, and the unit sets the `## Built` section.
