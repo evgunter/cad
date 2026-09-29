@@ -721,3 +721,14 @@ Signed: (CONTACT orchestrator)
   `contact/land-9`.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — CONTACT-7 and CONTACT-9 merged
+
+- **CONTACT-7** merged as #3383 (`a0cdf009c`). Hosted CI was green on
+  `5a089db23`.
+- **CONTACT-9** merged as #3415 (`7edef71e8`). Hosted CI was green on
+  `886362756`. Where it overlaps CONTACT-7 (the test-module list, the
+  audit doc, the log), the merge was clean.
+- The lanes' clones and targets are removed.
+
+Signed: (CONTACT orchestrator)
