@@ -523,7 +523,7 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     let fresh = asm::open_bench(&bench, tol);
     let mut failed = 0usize;
     for row in fresh.tree_rows() {
-        if let RowStatus::Failed { message } = &row.status {
+        if let RowStatus::Failed { message, .. } = &row.status {
             assert!(
                 message.contains("no document with id"),
                 "the store's own refusal, at the instantiate node: {message}"
@@ -544,7 +544,7 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     let broken = asm::open_bench(&bench, tol);
     for row in broken.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("r1-junk.pncad"),
                 "the scan refusal names the offending file: {message}"
             ),
@@ -590,7 +590,7 @@ fn r1_save_as_rebinds_the_directory_and_the_rebind_re_resolves() {
     );
     let mut failed = 0usize;
     for row in session.tree_rows() {
-        if let RowStatus::Failed { message } = &row.status {
+        if let RowStatus::Failed { message, .. } = &row.status {
             assert!(
                 message.contains("no document with id"),
                 "the LIVE session re-resolved against the new directory and \
@@ -613,7 +613,7 @@ fn r1_save_as_rebinds_the_directory_and_the_rebind_re_resolves() {
     reopened.pump();
     for row in reopened.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
                 "the new directory has no parts, and a fresh open says so: {message}"
             ),
@@ -1069,7 +1069,7 @@ fn r1_an_assembly_alone_in_an_empty_directory_opens_and_badges() {
     assert_eq!(rows.len(), 3, "the tree still shows every instance");
     for row in &rows {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
                 "each instantiate refuses typed, naming the missing id: {message}"
             ),

@@ -127,6 +127,8 @@ mod msolve5_read_below_a_root;
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
+#[path = "part_root_carried.rs"]
+mod part_root_carried;
 #[path = "path_authoring.rs"]
 mod path_authoring;
 #[path = "pick3_acceptance.rs"]
