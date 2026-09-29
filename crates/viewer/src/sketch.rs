@@ -49,8 +49,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Datum, DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram,
-    Node, ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram, Node,
+    ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
     ValuePayload, resolve_loops, unparse,
 };
 use pncad::geom_core::{Point2, Tol};
@@ -62,6 +62,7 @@ use pncad::profile::{
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
 use crate::frame::Tone;
+use crate::session::refuse::{NodeKindWanted, admits};
 
 /// One loop of the add-profile door: a template shape, or a PATH
 /// authored verb by verb.
@@ -122,11 +123,9 @@ pub enum ProfileShape {
 /// **A step of `verb` with the path form's starting numbers** — what
 /// a row becomes when its verb is picked.
 ///
-/// Exhaustive on the kernel's [`Verb`], and that is what holds the
-/// form to the algebra: the form offers [`Verb::ALL`], so a verb the
-/// transition table gains reaches the menu by itself, and it has no
-/// starting step until this match gives it one — a compile error, not
-/// a verb that is silently missing.
+/// The form offers [`Verb::ALL`], so a verb the transition table gains
+/// reaches the menu by itself; this match is where it is given its
+/// starting step.
 ///
 /// **Millimetre-scale, never zero.** A leg of length zero and a
 /// fillet of radius zero are both geometry refusals, so a fresh step
@@ -179,8 +178,7 @@ pub fn fresh_step(verb: Verb) -> Step<f64> {
 
 /// **An arc spec of `mode` with the form's starting numbers** —
 /// millimetre-scale and never degenerate, for the reason
-/// [`fresh_step`]'s are; exhaustive on the kernel's [`ArcMode`] for
-/// the reason that one is on [`Verb`].
+/// [`fresh_step`]'s are.
 pub fn fresh_arc(mode: ArcMode) -> ArcData<f64> {
     let target = fresh_target(TargetKind::Point);
     match mode {
@@ -669,12 +667,7 @@ pub fn frame_placement(
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    // Either frame kind: what is drawn is the landed VALUE, which both
-    // produce.
-    if !matches!(
-        doc.node(frame),
-        Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-    ) {
+    if !admits(doc.node(frame), NodeKindWanted::Frame) {
         return None;
     }
     let ValuePayload::Datum(DatumValue::Frame(f)) = &evaluation.value(frame)?.payload else {
@@ -684,7 +677,9 @@ pub fn frame_placement(
 }
 
 /// **Every frame datum in the document, in document order** — what the
-/// creation forms' frame picker offers.
+/// creation forms' frame picker offers, which is exactly the set a
+/// frame seat [`admits`], so the picker cannot offer a node the commit
+/// door refuses.
 ///
 /// Document order rather than sorted by id or by name: the feature
 /// tree lists nodes that way, so the picker and the tree name the
@@ -693,12 +688,7 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.order()
         .iter()
         .copied()
-        .filter(|id| {
-            matches!(
-                doc.node(*id),
-                Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-            )
-        })
+        .filter(|id| admits(doc.node(*id), NodeKindWanted::Frame))
         .collect()
 }
 
@@ -1103,11 +1093,11 @@ pub fn preview(
             // (`PreviewError::is_unfinished` says which, and why every
             // other one blames an authored step), under a PROVISIONAL
             // closing leg — `line_to Start`, appended here and never
-            // recorded anywhere — which is enough to make the driver hand back
-            // the geometry it already walked. The leg itself is not
-            // drawn: it contributes no vertex, so a consumer that
-            // declines to wrap an open polyline draws exactly the legs
-            // that were authored and nothing else.
+            // recorded anywhere — which is enough to make the driver
+            // hand back the geometry it already walked. The leg itself
+            // is not drawn: it contributes no vertex, so a consumer
+            // that declines to wrap an open polyline draws exactly the
+            // legs that were authored and nothing else.
             //
             // Nothing about the lattice is re-implemented to do it.
             // The provisional close goes through the same `replay` as
@@ -1223,7 +1213,7 @@ pub fn committed(
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
     for &node in doc.order() {
-        if Some(node) == except || !matches!(doc.node(node), Some(Node::Profile(_))) {
+        if Some(node) == except || !admits(doc.node(node), NodeKindWanted::Profile) {
             continue;
         }
         let Some(value) = evaluation.value(node) else {
@@ -1355,7 +1345,22 @@ pub fn fresh_step_at(verb: Verb, state: Option<TipState>) -> Step<f64> {
             fresh(0, spec);
             fresh(1, spec2);
         }
-        _ => {}
+        // No arc spec to freshen.
+        Step::At(_)
+        | Step::Angle(_)
+        | Step::Toward { .. }
+        | Step::Tangent
+        | Step::Cusp
+        | Step::Turn(_)
+        | Step::Line(_)
+        | Step::LineTo(_)
+        | Step::ContinueTo(_)
+        | Step::TangentArcTo(_)
+        | Step::Fillet { .. }
+        | Step::FarEndTo(_)
+        | Step::CloseTo
+        | Step::Circle { .. }
+        | Step::CircleSplit { .. } => {}
     }
     step
 }

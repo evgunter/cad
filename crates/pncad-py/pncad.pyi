@@ -2069,8 +2069,8 @@ class Node:
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
-        Every face on a chart is named together (a full revolve's cap
-        is two half-faces). An unresolvable name, a name that is not a
+        Every face of one solid on a chart is named together (a full
+        revolve's cap is two half-faces). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
         designated face refuses typed at `evaluate`. `thickness` mints
         a literal in the node's `shell_thickness` slot, moved by

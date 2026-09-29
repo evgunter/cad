@@ -2,12 +2,14 @@
 id: three-spellings-of-one-chart-answer-the-same-question-differently
 kind: issue
 title: three predicates in topo answer 'are these one chart' with different rungs and different bounds, and the pcurve doors use the weakest
-status: dispatched
+status: closed
 opened: 2026-09-14
 refs: [two-provenance-free-keys-holding-one-surface-read-as-two-charts, 2594]
 priority: P2
 cost: M
 branch: origin/one-surface-walk
+closed: 2026-09-29
+pr: 3429
 ---
 
 
@@ -57,3 +59,14 @@ identity, a different question from the other two, which answer
 become one declared-identity predicate (the merge door adding `sense`),
 and one page naming the two questions. The per-kind field walks behind
 them are `surface-field-walks-and-source-theorem-checks-have-no-one-home`.
+
+## Closed (2026-09-29, PR 3429)
+
+Two questions, two predicates, named once in `source.rs`'s module
+docs: `Body::same_chart` (identity: key or shared `Arc`) for row
+carry; `source::surface_declaration` / `source_declaration` (declared:
+same key, same `GeomSource`, or its reversal) for the merge door (plus
+`same_sense`), chart-region (`declared_chart`, plus its bracketed read)
+and `plane_eq` rung 1. `Mirrored` is pinned as not one surface at the
+merge door and per variant. The curved carrier rung is the one sibling
+left: `carrier-eq-source-rung-reads-orientation-its-own-way`.

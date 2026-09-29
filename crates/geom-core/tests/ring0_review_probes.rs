@@ -25,6 +25,7 @@ test_utils::gated_to![
 
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use interval_transcendentals::{DInterval, Decoration};
 
 const INF: f64 = f64::INFINITY;

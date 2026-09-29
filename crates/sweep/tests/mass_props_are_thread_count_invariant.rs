@@ -291,6 +291,16 @@ fn digest() -> String {
 /// (`geom_core::sym`'s `form_in`: "a node absent from this leaf's table
 /// is frozen here by design") and now expands. Measured by switching
 /// the pass off on a probe branch, which restores the old column.
+///
+/// **Re-cut at all three ε when the sketch pushforward began reading
+/// its segment's stored centre and sweep** (`geom_brep::SketchSegment`,
+/// #3254) instead of rebuilding them inside `eval` from the chord and
+/// the bulge. Only the `frozen` column of the two `validate_geometric`
+/// rows moves, and down: `sym_arc_loft` 685 → 656 / 599 → 570 /
+/// 670 → 641 and `sym_thin_strip` 860 → 803 / 825 → 768 / 858 → 801 at
+/// ε = 1e-6 / 1e-9 / 1e-12. Decisions, discharges, shapes and verdicts
+/// are unchanged: the pushforward shares the carrier's centre node, so
+/// fewer operands reach the walk as nodes absent from its table.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

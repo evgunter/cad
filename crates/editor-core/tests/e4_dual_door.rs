@@ -62,7 +62,13 @@
 //! shell door's call is now a VALUE the DL3 policy answers
 //! (`topo::AtRestPolicy::shell_door`), so the capability rides the
 //! `AtRestPolicy` term already in the list and the refusal a dual
-//! meets at a shell node is unchanged.
+//! meets at a shell node is unchanged. 2026-09-24: the set lost
+//! `geom_brep::PcurveFittedLane`, which it held as a supertrait of
+//! `AtRestPolicy` rather than as a listed term. Which scalars derive
+//! fitted pcurves is now a VALUE the same policy answers
+//! (`topo::AtRestPolicy::fitted_lane`), so the literal below is
+//! unchanged, and a dual's fitted-pcurve refusal is unchanged too:
+//! typed, at the fitted lane's check 4.
 
 use geom_core::Dual64;
 use geom_core::predicate::Decide;

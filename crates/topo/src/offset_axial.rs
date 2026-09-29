@@ -372,7 +372,7 @@ impl<T: Decide> Profile<T> {
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
 /// plan is decided before anything is written, and the writes go to a
 /// clone that replaces `body` only on success.
-pub fn offset_charts_together<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,
@@ -2460,10 +2460,11 @@ fn restate<T: Decide>(
 /// A mapped description re-authored in its own sketch plane from the
 /// endpoints the corner solves put it between.
 ///
-/// A LINE takes the two points. An ARC takes them and the included
-/// angle they subtend at the moved carrier's own centre — the offset of
-/// a meridian arc is concentric, so the centre is the datum that does
-/// not move and the sweep is what the endpoints say it is. A POINT's
+/// A LINE takes the two points. An ARC takes them, the moved carrier
+/// itself (its centre and radius), and the included angle the points
+/// subtend at that centre — the offset of a meridian arc is concentric,
+/// so the centre is the datum that does not move and the sweep is what
+/// the endpoints say it is. A POINT's
 /// trajectory — extruded along a vector, or revolved about an axis —
 /// is the same trajectory of the moved point: the vector, the axis and
 /// the angle are the operand's own conventional data and are carried,
@@ -2497,19 +2498,20 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { .. } => {
-                        let Curve3::Circle { center, .. } = carrier else {
+                        let Curve3::Circle { center, radius, .. } = carrier else {
                             return Err(refuse(
                                 "a declaring pushforward whose sketch arc has no moved circle \
                                  to be re-authored about",
                             ));
                         };
-                        let c = flat(*center);
-                        let (u, v) = (a - c, b - c);
-                        let theta = u.perp_dot(v).atan2(u.dot(v));
+                        let centre = flat(*center);
+                        let (u, v) = (a - centre, b - centre);
                         geom_brep::SketchSegment::Arc {
                             a,
                             b,
-                            bulge: (theta / T::from_f64(4.0)).tan(),
+                            centre,
+                            radius: *radius,
+                            sweep: u.perp_dot(v).atan2(u.dot(v)),
                         }
                     }
                 },

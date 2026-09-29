@@ -55,6 +55,7 @@ test_utils::gated_to![
 
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use std::cmp::Ordering;
 use test_utils::fuzz;
 

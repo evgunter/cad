@@ -1,0 +1,57 @@
+---
+id: fitted-door-and-scalar-name-travel-as-a-pair-by-convention
+kind: issue
+title: The fitted door and the scalar's name travel as two parameters tied by convention (recertify, certify_general, map_approx)
+status: open
+opened: 2026-09-25
+priority: P4
+cost: D
+---
+
+
+## What
+
+Three geom-brep/topo doors take a scalar's door and that scalar's name
+as two separate parameters, and nothing ties the name to the scalar
+the door (or its absence) belongs to:
+
+- `geom_brep::PcurveCache::recertify(.., lane: Option<FittedLane<T>>,
+  scalar: &'static str)` (`crates/geom-brep/src/pcurve_cache.rs`);
+- `geom_brep::PcurveCache::certify_general(.., lane, scalar)`, which
+  took the same pair in LANE-4's fix pass, because the mint reaches it
+  at every scalar and an absent door must refuse at check 4;
+- `topo::transform`'s private `map_approx(.., offset_fit:
+  Option<OffsetFitLane<T>>, scalar: &'static str)`
+  (`crates/topo/src/transform.rs`).
+
+Every production caller passes `T::fitted_lane()`/`T::offset_fit_lane()`
+beside `T::scalar_name()` from `topo::AtRestPolicy`, so the pair agrees
+by convention. A public call like `recertify(.., None, "f64")` on an
+`f64` cache compiles and refuses "the f64 scalar … may not certify".
+`recertify` also asks every caller for the fitted pair on its
+closed-form arms, which ignore it (e.g. `crates/sweep/tests/revert_plane_charts.rs`
+passes `<f64 as AtRestPolicy>::fitted_lane()` for a plane `IsoLine`
+row).
+
+Raised by both LANE-4 reviewers (R1 N4 and S2, R2 S3).
+
+## Why it is not fixed where it was found
+
+geom-brep cannot name topo's policy, so the name has to travel in
+from topo; the fix is a bundling shape (a value carrying "the door, or
+the name of the scalar that holds none" — `run_fitted_checks` already
+takes `Result<FittedLane<T>, &'static str>` privately), which changes
+three public or crate signatures and every caller. That is its own
+unit, not a fix-pass item.
+
+## Proposed
+
+One value per door family that carries the door or the absent
+scalar's name (formed only at the policy seam), taken by
+`recertify`, `certify_general` and `map_approx` in place of the pair;
+`recertify`'s closed-form callers stop threading the fitted door.
+
+## Cost
+
+D: three signatures, their callers in topo/sweep tests and the
+`r2_p2_consumer` example, and one constructor on the policy.
