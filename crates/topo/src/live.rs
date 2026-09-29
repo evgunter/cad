@@ -259,10 +259,12 @@ mod tests {
         let identish = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
         let b = text.as_bytes();
         let open_ended = !needle.ends_with(|c: char| c.is_alphanumeric() || c == '_');
-        text.match_indices(needle).map(|(at, _)| at).filter(move |&at| {
-            (at == 0 || !identish(b[at - 1]))
-                && (open_ended || b.get(at + needle.len()).is_none_or(|c| !identish(*c)))
-        })
+        text.match_indices(needle)
+            .map(|(at, _)| at)
+            .filter(move |&at| {
+                (at == 0 || !identish(b[at - 1]))
+                    && (open_ended || b.get(at + needle.len()).is_none_or(|c| !identish(*c)))
+            })
     }
 
     /// Whether `text` names `name` as a whole token.
