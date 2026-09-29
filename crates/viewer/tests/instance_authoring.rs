@@ -665,7 +665,7 @@ fn an_authored_instance_whose_part_records_another_epsilon_badges_the_seam() {
 /// standard** (`test_utils::refusal::problems`), on the store's own
 /// sentences through this crate's resolver: the part's file gone, its
 /// pin moved, its ε another process's, and the assembly held in memory
-/// with no file, so no resolver. The ids and pins each prints are
+/// with no file, which `docio::NoFile` refuses. The ids and pins each prints are
 /// admitted span by span, filed with their owner.
 #[test]
 fn every_unresolved_part_badge_meets_the_refusal_standard() {
@@ -732,9 +732,13 @@ fn every_unresolved_part_badge_meets_the_refusal_standard() {
     session.pump();
     let none = match &common::status_of(&session.tree_rows(), instance) {
         RowStatus::Failed { message, .. } => message.clone(),
-        other => panic!("an instance with no resolver fails, got {other:?}"),
+        other => panic!("an instance with no file fails, got {other:?}"),
     };
-    rows.push(("Part/NoResolver", none, Vec::new()));
+    assert!(
+        none.contains("Recourse: save it beside its parts"),
+        "the recourse followed below: {none}"
+    );
+    rows.push(("Part/Unresolved(NoFile)", none, Vec::new()));
     assert!(
         session
             .perform(SessionOp::Save(path.clone()))

@@ -42,8 +42,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::document::{
-    ContentPin, DocRef, DocumentId, PartResolver, PersistError, ProfileDoc, ResolveFailure,
-    ResolveFault, content_pin, header_document_id, load, save,
+    ContentPin, DocRef, DocumentId, Labelled, Labels, PartResolver, PersistError, ProfileDoc,
+    Recourse, ResolveFailure, ResolveFault, Staged, content_pin, header_document_id, load, save,
 };
 use geom_core::Tol;
 
@@ -83,6 +83,9 @@ pub enum WorkspaceError {
         /// The path the operation touched (the directory for the
         /// scan's `read_dir`, the file otherwise).
         path: PathBuf,
+        /// The OS error's class: a resolution states one way through
+        /// for a file that is not there and another for one that is.
+        kind: std::io::ErrorKind,
         /// The OS error's message.
         message: String,
     },
@@ -192,84 +195,65 @@ pub enum WorkspaceError {
     },
 }
 
-// The stage word is the store's own label; a carrier that names the
-// stage itself renders the sentence alone ([`WorkspaceError::sentence`]).
 impl core::fmt::Display for WorkspaceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("workspace: ")?;
-        self.fmt_sentence(f, Labels::Kept)
+        write!(f, "{}", Labelled(self, Labels::Kept))
     }
 }
 
-/// Whether a rendering keeps the stage words: the store's own, and the
-/// load door's inside a refusal it forwards.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Labels {
-    Kept,
-    Stripped,
-}
+// The sentence a carrier that names the stage renders (a part whose
+// reference did not resolve, a scan the viewer's resolver makes) drops
+// the store's stage word, the load door's inside a load it forwards,
+// and the label clause the scan and read arms open with. `Update`
+// forwards the elaboration's own sentence, `update:` word and all: no
+// carrier that names the stage raises it.
+//
+// A path is text the caller chose, echoed back inside a sentence, so
+// every arm delimits it: an undelimited path runs into the prose
+// around it and the reader cannot see where the name ends.
+impl Staged for WorkspaceError {
+    const STAGE: &'static str = "workspace";
 
-/// [`WorkspaceError::sentence`]'s rendering.
-struct Sentence<'a>(&'a WorkspaceError);
-
-impl core::fmt::Display for Sentence<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt_sentence(f, Labels::Stripped)
-    }
-}
-
-/// A forwarded load refusal, with or without the load door's stage
-/// word.
-struct Persist<'a>(&'a PersistError, Labels);
-
-impl core::fmt::Display for Persist<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self.1 {
-            Labels::Kept => write!(f, "{}", self.0),
-            Labels::Stripped => write!(f, "{}", self.0.sentence()),
-        }
-    }
-}
-
-impl WorkspaceError {
-    /// The refusal without the stage words — the store's, and the load
-    /// door's inside a load it forwards: what a carrier that names the
-    /// stage itself renders (a part whose reference did not resolve).
-    pub fn sentence(&self) -> impl core::fmt::Display + '_ {
-        Sentence(self)
-    }
-
-    // A path is text the caller chose, echoed back inside a sentence,
-    // so every arm delimits it: an undelimited path runs into the prose
-    // around it and the reader cannot see where the name ends.
-    fn fmt_sentence(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
         match self {
-            Self::Io { path, message } => {
-                write!(f, "io error at `{}`: {message}", path.display())
-            }
-            Self::DuplicateId { id, first, second } => write!(
-                f,
-                "duplicate document id {id}: `{}` and `{}` both claim it — \
-                 document ids are unique per workspace",
-                first.display(),
-                second.display()
-            ),
+            Self::Io { path, message, .. } => match labels {
+                Labels::Kept => write!(f, "io error at `{}`: {message}", path.display()),
+                Labels::Stripped => {
+                    write!(f, "`{}` could not be accessed: {message}", path.display())
+                }
+            },
+            Self::DuplicateId { id, first, second } => match labels {
+                Labels::Kept => write!(
+                    f,
+                    "duplicate document id {id}: `{}` and `{}` both claim it — \
+                     document ids are unique per workspace",
+                    first.display(),
+                    second.display()
+                ),
+                Labels::Stripped => write!(
+                    f,
+                    "`{}` and `{}` both claim document id {id}, and document ids are unique \
+                     per workspace",
+                    first.display(),
+                    second.display()
+                ),
+            },
             Self::Header { path, error } => {
-                let error = Persist(error, labels);
+                let error = Labelled(&**error, labels);
                 write!(f, "`{}` refused: {error}", path.display())
             }
             Self::UnknownId { id } => {
                 write!(f, "no document with id {id}")
             }
             Self::Load { path, error } => {
-                let error = Persist(error, labels);
+                let error = Labelled(&**error, labels);
                 write!(f, "`{}` refused to load: {error}", path.display())
             }
             Self::Pin { path, error } => write!(
                 f,
                 "`{}` loaded but its content pin would not compute: {}",
                 path.display(),
-                Persist(error, labels)
+                Labelled(&**error, labels)
             ),
             Self::PinMismatch {
                 id,
@@ -278,12 +262,12 @@ impl WorkspaceError {
                 found,
             } => write!(
                 f,
-                "document {id} at `{}` hashes to {found}, not to the pinned {wanted}. \
-                 Recourse: {PIN_MISMATCH_RECOURSE}",
-                path.display()
+                "document {id} at `{}` hashes to {found}, not to the pinned {wanted}. {}",
+                path.display(),
+                Recourse(PIN_MISMATCH_RECOURSE)
             ),
             Self::Save { id, error } => {
-                let error = Persist(error, labels);
+                let error = Labelled(&**error, labels);
                 write!(f, "document {id} refused to save: {error}")
             }
             Self::SaveWouldDuplicateId {
@@ -347,6 +331,7 @@ impl Workspace {
             let path = path.to_path_buf();
             move |e: std::io::Error| WorkspaceError::Io {
                 path,
+                kind: e.kind(),
                 message: e.to_string(),
             }
         };
@@ -449,6 +434,7 @@ impl Workspace {
             .ok_or(WorkspaceError::UnknownId { id })?;
         let text = std::fs::read_to_string(path).map_err(|e| WorkspaceError::Io {
             path: path.clone(),
+            kind: e.kind(),
             message: e.to_string(),
         })?;
         let loaded = load(&text, tol).map_err(|error| WorkspaceError::Load {
@@ -491,6 +477,7 @@ impl Workspace {
         })?;
         std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
             path: path.clone(),
+            kind: e.kind(),
             message: e.to_string(),
         })?;
         self.by_id.insert(id, path.clone());
@@ -518,6 +505,7 @@ impl Workspace {
         })?;
         std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
             path: path.clone(),
+            kind: e.kind(),
             message: e.to_string(),
         })?;
         Ok(path)
@@ -579,6 +567,7 @@ impl Workspace {
         })?;
         std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
             path: path.clone(),
+            kind: e.kind(),
             message: e.to_string(),
         })?;
         self.by_id.insert(id, path.clone());
@@ -653,8 +642,39 @@ impl Workspace {
     }
 }
 
+/// **When a resolver takes the store's scan**, which decides what a
+/// part the scan did not see needs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scan {
+    /// Once, at [`Workspace::open`], and held: a file put in the
+    /// directory afterwards is seen only by a store opened again. A
+    /// [`Workspace`] resolving as itself, and Python's `resolver=`.
+    AtOpen,
+    /// Again at every resolution, so a file put in the directory is
+    /// seen at the next one (the viewer's resolver).
+    PerResolution,
+}
+
+impl WorkspaceError {
+    /// A refused [`Workspace::resolve`] as the document seam's
+    /// refusal: the store's sentence without its stage word, since the
+    /// part's own sentence names the stage ("the reference did not
+    /// resolve"), then the way through for a resolver that takes its
+    /// scan as `scan` does.
+    pub fn resolve_failure(&self, scan: Scan) -> ResolveFailure {
+        ResolveFailure {
+            fault: resolve_fault(self),
+            message: match resolve_recourse(self, scan) {
+                Some(ending) => format!("{}. {ending}", self.sentence()),
+                None => self.sentence().to_string(),
+            },
+        }
+    }
+}
+
 /// The document seam: a workspace
-/// IS what an evaluation resolves references through.
+/// IS what an evaluation resolves references through, over the scan it
+/// was opened with.
 ///
 /// The verdict classification is this layer's because this layer is the
 /// one that knows: only the store can tell "the pin does not hold" from
@@ -664,21 +684,7 @@ impl Workspace {
 /// layer's to say (`resolve_recourse`).
 impl PartResolver for Workspace {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        Workspace::resolve(self, doc_ref, tol).map_err(|e| ResolveFailure {
-            fault: resolve_fault(&e),
-            // The store's sentence without its stage word, since the
-            // part's own sentence names the stage ("the reference did
-            // not resolve"), then the recourse a resolution states.
-            //
-            // `PinMismatch` states its recourse in its own sentence,
-            // [`PIN_MISMATCH_RECOURSE`], once at every door, so nothing
-            // is appended to it: the Python author suite and the demo's
-            // update walk pin that count at one through this message.
-            message: match resolve_recourse(&e) {
-                Some(recourse) => format!("{}. {recourse}", e.sentence()),
-                None => e.sentence().to_string(),
-            },
-        })
+        Workspace::resolve(self, doc_ref, tol).map_err(|e| e.resolve_failure(Scan::AtOpen))
     }
 }
 
@@ -690,16 +696,28 @@ impl PartResolver for Workspace {
 /// create, not a file to put back.
 ///
 /// Exhaustive, for [`resolve_fault`]'s reason.
-fn resolve_recourse(e: &WorkspaceError) -> Option<&'static str> {
+fn resolve_recourse(e: &WorkspaceError, scan: Scan) -> Option<String> {
+    let recourse = |action: &str| Some(Recourse(action).to_string());
     match e {
-        WorkspaceError::UnknownId { .. } => {
-            Some("Recourse: put the part's file in this store's directory")
-        }
-        WorkspaceError::Io { .. } => Some("Recourse: make the part's file readable"),
+        WorkspaceError::UnknownId { .. } => match scan {
+            Scan::AtOpen => {
+                recourse("put the part's file in this store's directory, then open the store again")
+            }
+            Scan::PerResolution => recourse("put the part's file in this store's directory"),
+        },
+        // Removed after the scan saw it: the scan's path is where the
+        // store looks, whichever scan.
+        WorkspaceError::Io {
+            kind: std::io::ErrorKind::NotFound,
+            ..
+        } => recourse("put the part's file back at that path"),
+        WorkspaceError::Io { .. } => recourse("make the part's file readable by this process"),
         // Computing a pin over a document that has just loaded fails
         // only on a serializer defect.
-        WorkspaceError::Pin { .. } => Some(geom_core::KERNEL_DEFECT_ENDING),
-        // Its sentence ends on its own recourse.
+        WorkspaceError::Pin { .. } => Some(geom_core::KERNEL_DEFECT_ENDING.to_owned()),
+        // Its sentence ends on its own recourse. `PIN_MISMATCH_RECOURSE`
+        // is stated once at every door: the Python author suite and the
+        // demo's update walk pin that count at one.
         WorkspaceError::PinMismatch { .. } => None,
         // The part's own sentence states the ε seam's recourse, which
         // is the same whatever the store; every other load refusal

@@ -72,7 +72,7 @@ use pncad::topo::Body;
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
-use crate::docio::{self, DirResolver};
+use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::g1;
 use crate::generation::Generation;
@@ -281,8 +281,8 @@ pub struct DocSession {
     /// The document seam: the opened file's own directory, consulted
     /// lazily (the directory rule and the scan-at-resolution posture
     /// are [`DirResolver`]'s docs). A session over an in-memory
-    /// document carries no resolver, and its instantiate nodes refuse
-    /// typed. Replaced — never inherited — on every `Open`, so a
+    /// document carries none, and its instantiate nodes refuse through
+    /// [`NoFile`]. Replaced — never inherited — on every `Open`, so a
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
@@ -900,18 +900,20 @@ impl DocSession {
     /// way the landed evaluation resolved it.
     pub fn eval_options(&self) -> EvalOptions {
         EvalOptions {
-            resolver: self.resolver_seam(),
+            resolver: Some(self.resolver_seam()),
             ..EvalOptions::default()
         }
     }
 
     /// **The session's resolver as the document seam** — the directory
     /// rule's resolver, widened to the trait every door that resolves
-    /// a part takes; `None` when the session has no directory.
-    fn resolver_seam(&self) -> Option<Arc<dyn PartResolver>> {
-        self.resolver
-            .as_ref()
-            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>)
+    /// a part takes; [`NoFile`] when the session has no directory, so a
+    /// part's refusal states the viewer's way through.
+    fn resolver_seam(&self) -> Arc<dyn PartResolver> {
+        match &self.resolver {
+            Some(dir) => Arc::clone(dir) as Arc<dyn PartResolver>,
+            None => NoFile::seam(),
+        }
     }
 
     /// The generation the session is waiting for a result on.
@@ -1829,7 +1831,7 @@ impl DocSession {
                 // and lazy — a slot gesture moves no gauge, so what a
                 // tick pays for it is the construction and nothing
                 // more.
-                let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
+                let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
                 let applied = apply(&gesture.base, &edit, tol, &reach)
                     .map_err(|error| Refusal::Edit(Box::new(error)))?;
                 // **The display layer's identity, held rather than
@@ -2217,7 +2219,7 @@ impl DocSession {
         // practice; the entry is still the logged one, so the history
         // replays pure over the log.
         let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         match accepted_order(doc, edits, self.tol, &reach) {
             Ok(landing) => self.record_action(landing),
             Err(OrderFault::Refused(error)) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
@@ -2670,7 +2672,7 @@ impl DocSession {
         // maintenance asks it only when a cluster's gauge moves, and
         // what it decided rides the logged entry into the history.
         let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         // Threaded rather than cloned up front: the first `apply`
         // reads the history's value in place, and each later one reads
         // its predecessor's output, so a group of one costs exactly
@@ -2763,7 +2765,7 @@ impl DocSession {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: self.resolver_seam(),
+            resolver: Some(self.resolver_seam()),
         });
     }
 }

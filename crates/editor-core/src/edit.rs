@@ -1489,7 +1489,7 @@ impl Tail {
         recourse: core::fmt::Arguments<'_>,
     ) -> core::fmt::Result {
         match self {
-            Self::Recourse => write!(f, ". Recourse: {recourse}"),
+            Self::Recourse => write!(f, ". {}", crate::sentence::Recourse(recourse)),
             Self::ProblemOnly => Ok(()),
         }
     }

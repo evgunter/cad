@@ -17,21 +17,24 @@ refusal `PartFault::Unresolved` can carry.)
 `PartFault::Unresolved` (`crates/editor-core/src/eval/parts.rs`,
 `impl Display for PartFault`) renders its resolver's message. The
 shipped resolvers now carry the store's sentence without its stage word
-(`WorkspaceError::sentence`, `PersistError::sentence`) and state a
-recourse for the arms a resolution meets most: an unknown id, an
-unreadable file, a pin that would not compute, a moved pin, and the ε
-seam (`crates/pncad/src/workspace.rs`, `resolve_recourse`). The
-real-text rows are `crates/viewer/tests/instance_authoring.rs`,
-`every_unresolved_part_badge_meets_the_refusal_standard`.
+(`Staged::sentence`) and state a recourse for the arms a resolution
+meets most: an unknown id, a part file missing or unreadable, a pin
+that would not compute, a moved pin, and the ε seam
+(`crates/pncad/src/workspace.rs`, `resolve_recourse`). The real-text
+rows are `crates/viewer/tests/instance_authoring.rs`,
+`every_unresolved_part_badge_meets_the_refusal_standard`, and
+`crates/pncad/tests/all.rs`,
+`workspace_resolve_door_refusals_meet_the_standard_and_their_recourses_get_through`.
 
 Two families reach the same badge with no recourse and no row:
 
 - **The viewer's scan** (`crates/viewer/src/docio.rs`,
   `impl PartResolver for DirResolver`): `WorkspaceError::Io` on the
-  directory, `Header` and `DuplicateId`. `DuplicateId`'s sentence also
-  opens on a label-shaped clause ("duplicate document id …:"), which
-  `test_utils::refusal::stage_prefixes` flags, and so does `Io`'s
-  ("io error at `…`:").
+  directory, `Header` and `DuplicateId`. Their sentences no longer open
+  on a label clause (the stripped rendering drops `Io`'s and
+  `DuplicateId`'s), but none states a recourse. The resolve door's `Io`
+  recourse names a part file, so it does not fit the scan's `Io` on the
+  directory.
 - **A part file that will not load** (`WorkspaceError::Load` over every
   `PersistError` but `ToleranceConflict`): the load door's sentence,
   whose recourse is unlabelled where it exists (`REGENERATE_RECOURSE`

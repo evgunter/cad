@@ -2,7 +2,8 @@
 id: edit-refusal-roster-renders-no-program-or-step-id-arm
 kind: issue
 title: edit: the status-line refusal roster renders none of EditError's three program and step-id arms
-status: review
+status: closed
+closed: 2026-09-29
 pr: 3492
 rides_with: edit-refusals-short-of-the-shape-guard
 branch: edit/part-refusal-recourse

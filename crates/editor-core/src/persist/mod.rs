@@ -158,6 +158,7 @@ use geom_core::tolerance::{Tolerance, ToleranceError};
 use crate::edit::{EditError, EditRecord, LoggedEdit, apply_logged};
 use crate::ident::DocumentId;
 use crate::program::{ProfileDoc, ProfileProgram};
+use crate::sentence::{Labelled, Labels, Staged};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
@@ -423,32 +424,18 @@ pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recip
      (every saved document replays from source; this kernel is \
      unreleased and writes no old-format files)";
 
-// The stage word is this door's own label; a carrier that names the
-// stage itself renders the sentence alone ([`PersistError::sentence`]).
 impl core::fmt::Display for PersistError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "persist: {}", self.sentence())
+        write!(f, "{}", Labelled(self, Labels::Kept))
     }
 }
 
-/// [`PersistError::sentence`]'s rendering.
-struct Sentence<'a>(&'a PersistError);
+// The stage word is this door's only label: a carrier that names the
+// stage itself (a store's "refused to load") renders the sentence alone.
+impl Staged for PersistError {
+    const STAGE: &'static str = "persist";
 
-impl core::fmt::Display for Sentence<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt_sentence(f)
-    }
-}
-
-impl PersistError {
-    /// The refusal without the load door's stage word: what a carrier
-    /// that names the stage itself renders (a store's "refused to
-    /// load").
-    pub fn sentence(&self) -> impl core::fmt::Display + '_ {
-        Sentence(self)
-    }
-
-    fn fmt_sentence(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, _: Labels) -> core::fmt::Result {
         match self {
             Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
             Self::ProfileProgram { node, fault } => {
