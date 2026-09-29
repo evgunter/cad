@@ -191,7 +191,7 @@ area `api`; prefix `emit/`; tag `(EMIT orchestrator)`; ab_band `8300-8399`.
 |---|---|---|---|---|---|---|---|
 | P0 | `a-legal-union-refuses-a-fold-minted-contact-verdict-in-some-member-orders` | issue | D | open | A legal three-member union refuses as a fold-minted contact verdict (UNION_FOLD_CONTACT_VERDICT) in some member orders and fuses in others |  |  |
 | P1 | `a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires` | issue | D | open | A face cut and merged in one boolean step publishes its unmerged piece under the bare name its merge lists as a retired constituent |  |  |
-| P1 | `python-spells-a-piece-by-its-authoring-calls-step-handle` | unit | D | open | Python spells a profile piece by the step handle its authoring call returned |  |  |
+| P1 | `python-spells-a-piece-by-its-authoring-calls-step-handle` | unit | M | open | Python spells a profile piece by the step handle its authoring call returned |  |  |
 | P1 | `union-face-names-follow-fold-order` | issue | H | open | A union's face names follow fold order: merged-then-cut is Merged(set)#SideOf, cut-then-merged is the merge plus a bare constituent, and two-step cuts stack SideOf |  |  |
 | P1 | `union-refuses-in-some-member-orders-and-publishes-in-others` | issue | H | open | A union refuses in some member orders and publishes in others, over PR 3112's review corpus and the #3168 review fixtures |  |  |
 | P3 | `seam-line-ranks-keep-a-sided-axis-and-a-collapse-correction` | issue | D | open | Every ranker along a seam line ranks along the minted pair's n_a × n_b, so a commutative consumer needs RankRule to re-orient it; a canonical axis would remove the correction and rename pair-boolean OrderAlong names |  |  |
