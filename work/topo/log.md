@@ -2362,3 +2362,23 @@ built (plain `kev` refuses every certified fan merge, forced by Ev's
 standing rulings) is written onto the item. `S93` closes with PROBE's
 log noted. The DR-24 row rides as this PR's last commit: **one tally
 candidate**, and the pair advances both counts.
+
+## `kev`'s two doors merged; the next two units out (2026-09-29)
+
+PR 3161 merged (`6666d3c5c`) with DR-24 as its last commit. The pair
+carries one tally candidate, so the running tally is 4 of 8 and pairs
+that found a MAJOR number 9 toward twelve. `S93` is closed, and the
+ruling as built is written onto the `kev` item.
+
+In flight:
+- **`mint-face-surface-and-sense-…`** (P1, E; tier SINGLE, full): a
+  face minted on the parent's chart inherits its `sense` through
+  `same_chart`. After ORIGIN's PR 3414, the disagreement is narrowed
+  to the shared-`Arc` case.
+- **`mev-fan-plan-trusts-the-orbits-start-vertices`** (P2, E; tier
+  SINGLE, full): `kev_plan`'s torn-orbit proof, one door over, with a
+  receipt of every orbit walk that trusts start vertices.
+
+Two rows the minting unit filed get their missing `priority`/`cost`
+(P2, D): `loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`
+and `mev-null-leaves-a-complete-curved-face-half-minted`.
