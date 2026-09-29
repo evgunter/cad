@@ -373,3 +373,10 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
 **Filed on CONTACT:** the torus box check passes an L-shaped face.
 
 **Merge of main:** composed `SectionPath::scope` with PR 3406. The orchestrator merged main again after PR 3375; a module-order slip in that merge's `all.rs` resolution turned lint red, fixed in `d777dd2c7`.
+
+## 2026-09-29 — the saddle witness picks its side by a frame decision (PR 3421)
+
+- **The change:** `copysign(1, δ)` is replaced by `section_cylinder_pair_side`. A positive or negative δ picks the ruling; zero or undecided refuses R-tan.
+- **Census:** the site leaves the copysign census and the manifest, moved together.
+- **Rows:** the saddle rows reach the branch at δ₀ = +1.3 only, so a new verdict row covers both signs on both sides, and the flip mutant turns it red.
+- **Tier:** orchestrator read. Merged on hosted green.
