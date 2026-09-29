@@ -2,7 +2,8 @@
 id: the-standing-ladder-speaks-as-a-hit-test-at-every-door
 kind: issue
 title: The standing arms of HitTestError say "hit test:" through NodePick::build and the name doors, where no hit test runs
-status: review
+status: closed
+closed: 2026-09-29
 pr: 3463
 branch: edit/node-standing-one-type
 opened: 2026-09-29
