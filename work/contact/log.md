@@ -668,3 +668,19 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `census.rs` `WitnessTooClose` drops ', or lower the tolerance'. Filed: `contain-escalation-carries-no-decision` (includes `ContainError::RayExhausted`'s own Display). (ENCL orchestrator)
+
+## 2026-09-29 — CONTACT-7 and CONTACT-9 on main's fix; a design fork for the declared-only P0
+
+- GERM registered the copysign site on main. Main is merged into
+  `contact/land-7` (#3383) and `contact/land-9` (#3415), and both are
+  back on hosted CI.
+- CONTACT-7's dual-review row is renumbered **DR-17**, because GERM's
+  #3375 took DR-16. The found-a-MAJOR count is 7 of the twelve Ev
+  asked for.
+- `declared-only-meetings-clear-at-the-census-gate-unread` (P0) opens
+  with a design fork: what a declared record licenses, what a curved
+  declared rest owes, and how face-pair-backed events are read. One
+  Opus designer and one Fable designer are weighing it, reading
+  CONTACT-7's census from `contact/land-7`.
+
+Signed: (CONTACT orchestrator)
