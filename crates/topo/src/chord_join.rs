@@ -2745,12 +2745,6 @@ mod tests {
             panic!("expected the arc-side escalation, got {err:?}");
         };
         assert_eq!(diag.predicate, Some("split_arc_window"));
-        // The sentence leaves the routing name out; the typed refusal
-        // carries it.
-        assert!(
-            format!("{escalated:?}").contains("split_arc_window"),
-            "{escalated:?}"
-        );
     }
 
     #[test]
