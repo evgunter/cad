@@ -678,6 +678,13 @@ impl<T: Real> Body<T> {
     ///
     /// [`SourceAttachError::StaleKey`] if the key does not resolve
     /// (attaching identity to nothing is a caller bug, refused loudly).
+    ///
+    /// # Panics
+    ///
+    /// In a debug build, when another live key already carries `source`
+    /// over a description that differs bitwise — one recipe evaluates
+    /// to one description (N6). A scalar with no bit channel (`Dual`,
+    /// `Sym`) offers no evidence and never panics.
     pub fn set_surface_source(
         &mut self,
         key: SurfaceKey,
@@ -685,6 +692,23 @@ impl<T: Real> Body<T> {
     ) -> Result<(), SourceAttachError> {
         if self.surfaces.get(key).is_none() {
             return Err(SourceAttachError::StaleKey);
+        }
+        // The one door that can break N6 from outside the recipe layer.
+        #[cfg(debug_assertions)]
+        if let Some((other, agree)) = self
+            .surface_origins
+            .iter()
+            .filter(|&(k, origin)| k != key && origin.source() == Some(&source))
+            .find_map(|(k, _)| {
+                let (stamped, held) = (self.surfaces.get(key)?, self.surfaces.get(k)?);
+                crate::source::surface_bits_witness(stamped, held).map(|agree| (k, agree))
+            })
+        {
+            debug_assert!(
+                agree,
+                "set_surface_source: {source:?} already stamps {other:?}, whose description \
+                 differs from {key:?}'s bitwise — one recipe evaluates to one description (N6)"
+            );
         }
         self.surface_origins.insert(key, GeomOrigin::Recipe(source));
         Ok(())

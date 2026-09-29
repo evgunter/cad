@@ -219,6 +219,135 @@ pub(crate) fn vec3_bits_witness<T: geom_core::Real>(
     bits_witness(&[(a.x, b.x), (a.y, b.y), (a.z, b.z)])
 }
 
+/// Debug-only bit agreement of two surface descriptions of any kind —
+/// the check behind [`crate::Body::set_surface_source`], with the
+/// tri-state of [`plane_bits_witness`]. A shared payload `Arc` agrees
+/// unread; an `Approx` pair is read through its fit and window; two
+/// different kinds disagree, answered `None` like any other read at a
+/// scalar with no channel.
+#[cfg(debug_assertions)]
+pub(crate) fn surface_bits_witness<T: geom_core::Real>(
+    a: &geom::Surface<T>,
+    b: &geom::Surface<T>,
+) -> Option<bool> {
+    use geom::Surface as S;
+    match (a, b) {
+        (S::Nurbs(x), S::Nurbs(y)) => {
+            if std::sync::Arc::ptr_eq(x, y) {
+                return Some(true);
+            }
+            nurbs_surface_bits_witness(x, y)
+        }
+        (S::Approx(x), S::Approx(y)) => {
+            if std::sync::Arc::ptr_eq(x, y) {
+                return Some(true);
+            }
+            let (wx, wy) = (x.window(), y.window());
+            let window = bits_witness(&[
+                (wx.u.0, wy.u.0),
+                (wx.u.1, wy.u.1),
+                (wx.v.0, wy.v.0),
+                (wx.v.1, wy.v.1),
+            ])?;
+            nurbs_surface_bits_witness(x.fit(), y.fit()).map(|fit| fit && window)
+        }
+        _ => match (analytic_scalars(a), analytic_scalars(b)) {
+            (Some((ka, xa)), Some((kb, xb))) if ka == kb => {
+                let pairs: Vec<(T, T)> = xa.into_iter().zip(xb).collect();
+                bits_witness(&pairs)
+            }
+            _ => bits_witness(&[(T::zero(), T::zero())]).map(|_| false),
+        },
+    }
+}
+
+/// An analytic surface's kind and scalars in field order; `None` for
+/// the two payload kinds.
+#[cfg(debug_assertions)]
+fn analytic_scalars<T: geom_core::Real>(s: &geom::Surface<T>) -> Option<(u8, Vec<T>)> {
+    use geom::Surface as S;
+    let p = |q: geom_core::Point3<T>| [q.x, q.y, q.z];
+    let v = |w: geom_core::Vec3<T>| [w.x, w.y, w.z];
+    Some(match *s {
+        S::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => (0, [p(origin), v(normal), v(u_ref)].concat()),
+        S::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => (1, [&p(origin)[..], &v(axis), &[radius], &v(u_ref)].concat()),
+        S::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => (
+            2,
+            [&p(apex)[..], &v(axis), &[half_angle], &v(u_ref)].concat(),
+        ),
+        S::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => (3, [&p(center)[..], &[radius], &v(axis), &v(u_ref)].concat()),
+        S::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => (
+            4,
+            [
+                &p(center)[..],
+                &v(axis),
+                &[major_radius, minor_radius],
+                &v(u_ref),
+            ]
+            .concat(),
+        ),
+        S::Nurbs(_) | S::Approx(_) => return None,
+    })
+}
+
+/// Debug-only bit agreement of two NURBS surfaces: knots, weights and
+/// control net, with the degrees and counts that shape them.
+#[cfg(debug_assertions)]
+fn nurbs_surface_bits_witness<T: geom_core::Real>(
+    x: &geom::NurbsSurface<T>,
+    y: &geom::NurbsSurface<T>,
+) -> Option<bool> {
+    let shape = x.knots_u().degree() == y.knots_u().degree()
+        && x.knots_v().degree() == y.knots_v().degree()
+        && x.knots_u().knots().len() == y.knots_u().knots().len()
+        && x.knots_v().knots().len() == y.knots_v().knots().len()
+        && x.control_counts() == y.control_counts();
+    if !shape {
+        return bits_witness(&[(T::zero(), T::zero())]).map(|_| false);
+    }
+    let reals: Vec<(f64, f64)> = [
+        (x.knots_u().knots(), y.knots_u().knots()),
+        (x.knots_v().knots(), y.knots_v().knots()),
+        (x.weights(), y.weights()),
+    ]
+    .into_iter()
+    .flat_map(|(a, b)| a.iter().copied().zip(b.iter().copied()))
+    .collect();
+    let net: Vec<(T, T)> = x
+        .control()
+        .iter()
+        .zip(y.control())
+        .flat_map(|(a, b)| [(a.x, b.x), (a.y, b.y), (a.z, b.z)])
+        .collect();
+    let net = bits_witness(&net)?;
+    bits_witness(&reals).map(|reals| reals && net)
+}
+
 /// `Some(all pairs bit-equal)` where the scalar has a bit channel,
 /// `None` where it has none — the one fold both witnesses share, so
 /// a channel-less scalar cannot read as disagreement at either.
