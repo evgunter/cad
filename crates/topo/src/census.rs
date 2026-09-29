@@ -5804,8 +5804,7 @@ mod tests {
             (
                 "boundary",
                 walk(ContainDecision::Boundary),
-                "Recourse: move the geometry so the point lies either exactly on the boundary \
-                 or clearly off it",
+                "Recourse: move the point exactly onto the boundary or clearly off it",
             ),
             (
                 "ray",
@@ -5815,7 +5814,7 @@ mod tests {
             (
                 "arc span",
                 walk(ContainDecision::ArcSpan),
-                "Recourse: move the geometry so this arc stays clearly short of a full turn",
+                "Recourse: make this arc clearly shorter than a full turn",
             ),
             (
                 "the door's own escalation",

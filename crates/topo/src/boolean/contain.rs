@@ -91,21 +91,19 @@ pub enum ContainDecision {
 /// it.
 macro_rules! contain_lever {
     (Boundary) => {
-        "move the geometry so the point lies either exactly on the boundary or clearly off it"
+        "move the point exactly onto the boundary or clearly off it"
     };
     (ArcSpan) => {
-        "move the geometry so this arc stays clearly short of a full turn"
+        "make this arc clearly shorter than a full turn"
     };
     (OneCircle) => {
-        "move the geometry so the loop's arcs lie either on one circle or on clearly different \
-         circles"
+        "put the loop's arcs on one circle or on clearly different ones"
     };
     (Carrier) => {
-        "move the geometry so the point lies either exactly on the face's surface or clearly \
-         off it"
+        "move the point exactly onto the face's surface or clearly off it"
     };
     (WindowPeriod) => {
-        "move the geometry so the wall stays clearly short of a full turn"
+        "make the wall clearly shorter than a full turn"
     };
     (OffBoundary) => {
         "move the geometry clear of the boundary"
@@ -139,7 +137,7 @@ const ARC_SPAN: SizedDecision = SizedDecision {
 /// clearly different circles are both read.
 const ONE_CIRCLE: SizedDecision = SizedDecision {
     lever: contain_lever!(OneCircle),
-    size: "difference between the circles",
+    size: "difference",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
     at_zero: None,
@@ -1342,8 +1340,8 @@ mod tests {
             hi: 4e-9,
         });
         let poisoned = diag(MarginDiag::Invalid);
-        const BOUNDARY_LEVER: &str = "Recourse: move the geometry so the point lies either \
-                                      exactly on the boundary or clearly off it";
+        const BOUNDARY_LEVER: &str =
+            "Recourse: move the point exactly onto the boundary or clearly off it";
         const OFF: &str = "Recourse: move the geometry clear of the boundary";
         const NOTE: &str =
             "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
@@ -1382,7 +1380,7 @@ mod tests {
                 "arc span, short of a turn",
                 ContainDecision::ArcSpan,
                 above,
-                "Recourse: move the geometry so this arc stays clearly short of a full turn, \
+                "Recourse: make this arc clearly shorter than a full turn, \
                  or, if this arc is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
@@ -1390,32 +1388,29 @@ mod tests {
                 "arc span, past a turn",
                 ContainDecision::ArcSpan,
                 below,
-                "Recourse: move the geometry so this arc stays clearly short of a full turn"
-                    .to_owned(),
+                "Recourse: make this arc clearly shorter than a full turn".to_owned(),
             ),
             (
                 "one circle, in band",
                 ContainDecision::OneCircle,
                 above,
-                "Recourse: move the geometry so the loop's arcs lie either on one circle or on \
-                 clearly different circles, or, if this difference between the circles is \
-                 intended, tighten the tolerance below 5e-10 m"
+                "Recourse: put the loop's arcs on one circle or on clearly different ones, or, \
+                 if this difference is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "carrier, in band inside it",
                 ContainDecision::Carrier,
                 below,
-                "Recourse: move the geometry so the point lies either exactly on the face's \
-                 surface or clearly off it, or, if this distance is intended, tighten the \
-                 tolerance below 5e-10 m"
+                "Recourse: move the point exactly onto the face's surface or clearly off it, \
+                 or, if this distance is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "window, short of a turn",
                 ContainDecision::WindowPeriod,
                 above,
-                "Recourse: move the geometry so the wall stays clearly short of a full turn, \
+                "Recourse: make the wall clearly shorter than a full turn, \
                  or, if this arc is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
@@ -1423,8 +1418,7 @@ mod tests {
                 "window, past a turn",
                 ContainDecision::WindowPeriod,
                 below,
-                "Recourse: move the geometry so the wall stays clearly short of a full turn"
-                    .to_owned(),
+                "Recourse: make the wall clearly shorter than a full turn".to_owned(),
             ),
             ("ray", ContainDecision::Ray, above, OFF.to_owned()),
             (

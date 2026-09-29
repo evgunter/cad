@@ -60,16 +60,16 @@ The margin is in band at 5e-9 m, with band (1e-9, 1e-8), so K = 10.
 |---|---|---|
 | `ContainError::RayExhausted` `Display` | "…at this tolerance; move the point off the boundary or lower the tolerance" | "…at this tolerance. Recourse: move the geometry clear of the boundary" |
 | `ContainError::Escalated` `Display` | "contfp: {payload} — a near-coincidence; Recourse: declare the coincidence, move the geometry, or lower the tolerance (D4)" (`Indeterminate`'s menu) | "contfp: {payload}. {decision's ending}" |
-| `classify_contain`, `Escalated`, `Boundary` at 5e-9 m (or -5e-9 m) | "Recourse: move the geometry clear of the boundary" | "Recourse: move the geometry so the point lies either exactly on the boundary or clearly off it, or, if this distance is intended, tighten the tolerance below 5e-10 m" |
-| same, `Boundary` with a straddling enclosure | as above | "Recourse: move the geometry so the point lies either exactly on the boundary or clearly off it" |
+| `classify_contain`, `Escalated`, `Boundary` at 5e-9 m (or -5e-9 m) | "Recourse: move the geometry clear of the boundary" | "Recourse: move the point exactly onto the boundary or clearly off it, or, if this distance is intended, tighten the tolerance below 5e-10 m" |
+| same, `Boundary` with a straddling enclosure | as above | "Recourse: move the point exactly onto the boundary or clearly off it" |
 | same, `Boundary` with a poisoned margin | the defect ending | the lever, then "; an unreadable or collapsed margin may indicate a kernel bug worth reporting" |
-| same, `ArcSpan` at +5e-9 m | "Recourse: move the geometry clear of the boundary" | "Recourse: move the geometry so this arc stays clearly short of a full turn, or, if this arc is intended, tighten the tolerance below 5e-10 m" |
-| same, `ArcSpan` at -5e-9 m | as above | "Recourse: move the geometry so this arc stays clearly short of a full turn" |
-| same, `OneCircle` / `Carrier` / `WindowPeriod` | as above | each decision's lever, plus the valued tighten on its passing side ("difference between the circles", "distance", "arc") |
+| same, `ArcSpan` at +5e-9 m | "Recourse: move the geometry clear of the boundary" | "Recourse: make this arc clearly shorter than a full turn, or, if this arc is intended, tighten the tolerance below 5e-10 m" |
+| same, `ArcSpan` at -5e-9 m | as above | "Recourse: make this arc clearly shorter than a full turn" |
+| same, `OneCircle` / `Carrier` / `WindowPeriod` | as above | each decision's lever, plus the valued tighten on its passing side ("difference", "distance", "arc") |
 | same, `Ray` / `ArcEnd` / `SolidDoor` | as above | "Recourse: move the geometry clear of the boundary" |
 | `classify_contain`, `RayExhausted` | "Recourse: move the geometry clear of the boundary" | unchanged |
 | `PointInLoopError::Escalated` `Display` | "…too close to call: {Indeterminate with the coincidence menu}" | "…too close to call: {payload}. {decision's ending}" |
-| census `WitnessTooClose`, from a loop walk's `Boundary` | "…Recourse: move the parts until their bounding boxes no longer overlap" | "…Recourse: move the geometry so the point lies either exactly on the boundary or clearly off it" |
+| census `WitnessTooClose`, from a loop walk's `Boundary` | "…Recourse: move the parts until their bounding boxes no longer overlap" | "…Recourse: move the point exactly onto the boundary or clearly off it" |
 | census `WitnessTooClose`, from the door's own escalation or an exhausted schedule | as above | unchanged |
 
 ## Rows
@@ -85,6 +85,13 @@ Moved or widened:
 - `editor-core/tests/refusal_concision_chains.rs`'s `Loop(Escalated)` sample becomes three: `Boundary`, `Ray` and `ArcSpan`.
 - `topo/tests/review_m3_pr3_pil.rs::the_verdict_is_blind_to_the_normals_sign` now compares the decision too.
 - `sweep/tests/contfp_reads_arcs_on_their_carriers.rs` matches the struct variant.
+
+**What moved in the battery.** The Python suite and the `editor-core` rows that assert refusal texts did not move. Two `editor-core` word-budget rows (75 words) went red on the first cut of the levers:
+
+- `refusal_concision_at_rest::every_at_rest_finding_renders_to_the_standard`: the carried and at-rest renderings of `Containment/Escalated/{Boundary,OneCircle,Carrier}` ran 76–81 words;
+- `refusal_concision_chains::every_check_finding_renders_within_the_budget`: `Containment(Loop(Escalated/{Boundary,ArcSpan}))` ran 76–79 words.
+
+The levers were shortened to fit, rather than raising the budget. For example, "move the geometry so the point lies either exactly on the boundary or clearly off it" became "move the point exactly onto the boundary or clearly off it", and `OneCircle`'s size noun became "difference".
 
 ## Sweep: "lower the tolerance" in `crates/topo/src`
 
@@ -117,7 +124,7 @@ Moved or widened:
 
 - `validate.rs` (RESTFRONT): the edit is kept to `classify_contain`'s rendering; seam note in `work/restfront/log.md`.
 - `splitting/containment.rs` and `boolean/ops.rs` (REACH): seam note in `work/reach/log.md`.
-- The `chord_join.rs` and `chart_region.rs` entries are pattern-free reads, not edits. The rows filed on the chart and restfront slates are new files only.
+- The rows filed on the chart and restfront slates are new files only.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
