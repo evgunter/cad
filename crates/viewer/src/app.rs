@@ -3349,21 +3349,23 @@ mod properties_pane_tests {
     use super::ViewerApp;
     use crate::session::{Selection, SessionOp};
 
-    /// **One frame of the real app**, at a 1600 by 1000 window, with
+    /// The window every whole-app row here is drawn in unless it needs
+    /// a taller one.
+    pub(super) const WINDOW: egui::Vec2 = egui::vec2(1600.0, 1000.0);
+
+    /// **One frame of the real app**, in a `window`-sized window, with
     /// `time` and `events` as its input: every text run it painted and
     /// where. The one frame body every whole-app row here draws with.
     pub(super) fn app_frame(
         ctx: &egui::Context,
         app: &mut ViewerApp,
         frame: &mut eframe::Frame,
+        window: egui::Vec2,
         time: Option<f64>,
         events: Vec<egui::Event>,
     ) -> Vec<crate::pane::headless::Landed> {
         let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(1600.0, 1000.0),
-            )),
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, window)),
             time,
             events,
             ..Default::default()
@@ -3377,22 +3379,97 @@ mod properties_pane_tests {
         crate::pane::headless::landed_in(&output.shapes)
     }
 
-    /// Every text the app painted on the second of two frames with
-    /// `selection` made, in paint order.
+    /// How many frames [`settle`] paints before it calls the app stuck.
+    const SETTLE_FRAMES: usize = 3000;
+
+    /// The progress the toolbar reads off `app` — what the session
+    /// owes, ranked against what the index seam is doing.
+    fn progress_of(app: &ViewerApp) -> Option<crate::frame::Progress> {
+        crate::frame::progress(
+            app.session.outstanding(),
+            app.picks.index_seam(app.fit.as_ref()),
+        )
+    }
+
+    /// **Paint until the app's progress reads `rest`**, and answer
+    /// the first frame painted in that state. `rest` is `None` for
+    /// "nothing outstanding": the document landed, its evaluation is
+    /// current and no index is building, so the workers have nothing
+    /// left to change between two frames.
+    ///
+    /// The evaluation, the display fit and the index build run on
+    /// worker threads, so a fixed number of frames catches whichever
+    /// phase the scheduler reached. A seam's `busy` changes only when
+    /// the app submits to it or polls it, which it does at the top of
+    /// the frame (`ViewerApp::sync_scene`) and, for an edit, in the
+    /// batch at its end; so a frame read as settled afterwards painted
+    /// that state.
+    ///
+    /// # Panics
+    ///
+    /// When [`SETTLE_FRAMES`] frames go by without reaching `rest`.
+    pub(super) fn settle<T>(
+        app: &mut ViewerApp,
+        rest: Option<crate::frame::Progress>,
+        mut paint: impl FnMut(&mut ViewerApp) -> T,
+    ) -> T {
+        for _ in 0..SETTLE_FRAMES {
+            let painted = paint(app);
+            if progress_of(app) == rest {
+                return painted;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!(
+            "after {SETTLE_FRAMES} frames the app's progress reads {:?}, not {rest:?}",
+            progress_of(app)
+        );
+    }
+
+    /// Every text the app painted with `selection` made, on the frame
+    /// after the one [`settle`] answers: that one can be the first,
+    /// which egui lays out from defaults.
     fn painted_with(selection: Selection) -> Vec<String> {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
         app.perform_batch(vec![SessionOp::Select(selection)]);
         let mut frame = eframe::Frame::_new_kittest();
-        let mut texts = Vec::new();
-        for _ in 0..2 {
-            texts = app_frame(&ctx, &mut app, &mut frame, None, Vec::new())
+        let mut paint = |app: &mut ViewerApp| {
+            app_frame(&ctx, app, &mut frame, WINDOW, None, Vec::new())
                 .into_iter()
                 .map(|landed| landed.text)
-                .collect();
+                .collect::<Vec<_>>()
+        };
+        settle(&mut app, None, &mut paint);
+        paint(&mut app)
+    }
+
+    /// **The wait answers a frame that paints nothing outstanding.**
+    /// The startup evaluation, the display fit and the index build
+    /// each run on a worker, and the toolbar says each while it runs.
+    /// A wait that stopped at the landing answers the landing frame,
+    /// whose fit was submitted in that same frame, so it paints
+    /// `indexing…`; one that stopped after a fixed count paints
+    /// whichever phase the scheduler reached.
+    #[test]
+    fn the_wait_answers_a_frame_with_nothing_outstanding() {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        let mut frame = eframe::Frame::_new_kittest();
+        let painted: Vec<String> = settle(&mut app, None, |app| {
+            app_frame(&ctx, app, &mut frame, WINDOW, None, Vec::new())
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect()
+        });
+        for word in ["evaluating…", "Cancel", "indexing…"] {
+            assert!(
+                !painted.iter().any(|text| text == word),
+                "{word:?} in a settled frame: {painted:?}"
+            );
         }
-        texts
     }
 
     /// Every text the app painted once the startup document has
@@ -3414,7 +3491,7 @@ mod properties_pane_tests {
             .expect("startup that needs no graphics device");
         let mut frame = eframe::Frame::_new_kittest();
         let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
-            app_frame(&ctx, app, &mut frame, None, events)
+            app_frame(&ctx, app, &mut frame, WINDOW, None, events)
         };
         // The startup document's last node is its body (`plate_with_hole`).
         let body = *app.session.doc().order().last().expect("a startup body");
@@ -3423,18 +3500,7 @@ mod properties_pane_tests {
         let declined = app.tools.feed(app.session.doc(), &ops);
         assert!(declined.is_empty(), "{declined:?}");
         app.perform_batch(ops);
-        let mut landed = Vec::new();
-        for _ in 0..3000 {
-            landed = paint(&mut app, Vec::new());
-            if app.session.landed_pair().is_some() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        assert!(
-            app.session.landed_pair().is_some(),
-            "the startup document lands"
-        );
+        let landed = settle(&mut app, None, |app| paint(app, Vec::new()));
         if let Some(section) = section {
             let at = landed
                 .iter()
@@ -3554,7 +3620,7 @@ mod properties_pane_tests {
         const ELSEWHERE: egui::Pos2 = egui::Pos2::new(1590.0, 990.0);
 
         /// The startup document with `ops` performed, a node selected
-        /// among them, and one frame drawn.
+        /// among them, and frames drawn until it [`settle`]s.
         fn with(ops: Vec<SessionOp>) -> Self {
             let ctx = egui::Context::default();
             // A tooltip this row waited for would be a row about
@@ -3569,27 +3635,57 @@ mod properties_pane_tests {
                 frame: eframe::Frame::_new_kittest(),
                 time: 0.0,
             };
-            driven.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+            driven.settled(Some(Self::ELSEWHERE));
             driven
         }
 
         /// One frame of the real app with `events` delivered.
         fn frame(&mut self, events: Vec<egui::Event>) -> Vec<(String, egui::Rect)> {
-            self.time += 1.0;
-            let time = Some(self.time);
             let Self {
-                ctx, app, frame, ..
+                ctx,
+                app,
+                frame,
+                time,
             } = self;
-            app_frame(ctx, app, frame, time, events)
+            Self::drawn(ctx, app, frame, time, events)
+        }
+
+        /// [`Self::frame`]'s body, over the fields [`Self::settled`]
+        /// holds apart.
+        fn drawn(
+            ctx: &egui::Context,
+            app: &mut ViewerApp,
+            frame: &mut eframe::Frame,
+            time: &mut f64,
+            events: Vec<egui::Event>,
+        ) -> Vec<(String, egui::Rect)> {
+            *time += 1.0;
+            app_frame(ctx, app, frame, WINDOW, Some(*time), events)
                 .into_iter()
                 .map(|landed| (landed.text, landed.allocated))
                 .collect()
         }
 
-        /// Two frames with the pointer parked away from everything:
-        /// the second is what the app draws when nothing is hovered.
+        /// Frames until the app [`settle`]s, each moving the pointer
+        /// to `pointer` if there is one; answers the settled frame.
+        fn settled(&mut self, pointer: Option<egui::Pos2>) -> Vec<(String, egui::Rect)> {
+            let Self {
+                ctx,
+                app,
+                frame,
+                time,
+            } = self;
+            settle(app, None, |app| {
+                let events = pointer.map(egui::Event::PointerMoved).into_iter().collect();
+                Self::drawn(ctx, app, frame, time, events)
+            })
+        }
+
+        /// The app settled with the pointer parked away from
+        /// everything, then one frame more: what the app draws when
+        /// nothing is hovered.
         fn quiet(&mut self) -> Vec<(String, egui::Rect)> {
-            self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+            self.settled(Some(Self::ELSEWHERE));
             self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)])
         }
 
@@ -3625,10 +3721,10 @@ mod properties_pane_tests {
                 .collect()
         }
 
-        /// Click the one run reading `text`, then draw a frame with
-        /// the pointer still on it.
+        /// Click the one run reading `text`, found on a settled frame,
+        /// then draw a frame with the pointer still on it.
         fn click(&mut self, text: &str) {
-            let painted = self.frame(Vec::new());
+            let painted = self.settled(None);
             let at = Self::only(&painted, text);
             let press = |pressed| egui::Event::PointerButton {
                 pos: at,
@@ -3853,33 +3949,30 @@ mod properties_pane_tests {
     }
 
     /// Every text the app painted once its "Add feature" section is
-    /// opened, with the drafts `plant` wrote: one frame to lay out and
-    /// find the header, one that clicks it, then frames at a clock set
-    /// well past the section's opening animation.
+    /// opened, with the drafts `plant` wrote, in a window tall enough
+    /// to hold the section: frames until the app [`settle`]s, whose
+    /// last is where the header is found, one that clicks it, then
+    /// frames on a clock one second apart, well past the section's
+    /// opening animation.
     fn painted_adding_a_profile(plant: impl FnOnce(&mut crate::drafts::Drafts)) -> Vec<String> {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
         plant(&mut app.drafts);
         let mut frame = eframe::Frame::_new_kittest();
-        let mut run = |seconds: f64, events: Vec<egui::Event>| {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1600.0, 4000.0),
-                )),
-                time: Some(seconds),
+        let mut seconds = 0.0;
+        let mut run = |app: &mut ViewerApp, events: Vec<egui::Event>| {
+            seconds += 1.0;
+            app_frame(
+                &ctx,
+                app,
+                &mut frame,
+                egui::vec2(1600.0, 4000.0),
+                Some(seconds),
                 events,
-                ..Default::default()
-            };
-            let mut output = ctx.run_ui(input, |ui| {
-                eframe::App::ui(&mut app, ui, &mut frame);
-            });
-            let landed = crate::pane::headless::landed_in(&output.shapes);
-            output.textures_delta.clear();
-            landed
+            )
         };
-        let header = run(0.0, Vec::new())
+        let header = settle(&mut app, None, |app| run(app, Vec::new()))
             .into_iter()
             .find(|landed| landed.text == "Add feature")
             .expect("the creation section's header is painted")
@@ -3892,21 +3985,18 @@ mod properties_pane_tests {
             modifiers: egui::Modifiers::default(),
         };
         run(
-            1.0,
+            &mut app,
             vec![
                 egui::Event::PointerMoved(header),
                 button(true),
                 button(false),
             ],
         );
-        let mut texts = Vec::new();
-        for seconds in [2.0, 3.0] {
-            texts = run(seconds, Vec::new())
-                .into_iter()
-                .map(|landed| landed.text)
-                .collect();
-        }
-        texts
+        run(&mut app, Vec::new());
+        run(&mut app, Vec::new())
+            .into_iter()
+            .map(|landed| landed.text)
+            .collect()
     }
 
     /// Which of three held reasons the app paints — the frame prompt,
@@ -3979,9 +4069,10 @@ mod index_seam_tests {
     use eframe::egui;
     use egui_tiles::Tile;
 
-    use super::properties_pane_tests::app_frame;
+    use super::properties_pane_tests::{WINDOW, app_frame, settle};
     use super::{Pane, ViewerApp};
     use crate::evalseam::{FitDone, FitRequest, FitService};
+    use crate::frame::Progress;
     use crate::pickcache::NotIndexed;
     use crate::session::DocSession;
 
@@ -4020,13 +4111,17 @@ mod index_seam_tests {
         let mut time = 0.0;
         let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
             time += 1.0;
-            app_frame(&ctx, app, &mut frame, Some(time), events)
+            app_frame(&ctx, app, &mut frame, WINDOW, Some(time), events)
                 .into_iter()
                 .map(|landed| landed.text)
                 .collect::<Vec<_>>()
         };
 
-        paint(&mut app, Vec::new());
+        // The fit never answers, so the app rests indexing rather than
+        // idle.
+        settle(&mut app, Some(Progress::Indexing), |app| {
+            paint(app, Vec::new())
+        });
         assert!(
             !app.picks.indexing() && app.picks.index().is_none(),
             "the fixture is the cache's idle record under a fit in flight"
