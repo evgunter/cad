@@ -2853,3 +2853,23 @@ A rework lane is dispatched on the PR's branch:
 - `BlendError`'s name routing filed if unrowed.
 
 Review comes after the rework: SINGLE, full.
+
+## PR 3467's union fix pass delivered; the item closes; DR-25 is the last commit (2026-09-29)
+
+The fix pass took 314,914 tokens, 173 tools and 46 min (harness).
+Head `a495e56b98` passed `gate ok` on run 36638893003.
+
+The orchestrator read the rows:
+- `caps_on_flipped_planes` drives `mfkrh`'s negation on a `false`
+  parent; `Against => false` now reds exactly that row.
+- `RING_ROWS = 4` is pinned; rows-by-key reds both halves.
+- The shared-payload validity row carries its own flipped control.
+
+Main merged forward with no textual conflict; two new kill-plan tests
+needed `mvfs`'s bit. Three rows were filed on ZIP, TESS and WIRE
+slates. R2's sweep probes were declined with a reason: every
+constructor-bit mutant already reds 11–247 rows.
+
+On the branch, the item closes, then DR-25 goes in as the LAST
+commit (`bf64e3a6eb`): 0 candidates; tally stays 4 of 8; pairs toward
+twelve stay 9. Merge once CI on that head is green.
