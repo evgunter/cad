@@ -2452,7 +2452,6 @@ mod tests {
                     .expect("the camera projects")
                     .expect("the cube is in front of the eye")
             };
-            let centre_depth = ndc(centre)[2];
             let callback = |id_query: Option<IdQuery>| ViewportCallback {
                 scene: Arc::clone(&scene),
                 revision: 1,
@@ -2602,12 +2601,42 @@ mod tests {
                 let px = ((x + 1.0) * 0.5 * f64::from(SIDE_PX)) as usize;
                 let py = ((1.0 - y) * 0.5 * f64::from(SIDE_PX)) as usize;
                 let drawn = f64::from(texels[py * SIDE_PX as usize + px]);
-                // Reversed depth: larger is nearer the eye.
+                // The depth THIS face has at the sampled pixel: the ray
+                // through the pixel's centre, met with the face's plane
+                // (the axis its box is flat on) and projected.
+                let (lo, hi) = boxes[&id];
+                let flat = (0..3)
+                    .min_by(|&a, &b| (hi[a] - lo[a]).total_cmp(&(hi[b] - lo[b])))
+                    .expect("three axes");
+                let ray = camera
+                    .ray_through(
+                        [px as f64 + 0.5, py as f64 + 0.5],
+                        crate::input::ViewportSize {
+                            width_px: f64::from(SIDE_PX),
+                            height_px: f64::from(SIDE_PX),
+                        },
+                    )
+                    .expect("a pixel of the target names a ray");
+                let origin = [ray.origin.x, ray.origin.y, ray.origin.z];
+                let dir = [ray.dir.x, ray.dir.y, ray.dir.z];
+                let t = (face[flat] - origin[flat]) / dir[flat];
+                let hit: [f64; 3] = std::array::from_fn(|a| origin[a] + t * dir[a]);
                 assert!(
-                    drawn > centre_depth,
-                    "{view}: the shaded pass at the centre of face {id} (pixel {px},{py}) left \
-                     depth {drawn}, not nearer than the cube's centre ({centre_depth}) — the \
-                     face that faces the eye was not drawn"
+                    (0..3).all(|a| a == flat || (lo[a] < hit[a] && hit[a] < hi[a])),
+                    "{view}: pixel {px},{py} is not inside face {id} ({hit:?}), so its depth \
+                     says nothing about that face"
+                );
+                let expected = ndc(hit)[2];
+                // Measured on llvmpipe, the drawn depth agrees with this
+                // to at most 3.1e-7 relative (f32 vertices and depth
+                // against an f64 ray). Another face's plane at the same
+                // pixel lies percent away, so 1e-4 leaves the raster
+                // ~300x room and still names which face was drawn.
+                assert!(
+                    (drawn - expected).abs() <= 1e-4 * expected,
+                    "{view}: the shaded pass at pixel {px},{py}, inside face {id}, left depth \
+                     {drawn} where that face lies at {expected} — the face that faces the eye \
+                     was not drawn there"
                 );
             }
         }
