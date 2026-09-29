@@ -408,14 +408,18 @@ pub fn boolean_op_with<
     // The curved ∖/∩ front door, per class (C12.1 — retire per class,
     // never wholesale). Both ops route regions through `revert`
     // (A∖B ≡ A∩revert(B), the §15.9 posture), which is kind-generic:
-    // `Face::sense` carries the flip on every carrier. What a kind needs
-    // to pass is what ∪ needs of it — a crossing layer whose every door
-    // is certified or typed, and a no-crossings pass and interior-loop
-    // guard that certify its sections or refuse (`section_extent_pass`,
-    // `interior_loop_verdict`), so no face pair of the kind is answered
-    // by a vertex probe that could not see into it. `Plane`, `Cylinder`,
-    // `Sphere` and `Torus` have that; `Cone` has no arm under any op,
-    // and NURBS faces have no crossing layer (deviation 5).
+    // `Face::sense` carries the flip on every carrier. The roster
+    // (`reduce::revert_arm_exists`) is ∪'s (`boolean_arm_exists`) minus
+    // `Nurbs`. A kind on it has a crossing layer whose every door is
+    // certified or typed, and a no-crossings path that certifies its
+    // reach or refuses — the sphere's extent by `sphere_extent_scan`
+    // and its re-cut, then every pair with a curved face by
+    // `section_extent_pass` — with `interior_loop_verdict` guarding the crossings path, so no
+    // face pair of the kind is answered by a vertex probe that could
+    // not see into it. `Nurbs` is on ∪'s roster for its plane×NURBS
+    // germ arm, but has no edge×NURBS-face crossing layer (deviation 5),
+    // so ∖ and ∩ have no seam lane for it; `Cone` has no arm under any
+    // op.
     //
     // Up front and PAIR-SCOPED: the kinds are read exactly, and the
     // question of whether a kind can matter to this operation is

@@ -47,6 +47,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::framed_bar;
+use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
 
 use geom_core::{Band, Point2, Point3, Tol};
@@ -761,34 +763,6 @@ fn the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control() {
 // A certified root the landing point contradicts keeps the door.
 // -------------------------------------------------------------------
 
-/// A `w × w` square bar along the unit direction `d`, from `o + d·t0`
-/// to `o + d·t1`: the square lies in the plane normal to `d` at the
-/// start, in the frame `u = normalize(d × ŷ)`, `v = d × u`.
-fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: f64) -> Body<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
-    let d = d.normalize();
-    let u = d.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
-    let v = d.cross(u);
-    let h = w / 2.0;
-    let lp = ProfileLoop::polygon([
-        Point2::new(-h, -h),
-        Point2::new(h, -h),
-        Point2::new(h, h),
-        Point2::new(-h, h),
-    ]);
-    let start = o + d * t0;
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(u, v, d),
-        start - Point3::origin(),
-    ));
-    let vp = profile::Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("the framed bar's profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(t1 - t0), Tol::witness())
-        .expect("the framed bar extrudes")
-        .body
-}
-
 /// **A bar through the tube is never answered as disjoint.** A near-
 /// perpendicular pose puts a certified quartic root a hair off the
 /// tube, and the landing point then reads definitely OFF the carrier.
@@ -1197,19 +1171,6 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 fn subtract_and_intersect_refuse_where_union_does() {
     use geom_core::{Affine3, Mat3, Vec3};
     let d = donut();
-    let three = |a: &Body<f64>, b: &Body<f64>, decls: &BooleanDeclarations| {
-        let mut swapped = BooleanDeclarations::none();
-        swapped.coincident_faces = decls
-            .coincident_faces
-            .iter()
-            .map(|p| FacePairDeclaration::new(p.b, p.a, p.class))
-            .collect();
-        [
-            ("A ∖ B", topo::subtract_with(a, b, decls, Tol::witness())),
-            ("B ∖ A", topo::subtract_with(b, a, &swapped, Tol::witness())),
-            ("A ∩ B", topo::intersect_with(a, b, decls, Tol::witness())),
-        ]
-    };
     let none = BooleanDeclarations::none();
     let near = framed_bar(
         Point3::new(
@@ -1234,7 +1195,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             bar((-0.1, 0.1), (-0.1, 0.1), (-2.0, 2.0)),
         ),
     ] {
-        for (op, r) in three(&d, &b, &none) {
+        for (op, r) in subtract_both_orders_and_intersect(&d, &b, &none) {
             let err = r.expect_err(op);
             assert!(
                 matches!(
@@ -1294,7 +1255,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             "tangent or near-tangent carriers",
         ),
     ] {
-        for (op, r) in three(a, b, decls) {
+        for (op, r) in subtract_both_orders_and_intersect(a, b, decls) {
             let err = r.expect_err(op);
             let BooleanError::FallbackExtentUnsupported { what, .. } = &err else {
                 panic!("{name}, {op}: the section pass refuses: {err:?}");
@@ -1302,7 +1263,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             assert!(what.contains(says), "{name}, {op}: {what}");
         }
     }
-    for (op, r) in three(&halves.0, &halves.1, &none) {
+    for (op, r) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none) {
         let err = r.expect_err(op);
         assert!(
             matches!(err, BooleanError::CurvedPierceUnsupported { .. }),

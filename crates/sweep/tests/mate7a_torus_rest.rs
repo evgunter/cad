@@ -34,6 +34,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
@@ -544,33 +545,6 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
 // 4. ∖ and ∩ on the same fixtures.
 // -------------------------------------------------------------------
 
-/// The same declarations with the operands' roles swapped, for `B ∖ A`.
-fn swapped(d: &BooleanDeclarations) -> BooleanDeclarations {
-    let mut out = BooleanDeclarations::none();
-    out.coincident_faces = d
-        .coincident_faces
-        .iter()
-        .map(|p| FacePairDeclaration::new(p.b, p.a, p.class))
-        .collect();
-    out
-}
-
-/// `A ∖ B`, `B ∖ A` and `A ∩ B` under one set of declarations.
-fn subtract_and_intersect(
-    a: &Body<f64>,
-    b: &Body<f64>,
-    d: &BooleanDeclarations,
-) -> [(&'static str, Result<BooleanResult<f64>, BooleanError>); 3] {
-    [
-        ("A ∖ B", topo::subtract_with(a, b, d, Tol::witness())),
-        (
-            "B ∖ A",
-            topo::subtract_with(b, a, &swapped(d), Tol::witness()),
-        ),
-        ("A ∩ B", topo::intersect_with(a, b, d, Tol::witness())),
-    ]
-}
-
 /// **∖ and ∩ pass the revert roster and stop where ∪ does.** The torus
 /// is on the roster, so a torus pair under a subtract or an intersect
 /// reaches the same doors as under a union, in both operand orders:
@@ -595,19 +569,23 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         );
     };
     let (s, p) = (socket(), segment_a());
-    for (op, r) in
-        subtract_and_intersect(&s, &p, &wall_declarations(&s, &p, TUBE, ContactClass::Rest))
-    {
+    for (op, r) in subtract_both_orders_and_intersect(
+        &s,
+        &p,
+        &wall_declarations(&s, &p, TUBE, ContactClass::Rest),
+    ) {
         tangency(&format!("socket and peg, {op}"), &r.expect_err(op));
     }
     let (a, b) = (full_torus(RING), full_torus(RING));
-    for (op, r) in
-        subtract_and_intersect(&a, &b, &wall_declarations(&a, &b, TUBE, ContactClass::Rest))
-    {
+    for (op, r) in subtract_both_orders_and_intersect(
+        &a,
+        &b,
+        &wall_declarations(&a, &b, TUBE, ContactClass::Rest),
+    ) {
         tangency(&format!("coincident pair, {op}"), &r.expect_err(op));
     }
     let (a, b) = (segment_a(), segment_b());
-    for (op, r) in subtract_and_intersect(
+    for (op, r) in subtract_both_orders_and_intersect(
         &a,
         &b,
         &wall_declarations(&a, &b, TUBE, ContactClass::Tangent),
@@ -619,7 +597,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         );
     }
     let (a, b) = kissing_pair();
-    for (op, r) in subtract_and_intersect(
+    for (op, r) in subtract_both_orders_and_intersect(
         &a,
         &b,
         &wall_declarations(&a, &b, TUBE, ContactClass::Tangent),
@@ -642,12 +620,21 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         ("chain", (segment_a(), segment_b())),
         ("kissing pair", kissing_pair()),
     ] {
-        for (op, r) in subtract_and_intersect(&a, &b, &BooleanDeclarations::none()) {
+        for (op, r) in subtract_both_orders_and_intersect(&a, &b, &BooleanDeclarations::none()) {
             let err = r.expect_err(op);
+            // The escalation is the circle rung's sampled clearance
+            // landing in the band's window (the `1e-6` row); at the
+            // finer rows the same edge refuses at the pierce door.
             assert!(
                 matches!(
                     err,
-                    BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
+                    BooleanError::CurvedPierceUnsupported { .. }
+                        | BooleanError::Escalated {
+                            diag: geom_core::Indeterminate {
+                                predicate: Some("bool_circle_curved_clearance"),
+                                ..
+                            }
+                        }
                 ),
                 "{name} undeclared, {op}: the crossing layer's refusal: {err:?}"
             );

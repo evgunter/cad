@@ -1016,9 +1016,11 @@ pub enum BooleanError {
     ///
     /// - **Sphere**: not gated here — the `(Plane, Sphere)` germ arm
     ///   (exact C5 Circle) plus the extent-certified fallback re-cut.
-    /// - **Torus**: not gated here — its pairs meet the same typed
-    ///   doors under ∖ and ∩ as under ∪ (the crossing layer's, the
-    ///   section certificate's, and the join catch-all below).
+    /// - **Torus**: not gated up front — its pairs meet the same typed
+    ///   doors under ∖ and ∩ as under ∪: the crossing layer's, the
+    ///   no-crossings section pass, the join catch-all below, and this
+    ///   variant at [`PairRefusalSite::InteriorLoopGuard`] for a torus
+    ///   pair the section certificate cannot clear.
     /// - **Cone**: the germ-pair JOIN dispatch —
     ///   `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names, and

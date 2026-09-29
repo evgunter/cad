@@ -94,5 +94,5 @@ refuses does so where ∪ does: the bars at the sagitta charge or the
 pierce door, the slab at R-loop, two tori and the grazing cylinder at
 R-reach, the declared dumbbell, socket and peg and coincident pair at
 R-tan, the chain and the kissing pair at the rim routing, and every
-undeclared torus pair at the crossing layer. The half donut and the
+undeclared torus pair at the crossing layer. The half donut with the
 bracket refuses at the guard (R-loop) under every op.

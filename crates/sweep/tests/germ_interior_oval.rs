@@ -207,7 +207,7 @@ fn refuses_at(
 /// only events, so the oval was never seen, and ∪ came back a valid
 /// `Seamed` body of volume `π²/2 + 1.476 − 0.006` — the lens counted
 /// twice; ∩ came back a body missing the lens. Every op now refuses at
-/// the GUARD, in both operand orders of ∖: the revert roster has the
+/// the GUARD, in both operand orders of ∖ and ∩: the revert roster has the
 /// torus, so the guard is what keeps ∖ and ∩ off the wrong answer.
 #[test]
 fn a_torus_oval_refuses_every_op_at_the_guard() {
@@ -220,6 +220,11 @@ fn a_torus_oval_refuses_every_op_at_the_guard() {
             Op::Intersect,
             topo::intersect(&h, &c, Tol::witness()),
             "h ∩ c",
+        ),
+        (
+            Op::Intersect,
+            topo::intersect(&c, &h, Tol::witness()),
+            "c ∩ h",
         ),
         (
             Op::Subtract,
