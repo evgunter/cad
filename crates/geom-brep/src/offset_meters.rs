@@ -142,11 +142,11 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
-use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
+use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
-use crate::recourse::{Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 
 /// The refinement ladder the door walks, coarsest first (D9: a fixed
 /// geometric sequence in a fixed order — no value branch chooses it).
@@ -221,48 +221,6 @@ impl Meter {
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         self.decision().recourse(arm, reading)
-    }
-}
-
-/// A meter's decided refusal: the verdict its margin classified as,
-/// carrying the margin.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Refused {
-    /// Within the zero band — band-decided: a smaller tolerance may
-    /// decide a positive margin passing.
-    Zero(Classified),
-    /// Definitely negative — sign-certain.
-    Negative {
-        /// The classified margin, in metres.
-        margin: f64,
-    },
-}
-
-impl Refused {
-    /// The verdict `sign` gives `margin` at `band`, or `None` for the
-    /// sign the meters pass on.
-    fn of(sign: Sign, margin: f64, band: Band) -> Option<Self> {
-        match sign {
-            Sign::Positive => None,
-            Sign::Zero => Some(Self::Zero(Classified { margin, band })),
-            Sign::Negative => Some(Self::Negative { margin }),
-        }
-    }
-
-    /// The classified margin, in metres.
-    #[must_use]
-    pub fn margin(self) -> f64 {
-        match self {
-            Self::Zero(Classified { margin, .. }) | Self::Negative { margin } => margin,
-        }
-    }
-
-    /// The refused arm this verdict is.
-    fn arm(self) -> RefusedArm<'static> {
-        match self {
-            Self::Zero(classified) => RefusedArm::Zero(Some(classified)),
-            Self::Negative { .. } => RefusedArm::SignCertain,
-        }
     }
 }
 
@@ -963,6 +921,7 @@ mod tests {
     use geom_core::predicate::COINCIDENCE_RECOURSE;
 
     use super::*;
+    use crate::recourse::Classified;
 
     const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
     const DISTANCE: &str =

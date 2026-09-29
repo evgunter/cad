@@ -79,7 +79,7 @@ use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse};
-use crate::recourse::{Reading, RefusedArm};
+use crate::recourse::{Reading, Refused, RefusedArm};
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
 
 /// What the plane × NURBS lane proved, in meters unless noted.
@@ -146,21 +146,21 @@ pub enum PlaneNurbsRefusal {
         /// The measured bound, in meters.
         value: f64,
     },
-    /// The uniqueness tube's transversality straddles zero — a genuine
-    /// sliver of the operand pair along the locus (F6: escalate, never
-    /// guess).
+    /// The uniqueness tube's transversality is not certified clear of
+    /// the zero band — a genuine sliver of the operand pair along the
+    /// locus at this tolerance (F6: escalate, never guess).
     TubeStraddles {
-        /// The transversality enclosure's **certified clearance from
-        /// zero**, levered — NOT a measurement of how far the sliver
-        /// straddles. An enclosure that contains zero has certified
-        /// clearance exactly `0.0` by construction (rung 3's
+        /// The verdict on the transversality enclosure's **certified
+        /// clearance from zero**, levered — NOT a measurement of how far
+        /// the sliver straddles. An enclosure that contains zero has
+        /// certified clearance exactly `0.0` by construction (rung 3's
         /// `zero_free_lower_bound`), and containing zero is what this
-        /// refusal reports, so this field is `0.0` on every straddling
+        /// refusal reports, so the margin is `0.0` on every straddling
         /// refusal and a small positive number only on the levered
-        /// rungs that failed the band instead. Read it as the bound
-        /// the certificate could prove, never as the geometry's own
-        /// extent; the informative companion is `boxes`.
-        certified_clearance: f64,
+        /// rungs that failed the band instead. Read it as the bound the
+        /// certificate could prove, never as the geometry's own extent;
+        /// the informative companion is `boxes`.
+        verdict: Refused,
         /// How many boxes of the tube's chain the clearance above was
         /// certified over — the resolution the verdict was reached at.
         boxes: u32,
@@ -215,14 +215,10 @@ impl PlaneNurbsRefusal {
             )),
             // The tube's margin is the lane's transversality over the
             // chain (`ssi_tube_transversality`), and this refusal is its
-            // DECIDED Zero-or-Negative verdict, which the variant does
-            // not split (`certified_clearance` may be positive inside
-            // the zero band).
-            Self::TubeStraddles { .. } => Some(recourse(
-                CertCheck::Transversality,
-                RefusedArm::ZeroOrNegative,
-                reading,
-            )),
+            // decided verdict.
+            Self::TubeStraddles { verdict, .. } => {
+                Some(recourse(CertCheck::Transversality, verdict.arm(), reading))
+            }
             Self::Escalated(diag) => Some(recourse(
                 CertCheck::PlaneNurbsCertificate,
                 RefusedArm::Undecided(diag),
@@ -266,15 +262,13 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  is not on both surfaces",
                 limb.name()
             ),
-            Self::TubeStraddles {
-                certified_clearance,
-                boxes,
-            } => write!(
+            Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "the uniqueness tube's transversality enclosure contains zero over {boxes} \
-                 boxes of the chain — a genuine sliver of the plane/NURBS pair along the \
-                 locus; the certificate's proven clearance from zero is {certified_clearance:e} \
-                 m, which is the bound it could prove and not the sliver's own extent"
+                "the uniqueness tube's transversality is not certified clear of the zero band \
+                 over {boxes} boxes of the chain — a sliver of the plane/NURBS pair along the \
+                 locus at this tolerance; the certificate's proven clearance from zero is {:e} \
+                 m, which is the bound it could prove and not the sliver's own extent",
+                verdict.margin()
             ),
             Self::Escalated(diag) => write!(
                 f,
@@ -685,14 +679,9 @@ fn on_carrier_domain<T: Real>(
 fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     match e {
         SsiError::CertificateLimb { limb, value } => PlaneNurbsRefusal::Limb { limb, value },
-        // Rung 3's `margin` is a CERTIFIED CLEARANCE, not a measured
-        // extent — it is exactly zero whenever the enclosure contains
-        // zero — so it is carried under a name that says so, with the
-        // chain's box count as the informative companion.
-        SsiError::TubeStraddles { margin, boxes } => PlaneNurbsRefusal::TubeStraddles {
-            certified_clearance: margin,
-            boxes,
-        },
+        SsiError::TubeStraddles { verdict, boxes } => {
+            PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
+        }
         SsiError::Escalated(diag) => PlaneNurbsRefusal::Escalated(diag),
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a

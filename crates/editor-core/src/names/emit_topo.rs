@@ -15,7 +15,7 @@ use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::canonical;
-use super::defer::{TieRows, Upstream, mint_candidates, pass_through, put, upstream_name};
+use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
@@ -397,7 +397,7 @@ fn name_split_edges_vertices<T: Decide>(
             {
                 // Intact operand edge: pass-through.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(e)))?;
-                pass_through(t, tie, up, ent(s.ix, EntityKey::Edge(e)))?;
+                tie.carry(up, ent(s.ix, EntityKey::Edge(e)))?;
                 continue;
             }
             if target_table
@@ -437,7 +437,7 @@ fn name_split_edges_vertices<T: Decide>(
                     .is_some()
             {
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
-                pass_through(t, tie, up, ent(s.ix, EntityKey::Vertex(v)))?;
+                tie.carry(up, ent(s.ix, EntityKey::Vertex(v)))?;
                 continue;
             }
             // Resolve the birth record — directly, or through the
@@ -1931,7 +1931,7 @@ fn name_split_faces<T: Decide>(
                     vec![ent(s.ix, EntityKey::Face(f))],
                     Parent::Elsewhere,
                 );
-                pass_through(t, tie, up, ent(s.ix, EntityKey::Face(f)))?;
+                tie.carry(up, ent(s.ix, EntityKey::Face(f)))?;
             } else {
                 groups
                     .entry((root, s.ix))
@@ -2039,7 +2039,11 @@ mod tests {
                 ),
             )),
             tied,
-            piece: false,
+            candidate: if tied {
+                super::super::table::Candidate::Of(0)
+            } else {
+                super::super::table::Candidate::Only
+            },
         }
     }
 
@@ -2624,5 +2628,175 @@ mod tests {
             matches!(err, NamingError::Emission { what } if what == NESTED_MERGED),
             "{err:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod split_carries_candidates {
+    //! **A split's intact pass-through carries each tie candidate's
+    //! number** (N4, "A tie's candidates keep their identity"), whether
+    //! the tie survives the split `Tied` or narrows. Over the U-cutter
+    //! subtract — a block less a U whose prongs leave two cap fragments
+    //! under one tied name — every row the split carries verbatim must
+    //! answer, for each entity, the candidate the subtract gave that
+    //! entity. Renumbering at the split would pass whenever its fresh
+    //! order happened to match; the two plane normals below swap which
+    //! half is output body 0, so one of the two orders disagrees with
+    //! any fresh numbering.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use crate::edit::DocEdit;
+    use crate::eval::{CancelToken, EvalOptions, Evaluation, evaluate};
+    use crate::ident::DocumentId;
+    use crate::names::table::{EntityRef, Entry, NameTable};
+    use crate::node::{BooleanOp, Datum, Node, RecipeNodeId};
+    use crate::program::{LoopProgram, ProfileProgram};
+    use crate::test_support::{frame, len, scl};
+    use crate::{ProfileDoc, RefusingReach};
+    use geom_core::Tol;
+
+    fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+        let a = crate::apply(
+            &doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("inserts");
+        (a.doc, a.record.minted.expect("a node"))
+    }
+
+    fn prism(doc: ProfileDoc, z0: f64, dz: f64, pts: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) {
+        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
+                ids: Vec::new(),
+            }),
+        );
+        ins(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(dz),
+            },
+        )
+    }
+
+    /// The U-cutter subtract, split by the plane y = `y` with normal
+    /// (0, `ny`, 0): the subtract's id and the split's.
+    fn split_u_cutter(y: f64, ny: f64) -> (Evaluation<f64>, RecipeNodeId, RecipeNodeId) {
+        let doc = ProfileDoc::empty(
+            DocumentId::derive("split-carries-candidates"),
+            Tol::witness(),
+        );
+        let (doc, a) = prism(
+            doc,
+            0.0,
+            4.0,
+            &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
+        );
+        let (doc, b) = prism(
+            doc,
+            1.0,
+            2.0,
+            &[
+                (2.0, 1.0),
+                (6.0, 1.0),
+                (6.0, 3.0),
+                (2.0, 3.0),
+                (2.0, 2.5),
+                (5.0, 2.5),
+                (5.0, 1.5),
+                (2.0, 1.5),
+            ],
+        );
+        let (doc, sub) = ins(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Subtract,
+                a,
+                b,
+                declare: None,
+            },
+        );
+        let (doc, tool) = ins(
+            doc,
+            Node::Datum(Datum::Plane {
+                origin: [len(0.0), len(y), len(0.0)],
+                normal: [scl(0.0), scl(ny), scl(0.0)],
+            }),
+        );
+        let (doc, split) = ins(doc, Node::Split { target: sub, tool });
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        (ev, sub, split)
+    }
+
+    fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
+        &ev.value(id)
+            .unwrap_or_else(|| panic!("node {id:?} evaluates: {:?}", ev.nodes.get(&id)))
+            .name_table
+    }
+
+    /// Every tied row of the subtract the split carries verbatim, as
+    /// (entry shape in the split, whether each candidate kept its
+    /// number). Keys are kept through the split, so an entity of the
+    /// split names the same key in the subtract's one body.
+    fn carried_ties(y: f64, ny: f64) -> Vec<(bool, Vec<bool>)> {
+        let (ev, sub, split) = split_u_cutter(y, ny);
+        let (sub, split) = (table(&ev, sub), table(&ev, split));
+        let mut out = Vec::new();
+        for (name, entry) in sub.iter_refs() {
+            if !matches!(entry, Entry::Tied(_)) {
+                continue;
+            }
+            let Some(row) = split.rows().find(|(n, _)| *n == name).map(|(_, r)| r) else {
+                continue;
+            };
+            let kept = row
+                .pairs()
+                .map(|(c, e)| {
+                    let upstream = EntityRef {
+                        body: 0,
+                        key: e.key,
+                    };
+                    sub.candidate_of(name, &upstream) == Some(c)
+                })
+                .collect();
+            let tied = matches!(split.entry_of(name), Some(Entry::Tied(_)));
+            out.push((tied, kept));
+        }
+        out
+    }
+
+    #[test]
+    fn a_split_carries_each_tie_candidates_number_tied_or_narrowed() {
+        // Planes between the prongs separate the candidates, one per
+        // half, and the split's own table keeps the tie `Tied` across
+        // its two bodies; a plane clear of both keeps both in one half.
+        for (what, y, ny) in [
+            ("between the prongs, +y", 2.0, 1.0),
+            ("between the prongs, -y", 2.0, -1.0),
+            ("clear of both prongs, +y", 3.5, 1.0),
+            ("clear of both prongs, -y", 3.5, -1.0),
+        ] {
+            let rows = carried_ties(y, ny);
+            assert!(
+                rows.iter().any(|(tied, kept)| *tied && kept.len() == 2),
+                "{what}: the premise, a subtract tie the split keeps Tied: {rows:?}"
+            );
+            assert!(
+                rows.iter().all(|(_, kept)| kept.iter().all(|k| *k)),
+                "{what}: a carried candidate lost its number: {rows:?}"
+            );
+        }
     }
 }
