@@ -390,8 +390,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   consistency conditions are verified at validate as ε-decisions at the
   validating scalar, never trusted; a stored carrier is carried
   verbatim, including across scalars, and never re-derived from its
-  vertices. The authored shape lives in the program, not the storage:
-  each construction lowers what the user wrote into this form in the
+  vertices. The authored shape lives in the program, which is what a
+  document stores and edits; the loop is its canonical cache, rebuilt
+  from it and never persisted, and each arc mode's lowering is that
+  mode's one conversion into this form. Each construction lowers what
+  the user wrote into this form in the
   shape's own algebra (the radius as authored, the sweep as one
   `4·atan` of a quantity algebraic in the authored data, never an
   angle difference), so the symbolic tier, replaying the program, reads
