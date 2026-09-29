@@ -7,6 +7,7 @@ opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart]
 priority: P0
 cost: H
+design: true
 ---
 
 Found by both reviewers of PR 2549 (R1 by execution as a MAJOR, R2 as
