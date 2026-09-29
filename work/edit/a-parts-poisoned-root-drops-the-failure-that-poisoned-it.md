@@ -2,7 +2,8 @@
 id: a-parts-poisoned-root-drops-the-failure-that-poisoned-it
 kind: issue
 title: editor-core: a part whose product root was poisoned crosses as PartProduct with no carried refusal, so the failure that poisoned it is lost at the seam
-status: review
+status: closed
+closed: 2026-09-29
 pr: 3482
 rides_with: product-error-root-arms-re-spell-the-standing
 branch: edit/part-product-refusals

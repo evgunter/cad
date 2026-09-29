@@ -2,7 +2,8 @@
 id: product-error-root-arms-re-spell-the-standing
 kind: issue
 title: ProductError's three root arms re-spell the node standing instead of carrying it
-status: review
+status: closed
+closed: 2026-09-29
 pr: 3482
 branch: edit/part-product-refusals
 opened: 2026-09-29

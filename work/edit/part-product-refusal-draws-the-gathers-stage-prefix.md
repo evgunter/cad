@@ -2,7 +2,8 @@
 id: part-product-refusal-draws-the-gathers-stage-prefix
 kind: issue
 title: editor-core: a part with no product draws the gather's own 'product:' stage prefix inside PartFault::PartProduct, which the concision roster's made-up message hides
-status: review
+status: closed
+closed: 2026-09-29
 pr: 3482
 rides_with: product-error-root-arms-re-spell-the-standing
 branch: edit/part-product-refusals
