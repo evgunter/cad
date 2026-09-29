@@ -266,12 +266,15 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
     let mut body = pair.clone();
     body.set_face_surface(
         victim,
-        topo::FaceSurface::New(geom::Surface::Cylinder {
-            origin: Point3::new(10.5, 1.5, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Cylinder {
+                origin: Point3::new(10.5, 1.5, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 0.5,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .expect("a consumer can re-surface a face");
     assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2 is clean");

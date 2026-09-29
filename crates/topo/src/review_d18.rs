@@ -132,7 +132,7 @@ fn mate_halves(body: &Body<f64>, edge: crate::entity::EdgeKey) -> (HalfEdgeKey, 
 /// trip anchored on a shared vertex rebinds `start` anchors and would
 /// perturb the fixture this helper is meant to leave alone.
 fn recycled_dead_half_edge(body: &mut Body<f64>, tol: Tol) -> HalfEdgeKey {
-    let seed = body.mvfs(p(50.0)).unwrap();
+    let seed = body.mvfs(p(50.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -210,7 +210,7 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
 fn kef_dangling_prev_of_he_is_typed_and_atomic() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -329,7 +329,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
             PI,
             Box::new(move || {
                 let mut body = Body::<f64>::new();
-                let seed = body.mvfs(p(0.0)).unwrap();
+                let seed = body.mvfs(p(0.0), true).unwrap();
                 let seg = body
                     .mev_line(
                         MevSite::Lone {
@@ -356,7 +356,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
             0.5,
             Box::new(move || {
                 let mut body = Body::<f64>::new();
-                let seed = body.mvfs(p(0.0)).unwrap();
+                let seed = body.mvfs(p(0.0), true).unwrap();
                 let seg = body
                     .mev_line(
                         MevSite::Lone {
@@ -1074,7 +1074,7 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
                 .mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
                 .is_ok(),
         );
-        note("mfkrh_plug", body.clone().mfkrh_plug(l).is_ok());
+        note("mfkrh_plug", body.clone().mfkrh_plug(l, true).is_ok());
     }
     census.add(KEMR_CYCLE_RING, cycle_ring);
     census.add(KEMR_EMPTY_RING, empty_ring);

@@ -4,6 +4,8 @@ kind: issue
 title: edit: persist's EditReplay forwards the edit door's recourse to a load that made no edit
 status: open
 opened: 2026-09-29
+priority: P3
+cost: E
 ---
 
 

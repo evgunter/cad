@@ -115,8 +115,14 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             .faces()
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
-        body.set_face_surface(fk, FaceSurface::New(flipped))
-            .expect("the bowed wall's face key resolves")
+        body.set_face_surface(
+            fk,
+            FaceSurface::New {
+                surface: flipped,
+                sense: true,
+            },
+        )
+        .expect("the bowed wall's face key resolves")
     } else {
         bowed
     };
@@ -139,11 +145,14 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     let plane = body
         .set_face_surface(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -1.0, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -1.0, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("the exactly-planar wall restates as a plane");
     let eps = Tol::witness().get().eps;

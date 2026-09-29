@@ -4,8 +4,8 @@
 //! S10 ratified `Face::sense` (a face's outward normal is the chart
 //! normal negated where the bit is `false`); S11 made the constructors write the
 //! bit honestly; S12 — this unit — makes `revert` FLIP it, makes
-//! splitting's `mef`/`mfkrh` re-mints INHERIT the parent's bit, and
-//! narrows the wholesale curved ∖/∩ front door to the classes that
+//! splitting's `mef` re-mints take the parent's bit on its chart (an
+//! `mfkrh` promotion there takes it negated), and narrows the wholesale curved ∖/∩ front door to the classes that
 //! still lack a join lane.
 //!
 //! Rows, in the order the unit's three parts land:
@@ -29,8 +29,8 @@
 //!   extent-certified fallback re-cut.
 //!
 //! **Tolerance shape.** Everything this unit adds is exact structure:
-//! the sense flip is a `bool` negation, the inheritance rule is a
-//! surface-KEY equality, and the front door is an arena scan of surface
+//! the sense flip is a `bool` negation, the inheritance rule is chart
+//! identity (`Body::same_chart`), and the front door is an arena scan of surface
 //! kinds. None of the three has an in-band twin, none moves with ε, and
 //! the involution/determinism rows are compared BITWISE. The volume
 //! assertions are ordinary metric checks against closed forms and are

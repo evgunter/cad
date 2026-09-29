@@ -713,7 +713,10 @@ fn nurbs_bump() -> Body<f64> {
         .expect("the block has a top face");
     body.set_face_surface(
         top,
-        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(patch))),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Nurbs(std::sync::Arc::new(patch)),
+            sense: true,
+        },
     )
     .expect("the bump replaces the top face's carrier");
     body
