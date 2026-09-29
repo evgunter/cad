@@ -100,7 +100,8 @@ use super::derivation_nodes;
 /// A node's outcome in one run — the tag BOTH derived forms carry: the
 /// population form's [`NodeVerdicts::status`] and the strict form's
 /// [`VerdictRow::outcome`]. `Ok`, or the kind of the node's
-/// [`NodeStanding`] (`Absent` is its `NotEvaluated`), read off
+/// [`NodeStanding`] (`Absent` is its `NotEvaluated` and its
+/// `NotInDocument`), read off
 /// [`Evaluation::usable`] by [`status`], so the two forms cannot
 /// disagree about a node's standing.
 ///
@@ -230,7 +231,9 @@ fn status<T: Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
         Ok(_) => RunStatus::Ok,
         Err(NodeStanding::Failed { .. }) => RunStatus::Failed,
         Err(NodeStanding::Poisoned { .. }) => RunStatus::Poisoned,
-        Err(NodeStanding::NotEvaluated { .. }) => RunStatus::Absent,
+        Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
+            RunStatus::Absent
+        }
     }
 }
 

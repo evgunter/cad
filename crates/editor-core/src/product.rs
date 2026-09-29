@@ -552,7 +552,9 @@ impl ProductErrorKind {
 impl From<NodeStanding> for ProductError {
     fn from(standing: NodeStanding) -> Self {
         match standing {
-            NodeStanding::NotEvaluated { node } => Self::UnknownNode { node },
+            NodeStanding::NotEvaluated { node } | NodeStanding::NotInDocument { node } => {
+                Self::UnknownNode { node }
+            }
             NodeStanding::Failed { node } => Self::RootFailed { node },
             NodeStanding::Poisoned { node, through } => Self::RootPoisoned { node, through },
         }

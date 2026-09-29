@@ -148,7 +148,13 @@ impl<T: Decide> Evaluation<T> {
     /// The node's [`NodeStanding`]: no result in this evaluation,
     /// failed, or poisoned through its nearest failed ancestor.
     pub fn usable(&self, id: RecipeNodeId) -> Result<&NodeValue<T>, NodeStanding> {
-        usable_in(&self.nodes, id)
+        usable_in(&self.nodes, id, || {
+            if self.order.contains(&id) {
+                NodeStanding::NotEvaluated { node: id }
+            } else {
+                NodeStanding::NotInDocument { node: id }
+            }
+        })
     }
 
     /// The node's successful value, if it has one — [`Evaluation::usable`]
@@ -157,11 +163,12 @@ impl<T: Decide> Evaluation<T> {
         self.usable(id).ok()
     }
 
-    /// The node's result as typed data — `Ok`/`Failed`/`Poisoned`
-    /// distinguished, where [`Evaluation::value`] collapses the last
-    /// two into `None` (LIB-DOORS F3: the curated path from an
-    /// evaluation to its `NodeError`s). `None` means the id has no
-    /// entry at all: never scheduled, or past a cancelation's prefix.
+    /// The node's result as typed data, for a reader that needs what
+    /// [`NodeStanding`] does not carry — a failed node's own
+    /// [`NodeError`] beside its value's absence (LIB-DOORS F3). `None`
+    /// means the id has no entry at all. A door that refuses on a node
+    /// with no value reads [`Evaluation::usable`] instead, which tells
+    /// "the run stopped before it" from "not in this document".
     pub fn result(&self, id: RecipeNodeId) -> Option<&NodeResult<T>> {
         self.nodes.get(&id)
     }
@@ -173,7 +180,8 @@ impl<T: Decide> Evaluation<T> {
     /// succeeded or has no entry.
     pub fn node_error(&self, id: RecipeNodeId) -> Option<&NodeError> {
         match self.usable(id) {
-            Ok(_) | Err(NodeStanding::NotEvaluated { .. }) => None,
+            Ok(_)
+            | Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => None,
             // Every `through` names a `Failed` entry (the poison
             // propagation writes nothing else there); answering `None`
             // on a broken invariant is fail-honest — the caller sees
@@ -194,10 +202,15 @@ impl<T: Decide> Evaluation<T> {
 /// door.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NodeStanding {
-    /// The node has no result in this evaluation: a canceled run's
-    /// suffix, or an id this evaluation's document does not have.
+    /// The node is in this evaluation's order but has no result: the
+    /// run was canceled before it reached the node.
     NotEvaluated {
         /// The node.
+        node: RecipeNodeId,
+    },
+    /// The id is not a node of the document this evaluation ran over.
+    NotInDocument {
+        /// The id asked about.
         node: RecipeNodeId,
     },
     /// The node itself failed ([`Evaluation::node_error`] answers the
@@ -220,9 +233,10 @@ impl NodeStanding {
     #[must_use]
     pub fn node(self) -> RecipeNodeId {
         match self {
-            Self::NotEvaluated { node } | Self::Failed { node } | Self::Poisoned { node, .. } => {
-                node
-            }
+            Self::NotEvaluated { node }
+            | Self::NotInDocument { node }
+            | Self::Failed { node }
+            | Self::Poisoned { node, .. } => node,
         }
     }
 
@@ -231,7 +245,7 @@ impl NodeStanding {
     pub fn through(self) -> Option<RecipeNodeId> {
         match self {
             Self::Poisoned { through, .. } => Some(through),
-            Self::NotEvaluated { .. } | Self::Failed { .. } => None,
+            Self::NotEvaluated { .. } | Self::NotInDocument { .. } | Self::Failed { .. } => None,
         }
     }
 }
@@ -241,9 +255,14 @@ impl core::fmt::Display for NodeStanding {
         match self {
             Self::NotEvaluated { node } => write!(
                 f,
-                "node {} has no result in this evaluation (a canceled run's suffix, or a node \
-                 of another document) — evaluate the document to completion, or ask about one \
-                 of its own nodes",
+                "node {} has no result in this evaluation: the run was canceled before it \
+                 reached the node — re-evaluate the document to completion",
+                node.0
+            ),
+            Self::NotInDocument { node } => write!(
+                f,
+                "node {} is not a node of the document this evaluation ran over — ask about \
+                 one of that document's nodes, or evaluate the document the node is in",
                 node.0
             ),
             Self::Failed { node } => write!(
@@ -265,10 +284,13 @@ impl core::error::Error for NodeStanding {}
 
 /// [`Evaluation::usable`]'s ladder over a result map, for the readers
 /// that hold the map before the [`Evaluation`] exists: the op wiring's
-/// input read and the appearance pass.
+/// input read and the appearance pass. `absent` answers an id the map
+/// has no entry for, because only the caller knows whether that id is
+/// in the run's order.
 pub(crate) fn usable_in<T: Decide>(
     nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     node: RecipeNodeId,
+    absent: impl FnOnce() -> NodeStanding,
 ) -> Result<&NodeValue<T>, NodeStanding> {
     match nodes.get(&node) {
         Some(NodeResult::Ok(value)) => Ok(value),
@@ -277,7 +299,7 @@ pub(crate) fn usable_in<T: Decide>(
             node,
             through: *through,
         }),
-        None => Err(NodeStanding::NotEvaluated { node }),
+        None => Err(absent()),
     }
 }
 
@@ -3310,7 +3332,10 @@ fn resolve_appearance<T: Decide>(
 ) -> AppearanceResolution {
     let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = order
         .iter()
-        .map(|&id| (id, usable_in(nodes, id).map(|v| &*v.name_table)))
+        .map(|&id| {
+            let state = usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id });
+            (id, state.map(|v| &*v.name_table))
+        })
         .collect();
     appearance::resolve(doc.appearance(), &states)
 }
@@ -3390,12 +3415,14 @@ where
     let mut upstream_keys: Vec<ContentKey> = Vec::new();
     let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
     for input in node.inputs() {
-        match usable_in(results, input) {
+        // Every input the document has precedes this node in the
+        // order and so has its result: an absent one is not in it.
+        match usable_in(results, input, || NodeStanding::NotInDocument { node: input }) {
             Ok(v) => {
                 upstream_keys.push(v.content_key);
                 upstream_naming.push((input, v.naming_key));
             }
-            Err(NodeStanding::NotEvaluated { .. }) => {
+            Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
                 return fail(bracket, NodeErrorKind::MissingInput { input });
             }
             Err(
