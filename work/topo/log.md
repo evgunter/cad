@@ -2939,3 +2939,51 @@ that merge in a final commit, so the row stayed last. CI ran green on
 The design-fork, the implementation and the dual review of the
 fragment-sense question are all done. `topo-rebase-target` is free
 after PR 3493's reviewer.
+
+## PR 3493's review: NOT-MERGEABLE-AS-IS; a container restart; three lanes out (2026-09-30)
+
+**PR 3493.** The single full review of `5f8f70ed3c` took 335,038
+tokens, 112 tools and 21 min (harness); archived privately. The
+closed types route correctly on most arms, and `SizedPass::Negative`
+is right. Two MAJORs against D4:
+1. **(iv), the pair forks.** `split_edge`'s definite arm still offers
+   the declare menu, while its in-band arm now ends in the crossing
+   lever. The pairing test was rewritten to pin the fork under its old
+   name. PR 3352's body held PR 3351 for exactly this.
+2. **(i), a tolerance arm D4 forbids.** `Containment` is typed at
+   family level (`NonZero`) and offers a valued tolerance on a
+   residual rung (`bool_curved_contain_carrier`) and on a
+   Negative-refusing one. This was executed with a constructed raise.
+
+All the MINORs, NOTE-9/11/12/13 and the style findings are accepted:
+- `bool_contact_vertex`'s route;
+- the split door dropping `ConicRootFault`;
+- the hand-kept `DECISIONS` census and unpinned subjects (both
+  mutants survived);
+- `decision_words` disagreeing with the routing;
+- pass sets and size nouns;
+- two `CONTRADICTION_RECOURSE` constants;
+- `split_edge`'s decision living in the Boolean;
+- the `coincidence` one-word default, to be filed.
+
+NOTE-7/8/10 are not taken (already filed, no consumer, or unreachable).
+The fix pass runs on the reviewer's warm target.
+
+**The restart.** The container restarted at about 00:05 UTC and
+stopped PR 3495's reviewer (mid-run) and the `mev_null` implementer
+(before its first push; nothing lost). Both worktrees were
+force-removed. Both are re-dispatched fresh on the same briefs, and
+the stopped review counts for nothing.
+
+**The `mev_null` unit** (`mev-null-leaves-a-complete-curved-face-half-minted`,
+P2, M, `design: true`; tier SINGLE, full):
+- Ev's PR 2527 ruling ("mints its row at the mint site; the
+  closing-mint convention retires") decides between the item's two
+  shapes. Shape (b), re-minting at `set_edge_curve` when the carrier
+  arrives, keeps the ruling. Shape (a), clear and lean on the closing
+  mint, does not.
+- So it is not a fork for Ev. The lane builds (b), measures first,
+  and stops and reports if (b) proves unsound.
+
+Three lanes are live: PR 3495's review, PR 3493's fix pass, and the
+`mev_null` implementer.
