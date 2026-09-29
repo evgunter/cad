@@ -668,3 +668,20 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `census.rs` `WitnessTooClose` drops ', or lower the tolerance'. Filed: `contain-escalation-carries-no-decision` (includes `ContainError::RayExhausted`'s own Display). (ENCL orchestrator)
+
+## 2026-09-29 — CONTACT-9 lands
+
+- A single full review of `9f414db16` asked for changes. There were no
+  wrong answers, but there was one MAJOR: the `pair_search` gate I
+  approved turned a corner near-coincidence's typed
+  `UndeclaredCoincidence` into an odd-germ invariant refusal. There
+  were also three unpinned changes, and a volume floor that went red
+  at ε values CI does not run.
+- The fix pass (`4063ed0a1`) root-caused the MAJOR: a pair parallel at
+  its shorter arm always has an On bound, so it stays a coincidence.
+  It pinned each change with a row and recalibrated the floor to
+  1e-12 m³, with a corner oracle below it. It filed the residues.
+- I read the fix pass and adjudicated every finding. Landing as
+  `contact/land-9`.
+
+Signed: (CONTACT orchestrator)
