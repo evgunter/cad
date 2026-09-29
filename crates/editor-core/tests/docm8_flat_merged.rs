@@ -654,7 +654,9 @@ fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
 /// R1's split fixture: `a` and `c` meet flush along x; `s` sits on
 /// `a`'s top cap across its whole depth, declared against `a`'s two
 /// y-walls, so folding `s` in fragments that cap.
-fn split_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3], Vec<(SitedRef, SitedRef)>) {
+pub(crate) fn split_fixture(
+    doc: ProfileDoc,
+) -> (ProfileDoc, [RecipeNodeId; 3], Vec<(SitedRef, SitedRef)>) {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
