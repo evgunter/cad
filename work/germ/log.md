@@ -598,3 +598,12 @@ Ev's instruction: finish the in-flight work and the P1, then pause until the wee
 - U7 (the cone roster flip);
 - the P2s (cone pairs in general pose; the radial hole through a tube);
 - the P3/P4 queue.
+
+## 2026-09-29 — U4 built and waiting on PR 3423; a unit-spec error ruled
+
+- **U4** (`germ/cone-section-rows`, `332c80aa9`) is built:
+  - the cone rows for plane, sphere, the coaxial partners and the parallel cylinder;
+  - 21 mutants red;
+  - 0 mismatches in 1920 random poses against the traced section.
+- **Ruled:** §2.5.1's cone × plane table read `m_A` (the apex offset) first and answered W0 when `m_A` was in band and the aperture was negative, which can clear a real ellipse of length ≈ `m_A·cos α/μ`. The lane decides on the aperture margin μ alone. That is sound and more conservative, and a row demonstrates the spec's error. It is a unit-spec correction, not a design fork; the spec is fixed on the branch.
+- **The PR opens** after PR 3423 merges.
