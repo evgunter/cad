@@ -169,7 +169,7 @@
 //! evidence, which is independent of ids and did not move:
 //! `m4_pr8_corpus::exact_mass_pins_hold` holds every document's exact
 //! volume and area, `m5_pr8_bvh_diff` holds realized-vs-idealized bit
-//! equality, `m5_pr11_corpus_curved` and `cert_m2r1_corpus` hold their
+//! equality, `m5_pr11_corpus_curved` holds its
 //! own, and the persistence round trip replays every document. Those
 //! were green across this change without being touched. So the claim
 //! this number carries is unchanged — no outcome flipped and no point

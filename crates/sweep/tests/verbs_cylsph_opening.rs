@@ -263,10 +263,13 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
 /// **A torus operand passes the pair gate and refuses typed at the
 /// crossing layer.** The torus is on the union's KIND roster, so the
 /// cylinder×torus union is no longer the gate's to refuse. The
-/// cylinder's rim circle genuinely crosses the tube (the ring passes
-/// through the cylinder's end caps at `(0, 0, ±2)`), a circle×torus
-/// crossing with no root lane, and the circle rung takes its typed
-/// frontier there — never a body.
+/// cylinder's rim circles genuinely cross the tube (the ring passes
+/// through the cylinder's end caps at `(0, 0, ±2)`), and that
+/// circle×torus crossing has a root lane (`topo::boolean::circle_torus`)
+/// — so what refuses is the OTHER direction: a circle of the torus
+/// against the cylinder's wall, a circle×cylinder pair (a degree-2
+/// trigonometric residual) with no root lane, where the circle rung
+/// takes its typed frontier — never a body.
 ///
 /// The pair gate's own sentence is pinned on a cone, the kind it still
 /// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
@@ -293,21 +296,27 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
             .body
     };
     let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
-        .expect_err("the rim circle crosses the tube, with no root lane");
-    // The CYLINDER's rim edge (operand A) crosses the torus face.
+        .expect_err("a torus circle crosses the cylinder wall, with no root lane");
+    // The TORUS's circle edge (operand B) against the CYLINDER's wall.
+    let BooleanError::CurvedPierceUnsupported {
+        operand: topo::Operand::B,
+        face,
+        ..
+    } = err
+    else {
+        panic!("expected the circle rung's curved-pierce frontier on B's edge, got {err:?}");
+    };
+    let a = cyl(1.0, -2.0, 2.0);
     assert!(
         matches!(
-            err,
-            BooleanError::CurvedPierceUnsupported {
-                operand: topo::Operand::A,
-                ..
-            }
+            a.get_face(face).and_then(|f| a.get_surface(f.surface)),
+            Some(geom::Surface::Cylinder { .. })
         ),
-        "expected the circle rung's curved-pierce frontier, got {err:?}"
+        "against the cylinder's wall: {err:?}"
     );
     let msg = format!("{err}");
     assert!(
-        msg.contains("an edge of the first operand touches or crosses a curved face")
+        msg.contains("an edge of the second operand touches or crosses a curved face")
             && msg.contains("Recourse:"),
         "the refusal names the crossing and ends on its recourse: {msg}"
     );

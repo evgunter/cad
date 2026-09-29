@@ -1012,12 +1012,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// bound), so a definitely one-sided arc clears. What definitely MEETS
 /// the face is split by kind, and the third paragraph below is the
 /// statement of record: a LINE carrier against a CYLINDER wall or a
-/// TORUS is routed through the certified roots and pierces; everything
-/// else —
-/// a tangency, a CIRCLE carrier, a sphere face, an undeclared
+/// TORUS, and a CIRCLE carrier against a TORUS, are routed through the
+/// certified roots and pierce; everything else —
+/// a tangency, a circle against a cylinder or sphere, a sphere face, an
+/// undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
-/// in-band clearance escalates (F6, the same margin's other half).
+/// in-band clearance escalates (F6, the same margin's other half) —
+/// except a circle's against a torus, where the certified roots decide
+/// what the enclosures could not.
 /// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
 /// silent fallback.
 ///
@@ -1087,9 +1090,17 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// frontier is everything the roots do not cover: a TANGENCY (an
 /// in-band discriminant, or a torus root count the quartic cannot
 /// certify, is not a crossing at any order this lane sees), a CIRCLE
-/// carrier against a wall (a degree-2 trigonometric residual with no
-/// root lane in this tree), a SPHERE face, and a trim the chart door
-/// declines to express.
+/// carrier against a cylinder wall (a degree-2 trigonometric residual
+/// with no root lane in this tree), a SPHERE face, and a trim the chart
+/// door declines to express.
+///
+/// **A CIRCLE against a TORUS takes the same arms as a line**
+/// ([`super::circle_torus`]): its residual is a degree-2 trigonometric
+/// polynomial, a quartic in the tangent half-angle, and the ray lane's
+/// certified ladder answers it. It reaches those arms only from the
+/// circle rung, after the enclosures failed to clear the arc, and never
+/// through a declared-cover arm — those rest on a line's separation
+/// story.
 ///
 /// **What a successful wall pierce reaches next is a typed door, not
 /// a body**: a ring minted in a cylinder face has no join arm (#1291),
@@ -1257,8 +1268,8 @@ fn curved_face_arm<T: Decide>(
                 circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
                     .ok_or_else(frontier)?
             };
-            return match clearance {
-                Ok(Sign::Positive) => Ok(CurvedEvent::None),
+            match clearance {
+                Ok(Sign::Positive) => return Ok(CurvedEvent::None),
                 // The declared-cover rung: a covered zero-clearance
                 // circle takes the planar sweep's endpoint posture —
                 // each endpoint's own side decides its treatment
@@ -1340,15 +1351,36 @@ fn curved_face_arm<T: Decide>(
                             Sign::Negative => return Err(frontier()),
                         }
                     }
-                    if Placement::records_the_pair(ends) {
+                    return if Placement::records_the_pair(ends) {
                         Ok(CurvedEvent::Recorded)
                     } else {
                         Err(frontier())
-                    }
+                    };
                 }
-                Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
-                Err(diag) => Err(BooleanError::Escalated { diag }),
-            };
+                // **The circle × torus root lane.** An arc the
+                // enclosures could not clear against a TORUS takes the
+                // same endpoint-sign arms as a line below, and the
+                // certified roots of [`super::circle_torus`] decide
+                // every one of them through [`wall_crossing`]. Those
+                // arms never read convexity for a torus (its residual is
+                // not convex along a line either), so nothing they
+                // conclude rests on the carrier being straight. An
+                // ESCALATED clearance goes the same way: the enclosures
+                // are a shortcut in front of the roots, and a margin in
+                // their escalation gap says only that the shortcut did
+                // not decide — the roots still can.
+                //
+                // **Only an UNCOVERED circle falls through.** The
+                // declared-cover arms below rest on a line's separation
+                // story, so a covered circle — whose covered-Zero case
+                // returned above — keeps the frontier door here rather
+                // than reaching them. That makes those arms structurally
+                // line-only, which they assert.
+                Ok(Sign::Zero | Sign::Negative) | Err(_)
+                    if !covered && matches!(surface, geom::Surface::Torus { .. }) => {}
+                Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
+                Err(diag) => return Err(BooleanError::Escalated { diag }),
+            }
         }
         _ => return Err(frontier()),
     }
@@ -1359,6 +1391,9 @@ fn curved_face_arm<T: Decide>(
             band,
         )
     };
+    // The declared-cover arms rest on a LINE's separation story; only an
+    // uncovered circle reaches the endpoint arms (the circle rung above).
+    let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
     let s1 = side(pu).map_err(|diag| BooleanError::Escalated { diag })?;
     let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
     match (s1, s2) {
@@ -1396,6 +1431,10 @@ fn curved_face_arm<T: Decide>(
         // NEGATIVE partner is a genuine crossing — never the covered
         // posture. Uncovered keeps both frontier doors verbatim.
         (Sign::Zero, Sign::Zero) if covered => {
+            debug_assert!(
+                on_line,
+                "a covered circle keeps the frontier at the circle rung"
+            );
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             // An endpoint the containment door cannot decide keeps the
@@ -1410,6 +1449,10 @@ fn curved_face_arm<T: Decide>(
             }
         }
         (Sign::Zero, Sign::Positive) if covered => {
+            debug_assert!(
+                on_line,
+                "a covered circle keeps the frontier at the circle rung"
+            );
             let h = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             if Placement::records_the_pair([Some(h), None]) {
                 Ok(CurvedEvent::Recorded)
@@ -1418,6 +1461,10 @@ fn curved_face_arm<T: Decide>(
             }
         }
         (Sign::Positive, Sign::Zero) if covered => {
+            debug_assert!(
+                on_line,
+                "a covered circle keeps the frontier at the circle rung"
+            );
             let h = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             if Placement::records_the_pair([Some(h), None]) {
                 Ok(CurvedEvent::Recorded)
@@ -1455,7 +1502,7 @@ fn curved_face_arm<T: Decide>(
                 SpanVerdict::Constant | SpanVerdict::Miss | SpanVerdict::Unsettled => {
                     Err(frontier())
                 }
-                SpanVerdict::NoInterior => {
+                SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
                     // UNDECLARED: the undeclared `NoInterior` rule
                     // ([`Placement::undeclared_no_interior`]), over this
                     // span's one ON end.
@@ -1479,13 +1526,17 @@ fn curved_face_arm<T: Decide>(
         // the carrier. Two invariants carry it:
         //
         // - **It is not an on-carrier edge.** `NoInterior` is reached only
-        //   through a certified root count with distinct roots; the lines
-        //   that lie on a wall are its rulings, which answer `Constant`,
-        //   and no line lies on a torus. So the undeclared cosurface
-        //   question (CONTACT-DESIGN C2/C4) keeps its door, and so does a
+        //   through a certified root count with distinct roots. For a
+        //   LINE: the lines that lie on a wall are its rulings, which
+        //   answer `Constant`, and no line lies on a torus. For a CIRCLE
+        //   against a torus: a circle lying on it is either coaxial (a
+        //   rim or latitude circle, answered `Constant`) or has `F ≡ 0`,
+        //   whose pole no anchor can put definitely off the torus
+        //   (`Unsettled`). So the undeclared cosurface question
+        //   (CONTACT-DESIGN C2/C4) keeps its door, and so does a
         //   tangency, a trim with no verdict, and every other answer.
         // - **Its interior meets this face nowhere.** The face lies on its
-        //   carrier; the line meets the carrier only at its certified
+        //   carrier; the edge meets the carrier only at its certified
         //   roots; each root strictly inside the span was placed outside
         //   the trim, and each root at an end is that end's own incidence.
         //
@@ -1494,7 +1545,7 @@ fn curved_face_arm<T: Decide>(
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
-                SpanVerdict::NoInterior => {
+                SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
                     Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
@@ -1505,14 +1556,26 @@ fn curved_face_arm<T: Decide>(
         // **A definite surface crossing: the pierce RING lane.** The
         // endpoints straddle the carrier, so a root exists in the span;
         // `wall_crossing` finds it exactly and the trim decides whether
-        // it lands in this face. `NoInterior` CONTRADICTS the straddle,
-        // so it keeps the door rather than reporting no event — a
-        // contradiction between two certified predicates is exactly
-        // what must not be resolved by picking one.
+        // it lands in this face. A root set that ACCOUNTS for the
+        // straddle off this face ([`SpanVerdict::Elsewhere`]) is no
+        // event here; a `NoInterior` that does not — no root inside the
+        // span, or one at an end the endpoint signs call definite —
+        // CONTRADICTS the straddle, so it keeps the door rather than
+        // reporting no event: a contradiction between two certified
+        // predicates is exactly what must not be resolved by picking
+        // one.
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
+                // The straddle's crossing, found and certified OFF this
+                // face: every root inside the span is on the carrier
+                // outside the trim, and both ends are definitely off the
+                // carrier, so the span meets this face nowhere. Where the
+                // crossing's incidence lives — a sibling face on the same
+                // carrier, or no face of this operand — is that face's
+                // pair, not this one.
+                SpanVerdict::Elsewhere => Ok(CurvedEvent::None),
                 _ => Err(frontier()),
             }
         }
@@ -1534,7 +1597,9 @@ fn curved_face_arm<T: Decide>(
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
-                SpanVerdict::NoInterior | SpanVerdict::Miss => Ok(CurvedEvent::None),
+                SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
+                    Ok(CurvedEvent::None)
+                }
                 SpanVerdict::Constant | SpanVerdict::Unsettled => Err(frontier()),
             }
         }
@@ -1627,7 +1692,9 @@ fn curved_face_arm<T: Decide>(
                         // definitely clear, and exactly so — the bound
                         // that sent us here could only ever have said
                         // "maybe".
-                        SpanVerdict::NoInterior | SpanVerdict::Miss => Ok(CurvedEvent::None),
+                        SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
+                            Ok(CurvedEvent::None)
+                        }
                         // **`Constant` is NOT a clearance here.** It
                         // reports that the axis-parallel test —
                         // `|d_perp|²/2r`, a SQUARED transverse
@@ -1718,7 +1785,7 @@ fn on_declared_rest_carrier<T: Decide>(
     .any(|pf| declared.verified_one_carrier(x_is, pf, x_is.other(), face))
 }
 
-/// What the certified line × wall roots say about ONE edge span.
+/// What the certified carrier × wall roots say about ONE edge span.
 #[derive(Debug, Clone, Copy)]
 enum SpanVerdict<T: geom_core::Real> {
     /// A definite crossing strictly inside the span, which the trim
@@ -1732,13 +1799,25 @@ enum SpanVerdict<T: geom_core::Real> {
     /// torus), none of them STRICTLY INSIDE the span on this face: each
     /// lies outside the span, sits at one of its ends, or lands on the
     /// carrier outside the face's trim. Distinct certified roots also
-    /// certify that the line does not LIE on the carrier (not a ruling
-    /// of a wall; no line lies on a torus), which is what separates a
-    /// chord from an on-carrier edge. What the
+    /// certify that the edge does not LIE on the carrier (a line: not a
+    /// ruling of a wall, and no line lies on a torus; a circle: a
+    /// certified count needs a pole definitely off the torus, which a
+    /// circle lying on it has nowhere), which is what separates a chord
+    /// from an on-carrier edge. What the
     /// absence of an interior crossing licenses depends on the
     /// endpoints, so the caller decides — an endpoint incidence is
     /// still an event, it is just not an interior one.
     NoInterior,
+    /// The [`Self::NoInterior`] case with its crossing ACCOUNTED FOR: at
+    /// least one root lies strictly inside the span, every such root
+    /// was placed on the carrier and definitely OUTSIDE this face's
+    /// trim, and no root sits at either end. It is `NoInterior` in every
+    /// respect a caller that accepts `NoInterior` reads; what it adds is
+    /// for the straddling span, whose endpoint signs PROMISE a crossing
+    /// — here the promise is kept, on the carrier, off this face. A
+    /// `NoInterior` with no such root cannot keep it, and that
+    /// contradiction still keeps the door.
+    Elsewhere,
     /// The line is parallel to the axis, so its residual is CONSTANT
     /// along the span. Nothing about the span's interior differs from
     /// its endpoints — which makes it a clearance answer for a caller
@@ -1752,10 +1831,11 @@ enum SpanVerdict<T: geom_core::Real> {
     Unsettled,
 }
 
-/// The line × curved-wall crossing route: solve the certified roots —
-/// the quadratic on a cylinder wall, the quartic on a torus — keep the
-/// roots the EDGE's span carries strictly inside, and place the landing
-/// point in the face's trim.
+/// The curved-wall crossing route: solve the certified roots — a
+/// line's quadratic on a cylinder wall, its quartic on a torus, a
+/// circle's half-angle quartic on a torus — keep the roots the EDGE's
+/// span carries strictly inside, and place the landing point in the
+/// face's trim.
 ///
 /// **Roots at the span's ends are deliberately NOT interior.** A root
 /// the band cannot separate from an endpoint is that endpoint's own
@@ -1780,80 +1860,70 @@ fn wall_crossing<T: Decide>(
     t1: T,
     band: Band,
 ) -> Result<SpanVerdict<T>, BooleanError> {
-    let geom::Curve3::Line { origin, dir } = *carrier else {
-        // A carrier that is not a line: no root lane here.
-        return Ok(SpanVerdict::Unsettled);
-    };
-    // The certified roots, per kind. Both lanes answer the same three
-    // ways — a certified root set, a definite miss, or no certain
-    // count — and the cylinder adds a fourth, the axis-parallel line
-    // whose residual is constant. A line never lies on a torus, so the
-    // torus has no such case.
     let mut roots = [T::zero(); 4];
-    let count = match *surface {
-        geom::Surface::Cylinder {
-            origin: c_origin,
+    // The carrier's metres per unit of its parameter, so that a root's
+    // distance from the span's ends is metered as a length: a `Line`'s
+    // `dir` is unit (its parameter IS arc length), a `Circle`'s
+    // parameter is an angle and its arc length is `radius·Δθ`.
+    let (count, metres_per_param) = match *carrier {
+        geom::Curve3::Line { origin, dir } => (
+            line_wall_root_count(origin, dir, surface, &mut roots, band)?,
+            T::one(),
+        ),
+        // The circle × torus quartic ([`super::circle_torus`]). A circle
+        // against any other kind has no root lane here, and the door
+        // says so (`Uncertain`).
+        geom::Curve3::Circle {
+            center,
             axis,
             radius,
-            ..
-        } => match super::solid_contain::line_wall_roots(origin, dir, c_origin, axis, radius, band)
-            .map_err(|diag| BooleanError::Escalated { diag })?
-        {
-            super::solid_contain::WallRoots::Two(ts) => {
-                roots[..2].copy_from_slice(&ts);
-                2
-            }
-            // A tangency is not a crossing this lane can act on: the
-            // material verdicts behind a pierce are first-order, and
-            // along a tangency every first-order datum ties. It keeps
-            // the door.
-            super::solid_contain::WallRoots::Tangent => return Ok(SpanVerdict::Unsettled),
-            // A constant residual, or no root on the infinite line at all.
-            super::solid_contain::WallRoots::AxisParallel => return Ok(SpanVerdict::Constant),
-            super::solid_contain::WallRoots::Miss => return Ok(SpanVerdict::Miss),
-        },
-        // The quartic: the ray lane's own certified root door, over the
-        // edge's span instead of a ray's forward half. It answers only
-        // on a CERTIFIED count, so a graze, a repeated root, or a
-        // classifying sign in the band is `Uncertain` and keeps the
-        // door exactly as the cylinder's tangency does.
-        geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => match super::solid_contain::line_torus_roots(
-            origin,
-            dir,
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            band,
+            u_ref,
+        } => match super::circle_torus::circle_torus_roots(
+            center, axis, radius, u_ref, t0, t1, surface, band,
         )
         .map_err(|diag| BooleanError::Escalated { diag })?
         {
-            super::solid_contain::TorusRoots::Certified { count, ts } => {
-                roots = ts;
-                count
+            super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
+                roots = thetas;
+                (Ok(count), radius)
             }
-            super::solid_contain::TorusRoots::Uncertain => return Ok(SpanVerdict::Unsettled),
-            super::solid_contain::TorusRoots::Miss => return Ok(SpanVerdict::Miss),
+            // A coaxial carrier's residual is constant: the circle rung's
+            // analogue of the axis-parallel line.
+            super::circle_torus::CircleTorusRoots::Coaxial => (Err(SpanVerdict::Constant), radius),
+            super::circle_torus::CircleTorusRoots::Uncertain => {
+                (Err(SpanVerdict::Unsettled), radius)
+            }
+            super::circle_torus::CircleTorusRoots::Miss => (Err(SpanVerdict::Miss), radius),
         },
-        // A sphere face: no root lane here, and inventing one is not
-        // this function's business.
         _ => return Ok(SpanVerdict::Unsettled),
     };
+    let count = match count {
+        Ok(count) => count,
+        Err(verdict) => return Ok(verdict),
+    };
     let ts = &roots[..count];
+    // Whether some root sits at an end of the span, and whether some
+    // root strictly inside it was placed outside this face's trim: the
+    // two facts that tell [`SpanVerdict::Elsewhere`] from
+    // [`SpanVerdict::NoInterior`].
+    let mut at_end = false;
+    let mut crossed_elsewhere = false;
     for &t in ts {
-        // `t` is arc length in metres (a `Line` carrier's `dir` is
-        // unit), so both gaps are lengths and take `Margin::of`.
+        // Each gap is a length: `metres_per_param` turns a carrier
+        // parameter difference into arc length.
         let mut interior = true;
         for gap in [t - t0, t1 - t] {
-            match decide("bool_wall_root_in_span", Margin::of(gap), band) {
+            match decide(
+                "bool_wall_root_in_span",
+                Margin::of(gap * metres_per_param),
+                band,
+            ) {
                 Ok(Sign::Positive) => {}
-                Ok(Sign::Negative | Sign::Zero) => interior = false,
+                Ok(Sign::Zero) => {
+                    interior = false;
+                    at_end = true;
+                }
+                Ok(Sign::Negative) => interior = false,
                 Err(diag) => return Err(BooleanError::Escalated { diag }),
             }
         }
@@ -1880,7 +1950,7 @@ fn wall_crossing<T: Decide>(
             // On the carrier and definitely outside THIS face's trim:
             // the carrier is crossed, but not here. The other roots may
             // still land in the face, so the loop continues.
-            Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => {}
+            Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => crossed_elsewhere = true,
             Ok(CurvedPlacement::Trim(Some(at))) => return Ok(SpanVerdict::Pierce { t, p, at }),
             Err(super::contain::ContainError::Escalated(diag)) => {
                 return Err(BooleanError::Escalated { diag });
@@ -1894,7 +1964,93 @@ fn wall_crossing<T: Decide>(
             Err(_) => return Ok(SpanVerdict::Unsettled),
         }
     }
-    Ok(SpanVerdict::NoInterior)
+    Ok(no_pierce_verdict(crossed_elsewhere, at_end))
+}
+
+/// The verdict of a root set with no pierce in this face: `Elsewhere`
+/// only when some root strictly inside the span was placed outside the
+/// trim AND no root sits at an end — the one case that accounts for a
+/// straddle's crossing. A root set with no interior root (or with one at
+/// an end) is `NoInterior`, which the straddle arm reads as a
+/// contradiction and keeps the door on.
+fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) -> SpanVerdict<T> {
+    if crossed_elsewhere && !at_end {
+        SpanVerdict::Elsewhere
+    } else {
+        SpanVerdict::NoInterior
+    }
+}
+
+/// The certified LINE × wall roots, per kind, written into `roots`:
+/// `Ok(count)` for a certified root set, `Err(verdict)` for the answers
+/// that are not one.
+fn line_wall_root_count<T: Decide>(
+    origin: Point3<T>,
+    dir: geom_core::Vec3<T>,
+    surface: &geom::Surface<T>,
+    roots: &mut [T; 4],
+    band: Band,
+) -> Result<Result<usize, SpanVerdict<T>>, BooleanError> {
+    // The certified roots, per kind. Both lanes answer the same three
+    // ways — a certified root set, a definite miss, or no certain
+    // count — and the cylinder adds a fourth, the axis-parallel line
+    // whose residual is constant. A line never lies on a torus, so the
+    // torus has no such case.
+    Ok(match *surface {
+        geom::Surface::Cylinder {
+            origin: c_origin,
+            axis,
+            radius,
+            ..
+        } => match super::solid_contain::line_wall_roots(origin, dir, c_origin, axis, radius, band)
+            .map_err(|diag| BooleanError::Escalated { diag })?
+        {
+            super::solid_contain::WallRoots::Two(ts) => {
+                roots[..2].copy_from_slice(&ts);
+                Ok(2)
+            }
+            // A tangency is not a crossing this lane can act on: the
+            // material verdicts behind a pierce are first-order, and
+            // along a tangency every first-order datum ties. It keeps
+            // the door.
+            super::solid_contain::WallRoots::Tangent => return Ok(Err(SpanVerdict::Unsettled)),
+            // A constant residual, or no root on the infinite line at all.
+            super::solid_contain::WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
+            super::solid_contain::WallRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+        },
+        // The quartic: the ray lane's own certified root door, over the
+        // edge's span instead of a ray's forward half. It answers only
+        // on a CERTIFIED count, so a graze, a repeated root, or a
+        // classifying sign in the band is `Uncertain` and keeps the
+        // door exactly as the cylinder's tangency does.
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => match super::solid_contain::line_torus_roots(
+            origin,
+            dir,
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            band,
+        )
+        .map_err(|diag| BooleanError::Escalated { diag })?
+        {
+            super::solid_contain::TorusRoots::Certified { count, ts } => {
+                *roots = ts;
+                Ok(count)
+            }
+            super::solid_contain::TorusRoots::Uncertain => return Ok(Err(SpanVerdict::Unsettled)),
+            super::solid_contain::TorusRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+        },
+        // A sphere face: no root lane here, and inventing one is not
+        // this function's business.
+        _ => return Ok(Err(SpanVerdict::Unsettled)),
+    })
 }
 
 /// What one edge×curved-face pair asks of the sweep.
@@ -2358,3 +2514,29 @@ mod undeclared_rule_rows {
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]
 mod coplanar_conic_rows;
+
+#[cfg(test)]
+mod no_pierce_tests {
+    use super::{SpanVerdict, no_pierce_verdict};
+
+    /// **A straddle with no root in the span keeps the door.** Only an
+    /// interior root placed off this face, with no root at an end,
+    /// accounts for a straddle's crossing; every other combination is
+    /// `NoInterior`, which the straddle arm refuses on.
+    #[test]
+    fn only_an_interior_root_off_the_face_is_elsewhere() {
+        for (crossed, at_end, want_elsewhere) in [
+            (true, false, true),
+            (false, false, false),
+            (true, true, false),
+            (false, true, false),
+        ] {
+            let got = no_pierce_verdict::<f64>(crossed, at_end);
+            assert_eq!(
+                matches!(got, SpanVerdict::Elsewhere),
+                want_elsewhere,
+                "crossed_elsewhere {crossed}, at_end {at_end}: {got:?}"
+            );
+        }
+    }
+}

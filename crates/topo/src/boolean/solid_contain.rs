@@ -3981,7 +3981,6 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///
 /// [`geom_core::Indeterminate`] — an in-band classifying sign, or the
 /// `Invalid` of rung 5. The caller wraps it in its own error type.
-#[allow(clippy::too_many_lines)] // one closed form, its ladder and its cross-check
 pub(super) fn line_torus_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -3994,11 +3993,6 @@ pub(super) fn line_torus_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
-    let invalid = |predicate| Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
-        band,
-        predicate: Some(predicate),
-    };
     let w0 = q - center;
     let e = d.dot(axis);
     let b = w0.dot(d);
@@ -4013,26 +4007,93 @@ pub(super) fn line_torus_roots<T: Decide>(
     let p = two * big_m - four * rr * (T::one() - e.powi(2));
     let q_hat = T::from_f64(8.0) * rr * e * n;
     let s = big_m.powi(2) - four * rr * (m - n.powi(2));
+    match depressed_quartic_roots(p, q_hat, s, ext, &RAY_TORUS_ROWS, band)? {
+        TorusRoots::Certified { count, ts: ys } => {
+            let mut ts = [T::zero(); 4];
+            for (t, y) in ts.iter_mut().zip(ys).take(count) {
+                // Undo the depression: `t = y − b`.
+                *t = y - b;
+            }
+            Ok(TorusRoots::Certified { count, ts })
+        }
+        other => Ok(other),
+    }
+}
+
+/// The predicate names one caller of [`depressed_quartic_roots`] meters
+/// its ladder under, so each lane's rows stay its own in the verdict
+/// log.
+pub(super) struct QuarticRows {
+    pub(super) disc: &'static str,
+    pub(super) shape: &'static str,
+    pub(super) depth: &'static str,
+    pub(super) odd: &'static str,
+    pub(super) split: &'static str,
+    pub(super) split_lead: &'static str,
+    pub(super) count: &'static str,
+}
+
+/// The ray × torus lane's rows ([`line_torus_roots`]).
+const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
+    disc: "bool_ray_torus_disc",
+    shape: "bool_ray_torus_shape",
+    depth: "bool_ray_torus_depth",
+    odd: "bool_ray_torus_odd",
+    split: "bool_ray_torus_split",
+    split_lead: "bool_ray_torus_split_lead",
+    count: "bool_ray_torus_count",
+};
+
+/// **The certified real roots of the depressed monic quartic**
+/// `y⁴ + p y² + q̂ y + s`, the ladder [`line_torus_roots`] documents
+/// rung by rung: the count read off exact sign algebra (`Δ`, then `p`
+/// and `D = 64s − 16p²` on the positive branch), the biquadratic arm
+/// when `q̂` is in band, Ferrari's factorization otherwise, and the
+/// constructed count checked against the certified one.
+///
+/// `y` is a LENGTH and `lever` the length scale its roots spread over:
+/// every margin is metered as `coefficient / lever^k` so that it is a
+/// length (`Δ` over `lever¹¹`, `p` over `lever`, `D` over `lever³`,
+/// `q̂` over `lever²`, the factors' discriminants over `lever`), which
+/// is what makes the ladder's band a statement in metres. The roots
+/// come back unordered in `ts[..count]`, in the `y` variable.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] — an in-band classifying sign, or the
+/// `Invalid` of the count cross-check (`rows.count`).
+#[allow(clippy::too_many_lines)] // one closed form and its ladder
+pub(super) fn depressed_quartic_roots<T: Decide>(
+    p: T,
+    q_hat: T,
+    s: T,
+    lever: T,
+    rows: &QuarticRows,
+    band: Band,
+) -> Result<TorusRoots<T>, Indeterminate> {
+    let two = T::from_f64(2.0);
+    let four = T::from_f64(4.0);
+    let invalid = |predicate| Indeterminate {
+        margin: geom_core::MarginDiag::Invalid,
+        band,
+        predicate: Some(predicate),
+    };
     let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
         + T::from_f64(144.0) * p * q_hat.powi(2) * s
         - T::from_f64(27.0) * q_hat.powi(4)
         + T::from_f64(16.0) * p.powi(4) * s
         - four * p.powi(3) * q_hat.powi(2);
-    let disc_sign = decide(
-        "bool_ray_torus_disc",
-        Margin::over_lever(disc, ext.powi(11)),
-        band,
-    )?;
+    let disc_sign = decide(rows.disc, Margin::over_lever(disc, lever.powi(11)), band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
         Sign::Zero => return Ok(TorusRoots::Uncertain),
         Sign::Positive => {
-            let shape = decide("bool_ray_torus_shape", Margin::over_lever(p, ext), band)?;
+            let shape = decide(rows.shape, Margin::over_lever(p, lever), band)?;
             let depth = decide(
-                "bool_ray_torus_depth",
+                rows.depth,
                 Margin::over_lever(
                     T::from_f64(64.0) * s - T::from_f64(16.0) * p.powi(2),
-                    ext.powi(3),
+                    lever.powi(3),
                 ),
                 band,
             )?;
@@ -4051,64 +4112,52 @@ pub(super) fn line_torus_roots<T: Decide>(
     // The two quadratic factors of the depressed quartic, as
     // `(y² + α y + β)(y² − α y + γ)`. The biquadratic arm is the
     // `α = 0` one and is taken on its own closed form.
-    let (f0, f1) = if decide(
-        "bool_ray_torus_odd",
-        Margin::over_lever(q_hat, ext.powi(2)),
-        band,
-    )? == Sign::Zero
-    {
-        // `y⁴ + p y² + s`: with `α = 0` the factorization's own
-        // relations collapse to `β + γ = p` and `βγ = s`, so the two
-        // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
-        // `X² − pX + s`. Those are the NEGATIVES of the roots of the
-        // quadratic in `y²`, which is the sign this arm is easy to get
-        // backwards and which no in-band case would have caught.
-        let inner = p.powi(2) - four * s;
-        match decide(
-            "bool_ray_torus_split",
-            Margin::over_lever(inner, ext.powi(3)),
-            band,
-        )? {
-            Sign::Positive => {}
-            // A repeated `y²`, or none at all with a count that says
-            // otherwise: neither is a certified pair of factors.
-            Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
-        }
-        let root = inner.max(T::zero()).sqrt();
-        ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
-    } else {
-        // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
-        // whose constant term is negative, so its LARGEST real root is
-        // positive — the one root whose square root splits the quartic
-        // over the reals. On four real quartic roots the resolvent has
-        // three and the largest is at least a third of their sum; on two
-        // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
-        // (a ray all but perpendicular to the axis), which is where
-        // `cubic_largest_real_root`'s conditioning has to come from its
-        // own construction rather than from the choice. The resolvent
-        // shares the quartic's discriminant, so the branch is the sign
-        // already decided above rather than a second decision.
-        let z = cubic_largest_real_root(
-            two * p,
-            p.powi(2) - four * s,
-            T::zero() - q_hat.powi(2),
-            disc_sign == Sign::Positive,
-        );
-        match decide(
-            "bool_ray_torus_split_lead",
-            Margin::over_lever(z, ext),
-            band,
-        )? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
-        }
-        let alpha = z.max(T::zero()).sqrt();
-        let half_gap = q_hat / alpha;
-        (
-            (alpha, (p + z - half_gap) / two),
-            (T::zero() - alpha, (p + z + half_gap) / two),
-        )
-    };
+    let (f0, f1) =
+        if decide(rows.odd, Margin::over_lever(q_hat, lever.powi(2)), band)? == Sign::Zero {
+            // `y⁴ + p y² + s`: with `α = 0` the factorization's own
+            // relations collapse to `β + γ = p` and `βγ = s`, so the two
+            // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
+            // `X² − pX + s`. Those are the NEGATIVES of the roots of the
+            // quadratic in `y²`, which is the sign this arm is easy to get
+            // backwards and which no in-band case would have caught.
+            let inner = p.powi(2) - four * s;
+            match decide(rows.split, Margin::over_lever(inner, lever.powi(3)), band)? {
+                Sign::Positive => {}
+                // A repeated `y²`, or none at all with a count that says
+                // otherwise: neither is a certified pair of factors.
+                Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
+            }
+            let root = inner.max(T::zero()).sqrt();
+            ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
+        } else {
+            // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
+            // whose constant term is negative, so its LARGEST real root is
+            // positive — the one root whose square root splits the quartic
+            // over the reals. On four real quartic roots the resolvent has
+            // three and the largest is at least a third of their sum; on two
+            // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
+            // (a ray all but perpendicular to the axis), which is where
+            // `cubic_largest_real_root`'s conditioning has to come from its
+            // own construction rather than from the choice. The resolvent
+            // shares the quartic's discriminant, so the branch is the sign
+            // already decided above rather than a second decision.
+            let z = cubic_largest_real_root(
+                two * p,
+                p.powi(2) - four * s,
+                T::zero() - q_hat.powi(2),
+                disc_sign == Sign::Positive,
+            );
+            match decide(rows.split_lead, Margin::over_lever(z, lever), band)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
+            }
+            let alpha = z.max(T::zero()).sqrt();
+            let half_gap = q_hat / alpha;
+            (
+                (alpha, (p + z - half_gap) / two),
+                (T::zero() - alpha, (p + z + half_gap) / two),
+            )
+        };
     // Each factor `y² + a y + c` contributes its own two roots when its
     // discriminant is definitely positive, none when definitely
     // negative. A ZERO discriminant is a double root, which contradicts
@@ -4117,15 +4166,14 @@ pub(super) fn line_torus_roots<T: Decide>(
     let mut found = 0usize;
     for (a, c) in [f0, f1] {
         let inner = a.powi(2) - four * c;
-        match decide("bool_ray_torus_split", Margin::over_lever(inner, ext), band)? {
+        match decide(rows.split, Margin::over_lever(inner, lever), band)? {
             Sign::Negative => continue,
             Sign::Zero => return Ok(TorusRoots::Uncertain),
             Sign::Positive => {}
         }
         let root = inner.max(T::zero()).sqrt();
         for y in [(T::zero() - a - root) / two, (T::zero() - a + root) / two] {
-            // Undo the depression: `t = y − b`.
-            ts[found] = y - b;
+            ts[found] = y;
             found += 1;
         }
     }
@@ -4141,7 +4189,7 @@ pub(super) fn line_torus_roots<T: Decide>(
     // coefficients, and this is the one place they are made to agree.
     // Its cost is one comparison.
     if found != count {
-        return Err(invalid("bool_ray_torus_count"));
+        return Err(invalid(rows.count));
     }
     Ok(TorusRoots::Certified { count, ts })
 }
