@@ -189,7 +189,10 @@ fn the_nested_cone_has_no_cone_pair() {
     let cone = cone();
     let big = brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), Tol::witness());
     assert!(cone_verdicts(&cone, &big).is_empty());
-    assert_eq!(no_crossings_certificates(&cone, &big, Tol::witness()).unwrap(), 0);
+    assert_eq!(
+        no_crossings_certificates(&cone, &big, Tol::witness()).unwrap(),
+        0
+    );
 }
 
 /// **P1, an oblique rod**: the preview's bite carrier, a cylinder along
@@ -219,7 +222,10 @@ fn an_oblique_rod_refuses_on_reach() {
             what,
         }) => {
             assert!(what.contains("no section classification"), "{what}");
-            assert!(operand == topo::Operand::A && is_cone(&cone, face), "{face:?}");
+            assert!(
+                operand == topo::Operand::A && is_cone(&cone, face),
+                "{face:?}"
+            );
         }
         other => panic!("{other:?}"),
     }

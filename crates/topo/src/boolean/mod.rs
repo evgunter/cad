@@ -81,9 +81,9 @@ mod join;
 mod ops;
 pub(crate) mod section_cert;
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use ops::{no_crossings_certificates, no_crossings_section_report};
-#[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use ops::{no_crossings_certificates, no_crossings_section_report};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;

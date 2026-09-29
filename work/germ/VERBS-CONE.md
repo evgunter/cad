@@ -94,3 +94,11 @@ and sphere pairs certified on the no-crossings path".
 
 - **`reduce.rs` `curved_face_arm`, the "both endpoints inside" arm (about `:1519` on `2ba90bced`).** It rests on the carrier's convexity, which holds for a cylinder or a sphere. A cone's is not the same: a nappe pair is not convex, and the apex breaks it. Unreachable today only through the roster.
 - **The section certificate's cone arms (its spec's Q3):** the crossings-path half, AND the no-crossings arm that replaces the extent gates. These land with this item.
+
+**2026-09-29, U4 (the certificate's cone rows).** `section_cert::classify`
+answers cone × {plane, sphere, coaxial cylinder, coaxial cone, coaxial
+torus, parallel-axis cylinder}; oblique cylinders, tilted and
+parallel-axis cones, non-coaxial tori and splines stay R-reach. Cone ×
+plane is decided on the aperture margin alone, never on the apex's
+offset (a Zero offset does not bound the ellipse). The roster stays
+closed until U7.

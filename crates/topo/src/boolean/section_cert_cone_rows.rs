@@ -73,7 +73,9 @@ fn witnesses_on_both(s: &Section<f64>, f: &Surface<f64>, g: &Surface<f64>) -> Ve
     parts
         .iter()
         .map(|c| {
-            let w = c.witness.expect("every cone component here carries a witness");
+            let w = c
+                .witness
+                .expect("every cone component here carries a witness");
             on_both(w, f, g);
             w
         })
@@ -236,7 +238,10 @@ fn a_ball_on_the_lateral_face_is_one_null_loop() {
         assert_eq!(shape(&s), shape_of(1, true, false, false, false), "{side}");
         let w = witness(&s);
         on_both(w, &cone, &ball);
-        assert!(w.z * side > 0.0, "the loop's witness {w:?} is on the ball's nappe");
+        assert!(
+            w.z * side > 0.0,
+            "the loop's witness {w:?} is on the ball's nappe"
+        );
         assert_eq!(certify(&s, false, |_| true, at(IN, IN)), Err(Refusal::Loop));
         assert_eq!(
             certify(&s, true, |_| true, at(IN, IN)),
@@ -324,7 +329,10 @@ fn coaxial_partners_meet_the_cone_in_parallels() {
     let pair = shape_of(2, false, true, true, false);
     let apart = shape_of(0, false, false, false, false);
     assert_eq!(
-        shape(&both(&cone, &cylinder(p(0.0, 0.0, 5.0), Vec3::unit_z(), 0.5))),
+        shape(&both(
+            &cone,
+            &cylinder(p(0.0, 0.0, 5.0), Vec3::unit_z(), 0.5)
+        )),
         pair
     );
     let other = |apex: Point3<f64>, axis: Vec3<f64>| Surface::Cone {
@@ -389,11 +397,7 @@ fn a_parallel_axis_cylinder_every_class() {
 
 /// The full rim of [`unit_cone`] at height `z`, as the intersection of
 /// `cone` and the rim plane there.
-fn cone_rim(
-    body: &mut Body<f64>,
-    cone: crate::geometry::SurfaceKey,
-    z: f64,
-) -> EdgeCurveSpec<f64> {
+fn cone_rim(body: &mut Body<f64>, cone: crate::geometry::SurfaceKey, z: f64) -> EdgeCurveSpec<f64> {
     let rim_plane = body.add_surface(plane(p(0.0, 0.0, z), Vec3::unit_z()));
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
@@ -463,7 +467,12 @@ fn seamless_cone_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 /// A slab `0.2` thick and `6` wide about `z = z0`, tilted by `tilt` about
 /// the `y` line through `(0, 0, z0)`.
 fn slab(z0: f64, tilt: f64) -> Body<f64> {
-    let b = brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (z0 - 0.1, z0 + 0.1), Tol::witness());
+    let b = brick::<f64>(
+        (-3.0, 3.0),
+        (-3.0, 3.0),
+        (z0 - 0.1, z0 + 0.1),
+        Tol::witness(),
+    );
     let turn = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, z0), Vec3::unit_y(), tilt);
     crate::transform::transform_rigid(&b, &turn, Tol::witness()).unwrap()
 }
@@ -532,7 +541,10 @@ fn the_ellipse_clears_by_w2_on_a_describing_cone_face() {
             verdicts.contains(&Ok(vec![Cleared::Essential(Side::F)])),
             "sheet {i}: {verdicts:?}"
         );
-        assert!(verdicts.iter().all(Result::is_ok), "sheet {i}: {verdicts:?}");
+        assert!(
+            verdicts.iter().all(Result::is_ok),
+            "sheet {i}: {verdicts:?}"
+        );
     }
 }
 
@@ -548,7 +560,10 @@ fn the_ellipse_clears_by_w2_on_a_describing_cone_face() {
 #[test]
 fn the_ellipse_on_a_seamless_band_is_w4_with_an_event_and_undecided_without() {
     let (band_body, face) = seamless_cone_band(0.5, 1.5);
-    assert!(!describes(&band_body, face), "the seamless band does not describe");
+    assert!(
+        !describes(&band_body, face),
+        "the seamless band does not describe"
+    );
     let slab = slab(1.0, 0.2);
     let quiet = scan_with(&band_body, face, &slab, false);
     assert_eq!(quiet.len(), 2, "the slab's two broad faces: {quiet:?}");
@@ -593,4 +608,3 @@ fn a_parabola_on_a_seamless_band_refuses_undecided() {
         "{verdicts:?}"
     );
 }
-

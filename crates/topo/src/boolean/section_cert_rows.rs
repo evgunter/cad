@@ -764,7 +764,11 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 
 /// The verdict of every pair of `a`'s `face` against `b`'s faces on the
 /// crossings path, with no events.
-pub(super) fn scan(a: &Body<f64>, face: FaceKey, b: &Body<f64>) -> Vec<Result<Vec<Cleared>, Refusal>> {
+pub(super) fn scan(
+    a: &Body<f64>,
+    face: FaceKey,
+    b: &Body<f64>,
+) -> Vec<Result<Vec<Cleared>, Refusal>> {
     ops::section_pairs(
         a,
         b,
@@ -960,7 +964,11 @@ fn a_far_origin_does_not_make_a_wall_coaxial() {
 // -------------------------------------------------------------------
 
 /// The verdict of every pair of `b`'s `face` against `a`'s faces.
-pub(super) fn scan_b(a: &Body<f64>, b: &Body<f64>, face: FaceKey) -> Vec<Result<Vec<Cleared>, Refusal>> {
+pub(super) fn scan_b(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    face: FaceKey,
+) -> Vec<Result<Vec<Cleared>, Refusal>> {
     ops::section_pairs(
         a,
         b,
@@ -1384,7 +1392,11 @@ pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, Face
     (body, face)
 }
 
-pub(super) fn contain_at(body: &Body<f64>, face: FaceKey, q: Point3<f64>) -> Option<FaceContainment> {
+pub(super) fn contain_at(
+    body: &Body<f64>,
+    face: FaceKey,
+    q: Point3<f64>,
+) -> Option<FaceContainment> {
     crate::curved_face_containment(body, face, q, band()).unwrap()
 }
 

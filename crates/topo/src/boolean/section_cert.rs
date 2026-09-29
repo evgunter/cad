@@ -408,7 +408,11 @@ pub(crate) fn classify<T: Decide>(
     match (f, g) {
         (
             S::Torus { .. },
-            S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. } | S::Torus { .. },
+            S::Plane { .. }
+            | S::Sphere { .. }
+            | S::Cylinder { .. }
+            | S::Cone { .. }
+            | S::Torus { .. },
         ) => torus_pair(f, g, reach, band),
         (
             S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
@@ -617,8 +621,14 @@ fn torus_pair<T: Decide>(
                     let z = (c - apex).dot(d);
                     match signs(
                         [
-                            ("section_torus_coaxial_cone_near", r - (big_r * co - z * s).abs()),
-                            ("section_torus_coaxial_cone_far", r - (big_r * co + z * s).abs()),
+                            (
+                                "section_torus_coaxial_cone_near",
+                                r - (big_r * co - z * s).abs(),
+                            ),
+                            (
+                                "section_torus_coaxial_cone_far",
+                                r - (big_r * co + z * s).abs(),
+                            ),
                         ],
                         band,
                     ) {
@@ -1045,11 +1055,7 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         Err(tan) => return tan,
     };
     let across = delta - cone.a * delta.dot(cone.a);
-    let r = match sign(
-        "section_cone_sphere_axis",
-        Margin::of(across.norm()),
-        band,
-    ) {
+    let r = match sign("section_cone_sphere_axis", Margin::of(across.norm()), band) {
         Some(Sign::Positive) => across / across.norm(),
         Some(Sign::Zero) => cone.u_ref,
         _ => return Section::Tangent("section_cone_sphere_axis"),
@@ -1392,11 +1398,10 @@ pub(crate) fn certify<T: Decide>(
 }
 
 #[cfg(test)]
+mod cone_search;
+#[cfg(test)]
 #[path = "section_cert_cone_rows.rs"]
 mod section_cert_cone_rows;
-#[cfg(test)]
-#[path = "section_cert_cone_search.rs"]
-mod section_cert_cone_search;
 #[cfg(test)]
 #[path = "section_cert_rows.rs"]
 mod section_cert_rows;

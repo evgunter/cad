@@ -94,12 +94,18 @@ fn trace(
             active[cell(i, j)] = !(a == b && b == c && c == d);
             // The right neighbour shares column i + 1.
             if s(i + 1, j) != s(i + 1, j + 1) {
-                let (x, y) = (find(&mut parent, cell(i, j)), find(&mut parent, cell(i + 1, j)));
+                let (x, y) = (
+                    find(&mut parent, cell(i, j)),
+                    find(&mut parent, cell(i + 1, j)),
+                );
                 parent[x] = y;
             }
             // The upper neighbour shares row j + 1.
             if j + 1 < nv && s(i, j + 1) != s(i + 1, j + 1) {
-                let (x, y) = (find(&mut parent, cell(i, j)), find(&mut parent, cell(i, j + 1)));
+                let (x, y) = (
+                    find(&mut parent, cell(i, j)),
+                    find(&mut parent, cell(i, j + 1)),
+                );
                 parent[x] = y;
             }
         }
@@ -158,10 +164,10 @@ impl Traced {
                     continue;
                 }
                 let ii = (i + di).rem_euclid(self.nu as isize) as usize;
-                if let Some(c) = self.comp[jj as usize * self.nu + ii] {
-                    if !out.contains(&c) {
-                        out.push(c);
-                    }
+                if let Some(c) = self.comp[jj as usize * self.nu + ii]
+                    && !out.contains(&c)
+                {
+                    out.push(c);
                 }
             }
         }
@@ -300,7 +306,8 @@ fn plane_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
 }
 
 fn sphere_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
-    let centre = k.apex + k.a * rng.range(-2.0, 2.0) + k.radial(rng.range(0.0, TAU)) * rng.range(0.0, 2.0);
+    let centre =
+        k.apex + k.a * rng.range(-2.0, 2.0) + k.radial(rng.range(0.0, TAU)) * rng.range(0.0, 2.0);
     let delta = k.apex - centre;
     let across = delta - k.a * delta.dot(k.a);
     let r = if across.norm() > 1e-9 {
@@ -310,11 +317,7 @@ fn sphere_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     };
     let (s, c) = k.alpha.sin_cos();
     let line = |w: Vec3<f64>| (delta - w * delta.dot(w)).norm();
-    let near = [
-        delta.norm(),
-        line(k.a * c + r * s),
-        line(k.a * c - r * s),
-    ][rng.below(3)];
+    let near = [delta.norm(), line(k.a * c + r * s), line(k.a * c - r * s)][rng.below(3)];
     let rho = near + offset(rng);
     (rho > 0.05).then(|| Pose {
         what: format!("sphere {centre:?} ρ {rho}"),
@@ -506,25 +509,25 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         radius,
         ..
     } = pose.partner
+        && !matches!(pose.count, Count::Parallels(_))
     {
-        if !matches!(pose.count, Count::Parallels(_)) {
-            let (e1, e2) = axis.orthonormal_basis();
-            let z0 = (k.apex - origin).dot(axis);
-            let on_cyl = trace(
-                &|u, z| origin + (e1 * u.cos() + e2 * u.sin()) * radius + axis * z,
-                &|q| geom_brep::implicit_residual(&cone, q),
-                (z0 - pose.window, z0 + pose.window),
-                400,
-                401,
-            );
-            if on_cyl.classes.iter().any(|c| *c != Class::Essential)
-                || parts.iter().any(|c| !c.essential_g)
-            {
-                bad.push(format!(
-                    "on the cylinder traced {:?}, classified {parts:?}",
-                    on_cyl.classes
-                ));
-            }
+        let (e1, e2) = axis.orthonormal_basis();
+        let z0 = (k.apex - origin).dot(axis);
+        let on_cyl = trace(
+            &|u, z| origin + (e1 * u.cos() + e2 * u.sin()) * radius + axis * z,
+            &|q| geom_brep::implicit_residual(&cone, q),
+            (z0 - pose.window, z0 + pose.window),
+            400,
+            401,
+        );
+        if on_cyl.classes.len() != parts.len()
+            || on_cyl.classes.iter().any(|c| *c != Class::Essential)
+            || parts.iter().any(|c| !c.essential_g)
+        {
+            bad.push(format!(
+                "on the cylinder traced {:?}, classified {parts:?}",
+                on_cyl.classes
+            ));
         }
     }
     bad
@@ -555,9 +558,15 @@ fn the_cone_arms_agree_with_the_traced_section() {
             };
             done += 1;
             let bad = check(&k, &pose);
-            if let Section::Components { parts, .. } =
-                classify(&k.surface(), &pose.partner, Reach { centre: k.apex, radius: 5.0 }, band())
-            {
+            if let Section::Components { parts, .. } = classify(
+                &k.surface(),
+                &pose.partner,
+                Reach {
+                    centre: k.apex,
+                    radius: 5.0,
+                },
+                band(),
+            ) {
                 let mut cs: Vec<Class> = parts.iter().map(class_of).collect();
                 cs.sort();
                 *tally.entry(format!("{cs:?}")).or_default() += 1;
