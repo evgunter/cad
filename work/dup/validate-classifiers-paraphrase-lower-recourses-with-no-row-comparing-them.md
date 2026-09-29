@@ -2,10 +2,10 @@
 id: validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them
 kind: issue
 title: topo: validate.rs's classify_* functions paraphrase lower crates' Display recourses by hand, and no row compares the two
-status: open
+status: closed
+closed: 2026-09-29
+pr: 3387
 opened: 2026-09-26
-design: true
-needs_ev: true
 priority: P3
 cost: D
 refs: [3269, 3294]
@@ -71,10 +71,37 @@ Two designers weighed it independently and recommend the same end state. It gene
 **Why not a row comparing the two texts.** The two texts are not meant to agree. Many arms differ on purpose, because the lever differs by reading: at rest, a re-mint or a finite-offset request is a kernel or file defect. So an equality row is wrong where readings differ and unwritable where they agree, and a hand table of expected texts would be a third copy.
 
 **Drift measured.**
-- `classify_contain`'s `ArcLoopUnsupported` has shown wrong advice at rest since 2026-09-26: the variant was redefined and the classifier was not updated. That one arm is fixed now, separately, by PR (b10-b).
+- `classify_contain`'s `ArcLoopUnsupported` has shown wrong advice at rest since 2026-09-26: the variant was redefined and the classifier was not updated. That one arm is fixed now, separately, by #3388.
 - About ten more arms classify their refusal differently from the type's own text (defect, not-yet, or a lever).
 - Both designers note that the correct text for those arms needs a per-arm ruling, which the follow-up records once in the table.
 
 **Ratified text.** D4 ¶1 (i) (PR 3352) already asks for this: the recourse is an exhaustive match at the decision's site. The one binding sentence that would follow is D4 naming `Reading` as kernel vocabulary.
 
 **Cost.** `Reading` moves into `geom-core`. The follow-up touches `geom-brep`'s `OffsetFitError`, `PropsError` and `PcurveCertifyError`, `topo`'s six own enums, and about 15–20 build-route wrappers. It is reversible one type per PR.
+
+## Closed
+
+Ev ruled on PR 3387 (2026-09-29) against the recommendation. The texts
+stay where they are. Ev asked whether the drift risk was probable. It
+was measured: 25 commits in five days changed a lower refusal's
+wording, and two stale at-rest texts reached main. Ev then asked
+whether the change is justified by code quality, not by drift. It is
+not:
+- the at-rest text belongs to the checks window, which reads it;
+- moving it into the lower crates teaches them about a situation they
+  do not otherwise know;
+- the classifiers already match exhaustively, so a new variant already
+  fails to compile in `validate.rs`.
+Ev agreed (*"sounds good!"*) to this instead:
+- fix the two stale texts: `ArcLoopUnsupported` (#3388) and
+  `classify_offset_fit`'s `Band` arm (#3403);
+- correct `classify_offset_fit`'s header, which claimed its recourses
+  are copies of the fit's (#3403);
+- file one correctness audit for the arms where the two texts classify
+  the refusal differently:
+  `work/restfront/validate-classifiers-and-lower-displays-classify-refusals-differently.md`.
+
+`Reading` stays in `geom-brep`, and D4 gains no sentence.
+`CertifyError::ending` (#3351) stays as it is: there, the ending is
+the band decision's own. The design-fork record is row 8 of
+`docs/DESIGN-FORK-LOG.md`.
