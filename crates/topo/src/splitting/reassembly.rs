@@ -121,7 +121,10 @@ fn reglue_pair<T: geom_core::Decide>(
             tol,
         )
         .unwrap();
-    body.kev(n0.he_plus).unwrap();
+    // The zip's kills merge a vertex into its coincident copy across a
+    // certified closing circle, and the merged fan's chords must still
+    // end where they land: the band-taking kill re-certifies each one.
+    body.kev_describing(n0.he_plus, &[], tol).unwrap();
     for j in (1..n).rev() {
         let nj = body
             .mef(
@@ -134,7 +137,7 @@ fn reglue_pair<T: geom_core::Decide>(
                 tol,
             )
             .unwrap();
-        body.kev(nj.he_plus).unwrap();
+        body.kev_describing(nj.he_plus, &[], tol).unwrap();
         body.kef(rs[(j + 1) % n]).unwrap();
     }
     body.kef(rs[1 % n]).unwrap();

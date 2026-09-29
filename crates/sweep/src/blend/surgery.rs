@@ -2897,11 +2897,12 @@ fn rim_phase<T: Decide + Bounds>(
     // (`props`' inventory; the donut's own representation): so the
     // strut dies by a fan-merging kev that re-anchors the remnant to
     // the trim foot, leaving the remnant as the band's SLIT — a
-    // double-traversed torus meridian, exactly the donut's shape. Its
-    // carrier is re-described as that meridian arc in the final pass
-    // (the kev leaves it spanning foot → split point with a stale
-    // sphere-meridian carrier; nothing validates between here and
-    // there). ----
+    // double-traversed torus meridian, exactly the donut's shape. The
+    // kill re-describes it as it merges it: the remnant would keep a
+    // sphere-meridian carrier to the dying rim vertex, so the kill is
+    // handed the chord foot → split point as scaffolding (the band's
+    // surface does not exist yet), and the final pass states it as the
+    // band's seam, the meridian arc. ----
     let remnant_at = |v: VertexKey| -> Option<(EdgeKey, EdgeKey)> {
         remnants
             .iter()
@@ -2956,12 +2957,14 @@ fn rim_phase<T: Decide + Bounds>(
             } else {
                 hp
             };
-            body.kev(dying).map_err(|e| op("rim closure kev", e))?;
             // The slit's true carrier: the torus minor circle at this
             // vertex's azimuth (radial read off the foot, which lies
             // on the trim circle).
             let fp = strut_hes[idx].1;
             let radial = (fp - ca) / sa;
+            let chord = merged_chord_spec(body, mr, dying, "rim closure kev")?;
+            body.kev_describing(dying, &[(mr, chord)], tol)
+                .map_err(|e| op("rim closure kev", e))?;
             // The slit SURVIVES as the band's own double-traversed
             // meridian: a birth row, not a death.
             rec.slits.push((mr, msrc, band_named.clone()));
@@ -2992,6 +2995,13 @@ fn rim_phase<T: Decide + Bounds>(
             } else {
                 shp
             };
+            // A spur: the rim edges and the plane strut at `v` are
+            // gone, so `v` has valence one and the keys-only kill merges
+            // no fan.
+            debug_assert!(
+                body.kev_merged_members(dying).is_ok_and(|m| m.is_empty()),
+                "rim kev: the remnant is a spur, so the kill merges no fan"
+            );
             body.kev(dying).map_err(|e| op("rim kev", e))?;
             retire_fragment(rec, mr, msrc);
         }
@@ -3686,7 +3696,16 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         } else {
             hp
         };
-        body.kev(dying).map_err(|e| op("annulus closure kev", e))?;
+        // The merge re-bases the mate seam's rim-side piece from the
+        // crossing onto the host foot, where it spans the two feet. The
+        // kill is handed the chord between them as scaffolding; the
+        // closure's piece survives as the slit, whose final description
+        // below states the band's meridian, and every other one dies by
+        // the `kef` after.
+        let member = mate_feet[ix].1;
+        let chord = merged_chord_spec(body, member, dying, "annulus closure kev")?;
+        body.kev_describing(dying, &[(member, chord)], tol)
+            .map_err(|e| op("annulus closure kev", e))?;
         if ix == ann.closure {
             continue;
         }
@@ -4175,6 +4194,36 @@ fn attach_contact<T: Decide + Bounds>(
     // operator refusal that raised it.
     .map_err(|e| op("surgery contact edge", e))?;
     Ok(())
+}
+
+/// What a closure kill hands [`Body::kev_describing`] for the one
+/// member its merge re-bases: the member as the chord between the
+/// endpoints the merge gives it ([`Body::kev_merged_members`]) — the
+/// scaffolding this surgery's struts and trims carry too, until the
+/// description pass states the true carrier ([`attach_contact`], over
+/// the `described` list the member is on). The member spans two
+/// distinct feet, so the chord is a line and never a closed circle.
+/// A chord and not the meridian arc it will rest as: the arc's sweep
+/// is an `atan2` over directions read off a centre that is itself
+/// computed, and its scaffolding residual sets the carrier against a
+/// rotation of its start point by that sweep, so the certified scalar
+/// encloses the residual wider than the tightest band and the kill
+/// escalates; the chord's carrier and its scaffold are one affine
+/// expression each, and enclose it at a few units in the last place.
+fn merged_chord_spec<T: Decide>(
+    body: &Body<T>,
+    member: EdgeKey,
+    dying: HalfEdgeKey,
+    site: &'static str,
+) -> Result<EdgeCurveSpec<T>, BlendError> {
+    let members = body.kev_merged_members(dying).map_err(|e| op(site, e))?;
+    let merged = members.iter().find(|m| m.edge == member).ok_or_else(|| {
+        not_intact(
+            EntityId::Edge(member),
+            "the meridian a closure kill's merge re-bases",
+        )
+    })?;
+    Ok(EdgeCurveSpec::line_between(merged.start, merged.end))
 }
 
 #[cfg(test)]
