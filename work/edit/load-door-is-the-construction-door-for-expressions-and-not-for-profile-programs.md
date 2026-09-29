@@ -2,7 +2,8 @@
 id: load-door-is-the-construction-door-for-expressions-and-not-for-profile-programs
 kind: issue
 title: persist/wire.rs carries two rebuild policies and states one: expressions rebuild through their constructors, profile programs do not
-status: review
+status: closed
+closed: 2026-09-29
 pr: 3460
 opened: 2026-09-15
 priority: P4
