@@ -32,7 +32,7 @@ fn pillow(
     crate::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -316,7 +316,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
 
     // LoopNotCycle: halves claiming an EMPTY loop as parent.
     let (mut body, _, seg, split) = pillow(tol);
-    let seed2 = body.mvfs(p(50.0)).unwrap(); // a second, disjoint skeletal body
+    let seed2 = body.mvfs(p(50.0), true).unwrap(); // a second, disjoint skeletal body
     body.get_half_edge_mut(seg.he_plus).unwrap().parent_loop = seed2.r#loop;
     body.get_half_edge_mut(split.he_minus).unwrap().parent_loop = seed2.r#loop;
     assert_err_deep_unchanged(

@@ -376,15 +376,19 @@ pub(super) fn split_finish<T: Decide>(
         let ring_sense = section_sense(&body, section.face, ring, &plane_for(ring_side), band)?;
         let outer_sense = section_sense(&body, section.face, outer, &plane_for(other_side), band)?;
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
-        body.set_face_surface_and_sense(
+        body.set_face_surface(
             promoted.face,
-            FaceSurface::New(plane_for(ring_side)),
-            ring_sense,
+            FaceSurface::New {
+                surface: plane_for(ring_side),
+                sense: ring_sense,
+            },
         )?;
-        body.set_face_surface_and_sense(
+        body.set_face_surface(
             section.face,
-            FaceSurface::New(plane_for(other_side)),
-            outer_sense,
+            FaceSurface::New {
+                surface: plane_for(other_side),
+                sense: outer_sense,
+            },
         )?;
         body.clear_null_face_pair(section.face);
         section_side.insert(promoted.face, ring_side);

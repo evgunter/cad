@@ -228,12 +228,15 @@ mod tests {
         let mut body = p.body;
         body.set_face_surface(
             face,
-            crate::FaceSurface::New(geom::Surface::Sphere {
-                center: geom_core::Point3::new(0.0, 0.0, 0.0),
-                radius: 2.0,
-                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
-            }),
+            crate::FaceSurface::New {
+                surface: geom::Surface::Sphere {
+                    center: geom_core::Point3::new(0.0, 0.0, 0.0),
+                    radius: 2.0,
+                    axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
         (body, face)
@@ -327,13 +330,16 @@ mod tests {
         let center = at - x * (big_r + r * cv) - z * (r * sv);
         body.set_face_surface(
             face,
-            crate::FaceSurface::New(geom::Surface::Torus {
-                center,
-                axis: z,
-                major_radius: big_r,
-                minor_radius: r,
-                u_ref: x,
-            }),
+            crate::FaceSurface::New {
+                surface: geom::Surface::Torus {
+                    center,
+                    axis: z,
+                    major_radius: big_r,
+                    minor_radius: r,
+                    u_ref: x,
+                },
+                sense: true,
+            },
         )
         .unwrap();
         let resolved = resolve(&body, vertex, orbit_he).expect("the torus arm resolves");

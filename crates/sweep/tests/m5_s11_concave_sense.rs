@@ -535,8 +535,8 @@ fn notched_ring_torus_band_mints_sense_false() {
 // =====================================================================
 // Loft: the third verb's chapter of the same audit.
 //
-// Extrude and revolve mint `sense: false` where the material lies
-// against the chart normal. Loft mints `true` on EVERY wall and is
+// Extrude and revolve state `sense: false` where the material lies
+// against the chart normal. Loft states `true` on EVERY wall and is
 // still honest, because its chart is different: `u` follows the
 // material-left profile traversal and `v` the stacking, so `S_u × S_v`
 // is material-right whatever the segment's curvature — there is no
@@ -730,8 +730,8 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
 
 /// **Loft's hole walls.** A hole loop's walls are concave walls — the
 /// plate's material lies outside their carrier, which the clockwise
-/// canonical winding encodes. Extrude mints `sense: false` there (the
-/// row above); loft mints `true`, and this is the half that proves it.
+/// canonical winding encodes. Extrude states `sense: false` there (the
+/// row above); loft states `true`, and this is the half that proves it.
 ///
 /// Tiers 1 and 2 only: the rational hole walls miss `1024·ε` at this
 /// scale, and tier 3 reads no lofted wall's sense anyway (the row

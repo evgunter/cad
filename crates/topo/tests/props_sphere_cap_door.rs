@@ -75,9 +75,15 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
     let (a, b) = (Point3::new(r, 0.0, z), Point3::new(-r, 0.0, z));
     let pi = core::f64::consts::PI;
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(seed_surface))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: seed_surface,
+            sense: true,
+        },
+    )
+    .unwrap();
     let e_rim = body
         .mev(
             MevSite::Lone {
@@ -96,7 +102,10 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
                 he2: e_rim.he_plus,
             },
             EdgeCurveSpec::arc_of_circle(cut_circle(z), pi, core::f64::consts::TAU).unwrap(),
-            made_surface.map_or(FaceSurface::Inherit, FaceSurface::New),
+            made_surface.map_or(FaceSurface::Inherit, |surface| FaceSurface::New {
+                surface,
+                sense: true,
+            }),
             tol,
         )
         .unwrap();

@@ -231,10 +231,13 @@ fn an_unminted_face_beside_a_minted_one_stays_rowless() {
 #[test]
 fn a_lone_vertex_face_on_a_minting_chart_stays_unminted() {
     let (mut body, _, _) = wall();
-    let seed = body.mvfs(at(0.6, 0.2)).unwrap();
+    let seed = body.mvfs(at(0.6, 0.2), true).unwrap();
     body.set_face_surface(
         seed.face,
-        topo::FaceSurface::New(CylFrame::canonical(1.0).surface()),
+        topo::FaceSurface::New {
+            surface: CylFrame::canonical(1.0).surface(),
+            sense: true,
+        },
     )
     .unwrap();
     let made = body
