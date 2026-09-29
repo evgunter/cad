@@ -160,8 +160,9 @@ fn every_decided_name_is_routed_or_listed_with_its_reason() {
         // A listed name must reach the door's shared-clause arm, not a
         // routed sentence: the list is a claim about which arm answers.
         if listed.contains(name) {
+            let what = profile::shared_clause_only(name).expect("a listed name");
             assert!(
-                rendered(name).starts_with("escalated at the path door:"),
+                rendered(name).starts_with(&format!("{what}, which is too close to call:")),
                 "`{name}` is listed as shared-clause-only but a routed arm answers it: {}",
                 rendered(name)
             );
@@ -194,8 +195,8 @@ fn an_unknown_name_names_the_hole_and_asserts_nothing() {
         "the refusal asserts a category over a name nothing classified: {text}"
     );
     assert!(
-        text.contains(unknown),
-        "the refusal names the predicate that escalated: {text}"
+        !text.contains(unknown),
+        "the predicate's name is routing and stays out of the sentence: {text}"
     );
     // The two junction keys are the names that label IS true for, and
     // they keep it.

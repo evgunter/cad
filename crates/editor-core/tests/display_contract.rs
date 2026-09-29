@@ -2472,7 +2472,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     terminal_sliver: false,
                 },
             },
-            vec!["side_of_plane", "escalated"],
+            vec!["the side of a cut", "too close to call"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);

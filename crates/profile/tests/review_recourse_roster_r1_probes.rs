@@ -57,7 +57,7 @@ const LAYERS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "path junction classification:",
+        "whether the path turns at this junction",
         &["path_junction_side", "path_junction_turn"],
     ),
 ];
