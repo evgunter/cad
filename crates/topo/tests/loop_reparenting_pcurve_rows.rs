@@ -1832,6 +1832,7 @@ fn kfmrh_carries_every_row_across_one_payload() {
 #[test]
 fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
     const RING_ROWS: usize = 4;
+    let mut failures = Vec::new();
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body
@@ -1851,7 +1852,10 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
         } else {
             (0, 10)
         };
-        assert_eq!(rows_of(&s.body, s.plane), want, "ring_move tied: {tied}");
+        let got = rows_of(&s.body, s.plane);
+        if got != want {
+            failures.push(format!("ring_move tied {tied}: want {want:?}, got {got:?}"));
+        }
 
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body
@@ -1880,8 +1884,12 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
         } else {
             (0, 4)
         };
-        assert_eq!(rows_of(&s.body, made.face), want, "mfkrh tied: {tied}");
+        let got = rows_of(&s.body, made.face);
+        if got != want {
+            failures.push(format!("mfkrh tied {tied}: want {want:?}, got {got:?}"));
+        }
     }
+    assert!(failures.is_empty(), "{failures:#?}");
 }
 
 /// `mef` on the patch sheet. Its lower panel's rows are complete, and a
