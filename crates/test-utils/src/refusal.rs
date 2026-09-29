@@ -350,8 +350,11 @@ pub fn hex_ids(text: &str) -> Vec<&str> {
         let mixed = hex && !digits && word.chars().any(|c| c.is_ascii_digit());
         let decimal_part = before == Some('.')
             || (after.starts_with('.') && after[1..].starts_with(|c: char| c.is_ascii_digit()));
-        if (mixed && word.len() >= HEX_ID_MIN)
-            || (digits && HEX_ID_LENGTHS.contains(&word.len()) && !decimal_part)
+        // A float's fraction is a number, whatever its digits spell:
+        // `9.999999999999999e-6` holds a hex-looking `…9e`.
+        if !decimal_part
+            && ((mixed && word.len() >= HEX_ID_MIN)
+                || (digits && HEX_ID_LENGTHS.contains(&word.len())))
         {
             found.push(word);
         }
@@ -552,6 +555,9 @@ mod tests {
         // A pin prefix whose twelve hex digits are all decimal.
         assert!(arena_key("the part pinned at 951583145512 is gone"));
         assert!(!arena_key("the offset is 0.300000000000 mm"));
+        assert!(!arena_key(
+            "margin 3e-10 lies inside the ambiguity band (1e-6, 9.999999999999999e-6)"
+        ));
         assert!(!arena_key("the offset is 123456789012.5 mm"));
         assert!(!arena_key("i64::MAX is 9223372036854775807"));
         assert_eq!(
