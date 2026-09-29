@@ -2814,3 +2814,42 @@ tier SINGLE, full):
 
 It runs on a fresh non-incremental target. Three lanes are live: this
 one, PR 3467's union fix pass, and the refusal-routing unit.
+
+## PR 3493 delivered; it contradicts D4 (i), so it goes back for rework (2026-09-29)
+
+The refusal-routing implementer took 492,853 tokens, 276 tools and
+80 min (harness). PR 3493 is green at `c0a69c5203`:
+- `SplitParamEscalated` ends in the crossing lever;
+- `BooleanError::Escalated` and both `DeclarationContradicted` arms
+  are routed through `refusal_routes.rs` by `diag.predicate`;
+- three rows filed.
+
+The lane disclosed one deviation: D4 ¶1 (i) says a recourse is "an
+exhaustive match, never a lookup by predicate name", and the PR
+followed the blend precedent instead. The pickaxe traces that
+sentence to `2341414335`, which is **PR 3352, Ev's `[ev]` ruling of
+2026-09-28**. That PR names the blend table's name-routing as
+rejected option B, and its option C is the ruling: a closed decision
+type, with the ending derived from (decision, verdict).
+
+The fault is the brief's, again. It pointed at the blend precedent,
+and at the CHROME rows' repair shapes written after the ruling,
+without a ratification check on D4. The lane is not at fault.
+Conforming keeps the ruling as it stands, so it is mine to take and
+not a question.
+
+Lesson, applied from now on: every brief that touches refusal text
+or orientation names the governing D-clause and asks for its
+`git log -S` provenance before the lane starts.
+
+A rework lane is dispatched on the PR's branch:
+- closed `Contradiction` and escalation-decision types set at the
+  raise sites, with exhaustive matches;
+- the tolerance arm derived per D4 (i): conditional, with the value,
+  only on band-decided arms of nonzero-sign-passing decisions;
+- the census and unknown-name hole removed;
+- the filed rows' repair shapes conformed;
+- seam notes for the crossings;
+- `BlendError`'s name routing filed if unrowed.
+
+Review comes after the rework: SINGLE, full.
