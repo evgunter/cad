@@ -5,7 +5,7 @@ title: Python spells a profile piece by the step handle its authoring call retur
 status: open
 opened: 2026-09-25
 priority: P1
-cost: D
+cost: M
 ---
 
 ## What
@@ -40,3 +40,40 @@ position, which is the positional reading the rule exists to retire.
 - `Doc.pieces` stays, as the reading for a caller that holds no handle.
 - `pncad.pyi`, the binding census and the role-name rows move with it.
 
+
+## The fork (2026-09-29)
+
+The first lane stopped before writing code. The row says the handle is
+"backed by the insert door's minted id", but a loop is a free value
+that can be placed several times, and each placement mints different
+ids. So what a handle denotes, and how it binds to an id, is an open
+question.
+
+The designer pair and its split are in the `[ev]` PR. Both designers
+agree on the handle: an authored address (the step's index plus the
+program's shape up to that step, values erased), bound to an id by
+editor-core per placement.
+
+Three questions remain for Ev:
+- whether the author names the loop, or the lookup finds it;
+- whether a role is checked by per-verb handle classes or at the
+  `piece()` door;
+- the form of `set_program`'s keep map.
+
+## Ruled (2026-09-29, #3473)
+
+Ev ruled on the three open points:
+
+- **Loop:** the author states it. The lookup does not search for it
+  ("the convenience … probably not worth the extra engineering").
+- **Roles:** one per-verb role list lives in editor-core. The doors
+  check it, and the Python handle's role accessors are generated from
+  it.
+- **`set_program`:** it keeps steps through one dict per loop,
+  `keep=[{handle: StepId}, …]`, in outline order.
+
+Everything else is as agreed: an `AuthoredStep` is index plus
+value-erased prefix shape; `Doc.step(profile, loop, h)` and
+`Doc.piece(profile, loop, h.role)`; typed `StepId` and `Piece`;
+`step_map` is `dict[StepId, StepId]`; the binding lives in editor-core
+(`ProfileProgram::step`, `LoopProgram::shape`). The row is now the build.
