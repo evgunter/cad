@@ -2255,3 +2255,55 @@ targets and briefs.
 R1's target is the implementer's warm build of this head. R2's is the
 trimmed copy warm on PR 3160's head, so R2 rebuilds more. That is a
 wall-clock asymmetry only; the method is identical.
+
+## PR 3161's dual concluded, one tally candidate; fix pass dispatched (2026-09-29)
+
+Both reviews of `ec29ce898` came back APPROVE-WITH-FIXES. The harness
+figures are 311,864 tokens / 28 min and 288,648 tokens / 32 min. The
+reports are archived privately, coded attribution-stripped with
+blinding byte 200.
+
+**The one MAJOR, which one review raised alone by execution:**
+`kev_describing`'s write loop has an `unreachable!` that a torn body
+reaches. Two `next` tears put the killed half into the dying vertex's
+orbit, so the member set includes the killed edge, and after
+`kev_execute` removes it the loop panics. Plain `kev` refuses typed on
+the same body, naming the killed edge as a member. A seeded search on
+a `review_d18` fixture found 22 panics per 96,000 kills, and the
+release corrupt-input job's varying-seed torn sweep drives this door.
+It is code class, deduped, executed, and the pair is fair, so it is
+**a tally candidate**: the unit's plan phase did not prove what its
+mutation phase `unreachable!`s. The other review measured the torn
+row's reach and found no panic on its fixture.
+
+Bilateral, executed:
+- plain `kev` refuses every certified fan merge, including a zero-move
+  one (the exact inverse of a certified `mev` refuses);
+- the describing door's precondition order is false (the survivor's
+  point is resolved first);
+- "`rebased_endpoints` is the only home" is false (four new
+  derivations, one of them a different rule in sweep);
+- two gate arms are unpinned (the null-kill skip, and the member
+  dedupe);
+- the walk lists every member, so the unlisted gate and the keys-only
+  refusal are unfuzzed.
+
+One review alone measured the torn row reaching `kev`'s mutation phase
+zero times, at base and head.
+
+**Ruled:** plain `kev`'s narrowing is forced by Ev's rulings (the
+keys-only door, the witness rule, the retired bit-identity question).
+It is written onto the item's `## Ruled` at merge, not re-asked; the
+docs and PR title are to state the code's semantics.
+
+The fix pass is dispatched on the union, the MAJOR first: the plan
+proves the member set excludes the killed edge, and a torn orbit
+refuses typed in both doors. With it:
+- a public read door for the merged members and their endpoints, so
+  callers stop re-deriving them;
+- rows for the unpinned arms;
+- fuzz draws for the unlisted gate and the keys-only refusal;
+- one home each for the null arm, run order and the write half;
+- the arc-scaffold width filed.
+
+Tally after this pair: +1.
