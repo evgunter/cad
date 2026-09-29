@@ -1,0 +1,60 @@
+---
+id: union-partners-are-the-planes-that-tell-its-pieces-apart
+kind: issue
+title: Which bordering parents a union (and the pair boolean) cites in a split face's SideOf
+status: open
+opened: 2026-09-29
+priority: P1
+cost: H
+needs_ev: true
+---
+
+
+## What
+
+A face that the finished body holds as several pieces is qualified with
+one `Fragment(SideOf)` over its PARTNERS. N2's union paragraph
+(`crates/editor-core/src/names/README.md`, from #3222) made every parent
+across the group's seam edges a partner. PR #3241 implements the union
+end pass, and a first review found two problems with that rule:
+
+- a curved boss on one piece became a partner and refused with an
+  emission error;
+- a notch in one of two tied faces de-tied them.
+
+The fix pass (`ed6602ffb0`) narrowed partners to members that border
+two or more faces, joined through 3D contact. A second review (2026-09-29,
+every member order, head against base) measured that proxy wrong both
+ways:
+
+- Three overlapping strips across a plate refuse as an emission bug in
+  all 24 orders, where the base publishes.
+- A bar notching both tied slot ceilings de-ties or renames the tie.
+- A boss straddling the slab becomes a partner, so moving it renames
+  every piece.
+
+Beneath the partner question the reviewers found a second one: the
+union keys parents by name. That makes a tie's candidates "pieces of one
+parent", and it is what breaks the tie cases.
+
+## The fork
+
+The designer pair and the options are in the `[ev]` PR. In short, both
+designers agree on three things:
+
+- parents are keyed by member-face entity;
+- one rule serves the union and the pair boolean;
+- a partner must separate two pieces by side (the verdict filter).
+
+They split on one point: whether to add a planar-connectivity condition
+now. That condition says a partner must also bound a covered region of
+the parent that borders two or more pieces. It removes a residue, a
+feature on one piece whose plane lines up with a divider elsewhere. It
+costs a new planar computation, and with it a new `Escalated` exposure.
+
+PR #3241 waits on this.
+
+Related:
+- `work/emit/the-pair-boolean-sides-a-split-face-against-every-seam-neighbour.md`
+  (on #3241's branch)
+- `work/emit/a-split-that-de-ties-tied-faces-swaps-their-names-under-an-edit-that-moves-the-split.md`

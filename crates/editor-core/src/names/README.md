@@ -185,10 +185,17 @@ A union's face is named for its PARENT, read off the finished body.
 Each merged face links the member faces it lists, and linking is
 transitive; the member faces so linked are one parent, named
 `Merged` of all of them, and a member face no merge links is its own
-parent. A parent the finished body holds as one face is that face's
-name. A parent it holds as several faces qualifies each with one
-`Fragment(SideOf)`: the partners are the parents of the faces across
-the group's seam edges, each cited by its parent name. So a face
+parent. A parent is a set of member-face entities, never a name: the
+candidates of a tied row are separate parents that happen to be
+spelled alike. A parent the finished body holds as one face is that
+face's name. A parent it holds as several faces qualifies each with
+one `Fragment(SideOf)`: the partners are the parents across the
+group's seam edges whose plane puts one face of the group on its
+positive side and another on its negative side, each cited by its
+parent name, with every face's verdict against each. A curved parent
+has no plane and is never a partner, and a group no partner tells
+apart is N2's tie under the parent's name. The pair boolean's
+`SideOf` reads the same rule. So a face
 merged and then cut, and a face cut and then merged, are both
 `Merged(set)` + `SideOf`; a face cut by two members is one `SideOf`
 over both members' walls, whether one fold step cut it or two. The
