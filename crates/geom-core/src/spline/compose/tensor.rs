@@ -125,22 +125,22 @@
 
 use super::super::knots::{KnotVector, SplineError};
 use super::{
-    BernsteinSpans, ComposeError, CurveRingData, bern_mul_row, binom_row, to_bezier_spans_extra,
+    BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::real::Bounds;
 
 // ---------------------------------------------------------------------
-// Data-in: the surface's structure + ring-lifted control net
+// Data-in: the surface's structure + control net, in certification form
 // ---------------------------------------------------------------------
 
-/// A tensor-product NURBS surface's structure plus ring-lifted control
-/// coordinates — the surface-side data-in shape. `coords[d][i]` is the
+/// A tensor-product NURBS surface in certification form: its structure
+/// plus its control coordinates — the surface-side data-in shape. `coords[d][i]` is the
 /// `d`-th coordinate (`d < 3`) of control point `i` in the **row-major
 /// `iu·nv + iv` layout** as a certification enclosure.
 #[derive(Clone, Debug)]
-pub struct SurfaceRingData<'a> {
+pub struct SurfaceCertData<'a> {
     ku: &'a KnotVector,
     kv: &'a KnotVector,
     weights: &'a [f64],
@@ -149,7 +149,7 @@ pub struct SurfaceRingData<'a> {
 
 // `!(w > 0)` is deliberate (NaN-catching): see `algebra::check_weights`.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-impl<'a> SurfaceRingData<'a> {
+impl<'a> SurfaceCertData<'a> {
     /// Validated construction: weight count/positivity/finiteness
     /// against the tensor control count `nu·nv`, exactly three
     /// coordinate channels, and per-channel coordinate counts.
@@ -522,9 +522,9 @@ fn cells_touched(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
 /// `carrier` 3 channels; [`ComposeError::DomainMismatch`] when the two
 /// curves' knot domains differ.
 pub fn surface_curve_residual(
-    surface: &SurfaceRingData<'_>,
-    pcurve: &CurveRingData<'_>,
-    carrier: &CurveRingData<'_>,
+    surface: &SurfaceCertData<'_>,
+    pcurve: &CurveCertData<'_>,
+    carrier: &CurveCertData<'_>,
     extra_breaks: &[f64],
 ) -> Result<SurfaceResidual, ComposeError> {
     if pcurve.dims() != 2 {
@@ -581,7 +581,7 @@ pub fn surface_curve_residual(
 
     // Homogeneous channels on the shared breaks, the weight channel
     // carried; spatial channels center-shifted at the lift.
-    let homog = |data: &CurveRingData<'_>, d: usize, shift: f64| -> BernsteinSpans {
+    let homog = |data: &CurveCertData<'_>, d: usize, shift: f64| -> BernsteinSpans {
         let s = Interval::point(shift);
         let coeffs: Vec<Interval> = data.coords[d]
             .iter()
@@ -590,7 +590,7 @@ pub fn surface_curve_residual(
             .collect();
         to_bezier_spans_extra(data.kv, &coeffs, &merged)
     };
-    let weight = |data: &CurveRingData<'_>| -> BernsteinSpans {
+    let weight = |data: &CurveCertData<'_>| -> BernsteinSpans {
         let coeffs: Vec<Interval> = data.weights.iter().map(|w| Interval::point(*w)).collect();
         to_bezier_spans_extra(data.kv, &coeffs, &merged)
     };

@@ -752,8 +752,8 @@ mod interval_lane {
     /// FIXED (was
     /// `finding_interval_winding_alias_refused_only_by_the_poison`):
     /// the interval lane used to refuse the 9-revolution alias only via
-    /// the blanket norm-sqrt-clamp poison (every inexact distance
-    /// enclosure degraded to Trv). With the poison fixed (B1: tight
+    /// the blanket norm-sqrt-clamp refusal (every inexact distance
+    /// enclosure degraded to Trv). With that refusal fixed (B1: tight
     /// per-component squares in `norm_squared`), the alias must STILL
     /// be refused — and now it is, by DETECTION: the circle winding
     /// bound classifies `(tau − 9·tau)·r` definitely negative through
@@ -784,7 +784,7 @@ mod interval_lane {
         assert_eq!(
             err,
             CertifyError::WindingExceeded,
-            "the fixed lane must refuse the alias by detection, not poison"
+            "the fixed lane must refuse the alias by detection, not by a blanket Trv refusal"
         );
     }
 
@@ -797,7 +797,7 @@ mod interval_lane {
     /// enclosure straddles zero, and `norm`'s old `sqrt(dot(v, v))`
     /// squared the straddle through plain interval `Mul` (negative
     /// lo), so the sqrt clamped, degraded the decoration to Trv, and
-    /// every decision downstream read poison. The fix: `norm_squared`
+    /// every decision downstream was refused. The fix: `norm_squared`
     /// sums tight per-component squares (`powi(2)` — the interval
     /// backend's dedicated integer power),
     /// whose enclosures are `[0, hi]` with decoration preserved, so

@@ -122,13 +122,13 @@ impl core::fmt::Display for ComposeError {
 
 impl core::error::Error for ComposeError {}
 
-/// A NURBS curve's structure plus ring-lifted control coordinates —
-/// the data-in shape every composite consumes. `coords[d][i]` is the
-/// `d`-th coordinate of control point `i` as a certification enclosure (a plain
+/// A NURBS curve in certification form: its structure plus its control
+/// coordinates — the data-in shape every composite consumes. `coords[d][i]`
+/// is the `d`-th coordinate of control point `i` as a certification enclosure (a plain
 /// `f64` control point lifts via [`Interval::point`]; a perturbed
 /// or interval-valued one via [`Interval::from_bounds`]).
 #[derive(Clone, Debug)]
-pub struct CurveRingData<'a> {
+pub struct CurveCertData<'a> {
     kv: &'a KnotVector,
     weights: &'a [f64],
     coords: &'a [Vec<Interval>],
@@ -136,7 +136,7 @@ pub struct CurveRingData<'a> {
 
 // `!(w > 0)` is deliberate (NaN-catching): see `algebra::check_weights`.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-impl<'a> CurveRingData<'a> {
+impl<'a> CurveCertData<'a> {
     /// Validated construction: weight count/positivity/finiteness and
     /// per-channel coordinate counts against the knot vector. The
     /// channel count (2-D pcurves, 3-D curves, …) is free; composites
@@ -871,9 +871,9 @@ fn dot_channel(g: &[BernsteinSpans], c: &[f64; 3]) -> BernsteinSpans {
 /// # Errors
 ///
 /// [`ComposeError::DimensionMismatch`] unless `data.dims() == 3` (the
-/// structure errors were caught at [`CurveRingData::new`]).
+/// structure errors were caught at [`CurveCertData::new`]).
 pub fn implicit_composite(
-    data: &CurveRingData<'_>,
+    data: &CurveCertData<'_>,
     surface: &ImplicitSurface,
 ) -> Result<CompositeForm, ComposeError> {
     if data.dims() != 3 {
@@ -987,7 +987,7 @@ pub fn implicit_composite(
 ///
 /// [`ComposeError::ChannelOutOfRange`] for a bad channel index.
 pub fn coordinate_product(
-    data: &CurveRingData<'_>,
+    data: &CurveCertData<'_>,
     i: usize,
     j: usize,
 ) -> Result<CompositeForm, ComposeError> {
@@ -1016,7 +1016,7 @@ pub fn coordinate_product(
 /// [`ComposeError::DimensionMismatch`] unless
 /// `coeffs.len() == data.dims()`.
 pub fn linear_composite(
-    data: &CurveRingData<'_>,
+    data: &CurveCertData<'_>,
     coeffs: &[f64],
     offset: f64,
 ) -> Result<CompositeForm, ComposeError> {
@@ -1166,7 +1166,7 @@ mod tests {
         ];
         let w = vec![1.0, 1.0];
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
         let cone = ImplicitSurface::Cone {
             apex: [0.0, 0.0, 0.0],
             axis: [0.0, 0.0, 1.0],
@@ -1188,7 +1188,7 @@ mod tests {
         let coords = vec![vec![r, r], vec![0.0, 0.0], vec![-2.0, 5.0]];
         let w = vec![1.0, 1.0];
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
         // Non-unit axis on purpose: the |a|² normalization is exact in
         // interval arithmetic, so the bound is still the meters² residual.
         let cyl = ImplicitSurface::Cylinder {
@@ -1226,7 +1226,7 @@ mod tests {
         let (big_r, small_r) = (2.0, 0.5);
         let (kv, w, coords) = circle_fixture(big_r + small_r);
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
         let torus = ImplicitSurface::Torus {
             center: [0.0, 0.0, 0.0],
             axis: [0.0, 0.0, 2.0], // non-unit on purpose
@@ -1252,7 +1252,7 @@ mod tests {
         let coords = vec![vec![0.0, 0.7, 1.3, 2.0], vec![1.0, -0.4, 0.9, -1.5]];
         let w = vec![1.0, 0.8, 1.3, 1.0];
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
 
         let prod = coordinate_product(&data, 0, 1).unwrap();
         assert_sound(&prod, &kv, &w, &coords, |p| p[0] * p[1]);
@@ -1425,7 +1425,7 @@ mod tests {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let coords2 = lift(&[vec![0.0, 1.0], vec![0.0, 1.0]]);
         let w = vec![1.0, 1.0];
-        let data2 = CurveRingData::new(&kv, &w, &coords2).unwrap();
+        let data2 = CurveCertData::new(&kv, &w, &coords2).unwrap();
         // Implicit surfaces need 3 channels.
         let sphere = ImplicitSurface::Sphere {
             center: [0.0; 3],
@@ -1451,7 +1451,7 @@ mod tests {
         ));
         // Bad weights are typed at construction.
         assert!(matches!(
-            CurveRingData::new(&kv, &[1.0, -1.0], &coords2),
+            CurveCertData::new(&kv, &[1.0, -1.0], &coords2),
             Err(ComposeError::Structure(
                 SplineError::NonPositiveWeight { .. }
             ))
@@ -1460,7 +1460,7 @@ mod tests {
         // divisor: interval arithmetic refuses, the bound is refused (NaN), and NaN
         // fails every ≤ ε certification (D4 ¶2).
         let coords3 = lift(&[vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]]);
-        let data3 = CurveRingData::new(&kv, &w, &coords3).unwrap();
+        let data3 = CurveCertData::new(&kv, &w, &coords3).unwrap();
         let cyl = ImplicitSurface::Cylinder {
             point: [0.0; 3],
             axis: [0.0; 3],
@@ -1498,7 +1498,7 @@ mod tests {
     fn bit_replay_composites_are_deterministic() {
         let (kv, w, coords) = circle_fixture(2.5);
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
         let sphere = ImplicitSurface::Sphere {
             center: [0.1, -0.2, 0.3],
             radius: 2.5,

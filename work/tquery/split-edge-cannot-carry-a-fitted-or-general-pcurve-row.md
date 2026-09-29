@@ -64,8 +64,8 @@ and not a refusal.
 prices is gone. `PcurveCache::certify_fitted`, `certify_general` and
 `recertify` now sit in an `impl<T: Decide>` block and take the fitted
 door as a VALUE (`geom_brep::FittedLane<T>`; `recertify` and
-`certify_general` take `Option<FittedLane<T>>` and the scalar's name,
-refusing at check 4 on `None`), and `run_fitted_checks`
+`certify_general` take `Option<FittedLane<T>>`, refusing at check 4
+on `None` with the scalar's `Real::NAME`), and `run_fitted_checks`
 is `T: Decide`. The per-scalar answer is
 `topo::AtRestPolicy::fitted_lane`. So `split_cache` can carry a
 `Fitted`/`General` row without widening `split_edge`'s bound: it can

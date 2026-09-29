@@ -3121,6 +3121,7 @@ mod tests {
             RowStatus::Ok,
             RowStatus::Failed {
                 message: String::new(),
+                carried: Vec::new(),
             },
             RowStatus::Poisoned {
                 through: RecipeNodeId(1),

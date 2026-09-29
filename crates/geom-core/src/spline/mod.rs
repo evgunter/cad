@@ -48,7 +48,7 @@ pub mod locate;
 pub mod net;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
-pub use compose::{BernsteinSpans, ComposeError, CompositeForm, CurveRingData, ImplicitSurface};
+pub use compose::{BernsteinSpans, ComposeError, CompositeForm, CurveCertData, ImplicitSurface};
 pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs};
 pub use knots::{KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice};
 pub use locate::{SpanLocate, SpanSet};

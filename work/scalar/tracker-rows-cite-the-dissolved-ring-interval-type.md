@@ -2,8 +2,11 @@
 id: tracker-rows-cite-the-dissolved-ring-interval-type
 kind: issue
 title: Open rows on twelve other slates still name RingInterval, which RING-3 dissolved into Interval
-status: open
+status: closed
+branch: scalar/ring-cites
+pr: 3468
 opened: 2026-09-29
+closed: 2026-09-29
 priority: P4
 cost: E
 refs: [tracker-rows-cite-the-deleted-pcurve-fitted-lane-trait, ring-3-residue-outside-its-fence]
@@ -49,3 +52,7 @@ claim false or moot, a `## Note from SCALAR` line instead.
 ## Found by
 
 SCALAR-HYGIENE, while carrying the fitted-lane row, 2026-09-29.
+
+## Closed (2026-09-29) — PR 3468
+
+22 rows read: 12 renamed (three with a note), 3 noted, 7 left as history or naming the type on purpose, 1 with no hit left. The PR body has the per-row table.

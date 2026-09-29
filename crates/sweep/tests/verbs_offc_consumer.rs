@@ -758,11 +758,11 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
     );
 }
 
-/// **Every other scalar refuses typed, naming its lane.** The offset fit
+/// **Every other scalar refuses typed, naming itself.** The offset fit
 /// is derived at `f64` only, so an `Approx` face at any other scalar has
 /// no certificate to re-derive — and the stored one is a claim about a
 /// different geometry. The refusal is `ApproxLaneUnsupported`, and it
-/// names the lane so a reader knows which capability is missing rather
+/// names the scalar so a reader knows which capability is missing rather
 /// than which kind is unwelcome.
 ///
 /// The surface is an `f64`-certified one read at `Interval`
@@ -832,9 +832,9 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     assert!(
         matches!(
             e,
-            topo::TransformError::ApproxLaneUnsupported { lane: "interval" }
+            topo::TransformError::ApproxLaneUnsupported { scalar: "interval" }
         ),
-        "expected ApproxLaneUnsupported naming the interval lane, got {e}"
+        "expected ApproxLaneUnsupported naming the interval scalar, got {e}"
     );
 }
 

@@ -994,3 +994,55 @@ slate at Ev's direction (P0, `needs_ev`, its `[ev]` PR AUTHOR's). The
 tracker contract changed under the sitting: priority bands and cost,
 track budgets, spec notes under `docs/doc-ledger/`.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-09-29 — fifteenth sitting: the new protocols, five merges, two `[ev]` rulings, one design widened
+
+**Protocols.** Ev asked whether the orchestrator had read the protocol changes on main since the 09-23 resume. It had not.
+- **Rules missed:**
+  - Model A/B was suspended on 09-23.
+  - Every phase runs on Opus except the Fable half of the designer pair.
+  - Review tiers are the orchestrator's read, single, or dual under `docs/DUAL-REVIEW-PROTOCOL.md`.
+  - Every `[ev]` design fork first goes to a blinded Opus/Fable designer pair (`docs/DESIGN-FORK-PROTOCOL.md`).
+- **Departures from them:**
+  - An A/B block (EDIT-B3) had its pre-draw fields pushed and a byte drawn. Both are void. The branch `edit/b3-block` is still on origin, because the proxy refuses the delete.
+  - The EDIT-PROGRAM A/B row (sample #243) was recorded on 09-24, after the suspension.
+  - `[ev]` #3158, #3163 and #3437 skipped the designer pair.
+  - The paramname, unnamed-patch and program-fix lanes ran on Fable.
+- **Ev's answer:** "no need to particularly mark these … i just pointed it out so you'd do new work under the new protocols." New work since then follows them.
+
+**Merged.**
+- **Unnamed patch (#3439, E-class, orchestrator's read).** The lookup's refusal is its own type, and the standing ladder is written once. Two rows filed: EDIT and LIB.
+- **Slot tables (#3438).**
+  - One Opus FULL review: APPROVE-WITH-FIXES. Two in-table mutants survived every row.
+  - The fix pass committed a per-shape ordered slot-table golden, which both mutants red.
+  - One `find_row` now serves `node.rs` and `program.rs`.
+  - `ProfilePayload` answers keyed rows.
+  - The dead `TubeWindow` doors are gone.
+- **Paramname (#3164).**
+  - One Opus FULL review: NOT-MERGEABLE. A certified-range query over a profile step argument regressed, because its synthetic name carried `·`.
+  - The fix pass took a fresh, label-free synthetic name; both refusal arms are gone.
+  - The parser is now the name rule's one home, and the equivalence row is two-sided.
+  - `ParamName::literal` is now `ParamName::from_static`.
+  - Filed: NFC names (EDIT) and a lone surrogate (LIB).
+- **`[ev]` #3444 (part-root refusal).**
+  - Designer pair (row 15): they converged on a typed carried refusal and split only on drawing.
+  - Ev ruled (a), the full traceback: one line per document level.
+  - Spec'd a single review; implemented as #3459, now under review.
+- **C6's "no usable value" member ruled (#3456).**
+  - The persisted-format blocker was gone since BOOL-13.
+  - A survey found nine readers and two stringly sites.
+  - One standing type, read by one function. The standing-ladder row rides with it.
+  - The `standing` lane is implementing.
+- **Tour re-gate row: closed by design (#3458).** No kernel door for a demo's measurement.
+- **Load-door program policy (#3460, E-class).** The bowtie probe shows `Validate` loads clean and refuses typed at evaluation (class 2). This is documented and pinned.
+
+**`[ev]` #3441 (placement).**
+- **First designer pair (row 14):** parametric motion over a literal. Ev did not choose. Ev called the recorded literal "a weird side channel through which to keep the source", accepted a jump when the placing source is gone, and floated a gauge attached to several members.
+- **Second pair on the widened problem (row 16), with Ev's comments passed verbatim:** they converged on the gauge as a node holding a parametric placement. Mates place only within a gauge, nothing is recorded at an edit, and extra placements are verified.
+- **Put to Ev:** membership (the instance names its gauge, or attachments plus mates), deleting a gauge in use, and, under the latter, when the contact-only mate and multiple attachments arrive.
+- **MSOLVE row filed with it:** box and seed runs solve mates at the nominal only. The placement unit must not ship into the lanes without that refusal.
+
+**Housekeeping.**
+- The disk filled twice. Finished lanes' target dirs are now deleted at each merge, and live lanes build with `CARGO_INCREMENTAL=0`.
+- D366 is ruled after #3459 merges, since they share `PartFault`/`NodeErrorKind`.
+- 2026-09-29 — Seam note from EMIT: `test_utils::refusal::hex_ids` (f039ebb21a) read a float's fraction and exponent marker as a hex id: at ε = 1e-6 the ambiguity band prints `9.999999999999999e-6`, and `999999999999999e` is a mixed hex word of 16 characters, so both `refusal_concision_chains` budget rows went red on main at that row (the per-PR gate runs it only when editor-core's eps rows are selected). Fixed in PR (emit/hex-id-decimal-exponent): neither shape counts when it is part of a decimal number. (EMIT orchestrator)

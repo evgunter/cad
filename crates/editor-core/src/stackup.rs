@@ -1791,7 +1791,7 @@ pub fn stackup(
 /// [`geom_core::Interval`], which has no tangent channel, and the
 /// bracket is read through
 /// [`geom_core::CertifiedEnclosure::certified_bracket`] — the
-/// domain-honest door, so a poisoned enclosure refuses named instead of
+/// domain-honest door, so a refused enclosure refuses named instead of
 /// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,

@@ -2,7 +2,9 @@
 id: load-door-is-the-construction-door-for-expressions-and-not-for-profile-programs
 kind: issue
 title: persist/wire.rs carries two rebuild policies and states one: expressions rebuild through their constructors, profile programs do not
-status: spec
+status: closed
+closed: 2026-09-29
+pr: 3460
 opened: 2026-09-15
 priority: P4
 cost: E
@@ -101,3 +103,26 @@ row, with no correctness risk beyond what the probe measures.
      file it with the probe and report it rather than document it.
 3. **The row.** Red on `origin/main` where the fact was unwritten: the
    doc sentence does not exist and no row pins the arm. Green after.
+
+## Built (2026-09-29)
+
+The probe landed on the first branch. A literal bowtie was surgered into a
+saved square: the file loads clean, and evaluating it answers
+`NodeErrorKind::Profile(NonSimple { 0.0 × 0.2, Crossing })`. The insert
+door refuses the same program as `ProgramRefusal::Validate`.
+
+- `persist/wire.rs`: the module doc's `ProfileProgram` paragraph now says
+  that this rebuild trusts the structure, unlike the expression
+  languages, and names the snapshot program walk in `persist::check` as
+  what re-checks it. There is no `impl Deserialize for ProfileProgram`
+  any more (it derives), so the paragraph is the sentence's home.
+- `persist/check.rs`: `ProgramFault::Lattice`'s doc accounts for
+  validate refusals beside geometry and resolve, surfaced as
+  `NodeErrorKind::Profile`.
+- `tests/load_door_program_validate.rs` pins it. A mutant that makes
+  `first_program_fault` refuse `Validate` reds it.
+
+Premise corrections: `ProgramRefusal` has seven arms, not four. The
+three `pieces`-only arms are unreachable from `check`. `WireLoopProgram`
+and `WireStep` no longer exist.
+

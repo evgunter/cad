@@ -29,6 +29,12 @@
 //! `profile::ProfileLoop`. The wire rebuilds the PROGRAM only; loops
 //! exist through the replay driver at evaluation and nowhere else
 //! (serde is transport, the driver is the door — LIB-SWITCH §4h).
+//! Unlike the two expression languages above, then, this rebuild
+//! TRUSTS the program's structure — only its slot expressions pass a
+//! constructor — and what re-checks it is the load door's snapshot
+//! program walk in `persist::check`, which refuses the lattice class
+//! alone ([`ProgramFault`](crate::ProgramFault)'s doc accounts for
+//! the rest).
 //!
 //! # Two KERNEL-FOREIGN tags
 //!

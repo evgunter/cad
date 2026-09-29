@@ -1071,6 +1071,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             side: MateSide::A,
             placer: id(2),
             error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
+            placer_row: pncad::document::PlacerRow::Silent,
         },
         &["mate", "side", "placer", "error"],
     );
@@ -1112,6 +1113,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         side: MateSide::A,
         placer: id(2),
         error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
+        placer_row: pncad::document::PlacerRow::Silent,
     };
     assert_eq!(mate_payload(&placer).error, Some("non_finite_direction"));
 
@@ -2130,7 +2132,7 @@ fn shell_refusal_tags_are_stable() {
     use pncad::topo::ShellError;
     let op = NodeErrorKind::Shell(Box::new(ShellError::Thickness { thickness: -0.5 }));
     assert_eq!(node_error_tag(&op), "shell");
-    let lane = NodeErrorKind::ShellLaneUnsupported { lane: "Dual" };
+    let lane = NodeErrorKind::ShellLaneUnsupported { scalar: "dual" };
     assert_eq!(node_error_tag(&lane), "shell_lane_unsupported");
 }
 
@@ -5004,6 +5006,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_product",
             "part_reference_cycle",
             "part_root_failed",
+            "part_root_failure_unrecorded",
         ],
         delegates: &["resolve_fault_tag"],
     },
