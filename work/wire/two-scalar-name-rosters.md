@@ -4,7 +4,7 @@ kind: issue
 title: Two per-scalar name rosters: topo::AtRestPolicy::scalar_name and editor_core::lane::Lane::NAME spell the same five scalars differently
 status: review
 branch: scalar/scalar-name
-pr: TBD
+pr: 3461
 opened: 2026-09-24
 ---
 

@@ -4,7 +4,7 @@ kind: issue
 title: The fitted door and the scalar's name travel as two parameters tied by convention (recertify, certify_general, map_approx)
 status: review
 branch: scalar/scalar-name
-pr: TBD
+pr: 3461
 opened: 2026-09-25
 priority: P4
 cost: D
