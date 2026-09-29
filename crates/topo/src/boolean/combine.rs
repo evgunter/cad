@@ -313,25 +313,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     for (k, sfc) in src.surfaces.iter() {
         let dk = dst.surfaces.insert(sfc.clone());
         surfaces.insert(k, dk);
-        let Some(origin) = src.surface_origins.get(k) else {
-            unreachable!(
-                "grafted surface {k:?} is live in the source body and carries no origin row: \
-                 the origin map is total over live keys (kernel bug)"
-            )
-        };
-        dst.surface_origins.insert(dk, origin.clone());
-        // The per-FIELD ParamSource rows ride the graft for the same
-        // reason and by the same rule: a description's parameter
-        // identity is carried with the description, never re-derived
-        // from the transplanted values.
-        if let Some(fields) = src.surface_field_sources.get(k) {
-            dst.surface_field_sources.insert(dk, fields.clone());
-        }
-        // So does the axis row, `Cleared` included: a graft moves no
-        // axis, and a pending re-stamp stays nameable across it.
-        if let Some(axis) = src.surface_axis_sources.get(k) {
-            dst.surface_axis_sources.insert(dk, axis.clone());
-        }
+        dst.carry_surface_rows(dk, src, k);
     }
 
     // ---- Topology arenas, pass 1: clone with source-internal keys

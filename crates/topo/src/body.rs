@@ -218,6 +218,10 @@ pub struct Body<T: Real> {
     // surface's AXIS COMPONENT came from, composed through placement.
     // Opt-in like the field rows, but placement data — so, unlike
     // them, `clear_geom_sources` marks these `Cleared`.
+    //
+    // Every table keyed by `SurfaceKey` is carried and dropped by
+    // `Body::carry_surface_rows` / `Body::drop_surface_rows`; a new one
+    // joins them there.
     pub(crate) surface_axis_sources: SecondaryMap<SurfaceKey, AxisRecord>,
     // D1's tier-1 debug postcondition is paid ONCE PER PUBLIC DOOR
     // (the ruling on `work/perf/d1-per-op-tier1-sweep-price`), and
@@ -524,11 +528,50 @@ impl<T: Real> Body<T> {
         }
         let removed = self.surfaces.remove(surface).is_some();
         if removed {
-            self.surface_origins.remove(surface);
-            self.surface_field_sources.remove(surface);
-            self.surface_axis_sources.remove(surface);
+            self.drop_surface_rows(surface);
         }
         removed
+    }
+
+    /// **Every per-surface side row, carried to a new key.** The
+    /// origin row ([`GeomOrigin`]), the per-field [`ParamSource`] rows
+    /// and the axis row ([`AxisRecord`], `Cleared` included) of `src`'s
+    /// surface `from` land on this body's `to`, verbatim: a transplant
+    /// moves no description, so where each part of it came from is
+    /// unchanged. This and [`Body::drop_surface_rows`] are the one
+    /// spelling of the side tables' two obligations — a door that
+    /// transplants a surface carries its rows, a door that drops one
+    /// from the arena drops its rows — so a table added beside the
+    /// surface arena is carried and dropped by adding it here.
+    ///
+    /// The origin map is total over live keys (`GeomOrigin`), so a live
+    /// `from` without an origin row is a kernel bug, announced.
+    pub(crate) fn carry_surface_rows(&mut self, to: SurfaceKey, src: &Self, from: SurfaceKey) {
+        let Some(origin) = src.surface_origins.get(from) else {
+            unreachable!(
+                "carried surface {from:?} is live in the source body and carries no origin row: \
+                 the origin map is total over live keys (kernel bug)"
+            )
+        };
+        self.surface_origins.insert(to, origin.clone());
+        if let Some(fields) = src.surface_field_sources.get(from) {
+            self.surface_field_sources.insert(to, fields.clone());
+        }
+        if let Some(axis) = src.surface_axis_sources.get(from) {
+            self.surface_axis_sources.insert(to, axis.clone());
+        }
+    }
+
+    /// **Every per-surface side row, dropped with its key** — the
+    /// other half of [`Body::carry_surface_rows`]'s obligation, for a
+    /// surface just removed from the arena. Hygiene rather than a
+    /// guarded invariant: a re-minted key never reads a stranded row,
+    /// but the old key would go on answering for a description the
+    /// body no longer holds.
+    pub(crate) fn drop_surface_rows(&mut self, key: SurfaceKey) {
+        self.surface_origins.remove(key);
+        self.surface_field_sources.remove(key);
+        self.surface_axis_sources.remove(key);
     }
 
     /// The surface keys an edge description references: the two
@@ -847,11 +890,15 @@ impl<T: Real> Body<T> {
     /// placement ([`AxisSource::placed`]), which discharges an
     /// [`AxisRecord::Cleared`] row.
     ///
+    /// The token names a LINE the axis lies on ([`AxisSource`]): a
+    /// sphere is stamped with a line through its centre, whatever the
+    /// pole its chart stores.
+    ///
     /// # Errors
     ///
     /// [`AxisAttachError::StaleKey`] if the key does not resolve;
-    /// [`AxisAttachError::NoAxisOnKind`] if the surface stores no axis
-    /// ([`crate::has_axis`]).
+    /// [`AxisAttachError::NoAxisOnKind`] if the channel names no line
+    /// for the surface's kind ([`AxisSource::admits`]).
     pub fn set_surface_axis_source(
         &mut self,
         key: SurfaceKey,
@@ -860,7 +907,7 @@ impl<T: Real> Body<T> {
         let Some(surface) = self.surfaces.get(key) else {
             return Err(AxisAttachError::StaleKey);
         };
-        if !crate::source::has_axis(surface) {
+        if !AxisSource::admits(surface) {
             return Err(AxisAttachError::NoAxisOnKind);
         }
         self.surface_axis_sources
@@ -868,8 +915,10 @@ impl<T: Real> Body<T> {
         Ok(())
     }
 
-    /// Clears every GeomSource record — the honest posture after a
-    /// kernel-level geometric rewrite without recipe context
+    /// Marks `Cleared` every placement-bound source — each
+    /// description's `GeomSource` and each surface's axis row — the
+    /// honest posture after a kernel-level geometric rewrite without
+    /// recipe context
     /// (`transform_rigid`): the old sources' bit-identity claim no
     /// longer holds, so keeping them would let same-source certify
     /// coincidence between bit-DIFFERENT descriptions. The recipe

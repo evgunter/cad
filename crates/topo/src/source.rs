@@ -46,7 +46,10 @@
 //! its axis line — kept in its own opt-in rows ([`AxisRecord`]) beside
 //! the origin record rather than inside it: an axis is shared across
 //! descriptions a `GeomSource` tells apart, and an imported axis can
-//! have an identity no recipe gave it.
+//! have an identity no recipe gave it. It serves the design's LINE
+//! reading (coaxiality) only: its "same point" (concentricity) and
+//! "same direction" (parallelism) readings are not a line token's to
+//! answer, and each would be a further component table beside this one.
 //!
 //! **Scope of the identity claim (PR 1 review ruling, binding)**:
 //! ExprPath same-slot ancestor replacement silently re-points stale
@@ -91,9 +94,12 @@ pub enum SourceExpr {
     /// (N6: "the transform node composes into `expr`"). Equal chains
     /// ⇒ equal maps applied to equal descriptions ⇒ equal bits (D9).
     Placed {
-        /// The placing recipe node (Transform or Pattern), lowered id.
+        /// The placing recipe node, lowered id.
         node: u64,
-        /// The pattern instance index (0 for a plain Transform).
+        /// The placed body's OUTPUT ordinal in the placing node's value
+        /// (a pattern's flat `j·M + i`, a Transform's body index), so
+        /// that distinct bodies of one node never share a source. Not
+        /// the placement index an [`AxisPlacement`] keys on.
         instance: u32,
         /// The source expression being placed.
         inner: Box<SourceExpr>,
@@ -124,8 +130,8 @@ impl GeomSource {
         }
     }
 
-    /// This source placed by rigid-transform node `placed_by`
-    /// (instance `instance` for patterns; 0 for a plain transform):
+    /// This source placed by rigid-transform node `placed_by` as its
+    /// output body `instance` ([`SourceExpr::Placed`]'s ordinal):
     /// the placing node composes into `expr` (N6), `node` and
     /// `orient` are untouched (a rigid placement neither re-mints nor
     /// reverses the description).
@@ -426,8 +432,10 @@ fn bits_witness<T: geom_core::Real>(pairs: impl IntoIterator<Item = (T, T)>) -> 
 }
 
 /// **Where a geometric description came from** — the total answer to
-/// the question `Option<&GeomSource>` could not answer, and the ONE
-/// row a [`crate::Body`] keeps per geometric description.
+/// the question `Option<&GeomSource>` could not answer, and the one
+/// ORIGIN row a [`crate::Body`] keeps per geometric description. A
+/// surface's finer rows — its per-field [`crate::ParamSource`]s and its
+/// [`AxisRecord`] — sit beside it, opt-in, and never stand in for it.
 ///
 /// It tells apart what a missing `GeomSource` row cannot: an imported
 /// description, one minted by a kernel door, and one
@@ -451,7 +459,9 @@ fn bits_witness<T: geom_core::Real>(pairs: impl IntoIterator<Item = (T, T)>) -> 
 /// obligations follow, stated once here instead of at each site that
 /// carries them: a door that transplants a description carries its row
 /// (the graft), and a door that drops one from an arena drops its row
-/// (the orphan doors, `carve`'s sweeps). The second is hygiene rather
+/// (the orphan doors, `carve`'s sweeps). A surface's rows are several,
+/// and `Body::carry_surface_rows` / `Body::drop_surface_rows` are the
+/// one spelling of both for all of them. The second is hygiene rather
 /// than a guarded invariant — generational keys mean a re-minted key
 /// can never read a stranded row — but the OLD key would otherwise go
 /// on answering for a description the body no longer holds.
@@ -513,22 +523,25 @@ impl GeomOrigin {
 /// not derivable from them. This token identifies the axis alone: two
 /// descriptions carry equal tokens exactly when the recipe layer
 /// derived both axes from one recipe-level axis AND the same chain of
-/// placements has moved both since. Equality is the whole reading —
+/// rigid MAPS has moved both since. Equality is the whole reading —
 /// token comparison, zero numerics.
 ///
-/// **What it claims is the axis LINE**, not the stored anchor point on
-/// it: two coaxial cylinders may store different `origin`s along the
-/// line, and a sphere's `center` is one point of its axis. So no bit
-/// agreement follows from equal tokens, and none is asserted.
+/// **What it claims is a LINE the description's axis lies on**, not
+/// any stored component: two coaxial cylinders may store different
+/// `origin`s along the line, so no bit agreement follows from equal
+/// tokens, and none is asserted. For a cylinder, cone or torus the line
+/// is the stored axis. For a sphere it is **a line through the
+/// centre**: the stored `axis` is the pole of the sphere's chart, which
+/// no reading of this token consults, so the recipe layer stamps a
+/// sphere with the token of any recipe line its centre lies on,
+/// whatever its pole.
 ///
 /// **Two halves, two readabilities.** The base is an opaque byte string
 /// the recipe layer lowered: the recipe vocabulary stays above the
 /// layering line, as [`crate::ParamSource`]'s does, and this crate has
 /// no decoder. The placement chain is readable, and has to be: a
 /// declaration made stale by a placement applied to one carrier and not
-/// the other refuses NAMING that placement. The chain is the
-/// `(node, instance)` spelling [`SourceExpr::Placed`] composes with,
-/// not a second one.
+/// the other refuses NAMING that placement.
 ///
 /// It is placement data, so — unlike a `ParamSource`, whose stored
 /// scalar is motion-invariant — rigid placement composes it:
@@ -537,18 +550,24 @@ impl GeomOrigin {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AxisSource {
     base: std::sync::Arc<[u8]>,
-    placements: Vec<SourcePlacement>,
+    placements: Vec<AxisPlacement>,
 }
 
-/// One rigid placement in an [`AxisSource`]'s chain: the placing
-/// recipe node (lowered id) and the pattern instance (0 for a plain
-/// transform) — the pair [`SourceExpr::Placed`] wraps with.
+/// One rigid MAP in an [`AxisSource`]'s chain: the placing recipe node
+/// (lowered id) and which of that node's maps it applied.
+///
+/// This is not [`SourceExpr::Placed`]'s pair: that one keys on the
+/// placed body's output ordinal, because distinct bodies must not share
+/// a description source, while an axis's identity is the map — every
+/// body one map places carries the axis to the same line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SourcePlacement {
-    /// The placing recipe node (Transform or Pattern), lowered id.
+pub struct AxisPlacement {
+    /// The placing recipe node, lowered id.
     pub node: u64,
-    /// The pattern instance index (0 for a plain Transform).
-    pub instance: u32,
+    /// Which of the node's maps: 0 for a node with one (a Transform,
+    /// an instantiation), the placement index for a pattern or a
+    /// group boolean.
+    pub index: u32,
 }
 
 /// The base's bytes stay out of every print — `Body` derives `Debug`,
@@ -575,13 +594,12 @@ impl AxisSource {
         }
     }
 
-    /// This axis placed by rigid-transform node `node` (instance
-    /// `instance` for patterns): the new outermost placement, as
-    /// [`GeomSource::placed`] composes.
+    /// This axis moved by node `node`'s map `index` ([`AxisPlacement`]):
+    /// the new outermost placement.
     #[must_use]
-    pub fn placed(&self, node: u64, instance: u32) -> Self {
+    pub fn placed(&self, node: u64, index: u32) -> Self {
         let mut placements = self.placements.clone();
-        placements.push(SourcePlacement { node, instance });
+        placements.push(AxisPlacement { node, index });
         Self {
             base: self.base.clone(),
             placements,
@@ -591,7 +609,7 @@ impl AxisSource {
     /// The placements applied since the axis was lowered, innermost
     /// first.
     #[must_use]
-    pub fn placements(&self) -> &[SourcePlacement] {
+    pub fn placements(&self) -> &[AxisPlacement] {
         &self.placements
     }
 
@@ -601,6 +619,18 @@ impl AxisSource {
     #[must_use]
     pub fn same_base(&self, other: &Self) -> bool {
         self.base == other.base
+    }
+
+    /// Whether the channel can name a line for `surface`'s kind: the
+    /// four analytic kinds of revolution (a sphere's line being one
+    /// through its centre, above). A plane stores a normal and a point
+    /// on itself, not a line; the spline arms store a net.
+    pub fn admits<T: geom_core::Real>(surface: &geom::Surface<T>) -> bool {
+        use geom::Surface as S;
+        match surface {
+            S::Cylinder { .. } | S::Cone { .. } | S::Sphere { .. } | S::Torus { .. } => true,
+            S::Plane { .. } | S::Nurbs(_) | S::Approx(_) => false,
+        }
     }
 }
 
@@ -628,24 +658,14 @@ impl AxisRecord {
     }
 }
 
-/// Whether `surface` stores an axis the channel can name: the four
-/// analytic kinds of revolution. A plane stores a normal and a point on
-/// itself, not a line; the spline arms store a net.
-pub fn has_axis<T: geom_core::Real>(surface: &geom::Surface<T>) -> bool {
-    use geom::Surface as S;
-    match surface {
-        S::Cylinder { .. } | S::Cone { .. } | S::Sphere { .. } | S::Torus { .. } => true,
-        S::Plane { .. } | S::Nurbs(_) | S::Approx(_) => false,
-    }
-}
-
 /// A refused axis attachment (closed enum, D3 style). Both are caller
 /// bugs, refused rather than recorded where nothing reads them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AxisAttachError {
     /// The key does not resolve in the surface arena.
     StaleKey,
-    /// The surface at the key stores no axis ([`has_axis`]).
+    /// The channel names no line for the surface's kind
+    /// ([`AxisSource::admits`]).
     NoAxisOnKind,
 }
 

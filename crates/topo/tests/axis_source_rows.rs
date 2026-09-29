@@ -14,7 +14,7 @@ use common::brick;
 use geom::Surface;
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use topo::{
-    AxisAttachError, AxisRecord, AxisSource, Body, FaceSurface, SourcePlacement, SurfaceKey,
+    AxisAttachError, AxisPlacement, AxisRecord, AxisSource, Body, FaceSurface, SurfaceKey,
     graft_disjoint, transform_rigid,
 };
 
@@ -107,28 +107,26 @@ fn the_attach_door_takes_axes_and_refuses_planes_and_stale_keys() {
 }
 
 /// **The ratified staleness table, as token equality** — each row of
-/// `docs/AXIS-DECLARATION-DESIGN.md`'s table on two carriers of one
-/// recipe-level axis.
+/// `docs/AXIS-DECLARATION-DESIGN.md`'s table on two tokens of one
+/// recipe-level axis, built by hand. This is the token's algebra only:
+/// which `(node, index)` a real placement stamps is the recipe layer's
+/// choice, above this crate, so the table on carriers stamped by the
+/// placement door is `editor-core`'s
+/// `eval::wire::place_tests::the_staleness_table_through_the_placement_door`.
 #[test]
 fn the_staleness_table_is_token_equality() {
     let d = AxisSource::from_lowered(b"D");
     // Neither placed: equal.
     assert_eq!(d, d.clone());
-    // Both placed by one node/instance: equal.
+    // Both placed by one node and map: equal.
     assert_eq!(d.placed(7, 0), d.placed(7, 0));
     // One placed: differs, and names the placement that broke it.
     let moved = d.placed(7, 0);
     assert_ne!(d, moved);
     assert!(d.same_base(&moved), "one axis, moved: the stale case");
-    assert_eq!(
-        moved.placements(),
-        &[SourcePlacement {
-            node: 7,
-            instance: 0
-        }]
-    );
+    assert_eq!(moved.placements(), &[AxisPlacement { node: 7, index: 0 }]);
     // Both placed, by different chains — another node, another pattern
-    // instance, or the same two placements in another order: differs.
+    // placement, or the same two placements in another order: differs.
     assert_ne!(d.placed(7, 0), d.placed(8, 0));
     assert_ne!(d.placed(7, 0), d.placed(7, 1));
     assert_ne!(d.placed(7, 0).placed(8, 0), d.placed(8, 0).placed(7, 0));
@@ -148,7 +146,7 @@ fn debug_prints_the_chain_and_not_the_base() {
     assert!(!shown.contains("secret"), "{shown}");
     assert!(shown.contains("<11 bytes>"), "{shown}");
     assert!(
-        shown.contains("node: 42") && shown.contains("instance: 3"),
+        shown.contains("node: 42") && shown.contains("index: 3"),
         "{shown}"
     );
 }
