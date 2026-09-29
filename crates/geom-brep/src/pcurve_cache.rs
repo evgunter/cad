@@ -1033,15 +1033,14 @@ impl PcurveCertifyError {
     /// ([`PcurveCheck::recourse`]), or `None` for a refusal that is no
     /// decision's refused arm (an unsupported class, a missing operand,
     /// a band the tolerance cannot form, a fitted certificate's own
-    /// refusal), or whose definite arm is a winding the lane cannot map
-    /// rather than a stored contradiction
-    /// ([`PcurveCertifyError::AzimuthPeriodExceeded`]).
+    /// refusal).
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
         let (check, arm) = match self {
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
             Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
             Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain),
+            Self::AzimuthPeriodExceeded => (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain),
             Self::TrimEscape => (PcurveCheck::TrimContainment, RefusedArm::SignCertain),
             // The fitted lane's SSI certificate is an approximation's, as
             // the plane × NURBS lane's rung-3 certificate is
@@ -1057,7 +1056,6 @@ impl PcurveCertifyError {
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
             | Self::ChartWindingUnsupported
-            | Self::AzimuthPeriodExceeded
             | Self::Band(_) => return None,
         };
         Some(check.recourse(arm, reading))
@@ -4971,6 +4969,41 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The chart-side winding gate tells the edge certifier's winding
+    /// story on both arms, at every reading: a definite excess ends as
+    /// `CertifyError::WindingExceeded` does, and an in-band headroom as
+    /// `CertCheck::ParamWinding`'s undecided arm does (D4 ¶1 (iv)).
+    #[test]
+    fn the_azimuth_gate_ends_as_the_edge_winding_gate() {
+        use crate::certify::{CertifyError, recourse};
+        let cause = Indeterminate {
+            margin: geom_core::MarginDiag::Value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_azimuth_period"),
+        };
+        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+            assert_eq!(
+                PcurveCertifyError::AzimuthPeriodExceeded.ending(reading),
+                CertifyError::WindingExceeded.ending(reading),
+                "definite, {reading:?}"
+            );
+            let escalated = PcurveCertifyError::Escalated {
+                check: PcurveCheck::AzimuthPeriod,
+                sample: 0,
+                cause,
+            };
+            assert_eq!(
+                escalated.ending(reading),
+                Some(recourse(
+                    CertCheck::ParamWinding,
+                    RefusedArm::Undecided(&cause),
+                    reading
+                )),
+                "in band, {reading:?}"
+            );
+        }
     }
 
     /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.

@@ -24,11 +24,9 @@ has two escalation arms, and both end in
 
 `test_utils::refusal::recourse_markers` counts zero on both, and both
 offer "declare the coincidence", while `topo::validate`'s
-`classify_pcurve` routes the same arms (`C::FittedEscalated { cause } |
-C::Escalated { cause, .. }`) through
-`own_close(&cause.margin, "Recourse: lower the tolerance")` — the
-boundary's own fit, where a declaration has no object — and a poisoned
-margin to the defect ending. Both arms also open with the stage prefix
+`classify_pcurve` ends the same arms through their decision's ending
+at rest (`PcurveCertifyError::ending`, below) — the boundary's own fit,
+where a declaration has no object. Both arms also open with the stage prefix
 `pcurve certification:`.
 `recourse-chain-stops-at-pcurve-certify-error` counts these two arms as
 "delegating soundly" because they carry the menu; that reading is the

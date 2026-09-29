@@ -380,7 +380,10 @@ use core::fmt;
 use std::borrow::Cow;
 
 use geom::{NetState, Surface};
-use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
+use geom_brep::recourse::{
+    Definite, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    UNREADABLE_MARGIN_NOTE, Unsized,
+};
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
     classify_material_pairing,
@@ -832,6 +835,9 @@ pub enum ValidationError {
     DegenerateTorus {
         /// The face whose torus is a horn or spindle.
         face: FaceKey,
+        /// `R − r`'s verdict: zero at this tolerance (a horn), or
+        /// definitely negative (a spindle).
+        verdict: Definite,
     },
     /// Tier 3: the ring-torus convention margin `R − r` landed in the
     /// ambiguity band (or was poison) — the classification is not
@@ -1014,12 +1020,14 @@ pub enum ValidationError {
         /// The classifier's diagnostic (first failing sample).
         cause: Indeterminate,
     },
-    /// Tier 3: the dihedral classification at an edge escalated — the
-    /// wedge between its two faces' tangent planes is in the sliver
-    /// band (or unclassifiable: poison at a surface singularity, an
-    /// unimplemented kind). The material wedge-angle predicate's
-    /// at-rest form: every edge must classify definitely (transverse
-    /// corner or smooth seam), never sliver.
+    /// Tier 3: one of check 4's decisions at an edge could not be taken
+    /// ([`WedgeCheck`] names which): the wedge between its two faces'
+    /// tangent planes is in the sliver band or unclassifiable (poison at
+    /// a surface singularity, an unimplemented kind); on a smooth edge,
+    /// whether the faces separate at second order is in band; or the
+    /// material sides the faces are on, or which end of the wedge they
+    /// make, do not read consistently along the edge. Every edge must
+    /// classify definitely, never sliver.
     SliverDihedral {
         /// The edge whose wedge cannot be classified definitely.
         edge: EdgeKey,
@@ -2095,35 +2103,73 @@ impl fmt::Display for StaleDeclaration {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WedgeCheck {
     /// The first-order wedge between the faces' tangent planes, with the
-    /// folded lever arm it is metered at: the edge certifier's
-    /// transversality decision.
+    /// folded lever arm it is metered at: a crease or a smooth join.
     Dihedral,
     /// On a definitely-smooth edge, whether the faces separate at second
-    /// order: the edge certifier's tangent second-order decision.
+    /// order (the surfaces determine the locus) or not.
     SecondOrder,
     /// On a definitely-smooth edge, which material side each face is on
     /// and which end of the wedge they make, where the samples disagree
-    /// or a quantity already decided definite reads undecided.
+    /// or a side read after the decisions before it came out definite
+    /// reads undecided.
     MaterialSide,
 }
 
 impl WedgeCheck {
+    /// What could not be decided, in the words of a person at the viewer.
+    fn lead(self) -> &'static str {
+        match self {
+            Self::Dihedral => {
+                "the angle between two faces at an edge is too close to call at this \
+                 tolerance (a sliver)"
+            }
+            Self::SecondOrder => {
+                "whether two faces meeting smoothly at an edge curve apart there is too \
+                 close to call at this tolerance"
+            }
+            Self::MaterialSide => {
+                "which side of an edge the material of its two smoothly meeting faces lies \
+                 on could not be read consistently along it"
+            }
+        }
+    }
+
     /// This decision's one ending for an undecided `cause`, read at rest.
     fn ending(self, cause: &Indeterminate) -> Cow<'static, str> {
-        let certify = |check| {
-            geom_brep::certify::recourse(check, RefusedArm::Undecided(cause), Reading::AtRest)
-                .into()
-        };
+        let arm = RefusedArm::Undecided(cause);
         match self {
-            Self::Dihedral => certify(CertCheck::Transversality),
-            Self::SecondOrder => certify(CertCheck::TangentSecondOrder),
-            // Each side is read off a magnitude an earlier decision
-            // classified definitely clear of the band, so an undecided
-            // one is no margin the geometry gives.
+            Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
+            Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
+            // A split along the edge, or a side read after the decisions
+            // before it came out definite: no margin of its own gives a
+            // size or a lever.
             Self::MaterialSide => DEFECT.into(),
         }
     }
 }
+
+/// The first-order wedge at an edge: a form selection that passes on a
+/// crease (positive) and on a smooth join (zero), and refuses only in
+/// band.
+const WEDGE: SizedDecision = SizedDecision {
+    lever: "move the geometry so the faces meet either clearly creased or clearly smooth",
+    size: "angle",
+    passes: SizedPass::NonNegative,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// On a smooth edge, the faces' second-order separation: passes when
+/// they curve apart (positive) and when they do not (zero), and refuses
+/// only in band.
+const SEPARATION: SizedDecision = SizedDecision {
+    lever: "move the geometry so the faces either clearly curve apart where they touch or \
+            clearly share their curvature there",
+    size: "curvature difference",
+    passes: SizedPass::NonNegative,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 /// The ending a kernel defect gets: nothing the user can change in
 /// the model repairs a body whose structure a kernel operation (or a
@@ -2164,13 +2210,24 @@ fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static st
     }
 }
 
-/// The lever of a decision the refusal does not name.
-const MOVE: &str = "Recourse: move the geometry";
+/// The ending of an undecided margin whose refusal does not carry which
+/// of its site's decisions it is: no lever, since none is known to reach
+/// it, and for a poisoned margin what that may mean.
+fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
+    match margin {
+        geom_core::MarginDiag::Invalid => format!("{NOT_YET}: {UNREADABLE_MARGIN_NOTE}").into(),
+        _ => NOT_YET.into(),
+    }
+}
 
-/// A flat face's corners and edges on its plane: residuals, which pass
-/// only at zero, against a plane the kernel fits to the corners (Newell)
-/// and of carriers it may itself have fitted.
-const PLANAR_RESIDUAL: Unsized = Unsized::LastResort;
+/// A flat face's corner on its plane: a residual (it passes only at zero)
+/// of a stored vertex against the plane the kernel caches from those same
+/// corners, an exact construction.
+const PLANAR_CORNER: Unsized = Unsized::Defect;
+
+/// A flat face's edge on its plane: a residual of a carrier the kernel may
+/// have fitted.
+const PLANAR_BOUNDARY: Unsized = Unsized::LastResort;
 
 /// The ring-torus convention `R − r > 0`: a size the user may intend, and
 /// the stored radii are what the lever edits.
@@ -2510,16 +2567,18 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
     (why, recourse.into())
 }
 
-fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, &'static str) {
+fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, Cow<'static, str>) {
     use crate::props::MassPropsError as M;
     use geom_brep::props::PropsError as P;
-    match e {
+    let (why, recourse) = match e {
         M::Band { error } => (classify_band(error), TOLERANCE),
         M::Face { source, .. } => match source {
-            P::Escalated { cause } => (
-                "a face's contribution is too close to call at this tolerance",
-                own_close(&cause.margin, MOVE),
-            ),
+            P::Escalated { cause } => {
+                return (
+                    "a face's contribution is too close to call at this tolerance",
+                    unnamed(&cause.margin),
+                );
+            }
             P::QuadratureBudget { .. } => (
                 "a face's contribution did not converge to the tolerance",
                 "Recourse: loosen the tolerance",
@@ -2538,7 +2597,8 @@ fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, &'sta
             NOT_YET,
         ),
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => ("its structure is incomplete", DEFECT),
-    }
+    };
+    (why, recourse.into())
 }
 
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
@@ -2557,7 +2617,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "the face wraps all the way round its surface, which the kernel cannot yet map",
             NOT_YET,
         ),
-        M::Escalated { cause, .. } => (CLOSE, own_close(&cause.margin, MOVE)),
+        M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         M::Band(b) => (classify_band(b), TOLERANCE),
         M::Certify { error, .. } => {
             let (why, own) = match error {
@@ -2565,7 +2625,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::UnsupportedCarrier
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
-                | C::AzimuthPeriodExceeded
                 | C::FittedMateMissing => (KIND, NOT_YET),
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
@@ -2573,6 +2632,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 ),
                 C::ChartRow { .. }
                 | C::IntervalNotForward
+                | C::AzimuthPeriodExceeded
                 | C::ResidualExceeded { .. }
                 | C::TrimEscape
                 | C::FittedCertificate { .. } => (WRONG, DEFECT),
@@ -2750,11 +2810,14 @@ impl fmt::Display for ValidationError {
                  re-derivation lane for its certificate. Recourse: check the body at f64, \
                  the one scalar that re-derives it"
             ),
-            Self::DegenerateTorus { .. } => write!(
+            Self::DegenerateTorus { verdict, .. } => write!(
                 f,
-                "a torus face's tube radius is not smaller than its ring radius (a horn or \
-                 spindle torus). {}",
-                RING_TORUS.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                "a torus face's tube radius {}. {}",
+                match verdict {
+                    Definite::Zero => "equals its ring radius at this tolerance (a horn torus)",
+                    Definite::Negative => "is larger than its ring radius (a spindle torus)",
+                },
+                RING_TORUS.recourse(verdict.arm(), Reading::AtRest)
             ),
             Self::DegenerateTorusEscalated { cause, .. } => write!(
                 f,
@@ -2827,31 +2890,28 @@ impl fmt::Display for ValidationError {
             Self::PlanarFaceResidual { .. } => write!(
                 f,
                 "a corner of a flat face lies off that face's plane. {}",
-                PLANAR_RESIDUAL.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                PLANAR_CORNER.recourse(RefusedArm::SignCertain, Reading::AtRest)
             ),
             Self::PlanarFaceEscalated { cause, .. } => write!(
                 f,
                 "whether a corner of a flat face lies on its plane is too close to call at \
                  this tolerance. {}",
-                PLANAR_RESIDUAL.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                PLANAR_CORNER.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
                 "an edge of a flat face leaves that face's plane between its ends. {}",
-                PLANAR_RESIDUAL.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                PLANAR_BOUNDARY.recourse(RefusedArm::SignCertain, Reading::AtRest)
             ),
             Self::PlanarBoundaryEscalated { cause, .. } => write!(
                 f,
                 "whether an edge of a flat face stays on its plane is too close to call at \
                  this tolerance. {}",
-                PLANAR_RESIDUAL.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                PLANAR_BOUNDARY.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
-            Self::SliverDihedral { check, cause, .. } => write!(
-                f,
-                "the angle between two faces at an edge is too close to call at this \
-                 tolerance (a sliver). {}",
-                check.ending(cause)
-            ),
+            Self::SliverDihedral { check, cause, .. } => {
+                write!(f, "{}. {}", check.lead(), check.ending(cause))
+            }
             Self::TransverseNotIntrinsic { .. } => write!(
                 f,
                 "an edge where two faces cross is stored as a sketch curve, though their \
@@ -5278,8 +5338,14 @@ pub(crate) fn tier3_local_checks_marked<
                 {
                     match geom::ring_torus(*major_radius, *minor_radius, band) {
                         Ok(Sign::Positive) => {}
-                        Ok(Sign::Zero | Sign::Negative) => {
-                            errors.push(ValidationError::DegenerateTorus { face: face_key });
+                        Ok(sign @ (Sign::Zero | Sign::Negative)) => {
+                            errors.push(ValidationError::DegenerateTorus {
+                                face: face_key,
+                                verdict: match sign {
+                                    Sign::Zero => Definite::Zero,
+                                    _ => Definite::Negative,
+                                },
+                            });
                         }
                         Err(cause) => {
                             errors.push(ValidationError::DegenerateTorusEscalated {
@@ -9470,19 +9536,47 @@ mod tests {
     /// band-decided arm of a sized decision, conditionally and with its
     /// value. The coincidence menu `too_close` spells is
     /// `geom_core::COINCIDENCE_RECOURSE`'s wording, the constant's own to
-    /// change, so it is taken out of the text first.
+    /// change, so it is taken out of exactly the arms that compose it, and
+    /// those arms are held to composing it.
     #[test]
     fn no_validate_ending_says_lower_the_tolerance() {
+        use crate::chart_region::ChartRegionError as R;
         let menu = geom_core::COINCIDENCE_RECOURSE;
+        let composes = |e: &ValidationError| {
+            matches!(
+                e,
+                ValidationError::CensusEscalated { .. }
+                    | ValidationError::CensusUnsupported {
+                        cause: CensusUnsupportedCause::ChartRegion(
+                            R::Escalated(_) | R::RayExhausted
+                        ),
+                        ..
+                    }
+            )
+        };
         let samples = crate::test_support_samples::validation_error_samples();
-        assert!(!samples.is_empty(), "the sample roster is empty");
-        let lowering: Vec<String> = samples
-            .iter()
-            .map(|(label, e)| (label, e.to_string().replace(menu, "")))
-            .filter(|(_, text)| text.contains("lower the tolerance"))
-            .map(|(label, text)| format!("{label}: {text}"))
-            .collect();
-        assert!(lowering.is_empty(), "{}", lowering.join("\n"));
+        let mut problems = Vec::new();
+        let mut menus = 0;
+        for (label, e) in &samples {
+            let text = e.to_string();
+            if composes(e) != text.contains(menu) {
+                problems.push(format!("{label} composes the menu unexpectedly: {text}"));
+            }
+            let text = if composes(e) {
+                menus += 1;
+                text.replace(menu, "")
+            } else {
+                text
+            };
+            if text.contains("lower the tolerance") {
+                problems.push(format!("{label}: {text}"));
+            }
+        }
+        assert!(
+            menus > 0,
+            "no sample composes the menu: the exemption is vacuous"
+        );
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 
     /// Each own-close refusal ends as its decision gives the arm it
@@ -9519,27 +9613,36 @@ mod tests {
             (
                 "wedge, in band",
                 sliver(WedgeCheck::Dihedral, in_band),
-                "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
-                 angle is intended, tighten the tolerance below 5e-10 m"
+                "the angle between two faces at an edge is too close to call at this tolerance \
+                 (a sliver). Recourse: move the geometry so the faces meet either clearly \
+                 creased or clearly smooth, or, if this angle is intended, tighten the \
+                 tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "wedge, straddling",
                 sliver(WedgeCheck::Dihedral, straddles),
-                "Recourse: move the geometry so the faces cross at a clearer angle".to_owned(),
+                "Recourse: move the geometry so the faces meet either clearly creased or clearly \
+                 smooth"
+                    .to_owned(),
             ),
             (
                 "second order, in band",
                 sliver(WedgeCheck::SecondOrder, in_band),
-                "Recourse: move the geometry so the faces curve apart more clearly where they \
-                 touch, or, if this curvature difference is intended, tighten the tolerance \
-                 below 5e-10 m"
+                "whether two faces meeting smoothly at an edge curve apart there is too close to \
+                 call at this tolerance. Recourse: move the geometry so the faces either \
+                 clearly curve apart where they touch or clearly share their curvature there, \
+                 or, if this curvature difference is intended, tighten the tolerance below \
+                 5e-10 m"
                     .to_owned(),
             ),
             (
                 "material side",
                 sliver(WedgeCheck::MaterialSide, in_band),
-                DEFECT.to_owned(),
+                format!(
+                    "which side of an edge the material of its two smoothly meeting faces lies \
+                     on could not be read consistently along it. {DEFECT}"
+                ),
             ),
             (
                 "corner off its plane, in band",
@@ -9548,7 +9651,7 @@ mod tests {
                     vertex,
                     cause: in_band,
                 },
-                KERNEL_LIMIT_RECOURSE.to_owned(),
+                DEFECT.to_owned(),
             ),
             (
                 "corner off its plane",
@@ -9576,8 +9679,23 @@ mod tests {
             ),
             (
                 "horn torus",
-                ValidationError::DegenerateTorus { face },
-                "Recourse: make the tube radius clearly smaller than the ring radius".to_owned(),
+                ValidationError::DegenerateTorus {
+                    face,
+                    verdict: Definite::Zero,
+                },
+                "Recourse: make the tube radius clearly smaller than the ring radius, or, if this \
+                 difference between the radii is intended, tighten the tolerance"
+                    .to_owned(),
+            ),
+            (
+                "spindle torus",
+                ValidationError::DegenerateTorus {
+                    face,
+                    verdict: Definite::Negative,
+                },
+                "a torus face's tube radius is larger than its ring radius (a spindle torus). \
+                 Recourse: make the tube radius clearly smaller than the ring radius"
+                    .to_owned(),
             ),
             (
                 "hole against its outline, in band",
@@ -9607,6 +9725,43 @@ mod tests {
                     cause: in_band,
                 }),
                 KERNEL_LIMIT_RECOURSE.to_owned(),
+            ),
+            (
+                "pcurve azimuth past a period",
+                pcurve(PcurveCertifyError::AzimuthPeriodExceeded),
+                format!("the stored boundary does not match the face. {DEFECT}"),
+            ),
+            (
+                "pcurve azimuth headroom, in band",
+                pcurve(PcurveCertifyError::Escalated {
+                    check: PcurveCheck::AzimuthPeriod,
+                    sample: 0,
+                    cause: in_band,
+                }),
+                "Recourse: move the geometry so this arc stays clearly short of a full turn, or, \
+                 if this arc is intended, tighten the tolerance below 5e-10 m"
+                    .to_owned(),
+            ),
+            (
+                "pcurve mint, decision not carried",
+                ValidationError::Pcurve {
+                    finding: crate::pcurves::PcurveMintError::Escalated {
+                        half_edge: crate::entity::HalfEdgeKey::default(),
+                        cause: in_band,
+                    },
+                },
+                "the boundary is too close to call at this tolerance. There is no way through yet"
+                    .to_owned(),
+            ),
+            (
+                "pcurve mint, poisoned",
+                ValidationError::Pcurve {
+                    finding: crate::pcurves::PcurveMintError::Escalated {
+                        half_edge: crate::entity::HalfEdgeKey::default(),
+                        cause: diag(MarginDiag::Invalid),
+                    },
+                },
+                format!("There is no way through yet: {UNREADABLE_MARGIN_NOTE}"),
             ),
             (
                 "pcurve fitted certificate, in band",

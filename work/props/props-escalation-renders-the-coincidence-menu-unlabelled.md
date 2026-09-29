@@ -18,10 +18,9 @@ renders "integral properties: classification escalated: {cause}" —
 the `Indeterminate` whole, ending in `geom_core::COINCIDENCE_RECOURSE`
 unlabelled. So `test_utils::refusal::recourse_markers` counts zero on
 it, and it offers "declare the coincidence", while `topo::validate`'s
-`classify_mass_props` routes the same arm (`M::Face { P::Escalated }`)
-through `own_close(&cause.margin, "Recourse: lower the tolerance")` —
-one face's own contribution, where a declaration has no object — and a
-poisoned margin to the defect ending. The arm also opens with the stage
+`classify_mass_props` ends the same arm (`M::Face { P::Escalated }`)
+with no lever, since its decision is not carried (below) — one face's
+own contribution, where a declaration has no object. The arm also opens with the stage
 prefix `integral properties:`.
 
 ## Repair shape
@@ -38,9 +37,11 @@ As `geom_brep::offset_meters::MeterError::Escalated` now does: render
 `props_quad_converged`, …) and keeps only the `Indeterminate`, so no
 ending can follow its decision (D4 ¶1 (i)): `props_quad_converged`'s
 in-band twin is `QuadratureBudget`, whose story is the last resort,
-while the geometric ones are sized or residual. `classify_mass_props`
-now ends it in the bare lever "Recourse: move the geometry" (or the
-defect ending on a poisoned margin) rather than "lower the tolerance".
+while the geometric ones are sized or residual, and no one lever
+reaches them all. `classify_mass_props` (`crates/topo/src/validate.rs`,
+through `unnamed`) therefore ends it in no lever: "There is no way
+through yet", with `geom_brep::recourse::UNREADABLE_MARGIN_NOTE` on a
+poisoned margin.
 The repair above wants a closed check type on the variant first, with
 its ending table beside it (`geom_brep::recourse::SizedDecision` /
 `Unsized`), so both this `Display` and `classify_mass_props` read one

@@ -21,9 +21,14 @@ The rule is D4 ¶1 (i)/(iv) in `docs/DESIGN.md`.
   two-sided `SizedPass` (PR 3390's `SizedPass::NonZero`) would let the
   in-band arm quote the tolerance below `|m|/K`.
 - **`SliverDihedral { check: WedgeCheck::MaterialSide, .. }`** ends in
-  the defect ending. For its two undecided reads that is right: each is
-  taken off a magnitude an earlier decision classified clear of the
-  band. For `MaterialArmOutcome::Split` it may not be: samples that
+  the defect ending. For the cusp side that holds: its magnitude is
+  the second-order margin one decision earlier classified positive. The
+  pairing (`material_wedge_side`) has a knife-edge window: its margin
+  `cosθ·arm` is bounded below only by `ε·√(K²−1)` (the arm gate passes
+  `arm > Kε`, the smooth verdict leaves `sinθ·arm ≤ ε`), which is below
+  the escalation threshold `Kε`, so sound geometry near both thresholds
+  can land it in band and read a defect. For `MaterialArmOutcome::Split`
+  it may not hold either: samples that
   disagree about which end of the wedge an edge makes (`material_cusp_side`)
   are what a tangent edge whose curvature difference changes sign
   between samples gives, and moving the geometry reaches that. Decide

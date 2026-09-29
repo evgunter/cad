@@ -737,7 +737,14 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::UncertifiableSurface { face },
         ValidationError::PoisonedSurfaceDescription { face },
         ValidationError::ApproxLaneUnsupported { face },
-        ValidationError::DegenerateTorus { face },
+        ValidationError::DegenerateTorus {
+            face,
+            verdict: Definite::Zero,
+        },
+        ValidationError::DegenerateTorus {
+            face,
+            verdict: Definite::Negative,
+        },
         ValidationError::DescriptionNotAdjacent { edge },
         ValidationError::PlanarFaceResidual { face, vertex },
         ValidationError::PlanarBoundaryResidual { face, edge },

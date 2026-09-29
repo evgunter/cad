@@ -25,6 +25,12 @@ decision and its verdict, and the decision is a closed type at its site.
   `WitnessTooClose`, whose sentence now ends in the lever alone
   ("move the parts until their bounding boxes no longer overlap").
 
+`ContainError::RayExhausted`'s own `Display`
+(`crates/topo/src/boolean/contain.rs`, `impl Display for ContainError`)
+still ends "move the point off the boundary or lower the tolerance",
+where D4 ¶1 (i) offers no unvalued lowering; validate renders its own
+ending over it, but a caller printing the refusal reads the old one.
+
 A point's side of a boundary passes on either nonzero sign, so once the
 decision is carried its ending wants a two-sided `SizedPass` (the one
 PR 3390 adds as `SizedPass::NonZero`) to quote the tolerance below
