@@ -5336,8 +5336,9 @@ pub(crate) fn tier3_local_checks_marked<
         };
         // Re-certification takes the lane the CALLER handed in, not one
         // read off the scalar. The bound that admits a scalar to this
-        // battery says nothing about the C9 ring the plane × NURBS
-        // certificate lives in, which is a right of its own. So a
+        // battery says nothing about the certification arithmetic (C9)
+        // the plane × NURBS certificate lives in, which is a right of
+        // its own. So a
         // caller that can name the certified lane supplies it and this
         // check runs whole; a caller that cannot makes no claim about
         // an M7-8 edge at all.
