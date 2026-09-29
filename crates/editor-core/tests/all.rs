@@ -439,6 +439,8 @@ mod mate6r2_probes;
 mod names_verbatim_edge_evaluator;
 #[path = "node_standing.rs"]
 mod node_standing;
+#[path = "standing_rev_probe.rs"]
+mod standing_rev_probe;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
