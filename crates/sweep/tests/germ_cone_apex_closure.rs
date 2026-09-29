@@ -18,9 +18,11 @@
 //! - W2's `describes` on the apex-closed faces, the preview cone's
 //!   merged face among them.
 //!
-//! The mutant is the nearest-branch pin restored at the apex: the 3π/2
-//! and 4.5 rad rows refuse `PartialConeFace` again, and the merged face
-//! stops describing.
+//! The mutant is the nearest-branch pin restored at the apex: the π,
+//! 3π/2 and 4.5 rad rows refuse `PartialConeFace` again. `describes`
+//! survives that mutant by design — its cone clause rests on the
+//! closure's preconditions, not on the window's value — and its own
+//! rows are `topo`'s `section_cert_rows.rs`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

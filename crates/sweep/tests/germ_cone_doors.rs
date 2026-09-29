@@ -204,30 +204,68 @@ fn the_quarter_cone_face_holds_its_quadrant_and_no_other() {
     }
 }
 
-/// **The apex-closed bands of one full cone partition their wall.**
-/// The two bands meet at the apex, where every azimuth lands; the apex
-/// closure pins each band's own half-period window there, so a carrier
-/// point away from the seam meridians is `In` exactly one band and
-/// `Out` of the other. A walk that read either band as a full period
-/// answers `None` for both (or, group-scoped, `In` for both). The
-/// carrier test still runs FIRST: a point off the cone is `Out` of both
-/// bands whatever the trim can say.
+/// **The apex-closed bands of one full cone partition their wall, each
+/// holding its own half.** The two bands meet at the apex, where every
+/// azimuth lands; the apex closure pins each band's own half-period
+/// window there. A carrier point away from the seam meridians is `In`
+/// the band whose rim arc passes over it — read off the rim's own
+/// carrier, independently of any trim — and `Out` of the other. A walk
+/// that read either band as a full period answers `None` for both; one
+/// that handed each band the other's window answers the swapped band.
+/// The carrier test still runs FIRST: a point off the cone is `Out` of
+/// both bands whatever the trim can say.
 #[test]
 fn the_apex_closed_bands_partition_their_wall() {
     let body = cone();
     let bands = cone_faces(&body);
     assert_eq!(bands.len(), 2);
+    let rim_azimuth = |f: FaceKey| -> f64 {
+        let topo::LoopBoundary::Cycle { first } = body
+            .get_loop(body.get_face(f).unwrap().outer)
+            .unwrap()
+            .boundary
+        else {
+            panic!("a band's outline is a cycle")
+        };
+        let rims: Vec<f64> = body
+            .loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .filter_map(|he| {
+                let e = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+                let c = body
+                    .get_curve_geom(e.curve)
+                    .and_then(topo::CurveGeom::certified)?;
+                let geom::Curve3::Circle { .. } = c.carrier() else {
+                    return None;
+                };
+                let (t0, t1) = c.params();
+                let m = c.carrier().eval(0.5 * (t0 + t1));
+                Some(m.z.atan2(m.x))
+            })
+            .collect();
+        let [phi] = rims[..] else {
+            panic!("one rim arc per band: {rims:?}")
+        };
+        phi
+    };
+    let mids: Vec<f64> = bands.iter().map(|&f| rim_azimuth(f)).collect();
     for k in 0..6 {
         let phi = 0.1 + f64::from(k) * core::f64::consts::TAU / 6.0;
         let p = at(0.5, 0.5, phi);
-        let verdicts: Vec<_> = bands.iter().map(|&f| contain(&body, f, p)).collect();
-        let count = |v| verdicts.iter().filter(|x| **x == Some(v)).count();
-        assert_eq!(
-            (count(FaceContainment::In), count(FaceContainment::Out)),
-            (1, 1),
-            "phi {phi}: {verdicts:?}"
-        );
-        for &f in &bands {
+        for (&f, &mid) in bands.iter().zip(&mids) {
+            let d = (phi - mid).rem_euclid(core::f64::consts::TAU);
+            let holds = d.min(core::f64::consts::TAU - d) < core::f64::consts::FRAC_PI_2;
+            let want = if holds {
+                FaceContainment::In
+            } else {
+                FaceContainment::Out
+            };
+            assert_eq!(
+                contain(&body, f, p),
+                Some(want),
+                "phi {phi}: the band whose rim runs over {mid}"
+            );
             assert_eq!(
                 contain(&body, f, at(0.5 + 1e-3, 0.5, phi)),
                 Some(FaceContainment::Out)
