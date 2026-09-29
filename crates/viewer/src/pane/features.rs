@@ -150,10 +150,20 @@ impl ViewerBehavior<'_> {
             // The hide toggle, on instance rows only: a hidden
             // instance stays IN this tree (that is the point — the
             // tree is the document, the viewport is the display), and
-            // the checkbox is the display op's chrome.
+            // the checkbox is the display op's chrome. The kind decides
+            // whether it is drawn; the op's own admission decides
+            // whether it is live, and a refused one carries the op's
+            // sentence on its hover.
             if row.kind == "InstantiatePart" {
+                let refusal = self.session.instance_hidden_refusal(row.id);
                 let mut shown = !self.display.hidden.contains(&row.id);
-                if ui.checkbox(&mut shown, "shown").changed() {
+                let toggle =
+                    ui.add_enabled(refusal.is_none(), egui::Checkbox::new(&mut shown, "shown"));
+                let toggle = match &refusal {
+                    Some(refusal) => toggle.on_disabled_hover_text(refusal.to_string()),
+                    None => toggle,
+                };
+                if toggle.changed() {
                     self.ops.push(SessionOp::SetInstanceHidden {
                         instance: row.id,
                         hidden: !shown,
