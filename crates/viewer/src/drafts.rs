@@ -664,11 +664,13 @@ impl Drafts {
 
     /// **The committed profile the edit door is drawing in place of
     /// its committed loops** — the draft's node, when the edit door's
-    /// preview this frame REPLAYED (`edit_preview`, taken from
+    /// preview this frame DREW (`edit_preview`, taken from
     /// [`Self::door_loops`]'s `edit`). The committed-profile pass
     /// leaves it out (`sketch::committed`'s `except`), so the node
-    /// shows only its live preview; a preview that refused draws
-    /// nothing, and then the committed drawing stays up.
+    /// shows only its live preview — a loop cut short by a refused
+    /// step included, since that prefix is the edit being looked at. A
+    /// preview with nothing to draw is an `Err`, and then the committed
+    /// drawing stays up.
     pub(crate) fn edited_in_place(
         &self,
         edit_preview: Option<&Result<sketch::ProfilePreview, sketch::PreviewError>>,
@@ -1375,9 +1377,10 @@ mod tests {
     }
 
     /// **The profile being edited shows only its live preview.** The
-    /// edit door's replayed preview stands in for the node, which the
-    /// committed-profile pass then leaves out; a preview that refused
-    /// stands in for nothing, and the committed drawing stays.
+    /// edit door's drawn preview stands in for the node, which the
+    /// committed-profile pass then leaves out — a loop cut short by a
+    /// refused step included; a preview with nothing to draw stands in
+    /// for nothing, and the committed drawing stays.
     #[test]
     fn the_edited_profile_is_drawn_only_as_its_preview() {
         let tol = Tol::witness();
@@ -1416,7 +1419,31 @@ mod tests {
         let except = drafts.edited_in_place(Some(&preview));
         assert_eq!(except, Some(profile));
         assert!(drawn(except).is_empty(), "the committed loops are left out");
-        // A preview that refuses stands in for nothing.
+        // A number that makes a step refuse leaves the steps before it
+        // drawn, and that prefix is the edit being looked at.
+        if let Some(edit) = drafts.profile_edit.as_mut() {
+            use pncad::profile::{ArcData, ArcSweep};
+            edit.loops[0][3] = Step::ArcFilletArc {
+                spec: ArcData::Bulge {
+                    target: Target::Point(Point2::new(0.01, 0.0)),
+                    b: 0.5,
+                },
+                radius: 0.001,
+                spec2: ArcData::Center {
+                    c: Point2::origin(),
+                    winding: ArcSweep::Ccw,
+                    target: Target::Point(Point2::new(0.01, 0.0)),
+                },
+            };
+        }
+        let held = drafts.door_loops().edit.expect("held");
+        let cut = sketch::preview(placement, &held.loops, tol, chord);
+        assert!(
+            matches!(&cut, Ok(p) if p.loops[0].refusal().is_some()),
+            "a refused step's prefix draws: {cut:?}"
+        );
+        assert_eq!(drafts.edited_in_place(Some(&cut)), Some(profile));
+        // A preview with nothing to draw stands in for nothing.
         if let Some(edit) = drafts.profile_edit.as_mut() {
             edit.loops[0] = vec![Step::At(Point2::origin())];
         }

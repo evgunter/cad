@@ -28,7 +28,7 @@ use pncad::profile::{
     ArcData, ArcMode, ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb,
 };
 use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
-use viewer::sketch::{self, Notation, PreviewError, admits_at, preview};
+use viewer::sketch::{self, LoopEnd, Notation, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
 /// millimetre, fine enough that a circle's points land on it to well
@@ -77,7 +77,7 @@ fn a_line_chain_previews_and_authors_the_same_square() {
     // Four corners and no subdivision: a straight leg has no sag to
     // answer for, so the flattener adds nothing between its ends.
     assert!(
-        drawn.loops[0].closed,
+        drawn.loops[0].closes(),
         "the square's chain closes on its own"
     );
     assert_eq!(
@@ -260,8 +260,9 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     )
     .expect("an unfinished chain still draws what it has");
     assert_eq!(drawn.loops.len(), 1);
-    assert!(
-        !drawn.loops[0].closed,
+    assert_eq!(
+        drawn.loops[0].end,
+        LoopEnd::Open,
         "the chain has no closing verb, and the preview says so",
     );
     assert!(drawn.has_open_chain());
@@ -515,25 +516,49 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     )
     .expect("the declared seam previews");
     assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
-    assert!(drawn.loops[0].closed);
+    assert!(drawn.loops[0].closes());
 
     // The same seam UNDECLARED is the refusal whose sentence names the
-    // declaration — the one a person using this form now can act on.
+    // declaration — the one a person using this form now can act on —
+    // carried by the loop it cut short, which draws every step before
+    // the refused close.
     let mut undeclared = steps.clone();
     undeclared[6] = Step::LineTo(Target::Start);
-    let refusal = preview(
+    let cut = preview(
         SketchPlane::xy(),
         &[ProfileShape::Path { steps: undeclared }],
         tol,
         CHORD,
     )
-    .expect_err("an undeclared tangent seam is refused");
+    .expect("the steps before an undeclared seam still draw");
+    let refusal = cut.loops[0]
+        .refusal()
+        .expect("an undeclared tangent seam is refused");
     assert!(
         matches!(
-            &refusal,
+            refusal,
             PreviewError::Geometry { step: 6, rendered, .. } if rendered.contains("arrives_tangent")
         ),
         "{refusal}",
+    );
+    let before: Vec<[f64; 2]> = cut.loops[0]
+        .vertices
+        .iter()
+        .map(|&at| cut.loops[0].points[at])
+        .collect();
+    // Up to the `continue_to` and not through it: a provisional close
+    // after it IS the undeclared seam, so the prefix that replays is
+    // the one before it.
+    assert_eq!(
+        before,
+        [
+            [0.005, 0.0],
+            [0.01, 0.0],
+            [0.01, 0.01],
+            [0.0, 0.01],
+            [0.0, 0.005]
+        ],
+        "the vertices of the steps before the `continue_to`"
     );
 
     let mut session = session(tol);
@@ -909,12 +934,12 @@ fn a_leg_whose_separation_overflows_gets_no_heading() {
     let points = &polyline.points;
     assert_eq!(points.len(), 3, "{points:?}");
     assert_eq!(
-        sketch::heading(points, 0, polyline.closed),
+        sketch::heading(points, 0, polyline.closes()),
         None,
         "a separation of 1.4e308 in each axis answered a heading",
     );
     for at in [1, 2] {
-        let [dx, dy] = sketch::heading(points, at, polyline.closed)
+        let [dx, dy] = sketch::heading(points, at, polyline.closes())
             .unwrap_or_else(|| panic!("vertex {at} of a drawn loop has a heading"));
         let length = dx.hypot(dy);
         assert!(
