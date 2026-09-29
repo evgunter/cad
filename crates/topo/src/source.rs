@@ -557,7 +557,11 @@ pub struct SourcePlacement {
 impl core::fmt::Debug for AxisSource {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self { base, placements } = self;
-        write!(f, "AxisSource(<{} bytes>, placed {placements:?})", base.len())
+        write!(
+            f,
+            "AxisSource(<{} bytes>, placed {placements:?})",
+            base.len()
+        )
     }
 }
 
