@@ -1992,30 +1992,42 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // NAMED here, because the label is a claim about the
                     // two of them and about nothing else the funnel
                     // decides.
-                    Some("path_junction_turn" | "path_junction_side") => {
-                        write!(f, "path junction classification: {source}")
-                    }
+                    Some("path_junction_turn" | "path_junction_side") => write!(
+                        f,
+                        "{} is too close to call: {source}",
+                        source
+                            .predicate
+                            .and_then(crate::validate::decision_subject)
+                            .unwrap_or(crate::validate::UNNAMED_DECISION)
+                    ),
                     // A name no arm above claims. If the crate has
                     // decided it needs nothing beyond the shared clause
                     // `{source}` already ends in, it is in
                     // `validate::SHARED_CLAUSE_ONLY` and the refusal
                     // stops there; otherwise the refusal names the hole,
                     // through the one home every recourse table's
-                    // fall-through composes. The door names ITSELF where
-                    // `BlendError::Escalated` names a site: this variant
-                    // carries no site field, and adding one would move a
-                    // `PathError` shape.
-                    _ => match source
-                        .predicate
-                        .and_then(crate::validate::shared_clause_only)
-                    {
-                        Some(_) => write!(f, "escalated at the path door: {source}"),
-                        None => write!(
-                            f,
-                            "escalated at the path door: {source} — {}",
-                            geom_core::MissingRecourse(source.predicate)
-                        ),
-                    },
+                    // fall-through composes. Either way the sentence
+                    // opens with what the decision was deciding, in the
+                    // words `validate::decision_subject` holds.
+                    _ => {
+                        let what = source
+                            .predicate
+                            .and_then(crate::validate::decision_subject)
+                            .unwrap_or(crate::validate::UNNAMED_DECISION);
+                        let listed = source
+                            .predicate
+                            .and_then(crate::validate::shared_clause_only)
+                            .is_some();
+                        if listed {
+                            write!(f, "{what} is too close to call: {source}")
+                        } else {
+                            write!(
+                                f,
+                                "{what} is too close to call: {source} — {}",
+                                geom_core::MissingRecourse(source.predicate)
+                            )
+                        }
+                    }
                 }
             }
             Self::Band(e) => write!(f, "the path's tolerance could not form a band: {e}"),

@@ -4010,8 +4010,8 @@ class TestTubeAndHollowTube(unittest.TestCase):
         # Not a wall at all; a wall that eats the bore; and a wall
         # under the outer radius's own ulp, which the first two cannot
         # see because it is a fact about the STORED radii.
-        self.assertIn("tube_wall", refuse(self.OUTER, 0.0))
-        self.assertIn("tube_wall_bore", refuse(self.OUTER, self.OUTER))
+        self.assertIn("wall is not definitely thicker", refuse(self.OUTER, 0.0))
+        self.assertIn("wall leaves no bore", refuse(self.OUTER, self.OUTER))
         doc = Doc()
         spine = self.spine(doc)
         collapsed = doc.insert(
@@ -4022,7 +4022,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(collapsed)
-        self.assertIn("tube_wall_gap", str(caught.exception))
+        self.assertIn("would be stored as one value", str(caught.exception))
 
     def test_a_window_is_a_value_with_two_spellings(self):
         """`TubeWindow.full()` is a CHOICE, not an omitted argument —

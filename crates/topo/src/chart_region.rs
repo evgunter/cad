@@ -410,7 +410,11 @@ impl core::fmt::Display for ChartRegionError {
                  chart image encloses area — collapsed or collinear runs are the \
                  usual cause — or re-mint its pcurves"
             ),
-            Self::Escalated(diag) => write!(f, "chart-region: escalated: {diag}"),
+            Self::Escalated(diag) => write!(
+                f,
+                "chart-region: a decision about how the two faces' regions overlap is too \
+                 close to call: {diag}"
+            ),
             Self::RayExhausted => write!(
                 f,
                 "chart-region: every schedule ray grazed — ill-conditioned \

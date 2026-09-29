@@ -307,8 +307,8 @@ fn an_unknown_name_names_the_hole() {
         "the refusal names the hole: {text}"
     );
     assert!(
-        text.contains(unknown),
-        "the refusal names the predicate that escalated: {text}"
+        !text.contains(unknown),
+        "the predicate's name is routing and stays out of the sentence: {text}"
     );
     // A refusal with no predicate at all says so, rather than reading
     // as a name.
