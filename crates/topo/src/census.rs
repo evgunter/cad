@@ -763,6 +763,7 @@ fn census_with<T: Decide + Bounds>(
         &geo,
         &declared,
         band,
+        region,
         &cands,
         trace.as_deref_mut(),
         &mut errors,
@@ -1608,17 +1609,32 @@ fn any_boundary_vertex_at<T: Decide>(
 /// escalation is already pushed as [`ValidationError::CensusEscalated`],
 /// which refuses the body on its own, and it is the arm's caveat rather
 /// than the module docs' because it is a property of this call site.
+#[allow(clippy::too_many_arguments)] // the rung's whole state, no less
 fn ef_bound_backed<T: Decide>(
+    body: &Body<T>,
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
-    s: T,
+    cut: Cut<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) -> bool {
-    let q = e.p0 + e.dir * s;
-    let Some(ve) = edge_vertex_at(e, s, band, errors) else {
+    let q = e.p0 + e.dir * cut.s;
+    match cut.at {
+        CutAt::Crossing(g) => {
+            return geo.edges.iter().find(|x| x.key == g).is_some_and(|g| {
+                matches!(
+                    ee_cross_backed(body, geo, declared, e, g, q, band, region, errors),
+                    CrossingBacking::Backed
+                )
+            });
+        }
+        CutAt::ConicCrossing(_) => return false,
+        CutAt::Vertex => {}
+    }
+    let Some(ve) = edge_vertex_at(e, cut.s, band, errors) else {
         return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
             declared.ve_face_backed(geo, w, e)
         });
@@ -1634,11 +1650,13 @@ fn ef_bound_backed<T: Decide>(
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
 /// in-plane overlap segments (D3-certified).
+#[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus the region door the rung consults
 fn sweep_edge_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
     errors: &mut Vec<ValidationError>,
@@ -1650,7 +1668,7 @@ fn sweep_edge_face<T: Decide>(
                 continue; // structural adjacency
             }
             let before = errors.len();
-            pair_edge_face(body, geo, declared, band, e, f, errors);
+            pair_edge_face(body, geo, declared, band, region, e, f, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ef.note(
                     (EntityId::Edge(e.key), EntityId::Face(f.key)),
@@ -1662,11 +1680,13 @@ fn sweep_edge_face<T: Decide>(
 }
 
 /// One edge–face pair of pass 4, the edge not bounding the face.
+#[allow(clippy::too_many_arguments)] // one pair of pass 4, the region door riding to the rung
 fn pair_edge_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
     errors: &mut Vec<ValidationError>,
@@ -1717,7 +1737,7 @@ fn pair_edge_face<T: Decide>(
             }
         }
         (Sign::Zero, Sign::Zero) => {
-            ef_overlap_lane(body, e, f, geo, declared, band, errors);
+            ef_overlap_lane(body, e, f, geo, declared, band, region, errors);
         }
         // One endpoint on the plane: pass-1/2/3 territory.
         _ => {}
@@ -1725,8 +1745,9 @@ fn pair_edge_face<T: Decide>(
 }
 
 /// The in-plane overlap lane of pass 4: cut the edge's span at the
-/// face's coincident boundary vertices, probe each cell midpoint, and
-/// D3-certify every `In` cell.
+/// face's coincident boundary vertices and where its boundary crosses
+/// the edge, probe each cell midpoint, and D3-certify every `In` cell.
+#[allow(clippy::too_many_arguments)] // the lane's whole state, the region door riding to the rung
 fn ef_overlap_lane<T: Decide>(
     body: &Body<T>,
     e: &EdgeGeo<T>,
@@ -1734,27 +1755,102 @@ fn ef_overlap_lane<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
-    for (a, b, mid) in ef_overlap_cells(body, e, f, geo, band, errors) {
-        let backed = ef_bound_backed(e, f, a, geo, declared, band, errors)
-            && ef_bound_backed(e, f, b, geo, declared, band, errors);
-        if !backed {
+    for cell in ef_overlap_cells(body, e, f, geo, band, errors) {
+        let bound = |cut, errors: &mut Vec<ValidationError>| {
+            ef_bound_backed(body, e, f, cut, geo, declared, band, region, errors)
+        };
+        if !(bound(cell.lo, errors) && bound(cell.hi, errors)) {
             errors.push(ValidationError::UndeclaredContact {
                 contact: CensusContact::EdgeFaceOverlap {
                     edge: e.key,
                     face: f.key,
                 },
-                witness: witness(mid),
+                witness: witness(cell.mid),
             });
         }
     }
 }
 
+/// Where a cut of an edge's span in a face's plane sits.
+#[derive(Clone, Copy, Debug)]
+enum CutAt {
+    /// At one of the edge's ends or a boundary vertex of the face on
+    /// its line: the entities there are read by position
+    /// ([`ef_bound_backed`]).
+    Vertex,
+    /// Where a straight boundary edge of the face crosses the edge,
+    /// strictly inside both: the pass-5 `EdgeEdgeCross` event.
+    Crossing(EdgeKey),
+    /// Where a conic boundary edge of the face crosses the edge's
+    /// line inside the edge's span, a point no census lane examines as
+    /// an event of its own.
+    ConicCrossing(EdgeKey),
+}
+
+/// One cut of an edge's span: its arc length from the edge's start,
+/// and what sits there.
+#[derive(Clone, Copy, Debug)]
+struct Cut<T> {
+    s: T,
+    at: CutAt,
+}
+
+/// One cell of an edge-on-face overlap: two consecutive cuts, and the
+/// midpoint the face holds `In`.
+struct Cell<T: Real> {
+    lo: Cut<T>,
+    hi: Cut<T>,
+    mid: Point3<T>,
+}
+
+/// K name: a straight boundary edge's end, its signed distance from
+/// the plane through the census edge's line normal to the face — its
+/// in-plane offset from that line, in metres.
+const EF_CROSS_SIDE: &str = "pm_census_ef_cross_side";
+/// K name: a boundary crossing's arc length along the census edge,
+/// from either end, in metres.
+const EF_CROSS_SPAN: &str = "pm_census_ef_cross_span";
+/// K name: a straight boundary edge's end read along the census edge
+/// past either of its ends, in metres — a screen whose only verdict
+/// is that the boundary edge lies wholly beyond one end.
+const EF_CROSS_SCREEN: &str = "pm_census_ef_cross_screen";
+/// K name: the census edge's clearance from the ball an unrowed
+/// boundary edge (a spiric, a spline) lies in, in metres.
+const EF_CROSS_REACH: &str = "pm_census_ef_cross_reach";
+
+/// The rows [`crate::splitting::containment::carrier_loop`] reads a
+/// conic boundary edge's span under, for the crossing cuts. Only
+/// `span` and `straddle` are read there.
+const EF_CROSS_ROWS: crate::splitting::containment::BoundaryRows =
+    crate::splitting::containment::BoundaryRows {
+        line: &crate::ray_parity::ParityRows {
+            segment: "pm_census_ef_cross_segment",
+            boundary: "pm_census_ef_cross_boundary",
+            side: EF_CROSS_SIDE,
+            advance: "pm_census_ef_cross_advance",
+        },
+        conic: crate::splitting::containment::ConicRows {
+            span: "pm_census_ef_cross_arc_span",
+            on: "pm_census_ef_cross_arc_on",
+            end: "pm_census_ef_cross_arc_end",
+            trim: "pm_census_ef_cross_arc_trim",
+            straddle: "pm_census_ef_cross_arc_straddle",
+        },
+    };
+
 /// The cells of edge `e` lying in face `f`'s interior: the edge cut at
-/// every face vertex on its line, each cell `(a, b, mid)` whose
-/// midpoint the face holds `In` — the overlap [`ef_overlap_lane`]
-/// reports, and the points the touch analysis reads it at.
+/// every face vertex on its line and at every crossing of the face's
+/// boundary ([`boundary_crossings`]), each cell whose midpoint the face
+/// holds `In` — the overlap [`ef_overlap_lane`] reports, and the points
+/// the touch analysis reads it at.
+///
+/// No boundary crosses a cell's open span on a decided reading, so a
+/// cell lies inside or outside the face whole and its midpoint answers
+/// for all of it. A crossing that could not be decided refuses the
+/// pair's lane (pushed) rather than leave a cell straddling it.
 fn ef_overlap_cells<T: Decide>(
     body: &Body<T>,
     e: &EdgeGeo<T>,
@@ -1762,9 +1858,13 @@ fn ef_overlap_cells<T: Decide>(
     geo: &Geo<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> Vec<(T, T, Point3<T>)> {
+) -> Vec<Cell<T>> {
     let mut out = Vec::new();
-    let mut cuts: Vec<T> = vec![T::zero(), e.len];
+    let end = |s| Cut {
+        s,
+        at: CutAt::Vertex,
+    };
+    let mut cuts: Vec<Cut<T>> = vec![end(T::zero()), end(e.len)];
     for &w in &f.boundary {
         let Some(&pw) = geo.vmap.get(&w) else {
             continue;
@@ -1777,7 +1877,7 @@ fn ef_overlap_cells<T: Decide>(
         let lo = decide("pm_census_ef_cut_span", Margin::of(s), band);
         let hi = decide("pm_census_ef_cut_span", Margin::of(e.len - s), band);
         if matches!(lo, Ok(Sign::Positive)) && matches!(hi, Ok(Sign::Positive)) {
-            cuts.push(s);
+            cuts.push(end(s));
         }
         for r in [lo, hi] {
             if let Err(cause) = r {
@@ -1785,12 +1885,16 @@ fn ef_overlap_cells<T: Decide>(
             }
         }
     }
+    let Some(crossings) = boundary_crossings(body, e, f, band, errors) else {
+        return out;
+    };
+    cuts.extend(crossings);
     // Insertion sort through the trilean comparator (tiny lists); an
     // escalated comparison aborts this pair's lane (already reported).
     for i in 1..cuts.len() {
         let mut j = i;
         while j > 0 {
-            match tri_cmp(cuts[j - 1], cuts[j], band, errors) {
+            match tri_cmp(cuts[j - 1].s, cuts[j].s, band, errors) {
                 Some(core::cmp::Ordering::Greater) => {
                     cuts.swap(j - 1, j);
                     j -= 1;
@@ -1801,24 +1905,195 @@ fn ef_overlap_cells<T: Decide>(
         }
     }
     let half = T::from_f64(0.5);
-    for i in 0..cuts.len() - 1 {
-        let (a, b) = (cuts[i], cuts[i + 1]);
+    for pair in cuts.windows(2) {
+        let (lo, hi) = (pair[0], pair[1]);
         if !matches!(
-            decide("pm_census_span_gap", Margin::of(b - a), band),
+            decide("pm_census_span_gap", Margin::of(hi.s - lo.s), band),
             Ok(Sign::Positive)
         ) {
             continue; // empty/degenerate cell (escalations via sort/gap)
         }
-        let mid = e.p0 + e.dir * ((a + b) * half);
+        let mid = e.p0 + e.dir * ((lo.s + hi.s) * half);
         if contain(body, f, mid, band, errors) != Some(FaceContainment::In) {
             // Out: no overlap here. OnEdge: a collinear boundary rest —
             // the edge-edge overlap pass's finding. OnVertex: degenerate
             // cell, vertex passes cover it.
             continue;
         }
-        out.push((a, b, mid));
+        out.push(Cell { lo, hi, mid });
     }
     out
+}
+
+/// Every point strictly inside `e`'s span where `f`'s boundary crosses
+/// `e`'s line away from its vertices, as cuts; `None` where the
+/// boundary could not be read or a crossing could not be decided
+/// (refusal pushed).
+///
+/// Each boundary edge is read on its own carrier
+/// ([`crate::splitting::containment::carrier_loop`]):
+///
+/// - **A straight edge** crosses where its two ends lie definitely on
+///   opposite sides of `e`'s line ([`EF_CROSS_SIDE`], a point's signed
+///   distance in metres). An end within ε of the line is a boundary
+///   vertex on it, which the vertex cuts take on their own row.
+/// - **A circle or ellipse arc** crosses at the roots of its carrier
+///   against the plane through `e`'s line normal to the face
+///   (`conic_plane_crossing_roots` — the splitting lane's root-based
+///   reading, its graze and interiority rows in metres); a root at an
+///   arc's end is its vertex, the vertex cuts' again.
+/// - **A spiric or spline arc** has no crossing row: the pair's lane
+///   runs only where `e` definitely clears the ball the arc lies in,
+///   and otherwise refuses the face typed
+///   ([`ContainError::ArcLoopUnsupported`], the point-in-face door's
+///   refusal for the same inventory fact).
+///
+/// A crossing is a cut where it lies strictly inside `e`'s span
+/// ([`EF_CROSS_SPAN`]); at `e`'s end it is the end's own cut.
+fn boundary_crossings<T: Decide>(
+    body: &Body<T>,
+    e: &EdgeGeo<T>,
+    f: &FaceGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Vec<Cut<T>>> {
+    use crate::splitting::containment::{LoopEdge, carrier_loop};
+    use crate::splitting::{ConicPlaneMeet, conic_plane_crossing_roots};
+    let refuse = |cause: ContainError, errors: &mut Vec<ValidationError>| {
+        errors.push(ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(f.key)),
+            cause: CensusUnsupportedCause::Containment(cause),
+        });
+    };
+    let escalate = |cause, errors: &mut Vec<ValidationError>| {
+        errors.push(ValidationError::CensusEscalated { cause });
+    };
+    let Some(face) = body.get_face(f.key) else {
+        refuse(ContainError::Corrupt, errors);
+        return None;
+    };
+    let m = f.normal.cross(e.dir).normalize();
+    let mut cuts = Vec::new();
+    let mut cut_at = |q: Point3<T>, at, errors: &mut Vec<ValidationError>| -> Option<()> {
+        let s = (q - e.p0).dot(e.dir);
+        let mut inside = true;
+        for margin in [s, e.len - s] {
+            match decide(EF_CROSS_SPAN, Margin::of(margin), band) {
+                Ok(Sign::Positive) => {}
+                Ok(Sign::Zero | Sign::Negative) => inside = false,
+                Err(cause) => {
+                    escalate(cause, errors);
+                    return None;
+                }
+            }
+        }
+        if inside {
+            cuts.push(Cut { s, at });
+        }
+        Some(())
+    };
+    for lk in face_loops(face) {
+        let lp = match carrier_loop(body, lk, EF_CROSS_ROWS, band) {
+            Ok(lp) => lp,
+            Err(err) => {
+                match ContainError::from(err) {
+                    ContainError::Escalated(cause) => escalate(cause, errors),
+                    other => refuse(other, errors),
+                }
+                return None;
+            }
+        };
+        let n = lp.verts.len();
+        for (i, edge) in lp.edges.iter().enumerate() {
+            let key = lp.keys[i];
+            match *edge {
+                LoopEdge::Chord => {
+                    let (a, b) = (lp.verts[i], lp.verts[(i + 1) % n]);
+                    let along = |p: Point3<T>| (p - e.p0).dot(e.dir);
+                    let beyond = |x: T| {
+                        matches!(
+                            decide(EF_CROSS_SCREEN, Margin::of(x), band),
+                            Ok(Sign::Positive)
+                        )
+                    };
+                    if (beyond(T::zero() - along(a)) && beyond(T::zero() - along(b)))
+                        || (beyond(along(a) - e.len) && beyond(along(b) - e.len))
+                    {
+                        continue;
+                    }
+                    let (da, db) = (m.dot(a - e.p0), m.dot(b - e.p0));
+                    let (sa, sb) = match (
+                        decide(EF_CROSS_SIDE, Margin::of(da), band),
+                        decide(EF_CROSS_SIDE, Margin::of(db), band),
+                    ) {
+                        (Ok(sa), Ok(sb)) => (sa, sb),
+                        (ra, rb) => {
+                            for r in [ra, rb] {
+                                if let Err(cause) = r {
+                                    escalate(cause, errors);
+                                }
+                            }
+                            return None;
+                        }
+                    };
+                    if matches!(
+                        (sa, sb),
+                        (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive)
+                    ) {
+                        let q = a + (b - a) * (da / (da - db));
+                        cut_at(q, CutAt::Crossing(key), errors)?;
+                    }
+                }
+                LoopEdge::Conic(_) => {
+                    let Some(curve) = body
+                        .get_edge(key)
+                        .and_then(|edge| body.get_curve_geom(edge.curve))
+                        .and_then(CurveGeom::certified)
+                    else {
+                        refuse(ContainError::Corrupt, errors);
+                        return None;
+                    };
+                    let (t0, t1) = curve.params();
+                    match conic_plane_crossing_roots(curve.carrier(), t0, t1, e.p0, m, band) {
+                        Ok(ConicPlaneMeet::Miss) => {}
+                        Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
+                            for t in roots {
+                                cut_at(curve.carrier().eval(t), CutAt::ConicCrossing(key), errors)?;
+                            }
+                        }
+                        Ok(ConicPlaneMeet::Roots(Err(cause))) => {
+                            escalate(cause, errors);
+                            return None;
+                        }
+                        // An arc of a planar face lies in the face's
+                        // plane, which the cut plane is normal to: a
+                        // parallel reading is an arc off its face.
+                        Ok(ConicPlaneMeet::Parallel { .. }) | Err(()) => {
+                            refuse(ContainError::Corrupt, errors);
+                            return None;
+                        }
+                    }
+                }
+                LoopEdge::Unrowed { center, reach } => {
+                    let w = center - e.p0;
+                    let foot = w.dot(e.dir).max(T::zero()).min(e.len);
+                    let clear = (w - e.dir * foot).norm() - reach;
+                    match decide(EF_CROSS_REACH, Margin::of(clear), band) {
+                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Zero | Sign::Negative) => {
+                            refuse(ContainError::ArcLoopUnsupported { r#loop: lk }, errors);
+                            return None;
+                        }
+                        Err(cause) => {
+                            escalate(cause, errors);
+                            return None;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Some(cuts)
 }
 
 /// Census pass 5: edge × edge — proper interior crossings (backable
@@ -3397,7 +3672,7 @@ impl TouchSite {
                 if !refused.is_empty() {
                     return Err(TouchVerdict::InBand);
                 }
-                let &(_, _, p) = cells.first().ok_or(TouchVerdict::InBand)?;
+                let p = cells.first().ok_or(TouchVerdict::InBand)?.mid;
                 (on_edge(e, p), in_face(f, p))
             }
             Self::EdgeCross(a, b) => {
