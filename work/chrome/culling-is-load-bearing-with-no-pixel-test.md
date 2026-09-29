@@ -2,10 +2,11 @@
 id: culling-is-load-bearing-with-no-pixel-test
 kind: issue
 title: Which faces exist is now a rendering decision, and nothing in CI ever looks at a pixel
-status: open
+status: dispatched
+branch: chrome/pixel-test
 opened: 2026-09-04
 priority: P3
-cost: D
+cost: M
 ---
 
 
