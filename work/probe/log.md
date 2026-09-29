@@ -103,3 +103,10 @@ changes.
   edge: `any_split_edge` stops at the first splittable one.
 - `review_m1_pr4`'s torn-body row no longer calls the chords helper; it
   asserts that both kill doors refuse every kill on its tear.
+
+## `S93` closed by TOPO (2026-09-29)
+
+`S93`'s `kev` half closed with PR 3161, and the row is closed there
+too, as its brief said it would be. The generator's `split_site`
+filter now asserts rather than filters, and `seqgen.rs`'s seam is
+noted above (PR 3161's fix pass).
