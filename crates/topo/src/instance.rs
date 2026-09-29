@@ -502,7 +502,11 @@ mod tests {
         let he0 = src.get_edge(e0).unwrap().he_plus;
         let point = |b: &Body<f64>, v| *b.get_point(b.get_vertex(v).unwrap().point).unwrap();
         let from = point(src, src.get_half_edge(he0).unwrap().start);
-        let to = point(src, src.half_edge_end(src.get_edge(e3).unwrap().he_plus).unwrap());
+        let to = point(
+            src,
+            src.half_edge_end(src.get_edge(e3).unwrap().he_plus)
+                .unwrap(),
+        );
         src.kev_describing(he0, &[(e3, EdgeCurveSpec::line_between(from, to))], tol)
             .expect("the first child dies");
         [e1, e2, e3]

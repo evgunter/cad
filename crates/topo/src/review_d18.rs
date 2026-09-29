@@ -919,9 +919,8 @@ fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) 
     match body.clone().kev(he) {
         Ok(_) => true,
         Err(EulerOpError::MergeRebasesCarriers { .. }) => {
-            crate::seqgen::try_chord_redescriptions(body, he).is_some_and(|chords| {
-                body.clone().kev_describing(he, &chords, tol).is_ok()
-            })
+            crate::seqgen::try_chord_redescriptions(body, he)
+                .is_some_and(|chords| body.clone().kev_describing(he, &chords, tol).is_ok())
         }
         Err(_) => false,
     }
