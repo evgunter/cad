@@ -151,7 +151,7 @@ mod tests {
     use crate::body::Body;
     use crate::entity::{EdgeKey, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
     use crate::fixtures::pillow;
-    use crate::source_walk::{CodeOnly, crate_sources, src_root};
+    use crate::source_walk::{CodeOnly, FnItem, crate_sources, src_root};
     use geom_core::Tol;
     use test_utils::source::{ItemBody, balanced_end, item_body};
 
@@ -270,6 +270,24 @@ mod tests {
         Some(body[open + 1..balanced_end(body, open)?].trim())
     }
 
+    /// `item`'s body with every item declared inside it blanked to
+    /// spaces, byte offsets kept: what the item itself does, apart from
+    /// what the items it hosts do, each of which is a row of its own.
+    fn own_body(item: &FnItem<'_>, items: &[FnItem<'_>]) -> String {
+        let base = item.span.start;
+        let mut own = item.body.as_bytes().to_vec();
+        for inner in items {
+            if inner.kw > base && inner.span.end < item.span.end {
+                for c in &mut own[inner.kw - base..inner.span.end - base] {
+                    if *c != b'\n' {
+                        *c = b' ';
+                    }
+                }
+            }
+        }
+        String::from_utf8(own).expect("the blanked range starts and ends on ASCII")
+    }
+
     /// **The guard the module header names.** The claim is stated
     /// there; this is how it is checked, and what a red says.
     ///
@@ -286,16 +304,22 @@ mod tests {
     /// names the item it is about, so a red says which door and what it
     /// did rather than which assertion happened to fire first.
     ///
+    /// An item declared inside a door's body is a row of its own, and
+    /// its text is blanked out of its host's before the host is read,
+    /// so a red names the item that did the thing.
+    ///
     /// **What it cannot see**, all of it inherited from reading text:
     /// a lookup reached one hop away through a helper reads as no
-    /// lookup (a red, which is the safe direction); an item declared
-    /// INSIDE a door's body is not scanned as a door of its own, and
-    /// reds through the construction census under its host's name; the
-    /// argument check compares SPELLINGS, so a rebinding between the
-    /// lookup and the construction defeats it, as does a lookup in a
-    /// half-edge arena belonging to some other body; a construction
-    /// inside a `macro_rules!` body is text like any other; and `cfg`
-    /// is not evaluated.
+    /// lookup (a red, which is the safe direction); the argument check
+    /// compares SPELLINGS, so a rebinding between the lookup and the
+    /// construction defeats it; a construction inside a `macro_rules!`
+    /// body is text like any other; and `cfg` is not evaluated.
+    ///
+    /// **Which body the lookup read is not this guard's to know.** That
+    /// `other.half_edges.get(he)` reads the body the `Live` is spliced
+    /// into is a data-flow question, which `source_walk`'s module header
+    /// rules out; it is the live-but-wrong case this module's header
+    /// gives to the validator.
     #[test]
     fn every_door_that_hands_out_a_live_looks_up_first() {
         let path = src_root().join("live.rs");
@@ -340,6 +364,8 @@ mod tests {
         let mut doors: Vec<&str> = Vec::new();
         for item in &items {
             let name = item.name;
+            let body = own_body(item, &items);
+            let body = body.as_str();
             let hands_out = mentions(item.returns, "Live")
                 || (mentions(item.returns, "Self") && impl_live.contains(&item.span.start));
             if name == "new" || !hands_out {
@@ -349,7 +375,7 @@ mod tests {
             let first = |needles: &[&'static str]| {
                 needles
                     .iter()
-                    .filter_map(|n| item.body.find(*n).map(|at| (at, *n)))
+                    .filter_map(|n| body.find(*n).map(|at| (at, *n)))
                     .min()
             };
             match (first(&LOOKUPS), first(&CONSTRUCTIONS)) {
@@ -368,8 +394,7 @@ mod tests {
                     ));
                 }
                 (Some((_, looked)), Some((_, built))) => {
-                    let (resolved, wrapped) =
-                        (argument(item.body, looked), argument(item.body, built));
+                    let (resolved, wrapped) = (argument(body, looked), argument(body, built));
                     if resolved != wrapped {
                         violations.push(format!(
                             "`{name}` looks up `{}` and wraps `{}`: the proof it hands \
@@ -387,7 +412,9 @@ mod tests {
         let mut sites: Vec<(usize, &str)> = Vec::new();
         for needle in CONSTRUCTIONS {
             for (at, _) in src.match_indices(needle) {
-                match items.iter().find(|item| item.span.contains(&at)) {
+                // The innermost item holding the site: the scan yields
+                // a host before the items declared inside it.
+                match items.iter().rfind(|item| item.span.contains(&at)) {
                     Some(item) => sites.push((at, item.name)),
                     // The declaration itself, which part 1 reads.
                     None if src[..at].trim_end().ends_with("struct") => {}

@@ -117,6 +117,11 @@ impl CodeOnly {
     /// Every `fn` item with a body in this file — [`FnItem`] per item,
     /// every slice a view of the blanked text.
     ///
+    /// **Nested items included.** A `fn` declared inside another's body
+    /// is an item of its own, yielded after its host in source order;
+    /// the host's [`FnItem::body`] still holds its text, and a consumer
+    /// that wants the host's own work alone blanks the nested spans.
+    ///
     /// **Scanned on the `fn` token, not on a `pub fn ` literal.** The
     /// literal misses `pub const fn`, `pub async fn`, `pub unsafe fn`
     /// and `pub extern "C" fn`; scanning the token finds all of them,
@@ -158,7 +163,7 @@ impl CodeOnly {
             match parsed {
                 Some((open, close, body)) => {
                     let (start, end) = (body.start, body.end);
-                    at = end;
+                    at = start + 1;
                     out.push(FnItem {
                         name,
                         lead: &code[code[..kw].rfind('\n').map_or(0, |n| n + 1)..kw],
@@ -423,7 +428,9 @@ const DOORS_MEASURED: usize = 57;
 
 /// Every public mutation door into a [`crate::Body`] declared in this
 /// crate's `src/`: a public `fn` whose parameter list takes
-/// `&mut self` or `&mut Body<T>`.
+/// `&mut self` or `&mut Body<T>`. A `fn` declared inside another's
+/// body is read like any item — a door of its own when it is itself
+/// `pub` and takes one, and part of its host's text either way.
 ///
 /// **This is the shared concept.** Two guards classify this one
 /// population by two different properties — the tier-1 postcondition
@@ -706,6 +713,48 @@ pub async unsafe fn open(&mut self) -> Option<Live> { self.get(he) }
         );
         let public: Vec<&str> = code.public_fns().iter().map(|(n, _, _)| *n).collect();
         assert_eq!(public, vec!["open"], "the narrowing over that same scan");
+    }
+
+    /// **An item declared inside a body is a row of its own.** `forge`
+    /// is the forging helper a door could hide, and it has to come back
+    /// under its own name so a guard's red names it rather than its
+    /// host; `stamp` is the nested mutation that has to reach the
+    /// mutation-door population; `after` is the scan resuming past the
+    /// host once the items inside it are read.
+    #[test]
+    fn the_item_scan_reads_an_item_nested_in_a_body_as_its_own() {
+        let src = "
+pub fn host(&mut self, he: K) -> Option<Live> {
+    fn forge(k: K) -> Live { Live::new(k) }
+    pub fn stamp(b: &mut Body<T>) { mint_pcurves(b); }
+    self.get(he)
+}
+fn after() {}
+";
+        let code = CodeOnly::of(src);
+        let items = code.fns();
+        let read: Vec<(&str, &str)> = items.iter().map(|i| (i.name, i.body.trim())).collect();
+        assert_eq!(
+            read[1..],
+            [
+                ("forge", "{ Live::new(k)"),
+                ("stamp", "{ mint_pcurves(b);"),
+                ("after", "{"),
+            ],
+            "a nested item was lost or mis-carved, or the scan did not resume past its host"
+        );
+        assert_eq!(read[0].0, "host", "the host comes first, in source order");
+        let doors: Vec<&str> = code
+            .public_fns()
+            .iter()
+            .filter(|(_, p, _)| p.contains("&mut"))
+            .map(|(n, _, _)| *n)
+            .collect();
+        assert_eq!(
+            doors,
+            vec!["host", "stamp"],
+            "a nested `pub` door is a door"
+        );
     }
 
     /// The walk over the real tree, which is the only place the two
