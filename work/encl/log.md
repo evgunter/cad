@@ -1235,3 +1235,4 @@ class of 65 sites is PRED's row.
   - `certified_endpoint_census`: ssi/certify.rs has 15 reads against the table's 16, from 3392's refactor. This one is ENCL's.
   - `sym_rule_f_rows` copysign: a new site at `topo/src/boolean/section_cert.rs:827`, from GERM.
   - Fix lane dispatched. Both break the `test` job for 3398 and 3402.
+- 2026-09-29 — PR 3407 merged (`4b47a29dd9`): main's two red geom-core census rows are fixed. `ssi/certify.rs` endpoint reads go 16→15 (3392 spelled one as a path; blind spot 7 is documented). The `section_cert.rs` copysign site is registered as UNMEASURED, with evidence added to GERM's P1 row. Ported into 3402 before the merge.
