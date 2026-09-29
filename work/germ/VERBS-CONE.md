@@ -63,52 +63,6 @@ cone only because `boolean_arm_exists` keeps it off the roster:
 clearance's second-derivative match (`f2`, a `_ => frontier()` door),
 and `wall_crossing`'s root lane (`_ => Unsettled`).
 
-<<<<<<< HEAD
-**2026-09-28, the interior-loop class previewed on the cone** (the GERM
-measurement lane). `Cone` was added to `boolean_arm_exists` AND
-`revert_arm_exists` in a scratch patch, never landed. The cone is the
-triangle `(0,0) (1,0) (0,1)` revolved fully about `y`, then
-`merge_coplanar_faces`.
-
-- **Without the merge** the two apex-closed bands refuse at
-  `NonMaximalFaces`.
-- **A partial revolve (3π/2)** refuses every op at
-  `Containment(PartialConeFace)`. `point_in_solid` fails the same way,
-  so partial-cone operands cannot even be measured today.
-
-What came back:
-
-- **Cone × a partial cylinder face, no crossings: every op WRONG.** The
-  face is a 300° arc, centre `(z, y) = (0.8, 0.45)`, `r = 0.3`,
-  extruded over `x ∈ [−2, 2]`. It meets the lateral face in a saddle
-  loop, with every B edge outside the cone face's box.
-  - ∪ is `Ok(Assembly)` and ∩ is `Ok(Empty)`. Both differences are
-    `Ok(OperandA)`: each returns its first operand unchanged.
-  - The true lens is `0.02413 ± 0.00005` (Monte Carlo), and
-    `(0, 0.45, 0.53)` is `In` both operands.
-  - The no-crossings fallback has no cone extent gate:
-    `cylinder_extent_gate`, `torus_extent_gate` and `sphere_extent_scan`
-    are its whole roster.
-- **The same, with a pin through the base disc** (`x ∈ [−0.7, −0.5]`,
-  `y ∈ [−0.3, 0.1]`, `|z| ≤ 0.1`): every op WRONG, valid `Seamed`. ∩ =
-  `0.004` (the pin alone), and ∪ = `vA + vB − 0.004`. The pin alone
-  answers all four ops correctly.
-- **Refused before any body** (the crossing layer, not the class):
-  - any line edge whose box meets a cone face without crossing it (a
-    cylinder face's end lines, a tilted box's bottom edges; the plane
-    ellipse fixture). This is `CurvedPierceUnsupported`.
-  - a sphere × cone pair (an off-axis ball, and a large ball with every
-    edge outside the cone's box). Also `CurvedPierceUnsupported`.
-  - an axis-normal slab: `CurvedBooleanUnsupported { kind: Cone }`.
-
-**What a cone admission must carry:**
-
-- a cone half in `interior_loop_verdict`;
-- a cone arm in the no-crossings fallback's extent gates.
-
-A plane × cone ellipse always encircles the axis and so crosses the
-cone's seams, but no plane fixture reached the join to confirm it.
-=======
 **2026-09-28, the preview is superseded.** The interior-loop preview
 this item carried was measured on `378f66744`, before the section
 certificate (PR 3372) merged. The spec's §0 re-ran every fixture on
@@ -135,7 +89,6 @@ no-crossings path runs `sphere_extent_scan`, then the section pass.
 
 U3 and U6 land together in the PR titled "germ: the cone apex closure,
 and sphere pairs certified on the no-crossings path".
->>>>>>> origin/main
 
 **2026-09-28, from the section-certificate lane's premise-S audit.** Two more arms must learn the cone before `boolean_arm_exists` admits it:
 

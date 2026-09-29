@@ -2,11 +2,7 @@
 id: line-torus-roots-may-certify-noise-when-the-line-origin-is-far
 kind: issue
 title: The line × torus and ray × torus quartic ladders lever by R+r and may certify f64 noise when the line's parameter origin sits far from the torus
-<<<<<<< HEAD
-status: dispatched
-=======
 status: closed
->>>>>>> origin/main
 opened: 2026-09-29
 priority: P1
 cost: M
