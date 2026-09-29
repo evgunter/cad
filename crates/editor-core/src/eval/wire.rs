@@ -197,8 +197,7 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
-        + crate::lane::Lane,
+        + super::SectionScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
@@ -380,8 +379,7 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
-        + crate::lane::Lane,
+        + super::SectionScalar,
 {
     let part = env
         .parts
@@ -1554,7 +1552,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// provenance stamp on everything the sweep minted, and the per-edge
 /// parameter sources the verb's flow declares.
 #[allow(clippy::too_many_arguments)] // `verb` is the correspondence, as in `wire_blend`
-fn wire_swept<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy, A>(
+fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
     id: RecipeNodeId,
@@ -1599,7 +1597,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPo
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
-fn wire_extrude<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -1642,7 +1640,7 @@ fn written_against(
 /// rule, the full-vs-partial classification), and the generic lowering
 /// from there.
 #[allow(clippy::too_many_arguments)] // the doc and the env are read for the frame rule and the tokens' scope
-fn wire_revolve<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
@@ -1857,7 +1855,7 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 /// refusal shape breaks here. The boolean's undeclared-coincidence
 /// refusal is intercepted first by [`refusal_menu`], which needs the
 /// operands' naming context.
-fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
+fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
@@ -1902,7 +1900,7 @@ fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeError
 /// verbs; which node minted a strip tells a chamfer from a fillet
 /// (RECIPE-DOORS D3).
 #[allow(clippy::too_many_arguments)] // `verb` is the correspondence that makes this one function
-fn wire_blend<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -1971,7 +1969,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPo
 /// The record is written by the doors as they act, so it is not an
 /// `Option`; the emitter translates every row.
 #[allow(clippy::too_many_arguments)] // the blend lowering's arguments, as `wire_blend`
-fn wire_shell<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -1991,10 +1989,8 @@ fn wire_shell<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPo
     let flow = built.param_flow();
     // A scalar that may not certify has no shell door and refuses here
     // rather than at an unvalidated hollow.
-    let door =
-        <T as topo::AtRestPolicy>::shell_door().ok_or(NodeErrorKind::ShellLaneUnsupported {
-            lane: <T as crate::lane::Lane>::NAME,
-        })?;
+    let door = <T as topo::AtRestPolicy>::shell_door()
+        .ok_or(NodeErrorKind::ShellLaneUnsupported { scalar: T::NAME })?;
     let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
@@ -2415,7 +2411,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
                     ValuePayload::MeasureUnavailable {
                         reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
                             verb: prim.verb(),
-                            scalar: <T as crate::lane::Lane>::NAME,
+                            scalar: T::NAME,
                             door: "clearance::min_separation",
                         },
                         dim: expr.dim(),
@@ -2534,7 +2530,7 @@ fn wire_assertion<T: Decide>(
 /// any verb exists. Failure of the op itself is
 /// [`NodeErrorKind::Split`] through [`verb_refused`]. The D7 pinch lane
 /// lives inside the kernel door; nothing here re-derives the plane.
-fn wire_split<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -2671,7 +2667,7 @@ fn wire_part<T: Decide>(
 // carry and the typed empty success would otherwise become runtime
 // arity.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
-fn wire_boolean<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     op: BooleanOp,
@@ -2779,7 +2775,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRest
 /// every step including the last: it refuses
 /// [`UNION_STEP_EMPTY`] and names no member, since each one is fine.
 #[allow(clippy::too_many_arguments)] // one parameter per named input, as `wire_boolean`
-fn wire_union<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -3464,7 +3460,7 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// A name that will not collapse is the fold's own table being
 /// malformed, and is raised as an emission bug rather than as a contact
 /// refusal that would send a caller to edit their model.
-fn union_refusal<T: crate::lane::Lane>(
+fn union_refusal<T: geom_core::Bounds>(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
     a_table: &crate::names::NameTable,
@@ -3632,7 +3628,7 @@ const UNION_REFUSAL_FOREIGN: &str =
 ///
 /// The operands are given as name TABLES because the union folds the
 /// same verb over an ACCUMULATION that is no node's result.
-fn refusal_menu<T: crate::lane::Lane>(
+fn refusal_menu<T: geom_core::Bounds>(
     a: (RecipeNodeId, &crate::names::NameTable),
     b: (RecipeNodeId, &crate::names::NameTable),
     err: verbs::VerbError<T>,

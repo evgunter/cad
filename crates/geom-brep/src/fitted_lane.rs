@@ -41,7 +41,7 @@
 //! `Some(FittedLane::certified())` and a dual answers `None`, and a
 //! consumer holding `None` refuses typed with
 //! [`crate::PcurveCertifyError::FittedLaneUnsupported`], naming the
-//! scalar by the name the same seam hands it.
+//! scalar by its [`geom_core::Real::NAME`].
 //!
 //! **A `None` door refuses where the door is first needed.** Every
 //! fitted cache's certificate is derived by check 4 of the fitted
@@ -67,6 +67,28 @@ use geom_core::{Band, Decide, Point2, Point3, Real};
 
 use crate::PcurveCertifyError;
 use crate::ssi::SsiCertificate;
+
+/// The scalars that hold a [`FittedLane`], by their [`Real::NAME`]s —
+/// the replay list [`crate::PcurveCertifyError::FittedLaneUnsupported`]
+/// renders. Membership is the policy's answer, which this crate cannot
+/// read, so topo pins it against `AtRestPolicy::fitted_lane` at every
+/// scalar (`stated_general_image_mint.rs`). The symbolic tier holds the
+/// door over a certifying base only.
+#[cfg(not(feature = "probe"))]
+pub const FITTED_DOOR_HOLDERS: &[&str] = &[
+    <f64 as Real>::NAME,
+    <geom_core::Interval as Real>::NAME,
+    <geom_core::Sym<f64> as Real>::NAME,
+];
+
+/// The scalars that hold a [`FittedLane`] (the unprobed build's docs).
+#[cfg(feature = "probe")]
+pub const FITTED_DOOR_HOLDERS: &[&str] = &[
+    <f64 as Real>::NAME,
+    <geom_core::Probe as Real>::NAME,
+    <geom_core::Interval as Real>::NAME,
+    <geom_core::Sym<f64> as Real>::NAME,
+];
 
 /// **The fitted-pcurve door**: the three fitted-pcurve derivations the
 /// mint and the tier-3 pass reach, in one value.

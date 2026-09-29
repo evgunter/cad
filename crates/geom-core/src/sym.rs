@@ -3654,6 +3654,8 @@ impl<T: Real> Real for Sym<T> {
     /// the theorem-vs-numeric contradiction by.
     const WITNESS: crate::real::Witness = T::WITNESS;
 
+    const NAME: &'static str = "symbolic";
+
     fn from_f64(x: f64) -> Self {
         Self::nullary(T::from_f64(x), SymOp::Lit, x.to_bits())
     }

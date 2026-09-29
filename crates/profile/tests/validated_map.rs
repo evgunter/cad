@@ -177,7 +177,8 @@ fn blends<T: Real>(arcs: Vec<profile::BlendArc<T>>) -> Vec<(usize, char)> {
 /// lifted raw profile: every value channel the same bits (`channels`
 /// projects each of them to `f64`), and every canonical-form accessor
 /// answering as the `f64` form does.
-fn lift_equals_revalidation<U: Real + Decide>(scalar: &str, channels: &[Channel<U>]) {
+fn lift_equals_revalidation<U: Real + Decide>(channels: &[Channel<U>]) {
+    let scalar = U::NAME;
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
         let lifted: ValidatedProfile<U> = at_f64.clone().lift_onto(SketchPlane::xy());
@@ -233,7 +234,7 @@ fn lift_equals_revalidation<U: Real + Decide>(scalar: &str, channels: &[Channel<
 /// carriers included.
 #[test]
 fn the_lift_to_f64_is_the_identity() {
-    lift_equals_revalidation::<f64>("f64", &[("value", |x| x)]);
+    lift_equals_revalidation::<f64>(&[("value", |x| x)]);
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
         let bits = |vp: &ValidatedProfile<f64>| {
@@ -255,7 +256,7 @@ fn the_lift_to_f64_is_the_identity() {
 /// constant's derivative being `-0.0`; the door's doc states it).
 #[test]
 fn the_lift_to_dual_equals_validating_at_dual() {
-    lift_equals_revalidation::<Dual64>("Dual64", &[("value", |d| d.value)]);
+    lift_equals_revalidation::<Dual64>(&[("value", |d| d.value)]);
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
         let lifted = at_f64.clone().lift_onto::<Dual64>(SketchPlane::xy());
@@ -282,10 +283,7 @@ fn the_lift_to_dual_equals_validating_at_dual() {
 #[test]
 fn the_lift_to_interval_equals_validating_at_interval() {
     use geom_core::Bounds;
-    lift_equals_revalidation::<geom_core::Interval>(
-        "Interval",
-        &[("lo", |i| i.lo()), ("hi", |i| i.hi())],
-    );
+    lift_equals_revalidation::<geom_core::Interval>(&[("lo", |i| i.lo()), ("hi", |i| i.hi())]);
 }
 
 /// The decided facts, read at `Dual64` on the fixtures whose input

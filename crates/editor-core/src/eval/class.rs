@@ -792,7 +792,7 @@ mod tests {
                 name: Box::new(name()),
                 found,
             }),
-            C::ShellLaneUnsupported => K::ShellLaneUnsupported { lane: "interval" },
+            C::ShellLaneUnsupported => K::ShellLaneUnsupported { scalar: "interval" },
             C::FaceFrameResolve => K::FaceFrameResolve {
                 error: resolve_error(),
             },
