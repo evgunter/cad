@@ -609,3 +609,39 @@ From here:
   need to build locally"), and such rows go several to one implementer
   lane (Ev: "batch a bunch of them together into a single implementer
   lane"), never one lane each.
+
+## 2026-09-28 — dispatch paused; state for resuming cold
+
+Ev: pause dispatch before the usage limit; lanes already running may
+finish. When batch 2 has merged, VNEWS goes back to `status: ready`
+(Ev: "we don't need to finish out all the p3s and p4s").
+
+**On `vnews/batch-2`**, not yet a PR: the fold rename, the shared
+not-well-typed sentence, the mirror-class census, the missing-parameter
+wording, two trivial rows (the drafts rename, the theme doc), the
+`Outstanding`/`Progress` P1 with its index-seam fix, and the "ratified"
+census P2. Clippy and fmt still have to be run on the merged branch
+before the PR opens.
+
+**Branches in flight**, each to be merged into `vnews/batch-2` when
+its lane reports:
+- `vnews/tool-news-is-a-value`: P1 `document-news-has-no-home`, with
+  riders: the profiles-badge wording and three stale `frame.rs` docs
+  (`cursor_status`, `joined_subject`, `pick_refusal`). It runs in the
+  pool slot `.claude/worktrees/agent-a3a0e645c05e43eb3` with target
+  `/home/evan/vnews-progress-target`.
+- `vnews/the-harness-waits-for-the-landing`: P2
+  `the-whole-app-harness-paints-before-the-evaluation-lands`.
+- `vnews/every-id-is-said`: two P3 id-buffer rows. It has had its full
+  review; the fix pass is running (Unnamed beside a refusal says
+  nothing, tests for Nothing and Unnamed, the subject doc, a row for
+  the five copies of the drawn test).
+- `vnews/the-shown-checkbox-reads-its-refusal` and
+  `vnews/a-stale-delete-says-why`: P3, census-filed. No review yet.
+  Orchestrator's read is enough if they are small.
+
+**To finish**: merge each branch as it lands; clippy and fmt the
+batch; open the PR with every unit's body (in the scratchpad, as
+`<prefix>-body.md`); set `pr:` on the closed rows after CI is green;
+set `work/vnews/program.md` to `status: ready` in that same docs-only
+commit; merge.
