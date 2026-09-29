@@ -2,12 +2,14 @@
 id: geom-brep-sketch-segment-full-turn
 kind: unit
 title: geom-brep's SketchSegment takes the canonical arc form; certify, topo description readers and the symbolic tier re-keyed on Δθ
-status: dispatched
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 branch: claude/clever-bardeen-4itqb3
+closed: 2026-09-29
+pr: 3254
 ---
 
 
@@ -96,3 +98,25 @@ certification and the symbolic tier. It is broad and hard to reverse.
   correctly, and rule D still fires where it fired before, or its
   change is disclosed.
 - (C5) Certification still certifies every edge it certified before.
+
+## Closed (2026-09-29, #3254, DR-20)
+
+geom-brep's `SketchSegment::Arc` now carries the canonical carrier
+(centre, radius, Δθ), and no bulge crosses the boundary. What moved:
+- **The one decision change:** the sphere recut at 1e-12 now decides.
+  It is shown sound by containment (mpmath, twice independently), and
+  the escalation constant was re-measured at 1e-13 (filed on TCOST).
+- **Apex:** chord-scale, `mid − n̂·σ·(len/2)·tan(|Δθ|/4)`. Its width at
+  Interval is 1e-19 where the carrier form had 3.6e-12, and a
+  shallow-arc grid pins it (cell-for-cell main).
+- **Bits that moved:** the Sym-tier counts (m10_9 `r2_link`, the plate
+  ledger) and the thread-count digest's frozen counts.
+
+After main merged in, the four lost `sym_thin_strip` theorems came
+back. Filed from this unit:
+- `sketch-segment-eval-could-be-exact-at-both-ends`
+- the CARVE loft-column row
+- the TCOST escalation row
+
+Carried to unit 5 (`store-constructed-carriers`): the inventory of six
+hand copies, and the validate-time carrier check at the sweep boundary.

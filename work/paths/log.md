@@ -341,3 +341,25 @@ PR's head, without waiting for hosted CI. A hosted red that lands later
 is fixed forward on main at once.
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/paths/profile-endings-say-lower-the-tolerance-and-route-by-name.md`. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-09-29 — unit 2 merges (#3254, DR-20); unit 5 next
+
+- **Dual review.** Both reviews came back APPROVE-WITH-FIXES with no
+  MAJOR. The pair is excluded under 6(e): R2 was truncated by harness
+  hand-backs that two concurrent builds on this 4-core box caused.
+  Future duals stagger their builds.
+- **Fix pass.** All ten items were taken. The chord-scale apex removes
+  the Interval width regression.
+- **Main merged in.** 1479 commits. Main's check 1 restored the four
+  `sym_thin_strip` theorems.
+- **Friction (orchestration-model's rule):** hosted run 36548745318
+  took about 18 min from the change filter to `gate ok`, and its `test`
+  job alone took 17 min, over the 15-min bar. This is recorded here,
+  not dispatched: CI latency is not PATHS' slate, and the gate itself
+  was cut on 2026-09-28 (d22fab7bc).
+- **Local CI.** The local CI mirror was deleted on main (24fedbfad), so
+  the 2026-09-26 "merge on local green" route no longer exists. PATHS
+  gates on hosted CI plus the scoped local battery.
+- **Next:** `store-constructed-carriers` (unit 5). It moved ahead of
+  unit 3 so that re-lowering carries the stored carrier before any
+  one-segment loop is admitted.
