@@ -2,10 +2,11 @@
 id: axis-per-component-source-beside-geom-source
 kind: issue
 title: The axis channel's per-component source beside GeomSource (step 3 of WIRE's ratified axis-channel cut)
-status: open
+status: dispatched
 opened: 2026-09-14
 priority: P1
 cost: H
+branch: origin/axis-component-source
 ---
 
 

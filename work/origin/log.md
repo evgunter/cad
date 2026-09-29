@@ -106,3 +106,14 @@ checks of one theorem) filed as
 `set-surface-source-…` narrowed and retitled; notes on
 `two-provenance-free-keys-…`, `three-spellings-…` and TOPO's
 `mint-face-surface-and-sense-…` (seam).
+
+## 2026-09-29 — axis channel dispatched
+
+`axis-per-component-source-beside-geom-source` → implementer on
+`origin/axis-component-source` (step 3 of WIRE's ratified cut, P1
+only unless the design doc places more in it); stops and reports if
+the representation is a hard-to-reverse fork the doc leaves open.
+Review tier: single FULL — a new identity record that every
+transplanting door must carry is more than reading can believe; raised
+to dual if the diff shows a representation decision the doc did not
+make.
