@@ -2,7 +2,8 @@
 id: node-slot-tables-are-spelled-three-times-in-node-rs
 kind: issue
 title: Node, TubeWindow and the placement rule each spell their slot roles three times in node.rs - slots(), expr() and a hand-copied expr_mut() - where program.rs now reads one role table
-status: review
+status: closed
+closed: 2026-09-29
 branch: edit/slot-tables-one-home
 pr: 3438
 opened: 2026-09-25
