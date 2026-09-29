@@ -1,5 +1,5 @@
 //! **Adopted from a reviewer probe** (the CERT-N3 dual review) as an
-//! ordinary row: a second independent conic-box corpus, the branch-cut rows (extremal angle exactly π, bracket rectangles on the axes) and the descending-run wide-bracket row that shows the endpoint hull is load-bearing for span coverage.
+//! ordinary row: the dispatcher, the interval-box domination rows, the branch-cut rows (extremal angle exactly π, bracket rectangles on the axes) and the descending-run wide-bracket row that shows the endpoint hull is load-bearing for span coverage. The dense-sample conic-box corpus is `n3r1_probes`'.
 //!
 //! CERT-N3 R2 blinded-review probes — probe branch only.
 //!
@@ -15,8 +15,6 @@ use bvh::Aabb;
 use geom::Curve3;
 use geom::curves::boxes::{circle_arc_aabb, conic_arc_aabb, ellipse_arc_aabb};
 use geom_core::{Point3, Vec3};
-
-const SAMPLES: u32 = 100_000;
 
 fn escapes(b: &Aabb, p: Point3<f64>, slack: f64) -> bool {
     !(p.x >= b.min_x - slack
@@ -92,94 +90,6 @@ fn spans(phi: f64) -> Vec<(String, f64, f64)> {
     out
 }
 
-/// **The circle corpus.** Radii 1e-4 .. 1e4, `u_ref` at every octant
-/// boundary, axes tilted, and every span shape above measured against
-/// the coordinate's own extremal angle.
-#[test]
-fn n3r2_circle_box_contains_a_dense_sample() {
-    let mut checked = 0usize;
-    for &r in &[1e-4_f64, 1e-2, 1.0, 100.0, 1e4] {
-        for oct in 0..8u32 {
-            let phi_u = f64::from(oct) * core::f64::consts::FRAC_PI_4;
-            for &(tilt, spin) in &[
-                (0.0, 0.0),
-                (0.4, 0.7),
-                (1.2, 2.6),
-                (core::f64::consts::FRAC_PI_2, 0.0),
-            ] {
-                let (axis, u_ref) = frame(tilt, spin, phi_u);
-                let carrier: Curve3<f64> = Curve3::Circle {
-                    center: Point3::new(0.3 * r, -0.2 * r, 0.11 * r),
-                    axis,
-                    radius: r,
-                    u_ref,
-                };
-                let v_ref = axis.cross(u_ref);
-                // The x-coordinate's extremal angle for this carrier.
-                let phi = (v_ref.x * r).atan2(u_ref.x * r);
-                for (name, t0, t1) in spans(phi) {
-                    let b = circle_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1))
-                        .unwrap();
-                    let slack = 1e-12 * (1.0 + r);
-                    for i in 0..=SAMPLES {
-                        let t = t0 + (t1 - t0) * f64::from(i) / f64::from(SAMPLES);
-                        let p = carrier.eval(t);
-                        assert!(
-                            !escapes(&b, p, slack),
-                            "circle r={r} oct={oct} tilt={tilt} {name}: t={t} {p:?} left {b:?}"
-                        );
-                    }
-                    checked += 1;
-                }
-            }
-        }
-    }
-    assert!(checked > 500, "corpus too small: {checked}");
-}
-
-/// **The ellipse corpus.** Tilts to 89.99°, axis ratios to 1e3.
-#[test]
-fn n3r2_ellipse_box_contains_a_dense_sample() {
-    let mut checked = 0usize;
-    for &ratio in &[1.0_f64, 10.0, 1e3] {
-        for &major in &[1e-4_f64, 1.0, 1e4] {
-            let minor = major / ratio;
-            for &tilt_deg in &[0.0_f64, 20.0, 60.0, 89.99] {
-                for oct in [0u32, 1, 3, 5] {
-                    let phi_u = f64::from(oct) * core::f64::consts::FRAC_PI_4;
-                    let (axis, u_ref) = frame(tilt_deg.to_radians(), 0.9, phi_u);
-                    let carrier: Curve3<f64> = Curve3::Ellipse {
-                        center: Point3::new(0.0, 0.0, 0.0),
-                        axis,
-                        major,
-                        minor,
-                        u_ref,
-                    };
-                    let v_ref = axis.cross(u_ref);
-                    let phi = (minor * v_ref.y).atan2(major * u_ref.y);
-                    for (name, t0, t1) in spans(phi) {
-                        let b =
-                            ellipse_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1))
-                                .unwrap();
-                        let slack = 1e-12 * (1.0 + major);
-                        for i in 0..=SAMPLES {
-                            let t = t0 + (t1 - t0) * f64::from(i) / f64::from(SAMPLES);
-                            let p = carrier.eval(t);
-                            assert!(
-                                !escapes(&b, p, slack),
-                                "ellipse major={major} ratio={ratio} tilt={tilt_deg} {name}: \
-                                 t={t} {p:?} left {b:?}"
-                            );
-                        }
-                        checked += 1;
-                    }
-                }
-            }
-        }
-    }
-    assert!(checked > 500, "corpus too small: {checked}");
-}
-
 /// The dispatcher agrees with the kind door it delegates to, and
 /// refuses the two non-conic kinds.
 #[test]
@@ -227,9 +137,9 @@ fn n3r2_dual_box_contains_a_dense_sample() {
             let (axis, u_ref) = frame(0.4, 0.7, f64::from(oct) * core::f64::consts::FRAC_PI_4);
             let carrier_d: Curve3<Dual64> = Curve3::Circle {
                 center: Point3::new(d(0.0), d(0.0), d(0.0)),
-                axis: Vec3::new(d(axis.x), d(axis.y), d(axis.z)),
+                axis: axis.map(d),
                 radius: Dual64::variable(r),
-                u_ref: Vec3::new(d(u_ref.x), d(u_ref.y), d(u_ref.z)),
+                u_ref: u_ref.map(d),
             };
             let real: Curve3<f64> = Curve3::Circle {
                 center: Point3::new(0.0, 0.0, 0.0),
@@ -287,7 +197,7 @@ fn n3r2_interval_box_dominates_every_realization_ascending() {
                     let t1 = Interval::from_bounds(t1c - w, t1c + w);
                     let carrier: Curve3<Interval> = Curve3::Circle {
                         center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                        axis: Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z)),
+                        axis: axis.map(iv),
                         radius: Interval::from_bounds(r * (1.0 - w), r * (1.0 + w)),
                         u_ref: Vec3::new(
                             Interval::from_bounds(u0.x - w, u0.x + w),
@@ -346,9 +256,9 @@ fn n3r2_interval_box_dominates_every_realization_descending() {
         let t1 = Interval::from_bounds(0.2 - w, 0.2 + w); // end (smaller)
         let carrier: Curve3<Interval> = Curve3::Circle {
             center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            axis: Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z)),
+            axis: axis.map(iv),
             radius: iv(1.0),
-            u_ref: Vec3::new(iv(u0.x), iv(u0.y), iv(u0.z)),
+            u_ref: u0.map(iv),
         };
         let b = conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
         let real: Curve3<f64> = Curve3::Circle {

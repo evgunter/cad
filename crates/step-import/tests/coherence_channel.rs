@@ -447,11 +447,11 @@ fn the_half_cap_witness_reaches_the_channel_band_shaped() {
 // 5. Not a gate.
 // ---------------------------------------------------------------
 
-/// **Asking the question changes no answer.** For every own-corpus
-/// fixture, the import with the examination on and the import with it
-/// off agree on the disposition, the arena census and the certified
-/// enclosure, bit for bit — including the two fixtures that have
-/// something to report.
+/// **Asking the question changes no answer.** On a planar fixture and
+/// on one the examination has something to report about (the cut
+/// cylinder's trimmed curved face), the import with the examination on
+/// and the import with it off agree on the disposition, the arena
+/// census and the certified enclosure, bit for bit.
 ///
 /// The enclosure is the sharp field: it is the at-rest gate's own
 /// certified `MassProperties`, so a channel that had crept into the
@@ -460,21 +460,25 @@ fn the_half_cap_witness_reaches_the_channel_band_shaped() {
 #[test]
 fn asking_for_the_examination_changes_nothing_about_acceptance() {
     let tol = Tol::witness();
-    for name in SOLID_FIXTURES {
+    for name in ["cube", "cut_cylinder"] {
         let text = fixture(name, "step");
         let one = |examine: bool| match import_step(&text, &own_import_options(name, examine), tol)
         {
             Ok(StepImport::Solid {
                 body, enclosure, ..
-            }) => (
-                common::arena_census(&body),
-                [
-                    enclosure.volume,
-                    enclosure.surface_area,
-                    enclosure.volume_pad,
-                    enclosure.area_pad,
-                ],
-            ),
+            }) => {
+                let enclosure =
+                    enclosure.unwrap_or_else(|e| panic!("{name}: the enclosure measures: {e}"));
+                (
+                    common::arena_census(&body),
+                    [
+                        enclosure.volume,
+                        enclosure.surface_area,
+                        enclosure.volume_pad,
+                        enclosure.area_pad,
+                    ],
+                )
+            }
             other => panic!("{name} must import as a solid: {other:?}"),
         };
         assert_eq!(

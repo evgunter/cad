@@ -1346,3 +1346,17 @@ the lane resumed from its transcript and re-ran every check. Seams:
 `pncad::analysis` and the binding census (LIB, `summarize` re-exported
 and registered behind a door), `editor-core/src/mc.rs` (PROPS, one
 `fn` → `pub fn`). Spec deleted with its note; the unit closed.
+
+## Two ignored receipt rows red on main, drift unattributed (2026-09-26)
+
+Filed `ignored-sym-receipt-rows-drifted-red-on-main-unattributed` (P1).
+At `8ee3daf171` (main) `sym11_the_exact_channel_never_contradicts_past_the_ceiling`
+measures link numeric 179 / stored 175, bracket 343 / 341, and pad
+`[854, 128, 979, 2722]` / `[854, 128, 971, 2750]`.
+`m10_9_the_pads_four_at_both_dials` measures F-off `(858, 104, 999, 2722)` /
+stored `(858, 104, 991, 2750)` and F-on `(854, 128, 979, 2722)` /
+`(854, 128, 971, 2750)`. The drift predates ENCL's batch
+(`encl/batch-split-loop-mustcarry`, which applies only its own gate's
+A/B-measured delta to these tables) and its cause is not measured;
+no registrant column moves. The item has the full table. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

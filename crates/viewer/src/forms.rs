@@ -310,7 +310,7 @@ pub(crate) fn target_kind_label(kind: TargetKind) -> &'static str {
 /// slot writes, and the document's edit vocabulary writes a program's
 /// ARGUMENTS and has no door that rewrites its shape, so the controls
 /// that would are shown and not taken ([`ShapeEdits::Locked`], said
-/// once over the list as [`SHAPE_LOCKED`]).
+/// as [`SHAPE_LOCKED`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ShapeEdits {
     /// Every control is live.
@@ -326,8 +326,9 @@ impl ShapeEdits {
     }
 }
 
-/// What a locked editor says about its greyed controls, once, above
-/// the list.
+/// What a locked editor says about its greyed controls — above the
+/// list, and on the disabled hover of each step row's glyph controls,
+/// under what that control would have done.
 pub(crate) const SHAPE_LOCKED: &str = "the numbers are editable here; the shape (the steps, \
      their verbs and order, arc modes, sides and targets) is not — the document has no edit that \
      rewrites a committed profile's program";

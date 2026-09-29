@@ -768,26 +768,24 @@ pub struct LoftGeometry {
 /// disagreement is unrepresentable.
 pub type Section = Vec<ProfileLoop<f64>>;
 
-/// The section's world-space traversal data for segment `j`: the
-/// `(a, b, bulge)` triple as a [`SketchSegment`], exactly the lowered
-/// form [`segment_curve`] consumes (`segment_curve` stays public as
-/// the exact-path-leg door, and routing every wall through it keeps
-/// the produced NURBS on one code path).
+/// The section's world-space traversal data for segment `j`, as the
+/// [`SketchSegment`] [`segment_curve`] consumes (`segment_curve` stays
+/// public as the exact-path-leg door, and routing every wall through
+/// it keeps the produced NURBS on one code path). The carrier is
+/// selected by the validated segment's kind; an arc crosses into the
+/// sketch-segment form with the bulge it was lowered from.
 fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
-    let vs = lp.vertices();
-    let a = vs[j];
-    let b = vs[(j + 1) % vs.len()];
-    if a.bulge() == 0.0 {
-        SketchSegment::Line {
-            a: a.pos(),
-            b: b.pos(),
-        }
-    } else {
-        SketchSegment::Arc {
-            a: a.pos(),
-            b: b.pos(),
-            bulge: a.bulge(),
-        }
+    let s = &lp.segments()[j];
+    match s.kind {
+        profile::SegmentKind::Line => SketchSegment::Line {
+            a: s.start,
+            b: s.end,
+        },
+        profile::SegmentKind::Arc { .. } => SketchSegment::Arc {
+            a: s.start,
+            b: s.end,
+            bulge: s.bulge,
+        },
     }
 }
 

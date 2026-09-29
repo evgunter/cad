@@ -13,25 +13,14 @@
 //! caller's document would say and nothing about a private path.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamName, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget,
 };
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-fn sca(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
-fn pt(x: f64, y: f64) -> [Expr; 2] {
-    [len(x), len(y)]
-}
 fn point(x: f64, y: f64) -> ProgramTarget {
-    ProgramTarget::Point(pt(x, y))
+    ProgramTarget::Point(len2([x, y]))
 }
 
 fn every_spec() -> Vec<ProgramArcData> {
@@ -56,15 +45,15 @@ fn every_spec() -> Vec<ProgramArcData> {
     ] {
         out.push(ProgramArcData::Bulge {
             target: target.clone(),
-            b: sca(0.3),
+            b: scl(0.3),
         });
         out.push(ProgramArcData::Via {
-            q: pt(4.5, 0.5),
+            q: len2([4.5, 0.5]),
             target: target.clone(),
         });
         for winding in [profile::ArcSweep::Ccw, profile::ArcSweep::Cw] {
             out.push(ProgramArcData::Center {
-                c: pt(6.0, 1.0),
+                c: len2([6.0, 1.0]),
                 winding,
                 target: target.clone(),
             });
@@ -80,18 +69,18 @@ fn steps() -> Vec<ProgramStep> {
     // covering it once per dimension covers it.
     let e = exprs();
     let mut steps = vec![
-        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Angle(ang(0.25)),
         ProgramStep::Toward {
-            dx: sca(1.0),
-            dy: sca(0.5),
+            dx: scl(1.0),
+            dy: scl(0.5),
         },
         ProgramStep::Tangent,
         ProgramStep::Cusp,
         ProgramStep::Turn(ang(0.1)),
         ProgramStep::Line(len(1.0)),
         ProgramStep::Fillet(len(0.2)),
-        ProgramStep::FarEndTo(pt(7.0, 2.0)),
+        ProgramStep::FarEndTo(len2([7.0, 2.0])),
         ProgramStep::CloseTo,
         ProgramStep::Line(e.length),
         ProgramStep::Angle(e.angle),
@@ -137,6 +126,7 @@ fn program() -> ProfileProgram {
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
             LoopProgram::circle_split(2.0, 2.0, 0.75, 5, 0.2).unwrap(),
         ],
+        ids: Vec::new(),
     }
 }
 
@@ -173,10 +163,10 @@ fn exprs() -> Exprs {
         Expr::min(
             Expr::add(
                 Expr::sub(Expr::neg(len(3.0)), len(0.5)).unwrap(),
-                Expr::mul(len(2.0), sca(1.5)).unwrap(),
+                Expr::mul(len(2.0), scl(1.5)).unwrap(),
             )
             .unwrap(),
-            Expr::div(len(8.0), sca(4.0)).unwrap(),
+            Expr::div(len(8.0), scl(4.0)).unwrap(),
         )
         .unwrap(),
         Expr::param(ParamName::new("width"), Dimension::Length),

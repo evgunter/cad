@@ -1,7 +1,7 @@
 //! **Per-document NAME-TABLE digests over the whole corpus registry,
 //! pinned** — adopted from the LIB-G16 R2 review probe, which printed
 //! them for a cross-tree comparison and so expired with it
-//! (`memories/test-suite-cost.md`).
+//! (implementer-discipline §8).
 //!
 //! What earns it a permanent seat is the hole it fills. Two corpus-wide
 //! goldens already exist and neither is this one: `m10_p_fence` pins
@@ -73,6 +73,13 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// scalar. Every other row above and below is byte-identical, which is
 /// the receipt that the change is local to the die.
 ///
+/// The digest encodes each name's entity with its slot VERSION, so a
+/// change in how many keys an arena has spent before a mint moves a
+/// row with no name changing. A graft spends one key per dead
+/// ancestor its forwarded records name (`topo`'s combine door), which
+/// is why the documents whose booleans graft a split operand carry
+/// versions that no name reads.
+///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
 /// `die` is `0xfdf3_d13d_4782_a4e5` — the same number
@@ -115,14 +122,14 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// within-one-document case, where the two nodes differ and the names
 /// must be disjoint.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xfdf3_d13d_4782_a4e5),
-    ("corner_table", 0xae66_1ffa_e1aa_f5dd),
-    ("heat_sink", 0xa29d_1f9f_979d_097e),
-    ("crossing_slots", 0xcdd4_d506_fa1a_ab9b),
-    ("nested_islands_105", 0xb7d4_5b86_990b_53a8),
-    ("nested_islands_106_depth1", 0x56f3_2cd0_db15_c3fa),
-    ("nested_islands_106_depth2", 0x81bf_a4ec_3d11_bd26),
-    ("declared_tangency", 0xc64d_f2c5_c3b8_6599),
+    ("die", 0xe743_2c17_9253_7939),
+    ("corner_table", 0xf56d_7982_6a7b_c431),
+    ("heat_sink", 0x6360_713a_747e_4886),
+    ("crossing_slots", 0x9f16_d11a_5005_26e5),
+    ("nested_islands_105", 0x7baa_45e2_183e_e816),
+    ("nested_islands_106_depth1", 0x2fec_8e06_4263_3626),
+    ("nested_islands_106_depth2", 0x1edb_6734_884b_50ec),
+    ("declared_tangency", 0xa6aa_4a23_d78f_14e3),
     // Moved by the in-plane revolve axis, and the ONLY row that did.
     // `kitchen_sink` shared one `Datum::Axis` between a circular
     // pattern and a revolve; those are two node kinds now — a pattern
@@ -135,41 +142,41 @@ const PINNED: &[(&str, u64)] = &[
     // datum mints no names, so the swap moves no id that any name
     // holds: their rows are byte-identical. That is what this
     // per-document instrument is for.
-    ("kitchen_sink", 0x27bd_57ed_25e7_e4b3),
-    ("cut_cylinder", 0x7d4a_4bcc_7a37_04b5),
-    ("measured_web", 0x2225_4923_8ab3_c86c),
-    ("boss_union", 0xeab4_07c7_787e_8f62),
-    ("die_fillet", 0x0b3d_4e2d_c53a_dff6),
-    ("die_chamfer", 0x0b3d_4e2d_c53a_dff6),
-    ("die_pips", 0xc1d7_f994_65ee_de1d),
-    ("heat_sink_fins", 0x774b_b1fa_e9c3_ea5a),
-    ("die_tool", 0x8842_6c6d_a225_7e5c),
-    ("face_sketch", 0x9686_16cf_e0bc_7e15),
+    ("kitchen_sink", 0x3345_43cd_49ba_2154),
+    ("cut_cylinder", 0xd543_9780_803a_6367),
+    ("measured_web", 0x4b31_ec37_371f_2254),
+    ("boss_union", 0xf871_08d9_6fc4_1ab0),
+    ("die_fillet", 0x7ad1_a24b_b6a9_a80a),
+    ("die_chamfer", 0x7ad1_a24b_b6a9_a80a),
+    ("die_pips", 0x1741_d37b_48ff_f7be),
+    ("heat_sink_fins", 0x7b4a_0364_3fd0_86bc),
+    ("die_tool", 0xfc2e_74a8_5a6c_594a),
+    ("face_sketch", 0x6d49_ca92_df73_56c7),
     // DOCM-2. Two `Part`s of one split and one of a pattern: the
     // projection mints nothing, so every name in the document is the
     // split's, the pattern's, or the union's over them, and the row's
     // arrival moved no other row.
-    ("part_select", 0xef49_6789_be45_f431),
-    ("loft_prism", 0x28f4_e9c8_5810_f1a9),
-    ("die_composed", 0x7b0f_2152_5b1d_6487),
-    ("die_composed_tour", 0x5cff_0463_6827_a96f),
-    ("plate_param", 0x9efe_0678_bc06_346c),
-    ("kiss_carry", 0x4c48_320f_0668_6632),
+    ("part_select", 0x3e52_4c0e_2d96_88a9),
+    ("loft_prism", 0xeb00_6a33_5df4_7a35),
+    ("die_composed", 0xbf5a_4601_49a8_1101),
+    ("die_composed_tour", 0xc899_d64d_5f8c_f753),
+    ("plate_param", 0x263a_704c_add8_e71a),
+    ("kiss_carry", 0x5beb_8e24_6a92_26f2),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only
     // its maps — so these two rows are the revolve role vocabulary
     // over a body no revolve node built. Their arrival moved no
     // other row, which is the property this table exists to make
     // readable.
-    ("tube_ring", 0x1293_7fbf_295c_f16c),
-    ("tube_arc", 0xb4e7_8002_f2ea_4ebc),
-    ("hollow_tube_elbow", 0x98e4_97a0_679c_33ad),
-    ("hollow_tube_ring", 0xbdb5_5092_7bb6_1e80),
+    ("tube_ring", 0x9645_9ea8_218a_67b0),
+    ("tube_arc", 0x0038_04f3_79bf_1170),
+    ("hollow_tube_elbow", 0xc99f_7c47_4c95_e211),
+    ("hollow_tube_ring", 0x7dbe_cbe0_b0b0_f794),
     // EDIT-PROGRAM: the one document whose log reshapes a profile
     // under a fillet. Its table is minted over the crease name the
     // door REBOUND, which is the fact this row makes golden; its
     // arrival moved no other row.
-    ("reshaped_rod", 0x4230_f042_d025_9e01),
+    ("reshaped_rod", 0x877d_7756_d5e0_ab4d),
 ];
 
 #[test]

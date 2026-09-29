@@ -1,9 +1,6 @@
 //! The promoted M1 PR 2 adversarial review suites (this module's
 //! shared helpers plus the five probe submodules). Adversarial e2e
-//! review artifact for M1 PR 2 (2026-07-16); promoted per Ev's
-//! request (PR #17 thread).
-//!
-//! These are **independent derivations**.
+//! review artifact for M1 PR 2 (2026-07-16).
 //!
 //! **Moved from `tests/` into `src/` (cfg(test)) at M1 PR 5**, when the
 //! raw builder retreated to `pub(crate)`: the atomicity, degenerate-

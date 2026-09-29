@@ -2,11 +2,14 @@
 id: torus-operand-gate-admission
 kind: issue
 title: Torus onto boolean_arm_exists - the stem glue's door sequence after the box and the residual arm (a gate-policy unit, CURVED's)
-status: open
+status: closed
 opened: 2026-09-04
 refs: [torus-operand-boxes-span-whole-ring, circle-residual-harmonics-needs-torus-arm, torus-declared-rest-lane-banked, torus-coincident-pair-cannot-reach-the-covered-rung]
 priority: P0
 cost: D
+branch: germ/torus-doors
+closed: 2026-09-26
+pr: 3265
 ---
 
 
@@ -61,3 +64,24 @@ gate change. Whoever takes this should confirm that before scoping.
 The viewer-side rows this surfaced are
 `work/view/a-refusal-offers-no-action-in-the-viewer.md` and
 `work/view/a-derived-pick-index-failure-outshouts-its-cause.md`.
+
+## Closed (PR 3265, 2026-09-26)
+
+**(a) The torus is on `boolean_arm_exists`.** The crossing layer has its
+torus arms:
+- line×torus through `line_torus_roots`, keeping the door on a certified
+  root its landing point contradicts;
+- the sector walk;
+- the pierce normal;
+- a torus extent gate in `ops.rs` for a face with no crossings.
+
+(c) and (e) closed with it. **Where the other sub-items went:**
+- (b) is `circle-crosses-a-torus-face-with-no-root-lane`;
+- (d) the joint weld is ZIP's `dumbbell-joint-union-leaves-four-loose-ends`.
+  Past every torus door, the revolved dumbbell stops there, exactly where a
+  cylinder-handle control stops.
+
+The premise that the (Plane, Torus) join arm is what blocks the dumbbell
+was measured false: Ev's refusal came from the operand gate. The F7 wall
+ahead of it is CARVE's `full-revolve-emits-split-planar-walls`, ruled by
+Ev on 2026-09-25.

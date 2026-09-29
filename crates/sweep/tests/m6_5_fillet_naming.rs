@@ -16,8 +16,7 @@
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{assert_naming_totality, cube};
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -31,9 +30,9 @@ const PIP_H: f64 = 0.05;
 const R: f64 = 0.05;
 
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-        ProfileVertex::new(Point2::new(0.0, r), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -164,6 +163,10 @@ fn the_records_have_the_shape_the_surgery_built() {
     assert_eq!(rec.meridian_splits.len(), 2);
     assert_eq!(rec.meridian_remnants.len(), 2);
     assert_eq!(rec.slits.len(), 1, "one slit per band");
+    assert_eq!(
+        rec.slits[0].2, rec.bands[0].1,
+        "the slit carries the band that slit it, as that band's own sorted chain"
+    );
 }
 
 // ------------------------------------------------------------------

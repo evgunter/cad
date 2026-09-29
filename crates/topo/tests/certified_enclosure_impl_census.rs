@@ -170,7 +170,13 @@ const ROSTERS: [Roster; 5] = [
 /// The types the door reader matches that are not door values, each
 /// with the reason no roster is owed. An entry here is an exemption and
 /// has to earn it; one the reader no longer matches is stale, and red.
-const NOT_A_DOOR: [(&str, &str); 0] = [];
+const NOT_A_DOOR: [(&str, &str); 1] = [(
+    "CertifiedLanes",
+    "a private bundle of door values that forms none of its own: its quadrature and region \
+     fields are `QuadLane::certified()` and `RegionLane::certified()`, which their own rosters \
+     pin, and check 2's lane is `plane_nurbs_limbs` by name, so it has no fn-pointer field a \
+     wiring helper could compare",
+)];
 
 /// The impls that are not door scalars, each with the reason no wiring
 /// row is owed. An entry here is an exemption and has to earn it; every

@@ -18,8 +18,8 @@ mod certified {
 
     use geom::Curve3;
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop};
+    use geom_core::{Affine3, Bounds, Interval};
+    use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, sketch_from_axes};
     use sweep::{Revolution, RevolveAxis, revolve};
@@ -32,13 +32,7 @@ mod certified {
     const PIP_H: f64 = 0.05;
     const RIM_R: f64 = 0.02;
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
-
-    fn p2(x: f64, y: f64) -> Point2<Interval> {
-        Point2::new(iv(x), iv(y))
-    }
+    use crate::common::interval::{iv, p2, p3, v2, v3};
 
     /// One +Z-poled pip ball at the top face centre — the die_pips
     /// CORPUS discipline: the sketch frame is chosen so the revolve
@@ -50,15 +44,13 @@ mod certified {
     fn pip_ball() -> Body<Interval> {
         // The half-disc lamina: a semicircle out of the south pole and
         // the straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -PIP_R), iv(1.0)),
-            ProfileVertex::new(p2(0.0, PIP_R), iv(0.0)),
-        ]);
+        let lp =
+            bulge_loop::<Interval>(vec![(p2(0.0, -PIP_R), iv(1.0)), (p2(0.0, PIP_R), iv(0.0))]);
         let profile = Profile::new(
             sketch_from_axes(
-                geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                p3(0.0, 0.0, 0.0),
+                v3(1.0, 0.0, 0.0),
+                v3(0.0, 0.0, 1.0),
                 Tol::witness(),
             ),
             vec![lp],
@@ -67,7 +59,7 @@ mod certified {
         .unwrap();
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
+            dir: v2(0.0, 1.0),
         };
         let ball = revolve(&profile, axis, Revolution::Full, Tol::witness())
             .unwrap()
@@ -75,7 +67,7 @@ mod certified {
         let h = DIE_L / 2.0;
         topo::transform_rigid(
             &ball,
-            &Affine3::translation(Vec3::new(iv(h), iv(h), iv(DIE_L + (PIP_R - PIP_H)))),
+            &Affine3::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))),
             Tol::witness(),
         )
         .unwrap()

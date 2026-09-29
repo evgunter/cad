@@ -58,20 +58,20 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
             SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(0))),
-            SitedRef::new(b, fname(b, wall(0))),
+            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(b, fname(b, wall(&doc, b, 0))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(1))),
-            SitedRef::new(b, fname(b, wall(1))),
+            SitedRef::new(a, fname(a, wall(&doc, a, 1))),
+            SitedRef::new(b, fname(b, wall(&doc, b, 1))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(2))),
-            SitedRef::new(b, fname(b, wall(2))),
+            SitedRef::new(a, fname(a, wall(&doc, a, 2))),
+            SitedRef::new(b, fname(b, wall(&doc, b, 2))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(3))),
-            SitedRef::new(b, fname(b, wall(3))),
+            SitedRef::new(a, fname(a, wall(&doc, a, 3))),
+            SitedRef::new(b, fname(b, wall(&doc, b, 3))),
         ),
     ];
     let (doc, decl) = insert(doc, Node::declare_rest(pairs));

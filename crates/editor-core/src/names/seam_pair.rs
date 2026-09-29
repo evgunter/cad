@@ -66,9 +66,9 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCross { .. }
         | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
+        | RoleSeg::BandSlit { .. }
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
@@ -118,7 +118,7 @@ fn seam_through(name: &StableName, kind: EntityKind) -> Option<(&StableName, &St
 /// `x` itself or `x` followed by discriminators, through any number of
 /// the wrappers [`head`] passes through, or a merged face with such a
 /// constituent.
-fn face_descends_from(n: &StableName, x: &StableName) -> bool {
+pub(crate) fn face_descends_from(n: &StableName, x: &StableName) -> bool {
     if n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path) {
         return true;
     }

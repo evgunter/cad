@@ -37,7 +37,7 @@
 //! `Affine3` — whose `map`s are written AS it, so each walk's
 //! component placement is stated once for both directions — and on
 //! `profile`'s `SketchPlane`. The other three leaves (`Point2`,
-//! `Point3`, `Vec2`), `profile`'s `ProfileVertex`, and every
+//! `Point3`, `Vec2`) and every
 //! `map_scalar` rung have no fallible twin, because nothing has asked
 //! for one. The rule is one name per direction, on the types that have
 //! that direction — not both names on every type; minting the rest

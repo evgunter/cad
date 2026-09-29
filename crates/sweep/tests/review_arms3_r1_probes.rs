@@ -22,7 +22,6 @@
 
 use geom::Surface;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
@@ -33,8 +32,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 /// The bulge of an arc from `p1` to `p2` on the circle centred `c`
@@ -398,17 +397,11 @@ fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
     // Find a valence-4 vertex and check its structure is the genuine
     // kind: four edges, four DISTINCT support pairs, none co-surface.
     let mut found = None;
-    for (vk, vt) in body.vertices() {
-        let Some(he) = vt.emanating else { continue };
-        let Some(orbit) = body.vertex_orbit(he) else {
+    for (vk, _) in body.vertices() {
+        let Some(mut edges) = body.edges_of_vertex(vk) else {
             continue;
         };
-        let mut edges: Vec<EdgeKey> = orbit
-            .iter()
-            .map(|h| body.get_half_edge(*h).unwrap().edge)
-            .collect();
         edges.sort_unstable();
-        edges.dedup();
         if edges.len() == 4 {
             found = Some((vk, edges));
             break;
@@ -437,6 +430,8 @@ fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
 
 /// A barrel whose wall is a TORUS (an off-axis profile arc revolved),
 /// capped by plane annuli. Its rims are torus×plane — no arm.
+/// NOT `common::torus_walls::torus_barrel`: an annular barrel of another
+/// size, this suite's own.
 fn torus_barrel() -> Body<f64> {
     let c = Point2::new(0.9 - 0.0325f64.sqrt(), 0.3);
     let lo = Point2::new(0.9, 0.0);

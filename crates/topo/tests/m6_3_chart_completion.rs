@@ -122,11 +122,7 @@ fn fit_image() -> NurbsCurve2<f64> {
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
@@ -291,7 +287,7 @@ mod certified {
     /// - **the bound > ε > the bound / K**: the bound lands inside the
     ///   open sliver band and the fitted door ESCALATES on
     ///   `ssi_hull_sup`. Honest, and terminal:
-    ///   [`geom_core::MarginDiag::Enclosure`]'s own documentation says
+    ///   [`geom_core::MarginKind::Enclosure`]'s own documentation says
     ///   an enclosure lying wholly inside one open sliver band "is not
     ///   refinable by subdivision at all (the band is semantically
     ///   indeterminate at any width, even for a point)" and is
@@ -347,7 +343,9 @@ mod certified {
         assert_eq!(cause.predicate, Some("ssi_hull_sup"));
         // The refusal carries the REAL margin. Before #925's fix this
         // reported `NaN`, indistinguishable from a poisoned enclosure.
-        let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            cause.margin.diagnostic_f64_for_error_text()
+        else {
             panic!("the escalation must carry its enclosure, not a poison or a hole: {cause:?}");
         };
         assert!(

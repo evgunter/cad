@@ -15,7 +15,7 @@
 //! that carries no claim is shared:
 //! `common::{ang, edited, inserted, len, scl, tempdir, xy_frame}`.
 //!
-//! Shapes per `memories/test-suite-cost.md`: every row here is a
+//! Shapes per implementer-discipline §8: every row here is a
 //! static-witness row (deterministic fixtures authored through the
 //! public doors); nothing samples, so nothing needs a seed or an
 //! effort dial.
@@ -53,6 +53,7 @@ fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (0.0, side)]).expect("finite corners"),
         ],
+        ids: Vec::new(),
     })
 }
 

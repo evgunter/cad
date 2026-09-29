@@ -29,7 +29,6 @@
 use core::f64::consts::SQRT_2;
 
 use geom_core::{Point2, Point3, Sign, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
@@ -42,8 +41,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 // ------------------------------------------------------------------
@@ -321,15 +320,7 @@ fn p4_the_repaired_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
         let ed = source.get_edge(arc).unwrap();
         for he in [ed.he_plus, ed.he_minus] {
             let v = source.get_half_edge(he).unwrap().start;
-            let em = source.get_vertex(v).unwrap().emanating.unwrap();
-            let mut inc: Vec<EdgeKey> = source
-                .vertex_orbit(em)
-                .unwrap()
-                .into_iter()
-                .map(|h| source.get_half_edge(h).unwrap().edge)
-                .collect();
-            inc.sort_unstable();
-            inc.dedup();
+            let inc = source.edges_of_vertex(v).unwrap();
             assert_eq!(inc.len(), 3, "a repaired-rim crossing is trivalent");
         }
     }
@@ -389,7 +380,7 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, Sign::Zero);
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a co-surface seam is tangential exactly"
             );

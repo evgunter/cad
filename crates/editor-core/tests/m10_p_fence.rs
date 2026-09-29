@@ -169,7 +169,7 @@
 //! evidence, which is independent of ids and did not move:
 //! `m4_pr8_corpus::exact_mass_pins_hold` holds every document's exact
 //! volume and area, `m5_pr8_bvh_diff` holds realized-vs-idealized bit
-//! equality, `m5_pr11_corpus_curved` and `cert_m2r1_corpus` hold their
+//! equality, `m5_pr11_corpus_curved` holds its
 //! own, and the persistence round trip replays every document. Those
 //! were green across this change without being touched. So the claim
 //! this number carries is unchanged — no outcome flipped and no point
@@ -295,10 +295,11 @@
 //! it, on this tree and on a tree with only those two files reverted:
 //!
 //! THE INSTRUMENT IS `crates/editor-core/tests/cert3r1_dump.rs`, which
-//! replays this file's own `corpus_digest` walk at both scalars and
-//! prints one `RSTRUCT` line per node and one `RCOORD` line per
-//! coordinate instead of folding into FNV. Run it on two trees, grep
-//! the prefixes, diff. It is committed rather than described because a
+//! runs this file's own `walk` at both scalars and prints one `RSTRUCT`
+//! line per node and one `RCOORD` line per coordinate instead of
+//! folding into FNV. Run it on two trees (`cargo test -p editor-core
+//! --test all -- --ignored --nocapture cert3r1_dump`), grep the
+//! prefixes, diff. It is committed rather than described because a
 //! measurement whose instrument was thrown away is a claim.
 //!
 //! - **No structural difference at all**, at either scalar: the same
@@ -352,7 +353,7 @@
 //!   which is the point of reporting the two lanes separately.
 //! - **Interval lane, structure: two documents stopped refusing.**
 //!   `fixture0` and `fixture1` — the rocker eye and the vesica lens,
-//!   the two fused arc-fillet rows the instrument carries — went
+//!   the two fused arc-fillet rows the walk carries — went
 //!   `refused` → `ok 3`. That is 18 coordinates ADDED to the walk, and
 //!   it is the change's purpose: their advance gate measures a swept
 //!   angle from a point to itself, and the composed fold turned that
@@ -444,6 +445,115 @@ impl Digest {
     }
 }
 
+/// One observable of the fence's walk, in walk order.
+///
+/// The walk is the fence's subject and has one spelling, [`walk`]. The
+/// fence folds each observable into its [`Digest`]; the diff
+/// instrument (`cert3r1_dump`) prints each as a line, so what it prints
+/// is exactly what the digest hashes.
+pub(crate) enum Seen<'a, T: geom_core::Real> {
+    /// Arc-carrier fixture program `i` is about to be replayed.
+    Fixture(usize),
+    /// Fixture program `i` replayed to a loop of `vertices` vertices.
+    FixtureLoop { i: usize, vertices: usize },
+    /// Vertex `j` of fixture program `i`'s loop, and the bulge of the
+    /// span leaving it.
+    FixtureVertex {
+        i: usize,
+        j: usize,
+        x: T,
+        y: T,
+        bulge: T,
+    },
+    /// Fixture program `i` refused at this scalar.
+    FixtureRefused(usize),
+    /// Corpus document `name` is about to be evaluated.
+    Document(&'a str),
+    /// Node `id` of document `doc` and its outcome.
+    Node {
+        doc: &'a str,
+        id: u64,
+        outcome: Outcome,
+    },
+    /// Point `i` of the body node `id` carries, in arena order.
+    Point {
+        doc: &'a str,
+        id: u64,
+        i: usize,
+        key: topo::PointKey,
+        p: &'a geom_core::Point3<T>,
+    },
+}
+
+/// A node's outcome as the fence observes it.
+pub(crate) enum Outcome {
+    Poisoned { through: u64 },
+    Failed,
+    Ok { kind: &'static str },
+}
+
+/// **The fence's walk**: the arc-carrier fixture, then every corpus
+/// document's evaluation at `T`, every node's outcome in id order and
+/// every point of every body.
+///
+/// It uses no API the lift introduced, which is what lets this file
+/// compile against a pre-lift tree.
+pub(crate) fn walk<T: editor_core::EvalScalar>(mut seen: impl FnMut(Seen<'_, T>)) {
+    // The arc-carrier fillet machinery, which no corpus document
+    // reaches — see `fixture_walk`.
+    fixture_walk::<T>(&mut seen);
+    for doc in corpus::documents() {
+        seen(Seen::Document(doc.name));
+        let ev = evaluate::<T>(
+            &doc.doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        for (id, result) in ev.nodes.iter() {
+            let outcome = match result {
+                NodeResult::Poisoned { through } => Outcome::Poisoned { through: through.0 },
+                // The OUTCOME, not the rendered message. A refusal's
+                // text embeds the classification band, so observing it
+                // would make this whole fence eps-dependent — one
+                // golden number per tolerance row, in a repo whose CI
+                // deliberately samples three of them. What belongs in a
+                // bit-identity fence is that the same nodes succeeded
+                // and the same geometry came out; that a refusal is
+                // also the SAME refusal is a claim about the lift
+                // setting rather than about two trees, and it is
+                // carried at full text by `m10_p_lift`'s pinned-vs-
+                // guided comparison, which runs both sides in one
+                // process at one eps and so can compare messages
+                // honestly.
+                NodeResult::Failed(_) => Outcome::Failed,
+                NodeResult::Ok(v) => Outcome::Ok {
+                    kind: v.payload.kind_name(),
+                },
+            };
+            seen(Seen::Node {
+                doc: doc.name,
+                id: id.0,
+                outcome,
+            });
+            if let NodeResult::Ok(v) = result
+                && let ValuePayload::Body(b) = &v.payload
+            {
+                for (i, (key, p)) in b.points().enumerate() {
+                    seen(Seen::Point {
+                        doc: doc.name,
+                        id: id.0,
+                        i,
+                        key,
+                        p,
+                    });
+                }
+            }
+        }
+    }
+}
+
 /// The corpus's evaluation, digested at one scalar.
 ///
 /// `bits` maps the scalar's coordinate to its exact representation.
@@ -456,50 +566,32 @@ where
     S: Fn(&mut Digest, T),
 {
     let mut d = Digest::new();
-    // The arc-carrier fillet machinery, which no corpus document
-    // reaches — see `fixture_digest`.
-    fixture_digest::<T>(&mut d, scalar);
-    for doc in corpus::documents() {
-        d.text(doc.name);
-        let ev = evaluate::<T>(
-            &doc.doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            Tol::witness(),
-        );
-        for (id, result) in ev.nodes.iter() {
-            d.u64(id.0);
-            match result {
-                NodeResult::Poisoned { through } => {
+    walk::<T>(|seen| match seen {
+        Seen::Fixture(i) => d.u64(i as u64),
+        Seen::FixtureLoop { vertices, .. } => {
+            d.text("ok");
+            d.u64(vertices as u64);
+        }
+        Seen::FixtureVertex { x, y, bulge, .. } => {
+            scalar(&mut d, x);
+            scalar(&mut d, y);
+            scalar(&mut d, bulge);
+        }
+        Seen::FixtureRefused(_) => d.text("refused"),
+        Seen::Document(name) => d.text(name),
+        Seen::Node { id, outcome, .. } => {
+            d.u64(id);
+            match outcome {
+                Outcome::Poisoned { through } => {
                     d.text("poisoned");
-                    d.u64(through.0);
+                    d.u64(through);
                 }
-                // The OUTCOME, not the rendered message. A refusal's
-                // text embeds the classification band, so digesting it
-                // would make this whole fence eps-dependent — one
-                // golden number per tolerance row, in a repo whose CI
-                // deliberately samples three of them. What belongs in a
-                // bit-identity fence is that the same nodes succeeded
-                // and the same geometry came out; that a refusal is
-                // also the SAME refusal is a claim about the lift
-                // setting rather than about two trees, and it is
-                // carried at full text by `m10_p_lift`'s pinned-vs-
-                // guided comparison, which runs both sides in one
-                // process at one eps and so can compare messages
-                // honestly.
-                NodeResult::Failed(_) => d.text("failed"),
-                NodeResult::Ok(v) => {
-                    d.text(v.payload.kind_name());
-                    if let ValuePayload::Body(b) = &v.payload {
-                        for (_, p) in b.points() {
-                            bits(&mut d, p);
-                        }
-                    }
-                }
+                Outcome::Failed => d.text("failed"),
+                Outcome::Ok { kind } => d.text(kind),
             }
         }
-    }
+        Seen::Point { p, .. } => bits(&mut d, p),
+    });
     (d.lo, d.hi)
 }
 
@@ -513,17 +605,18 @@ where
 /// see it was pinning the wrong half of the tree.
 ///
 /// This fixture is the rocker eye and the vesica lens, built through
-/// the typed surface and replayed at the digest's scalar. It uses no
-/// API the lift introduced (`replay` is pre-lift), so it travels to a
-/// pre-lift tree with the rest of this file. A row that REFUSES is
-/// digested as its refusal: the eye does not certify at `Interval`
+/// the typed surface and replayed at the walk's scalar. It uses no
+/// API the lift introduced (`replay` is pre-lift). Its embedding goes
+/// through `profile::Step::map_scalar`, which is younger than the lift,
+/// so on a tree older than that door the embed is written out
+/// by hand to carry this file across. A row that REFUSES is
+/// observed as its refusal: the eye does not certify at `Interval`
 /// (see `profile`'s `generic_replay` census for why), and "refuses
 /// with this message" is as much a bit of behaviour to hold still as
 /// "returns these coordinates".
-fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&mut Digest, T)) {
+fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)) {
     use geom_core::Point2;
-    use profile::{ArcData, ArcSweep, Center, Open, Start, Step, Target};
-    let p2 = |x: f64, y: f64| Point2::new(x, y);
+    use profile::{ArcSweep, Center, Open, Start, Step};
     let tip = 0.75_f64.sqrt();
     // (1) the eye: circle x circle carriers crossing AT the entry
     // anchor. (2) the vesica lens: the two-survivor corner the S8
@@ -531,13 +624,13 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
     let programs = [
         Open.arc_fillet_arc(
             Center {
-                c: p2(-0.5, 0.0),
+                c: Point2::new(-0.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
+                p: Point2::new(0.0, -tip),
             },
             0.35,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -545,64 +638,46 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
         ),
         Open.arc_fillet_arc(
             Center {
-                c: p2(-1.0, 0.0),
+                c: Point2::new(-1.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -3.0_f64.sqrt()),
+                p: Point2::new(0.0, -3.0_f64.sqrt()),
             },
             0.5,
             Center {
-                c: p2(1.0, 0.0),
+                c: Point2::new(1.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
             Tol::witness(),
         ),
     ];
-    let embed = |step: &Step<f64>| -> Step<T> {
-        let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
-        let tgt = |t: Target<f64>| match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        };
-        let spec = |a: ArcData<f64>| match a {
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            _ => unreachable!("this fixture authors Center-mode arcs only"),
-        };
-        match *step {
-            Step::ArcFilletArc {
-                spec: a,
-                radius,
-                spec2,
-            } => Step::ArcFilletArc {
-                spec: spec(a),
-                radius: T::from_f64(radius),
-                spec2: spec(spec2),
-            },
-            _ => unreachable!("this fixture is one fused step"),
-        }
-    };
     for (i, built) in programs.into_iter().enumerate() {
-        d.u64(i as u64);
+        seen(Seen::Fixture(i));
         let closed = built.expect("the arc-carrier fixture constructs at f64");
-        let steps: Vec<Step<T>> = closed.program.iter().map(embed).collect();
+        let steps: Vec<Step<T>> = closed
+            .program
+            .iter()
+            .map(|s| s.map_scalar(T::from_f64))
+            .collect();
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
-                d.text("ok");
-                d.u64(lp.vertices().len() as u64);
-                for v in lp.vertices() {
-                    bits(d, v.pos().x);
-                    bits(d, v.pos().y);
-                    bits(d, v.bulge());
+                seen(Seen::FixtureLoop {
+                    i,
+                    vertices: lp.vertices().len(),
+                });
+                for (j, (v, &bulge)) in lp.vertices().iter().zip(lp.bulges()).enumerate() {
+                    seen(Seen::FixtureVertex {
+                        i,
+                        j,
+                        x: v.x,
+                        y: v.y,
+                        bulge,
+                    });
                 }
             }
             // Same reason as the corpus arm above: the eye's interval
             // refusal names its band, and the band is the eps.
-            Err(_) => d.text("refused"),
+            Err(_) => seen(Seen::FixtureRefused(i)),
         }
     }
 }

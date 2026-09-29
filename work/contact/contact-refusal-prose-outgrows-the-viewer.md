@@ -45,3 +45,14 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## The at-rest route no longer renders these whole (2026-09-24, ATREST-8, PR 3185)
+
+A `topo::ValidationError` that carries a `ContainError` (through `CensusUnsupportedCause::Containment` and `RingNestingUndecided`) used to render it whole
+behind the at-rest and product badges, composed counts up to 80
+words (the ATREST-8 review's measurement). It now classifies each
+variant to a short reason and one recourse in the viewer's terms
+(`crates/topo/src/validate.rs`, `classify_*`), so that route is
+measured by `editor-core/tests/refusal_concision_at_rest.rs` and no
+longer by this row. This row's subject is unchanged: the sentence
+itself, as the callers that hold a `ContainError` (through `CensusUnsupportedCause::Containment` and `RingNestingUndecided`) directly still read it.

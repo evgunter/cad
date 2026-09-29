@@ -34,7 +34,7 @@
 //!
 //! ```compile_fail,E0599
 //! use geom_core::{Band, Real, Decide as _};
-//! fn f<T: Real>(a: T, band: Band) -> bool { a.sign_within(band).is_ok() }
+//! fn f<T: Real>(a: T, band: Band) -> bool { a.sign_within(band).map(|d| d.sign).is_ok() }
 //! ```
 //!
 //! ERGONOMICS PROBE — construction code returning
@@ -49,7 +49,7 @@
 //! use geom_core::{Band, Decide, Indeterminate, Sign, Tol};
 //! fn classify(m: f64) -> Result<Sign, Indeterminate> {
 //!     let band = Band::linear(Tol::witness())?; // BandError does not become Indeterminate
-//!     m.sign_within(band)
+//!     m.sign_within(band).map(|d| d.sign)
 //! }
 //! ```
 //!
@@ -59,7 +59,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, BandError, BandField, DEFAULT_K, Decide, Indeterminate, MarginDiag, Sign};
+use geom_core::{
+    Band, BandError, BandField, DEFAULT_K, Decide, ErrorTextReading, Indeterminate, MarginDiag,
+    Sign,
+};
 
 /// The review-run band: (ε, K·ε) at the ratified default ε = 1e-9,
 /// constructed purely (see the module docs).
@@ -76,29 +79,38 @@ fn band() -> Band {
 fn boundary_table_from_outside_the_crate() {
     let b = band();
     // Closed coincidence region: |m| <= zero.
-    assert_eq!(0.0f64.sign_within(b), Ok(Sign::Zero));
-    assert_eq!((-0.0f64).sign_within(b), Ok(Sign::Zero));
-    assert_eq!(5e-324f64.sign_within(b), Ok(Sign::Zero)); // min subnormal
-    assert_eq!(1e-9f64.sign_within(b), Ok(Sign::Zero)); // eps exactly
-    assert_eq!((-1e-9f64).sign_within(b), Ok(Sign::Zero)); // -eps exactly
+    assert_eq!(0.0f64.sign_within(b).map(|d| d.sign), Ok(Sign::Zero));
+    assert_eq!((-0.0f64).sign_within(b).map(|d| d.sign), Ok(Sign::Zero));
+    assert_eq!(5e-324f64.sign_within(b).map(|d| d.sign), Ok(Sign::Zero)); // min subnormal
+    assert_eq!(1e-9f64.sign_within(b).map(|d| d.sign), Ok(Sign::Zero)); // eps exactly
+    assert_eq!((-1e-9f64).sign_within(b).map(|d| d.sign), Ok(Sign::Zero)); // -eps exactly
     // Open ambiguity band: strictly between the thresholds.
     for m in [1e-9f64.next_up(), 5e-9, 1e-8f64.next_down()] {
         let e = m.sign_within(b).unwrap_err();
-        assert_eq!(e.margin, MarginDiag::Value(m));
+        assert_eq!(e.margin, MarginDiag::value(m));
         assert_eq!(e.band, b);
         assert_eq!(e.predicate, None);
         let e = (-m).sign_within(b).unwrap_err();
-        assert_eq!(e.margin, MarginDiag::Value(-m));
+        assert_eq!(e.margin, MarginDiag::value(-m));
     }
     // Closed definite regions: |m| >= escalate, infinities included.
-    assert_eq!(1e-8f64.sign_within(b), Ok(Sign::Positive)); // Keps exactly
-    assert_eq!((-1e-8f64).sign_within(b), Ok(Sign::Negative));
-    assert_eq!(f64::INFINITY.sign_within(b), Ok(Sign::Positive));
-    assert_eq!(f64::NEG_INFINITY.sign_within(b), Ok(Sign::Negative));
+    assert_eq!(1e-8f64.sign_within(b).map(|d| d.sign), Ok(Sign::Positive)); // Keps exactly
+    assert_eq!(
+        (-1e-8f64).sign_within(b).map(|d| d.sign),
+        Ok(Sign::Negative)
+    );
+    assert_eq!(
+        f64::INFINITY.sign_within(b).map(|d| d.sign),
+        Ok(Sign::Positive)
+    );
+    assert_eq!(
+        f64::NEG_INFINITY.sign_within(b).map(|d| d.sign),
+        Ok(Sign::Negative)
+    );
     // NaN of either sign bit: Invalid, never a sign.
     for nan in [f64::NAN, -f64::NAN] {
         let e = nan.sign_within(b).unwrap_err();
-        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(e.margin, MarginDiag::INVALID);
     }
 }
 
@@ -169,8 +181,14 @@ fn adversarial_band_construction() {
 #[test]
 fn hairline_band_admits_no_f64_indeterminate() {
     let hairline = Band::new(1e-9, 1e-9f64.next_up()).unwrap();
-    assert_eq!(1e-9f64.sign_within(hairline), Ok(Sign::Zero));
-    assert_eq!(1e-9f64.next_up().sign_within(hairline), Ok(Sign::Positive));
+    assert_eq!(
+        1e-9f64.sign_within(hairline).map(|d| d.sign),
+        Ok(Sign::Zero)
+    );
+    assert_eq!(
+        1e-9f64.next_up().sign_within(hairline).map(|d| d.sign),
+        Ok(Sign::Positive)
+    );
 }
 
 #[test]
@@ -221,12 +239,20 @@ fn sign_and_margin_diag_consumer_semantics() {
     // Sign equality/copy semantics as a consumer sees them.
     let s = Sign::Positive;
     assert_eq!(s.flip().flip(), s);
-    assert!(matches!(1e-9f64.sign_within(band()), Ok(Sign::Zero)));
+    assert!(matches!(
+        1e-9f64.sign_within(band()).map(|d| d.sign),
+        Ok(Sign::Zero)
+    ));
     // MarginDiag exhaustive match forces consumers to handle Invalid; the
     // in-band margin is recoverable for diagnostics.
-    match 5e-9f64.sign_within(band()).unwrap_err().margin {
-        MarginDiag::Value(v) => assert_eq!(v, 5e-9),
-        MarginDiag::Enclosure { .. } | MarginDiag::Invalid => {
+    match 5e-9f64
+        .sign_within(band())
+        .unwrap_err()
+        .margin
+        .diagnostic_f64_for_error_text()
+    {
+        ErrorTextReading::Value(v) => assert_eq!(v, 5e-9),
+        ErrorTextReading::Enclosure { .. } | ErrorTextReading::Invalid => {
             panic!("f64 in-band margin must be MarginDiag::Value")
         }
     }
@@ -244,6 +270,7 @@ fn sign_and_margin_diag_consumer_semantics() {
 fn side_of_plane<T: Decide>(signed_dist: T, band: Band) -> Result<Sign, Indeterminate> {
     signed_dist
         .sign_within(band)
+        .map(|d| d.sign)
         .map_err(|e| e.with_predicate("side_of_plane"))
 }
 
@@ -253,6 +280,7 @@ fn side_of_plane<T: Decide>(signed_dist: T, band: Band) -> Result<Sign, Indeterm
 fn is_transversal<T: Decide>(angle_margin: T, band: Band) -> Result<bool, Indeterminate> {
     angle_margin
         .sign_within(band)
+        .map(|d| d.sign)
         .map(|s| !s.is_zero())
         .map_err(|e| e.with_predicate("transversality"))
 }
@@ -262,6 +290,7 @@ fn is_transversal<T: Decide>(angle_margin: T, band: Band) -> Result<bool, Indete
 /// this predicate needs.
 fn endpoints_coincide<T: Decide>(dist: T, band: Band) -> Result<bool, Indeterminate> {
     dist.sign_within(band)
+        .map(|d| d.sign)
         .map(Sign::is_zero)
         .map_err(|e| e.with_predicate("endpoint_coincidence"))
 }
@@ -332,7 +361,7 @@ fn named_predicates_and_question_mark_propagation() {
     // the leaf's name.
     let e = split_edge_by_plane(-1.0f64, 5e-9, lin).unwrap_err();
     assert_eq!(e.predicate, Some("side_of_plane"));
-    assert_eq!(e.margin, MarginDiag::Value(5e-9));
+    assert_eq!(e.margin, MarginDiag::value(5e-9));
 }
 
 // ---------------------------------------------------------------------
@@ -351,6 +380,7 @@ fn orient2d_margin(a: P, b: P, c: P) -> f64 {
 fn orient2d(a: P, b: P, c: P, band: Band) -> Result<Sign, Indeterminate> {
     orient2d_margin(a, b, c)
         .sign_within(band)
+        .map(|d| d.sign)
         .map_err(|e| e.with_predicate("orient2d"))
 }
 
@@ -450,7 +480,9 @@ fn orientation_composition_early_exit_and_collect_all() {
     assert_eq!(marginal.len(), 4);
     for e in &marginal {
         assert_eq!(e.predicate, Some("orient2d"));
-        assert!(matches!(e.margin, MarginDiag::Value(v) if v.abs() == 2e-9));
+        assert!(
+            matches!(e.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(v) if v.abs() == 2e-9)
+        );
     }
 }
 
@@ -465,6 +497,7 @@ fn orientation_composition_early_exit_and_collect_all() {
 fn classify_gap(gap: f64, band: Band) -> Result<&'static str, Indeterminate> {
     let sign = gap
         .sign_within(band)
+        .map(|d| d.sign)
         .map_err(|e| e.with_predicate("face_gap_classification"))?;
     Ok(match sign {
         Sign::Zero => "coincident",
@@ -509,18 +542,18 @@ fn sliver_band_user_experience() {
 /// their own guess and defeating escalation (the anti-pattern the
 /// MarginDiag docs warn against; diagnostic honesty makes it possible).
 fn best_guess(m: f64, band: Band) -> Sign {
-    match m.sign_within(band) {
+    match m.sign_within(band).map(|d| d.sign) {
         Ok(s) => s,
-        Err(e) => match e.margin {
+        Err(e) => match e.margin.diagnostic_f64_for_error_text() {
             // Silently "resolving" the ambiguity band — the anti-pattern.
-            MarginDiag::Value(v) => {
+            ErrorTextReading::Value(v) => {
                 if v > 0.0 {
                     Sign::Positive
                 } else {
                     Sign::Negative
                 }
             }
-            MarginDiag::Enclosure { .. } | MarginDiag::Invalid => Sign::Zero,
+            ErrorTextReading::Enclosure { .. } | ErrorTextReading::Invalid => Sign::Zero,
         },
     }
 }

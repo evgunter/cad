@@ -343,12 +343,13 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let body = zipped;
     gate(&body)?;
     volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
-    let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
+    let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
         b_keys: OperandKeys::Grafted,
         graft_vertices,
         graft_edges,
+        graft_dead_edges,
         graft_faces,
         seam_edges,
         vertex_merges,

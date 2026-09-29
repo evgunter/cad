@@ -80,6 +80,8 @@ mod asm_r2b_interface_wire;
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
+#[path = "assemble_one_local_battery.rs"]
+mod assemble_one_local_battery;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -180,6 +182,8 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
+#[path = "refusal_concision_at_rest.rs"]
+mod refusal_concision_at_rest;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
 #[path = "remap_reorders_ids.rs"]
@@ -194,6 +198,8 @@ mod rv_dm7_probes;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "gather_placed_under_two_roots.rs"]
+mod gather_placed_under_two_roots;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -254,6 +260,8 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "maintenance_net.rs"]
+mod maintenance_net;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
 #[path = "msolve1_transform_aware.rs"]
@@ -371,8 +379,6 @@ mod m4_pr6_refusal;
 mod m4_pr6_review_probes;
 #[path = "m4_pr6_roundtrip.rs"]
 mod m4_pr6_roundtrip;
-#[path = "m4_pr6_roundtrip_interval.rs"]
-mod m4_pr6_roundtrip_interval;
 #[path = "m4_pr7_appearance.rs"]
 mod m4_pr7_appearance;
 #[path = "m4_pr7_appearance_interval.rs"]
@@ -429,6 +435,12 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "names_verbatim_edge_evaluator.rs"]
+mod names_verbatim_edge_evaluator;
+#[path = "parallel_node_map_interval.rs"]
+mod parallel_node_map_interval;
+#[path = "parallel_node_map_probe.rs"]
+mod parallel_node_map_probe;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -443,6 +455,8 @@ mod pinned_lift_validates_once;
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
+#[path = "product_gate_attribution.rs"]
+mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 
@@ -528,9 +542,6 @@ mod u8a_parse;
 mod unreadable_by_this_build;
 
 test_utils::every_suite_file_is_aggregated!();
-
-#[path = "cert_m2r1_corpus.rs"]
-mod cert_m2r1_corpus;
 
 #[path = "lib_tube_node.rs"]
 mod lib_tube_node;
@@ -621,5 +632,11 @@ mod decide_1_self_dot_interval;
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
 mod emit_seam_junction;
+#[path = "emit_shared_rim_several.rs"]
+mod emit_shared_rim_several;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
+#[path = "emit_union_flush_names.rs"]
+mod emit_union_flush_names;
+#[path = "emit_union_rim_piece_ranks.rs"]
+mod emit_union_rim_piece_ranks;

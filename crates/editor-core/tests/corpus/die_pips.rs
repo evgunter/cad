@@ -79,7 +79,7 @@ use editor_core::{
     ProgramTarget, SlotId,
 };
 
-use crate::fixture::{ang, axis_in_plane, frame, len, scl, xy_frame};
+use crate::fixture::{ang, axis_in_plane, frame, len, len2, scl, xy_frame};
 
 use super::{CorpusDoc, Recorder};
 
@@ -108,6 +108,7 @@ pub fn document() -> CorpusDoc {
     let cube_p = r.insert(Node::Profile(ProfileProgram {
         plane: cube_plane,
         loops: vec![square],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
@@ -131,6 +132,7 @@ pub fn document() -> CorpusDoc {
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         plane: ball_plane,
         loops: vec![half_disc],
+        ids: Vec::new(),
     }));
     let ball = r.insert(Node::Revolve {
         profile: ball_p,
@@ -179,17 +181,11 @@ pub fn document() -> CorpusDoc {
 /// closed by its on-axis diameter — three steps, both vertices on the
 /// revolve axis.
 pub fn half_disc_program() -> LoopProgram {
-    let lpt = |x: f64, y: f64| {
-        [
-            editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
-            editor_core::Expr::literal(y, editor_core::Dimension::Length).unwrap(),
-        ]
-    };
     LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, -PIP_R)),
+        ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(lpt(0.0, PIP_R)),
-            b: editor_core::Expr::literal(1.0, editor_core::Dimension::Scalar).unwrap(),
+            target: ProgramTarget::Point(len2([0.0, PIP_R])),
+            b: scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])

@@ -23,20 +23,13 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram,
-    Node, ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym,
+    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
+    ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym,
     evaluate,
 };
-use fixture::Recorder;
+use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 
 /// A rectangle `[0, w] × [0, 1]` whose bottom edge is split at `w/2`,
 /// extruded by 1: the two bottom walls WOULD be cosurface for every
@@ -59,11 +52,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
         },
     });
     let w = || Expr::param(ParamName::new("w"), Dimension::Length);
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let pt = |x: Expr, y: Expr| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {
         plane,
@@ -75,6 +64,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             pt(len(0.0), len(1.0)),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     });
     let applied = editor_core::apply(
         &r.doc,
@@ -93,7 +83,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     Ok(r.doc)
 }
 
-fn split_at_point(doc: &ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64, u64)> {
+fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64, u64)> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let nominal = ParamBox::from_axes(
         ParamBox::of(&analyzed)

@@ -30,12 +30,11 @@ fn face_name(node: RecipeNodeId, cap: CapEnd) -> StableName {
     }
 }
 
-/// **A row's kind is its name's, at both seating doors.** The assembly
+/// **A row's kind is its name's, at every seating door.** The assembly
 /// gate resolves a head — a face by its type — against a name table,
-/// and reads the answer's key as a face. It may, because
-/// `NameTable::insert` and `NameTable::insert_tied` are the only doors
-/// that seat a row and each refuses a key whose kind disagrees with
-/// the name's. So the state a kind arm in that gate's vocabulary would
+/// and reads the answer's key as a face. It may, because every
+/// `NameTable` door that seats a row refuses a key whose kind disagrees
+/// with the name's. So the state a kind arm in that gate's vocabulary would
 /// have answered is unseatable, which is why the gate asserts it
 /// instead of naming it.
 #[test]

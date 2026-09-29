@@ -23,13 +23,9 @@ use crate::common::approx::band;
 use geom::Surface;
 use geom_brep::Nappe;
 use geom_core::{Point2, Point3, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 const T: f64 = 1.0 / 128.0;
 const H: f64 = 8.0 / 64.0;
@@ -39,10 +35,8 @@ const R_NARROW: f64 = 2.0 / 64.0;
 fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(
-            pts.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
+        vec![bulge_loop(
+            pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect(),
         )],
     )
     .validate(Tol::witness())
@@ -50,7 +44,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -106,23 +100,6 @@ fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
     out
 }
 
-fn chart_moves(body: &Body<f64>, d: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for (k, f) in body.faces() {
-        match moves
-            .iter_mut()
-            .find(|m| body.get_face(m.faces[0]).unwrap().surface == f.surface)
-        {
-            Some(m) => m.faces.push(k),
-            None => moves.push(topo::ChartMove {
-                faces: vec![k],
-                distance: d,
-            }),
-        }
-    }
-    moves
-}
-
 // ---------------------------------------------------------------
 // P1. `sf2b_r2_probes::r2_per_chart_door_on_a_mirror_nappe_cone`
 //     claims to carry "the whole differential, in one number". Measure
@@ -148,7 +125,7 @@ fn r2p1_the_shipped_gap_row_is_blind_to_the_turn() {
         let faces = cone_faces(&body);
         for signed in [-T, T] {
             let mut work = body.clone();
-            match topo::replace_faces_offset(&mut work, &faces, signed, band(), tol) {
+            match topo::replace_faces_offset(&mut work, &faces, signed, tol) {
                 Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => {
                     println!("[r2p1] {what} d={signed:+}: gap = {gap:.20}");
                     gaps.push((what.to_string(), signed, gap));
@@ -208,7 +185,7 @@ fn r2p2_the_apex_window_rows_inner_assertion_short_circuits() {
     ] {
         let faces = cone_faces(&body);
         let mut work = body.clone();
-        match topo::replace_faces_offset(&mut work, &faces, -0.04, band(), tol) {
+        match topo::replace_faces_offset(&mut work, &faces, -0.04, tol) {
             Err(ReplaceFaceError::ApexWindow {
                 v_min,
                 v_max,
@@ -293,7 +270,7 @@ fn r2p5_the_rebaselined_row_asks_the_question_the_old_one_meant() {
         // negation rather than a product by −1.
         let realized = -(v_near + shift);
         let mut work = body.clone();
-        let got = topo::replace_face_offset(&mut work, face, d, band(), tol);
+        let got = topo::replace_face_offset(&mut work, face, d, tol);
         println!("[r2p5] d={d:+}: shift={shift} v_near={v_near} realized={realized} -> {got:?}");
         if d < 0.0 {
             assert!(
@@ -385,7 +362,7 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
         // for to move ONE chart.
         let faces = cone_faces(&body);
         let mut work = body.clone();
-        let got = topo::replace_faces_offset(&mut work, &faces, -T, band(), tol);
+        let got = topo::replace_faces_offset(&mut work, &faces, -T, tol);
         println!("[r2p7] {what}: per-chart door on the same faces -> {got:?}");
     }
 }

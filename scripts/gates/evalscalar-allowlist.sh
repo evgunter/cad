@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # evalscalar-allowlist.sh — the Bounds gate, over the compound bound's
-# NAME. ONE home; ci.yml's "EvalScalar allowlist (the Bounds gate, over
-# the name)" step and local-scripts/ci-local.sh's discipline row both
-# call this file.
+# NAME. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # The SAME gate, over the compound bound's NAME (ASM-2A review
 # MINOR-4). `editor_core::EvalScalar` is the evaluation-service

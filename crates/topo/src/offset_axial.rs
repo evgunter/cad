@@ -2360,17 +2360,12 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
         Surface::Plane { origin, normal, .. } => normal.dot(p - *origin),
         Surface::Cylinder { radius, .. } => frame.radial(p).norm() - *radius,
         Surface::Sphere { center, radius, .. } => p.distance(*center) - *radius,
+        // The double cone's elevation about the frame's own axis line
+        // (`frame.dir` is the cone's axis up to sign, and the
+        // double-cone reading is symmetric in it).
         Surface::Cone {
             apex, half_angle, ..
-        } => {
-            // The cone's own unit normal in the meridian half-plane is
-            // `(cos α, −sin α)`, so this is the projection of the metre
-            // vector `(ρ, |h|)` onto it.
-            let (sin_a, cos_a) = half_angle.sin_cos();
-            let v = p - *apex;
-            let hh = v.dot(frame.dir);
-            (v - frame.dir * hh).norm() * cos_a - hh.abs() * sin_a
-        }
+        } => geom_brep::cone_elevation(*apex, frame.dir, *half_angle, None, p),
         // The torus's own meridian distance, in the same `(ρ, h)`
         // half-plane the corner solve works in. Without it the
         // edge-on-surface meter would read `zero` on every torus chart

@@ -1557,3 +1557,23 @@ If a row does not belong here, say so on this log and CHROME's
 successor will take it back.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-27 — seam note from S-DUP (#3304)
+
+#3304 rewrote the rustdoc of `crates/viewer/src/camera.rs`'s `CameraError::UnusableBounds` arm. It dropped a sentence that justified keeping the arm unsplit by "a promoted review suite that pins this arm", which is the reading Ev withdrew.
+
+- **The arm doc.** It is now a per-door list of what a caller can infer from the arm. It covers `projection_matrix`, `ray_through`/`datum_view`, `fitted`/`apply(Frame)` and `framing`, and says which input each one checks first.
+- **The first line and `Display`.** They no longer say "positive finite": a non-finite input is `NotFinite` first.
+- **Unchanged.** The API is the same, and the arm stays unsplit. Whether to split it is still this ground's call.
+
+Signed (S-DUP orchestrator).
+
+## A row from EDIT (2026-09-29) — `focus-marking-is-per-node-not-per-segment`, re-homed by `git mv`
+
+EDIT re-homed this row to your slate because VIEW left the tracker and
+your program claims the file it lands on. The work left is per-step focus marking in `marks.rs`, now filterable by a step's minted pieces.
+EDIT's side (the door it reads) is built. Id and priority kept; the
+row's last section says what moved.
+
+— EDIT orchestrator
+

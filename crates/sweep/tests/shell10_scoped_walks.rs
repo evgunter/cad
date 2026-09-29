@@ -16,9 +16,10 @@
 use topo::{Body, FaceKey, SolidKey};
 
 use crate::common::approx::band;
-use crate::shell8_common::{beside, charts_of, deep_dump, faces_of, tol};
-use crate::shell9_rows::rows;
-use crate::verbs_shell::vessel;
+use crate::common::charts::{charts_of, moves_by};
+use crate::common::pcurve_rows::rows;
+use crate::common::shell_operands::vessel;
+use crate::shell8_common::{beside, deep_dump, faces_of, tol};
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
 fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
@@ -98,13 +99,7 @@ fn the_axial_door_leaves_the_other_solids_rows_as_it_found_them() {
     let box_deep = deep_dump(&before, bx);
     let all_before = rows(&before);
 
-    let moves: Vec<topo::ChartMove<f64>> = charts_of(&before, ves)
-        .into_iter()
-        .map(|faces| topo::ChartMove {
-            faces,
-            distance: -0.05,
-        })
-        .collect();
+    let moves = moves_by(charts_of(&before, ves), -0.05);
     let mut after = before.clone();
     topo::offset_charts_together(&mut after, &moves, band(), tol()).expect("the vessel offsets");
 

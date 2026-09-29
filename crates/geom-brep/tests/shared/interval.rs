@@ -16,10 +16,10 @@ pub(crate) fn iv(x: f64) -> Interval {
 
 /// An exactly-known vector, componentwise.
 pub(crate) fn iv3(v: Vec3<f64>) -> Vec3<Interval> {
-    Vec3::new(iv(v.x), iv(v.y), iv(v.z))
+    v.map(iv)
 }
 
 /// An exactly-known point, componentwise.
 pub(crate) fn ip(p: Point3<f64>) -> Point3<Interval> {
-    Point3::new(iv(p.x), iv(p.y), iv(p.z))
+    p.map(iv)
 }

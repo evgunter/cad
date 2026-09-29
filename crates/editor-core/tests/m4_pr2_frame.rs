@@ -11,10 +11,10 @@
 use crate::fixture;
 
 use editor_core::{
-    Axis3, CancelToken, Datum, DatumValue, Dimension, EvalOptions, Evaluation, Node, NodeErrorKind,
-    NodeResult, ProfileDoc, SlotId, ValuePayload, evaluate,
+    Axis3, CancelToken, DatumValue, Dimension, EvalOptions, Evaluation, NodeErrorKind, NodeResult,
+    ProfileDoc, SlotId, ValuePayload, evaluate,
 };
-use fixture::{insert, len, scl};
+use fixture::insert;
 use geom_core::{Tol, Vec3};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -31,17 +31,16 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> (ProfileDoc, editor_core::RecipeNodeId) {
     insert(
         ProfileDoc::empty_derived("m4_pr2_frame", Tol::witness()),
-        Node::Datum(Datum::Frame {
-            origin: origin.map(len),
-            u: u.map(scl),
-            v: v.map(scl),
-        }),
+        fixture::frame(origin, u, v),
     )
 }
 
 /// The frame a document evaluated to — x axis, y axis and the normal
 /// the pair derives — or a panic naming what it got.
-fn evaluated(doc: &ProfileDoc, id: editor_core::RecipeNodeId) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
+fn evaluated(
+    doc: &editor_core::ProfileDoc,
+    id: editor_core::RecipeNodeId,
+) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
     match run(doc).nodes.get(&id) {
         Some(NodeResult::Ok(val)) => match &val.payload {
             ValuePayload::Datum(DatumValue::Frame(f)) => (f.u().get(), f.v().get(), f.w().get()),

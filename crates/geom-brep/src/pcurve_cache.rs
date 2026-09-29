@@ -169,7 +169,8 @@ use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
 
-use crate::certify::CERT_SAMPLES;
+use crate::certify::{CERT_SAMPLES, CertCheck};
+use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
@@ -697,28 +698,31 @@ pub enum PcurveCheck {
 /// The number a fitted-lane refusal carries, named for what it IS.
 ///
 /// The SSI door's definite refusals each measured something different,
-/// and each had already projected it out of an enclosure before the
-/// error was minted. Flattening the three onto one anonymous `f64` —
-/// or worse, onto [`geom_core::MarginDiag::Value`], which additionally
-/// claims the classifier judged it and found it in the band — loses
-/// the only thing a reader needs: what the number means. Naming each
-/// follows `edge_nurbs`' `certified_clearance` precedent, where the
-/// same SSI errors are translated into that lane's vocabulary.
+/// so each rides its own named arm: flattening them onto one anonymous
+/// number loses the only thing a reader needs, what the number means.
+/// The limb residual and the foot distances are quantities the lane
+/// projected out of an enclosure when it refused. The tube's clearance
+/// is the reporting margin its zero verdict was decided on
+/// ([`geom_core::MarginDiag`], for the message only), as `edge_nurbs`'
+/// `TubeStraddles` carries it on its verdict (`recourse::Refused`): a
+/// point at `f64`, and at `Interval` the enclosure, rendered
+/// `[lo, hi] m`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FittedMagnitude {
     /// A certificate limb exceeded ε: the limb's own residual bound in
     /// metres, as projected from its enclosure when the limb refused.
     /// A definite refusal's quantity — not a classified margin.
     LimbResidual(f64),
-    /// Limb 3's uniqueness tube straddled zero. The number is a
-    /// **certified clearance**, not a measured extent: it is exactly
-    /// zero whenever the enclosure contains zero, so `0` here reads
-    /// "not certifiably zero-free", never "measured zero". The box
-    /// count is the informative companion (the `edge_nurbs` precedent
-    /// carries the same pair).
+    /// Limb 3's uniqueness tube did not classify clear of the zero band.
+    /// The number is a **certified clearance**, not a measured extent:
+    /// it is exactly zero whenever the enclosure contains zero, so `0`
+    /// here reads "not certifiably zero-free", never "measured zero".
+    /// The box count is the informative companion (`edge_nurbs`'
+    /// `TubeStraddles` carries the same pair, with the verdict).
     CertifiedClearance {
-        /// The certified zero-free clearance in metres (0 = none).
-        certified_clearance: f64,
+        /// The certified zero-free clearance in metres (0 = none), as
+        /// the classifier read it: for the message only.
+        certified_clearance: geom_core::MarginDiag,
         /// Boxes in the tube chain.
         boxes: u32,
     },
@@ -743,6 +747,13 @@ pub enum FittedMagnitude {
 
 /// Typed pcurve-certification failure (D4 ¶3): actionable, closed enum.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PcurveCertifyErrorKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum PcurveCertifyError {
     /// The face's chart is outside the certified lane. Plane and
     /// cylinder charts have exact closed-form images for every carrier
@@ -836,15 +847,10 @@ pub enum PcurveCertifyError {
         /// The number this refusal measured, named for what it IS —
         /// `None` when the refusal is structural and measured nothing.
         ///
-        /// Deliberately NOT a classified margin. Every value reaching
-        /// here is a definite refusal's own quantity, already projected
-        /// out of an enclosure when the SSI error was minted, so
-        /// dressing it as [`geom_core::MarginDiag::Value`] would assert
-        /// two false things at once: that it is a margin the classifier
-        /// judged, and that it landed inside the band. Escalations —
-        /// the only refusals that DO carry a classified margin — are a
-        /// separate variant ([`PcurveCertifyError::FittedEscalated`]),
-        /// which carries the classifier's diagnostic whole.
+        /// Never an escalation's diagnostic: every value reaching here
+        /// belongs to a definite refusal. Escalations are a separate
+        /// variant ([`PcurveCertifyError::FittedEscalated`]), which
+        /// carries the classifier's diagnostic whole.
         magnitude: Option<FittedMagnitude>,
     },
     /// A fitted-lane classification ESCALATED — D4 ¶3's
@@ -1022,6 +1028,61 @@ impl core::fmt::Display for PcurveCertifyError {
 }
 
 impl std::error::Error for PcurveCertifyError {}
+
+impl PcurveCertifyError {
+    /// The ending this refusal's decision gives it, read at `reading`
+    /// ([`PcurveCheck::recourse`]), or `None` for a refusal that is no
+    /// decision's refused arm (an unsupported class, a missing operand,
+    /// a band the tolerance cannot form, a fitted certificate's own
+    /// refusal).
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        let (check, arm) = match self {
+            Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
+            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
+            Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain),
+            Self::AzimuthPeriodExceeded => (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain),
+            Self::TrimEscape => (PcurveCheck::TrimContainment, RefusedArm::SignCertain),
+            // The fitted lane's SSI certificate is an approximation's, as
+            // the plane × NURBS lane's rung-3 certificate is
+            // (`CertCheck::PlaneNurbsCertificate`).
+            Self::FittedEscalated { cause } => {
+                return Some(Unsized::LastResort.recourse(RefusedArm::Undecided(cause), reading));
+            }
+            Self::UnsupportedChart { .. }
+            | Self::UnsupportedCarrier
+            | Self::FittedLaneUnsupported { .. }
+            | Self::FittedMateMissing
+            | Self::IsoUnsupported { .. }
+            | Self::ChartRow { .. }
+            | Self::FittedCertificate { .. }
+            | Self::ChartWindingUnsupported
+            | Self::Band(_) => return None,
+        };
+        Some(check.recourse(arm, reading))
+    }
+}
+
+impl PcurveCheck {
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `reading` (D4 ¶1 (i)): the edge certifier's own decision where
+    /// this check restates it, otherwise a decision with no size.
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+        match self {
+            Self::ParamSpan => crate::certify::recourse(CertCheck::ParamSpan, arm, reading),
+            Self::AzimuthPeriod => crate::certify::recourse(CertCheck::ParamWinding, arm, reading),
+            // The winding the kernel stores exactly: a form selection.
+            Self::ChartWinding => Unsized::Defect.recourse(arm, reading),
+            // A map residual, its between-samples envelope and the trim
+            // box are bounds on a fitted image as well as an exact one,
+            // and the routing reads the check alone.
+            Self::MapResidual | Self::Envelope | Self::TrimContainment => {
+                Unsized::LastResort.recourse(arm, reading)
+            }
+        }
+    }
+}
 
 /// **Which sup-norm a certificate's envelope bounds.** The pcurve lanes
 /// discharge C2.2 by different mechanisms over different quantities,
@@ -1393,12 +1454,12 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             "a certificate limb exceeded ε",
             Some(FittedMagnitude::LimbResidual(value)),
         ),
-        E::TubeStraddles { margin, boxes } => (
+        E::TubeStraddles { verdict, boxes } => (
             Some(SsiLimb::Tube),
-            "the uniqueness tube's transversality straddles zero (a genuine sliver of the \
-             operand pair — escalate, never desingularize)",
+            "the uniqueness tube's transversality is not certified clear of zero (a genuine \
+             sliver of the operand pair — escalate, never desingularize)",
             Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: margin,
+                certified_clearance: verdict.margin(),
                 boxes,
             }),
         ),
@@ -2280,7 +2341,7 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] carrying [`geom_core::MarginDiag::Invalid`] when
+/// [`Indeterminate`] carrying [`geom_core::MarginKind::Invalid`] when
 /// the subtended length is not definitely positive; the classifier's
 /// own escalation otherwise.
 fn param_rate_gate<T: Decide>(
@@ -4682,6 +4743,42 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    /// The chart-side winding gate tells the edge certifier's winding
+    /// story on both arms, at every reading: a definite excess ends as
+    /// `CertifyError::WindingExceeded` does, and an in-band headroom as
+    /// `CertCheck::ParamWinding`'s undecided arm does (D4 ¶1 (iv)).
+    #[test]
+    fn the_azimuth_gate_ends_as_the_edge_winding_gate() {
+        use crate::certify::{CertifyError, recourse};
+        let cause = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_azimuth_period"),
+            terminal_sliver: false,
+        };
+        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+            assert_eq!(
+                PcurveCertifyError::AzimuthPeriodExceeded.ending(reading),
+                CertifyError::WindingExceeded.ending(reading),
+                "definite, {reading:?}"
+            );
+            let escalated = PcurveCertifyError::Escalated {
+                check: PcurveCheck::AzimuthPeriod,
+                sample: 0,
+                cause,
+            };
+            assert_eq!(
+                escalated.ending(reading),
+                Some(recourse(
+                    CertCheck::ParamWinding,
+                    RefusedArm::Undecided(&cause),
+                    reading
+                )),
+                "in band, {reading:?}"
+            );
+        }
+    }
+
     /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.
     fn cylinder(r: f64) -> Surface<f64> {
         Surface::Cylinder {
@@ -5007,10 +5104,10 @@ mod tests {
         else {
             panic!("the closed-form lane stores harmonic images")
         };
-        // δ·r just inside the Zero band at the default ε = 1e-9; the
-        // drift residual r·δ·t peaks at ~0.94e-9 at the last schedule
-        // sample, so the 9-sample limb passes as well.
-        let delta = 0.3e-9 / r;
+        // δ·r = 0.3·ε, inside the run's Zero band; the drift residual
+        // r·δ·t peaks at ~0.94·ε at the last schedule sample, so the
+        // 9-sample limb passes as well.
+        let delta = 0.3 * Tol::witness().eps() / r;
         let drifted = Pcurve::Harmonic {
             p0,
             pa,
@@ -5026,14 +5123,18 @@ mod tests {
             wide_window(),
             band(),
         ) else {
-            // At a tighter ε row the snap does not admit it at all —
-            // also honest, and nothing left to check.
-            return;
+            panic!("a drift of 0.3·ε sits inside the Zero band, so the snap admits it");
         };
         let stored = cache.certificate().envelope;
         let sup = true_sup(&drifted, &cyl, &carrier, 0.0, PI);
+        // The oracle is a distance between two points of magnitude
+        // O(1), so it carries a few ulp of 1 of absolute round-off
+        // whatever the size of the drift; the envelope is compared
+        // against it net of that noise, which is far below the 0.94·ε
+        // drift it has to carry at every ε row.
+        let oracle_noise = 8.0 * f64::EPSILON;
         assert!(
-            stored >= sup,
+            stored >= sup - oracle_noise,
             "stored envelope {stored:e} under-reports the true sup {sup:e}"
         );
         // And it stays O(ε): the slack is the discarded drift, not a
@@ -5273,7 +5374,7 @@ mod tests {
         );
         let cause = param_rate_gate(&carrier, band())
             .expect_err("a poison meter cannot license a metered span");
-        assert!(matches!(cause.margin, geom_core::MarginDiag::Invalid));
+        assert!(cause.margin.is_invalid());
         assert_eq!(cause.predicate, Some("pcurve_interval_meter"));
         // A HEALTHY net of the same shape licenses its span, so the
         // refusal above is the meter's, not the lane's.

@@ -64,7 +64,7 @@ fn a_tangent_split_of_a_fused_declared_union_refuses_degenerate_not_duplicate() 
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, g) = block(doc, (1.2, 1.3), (-1.0, 2.0), 0.5, 2.5);
     for (label, order) in [("[a, g, b]", [a, g, b]), ("[g, a, b]", [g, a, b])] {
-        let (d, u, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+        let (d, u, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let (d, s) = split_of(d, u);
         refuses_degenerate(label, &d, u, s);
     }
@@ -81,7 +81,7 @@ fn the_tangent_contact_standing_alone_refuses_degenerate() {
     let (d, s) = split_of(doc.clone(), a);
     refuses_degenerate("a", &d, a, s);
     for (label, order) in [("[a, b]", vec![a, b]), ("[b, a]", vec![b, a])] {
-        let (d, u, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+        let (d, u, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let (d, s) = split_of(d, u);
         refuses_degenerate(label, &d, u, s);
     }

@@ -39,3 +39,39 @@ BLEND orchestrator per `docs/prompts/implementer-discipline.md` §6.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## More evidence (CONTACT-2, 2026-09-25)
+
+The tilt need not be the cylinder's. An UNtilted rod (`r = 0.5`, an
+extruded circle over `z ∈ [0, 4]`) minus a box extruded from a sketch
+plane tilted 20° about `x` through `(0, 0, 3.5)` — an oblique cut, the
+cylinder's axis still the world `z` — refuses the same
+`ClassificationInvariant { "volume backstop: mass properties refused on
+a tier-valid planar body" }`. The body is not planar; its wall is
+trimmed by an ellipse, which the closed-form lane the backstop calls
+does not measure.
+
+A sibling door has the same gap and a typed sentence: the same rod
+split at `z = 0.5 + tan 20° · y` and `z = 3.5 + tan 20° · y` through
+`topo::split` (which builds, certifies, and measures 3πR² through the
+certified door), then flatted by `brick((-1, 1), (0.2, 1), (-1, 5))`,
+refuses `Containment(VolumeUncertified)` — the containment door's
+at-infinity orientation probe also reads the closed-form volume.
+Pinned by `crates/sweep/tests/axis_lap.rs`
+`an_oblique_cap_flats_through_its_ellipse_arc`.
+
+## More evidence (GATHER, branch `gather/derive-cusp-legality`, 2026-09-28)
+
+No tilt and no oblique cut at all: an extruded half-disk (the profile
+from `(0, 4)` down the `x = 0` line to the origin and back along the
+radius-2 arc centred `(0, 2)`, height 1) minus an axis-aligned box
+(footprint `square(2, 2, 0.5)`, i.e. `x, y ∈ [1.5, 2.5]`, from
+`z = 0.5` up 2) refuses the same `ClassificationInvariant { "volume
+backstop: mass properties refused on a tier-valid planar body" }` at
+the boolean node. The box's two vertical faces cut the vertical
+cylinder wall along rulings and its floor along an arc, so the wall is
+trimmed by lines and a circle only. The same box through the `.cusp()`
+lune refuses identically, so the wedge arm is not involved; a notch in
+the lune's flat wall (`square(0, 3, 0.2)`) builds and gathers.
+Measured with a throwaway probe in `crates/editor-core/tests/m10_2_measure.rs`,
+not committed.

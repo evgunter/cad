@@ -30,7 +30,7 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
 
@@ -46,8 +46,8 @@ use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
 /// `scale = 1.0` reproduces the original literals bit for bit.
 fn prism(scale: f64) -> Body<f64> {
     let square = move || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![profile::ProfileLoop::new(vec![
+        let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+        vec![bulge_loop(vec![
             v(-scale, -scale),
             v(scale, -scale),
             v(scale, scale),
@@ -212,7 +212,9 @@ fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::Surfac
                 },
         }) => {
             assert!(eps < 1e-9, "only the ε-fine cell refuses: {cause:?}");
-            let geom_core::MarginDiag::Value(sup) = cause.margin else {
+            let geom_core::ErrorTextReading::Value(sup) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("the refusal carries the lane's measured bound: {cause:?}");
             };
             assert!(
@@ -647,7 +649,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
         panic!("the trimmed face's tessellation lane moved — re-pin this row")
     };
     assert!(
-        note.contains("C⁰ crease"),
+        note.contains("degree 1 with a sharp crease"),
         "tessellation refuses at the crease gate before any trimmed-region site: {note}"
     );
     println!("M8-4 tessellate on the trimmed chart: {note}");
@@ -908,26 +910,15 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         .find(|(_, f)| f.surface == key)
         .expect("the bowed wall has a face");
     let mut off = body.clone();
-    let got = topo::replace_face_offset(
-        &mut off,
-        fk,
-        INTERIOR_COLUMN_SCALE / 16.0,
-        band(),
-        Tol::witness(),
-    );
+    let got = topo::replace_face_offset(&mut off, fk, INTERIOR_COLUMN_SCALE / 16.0, Tol::witness());
     let (_, obowed, _, _) = flat_bowed_seam(&oracle, INTERIOR_COLUMN_SCALE);
     let (ofk, _) = oracle
         .faces()
         .find(|(_, f)| f.surface == obowed)
         .expect("the oracle's bowed wall has a face");
     let mut ooff = oracle.clone();
-    let orc = topo::replace_face_offset(
-        &mut ooff,
-        ofk,
-        INTERIOR_COLUMN_SCALE / 16.0,
-        band(),
-        Tol::witness(),
-    );
+    let orc =
+        topo::replace_face_offset(&mut ooff, ofk, INTERIOR_COLUMN_SCALE / 16.0, Tol::witness());
     println!("E3 @ eps={eps:e}: offset(General-faced) {got:?}");
     println!("E3 @ eps={eps:e}: offset(oracle bowed)  {orc:?}");
     assert!(

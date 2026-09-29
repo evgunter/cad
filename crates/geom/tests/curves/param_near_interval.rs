@@ -11,22 +11,6 @@ use core::f64::consts::{PI, TAU};
 use geom::Curve3;
 use geom_core::{Bounds, Point3, Real, Vec3, interval::Interval};
 
-fn lift_p(p: Point3<f64>) -> Point3<Interval> {
-    Point3::new(
-        Interval::from_f64(p.x),
-        Interval::from_f64(p.y),
-        Interval::from_f64(p.z),
-    )
-}
-
-fn lift_v(v: Vec3<f64>) -> Vec3<Interval> {
-    Vec3::new(
-        Interval::from_f64(v.x),
-        Interval::from_f64(v.y),
-        Interval::from_f64(v.z),
-    )
-}
-
 /// The `f64` carrier and its componentwise lift — the SAME circle at
 /// two scalars, which is what makes the enclosure comparison
 /// meaningful.
@@ -40,10 +24,10 @@ fn pair() -> (Curve3<f64>, Curve3<Interval>) {
             u_ref: Vec3::unit_x(),
         },
         Curve3::Circle {
-            center: lift_p(center),
-            axis: lift_v(Vec3::unit_z()),
+            center: center.map(Interval::from_f64),
+            axis: Vec3::unit_z().map(Interval::from_f64),
             radius: Interval::from_f64(1.5),
-            u_ref: lift_v(Vec3::unit_x()),
+            u_ref: Vec3::unit_x().map(Interval::from_f64),
         },
     )
 }
@@ -85,7 +69,7 @@ fn the_interval_lane_holds_at_the_cut() {
             let p = carrier64.eval(t);
             let got64 = carrier64.param_near(p, mid).unwrap();
             let got = carrier
-                .param_near(lift_p(p), Interval::from_f64(mid))
+                .param_near(p.map(Interval::from_f64), Interval::from_f64(mid))
                 .unwrap();
             assert!(
                 got.lo() <= got64 && got64 <= got.hi(),
@@ -122,7 +106,7 @@ fn a_full_period_widens_at_the_seam_without_mis_selecting() {
     let mid = Interval::from_f64((t0 + t1) * 0.5);
     for t in [1e-6, 0.5, PI, TAU - 0.5, TAU - 1e-6] {
         let p = carrier64.eval(t);
-        let got = carrier.param_near(lift_p(p), mid).unwrap();
+        let got = carrier.param_near(p.map(Interval::from_f64), mid).unwrap();
         assert!(
             got.lo() <= t && t <= got.hi(),
             "at {t}: truth outside [{}, {}]",
@@ -158,7 +142,7 @@ fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
             let t = near + delta;
             let p = carrier64.eval(t);
             let got = carrier
-                .param_near(lift_p(p), Interval::from_f64(near))
+                .param_near(p.map(Interval::from_f64), Interval::from_f64(near))
                 .unwrap();
             if delta.abs() == PI {
                 // The two legitimate answers, a turn apart. Either may
@@ -205,8 +189,8 @@ fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
 #[test]
 fn the_line_arm_has_no_cut_to_widen_at() {
     let line = Curve3::Line {
-        origin: lift_p(Point3::new(0.5, -1.0, 2.0)),
-        dir: lift_v(Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)),
+        origin: Point3::new(0.5, -1.0, 2.0).map(Interval::from_f64),
+        dir: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0).map(Interval::from_f64),
     };
     let p = line.eval(Interval::from_f64(3.25));
     let first = line.param_near(p, Interval::from_f64(0.0)).unwrap();
@@ -252,7 +236,7 @@ fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
     let v_ref = axis.cross(u_ref);
     for near in [0.0_f64, 0.3, 1.0, 2.031_350_318_476_219_4, 3.0] {
         for delta in [-1.0_f64, -0.1, 0.0, 0.1, 1.0] {
-            let p = lift_p(carrier64.eval(near + delta));
+            let p = carrier64.eval(near + delta).map(Interval::from_f64);
             let anchored = carrier.param_near(p, Interval::from_f64(near)).unwrap();
             let w = p - center;
             let seam = w.dot(v_ref).atan2(w.dot(u_ref));

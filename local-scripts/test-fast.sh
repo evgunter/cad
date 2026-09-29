@@ -30,21 +30,14 @@
 # docs/GENERICS-BUILD-COST.md and docs/perf-data/opt-level/.
 #
 # THE TIMINGS ABOVE ARE opt-0 -> opt-2 READINGS and are left as taken.
-# THE VERDICT THEY SUPPORT IS RE-TAKEN ON A SCHEDULE; THE SECONDS ARE NOT.
-# Split deliberately, because the two halves have different answers:
 #
 #   * the OPT-LEVEL VERDICT — which level the tree should run, and the
-#     opt-0/opt-N execution ratio the argument turns on — is a SCHEDULED
-#     REGISTER: nightly.yml's `opt-level calibration` job runs
-#     `scripts/opt-level-calibrate.py` and appends a sample to
-#     docs/perf-data/opt-level/ (append-only, one JSON per run). It has
-#     already overturned a ratio quoted from a developer's box, which is
-#     exactly the failure mode the numbers above are exposed to. Read that
-#     history before arguing from this paragraph; it is newer than this
-#     paragraph by construction.
-#   * the ABSOLUTE SECONDS above are not re-taken by it and cannot be: the
-#     register runs on a hosted runner and reports a ratio, while these are
-#     one developer box's wall clock on a suite whose size moves. Nothing
+#     opt-0/opt-N execution ratio the argument turns on — has a recorded
+#     history in docs/perf-data/opt-level/ (append-only, one JSON per run;
+#     no job writes to it). Read that history before arguing from this
+#     paragraph.
+#   * the ABSOLUTE SECONDS above are one developer box's wall clock on a
+#     suite whose size moves. Nothing
 #     goes red when they age — one of them already did, and says so in place
 #     two paragraphs up, which is the pattern to copy rather than the figure.
 #

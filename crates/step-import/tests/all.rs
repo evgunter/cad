@@ -53,8 +53,6 @@ mod common;
 
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
-#[path = "cert5_r1_import_probes.rs"]
-mod cert5_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
 mod cert_n2r2_consumer_probes;
 #[path = "coherence_channel.rs"]
@@ -63,6 +61,8 @@ mod coherence_channel;
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
 mod curve_promotion_report;
+#[path = "cusp_round_trip.rs"]
+mod cusp_round_trip;
 #[path = "freecad.rs"]
 mod freecad;
 #[path = "geom_origin_import_arm.rs"]
@@ -83,6 +83,8 @@ mod onb_wild_normal_census;
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+#[path = "per_part_gate_policy.rs"]
+mod per_part_gate_policy;
 #[path = "perf12_census_goldens.rs"]
 mod perf12_census_goldens;
 #[path = "poleguard.rs"]
@@ -109,8 +111,6 @@ mod probe_sense;
 mod probe_vol;
 #[path = "r1_dm1_probe.rs"]
 mod r1_dm1_probe;
-#[path = "r2_import_door.rs"]
-mod r2_import_door;
 #[path = "recognize_pins.rs"]
 mod recognize_pins;
 #[path = "rev_import_probe.rs"]

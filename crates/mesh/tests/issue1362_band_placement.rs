@@ -26,7 +26,7 @@
 use geom_core::{OrthoFrame, Point2, Point3, Tol, Vec2};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 
 /// The ball of radius `r` centred at `(d, d, d)`: a half-disc revolved
@@ -35,9 +35,9 @@ use sweep::{Revolution, RevolveAxis, revolve};
 /// public doors only; a typed refusal is returned, never unwrapped.
 fn placed_ball(r: f64, d: f64) -> Result<topo::Body<f64>, String> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-        ProfileVertex::new(Point2::new(0.0, r), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
     ]);
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())

@@ -34,13 +34,9 @@ use common::lift;
 use geom_core::{Point2, Sign};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
-    SegmentRef, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, SegmentKind, SegmentRef,
+    ValidatedProfile, bulge_from_center, bulge_from_via, test_support::bulge_loop,
 };
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 fn sref(loop_index: usize, segment_index: usize) -> SegmentRef {
     SegmentRef {
@@ -83,6 +79,7 @@ fn dxf_quarter_arc_center_left_apex_right() {
             center,
             radius,
             turn,
+            ..
         } => {
             // Hand values: L = 2, r = L(1+b^2)/(4b) = sqrt(2),
             // apothem = L(1-b^2)/(4b) = 1 -> center = (1, 1).
@@ -108,7 +105,11 @@ fn dxf_quarter_arc_center_left_apex_right() {
 /// b = tan(-3pi/8).
 #[test]
 fn bulge_from_via_major_arc_sign() {
-    let b = bulge_from_via(p2(1.0, 0.0), p2(0.0, -1.0), p2(0.0, 1.0));
+    let b = bulge_from_via(
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, -1.0),
+        Point2::new(0.0, 1.0),
+    );
     let want = (-3.0 * std::f64::consts::FRAC_PI_8).tan();
     assert!((b - want).abs() < 1e-12, "b = {b}, want {want}");
 }
@@ -140,17 +141,22 @@ fn two_arc_circle_is_ccw_and_winding_invisible() {
 fn one_ulp_leftmost_tie_keeps_the_authored_start() {
     let x_lo = 1.0f64;
     let x_hi = 1.0f64.next_up(); // 1 + 2^-52
-    let base = ProfileLoop::polygon([p2(x_lo, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(x_hi, 2.0)]);
+    let base = ProfileLoop::polygon([
+        Point2::new(x_lo, 0.0),
+        Point2::new(3.0, 0.0),
+        Point2::new(3.0, 2.0),
+        Point2::new(x_hi, 2.0),
+    ]);
     for r in 0..4 {
         let n = base.vertices().len();
-        let rotated = ProfileLoop::new(
+        let rotated = bulge_loop(
             (0..n)
-                .map(|k| base.vertices()[(r + k) % n])
+                .map(|k| (base.vertices()[(r + k) % n], 0.0))
                 .collect::<Vec<_>>(),
         );
         let canon = ok(&profile(vec![rotated.clone()]));
-        let v0 = canon.loops()[0].vertices()[0].pos();
-        let want = rotated.vertices()[0].pos();
+        let v0 = canon.loops()[0].vertices()[0];
+        let want = rotated.vertices()[0];
         assert_eq!(
             (v0.x.to_bits(), v0.y.to_bits()),
             (want.x.to_bits(), want.y.to_bits()),
@@ -166,18 +172,23 @@ fn one_ulp_leftmost_tie_keeps_the_authored_start() {
 /// canonical form), and the traversal direction is invisible.
 #[test]
 fn origin_centered_square_keeps_each_authored_start() {
-    let base = ProfileLoop::polygon([p2(-1.0, -1.0), p2(1.0, -1.0), p2(1.0, 1.0), p2(-1.0, 1.0)]);
+    let base = ProfileLoop::polygon([
+        Point2::new(-1.0, -1.0),
+        Point2::new(1.0, -1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(-1.0, 1.0),
+    ]);
     let mut starts = Vec::new();
     for r in 0..4 {
         let n = base.vertices().len();
-        let rotated = ProfileLoop::new(
+        let rotated = bulge_loop(
             (0..n)
-                .map(|k| base.vertices()[(r + k) % n])
+                .map(|k| (base.vertices()[(r + k) % n], 0.0))
                 .collect::<Vec<_>>(),
         );
         let canon = ok(&profile(vec![rotated.clone()]));
-        let v0 = canon.loops()[0].vertices()[0].pos();
-        let want = rotated.vertices()[0].pos();
+        let v0 = canon.loops()[0].vertices()[0];
+        let want = rotated.vertices()[0];
         assert_eq!((v0.x, v0.y), (want.x, want.y), "rot {r}");
         starts.push((v0.x.to_bits(), v0.y.to_bits()));
         let vp = ok(&profile(vec![rotated.reversed()]));
@@ -252,7 +263,12 @@ fn partial_edge_overlap_between_loops() {
     let outer = rect(0.0, 0.0, 2.0, 2.0);
     // Loop 1 starts with the segment lying ON outer's right edge
     // (x = 2, y in [0.5, 1.5]) so the overlap pair judges first.
-    let bump = ProfileLoop::polygon([p2(2.0, 0.5), p2(2.0, 1.5), p2(3.0, 1.5), p2(3.0, 0.5)]);
+    let bump = ProfileLoop::polygon([
+        Point2::new(2.0, 0.5),
+        Point2::new(2.0, 1.5),
+        Point2::new(3.0, 1.5),
+        Point2::new(3.0, 0.5),
+    ]);
     assert_eq!(
         err(&profile(vec![outer, bump])),
         ProfileError::NonSimple {
@@ -271,15 +287,18 @@ fn cocircular_partial_arc_overlap() {
     // Points on the same carrier at angles 250 and 290 degrees.
     let at = |deg: f64| {
         let (s, c) = deg.to_radians().sin_cos();
-        p2(1.0 + c, s)
+        Point2::new(1.0 + c, s)
     };
     let a = at(250.0);
     let b = at(290.0);
     // Two vertices: `a` leaves along the shared carrier to `b`, and `b`
     // closes back on the straight chord.
-    let riding = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(a, bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw)),
-        ProfileVertex::new(b, 0.0),
+    let riding = bulge_loop(vec![
+        (
+            a,
+            bulge_from_center(a, b, Point2::new(1.0, 0.0), ArcSweep::Ccw),
+        ),
+        (b, 0.0),
     ]);
     match err(&profile(vec![lens, riding])) {
         ProfileError::NonSimple {
@@ -323,7 +342,7 @@ fn near_tangent_join_escalates() {
     let build = |phi: f64, declare: bool| {
         let l = std::f64::consts::SQRT_2;
         let ang = std::f64::consts::FRAC_PI_4 + phi;
-        let end = p2(2.0 + l * ang.cos(), l * ang.sin());
+        let end = Point2::new(2.0 + l * ang.cos(), l * ang.sin());
         // Joint 1 is the line->arc join under test. At phi = 0 the
         // vertical exit line x = end.x is tangent to the SAME carrier
         // at the arc's end -- joint 2, a second tangent joint, declared
@@ -393,8 +412,13 @@ fn near_tangent_join_escalates() {
 #[test]
 fn forced_first_ray_graze_retries_deterministically() {
     let (s, c) = 0.5f64.sin_cos(); // ray 0 direction, bit-identical to validate's
-    let graze_v = p2(3.0 * c, 3.0 * s); // exactly on ray 0 from (0,0)
-    let outer = ProfileLoop::polygon([p2(-2.0, -2.0), p2(4.0, -2.0), graze_v, p2(-2.0, 4.0)]);
+    let graze_v = Point2::new(3.0 * c, 3.0 * s); // exactly on ray 0 from (0,0)
+    let outer = ProfileLoop::polygon([
+        Point2::new(-2.0, -2.0),
+        Point2::new(4.0, -2.0),
+        graze_v,
+        Point2::new(-2.0, 4.0),
+    ]);
     let hole = rect(0.0, 0.0, 1.0, 1.0); // rep = (0,0) = ray origin
     let p = profile(vec![outer, hole]);
     let vp1 = ok(&p);
@@ -427,7 +451,7 @@ fn sixteen_spoke_alignment_exhausts_ray_casting() {
     spokes.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     let outer = ProfileLoop::polygon(spokes.iter().map(|&(ang, _)| {
         let (s, c) = ang.sin_cos();
-        p2(3.0 * c, 3.0 * s)
+        Point2::new(3.0 * c, 3.0 * s)
     }));
     let hole = rect(0.0, 0.0, 0.1, 0.1); // rep (0,0): every ray grazes a spoke
     match err(&profile(vec![outer, hole])) {
@@ -472,7 +496,7 @@ fn far_from_origin_rectangle_and_l_profile_validate() {
     let r = rect(big, big, 2.0, 1.0);
     let vp = ok(&profile(vec![r]));
     assert_eq!(vp.loops()[0].role(), LoopRole::Outer);
-    let v0 = vp.loops()[0].vertices()[0].pos();
+    let v0 = vp.loops()[0].vertices()[0];
     assert_eq!((v0.x, v0.y), (big, big));
     // With a hole (ray casting + orientation of both loops far away).
     let vp = ok(&profile(vec![
@@ -507,8 +531,8 @@ fn near_full_arc_with_chord_closure_validates() {
     // eps) at whatever eps the CI row runs.
     let delta = (44.0 * tol().eps()).sqrt();
     let (s, c) = (delta.sin(), delta.cos());
-    let a = p2(c, s);
-    let b = p2(c, -s);
+    let a = Point2::new(c, s);
+    let b = Point2::new(c, -s);
     // CCW from a up over the top, around, to b: theta = 2pi - 2delta.
     let theta = std::f64::consts::TAU - 2.0 * delta;
     let bulge = (theta / 4.0).tan();

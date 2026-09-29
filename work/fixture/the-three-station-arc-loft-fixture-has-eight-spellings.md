@@ -57,7 +57,7 @@ byte-identical to each other under a rename:
 |---|---|
 | `continuation_is_thread_count_invariant.rs::arc_loft(s)` | **not this unit**: wants one scaled `arc_prism_at(s)` beside `arc_prism`, which is a four-suite change |
 | `mass_props_are_thread_count_invariant.rs::arc_loft(s)` | same |
-| `sign_certified_plus_v.rs::arc_loft(s)` | same |
+| `sign_walk_plus_v.rs::arc_loft(s)` | same |
 | `shell_census_is_thread_count_invariant.rs::arc_loft()` | same, with `s` fixed at `1e9 * eps` inside |
 
 **Deliberately different, with the reason stated at the site** — left
@@ -94,3 +94,5 @@ more files (`bool6_r2_probes.rs`, `vrev_reversed_chart_hazard.rs`,
   helper matches neither term at the call site.
 - **Accuracy is as of this branch's merge base.** A copy landed since
   is not in the list.
+
+**2026-09-28:** `reporting_door_bit_digest.rs` (with `arc_taper`) was deleted in the 2026-09-28 CI-latency cut.

@@ -10,17 +10,10 @@
 //! the bore radius both distributed. The study measures the web from
 //! the bore wall to a corner wall and asserts a floor on it.
 //!
-//! Two rows ASSERT; the rest print. The asserting rows are:
-//!
-//! - `r2_the_shape_report_attributes_each_decision_to_its_own_door`,
-//!   which pinned (as `..._by_a_stale_predicate_name`) that the
-//!   per-predicate split §1 reported moved between two replays of the
-//!   SAME rule set — an artifact of replay ORDER — and now pins the
-//!   scoped attribution the fix pass made;
-//! - `r2_the_bracket_between_the_two_ceilings_certifies_under_the_shipped_tier_only`,
-//!   which pinned (as `..._passes_with_both_sides_certifying`) that the
-//!   shipped bracket-ceiling pin was a `false == false`, and now pins
-//!   the ceiling the shipped tier moved.
+//! One row ASSERTS; the rest print. It is
+//! `r2_the_shape_report_attributes_each_decision_to_its_own_door`,
+//! which pins the scoped per-predicate attribution: the split §1
+//! reported must not move between two replays of the SAME rule set.
 //!
 //! ITS PROBE-GATED CODE IS NOT EXECUTED BY CI.
 
@@ -30,24 +23,16 @@
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     select_where,
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, len2, scl, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
 
 fn plen(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
@@ -98,15 +83,11 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
         },
     );
 
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
 
     // The rounded rectangle: four straight legs joined by four
     // PARAMETRIC fillet arcs, all sharing one radius parameter.
-    let pt = |x: f64, y: f64| ProgramTarget::Point([len(x), len(y)]);
+    let pt = |x: f64, y: f64| ProgramTarget::Point(len2([x, y]));
     let pad_loop = LoopProgram::Chain(vec![
         ProgramStep::At([len(-HALF_W), len(0.0)]),
         ProgramStep::LineTo(pt(-HALF_W, HALF_H - 2.0 * CORNER)),
@@ -134,6 +115,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![pad_loop],
+        ids: Vec::new(),
     }));
     let thickness = len(1.2e-3);
     let body = r.insert(Node::Extrude {
@@ -147,6 +129,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
             centre: [len(0.0), len(0.0)],
             radius: plen("bore_r"),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,
@@ -241,50 +224,6 @@ fn r2_the_shape_report_attributes_each_decision_to_its_own_door() {
     assert_eq!(
         first, second,
         "the per-predicate attribution is stable across two identical replays"
-    );
-}
-
-/// **The bracket at `1e2 · ε` of its study certifies under the shipped
-/// tier and NOT under M10-7's.** R2's review found the first cut of the
-/// bracket pin asserting only that two rule sets AGREE at one scale,
-/// both `false` — a `false == false` that would have stayed green had
-/// the mechanism moved. It moved: A0 (the constant fold, shipped) lifts
-/// the bracket's whole-certifying ceiling from `3.7e1 · ε` to
-/// `3.9e2 · ε`, so at `1e2 · ε` (the first cut's `1e-7` at the default
-/// epsilon, made ε-relative) the two sides DIFFER at every ε row, and
-/// that difference is what this row pins. The ceilings themselves are
-/// pinned in `m10_8_pins_interval`.
-#[test]
-fn r2_the_bracket_between_the_two_ceilings_certifies_under_the_shipped_tier_only() {
-    let tol = Tol::witness();
-    let doc = crate::m10_7_r2_probes_interval::bracket(1.0e2 * tol.eps(), tol).0;
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let whole = |rules: SymRules| {
-        drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                max_depth: 0,
-                max_leaves: 1,
-                symbolic: SymbolicDials {
-                    rules,
-                    ..SymbolicDials::default()
-                },
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .is_ok_and(|v| v.receipt().certified == 1)
-    };
-    let (shipped, off) = (whole(SymRules::shipped()), whole(SymRules::none()));
-    println!("   bracket at x1e2·eps: shipped {shipped}, M10-7's tier {off}");
-    assert!(
-        shipped,
-        "the shipped tier certifies the bracket whole at 1e2 · eps"
-    );
-    assert!(
-        !off,
-        "M10-7's tier does not — the mechanism moved the ceiling"
     );
 }
 

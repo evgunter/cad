@@ -56,7 +56,7 @@ use topo::{Body, HalfEdgeKey};
 
 /// The fixture's cylinder: offset from the sphere's centre so the two
 /// intersection loops differ wildly in size (the PR 7 planted shape).
-const CYL_ORIGIN: (f64, f64, f64) = (0.03, 0.0, 0.0);
+const CYL_ORIGIN: Point3<f64> = Point3::new(0.03, 0.0, 0.0);
 const CYL_RADIUS: f64 = 0.08;
 const SPH_RADIUS: f64 = 1.0;
 
@@ -82,11 +82,7 @@ pub struct Built<T: Real> {
 
 fn cylinder<T: Real>() -> Surface<T> {
     Surface::Cylinder {
-        origin: Point3::new(
-            T::from_f64(CYL_ORIGIN.0),
-            T::from_f64(CYL_ORIGIN.1),
-            T::from_f64(CYL_ORIGIN.2),
-        ),
+        origin: CYL_ORIGIN.map(T::from_f64),
         axis: Vec3::new(T::zero(), T::zero(), T::one()),
         radius: T::from_f64(CYL_RADIUS),
         u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
@@ -155,7 +151,7 @@ fn trace_branch() -> Option<ssi::SsiBranch> {
 /// about the axis, `v` the axial height. Both exact arithmetic on the
 /// chart's own frame — this is the chart map's inverse, not a fit.
 fn chart_of(p: Point3<f64>) -> Point2<f64> {
-    let w = p - Point3::new(CYL_ORIGIN.0, CYL_ORIGIN.1, CYL_ORIGIN.2);
+    let w = p - CYL_ORIGIN;
     Point2::new(w.y.atan2(w.x), w.z)
 }
 
@@ -250,20 +246,12 @@ fn sub_arc2(c: &NurbsCurve2<f64>, frac: (f64, f64)) -> Option<NurbsCurve2<f64>> 
 }
 
 fn lift3<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 

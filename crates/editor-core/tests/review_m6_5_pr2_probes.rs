@@ -17,15 +17,11 @@ use std::collections::BTreeSet;
 
 use corpus::die_composed;
 use editor_core::{
-    CancelToken, CapEnd, Dimension, EntityKind, EvalOptions, Expr, Node, NodeResult, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, CapEnd, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, evaluate,
 };
-use fixture::prism_edges;
+use fixture::{len, prism_edges};
 use geom_core::Tol;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length literal")
-}
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(
@@ -67,7 +63,8 @@ fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
             distance: len(1.0),
         },
     );
-    let (doc, blank) = fixture::insert(doc, Node::fillet(cube, len(0.125), prism_edges(cube, 4)));
+    let node = Node::fillet(cube, len(0.125), prism_edges(&doc, cube, 4));
+    let (doc, blank) = fixture::insert(doc, node);
     let ev = eval(&doc);
     let table = table_of(&ev, blank);
     let target = table_of(&ev, cube);
@@ -89,10 +86,10 @@ fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
     let expected: BTreeSet<StableName> = [
         fixture::fname(cube, RoleSeg::Cap(CapEnd::Start)),
         fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
-        fixture::fname(cube, fixture::wall(0)),
-        fixture::fname(cube, fixture::wall(1)),
-        fixture::fname(cube, fixture::wall(2)),
-        fixture::fname(cube, fixture::wall(3)),
+        fixture::fname(cube, fixture::wall(&doc, cube, 0)),
+        fixture::fname(cube, fixture::wall(&doc, cube, 1)),
+        fixture::fname(cube, fixture::wall(&doc, cube, 2)),
+        fixture::fname(cube, fixture::wall(&doc, cube, 3)),
     ]
     .into_iter()
     .collect();
@@ -167,7 +164,8 @@ fn p3_totality_holds_for_a_triangular_prism() {
             distance: len(1.0),
         },
     );
-    let (doc, blank) = fixture::insert(doc, Node::fillet(prism, len(0.1), prism_edges(prism, 3)));
+    let node1 = Node::fillet(prism, len(0.1), prism_edges(&doc, prism, 3));
+    let (doc, blank) = fixture::insert(doc, node1);
     let ev = eval(&doc);
     let NodeResult::Ok(v) = ev.nodes.get(&blank).expect("the fillet") else {
         panic!(

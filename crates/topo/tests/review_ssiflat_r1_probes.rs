@@ -116,11 +116,7 @@ fn fit_image() -> NurbsCurve2<f64> {
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
@@ -170,16 +166,14 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
                 margin,
                 band,
                 predicate: Some("probe"),
+                terminal_sliver: false,
             },
         }
         .to_string()
     };
-    let value = escalated(MarginDiag::Value(1.5e-12));
-    let enclosure = escalated(MarginDiag::Enclosure {
-        lo: 1.5e-12,
-        hi: 2.5e-12,
-    });
-    let poison = escalated(MarginDiag::Invalid);
+    let value = escalated(MarginDiag::value(1.5e-12));
+    let enclosure = escalated(MarginDiag::enclosure(1.5e-12, 2.5e-12));
+    let poison = escalated(MarginDiag::INVALID);
     let hole = PcurveCertifyError::FittedCertificate {
         limb: None,
         what: "probe",

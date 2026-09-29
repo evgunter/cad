@@ -1079,6 +1079,28 @@ pub fn slot_unit_edit(
     slot: SlotId,
     unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
+    let value = slot_literal(doc, node, slot)?;
+    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
+        .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
+    Ok(DocEdit::SetParam { node, slot, expr })
+}
+
+/// **The half of [`slot_unit_edit`] that does not read the unit**: the
+/// slot's bare literal value, or the refusal for a slot that has no
+/// written notation to change at all.
+///
+/// A control asks this ahead of the pick. The other half, whether the
+/// picked unit measures the slot, is answered at the pick by
+/// `slot_unit_edit` itself.
+///
+/// # Errors
+///
+/// [`SlotUnitFault::NoExpression`] or [`SlotUnitFault::NotALiteral`].
+pub fn slot_literal(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> Result<f64, SlotUnitFault> {
     let expr = doc
         .node(node)
         .and_then(|n| n.expr(slot))
@@ -1087,12 +1109,8 @@ pub fn slot_unit_edit(
     // computed, so there is no authored notation to change — refused
     // rather than silently flattened to the computed number, which is
     // the same direction `SlotDriver` refuses a numeric edit in.
-    let value = expr
-        .literal_value()
-        .ok_or(SlotUnitFault::NotALiteral { node, slot })?;
-    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
-        .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
-    Ok(DocEdit::SetParam { node, slot, expr })
+    expr.literal_value()
+        .ok_or(SlotUnitFault::NotALiteral { node, slot })
 }
 
 /// Why a display-unit change was refused.
