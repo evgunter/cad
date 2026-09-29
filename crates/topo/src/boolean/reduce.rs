@@ -1912,7 +1912,7 @@ fn wall_crossing<T: Decide>(
     // parameter is an angle and its arc length is `radius·Δθ`.
     let (count, metres_per_param) = match *carrier {
         geom::Curve3::Line { origin, dir } => (
-            line_wall_root_count(y, face, origin, dir, surface, &mut roots, band)?,
+            line_wall_root_count(y, face, origin, dir, (t0, t1), surface, &mut roots, band)?,
             T::one(),
         ),
         // The half-angle quartics: circle × torus
@@ -2047,13 +2047,16 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
 
 /// The certified LINE × wall roots, per kind, written into `roots`:
 /// `Ok(count)` for a certified root set, `Err(verdict)` for the answers
-/// that are not one. `face` is read only for a cone, whose margins are
-/// levered by the face's slant extent.
+/// that are not one. `face` and the span are read only for a cone, whose
+/// margins are levered by the face's slant extent and whose root slack is
+/// read against the span.
+#[allow(clippy::too_many_arguments)]
 fn line_wall_root_count<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
+    span: (T, T),
     surface: &geom::Surface<T>,
     roots: &mut [T; 4],
     band: Band,
@@ -2133,7 +2136,7 @@ fn line_wall_root_count<T: Decide>(
             };
             let lever = v.0.abs().max(v.1.abs());
             match super::line_cone::line_cone_edge_roots(
-                origin, dir, apex, axis, half_angle, lever, band,
+                origin, dir, apex, axis, half_angle, lever, span, band,
             )
             .map_err(|diag| BooleanError::Escalated { diag })?
             {
