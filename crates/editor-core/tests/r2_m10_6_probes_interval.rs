@@ -81,8 +81,8 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// The ε-scaled half-width every parametric row here uses — M10-5's
@@ -113,7 +113,7 @@ fn eval_over<T: editor_core::EvalScalar>(
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
 
-fn one_axis(n: &str, h: f64) -> ParamBox {
+fn one_axis(n: &'static str, h: f64) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(name(n), BoxAxis::Varying { lo: -h, hi: h });
     ParamBox::from_axes(axes)

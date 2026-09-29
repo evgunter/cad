@@ -69,7 +69,7 @@ use fixture::{Recorder, xy_frame};
 fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("depth"),
+        name: ParamName::from_static("depth"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -91,7 +91,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: editor_core::Expr::param(ParamName::new("depth"), Dimension::Length),
+        distance: editor_core::Expr::param(ParamName::from_static("depth"), Dimension::Length),
     });
     r.doc
 }

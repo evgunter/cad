@@ -81,8 +81,8 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 fn half() -> f64 {
@@ -127,7 +127,7 @@ fn measure_value<T: geom_core::Decide>(
     }
 }
 
-fn param(r: &mut Recorder, n: &str, value: f64, dist: Option<Distribution>) {
+fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
     r.push(DocEdit::SetDocParam {
         name: name(n),
         value: DocParam::Continuous {
@@ -1328,7 +1328,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         profile: plate_p,
         distance: len(1.0e-3),
     });
-    let hole = |r: &mut Recorder, centre: Expr, radius: &str| {
+    let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
@@ -1373,7 +1373,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
+    let radius_of = |n: &'static str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),

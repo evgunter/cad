@@ -1213,7 +1213,7 @@ impl ViewerApp {
             None => {}
         }
         if let Some(name) = frame::creation_offer(refusal.as_ref()) {
-            self.drafts.new_param_name = name.0.clone();
+            self.drafts.new_param_name = name.as_str().to_owned();
             self.drafts.new_param_dimension = None;
             self.drafts.new_param_offer = Some(name.clone());
         }
@@ -3414,7 +3414,7 @@ mod properties_pane_tests {
     #[test]
     fn an_undeclared_parameter_is_said_once_in_the_pane() {
         let verdict = "parameter nope is no longer declared";
-        let mut with = painted_with(Selection::Param(ParamName("nope".to_owned())));
+        let mut with = painted_with(Selection::Param(ParamName::from_static("nope")));
         let mut without = painted_with(Selection::None);
         assert!(
             without.iter().any(|text| text == "select a feature"),

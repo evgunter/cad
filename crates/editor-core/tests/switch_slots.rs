@@ -246,7 +246,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
+                name: ParamName::from_static("r"),
                 value: DocParam::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
@@ -271,7 +271,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                     plane: PLANE,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                        radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 }),
@@ -285,7 +285,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let broken = doc
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
+                name: ParamName::from_static("r"),
                 value: DocParam::continuous(Dimension::Length, 0.0),
             },
             Tol::witness(),
