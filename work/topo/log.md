@@ -2631,3 +2631,30 @@ filed.
 
 Tier SINGLE, full: one Opus reviewer is on the frozen head, on the
 lane's warm target.
+
+## The sense re-aim delivered (PR 3467 at `15a78f05fa`); re-tiered to DUAL (2026-09-29)
+
+The re-aim implementer took 517,510 tokens, 282 tools and 2 h 07 m
+(harness). CI is green on run 36608688103.
+- One resolver (`resolve_face_surface`, taking `ParentSide`) asks the
+  chart question once, derives the bit on the parent's chart (`mef`
+  with the parent, `mfkrh` against it), refuses
+  `SenseContradictsChart`, and writes the stated bit elsewhere.
+- `set_face_surface` takes the spec, and `set_face_surface_and_sense`
+  is gone.
+- `mvfs`/`mfkrh_plug` take a stated bit (242 sites).
+- Every sweep, rim-glue, adopt and offset caller states its bit.
+- An instrumented second pass caught four test re-charts that relied
+  on the setter keeping a bit.
+- No baseline moved.
+
+**Re-tiered from SINGLE (logged at dispatch) to DUAL.** The delivered
+change reaches every face-minting caller across the workspace
+(170 files), and a wrongly stated bit on a NURBS face ships silently,
+since check 6 does not read NURBS. That is the tricky, hard-to-reverse
+class the dual tier covers. The re-tier follows the delivered scope,
+not any review outcome.
+
+The pair dispatches concurrently when PR 3483's reviewer frees its
+target: disk has room for two warm targets, not three. Per protocol
+item 4, fewer simultaneous duals rather than a narrowed method.
