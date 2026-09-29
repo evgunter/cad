@@ -392,15 +392,15 @@ fn invalid(band: Band, predicate: &'static str) -> SectorFault {
     })
 }
 
-/// **A point's side of a plane, in metres**: the signed distance of `q`
-/// from the plane through `origin` with unit normal `normal`. The one
-/// reading both lanes decide a real vertex's side with: the splitting
-/// lane's vertex classes against the split plane, and the boolean's
-/// line-chord side codes, where `q` is the chord's far vertex and
+/// **A point's signed distance from a plane, in metres**: `q` against
+/// the plane through `origin` with unit normal `normal`. The one reading
+/// both lanes decide a real vertex's side with: the splitting lane's
+/// vertex classes against the split plane, and the boolean's
+/// line-bound side codes, where `q` is the edge's far vertex and
 /// `origin` its base vertex. A point needs no lever: its distance is
 /// what a margin measures.
-pub(crate) fn point_side<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> Margin<T> {
-    Margin::of((q - origin).dot(normal))
+pub(crate) fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> T {
+    (q - origin).dot(normal)
 }
 
 #[cfg(test)]

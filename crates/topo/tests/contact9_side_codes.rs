@@ -16,7 +16,7 @@
 //! sliver. A control beside each poses the same dip under 1 m edges,
 //! where both readings agree. A dip inside the band still reads On, and
 //! the pose is a touch. The splitting lane's twin reads a line edge the
-//! same way, through the same reader (`sector_shape::point_side`).
+//! same way, through the same reader (`sector_shape::plane_offset`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -81,7 +81,7 @@ fn body_of(r: Result<BooleanResult<f64>, BooleanError>, what: &str) -> Body<f64>
 /// `tier3`: whether to run tier 3, whose signed-volume check shares the
 /// volume door's floor ([`RESOLVED_VOLUME`]).
 fn body_checked(r: Result<BooleanResult<f64>, BooleanError>, what: &str, tier3: bool) -> Body<f64> {
-    let r = r.unwrap_or_else(|e| panic!("{what}: the control answers, got {e}"));
+    let r = r.unwrap_or_else(|e| panic!("{what}: an answer, got {e}"));
     let b = r
         .body()
         .unwrap_or_else(|| panic!("{what}: a body"))
@@ -115,12 +115,17 @@ fn volume(body: &Body<f64>) -> f64 {
     mass_properties(body, Tol::witness()).unwrap().volume
 }
 
-/// The volume door resolves a sliver only down to about this: measured,
-/// it returns half of a 4e-19 m³ tetrahedron whose vertices are exact,
-/// and tier 3's signed-volume check reads the same integral negative.
-/// Below it the vertex set, which fixes the sliver and so its volume,
-/// is the oracle, and tier 3 runs on the other two results.
-const RESOLVED_VOLUME: f64 = 1e-15;
+/// The smallest intersection whose volume these rows trust, in m³. The
+/// volume door's absolute error on a result spanning these fixtures'
+/// ~10 m is up to ~1e-15 m³, measured on exact slivers at ε from 1e-6
+/// to 1e-12 (it returns half of a 4e-19 m³ tetrahedron with exact
+/// corners, and −3e-16 for a 6e-19 one, which tier 3 then reads as
+/// negative). A thousand times that keeps the 1% check honest. Below it
+/// the corner set, which fixes the sliver and so its volume, is the
+/// oracle, and tier 3 runs on the other two results only. The door's
+/// error is filed:
+/// `work/contact/volume-door-reads-a-tiny-valid-boolean-result-wrong`.
+const RESOLVED_VOLUME: f64 = 1e-12;
 
 /// Every op on `(solid, tool)` answers: `solid ∩ tool` has exactly the
 /// sliver's `corners` (within the band) and, where the volume door
@@ -166,22 +171,7 @@ fn answers_with(
         &format!("{what}: ∩"),
         resolved && tier3,
     );
-    let points: Vec<Point3<f64>> = meet
-        .vertices()
-        .map(|(_, v)| *meet.get_point(v.point).unwrap())
-        .collect();
-    let near = |p: &Point3<f64>, q: &Point3<f64>| p.distance(*q) <= tol.eps();
-    assert_eq!(
-        points.len(),
-        corners.len(),
-        "{what}: ∩'s corners {points:?}"
-    );
-    for c in corners {
-        assert!(
-            points.iter().any(|p| near(p, c)),
-            "{what}: ∩ has the corner {c:?}: {points:?}"
-        );
-    }
+    has_corners(&meet, corners, &format!("{what}: ∩"));
     if resolved {
         let v = volume(&meet);
         assert!(
@@ -196,12 +186,28 @@ fn answers_with(
         SolidContainment::Out,
         "{what}: the sliver is cut"
     );
-    let joined = body_of(union(solid, tool, tol), &format!("{what}: ∪"));
+    let joined = body_checked(union(solid, tool, tol), &format!("{what}: ∪"), tier3);
     assert_eq!(
         contains(&joined, q),
         SolidContainment::In,
         "{what}: ∪ holds q"
     );
+}
+
+/// `body`'s vertices are exactly `corners`, each within the band.
+fn has_corners(body: &Body<f64>, corners: &[Point3<f64>], what: &str) {
+    let eps = Tol::witness().eps();
+    let points: Vec<Point3<f64>> = body
+        .vertices()
+        .map(|(_, v)| *body.get_point(v.point).unwrap())
+        .collect();
+    assert_eq!(points.len(), corners.len(), "{what}: corners {points:?}");
+    for c in corners {
+        assert!(
+            points.iter().any(|p| p.distance(*c) <= eps),
+            "{what}: has the corner {c:?}: {points:?}"
+        );
+    }
 }
 
 /// The needle's sliver below `z = 0`: its tip, its long edge's far end,
@@ -319,6 +325,130 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     }
 }
 
+/// The pierce germ line, read at the sector's reach: a wedge on the
+/// block's top whose 1 mm edge lies on that face while its 10 m edge
+/// RISES `500·ε` and its third edge descends into the block. The
+/// bottom's transition sector meets the top at `dip/10` radians, which
+/// the 1 mm arm reads as coplanar; the reach (10 m) reads the germ line.
+/// `tool − block` is the sliver above the top: its corners, its volume
+/// `det·dip/(2·|c_z|)` where the door resolves it, and a point inside.
+/// No tier 3, for the seam reason at the wedge row above.
+#[test]
+fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
+    let tol = Tol::witness();
+    let dip = DIP * tol.eps();
+    let block = common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol);
+    let e = [[0.2e-3, 1e-3, 0.0], [10.0, 1.0, dip], [1e-4, 1e-4, -1e-3]];
+    let corner = Vec3::new(5.0, 5.0, 0.0);
+    let point = move |u, v, w| at(e, u, v, w) + corner;
+    let tool = common::mapped_cube(point, tol);
+    let det = e[0][0] * (e[1][1] * e[2][2] - e[1][2] * e[2][1])
+        - e[0][1] * (e[1][0] * e[2][2] - e[1][2] * e[2][0]);
+    let rise = dip / -e[2][2];
+    let above = det * rise / 2.0;
+    let q = point(0.5, 0.99, 0.1 * rise);
+    let cut = body_checked(subtract(&tool, &block, tol), "tool − block", false);
+    has_corners(
+        &cut,
+        &[
+            point(0.0, 0.0, 0.0),
+            point(1.0, 0.0, 0.0),
+            point(0.0, 1.0, 0.0),
+            point(1.0, 1.0, 0.0),
+            point(0.0, 1.0, rise),
+            point(1.0, 1.0, rise),
+        ],
+        "tool − block",
+    );
+    if above >= RESOLVED_VOLUME {
+        let v = volume(&cut);
+        assert!(
+            (v - above).abs() <= 1e-2 * above,
+            "tool − block is the sliver: {v:e} vs {above:e}"
+        );
+    }
+    assert_eq!(contains(&cut, q), SolidContainment::In, "q above the top");
+    let meet = body_checked(intersect(&tool, &block, tol), "tool ∩ block", false);
+    assert_eq!(contains(&meet, q), SolidContainment::Out, "q is not in ∩");
+}
+
+/// A near-coincidence at a vertex pair, which the classification does
+/// not settle: a wedge on the block's CORNER whose 1 mm edge lies in the
+/// top's plane (outside the face) and whose 10 m edge rises `500·ε`
+/// over it. The pair of bottoms agrees at the 1 mm arm, so it goes to
+/// the carrier ladder as a coincidence, and undeclared it refuses,
+/// typed. Read by its bounds instead, the pair is half a crossing, and
+/// the vertex's germs came out odd (a kernel invariant). The same pose
+/// under 1 m edges answers. Making the short pose answer is filed:
+/// `work/contact/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
+#[test]
+fn a_near_coincident_pair_at_a_corner_refuses_typed() {
+    let tol = Tol::witness();
+    let dip = DIP * tol.eps();
+    let block = common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol);
+    let edges = |s: f64| {
+        [
+            [10.0, 1.0, dip],
+            [-1e-3 * s, -0.2e-3 * s, 0.0],
+            [1e-4 * s, 1e-4 * s, -1e-3 * s],
+        ]
+    };
+    let short = parallelepiped(edges(1.0));
+    for (what, r) in [
+        ("∩", intersect(&short, &block, tol)),
+        ("−", subtract(&short, &block, tol)),
+        ("∪", union(&short, &block, tol)),
+    ] {
+        // UndeclaredCoincidence; at ε = 1e-6, where the 1 mm edges are
+        // a thousand bands, an edge contact in band escalates first.
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::UndeclaredCoincidence { .. } | BooleanError::Escalated { .. })
+            ),
+            "{what}: the near-coincidence refuses typed, got {:?}",
+            r.as_ref().err()
+        );
+    }
+
+    let e = edges(1e3);
+    let control = parallelepiped(e);
+    let meet = body_of(intersect(&control, &block, tol), "control ∩");
+    let cut = body_of(subtract(&control, &block, tol), "control −");
+    let joined = body_of(union(&control, &block, tol), "control ∪");
+    let (vt, vb, vm) = (volume(&control), volume(&block), volume(&meet));
+    assert!(
+        (vm + volume(&cut) - vt).abs() <= 1e-9 * vt,
+        "control: ∩ and − partition the tool"
+    );
+    assert!(
+        (volume(&joined) - (vb + vt - vm)).abs() <= 1e-9 * vb,
+        "control: ∪ is block + tool − ∩"
+    );
+    let inside = at(e, 0.5, 0.1, 0.9);
+    assert_eq!(
+        contains(&meet, inside),
+        SolidContainment::In,
+        "control: ∩ holds a point in both"
+    );
+    assert_eq!(
+        contains(&cut, inside),
+        SolidContainment::Out,
+        "control: − cuts it"
+    );
+    let outside = at(e, 0.01, 0.9, 0.1);
+    assert_eq!(
+        contains(&block, outside),
+        SolidContainment::Out,
+        "control: a point of the tool off the block"
+    );
+    assert_eq!(
+        contains(&cut, outside),
+        SolidContainment::In,
+        "control: − keeps it"
+    );
+}
+
 /// A dip inside the band is a real On: the far vertex stands within
 /// the band of the face, so the edge lies on it to the tolerance, and
 /// the pose is a touch. The needle and the slab share only boundary.
@@ -346,7 +476,7 @@ fn a_dip_inside_the_band_still_reads_on() {
 
 /// The splitting twin: a line edge's class is its far vertex's side,
 /// in metres, so the short-armed needle splits, and its below part is
-/// the sliver (to 1%, as above).
+/// the sliver: its corners, and its volume where the door resolves it.
 #[test]
 fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
     let tol = Tol::witness();
@@ -356,10 +486,14 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
         normal: Vec3::new(0.0, 0.0, 1.0),
     };
     let r = split(&parallelepiped(e), &plane, tol).unwrap();
-    let below = volume(r.below.body().expect("a below part"));
-    assert!(
-        (below - sliver(e)).abs() <= 1e-2 * sliver(e),
-        "the below part is the sliver: {below} vs {}",
-        sliver(e)
-    );
+    let below = r.below.body().expect("a below part");
+    has_corners(below, &needle_corners(e), "the below part");
+    if sliver(e) >= RESOLVED_VOLUME {
+        let v = volume(below);
+        assert!(
+            (v - sliver(e)).abs() <= 1e-2 * sliver(e),
+            "the below part is the sliver: {v} vs {}",
+            sliver(e)
+        );
+    }
 }

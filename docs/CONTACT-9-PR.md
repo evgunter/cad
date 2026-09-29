@@ -42,7 +42,7 @@ The same pose with 1 m edges answered correctly.
 it and so how it is read (`side_code`):
 - `Reach::Chord` (a line edge): its far vertex's signed distance from
   the plane through the base vertex, `n̂·(q − p)`, through
-  `sector_shape::point_side`. The splitting lane's vertex classes now
+  `sector_shape::plane_offset`. The splitting lane's vertex classes now
   go through the same reader (`splitting/classify.rs`), so the two
   lanes read a real vertex's side in one place. A Zero is a real one:
   the edge lies within the band of the plane, so every resolution built

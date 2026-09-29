@@ -176,7 +176,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     for s in &sectors {
         entries.push(Entry {
             he: s.he,
-            is_edge: s.end_edge,
+            is_edge: s.end_edge(),
             class: side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?,
             lumped: false,
         });
@@ -196,13 +196,17 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
     for (k, s) in sectors.iter().enumerate() {
         let m = Margin::levered(s.normal.vec().cross(n_pierced.vec()).norm(), s.arm);
-        match decide("bool_sector_coplanar", m, band) {
-            Ok(Sign::Zero) => {}
+        let in_band = match decide("bool_sector_coplanar", m, band) {
+            Ok(Sign::Zero) => None,
             Ok(_) => continue,
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
-        }
+            Err(diag) => Some(diag),
+        };
+        // A bound read definitely off the plane decides, in band too.
         if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
             continue;
+        }
+        if let Some(diag) = in_band {
+            return Err(BooleanError::Escalated { diag });
         }
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         // Declared-`Tangent` (distinct carriers touching): the lump
@@ -342,46 +346,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             });
         }
     }
-    //
-    // An edge entry's On is a real one: a line chord's far vertex is
-    // within the band of the plane (`side_code`, `Reach::Chord`), so
-    // the edge lies in it to the tolerance and every resolution below
-    // is ε-true of it.
-    //
-    // A bisector entry's On is a direction's, levered at its sector's
-    // arm, and it is resolved only where its code changes no topology.
-    // Its two neighbours are its physical sector's real bounds. Mixed,
-    // the bisector's code only picks which twin of that one sector
-    // holds the transition; the fan it moves crosses no edge. Both
-    // definitely on one side S (readings, not Delta 2 lumps), the
-    // bisector cannot read Zero when K > 2: with `a` the arm, which is
-    // the shorter bound's length, and `s` that bound's slope, the
-    // bound's own reading gives `s·a ≥ K·zero`. A reflex bisector
-    // `−(â + b̂)/|â + b̂|` then reads at least `(s_a + s_b)·a/2 ≥
-    // K·zero/2`. A straight-band one, `n × b̂`, reads at least `a·cos δ`
-    // (δ, the deviation from π, has `sin δ·a` inside the band). So a
-    // Zero there is the ambiguity band's (K ≤ 2), and the reflex case
-    // would read the wrong side. It refuses, typed, rather than resolve.
-    for k in 0..n {
-        if entries[k].class != SideCode::On {
-            continue;
-        }
-        let (before, after) = (&entries[(k + n - 1) % n], &entries[(k + 1) % n]);
-        let (prev, next) = (before.class, after.class);
-        if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
-            return Err(BooleanError::Escalated {
-                diag: geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
-                    band,
-                    predicate: Some("bool_sector_bisector_side"),
-                },
-            });
-        }
-        entries[k].class = match (prev, next) {
-            (SideCode::Out, SideCode::Out) => SideCode::Out,
-            _ => SideCode::In,
-        };
-    }
+    resolve_on_entries(&mut entries, band)?;
 
     // Out-runs (the copy takes the OUT side — above ≙ OUT).
     let runs = out_runs(&entries);
@@ -621,6 +586,56 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     Ok(out)
 }
 
+/// On-edge resolution (module docs; the deliberate divergence), after
+/// Delta 2's lumps.
+///
+/// An edge entry's On is a real one for a LINE edge: its far vertex is
+/// within the band of the plane (`side_code`, `Reach::Chord`), so the
+/// edge lies in it to the tolerance and the resolution is ε-true of it.
+/// A curved edge's On is its departure's, to first order
+/// (`Reach::Extent`; the residue is
+/// `work/contact/boolean-conic-side-code-zero-is-first-order`).
+///
+/// A bisector entry's On is a direction's, levered at its sector's arm,
+/// and it is resolved only where its code changes no topology. Its two
+/// neighbours are its physical sector's real bounds. Mixed, the
+/// bisector's code only picks which twin of that one sector holds the
+/// transition; the fan it moves crosses no edge. Both definitely on one
+/// side S (readings, not Delta 2 lumps), the bisector cannot read Zero
+/// when K > 2: with `a` the arm, which is the shorter bound's length,
+/// and `s` that bound's slope, the bound's own reading gives
+/// `s·a ≥ K·zero`. A reflex bisector `−(â + b̂)/|â + b̂|` then reads at
+/// least `(s_a + s_b)·a/2 ≥ K·zero/2`. A straight-band one, `n × b̂`,
+/// reads at least `a·cos δ` (δ, the deviation from π, has `sin δ·a`
+/// inside the band). So a Zero there is the ambiguity band's (K ≤ 2),
+/// and the reflex case would read the wrong side: it refuses
+/// ([`super::sectors::bisector_zero_refusal`]) rather than resolve.
+fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanError> {
+    let n = entries.len();
+    for k in 0..n {
+        if entries[k].class == SideCode::On && entries[(k + 1) % n].class == SideCode::On {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "consecutive On entries after Eq. 15.3 lumping",
+            });
+        }
+    }
+    for k in 0..n {
+        if entries[k].class != SideCode::On {
+            continue;
+        }
+        let (before, after) = (&entries[(k + n - 1) % n], &entries[(k + 1) % n]);
+        let (prev, next) = (before.class, after.class);
+        if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
+            return Err(super::sectors::bisector_zero_refusal(band));
+        }
+        entries[k].class = match (prev, next) {
+            (SideCode::Out, SideCode::Out) => SideCode::Out,
+            _ => SideCode::In,
+        };
+    }
+    Ok(())
+}
+
 /// The germ direction at a pierce-site transition: the unit
 /// intersection direction of the transition sector's face plane with
 /// the pierced face's TANGENT plane at the pierce point, signed to lie
@@ -651,10 +666,13 @@ fn pierce_germ_dir<T: Decide>(
     band: Band,
 ) -> Result<geom_core::Vec3<T>, BooleanError> {
     let int = s.normal.vec().cross(pierced_normal);
-    // Levered at the sector's farther reach, as `insert::germ_dir` is: a
-    // transition sector has a bound read definitely off the pierced
-    // plane at its reach, and that reading is at most `|n_s × n_p|`
-    // times the reach, so this gate cannot call it coplanar.
+    // Levered at the sector's farther reach. A transition sector has a
+    // bound read definitely off the pierced plane, at least `K·zero`,
+    // at its reach `L`. That reading is at most `L·|n_s × n_p|` plus the
+    // residuals of the two vertices it is taken between (the pierce
+    // point within `zero` of the pierced plane, the far vertex within
+    // `zero` of its own face's), so this gate reads Positive whenever
+    // K > 3. The shorter arm would call such a sector coplanar here.
     match decide(
         "bool_germ_line",
         Margin::levered(int.norm(), s.span()),
@@ -714,4 +732,47 @@ fn out_runs(entries: &[Entry]) -> Vec<(usize, usize)> {
         }
     }
     runs
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use SideCode::{In, On, Out};
+
+    fn entry(is_edge: bool, class: SideCode) -> Entry {
+        Entry {
+            he: HalfEdgeKey::default(),
+            is_edge,
+            class,
+            lumped: false,
+        }
+    }
+
+    /// A bisector reading On between two bounds read Out is the band's
+    /// Zero (reachable only at K ≤ 2, which no suite runs), and it
+    /// refuses; an edge's On there, a real one, resolves; a bisector
+    /// between mixed neighbours resolves, since its code moves no edge.
+    #[test]
+    fn a_bisector_on_between_one_sided_bounds_refuses() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut one_sided = [entry(true, Out), entry(false, On), entry(true, Out)];
+        assert!(
+            matches!(
+                resolve_on_entries(&mut one_sided, band),
+                Err(BooleanError::Escalated { diag })
+                    if diag.predicate == Some("bool_sector_bisector_side")
+            ),
+            "the bisector's Zero refuses"
+        );
+        let mut edge = [entry(true, Out), entry(true, On), entry(true, Out)];
+        resolve_on_entries(&mut edge, band).unwrap();
+        assert_eq!(edge[1].class, Out, "an edge's On resolves");
+        let mut mixed = [entry(true, Out), entry(false, On), entry(true, In)];
+        resolve_on_entries(&mut mixed, band).unwrap();
+        assert_eq!(
+            mixed[1].class, In,
+            "a bisector between mixed bounds resolves"
+        );
+    }
 }

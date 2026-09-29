@@ -236,11 +236,12 @@ pub enum SplitJoinError {
         ring: LoopKey,
     },
     /// Loose ends survived the sweep — the null-edge set does not
-    /// close into section polygons. Every line bound's side is read at
-    /// its far vertex, so a vertex's germs agree with the sections that
-    /// reach it; what can still disagree is a curved edge whose
-    /// departure is read to first order (a tangency at a vertex), a
-    /// corrupt reduction, or a kernel defect.
+    /// close into section polygons. Both lanes read a line edge's side
+    /// at its far vertex, so a vertex's germs agree with the sections
+    /// that reach it; what can still disagree is an edge leaving a
+    /// vertex tangent to the surface it is read against (read to first
+    /// order in the boolean, to second in the split), a corrupt
+    /// reduction, or a kernel defect.
     UnpairedLooseEnds {
         /// How many halves remained.
         count: usize,
@@ -428,7 +429,10 @@ impl SplitJoinError {
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
-                "{count} section ends found no partner: what was read at a vertex does                  not close into section polygons. Where a curved edge touches the other                  solid tangentially at a vertex, its side is read to first order and may                  be the cause; otherwise this is a kernel defect"
+                "{count} section ends found no partner: the sides read at the vertices do \
+                 not close into section polygons. An edge leaving a vertex tangent to the \
+                 surface it is read against, whose side is then read to finite order, can \
+                 cause this; otherwise it is a kernel defect"
             ),
             Self::SectionLoopMixed { face } => write!(
                 f,

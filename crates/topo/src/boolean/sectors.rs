@@ -63,8 +63,9 @@ pub(super) enum Reach<T: geom_core::Real> {
         /// The edge's other end.
         far: Point3<T>,
     },
-    /// A curved or fitted edge: its departure direction, levered at the
-    /// edge's own extent.
+    /// A curved edge, levered at its own extent: a conic's departure
+    /// tangent at the base vertex; a fitted (NURBS) edge's end-to-end
+    /// chord, levered at the chord's length.
     Extent(T),
     /// A subdivision bisector: a direction with no point behind it,
     /// levered at its sector's arm.
@@ -91,10 +92,6 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     pub start: Vec3<T>,
     /// CCW-last bound direction (this entry's own chord, or a bisector).
     pub end: Vec3<T>,
-    /// Whether `start` is a real edge chord (false: subdivision bisector).
-    pub start_edge: bool,
-    /// Whether `end` is a real edge chord.
-    pub end_edge: bool,
     /// What stands behind `start`: how its side of a plane is read.
     pub start_reach: Reach<T>,
     /// What stands behind `end`.
@@ -111,6 +108,16 @@ pub(super) struct BoolSector<T: geom_core::Real> {
 }
 
 impl<T: geom_core::Real> BoolSector<T> {
+    /// Whether `start` is a real edge (false: a subdivision bisector).
+    pub(super) fn start_edge(&self) -> bool {
+        !matches!(self.start_reach, Reach::Bisector(_))
+    }
+
+    /// Whether `end` is a real edge.
+    pub(super) fn end_edge(&self) -> bool {
+        !matches!(self.end_reach, Reach::Bisector(_))
+    }
+
     /// The farther of the sector's two bounds' reaches, in metres: how
     /// far from the base vertex the sector's own geometry is known.
     pub(super) fn span(&self) -> T {
@@ -233,8 +240,6 @@ pub(super) fn build_sectors<T: Decide>(
                 he,
                 start: u_start,
                 end: u_end,
-                start_edge: true,
-                end_edge: true,
                 start_reach: reach_start,
                 end_reach: reach_end,
                 face,
@@ -248,8 +253,6 @@ pub(super) fn build_sectors<T: Decide>(
                     he,
                     start: b,
                     end: u_end,
-                    start_edge: false,
-                    end_edge: true,
                     start_reach: Reach::Bisector(arm),
                     end_reach: reach_end,
                     face,
@@ -260,8 +263,6 @@ pub(super) fn build_sectors<T: Decide>(
                     he,
                     start: u_start,
                     end: b,
-                    start_edge: true,
-                    end_edge: false,
                     start_reach: reach_start,
                     end_reach: Reach::Bisector(arm),
                     face,
@@ -338,6 +339,24 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     }
 }
 
+/// The refusal for a bisector reading On between two bounds definitely
+/// on one side (`vtxfac`'s on-edge resolution,
+/// `recl::resolve_bisector_graze`): reachable only when K ≤ 2, where the
+/// Zero is the band's and does not decide. The payload says what is
+/// known: the reading lies within `±zero`.
+pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
+    BooleanError::Escalated {
+        diag: geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Enclosure {
+                lo: -band.zero(),
+                hi: band.zero(),
+            },
+            band,
+            predicate: Some("bool_sector_bisector_side"),
+        },
+    }
+}
+
 /// The lever a [`side_code`] call passes when its reference is a FLAT
 /// datum — a sector's own face plane in the vertex-vertex lane, or the
 /// reclassification's reference normal. Those verdicts are about a
@@ -363,7 +382,7 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 /// not the bound's own length.
 /// - [`Reach::Chord`] (a line edge): its far vertex's signed distance
 ///   from the plane through the base vertex, in metres
-///   ([`crate::sector_shape::point_side`]). The edge is its chord, so
+///   ([`crate::sector_shape::plane_offset`]). The edge is its chord, so
 ///   every point of it lies between the base's distance (`≈ 0`, the
 ///   vertex is On) and the far vertex's: a Zero puts the whole edge
 ///   within the band of the plane. A direction levered at the SHORTER
@@ -428,12 +447,8 @@ pub(super) fn side_code<T: Decide>(
     let n = face_normal.vec();
     let (verdict, displacement, length) = match reach {
         Reach::Chord { base, far } => {
-            let offset = (far - base).dot(n);
-            let verdict = match decide(
-                "bool_chord_side",
-                crate::sector_shape::point_side(base, n, far),
-                band,
-            ) {
+            let offset = crate::sector_shape::plane_offset(base, n, far);
+            let verdict = match decide("bool_chord_side", Margin::of(offset), band) {
                 // Same mapping as `enters_material`: into the material
                 // is against the outward normal.
                 Ok(Sign::Negative) => SideCode::In,
@@ -705,6 +720,27 @@ fn sector_overlap<T: Decide>(
     Ok(straight || crossed)
 }
 
+/// The four side codes of a sector pair: each sector's bounds against
+/// the other's face.
+fn pair_codes<T: Decide>(
+    sa: &BoolSector<T>,
+    sb: &BoolSector<T>,
+    arm: T,
+    band: Band,
+) -> Result<((SideCode, SideCode), (SideCode, SideCode)), BooleanError> {
+    let code = |dir, reach, normal| side_code(dir, reach, normal, arm, NO_CURVATURE(), band);
+    Ok((
+        (
+            code(sa.start, sa.start_reach, sb.normal)?,
+            code(sa.end, sa.end_reach, sb.normal)?,
+        ),
+        (
+            code(sb.start, sb.start_reach, sa.normal)?,
+            code(sb.end, sb.end_reach, sa.normal)?,
+        ),
+    ))
+}
+
 /// The all-pairs search (15.7): every intersecting (A-sector, B-sector)
 /// pair becomes a [`PairRecord`] with its four side codes, in
 /// deterministic A-major order.
@@ -718,54 +754,22 @@ pub(super) fn pair_search<T: Decide>(
         for (j, sb) in b_sectors.iter().enumerate() {
             let int = sa.normal.vec().cross(sb.normal.vec());
             let arm = sa.arm.min(sb.arm);
-            let codes = || -> Result<_, BooleanError> {
-                Ok((
-                    (
-                        side_code(
-                            sa.start,
-                            sa.start_reach,
-                            sb.normal,
-                            arm,
-                            NO_CURVATURE(),
-                            band,
-                        )?,
-                        side_code(sa.end, sa.end_reach, sb.normal, arm, NO_CURVATURE(), band)?,
-                    ),
-                    (
-                        side_code(
-                            sb.start,
-                            sb.start_reach,
-                            sa.normal,
-                            arm,
-                            NO_CURVATURE(),
-                            band,
-                        )?,
-                        side_code(sb.end, sb.end_reach, sa.normal, arm, NO_CURVATURE(), band)?,
-                    ),
-                ))
-            };
-            // Coplanar is a verdict — the pair goes to the overlap test
-            // and, all On, to the carrier ladder — so the normals'
-            // parallelism only PROPOSES it: the four bounds must read On
-            // as well, each at its reach (`side_code`), which for a
-            // line bound is its far vertex in metres. Two faces through
-            // one vertex whose normals agree at the shorter arm can
-            // still part by thousands of bands at a long edge's far end;
-            // those take the crossing path, whose direction `n_a × n_b`
-            // is then well defined.
-            let mut early = None;
+            // Parallel normals at the shorter arm make the pair a
+            // near-coincidence at this vertex: the bound that sets the
+            // arm reads at most `arm·|n_a × n_b|` off the other plane, so
+            // it is On (or in band, which escalates), whatever a farther
+            // bound does. Such a pair goes to the carrier ladder as a
+            // coincidence, every code On: undeclared, the ladder
+            // refuses it; declared, the door has verified it. Its bounds'
+            // readings are not consulted — a far bound reading off would
+            // make the record half a crossing, which no germ pairing
+            // closes.
             let coplanar = match decide(
                 "bool_faces_parallel",
                 Margin::levered(int.norm(), arm),
                 band,
             ) {
-                Ok(Sign::Zero) => {
-                    let c = codes()?;
-                    let all_on =
-                        c.0 == (SideCode::On, SideCode::On) && c.1 == (SideCode::On, SideCode::On);
-                    early = Some(c);
-                    all_on
-                }
+                Ok(Sign::Zero) => true,
                 Ok(Sign::Positive) => false,
                 Ok(Sign::Negative) => {
                     return Err(invalid_escalation(band, "bool_faces_parallel"));
@@ -782,9 +786,11 @@ pub(super) fn pair_search<T: Decide>(
             if !hit {
                 continue;
             }
-            let (sa_codes, sb_codes) = match early {
-                Some(c) => c,
-                None => codes()?,
+            let on = (SideCode::On, SideCode::On);
+            let (sa_codes, sb_codes) = if coplanar {
+                (on, on)
+            } else {
+                pair_codes(sa, sb, arm, band)?
             };
             records.push(PairRecord {
                 a: i,
@@ -860,10 +866,8 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: Vec3::new(start[0], start[1], start[2]),
             end: Vec3::new(end[0], end[1], end[2]),
-            start_edge: true,
-            end_edge: true,
-            start_reach: Reach::Bisector(1.0),
-            end_reach: Reach::Bisector(1.0),
+            start_reach: Reach::Extent(1.0),
+            end_reach: Reach::Extent(1.0),
             face: FaceKey::default(),
             normal: OutwardNormal::from_chart(Vec3::new(normal[0], normal[1], normal[2]), true),
             arm: 1.0,
@@ -958,16 +962,16 @@ mod tests {
         );
     }
 
-    /// A pair whose normals agree at the shorter arm is coplanar only if
-    /// its bounds read On: a face with a 1 mm edge on the other face's
-    /// plane and a 10 m edge dipping `500·ε` below it. At the 1 mm arm
-    /// the normals read parallel; the long bound, read at its far
-    /// vertex, reads In, so the pair takes the crossing path and its
-    /// record says so. (Before, the pair was called coplanar, every
-    /// bound read On at the 1 mm lever, and the record went to the
-    /// carrier ladder as a coincidence.)
+    /// A pair whose normals agree at the shorter arm is a
+    /// near-coincidence, and goes to the carrier ladder as one, every
+    /// code On: a face with a 1 mm edge on the other face's plane and a
+    /// 10 m edge dipping `500·ε` below it. Read at its far vertex, the
+    /// long edge is In, and a record carrying that code beside the short
+    /// edge's On is half a crossing that no germ pairing closes (the
+    /// corner witness in `tests/contact9_side_codes.rs` refused as an
+    /// invariant that way).
     #[test]
-    fn a_pair_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
+    fn a_pair_parallel_at_a_short_arm_goes_to_the_ladder_as_a_coincidence() {
         let dip = 500.0 * Tol::witness().eps();
         let o = Point3::new(0.0, 0.0, 0.0);
         let chord = |v: [f64; 3]| Reach::Chord {
@@ -992,12 +996,9 @@ mod tests {
             ..sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
         };
         let recs = pair_search(&[tilted], &[top], band()).unwrap();
-        assert_eq!(recs.len(), 1, "the pair meets along the 1 mm edge");
-        assert_eq!(
-            recs[0].sa,
-            (SideCode::On, SideCode::In),
-            "the 1 mm edge lies on the top; the 10 m edge dips into it"
-        );
+        assert_eq!(recs.len(), 1, "the sectors overlap");
+        let on = (SideCode::On, SideCode::On);
+        assert_eq!((recs[0].sa, recs[0].sb), (on, on), "a coincidence record");
     }
 
     /// The generic pair search on two orthogonal quarter-sector fans:

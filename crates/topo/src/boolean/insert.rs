@@ -338,14 +338,11 @@ fn germ_dir<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let int = sa.normal.vec().cross(sb.normal.vec());
-    // Levered at the farther reach of the two sectors: the displacement
-    // their planes' tilt implies where the sectors' own geometry ends.
-    // A pair that `pair_search` found not coplanar has a bound reading
-    // definitely off the other plane at its reach, and that reading is
-    // at most `|n_a × n_b|` times the reach, so this gate agrees with
-    // it; the shorter arm would call such a pair coplanar here.
-    let reach = sa.span().max(sb.span());
-    match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), reach), band) {
+    // The same margin `pair_search` read as definite before it sent this
+    // pair down the crossing path: a pair whose parallelism is Zero or in
+    // band there is coplanar or refused, never a crossing record.
+    let arm = sa.arm.min(sb.arm);
+    match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => {
             return Err(BooleanError::ClassificationInvariant {
@@ -404,7 +401,7 @@ fn run_fan<T: Decide>(
     if from != to {
         let mut k = (from + 1) % n;
         loop {
-            if sectors[k].end_edge {
+            if sectors[k].end_edge() {
                 hes.push(sectors[k].he);
             }
             if k == to {
@@ -679,10 +676,8 @@ mod tests {
                     he,
                     start,
                     end,
-                    start_edge: true,
-                    end_edge: true,
-                    start_reach: crate::boolean::sectors::Reach::Bisector(1.0),
-                    end_reach: crate::boolean::sectors::Reach::Bisector(1.0),
+                    start_reach: crate::boolean::sectors::Reach::Extent(1.0),
+                    end_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     face: crate::entity::FaceKey::default(),
                     normal,
                     arm: 1.0,

@@ -469,9 +469,9 @@ pub(super) fn recl_edges<T: Decide>(
             };
             let (f_s, _) = flankers(idx, at_start, n);
             let real = if at_start {
-                secs[idx].start_edge
+                secs[idx].start_edge()
             } else {
-                secs[idx].end_edge
+                secs[idx].end_edge()
             };
             let dir = if at_start {
                 secs[idx].start
@@ -962,13 +962,7 @@ fn resolve_bisector_graze<T: Decide>(
     // plane. So this Zero is the ambiguity band's, and it refuses
     // rather than read "not crossed".
     if k1 == k2 && k1 != SideCode::On {
-        return Err(BooleanError::Escalated {
-            diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("bool_sector_bisector_side"),
-            },
-        });
+        return Err(super::sectors::bisector_zero_refusal(band));
     }
     let crossing = matches!(
         (k1, k2),
@@ -1024,6 +1018,70 @@ fn parallel_same_dir<T: Decide>(
 mod tests {
     use super::*;
     use SideCode::{In, On, Out};
+
+    /// A grazing bisector between keys read Out is the band's Zero
+    /// (reachable only at K ≤ 2), and it refuses rather than read "not
+    /// crossed"; between keys In and Out it is a crossing.
+    #[test]
+    fn a_grazing_bisector_between_one_sided_keys_refuses() {
+        use super::super::sectors::Reach;
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let chord = |v: [f64; 3]| Reach::Chord {
+            base: o,
+            far: Point3::new(v[0], v[1], v[2]),
+        };
+        let twin = |start: Vec3<f64>, sr, end: Vec3<f64>, er| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: sr,
+            end_reach: er,
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, 1.0, 0.0), true),
+            arm: 1.0,
+        };
+        let bis = Vec3::new(0.0, 0.0, -1.0);
+        let twins = |far_end: [f64; 3], far_start: [f64; 3]| {
+            [
+                twin(
+                    bis,
+                    Reach::Bisector(1.0),
+                    Vec3::new(far_end[0], far_end[1], far_end[2]).normalize(),
+                    chord(far_end),
+                ),
+                twin(
+                    Vec3::new(far_start[0], far_start[1], far_start[2]).normalize(),
+                    chord(far_start),
+                    bis,
+                    Reach::Bisector(1.0),
+                ),
+            ]
+        };
+        let reference = [BoolSector {
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            ..twin(bis, Reach::Bisector(1.0), bis, Reach::Bisector(1.0))
+        }];
+        let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
+        assert!(
+            matches!(
+                resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0)),
+                Err(BooleanError::Escalated { diag })
+                    if diag.predicate == Some("bool_sector_bisector_side")
+            ),
+            "the graze between two Out keys refuses"
+        );
+        let crossing = twins([1.0, 0.0, 0.5], [-1.0, 0.0, -0.5]);
+        let records = [rec(0, 0, (On, Out), (Out, In))];
+        assert_eq!(
+            resolve_bisector_graze(&records, &crossing, &reference, band, Some(0), Some(0))
+                .unwrap(),
+            Some(0),
+            "between keys Out and In the graze is a crossing"
+        );
+    }
 
     fn rec(a: usize, b: usize, sa: (SideCode, SideCode), sb: (SideCode, SideCode)) -> PairRecord {
         PairRecord {
