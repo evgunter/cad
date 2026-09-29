@@ -2,8 +2,9 @@
 id: ring-2-red-rows-that-are-not-re-pins
 kind: issue
 title: Four of the RING-0 dry run's red-row classes are not re-pins: a consumer's claim stops being true
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-09-29
 priority: P2
 cost: D
 refs: [H5]
@@ -106,3 +107,20 @@ acceptance for it.
 RING-2's. Filed so the four survive the deletion of RING-0's item:
 the dry-run table lives in that item's `## Closed` section and goes
 with the program's directory.
+
+## Closed (2026-09-29) — moot, closed by RING-2 (PR 3032)
+
+All four classes were handled when RING-2 built the newtype:
+- **The sampler's own error.** `review_m5_pr2_e2e.rs`'s bound now takes
+  a sampler slack, and `hull_circle_rehearsal.rs` and `nurbs_cert.rs`'s
+  probe take their own. The missing home for that error is
+  `work/props/the-samplers-own-error-has-three-spellings-and-no-home`.
+- **Q9** was re-derived onto the answer
+  (`q9_the_inner_rules_order_is_pinned_at_two_short_and_the_outer_at_four`).
+- **The `[0,1]*[0,inf]` witness** is gone:
+  `certified_door.rs::ring_poison_is_reached_by_arithmetic_not_only_by_construction`
+  uses three division shapes.
+- **`lane_sign_clamp`** is deleted, and `ring0_review_probes.rs` pins
+  that the clamp is gone.
+
+Verified against main at `09f4b2c8c3` by a read-only triage survey.

@@ -266,13 +266,13 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
 fn a_selection_naming_an_absent_entity_is_vanished() {
     // A piece the square never draws: a well-formed name for an edge
     // the extrude never minted.
-    let (doc, fillet) = planted(|_| {
+    let (doc, fillet) = planted(|doc| {
         vec![StableName {
             kind: EntityKind::Edge,
             node: BODY,
             path: vec![RoleSeg::RimEdge(
                 editor_core::CapEnd::End,
-                crate::fixture::no_piece(),
+                crate::fixture::no_piece_of(doc),
             )],
         }]
     });

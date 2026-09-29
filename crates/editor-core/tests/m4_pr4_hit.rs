@@ -8,6 +8,7 @@
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
 
+use editor_core::NodeStanding;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
     EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
@@ -268,20 +269,20 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     let ev = run(&doc);
     assert_eq!(
         body_name(&ev, ext, 0),
-        Err(HitTestError::NodeFailed { node: ext })
+        Err(HitTestError::Standing(NodeStanding::Failed { node: ext }))
     );
     assert_eq!(
         body_name(&ev, u, 0),
-        Err(HitTestError::NodePoisoned {
+        Err(HitTestError::Standing(NodeStanding::Poisoned {
             node: u,
             through: ext
-        })
+        }))
     );
     assert_eq!(
         body_name(&ev, RecipeNodeId(9999), 0),
-        Err(HitTestError::NodeNotEvaluated {
+        Err(HitTestError::Standing(NodeStanding::NotInDocument {
             node: RecipeNodeId(9999)
-        })
+        }))
     );
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
@@ -314,9 +315,7 @@ test_utils::f6_variants! {
     /// it does NOT weld are documented on
     /// [`test_utils::f6::assert_f6_every_variant`].
     const HIT_TEST_ERROR: HitTestError = [
-        NodeNotEvaluated,
-        NodeFailed,
-        NodePoisoned,
+        Standing,
         EvaluationOfAnotherDocument,
         Ambiguous,
         Unnamed,
@@ -363,12 +362,15 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
     };
     let cases = [
         (
-            HitTestError::NodeNotEvaluated { node },
+            HitTestError::Standing(NodeStanding::NotEvaluated { node }),
             vec!["node 7", "no result"],
         ),
-        (HitTestError::NodeFailed { node }, vec!["node 7", "failed"]),
         (
-            HitTestError::NodePoisoned { node, through },
+            HitTestError::Standing(NodeStanding::Failed { node }),
+            vec!["node 7", "failed"],
+        ),
+        (
+            HitTestError::Standing(NodeStanding::Poisoned { node, through }),
             vec!["node 7", "node 3", "poisoned"],
         ),
         (

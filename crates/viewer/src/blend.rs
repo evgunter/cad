@@ -65,7 +65,7 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, Evaluation, Expr, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Expr, NodeStanding, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
 use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
@@ -234,13 +234,20 @@ pub enum BlendEvent {
         /// The body the refused pick was on.
         picked: BlendTarget,
     },
-    /// The all-edges door found no edges on the target, so nothing was
-    /// loaded and the held set is untouched. A node with no value, no
-    /// name table, or no edges answers the same way — the door cannot
-    /// tell them apart and does not pretend to.
+    /// The target has a value and no edges, so nothing was loaded and
+    /// the held set is untouched.
     NoEdgesOnTarget {
         /// The body that was asked.
         target: BlendTarget,
+    },
+    /// The target has no value in this evaluation, so there are no
+    /// edges to load; nothing was loaded and the held set is
+    /// untouched. The standing says why and where the repair is.
+    TargetHasNoValue {
+        /// The body that was asked.
+        target: BlendTarget,
+        /// Its node's standing.
+        standing: NodeStanding,
     },
     /// The target node is no longer in the document, so every held
     /// edge is about a body that is gone: the whole set is dropped at
@@ -277,6 +284,9 @@ impl core::fmt::Display for BlendEvent {
             ),
             Self::NoEdgesOnTarget { target } => {
                 write!(f, "{target} has no edges to select")
+            }
+            Self::TargetHasNoValue { target, standing } => {
+                write!(f, "{target} has no edges to select: {standing}")
             }
             Self::TargetLost { target, edges } => write!(
                 f,
@@ -485,6 +495,9 @@ impl BlendTool {
         eval: &Evaluation<f64>,
         index: &crate::pickindex::PickIndex,
     ) -> Option<BlendEvent> {
+        if let Err(standing) = eval.usable(target.node) {
+            return Some(BlendEvent::TargetHasNoValue { target, standing });
+        }
         let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
             .collect();
@@ -578,18 +591,17 @@ impl BlendTool {
         let Some((_, eval)) = landed else {
             return Vec::new();
         };
+        // A target with no value in this run cannot say which edges it
+        // has: dropping the set on a transient failure would cost the
+        // picks the moment an upstream slot went momentarily bad. Say
+        // nothing and wait for a run that has an answer; the node's
+        // badge carries its standing.
+        if eval.usable(target.node).is_err() {
+            return Vec::new();
+        }
         let live: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
             .collect();
-        // A target that has no edges AT ALL in this evaluation is a
-        // node that failed or was never run, not a body that lost
-        // every edge: dropping the whole set on a transient failure
-        // would cost the picks the moment an upstream slot went
-        // momentarily bad. Say nothing and wait for a run that has an
-        // answer.
-        if live.is_empty() {
-            return Vec::new();
-        }
         let names: Vec<StableName> = self
             .edges
             .iter()

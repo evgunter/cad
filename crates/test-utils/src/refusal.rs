@@ -87,8 +87,10 @@ pub fn arena_key(text: &str) -> bool {
 /// **Every word of `text` that reads as a hex id**, by shape: a word
 /// of at least [`HEX_ID_MIN`] hex digits holding both a decimal digit
 /// and a letter, or one of decimal digits alone whose length is an id's
-/// ([`HEX_ID_LENGTHS`]: a hex id that happens to hold no letter) and
-/// which is not part of a decimal number.
+/// ([`HEX_ID_LENGTHS`]: a hex id that happens to hold no letter);
+/// neither shape counts when it is part of a decimal number, whose
+/// fraction and exponent marker (`9.999999999999999e-6`) read as one
+/// mixed word.
 ///
 /// An English word has no digit and a decimal number has no letter, so
 /// neither reads as the first shape; the second reads a bare integer of
@@ -111,8 +113,9 @@ pub fn hex_ids(text: &str) -> Vec<&str> {
         let mixed = hex && !digits && word.chars().any(|c| c.is_ascii_digit());
         let decimal_part = before == Some('.')
             || (after.starts_with('.') && after[1..].starts_with(|c: char| c.is_ascii_digit()));
-        if (mixed && word.len() >= HEX_ID_MIN)
-            || (digits && HEX_ID_LENGTHS.contains(&word.len()) && !decimal_part)
+        if !decimal_part
+            && ((mixed && word.len() >= HEX_ID_MIN)
+                || (digits && HEX_ID_LENGTHS.contains(&word.len())))
         {
             found.push(word);
         }
@@ -285,6 +288,9 @@ mod tests {
         assert!(!arena_key("the offset is 0.300000000000 mm"));
         assert!(!arena_key("the offset is 123456789012.5 mm"));
         assert!(!arena_key("i64::MAX is 9223372036854775807"));
+        // A float's fraction and exponent marker read as one mixed word.
+        assert!(!arena_key("the band (1e-6, 9.999999999999999e-6)"));
+        assert!(!arena_key("a margin of 1.23456789012345e-6 mm"));
         assert_eq!(
             recourse_markers("x. Recourse: a. There is no way through yet"),
             2

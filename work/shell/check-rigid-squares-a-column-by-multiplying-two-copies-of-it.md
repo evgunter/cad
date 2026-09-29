@@ -24,7 +24,7 @@ placement step (`eval/wire.rs`, `transform_rigid`), so `l.c0` is an
 enclosure and a column entry near zero STRADDLES zero. For such an
 entry `[-a, b] · [-a, b]` has the spurious lower bound `-ab` where the
 tight square `powi(2)` has the exact `0`
-(`RingInterval::sqr`'s docs; `interval.rs`'s `powi`, pinned by
+(`Certification::sqr`'s docs; `interval.rs`'s `powi`, pinned by
 `powi_is_tight_across_zero`). `Vec3::norm_squared` is the door that
 squares component-wise and already exists — `l.c0.norm_squared() - one`
 is the whole change.
