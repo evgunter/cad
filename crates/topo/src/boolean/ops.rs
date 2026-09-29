@@ -2064,6 +2064,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     let pad = boxes::sweep_pad(band);
     let mut out: Vec<SphereRecut<T>> = Vec::new();
     for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
+        // The scope is the whole operand: what the escape arm re-charts
+        // is the sphere itself, which every wearer shares.
+        let charts = crate::chart_groups::ChartGroups::within(x, x.faces().map(|(k, _)| k))
+            .map_err(|_| BooleanError::JoinDesync {
+                what: "sphere recut: an operand face does not resolve",
+            })?;
         let mut seen: Vec<SurfaceKey> = Vec::new();
         for (face, fd) in x.faces() {
             let Some(&geom::Surface::Sphere {
@@ -2092,7 +2098,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
             // neither statement survives trimming. So the refusal lives
             // at that conclusion, and a trimmed group whose extent
             // clears everything gets its answer like any other.
-            let group = closed_sphere_group(x, face);
+            let group = closed_sphere_group(x, face, &charts);
             let ball_box = bvh::Aabb {
                 min_x: center.x.lo() - radius.hi(),
                 min_y: center.y.lo() - radius.hi(),

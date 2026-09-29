@@ -3071,9 +3071,7 @@ impl Undecided {
             | E::PartialTorusFace { .. }
             | E::EdgeCarrierUnsupported { .. }
             | E::WallOutlineUnsupported { .. } => Self::FaceKindUnsupported,
-            E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::SurfaceSharedOutsideSolid { .. } => {
-                Self::CorruptInstance
-            }
+            E::CorruptFace { .. } | E::NoSuchSolid { .. } => Self::CorruptInstance,
         }
     }
 }

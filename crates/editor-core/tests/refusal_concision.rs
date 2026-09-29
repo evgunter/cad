@@ -347,10 +347,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 solid: SolidKey::default(),
             },
         ),
-        (
-            "Containment(SurfaceSharedOutsideSolid)",
-            PointInSolidError::SurfaceSharedOutsideSolid { face, other: face },
-        ),
     ];
     boolean
         .into_iter()

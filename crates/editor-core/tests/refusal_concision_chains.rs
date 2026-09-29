@@ -2824,7 +2824,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 needed: 0.002,
             },
         ),
-        ("ChartSpansSolids", S::ChartSpansSolids { face, other }),
         ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
         (
             "Face",
@@ -3358,10 +3357,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::NoSuchSolid {
                 solid: topo::SolidKey::default(),
             },
-        ),
-        (
-            "SurfaceSharedOutsideSolid",
-            PointInSolidError::SurfaceSharedOutsideSolid { face, other: face },
         ),
     ];
     for (n, e) in separation_reasons {

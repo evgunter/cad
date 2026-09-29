@@ -294,10 +294,11 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
 }
 
 // ---------------------------------------------------------------------
-// Claim 5 — is `ChartSpansSolids` reachable through a public producer?
+// Claim 5 — can a public producer put one chart on two components?
 // A boolean that cuts one slab into two components: do the two
 // components' faces keep the operand's surface keys, and do they land in
-// two solids?
+// two solids? (They keep the keys and land in one solid; the ownership
+// door then files them as two, below.)
 // ---------------------------------------------------------------------
 
 #[test]
@@ -757,7 +758,10 @@ fn r2_move_shells_to_new_solid_keeps_every_chart_and_the_slab_thickens() {
 
     assert_eq!(body.solids().count(), 2);
     let charts_after: Vec<topo::SurfaceKey> = body.surfaces().map(|(k, _)| k).collect();
-    assert_eq!(charts_after, charts_before, "the move mints and drops no chart");
+    assert_eq!(
+        charts_after, charts_before,
+        "the move mints and drops no chart"
+    );
     let across_solids = sharing(&body, &|fa, fb| solid_of(&body, fa) != solid_of(&body, fb));
     assert_eq!(
         across_solids, across_shells,
@@ -768,7 +772,11 @@ fn r2_move_shells_to_new_solid_keeps_every_chart_and_the_slab_thickens() {
     let shelled = topo::shell(&body, 0.05, tol()).expect("the split slab as two solids shells");
     let props = topo::mass_properties(&shelled.body, tol()).unwrap();
     let want = 2.0 * (2.5 - 2.4 * 0.9 * 0.9);
-    assert_eq!(shelled.body.solids().count(), 2, "one thin solid per component");
+    assert_eq!(
+        shelled.body.solids().count(),
+        2,
+        "one thin solid per component"
+    );
     assert!(
         (props.volume - want).abs() <= 1e-9 + props.volume_pad,
         "volume {} want {want}",
@@ -809,7 +817,10 @@ fn r2_replace_faces_offset_on_one_solids_wearers_leaves_the_other_on_the_old_key
         old,
         "the other solid's wearer keeps the old key"
     );
-    assert!(body.get_surface(old).is_some(), "the old chart still resolves");
+    assert!(
+        body.get_surface(old).is_some(),
+        "the old chart still resolves"
+    );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
     let want = before - 2.5 * 0.1;
     assert!(
@@ -845,12 +856,16 @@ fn r2_point_in_solid_of_one_cap_answers_beside_a_shared_sphere_chart() {
     let across = sharing(&body, &|fa, fb| {
         is_sphere(fa) && solid_of(&body, fa) != solid_of(&body, fb)
     });
-    assert!(!across.is_empty(), "the sphere chart is worn by both solids");
+    assert!(
+        !across.is_empty(),
+        "the sphere chart is worn by both solids"
+    );
     let band = geom_core::Band::linear(tol()).unwrap();
     let (up, down) = (Point3::new(0.0, 0.0, 0.6), Point3::new(0.0, 0.0, -0.6));
     let mut read = Vec::new();
     for (solid, _) in body.solids() {
-        let at = |q| topo::point_in_solid_of(&body, solid, q, band, tol()).map_err(|e| e.to_string());
+        let at =
+            |q| topo::point_in_solid_of(&body, solid, q, band, tol()).map_err(|e| e.to_string());
         read.push((at(up), at(down)));
     }
     use topo::SolidContainment::{In, Out};
@@ -887,7 +902,11 @@ fn r2_two_solids_on_one_chart_with_opposed_senses_shell_independently() {
         panic!("bottom is planar")
     };
     // The bottom's outward direction, stated against the shared chart.
-    let outward = if bottom_data.sense { n_bottom } else { -n_bottom };
+    let outward = if bottom_data.sense {
+        n_bottom
+    } else {
+        -n_bottom
+    };
     let sense = outward.dot(n_top) > 0.0;
     // Its boundary edges name its own chart: each is re-described as the
     // intersection of its side wall with the shared chart.
