@@ -7,6 +7,7 @@ opened: 2026-09-25
 priority: P2
 cost: M
 branch: germ/torus-subtract-intersect
+pr: 3416
 refs: [torus-operand-gate-admission, torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 ---
 
