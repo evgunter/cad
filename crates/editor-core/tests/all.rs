@@ -234,6 +234,8 @@ mod lib_u5_interrogate;
 mod lib_u7_select;
 #[path = "load_door_payload_param_ref.rs"]
 mod load_door_payload_param_ref;
+#[path = "load_door_program_validate.rs"]
+mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]

@@ -93,7 +93,7 @@ fn sweep(name: &'static str, n: &NurbsSurface<f64>, per_cell: usize) -> Sweep {
                     for (c, iv) in bnd.iter().enumerate() {
                         let x = comp(*t, c);
                         let iv = *iv;
-                        assert!(iv.is_certified(), "{name}: poison bound in {}", labels[k]);
+                        assert!(iv.is_certified(), "{name}: refused bound in {}", labels[k]);
                         let (lo, hi) = (iv.lo(), iv.hi());
                         let out = (lo - x).max(x - hi);
                         if out <= 0.0 {
@@ -423,7 +423,7 @@ fn cert10r1_the_rational_arm_contains_the_structural_zero_of_s_vv() {
     let mut worst = 0.0f64;
     for (ci, cell) in cells.iter().enumerate() {
         for (c, iv) in cell.s_vv.iter().enumerate() {
-            assert!(iv.is_certified(), "cell {ci} ch{c}: poison s_vv");
+            assert!(iv.is_certified(), "cell {ci} ch{c}: refused s_vv");
             if !iv.contains(0.0) {
                 worst = worst.max(iv.lo().abs().min(iv.hi().abs()));
                 excluding.push(format!(

@@ -1374,11 +1374,11 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     /// index `i` in the row-major `iu·nv + iv` layout, as `[x, y, z]`
     /// channels of certification enclosures. Pair with
     /// [`Self::knots_u`]/[`Self::knots_v`]/[`Self::weights`] to build a
-    /// `SurfaceRingData` for composite residual bounds. The rank does
+    /// `SurfaceCertData` for composite residual bounds. The rank does
     /// not enter the lift, so this is the same body the curves use
-    /// (`net::ring_coords`).
-    pub fn ring_coords(&self) -> Vec<Vec<geom_core::Interval>> {
-        net::ring_coords(&self.control)
+    /// (`net::certified_coords`).
+    pub fn certified_coords(&self) -> Vec<Vec<geom_core::Interval>> {
+        net::certified_coords(&self.control)
     }
 }
 
