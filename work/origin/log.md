@@ -142,6 +142,22 @@ Transform" docs; the sphere token's meaning stated; one home for the
 three per-surface side tables. Residues filed at adjudication (PR
 3420). Seam note on WIRE's log; the WIRE row's fired trigger pruned.
 
+## 2026-09-29 — Live guard dispatched; the rest waits on Ev
+
+`live-guard-proves-ordering-not-identity` → implementer on
+`origin/live-guard-nested-items`. The scan question decided here (it
+binds no ratified text): the item scan recurses into nested items, each
+nested fn a row under its own name, and the two mutation-door guards
+take the larger population, every new member dispositioned; the
+receiver-identity gap is the validator's, stated at the guard. Tier:
+single STYLE review — a scan change a reader can believe, with its
+population diff in the body.
+
+Everything else on the slate hangs on Ev's two open PRs: PR 3412
+(re-rule "a chart lives in one solid" → the scoped-grouping unit) and
+PR 3410 (a production comparator or not → `surface-field-walks-…`,
+the rest of `three-spellings-…`, `set-surface-source-…`). The axis
+residues are P2/P3 design rows with no consumer yet.
 ## 2026-09-29 — PR 3424 lands (the Live guard reads nested items)
 
 Single STYLE review on `2ac6b113`: APPROVE conditional on green, with
@@ -165,3 +181,15 @@ needles filed where they land: `live-tuple-constructor-point-free-is-unseen`
 (here), `census-touch-guard-needles-miss-a-point-free-call` and evidence
 on `window-site-scan-…` (CONTACT), `box-door-census-misses-a-point-free-read`
 (BOXES), with seam notes.
+
+## 2026-09-29 — dispatchable work exhausted short of Ev
+
+`axis-source-lowered-bytes-…` parked on EXCH's step 2 (a one-minter tag
+is building for an imagined case). What remains is design: the two
+`needs_ev` rows (PRs 3410, 3412), the rows whose answer follows 3410
+(`surface-field-walks-…`, `three-spellings-…`, `set-surface-source-…`),
+and three design rows with no consumer pressing
+(`a-live-spliced-…`, `axis-channel-serves-only-the-line-reading`,
+`live-tuple-constructor-…`). The track stays `active` while Ev's
+answers are hours away; if they are not, the blocked rows are cut into a
+program of their own per `work/README.md` rather than held here.
