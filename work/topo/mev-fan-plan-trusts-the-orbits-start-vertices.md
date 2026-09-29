@@ -7,6 +7,8 @@ opened: 2026-09-29
 refs: [kevs-fan-merge-needs-a-re-describing-kill-door, 3161]
 priority: P2
 cost: E
+pr: 3472
+branch: topo/mev-fan-orbit-proof
 ---
 
 ## What
