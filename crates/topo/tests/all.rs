@@ -259,6 +259,8 @@ mod shell_winding;
 mod solid_separation;
 #[path = "split_edge_pcurve_rows.rs"]
 mod split_edge_pcurve_rows;
+#[path = "stated_general_image_mint.rs"]
+mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "void_door.rs"]

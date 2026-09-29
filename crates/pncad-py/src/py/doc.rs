@@ -2433,9 +2433,11 @@ impl Node {
     /// list is the SEALED hollow — every face offset inward, a cavity
     /// and no rim — which is legal and not a refusal.
     ///
-    /// Every face on a chart must be named together: a full revolve's
-    /// cap is two half-faces on one plane, and naming one of them
-    /// refuses (`shell`, the kernel's `OpenFaceChartPartial`). The
+    /// Every face of one solid on a chart must be named together: a
+    /// full revolve's cap is two half-faces on one plane, and naming one
+    /// of them refuses (`shell`, the kernel's `OpenFaceChartPartial`).
+    /// Another solid's faces on that chart are its own, and opening one
+    /// solid's never names them. The
     /// designation FREEZES in the sense `Node.fillet` states.
     ///
     /// A name that resolves to nothing (`shell_open_resolve`), a name

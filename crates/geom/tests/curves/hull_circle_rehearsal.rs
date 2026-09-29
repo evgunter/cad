@@ -46,6 +46,7 @@
 
 use geom::{Curve3, NurbsCurve3};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Interval, Point3, Vec3};
 

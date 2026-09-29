@@ -1081,10 +1081,12 @@ impl<T: Decide> Body<T> {
     /// chart is DERIVED, not restated — unlike
     /// [`Body::split_edge`]'s restriction of one image to a
     /// sub-interval of its own carrier. A SPLINE chart's derivation
-    /// carries the `PcurveFittedLane` bound, which the `Decide` doors
-    /// that call this do not have. An ANALYTIC chart's is stated under
-    /// `Decide` — the Euler operators' mint-site walk,
-    /// `crate::pcurves::site_rows` — but these doors do not run it
+    /// reads its fitted door through the [`crate::AtRestPolicy`]
+    /// bound, which the `Decide` doors that call this do not have and
+    /// cannot take without rippling it through every caller. An
+    /// ANALYTIC chart's is stated under `Decide` — the Euler
+    /// operators' mint-site walk, `crate::pcurves::site_rows` — but
+    /// these doors do not run it
     /// (`work/topo/loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`).
     /// Dropping is the honest remainder: absence is never a claim, and
     /// a caller that wants the target face's rows runs
@@ -1165,10 +1167,8 @@ impl<T: Decide> Body<T> {
     ///
     /// Answered from identity evidence only: one surface key, or two
     /// keys sharing one NURBS / `Approx` payload `Arc`. A
-    /// [`crate::GeomSource`] stamp is not read: it declares what the
-    /// recipe intended, and does not prove the two keys hold one value.
-    /// Whether the recipe has declared two keys one surface is the merge
-    /// door's question (`Body::planes_declared_equal`), not this one's.
+    /// [`crate::GeomSource`] stamp is not read — [`crate::source`]'s
+    /// module docs name this question and the declared one apart.
     ///
     /// Two keys holding equal values with no identity tie answer
     /// `false`, and their rows drop and are re-minted: the price of

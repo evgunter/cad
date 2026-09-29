@@ -238,7 +238,7 @@ impl std::error::Error for TubeError {}
 /// [`OrthoFrame`] is orthonormal by its type, decided at whichever
 /// mint built it, so the axis and the reference radial arrive as facts
 /// rather than as claims this door has to re-examine.
-pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn tube_along_arc<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
@@ -269,7 +269,7 @@ pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
 // struct would hide which numbers the body stores verbatim. The frame
 // is not such a subset: it is one intent, an origin and a spin, and it
 // arrives carrying the decision that its axes are orthonormal.
-pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn tube_along_arc_hollow<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
@@ -282,7 +282,7 @@ pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
 
 /// Both doors' body (module docs). `wall` present ⇔ hollow.
 #[allow(clippy::too_many_arguments)]
-fn build<T: Decide + geom_brep::PcurveFittedLane>(
+fn build<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,

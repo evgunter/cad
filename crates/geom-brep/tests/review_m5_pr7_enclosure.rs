@@ -33,6 +33,7 @@ test_utils::gated_to![
 use geom::Surface;
 use geom_brep::implicit_residual;
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::{Interval, Point3, Vec3};
 use test_utils::fuzz;
 

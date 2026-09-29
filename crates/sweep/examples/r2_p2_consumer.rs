@@ -248,6 +248,8 @@ fn main() {
                 None,
                 window,
                 band,
+                <f64 as topo::AtRestPolicy>::fitted_lane(),
+                <f64 as topo::AtRestPolicy>::scalar_name(),
             );
             println!(
                 "Q2  certify_general(mate = what mint_face supplies) -> {:?}",
@@ -267,6 +269,8 @@ fn main() {
                 Some(&plane_surf),
                 window,
                 band,
+                <f64 as topo::AtRestPolicy>::fitted_lane(),
+                <f64 as topo::AtRestPolicy>::scalar_name(),
             );
             println!(
                 "Q2  certify_general(mate = hand-picked plane)        -> {}",
@@ -369,6 +373,8 @@ fn main() {
                         mate,
                         window,
                         band,
+                        <f64 as topo::AtRestPolicy>::fitted_lane(),
+                        <f64 as topo::AtRestPolicy>::scalar_name(),
                     )
                 }
                 other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
@@ -424,6 +430,8 @@ fn main() {
                         None,
                         window,
                         band,
+                        <f64 as topo::AtRestPolicy>::fitted_lane(),
+                        <f64 as topo::AtRestPolicy>::scalar_name(),
                     ),
                 ),
                 other => (

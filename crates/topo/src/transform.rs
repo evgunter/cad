@@ -316,7 +316,7 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
 /// ([`crate::entity::LoopBoundary::Cycle`]'s `first`;
 /// [`crate::Body::revert`] is the map that does both). `det = +1` is
 /// enforced upstream, so there is no such branch to write here today.
-fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+fn map_surface<T: Decide + crate::props::AtRestPolicy>(
     map: &Affine3<T>,
     s: &Surface<T>,
     tol: Tol,
@@ -395,6 +395,7 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
             a,
             tol,
             <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+            <T as crate::props::AtRestPolicy>::scalar_name(),
         )?),
     })
 }
@@ -438,17 +439,18 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
 /// frame — is `ApproxRecertify` with the mint door's error. `offset_fit`
 /// is the door, as a parameter ([`crate::AtRestPolicy::offset_fit_lane`]
 /// says what `None` means); with none the map refuses typed rather than
-/// carry a certificate across a geometry change.
-fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
+/// carry a certificate across a geometry change, naming the scalar by
+/// `scalar` — the name the same seam hands out
+/// ([`crate::AtRestPolicy::scalar_name`]).
+fn map_approx<T: Decide>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
     tol: Tol,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
+    scalar: &'static str,
 ) -> Result<Arc<geom::ApproxSurface<T>>, TransformError> {
     let Some(lane) = offset_fit else {
-        return Err(TransformError::ApproxLaneUnsupported {
-            lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
-        });
+        return Err(TransformError::ApproxLaneUnsupported { lane: scalar });
     };
     let old = a.spec();
     let geom::SurfaceDescription::Offset { ref base, d } = old.description;
@@ -564,7 +566,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -592,7 +594,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::A
 /// `transform_rigid`'s own bound to `Decide + CertifiedBounds` would
 /// propagate through this op's generic callers — `boolean`'s sphere
 /// re-cut reaches it under `boolean_op_with`, which `verbs::Verb`'s
-/// `Decide + Bounds + PcurveFittedLane` block runs and the dual corpus
+/// `Decide + Bounds + AtRestPolicy` block runs and the dual corpus
 /// instantiates at a `Dual`, which implements no
 /// `CertifiedEnclosure`. Injecting at the door is the same resolution
 /// [`geom_brep::NurbsLane`] states for certification itself.
@@ -600,7 +602,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::A
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn transform_rigid_via<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -946,7 +948,13 @@ mod offset_fit_door_rows {
     fn no_door_refuses_the_mapped_surface_by_name() {
         let tol = Tol::witness();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        match map_approx(&turned(), &approx, tol, None) {
+        match map_approx(
+            &turned(),
+            &approx,
+            tol,
+            None,
+            <f64 as crate::AtRestPolicy>::scalar_name(),
+        ) {
             Err(TransformError::ApproxLaneUnsupported { lane }) => assert_eq!(lane, "f64"),
             other => panic!("the absence must name the lane: {other:?}"),
         }
@@ -969,8 +977,14 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let map = turned();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        let mapped = map_approx(&map, &approx, tol, Some(OffsetFitLane::fit()))
-            .expect("a rigid map of a certified fit re-certifies at the run's ε");
+        let mapped = map_approx(
+            &map,
+            &approx,
+            tol,
+            Some(OffsetFitLane::fit()),
+            <f64 as crate::AtRestPolicy>::scalar_name(),
+        )
+        .expect("a rigid map of a certified fit re-certifies at the run's ε");
         let spec = mapped.spec();
         let reference =
             geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol)
