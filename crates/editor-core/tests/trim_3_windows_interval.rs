@@ -46,7 +46,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, ang, len, len2, scl};
 
 // ------------------------------------------------------------ authoring
 
@@ -103,19 +103,20 @@ fn translated(input: RecipeNodeId, d: [Expr; 3]) -> Node<ProfileProgram> {
         input,
         translation: [dx, dy, dz],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_angle: ang(0.0),
     }
 }
 
-fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::xy_frame())
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -309,23 +310,23 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
 fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     let chain = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 1.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(1.5, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 1.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 1.0]))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.5, 1.0)),
+            target: ProgramTarget::Point(len2([0.5, 1.0])),
             b: scl(-1.0),
         }),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = xy_frame(&mut r);
+    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![chain],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,
@@ -373,7 +374,10 @@ fn a_cylinder_band_answers_through_a_cut_root() {
     // arc — so the witness this row reads is on the cylinder and not
     // on the coplanar z-caps, which approach each other at the same
     // 0.12 through the same void.
-    let ss = named(solid, vec![fixture::fname(solid, fixture::wall(3))]);
+    let ss = named(
+        solid,
+        vec![fixture::fname(solid, fixture::wall(&doc, solid, 3))],
+    );
     let sp = Selection::body_of(probe);
     let report = clearance(&doc, &box_of("place"), &ss, &sp, 1.0, Tol::witness());
     println!(
@@ -431,7 +435,7 @@ fn a_cylinder_band_answers_through_a_cut_root() {
 /// (`t3s-r2` lane, `t3s_probes_interval.rs::p6_block_mid_way_along_the_negative_band_wall`),
 /// adopted here with its measurement.
 fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::CircleSplit {
@@ -440,6 +444,7 @@ fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
             n,
             phase: ang(phase),
         }],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -506,7 +511,10 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
     declare(&mut r, "place", 0.0);
     let peg = split_peg(&mut r, 4, -3.0 * core::f64::consts::FRAC_PI_4);
     let block = block_at_azimuth(&mut r, 7.0 * core::f64::consts::FRAC_PI_8, 0.1);
-    let wall = named(peg, vec![fixture::fname(peg, fixture::wall(3))]);
+    let wall = named(
+        peg,
+        vec![fixture::fname(peg, fixture::wall(&r.doc, peg, 3))],
+    );
     let report = clearance(
         &r.doc,
         &box_of("place"),
@@ -597,7 +605,7 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
 fn a_selection_door_refusal_reports_no_windows_at_all() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let plane = xy_frame(&mut r);
+    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(fixture::desc(
         plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],

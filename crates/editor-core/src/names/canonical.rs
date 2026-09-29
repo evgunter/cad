@@ -345,6 +345,14 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         RoleSeg::Seam { a, b } if seams == Seams::ByName && a > b => RoleSeg::Seam { a: b, b: a },
         RoleSeg::Merged(set) => RoleSeg::Merged(sorted_set(set)),
         RoleSeg::BandFace(set) => RoleSeg::BandFace(sorted_set(set)),
+        RoleSeg::BandCross { edge, band } => RoleSeg::BandCross {
+            edge,
+            band: sorted_set(band),
+        },
+        RoleSeg::BandSlit { edge, band } => RoleSeg::BandSlit {
+            edge,
+            band: sorted_set(band),
+        },
         RoleSeg::Fragment(Qualifier::SideOf(mut partners)) => {
             partners.sort();
             RoleSeg::Fragment(Qualifier::SideOf(partners))
@@ -368,9 +376,7 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         | RoleSeg::EndArc { .. }
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
         | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }

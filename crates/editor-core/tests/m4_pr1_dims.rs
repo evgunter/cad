@@ -4,19 +4,8 @@
 //! additive change.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{ang, len, scl};
 use editor_core::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval, eval_count};
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 
 fn env() -> ParamEnv<f64> {
     ParamEnv::default()

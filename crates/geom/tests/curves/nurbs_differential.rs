@@ -426,13 +426,7 @@ fn dual_channels_are_consistent_with_derivatives() {
     let ctrl: Vec<Point3<Dual64>> = n64
         .control()
         .iter()
-        .map(|p| {
-            Point3::new(
-                Dual64::constant(p.x),
-                Dual64::constant(p.y),
-                Dual64::constant(p.z),
-            )
-        })
+        .map(|p| p.map(Dual64::constant))
         .collect();
     let nd = NurbsCurve3::new(n64.knots().clone(), ctrl, n64.weights().to_vec()).unwrap();
     for i in 0..=100usize {
@@ -473,16 +467,7 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
         Point3::new(4.0, 0.0, 1.0),
     ];
     let n64 = NurbsCurve3::new(kv.clone(), ctrl64.clone(), vec![1.0; 5]).unwrap();
-    let ctrl: Vec<Point3<Dual64>> = ctrl64
-        .iter()
-        .map(|p| {
-            Point3::new(
-                Dual64::constant(p.x),
-                Dual64::constant(p.y),
-                Dual64::constant(p.z),
-            )
-        })
-        .collect();
+    let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
     let nd = NurbsCurve3::new(kv, ctrl, vec![1.0; 5]).unwrap();
     let t = 0.5;
     let span_right = n64.span_at(t); // the span starting at 0.5

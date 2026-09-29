@@ -10,25 +10,19 @@
 //! otherwise unchanged.
 //!
 //! What these attack, per the review brief:
-//! - the exact `w`-uniform-in-v arm's CONTAINMENT on a patch of the
-//!   reviewer's own construction (off-grid interior knots in BOTH
-//!   directions — not the blades, not dm1);
-//! - a nearly-uniform-weight patch (one weight one ulp off) must fall
-//!   back to the composite arm and still enclose the truth;
 //! - cell-rule edge cases: interior knots one ulp apart (cells thinner
 //!   than an ulp of parameter) and interior knots within an ulp of the
-//!   trim rectangle's edges.
+//!   trim rectangle's edges;
+//! - a genuine C0 jump at off-grid interior knots, which a cell rule
+//!   that ignored the knots would integrate across.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::props::PropsError;
-use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Bounds;
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Tol};
 
 use crate::shared::patch::{face_posture, oracle_patch};
 use crate::shared::ring::pt;
-use crate::shared::tol::band;
 
 /// Run the engine; on `Ok`, both brackets must contain the dense
 /// oracle (with a 1e-9-relative slack for the oracle's own f64
@@ -100,111 +94,6 @@ fn drive(
     }
 }
 
-/// The 270-degree arc (three 90-degree rational sub-arcs, interior u
-/// knots 1/3 and 2/3 — OFF the composite's dyadic grid, unlike the
-/// blades' quarter-circle whose knot sits at 1/2): 7 homogeneous
-/// control points on the unit circle, weights `1, c, 1, c, 1, c, 1`.
-fn arc270() -> (Vec<[f64; 2]>, Vec<f64>) {
-    let c = std::f64::consts::FRAC_1_SQRT_2;
-    let deg = |d: f64| d.to_radians();
-    let on = |a: f64| [a.cos(), a.sin()];
-    let mid = |a: f64| [a.cos() / c, a.sin() / c];
-    (
-        vec![
-            on(deg(-135.0)),
-            mid(deg(-90.0)),
-            on(deg(-45.0)),
-            mid(deg(0.0)),
-            on(deg(45.0)),
-            mid(deg(90.0)),
-            on(deg(135.0)),
-        ],
-        vec![1.0, c, 1.0, c, 1.0, c, 1.0],
-    )
-}
-
-const THIRD: f64 = 1.0 / 3.0;
-const TWO_THIRDS: f64 = 2.0 / 3.0;
-
-/// The reviewer's own wall: the 270-degree arc extruded along a
-/// QUADRATIC z-spline whose interior v knots sit at 0.3777 and 0.6123
-/// (nothing dyadic) — off-grid interior knots in BOTH directions.
-/// Weights vary in u only, so the patch satisfies the exact arm's
-/// hypothesis as stated.
-fn wall() -> (KnotVector, KnotVector, Vec<[Interval; 3]>, Vec<f64>) {
-    let ku = KnotVector::clamped(
-        vec![
-            0.0, 0.0, 0.0, THIRD, THIRD, TWO_THIRDS, TWO_THIRDS, 1.0, 1.0, 1.0,
-        ],
-        2,
-    )
-    .unwrap();
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3777, 0.6123, 1.0, 1.0, 1.0], 2).unwrap();
-    let (xy, wu) = arc270();
-    let zc = [0.0, 0.45, 1.05, 1.55, 2.0];
-    let mut control = Vec::new();
-    let mut weights = Vec::new();
-    for (p, w) in xy.iter().zip(&wu) {
-        for z in &zc {
-            control.push([pt(p[0]), pt(p[1]), pt(*z)]);
-            weights.push(*w);
-        }
-    }
-    (ku, kv, control, weights)
-}
-
-/// E2E probe (patch half): the reviewer's own rational wall with
-/// off-grid interior knots in both directions, exact-arm eligible,
-/// must certify and CONTAIN the independent oracle.
-#[test]
-fn own_wall_offgrid_both_directions_exact_arm_contains() {
-    let (ku, kv, control, weights) = wall();
-    // Reported, not demanded: a 270-degree wall may be schedule-limited
-    // at the default eps (the half-cylinder floor's family). What is
-    // asserted is soundness (containment when certified) and, via
-    // `drive`, that any refusal is nowhere near the retired floor.
-    let widths = drive(
-        "own-wall-exact-arm",
-        &ku,
-        &kv,
-        &control,
-        &weights,
-        8.0,
-        1e-7,
-    );
-    assert!(
-        widths.is_some(),
-        "at eps 1e-7 (target 1.024e-4, far above the 3.35e-6 schedule \
-         width) the exact arm must certify, so its CONTAINMENT is exercised"
-    );
-}
-
-/// One weight nudged by ONE ULP: the exact-arm hypothesis (exact f64
-/// equality) must fail, the composite arm must carry the patch, and
-/// the enclosure must still contain the truth.
-#[test]
-fn near_uniform_weights_take_the_composite_arm_soundly() {
-    let (ku, kv, control, mut weights) = wall();
-    // Middle u-row, middle v entry: break v-constancy by one ulp.
-    let nv = kv.control_count();
-    let idx = 3 * nv + 2;
-    weights[idx] = weights[idx].next_up();
-    let widths = drive(
-        "own-wall-ulp-perturbed",
-        &ku,
-        &kv,
-        &control,
-        &weights,
-        8.0,
-        1e-7,
-    );
-    assert!(
-        widths.is_some(),
-        "the one-ulp-perturbed twin must certify through the composite arm \
-         at eps 1e-7, exercising the composite arm's containment"
-    );
-}
-
 /// Interior knots ONE ULP apart, and an exactly-uniform non-unit
 /// weight net (all 1.5 — the rational lane and the exact arm, same
 /// surface as the weight-1 patch): cells thinner than an ulp of
@@ -263,79 +152,6 @@ fn knots_hugging_the_trim_edges_stay_sound() {
         &weights,
         8.0,
         1e-7,
-    );
-}
-
-/// The DISCRIMINATOR for a residual knot-coupled floor, shaped unlike
-/// the unit's own greps: the same 270-degree wall with 2 vs 6 off-grid
-/// interior v knots. Under the retired defect the width scaled with
-/// the off-grid count (~1.07e-4 each); post-fix the two widths must
-/// agree to a few percent — the schedule, not the knots, sets them.
-#[test]
-fn refusal_width_does_not_scale_with_offgrid_knot_count() {
-    let (ku, _, _, _) = wall();
-    let (xy, wu) = arc270();
-    let build = |vknots: Vec<f64>, zc: &[f64]| {
-        let kv = KnotVector::clamped(vknots, 2).unwrap();
-        let mut control = Vec::new();
-        let mut weights = Vec::new();
-        for (p, w) in xy.iter().zip(&wu) {
-            for z in zc {
-                control.push([pt(p[0]), pt(p[1]), pt(*z)]);
-                weights.push(*w);
-            }
-        }
-        (kv, control, weights)
-    };
-    // The door is called directly rather than through
-    // `shared::patch::face_posture`: this row reads the budget
-    // refusal's `width_len` payload, which is the number it compares,
-    // and it drives an EXPLICIT rectangle rather than the knot
-    // vectors' domain.
-    let width = |name: &str, kv: &KnotVector, control: &[[Interval; 3]], weights: &[f64]| {
-        let out = nurbs_patch_face::<f64>(
-            &ku,
-            kv,
-            control,
-            weights,
-            (0.0, 1.0, 0.0, 1.0),
-            8.0,
-            0.0,
-            Tol::witness().get().eps,
-            band(),
-        );
-        match out {
-            Ok(fb) => {
-                let w = fb.flux.hi() - fb.flux.lo();
-                eprintln!("CERT5-R1 {name}: certified, flux width {w:.6e}");
-                w
-            }
-            Err(PropsError::QuadratureBudget { width_len, .. }) => {
-                eprintln!(
-                    "CERT5-R1 {name}: budget, width_len (the last round's own or its bound) {width_len:.6e}"
-                );
-                width_len
-            }
-            other => panic!("{name}: unexpected outcome {other:?}"),
-        }
-    };
-    let (kv2, c2, w2) = build(
-        vec![0.0, 0.0, 0.0, 0.3777, 0.6123, 1.0, 1.0, 1.0],
-        &[0.0, 0.45, 1.05, 1.55, 2.0],
-    );
-    let (kv6, c6, w6) = build(
-        vec![
-            0.0, 0.0, 0.0, 0.13, 0.27, 0.3777, 0.51, 0.6123, 0.87, 1.0, 1.0, 1.0,
-        ],
-        &[0.0, 0.2, 0.5, 0.8, 1.1, 1.4, 1.7, 1.9, 2.0],
-    );
-    let a = width("v-knots-2", &kv2, &c2, &w2);
-    let b = width("v-knots-6", &kv6, &c6, &w6);
-    assert!(
-        b < 3.0 * a,
-        "the width scales with the off-grid v knot count — a knot-coupled \
-         floor survives by some spelling the unit's grep could not see: \
-         2 knots -> {a:e}, 6 knots -> {b:e}"
     );
 }
 

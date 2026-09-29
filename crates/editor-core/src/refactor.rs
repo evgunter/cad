@@ -106,8 +106,11 @@ use crate::doc::{Doc, NameCarrier};
 use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::names::{EntityKind, FaceName, NameRef, RoleSeg, SegRewrite, StableName};
-use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
+use crate::names::{
+    EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
+    StableName,
+};
+use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
@@ -117,6 +120,141 @@ use geom_core::Tol;
 /// The old-id → new-id correspondence a refactoring establishes
 /// between the two documents' node id spaces.
 pub type NodeMap = BTreeMap<RecipeNodeId, RecipeNodeId>;
+
+/// The old-id → new-id correspondence a refactoring establishes
+/// between the two documents' profile STEP id spaces: every step of
+/// every profile it carries across, re-minted by the other document's
+/// insert door (`names/README.md`, "N1, the profile pieces").
+pub type StepMap = BTreeMap<StepId, StepId>;
+
+/// **The id a name's rewrite could not map** — a node the other
+/// document has no copy of, or a profile step no carried profile holds
+/// (a step a `SetProgram` dropped, which a stranded name still spells).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unmapped {
+    /// A node id.
+    Node(RecipeNodeId),
+    /// A profile step id.
+    Step(StepId),
+}
+
+impl SplitError {
+    /// A cut node's reference the part-side rewrite could not map.
+    fn reaches(node: RecipeNodeId, name: Box<StableName>, missing: Unmapped) -> Self {
+        match missing {
+            Unmapped::Node(missing) => Self::PartNameReachesRemainder {
+                node,
+                name,
+                missing,
+            },
+            Unmapped::Step(step) => Self::NameOnDroppedStep { name, step },
+        }
+    }
+
+    /// A remainder-side name the part-side rewrite could not map.
+    fn straddles(name: Box<StableName>, missing: Unmapped) -> Self {
+        match missing {
+            Unmapped::Node(missing) => Self::NameStraddlesCut {
+                name,
+                missing: Some(missing),
+            },
+            Unmapped::Step(step) => Self::NameOnDroppedStep { name, step },
+        }
+    }
+}
+
+impl InlineError {
+    /// A name to be spliced the host-side rewrite could not map.
+    fn stranded(name: Box<StableName>, missing: Unmapped) -> Self {
+        match missing {
+            Unmapped::Node(missing) => Self::StrandedPartName { name, missing },
+            Unmapped::Step(step) => Self::NameOnDroppedStep { name, step },
+        }
+    }
+}
+
+/// **A step the insert door minted other than as precomputed**: the
+/// source document's step, the id the refactoring predicted for it,
+/// and the id the carried profile holds after its insert (`None` where
+/// it holds none there).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StepMapDivergence {
+    /// The step, in the source document.
+    pub step: StepId,
+    /// The id the step map holds for it.
+    pub precomputed: Option<StepId>,
+    /// The id the insert minted for it.
+    pub minted: Option<StepId>,
+}
+
+impl core::fmt::Display for StepMapDivergence {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let id = |s: Option<StepId>| s.map_or_else(|| "none".to_owned(), |s| format!("#{}", s.0));
+        write!(
+            f,
+            "the profile step minted #{} was predicted to be re-minted as {} and was minted as \
+             {}, which is a kernel bug",
+            self.step.0,
+            id(self.precomputed),
+            id(self.minted)
+        )
+    }
+}
+
+/// **The step map checked against what the inserts minted**: every
+/// profile of `source` that `node_map` carries into `target`, step by
+/// step in loop then step order, holds the id `step_map` predicted.
+/// The first step that does not is the divergence.
+fn step_map_check(
+    source: &ProfileDoc,
+    node_map: &NodeMap,
+    step_map: &StepMap,
+    target: &ProfileDoc,
+) -> Result<(), StepMapDivergence> {
+    for (&old, &new) in node_map {
+        let Some(Node::Profile(carried)) = source.node(old) else {
+            continue;
+        };
+        let minted: Vec<StepId> = match target.node(new) {
+            Some(Node::Profile(p)) => p.ids.iter().flatten().copied().collect(),
+            _ => Vec::new(),
+        };
+        for (k, &step) in carried.ids.iter().flatten().enumerate() {
+            let precomputed = step_map.get(&step).copied();
+            let got = minted.get(k).copied();
+            if precomputed.is_none() || precomputed != got {
+                return Err(StepMapDivergence {
+                    step,
+                    precomputed,
+                    minted: got,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The step map a refactoring's inserts will mint, precomputed: every
+/// profile among `nodes`, in the order they are inserted, has each of
+/// its steps re-minted from `next_step` onward, in loop then step
+/// order — exactly the insert door's minting order, which
+/// [`step_map_check`] confirms once the inserts are done.
+fn step_map_of<'a>(
+    nodes: impl Iterator<Item = &'a Node<ProfileProgram>>,
+    next_step: u64,
+) -> StepMap {
+    let mut next = next_step;
+    let mut map = StepMap::new();
+    for node in nodes {
+        if let Node::Profile(p) = node {
+            for &old in p.ids.iter().flatten() {
+                map.insert(old, StepId(next));
+                next += 1;
+            }
+        }
+    }
+    map
+}
 
 /// Why [`split`] refused. Typed and specific (spec D-2): every arm
 /// names the offending edge, parameter, or name.
@@ -242,6 +380,18 @@ pub enum SplitError {
         /// set at once and singles out no one node.
         missing: Option<RecipeNodeId>,
     },
+    /// A name the split carries spells a piece of a profile step that
+    /// no profile of this document holds — a step a `SetProgram`
+    /// dropped, whose names were reported stranded (DM7). Its id is
+    /// never minted again here, and the part document would mint it
+    /// afresh for a step of its own, so the name cannot cross; repair
+    /// the stranded reference first.
+    NameOnDroppedStep {
+        /// The name.
+        name: Box<StableName>,
+        /// The dropped step it spells.
+        step: StepId,
+    },
     /// A remainder-side BODY name crosses the cut. A document's
     /// product name table deliberately carries no root body rows (the
     /// product is the document's own body, not any root's), so the
@@ -273,6 +423,12 @@ pub enum SplitError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
+    /// The part document's insert door minted a cut profile's step
+    /// under an id other than the one the split precomputed for it —
+    /// a construction bug in this module, surfaced typed: every name
+    /// the split rewrote through its step map would spell the wrong
+    /// step.
+    StepMapDiverged(StepMapDivergence),
 }
 
 impl core::fmt::Display for SplitError {
@@ -377,6 +533,12 @@ impl core::fmt::Display for SplitError {
                     None => Ok(()),
                 }
             }
+            Self::NameOnDroppedStep { name, step } => write!(
+                f,
+                "split: the {name} spells a piece of the profile step minted #{}, which no profile of this \
+                 document draws any more — repair the stranded reference before splitting",
+                step.0
+            ),
             Self::BodyNameCrossesCut { name } => write!(
                 f,
                 "split: the {name} crosses the cut — a product's name table carries no \
@@ -394,6 +556,7 @@ impl core::fmt::Display for SplitError {
             Self::RemainderEdit { error } => {
                 write!(f, "split: a remainder-side edit refused: {error}")
             }
+            Self::StepMapDiverged(d) => write!(f, "split: {d}"),
         }
     }
 }
@@ -479,6 +642,16 @@ pub enum InlineError {
         /// The unrecognized name.
         name: Box<StableName>,
     },
+    /// A name the inline carries spells a piece of a profile step no
+    /// profile of the referenced document holds — a step a
+    /// `SetProgram` dropped there (DM7). The host would mint the id
+    /// afresh for a step of its own, so the name cannot cross.
+    NameOnDroppedStep {
+        /// The name.
+        name: Box<StableName>,
+        /// The dropped step it spells.
+        step: StepId,
+    },
     /// A name to be spliced derives from a node the referenced
     /// document no longer has (an N5-stranded reference) — there is no
     /// node to remap it onto; repair it in the part document first.
@@ -497,6 +670,10 @@ pub enum InlineError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
+    /// The host's insert door minted a spliced profile's step under an
+    /// id other than the one the inline precomputed for it — the same
+    /// construction bug as [`SplitError::StepMapDiverged`].
+    StepMapDiverged(StepMapDivergence),
 }
 
 impl core::fmt::Display for InlineError {
@@ -546,6 +723,13 @@ impl core::fmt::Display for InlineError {
                 "inline: the {name} derives from the instance but is not an instance-qualified \
                  (`InPart`) name — it cannot re-anchor"
             ),
+            Self::NameOnDroppedStep { name, step } => write!(
+                f,
+                "inline: the {name} spells a piece of the profile step minted #{}, which no profile of the \
+                 referenced document draws any more — repair the stranded reference before \
+                 inlining",
+                step.0
+            ),
             Self::StrandedPartName { name, missing } => write!(
                 f,
                 "inline: the {name} derives from node {}, which the referenced document no \
@@ -553,6 +737,7 @@ impl core::fmt::Display for InlineError {
                 missing.0
             ),
             Self::Edit { error } => write!(f, "inline: an edit refused: {error}"),
+            Self::StepMapDiverged(d) => write!(f, "inline: {d}"),
         }
     }
 }
@@ -603,6 +788,9 @@ pub struct SplitOutcome {
     /// Cut-node ids → their part-document ids (minted in document
     /// order — the D9-deterministic remap).
     pub node_map: NodeMap,
+    /// The cut profiles' step ids → the ids the part document minted
+    /// for them, in the same order.
+    pub step_map: StepMap,
 }
 
 /// What [`inline`] produced: the host with the referenced document's
@@ -628,6 +816,9 @@ pub struct InlineOutcome {
     /// Part-document node ids → their host ids (minted in the part's
     /// document order).
     pub node_map: NodeMap,
+    /// The part's profile step ids → the ids the host minted for them,
+    /// in the same order.
+    pub step_map: StepMap,
 }
 
 /// A document under reconstruction by recorded edits: the value so
@@ -696,8 +887,12 @@ impl Recording {
 /// # Errors
 ///
 /// The first local id the map lacks.
-pub fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNodeId> {
-    let (node, path) = remap_derivation(name.kind, name.node, &name.path, map)?;
+pub fn remap_name(
+    name: &StableName,
+    map: &NodeMap,
+    steps: &StepMap,
+) -> Result<StableName, Unmapped> {
+    let (node, path) = remap_derivation(name.kind, name.node, &name.path, map, steps)?;
     Ok(StableName {
         kind: name.kind,
         node,
@@ -706,9 +901,10 @@ pub fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, Recipe
 }
 
 /// The half of [`remap_name`] that a name's KIND is not part of: the
-/// minting node and the role path, rewritten through `map`. The kind
-/// is read, never written: the path's canonical form depends on it (a
-/// junction is a vertex's; a rank's rule is an edge's or a vertex's).
+/// minting node and the role path, rewritten through `map` and
+/// `steps`. The kind is read, never written: the path's canonical form
+/// depends on it (a junction is a vertex's; a rank's rule is an edge's
+/// or a vertex's).
 ///
 /// Split out because that is exactly what a face name may have
 /// rewritten — `FaceName::map_derivation` hands this function the
@@ -717,44 +913,69 @@ pub fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, Recipe
 ///
 /// # Errors
 ///
-/// The first local id the map lacks.
+/// The first local id the maps lack.
 fn remap_derivation(
     kind: EntityKind,
     node: RecipeNodeId,
     path: &[RoleSeg],
     map: &NodeMap,
-) -> Result<(RecipeNodeId, crate::names::RolePath), RecipeNodeId> {
-    let to = *map.get(&node).ok_or(node)?;
+    steps: &StepMap,
+) -> Result<(RecipeNodeId, crate::names::RolePath), Unmapped> {
+    let to = *map.get(&node).ok_or(Unmapped::Node(node))?;
     let rewritten = StableName {
         kind,
         node,
         path: path.to_vec(),
     }
-    .rewrite_path(&mut Remapping(map))?;
+    .rewrite_path(&mut Remapping(map, steps))?;
     Ok((to, rewritten.path))
 }
 
 /// **The split re-map as a [`SegRewrite`]**: every carried name is
 /// rewritten through [`remap_name`] — its minting node through the
 /// map, then its own path through this same rewriter, so the descent
-/// is [`remap_name`]'s and not the walk's — and a member edge, which
-/// is a local node id like the minting one, is mapped too: a subgraph
-/// copied into another document would otherwise carry a member
-/// reference that names a node HERE. A profile locator keeps the
-/// trait's identity: nothing about a split moves a segment index. The
-/// walk over [`RoleSeg`]'s shape is [`RoleSeg::rewrite`]'s, shared
-/// with the anchor rewrite and the whole-program edit.
-struct Remapping<'a>(&'a NodeMap);
+/// is [`remap_name`]'s and not the walk's — a member edge, which is a
+/// local node id like the minting one, is mapped too, and so is every
+/// profile locator's step, which the other document re-minted. A
+/// kernel-built section's locator has no step and crosses as it is.
+/// The walk over [`RoleSeg`]'s shape is [`RoleSeg::rewrite`]'s.
+struct Remapping<'a>(&'a NodeMap, &'a StepMap);
+
+impl Remapping<'_> {
+    fn step(&self, step: StepId) -> Result<StepId, Unmapped> {
+        self.1.get(&step).copied().ok_or(Unmapped::Step(step))
+    }
+}
 
 impl SegRewrite for Remapping<'_> {
-    type Error = RecipeNodeId;
+    type Error = Unmapped;
+
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
+        Ok(match e {
+            ProfileEdgeRef::Piece { step, role } => ProfileEdgeRef::Piece {
+                step: self.step(step)?,
+                role,
+            },
+            ProfileEdgeRef::Section { .. } => e,
+        })
+    }
+
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
+        Ok(match v {
+            ProfileVertexRef::Piece { step, role } => ProfileVertexRef::Piece {
+                step: self.step(step)?,
+                role,
+            },
+            ProfileVertexRef::Section { .. } => v,
+        })
+    }
 
     fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
-        remap_name(n, self.0).map(Some)
+        remap_name(n, self.0, self.1).map(Some)
     }
 
     fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Self::Error> {
-        self.0.get(&m).copied().ok_or(m)
+        self.0.get(&m).copied().ok_or(Unmapped::Node(m))
     }
 }
 
@@ -774,8 +995,8 @@ impl SegRewrite for Remapping<'_> {
 /// # Errors
 ///
 /// The first local id the map lacks.
-fn remap_face(name: &FaceName, map: &NodeMap) -> Result<FaceName, RecipeNodeId> {
-    name.map_derivation(|node, path| remap_derivation(EntityKind::Face, node, path, map))
+fn remap_face(name: &FaceName, map: &NodeMap, steps: &StepMap) -> Result<FaceName, Unmapped> {
+    name.map_derivation(|node, path| remap_derivation(EntityKind::Face, node, path, map, steps))
 }
 
 /// What a payload rewrite could not map: a DAG input (unreachable
@@ -792,8 +1013,8 @@ enum RemapMiss {
     Name {
         /// The name that could not be rewritten.
         name: Box<StableName>,
-        /// The local node the map lacks.
-        missing: RecipeNodeId,
+        /// The local id the maps lack.
+        missing: Unmapped,
     },
 }
 
@@ -839,12 +1060,13 @@ fn remap_rule(
 fn remap_node(
     node: &Node<ProfileProgram>,
     map: &NodeMap,
+    steps: &StepMap,
 ) -> Result<Node<ProfileProgram>, RemapMiss> {
     let id = |n: RecipeNodeId| -> Result<RecipeNodeId, RemapMiss> {
         map.get(&n).copied().ok_or(RemapMiss::Input(n))
     };
     let nm = |n: &StableName| {
-        remap_name(n, map).map_err(|missing| RemapMiss::Name {
+        remap_name(n, map, steps).map_err(|missing| RemapMiss::Name {
             name: Box::new(n.clone()),
             missing,
         })
@@ -854,7 +1076,7 @@ fn remap_node(
     // type's, so the only miss is the miss `nm` reports for a bare
     // name.
     let face = |n: &FaceName| {
-        remap_face(n, map).map_err(|missing| RemapMiss::Name {
+        remap_face(n, map, steps).map_err(|missing| RemapMiss::Name {
             name: Box::new((**n).clone()),
             missing,
         })
@@ -895,9 +1117,15 @@ fn remap_node(
         // cut with the profile or the remap misses loudly. (Before the
         // sketch frame became a node this arm cloned, because a
         // profile referenced nothing.)
+        //
+        // Its step ids do NOT cross: the other document's insert door
+        // mints its own, and the names that spell them cross through
+        // the step map precomputed from that minting order
+        // (`step_map_of`).
         Node::Profile(p) => Node::Profile(ProfileProgram {
             plane: id(p.plane)?,
             loops: p.loops.clone(),
+            ids: Vec::new(),
         }),
         Node::Extrude { profile, distance } => Node::Extrude {
             profile: id(*profile)?,
@@ -1390,6 +1618,15 @@ pub fn split(
         .enumerate()
         .map(|(i, &old)| (old, RecipeNodeId(i as u64)))
         .collect();
+    // The same for the cut profiles' steps: the part's insert door
+    // mints them from its empty step counter, in insertion order.
+    let step_map = step_map_of(
+        doc.order()
+            .iter()
+            .filter(|id| cut.contains(id))
+            .filter_map(|id| doc.node(*id)),
+        0,
+    );
 
     // ---- The part document, as recorded edits from empty ----
     // The part side's edits are inserts into a document being built —
@@ -1426,18 +1663,15 @@ pub fn split(
     }
     for &old in doc.order().iter().filter(|id| cut.contains(id)) {
         let Some(node) = doc.node(old) else { continue };
-        let node = remap_node(node, &node_map).map_err(|miss| match miss {
+        let node = remap_node(node, &node_map, &step_map).map_err(|miss| match miss {
             RemapMiss::Input(input) => SplitError::PartEdit {
                 error: Box::new(EditError::UnresolvedInput { input }),
             },
-            RemapMiss::Name { name, missing } => SplitError::PartNameReachesRemainder {
-                node: old,
-                name,
-                missing,
-            },
+            RemapMiss::Name { name, missing } => SplitError::reaches(old, name, missing),
         })?;
         part_apply(&mut part, DocEdit::InsertNode { node })?;
     }
+    step_map_check(doc, &node_map, &step_map, &part.doc).map_err(SplitError::StepMapDiverged)?;
     // Witness DATA copies VERBATIM while node ids remap: sound because
     // a witness datum is sketch-self-relative — it selects among the
     // owning profile's own solution branches and embeds no other
@@ -1573,11 +1807,8 @@ pub fn split(
         // re-verification resolves against. `classify` above already
         // refused a name that straddles, so the remap is total here —
         // and it refuses typed rather than assuming so.
-        let inner =
-            remap_face(inner, &node_map).map_err(|missing| SplitError::NameStraddlesCut {
-                name: Box::new((**inner).clone()),
-                missing: Some(missing),
-            })?;
+        let inner = remap_face(inner, &node_map, &step_map)
+            .map_err(|missing| SplitError::straddles(Box::new((**inner).clone()), missing))?;
         // The heads' own face names go through: the record carries
         // what the mate carries, so the split neither unwraps a head
         // nor re-asks the question its type already answered.
@@ -1632,10 +1863,8 @@ pub fn split(
         });
     };
     for from in &rebinds {
-        let of = remap_name(from, &node_map).map_err(|missing| SplitError::NameStraddlesCut {
-            name: Box::new(from.clone()),
-            missing: Some(missing),
-        })?;
+        let of = remap_name(from, &node_map, &step_map)
+            .map_err(|missing| SplitError::straddles(Box::new(from.clone()), missing))?;
         let to = StableName {
             kind: from.kind,
             node: instance,
@@ -1699,6 +1928,7 @@ pub fn split(
         part_maintenance: part.maintenance,
         instance,
         node_map,
+        step_map,
     })
 }
 
@@ -1815,6 +2045,12 @@ pub fn inline(
         .enumerate()
         .map(|(i, &old)| (old, RecipeNodeId(doc.next_id + i as u64)))
         .collect();
+    // The part's profile steps land the same way on the host's step
+    // counter, which inserts of the part's nodes alone advance.
+    let step_map = step_map_of(
+        part.order().iter().filter_map(|id| part.node(*id)),
+        doc.next_step,
+    );
 
     let mut current = Recording::start(doc.clone());
     let step =
@@ -1847,14 +2083,16 @@ pub fn inline(
     }
     for &old in part.order() {
         let Some(node) = part.node(old) else { continue };
-        let node = remap_node(node, &node_map).map_err(|miss| match miss {
+        let node = remap_node(node, &node_map, &step_map).map_err(|miss| match miss {
             RemapMiss::Input(input) => InlineError::Edit {
                 error: Box::new(EditError::UnresolvedInput { input }),
             },
-            RemapMiss::Name { name, missing } => InlineError::StrandedPartName { name, missing },
+            RemapMiss::Name { name, missing } => InlineError::stranded(name, missing),
         })?;
         step(&mut current, DocEdit::InsertNode { node })?;
     }
+    step_map_check(&part, &node_map, &step_map, &current.doc)
+        .map_err(InlineError::StepMapDiverged)?;
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
     // relative and embeds no other node's identity (see split's
@@ -1895,10 +2133,8 @@ pub fn inline(
     // A collision with a host record is the Rebind door's own typed
     // refusal below — never an auto-pick.
     for (name, record) in part.appearance().iter() {
-        let key = remap_name(name, &node_map).map_err(|missing| InlineError::StrandedPartName {
-            name: Box::new(name.clone()),
-            missing,
-        })?;
+        let key = remap_name(name, &node_map, &step_map)
+            .map_err(|missing| InlineError::stranded(Box::new(name.clone()), missing))?;
         for attr in record.attrs.values() {
             step(
                 &mut current,
@@ -1929,10 +2165,8 @@ pub fn inline(
                 name: Box::new(from.clone()),
             });
         };
-        let to = remap_name(of, &node_map).map_err(|missing| InlineError::StrandedPartName {
-            name: Box::new((**of).clone()),
-            missing,
-        })?;
+        let to = remap_name(of, &node_map, &step_map)
+            .map_err(|missing| InlineError::stranded(Box::new((**of).clone()), missing))?;
         step(
             &mut current,
             DocEdit::Rebind {
@@ -1948,10 +2182,8 @@ pub fn inline(
     // re-anchored — so the record's job ends here, CHECKED.
     for crossing in &interface.crossings {
         let InterfaceCrossing::Mate { inner, .. } = crossing;
-        remap_face(inner, &node_map).map_err(|missing| InlineError::StrandedPartName {
-            name: Box::new((**inner).clone()),
-            missing,
-        })?;
+        remap_face(inner, &node_map, &step_map)
+            .map_err(|missing| InlineError::stranded(Box::new((**inner).clone()), missing))?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
     // A10: the spliced roots take the instance's list position, in the
@@ -1972,6 +2204,7 @@ pub fn inline(
         edits: current.edits,
         maintenance: current.maintenance,
         node_map,
+        step_map,
     })
 }
 
@@ -2021,7 +2254,7 @@ impl PartResolver for WithPart {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod remap_keeps_the_kind {
-    use super::{NodeMap, remap_face, remap_name};
+    use super::{NodeMap, StepMap, Unmapped, remap_face, remap_name};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
@@ -2060,7 +2293,8 @@ mod remap_keeps_the_kind {
             EntityKind::Edge,
             EntityKind::Vertex,
         ] {
-            let out = remap_name(&name(kind), &map()).expect("the map covers both ids");
+            let out =
+                remap_name(&name(kind), &map(), &StepMap::new()).expect("the map covers both ids");
             assert_eq!(out.kind, kind, "remap_name must carry the kind through");
             assert_eq!(out.node, RecipeNodeId(10), "and renumber the mint");
             assert_eq!(
@@ -2076,12 +2310,14 @@ mod remap_keeps_the_kind {
     #[test]
     fn a_face_remap_agrees_with_it_on_a_covered_map() {
         let face = FaceName::new(name(EntityKind::Face)).expect("a face");
-        let out = remap_face(&face, &map()).unwrap_or_else(|_| panic!("the map covers both ids"));
+        let out = remap_face(&face, &map(), &StepMap::new())
+            .unwrap_or_else(|_| panic!("the map covers both ids"));
         assert_eq!(out.node, RecipeNodeId(10));
         assert_eq!(out.kind, EntityKind::Face);
         assert_eq!(
             *out,
-            remap_name(&name(EntityKind::Face), &map()).expect("the map covers both ids"),
+            remap_name(&name(EntityKind::Face), &map(), &StepMap::new())
+                .expect("the map covers both ids"),
             "the two rewrites are one rewrite"
         );
     }
@@ -2092,10 +2328,10 @@ mod remap_keeps_the_kind {
     fn its_one_miss_is_the_id_the_map_lacks() {
         let face = FaceName::new(name(EntityKind::Face)).expect("a face");
         let empty = NodeMap::new();
-        match remap_face(&face, &empty) {
+        match remap_face(&face, &empty, &StepMap::new()) {
             Err(missing) => assert_eq!(
                 missing,
-                RecipeNodeId(0),
+                Unmapped::Node(RecipeNodeId(0)),
                 "an empty map lacks the mint first, so that is the id reported"
             ),
             Ok(out) => panic!("an empty map covers no id, got {out}"),
@@ -2114,7 +2350,7 @@ mod remap_keeps_the_kind {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod a_miss_two_segments_down_is_not_the_outer_name {
-    use super::{NodeMap, RemapMiss, remap_face, remap_name, remap_node};
+    use super::{NodeMap, RemapMiss, StepMap, Unmapped, remap_face, remap_name, remap_node};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
     use crate::node::{Node, RecipeNodeId, SitedRef};
     use crate::{CapEnd, EntityKind};
@@ -2151,10 +2387,11 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
     #[test]
     fn the_rewrite_reports_the_nested_node() {
         let name = nested(EntityKind::Edge);
-        let missing = remap_name(&name, &map()).expect_err("INNER is unmapped");
-        assert_eq!(missing, INNER);
+        let missing = remap_name(&name, &map(), &StepMap::new()).expect_err("INNER is unmapped");
+        assert_eq!(missing, Unmapped::Node(INNER));
         assert_ne!(
-            missing, name.node,
+            missing,
+            Unmapped::Node(name.node),
             "the node that failed is not the name's own mint"
         );
     }
@@ -2164,9 +2401,9 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
     #[test]
     fn the_face_rewrite_reports_it_too() {
         let face = FaceName::new(nested(EntityKind::Face)).expect("a face");
-        let missing = remap_face(&face, &map()).expect_err("INNER is unmapped");
-        assert_eq!(missing, INNER);
-        assert_ne!(missing, face.node);
+        let missing = remap_face(&face, &map(), &StepMap::new()).expect_err("INNER is unmapped");
+        assert_eq!(missing, Unmapped::Node(INNER));
+        assert_ne!(missing, Unmapped::Node(face.node));
     }
 
     /// The payload rewrite pairs them: the name it could not rewrite
@@ -2179,15 +2416,20 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
             SitedRef::new(OUTER, name.clone()),
             SitedRef::at_mint(name.clone()),
         )]);
-        match remap_node(&node, &map()) {
+        match remap_node(&node, &map(), &StepMap::new()) {
             Err(RemapMiss::Name {
                 name: reported,
                 missing,
             }) => {
                 assert_eq!(*reported, name, "the refusal names the outer name");
-                assert_eq!(missing, INNER, "and carries the node that actually failed");
+                assert_eq!(
+                    missing,
+                    Unmapped::Node(INNER),
+                    "and carries the node that actually failed"
+                );
                 assert_ne!(
-                    missing, reported.node,
+                    missing,
+                    Unmapped::Node(reported.node),
                     "which the outer name does not say: they are different nodes"
                 );
             }
@@ -2208,7 +2450,7 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod a_remap_that_reorders_ids_republishes_the_canonical_form {
-    use super::{NodeMap, remap_name};
+    use super::{NodeMap, StepMap, remap_name};
     use crate::names::{NameRef, Qualifier, RoleSeg, SideVerdict, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
@@ -2272,7 +2514,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
 
     #[test]
     fn a_union_seam_edge_swaps_its_sides_and_reverses_its_rank() {
-        let out = remap_name(&union_edge(9, (1, 2), 0), &map()).expect("covered");
+        let out = remap_name(&union_edge(9, (1, 2), 0), &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out,
             union_edge(20, (31, 30), 2),
@@ -2292,7 +2534,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             name(EntityKind::Vertex, u, vec![seam(x, y), rank(r, 2)])
         };
         let was = vertex(9, union_edge(9, (1, 2), 0), 3, 0);
-        let out = remap_name(&was, &map()).expect("covered");
+        let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
         assert_eq!(out, vertex(20, union_edge(20, (31, 30), 2), 32, 1));
     }
 
@@ -2311,7 +2553,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
                 ])),
             ],
         );
-        let out = remap_name(&was, &map()).expect("covered");
+        let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out.path,
             vec![
@@ -2327,7 +2569,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             5,
             vec![seam(face(1), face(3)), seam(face(2), face(3))],
         );
-        let out = remap_name(&junction, &map()).expect("covered");
+        let out = remap_name(&junction, &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out.path,
             vec![seam(face(30), face(32)), seam(face(31), face(32))],
@@ -2338,11 +2580,63 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             5,
             vec![seam(face(1), face(2)), rank(0, 3)],
         );
-        let out = remap_name(&sided, &map()).expect("covered");
+        let out = remap_name(&sided, &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out.path,
             vec![seam(face(31), face(30)), rank(0, 3)],
             "a pair boolean's seam is sided: no swap, no reversal"
+        );
+    }
+}
+
+/// **A profile piece's step crosses a refactoring through the step
+/// map**, the way a node id crosses through the node map: the other
+/// document re-mints every step it inserts, and a name spelling a step
+/// no carried profile holds — a dropped step's stranded name — misses
+/// on that step, typed.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod remap_moves_the_step {
+    use super::{NodeMap, StepMap, Unmapped, remap_name};
+    use crate::EntityKind;
+    use crate::names::{PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle, StableName};
+    use crate::node::{RecipeNodeId, StepId};
+
+    fn wall(node: u64, e: ProfileEdgeRef) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Lateral(e)],
+        }
+    }
+
+    fn piece(step: u64) -> ProfileEdgeRef {
+        ProfileEdgeRef::Piece {
+            step: StepId(step),
+            role: PieceRole::Leg,
+        }
+    }
+
+    #[test]
+    fn a_piece_crosses_on_the_step_map_and_a_section_crosses_as_it_is() {
+        let nodes: NodeMap = [(RecipeNodeId(2), RecipeNodeId(0))].into_iter().collect();
+        let steps: StepMap = [(StepId(7), StepId(1))].into_iter().collect();
+        assert_eq!(
+            remap_name(&wall(2, piece(7)), &nodes, &steps).expect("covered"),
+            wall(0, piece(1))
+        );
+        let section = ProfileEdgeRef::Section {
+            circle: SectionCircle::Outer,
+            role: PieceRole::Piece(0),
+        };
+        assert_eq!(
+            remap_name(&wall(2, section), &nodes, &steps).expect("covered"),
+            wall(0, section)
+        );
+        assert_eq!(
+            remap_name(&wall(2, piece(8)), &nodes, &steps),
+            Err(Unmapped::Step(StepId(8))),
+            "a step no carried profile holds misses on that step"
         );
     }
 }

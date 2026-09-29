@@ -90,10 +90,7 @@ fn control(n: usize) -> Vec<Point3<f64>> {
 
 fn lift3<T: Real>(k: &KnotVector, w: &[f64]) -> Curve3<T> {
     let n = k.control_count();
-    let ctl: Vec<Point3<T>> = control(n)
-        .iter()
-        .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-        .collect();
+    let ctl: Vec<Point3<T>> = control(n).iter().map(|p| p.map(T::from_f64)).collect();
     Curve3::Nurbs(Arc::new(
         NurbsCurve3::new(k.clone(), ctl, w.to_vec()).unwrap(),
     ))

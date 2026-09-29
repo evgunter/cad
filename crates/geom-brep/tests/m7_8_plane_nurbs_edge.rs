@@ -157,7 +157,7 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
     };
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     match plane_nurbs_limbs::<f64>(&carrier, &tangent, &wall, 1.0, band()) {
-        Err(PlaneNurbsRefusal::NotTransverse { sample }) => {
+        Err(PlaneNurbsRefusal::NotTransverse { sample, .. }) => {
             println!("M7-8 tangential plane: refused at interior sample {sample}");
         }
         other => panic!("a tangential plane must refuse the Intersection precondition: {other:?}"),
@@ -259,11 +259,11 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(tangent, quarter_cylinder_wall(), carrier);
     match EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band()) {
-        Err(CertifyError::NotTransverse { sample }) => {
-            let msg = CertifyError::NotTransverse { sample }.to_string();
+        Err(e @ CertifyError::NotTransverse { .. }) => {
+            let msg = e.to_string();
             println!("M7-8 door tangential: {msg}");
             assert!(
-                msg.contains("tangent planes coincide"),
+                msg.contains("the faces meet tangentially"),
                 "the tangency vocabulary, verbatim: {msg}"
             );
         }

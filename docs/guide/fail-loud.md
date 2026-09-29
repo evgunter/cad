@@ -221,7 +221,7 @@ let applied = apply(&doc, &DocEdit::InsertNode {
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
+    node: Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {

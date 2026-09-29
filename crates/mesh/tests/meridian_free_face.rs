@@ -24,15 +24,12 @@ use common::*;
 use core::f64::consts::{FRAC_PI_4, PI};
 use geom::{Curve3, Surface};
 use geom_brep::SurfaceKind;
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use mesh::TessellateError;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, FaceKey};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
 fn z_axis() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)
 }
@@ -43,7 +40,7 @@ fn x_axis() -> Vec3<f64> {
 /// The sphere of radius `r` about +Z at the origin.
 fn sphere(r: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius: r,
         axis: z_axis(),
         u_ref: x_axis(),
@@ -53,7 +50,7 @@ fn sphere(r: f64) -> Surface<f64> {
 /// The plane `z = z0`, outward normal up or down.
 fn plane(z0: f64, up: bool) -> Surface<f64> {
     Surface::Plane {
-        origin: p3(0.0, 0.0, z0),
+        origin: Point3::new(0.0, 0.0, z0),
         normal: if up { z_axis() } else { -z_axis() },
         u_ref: x_axis(),
     }
@@ -62,7 +59,7 @@ fn plane(z0: f64, up: bool) -> Surface<f64> {
 /// The rim about +Z at height `z`, radius `r`.
 fn rim(z: f64, r: f64) -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, z),
+        center: Point3::new(0.0, 0.0, z),
         axis: z_axis(),
         radius: r,
         u_ref: x_axis(),
@@ -171,7 +168,7 @@ fn a_sphere_of_two_rim_only_caps_refuses_on_its_first_face() {
 #[test]
 fn a_cone_apex_cap_and_a_one_rim_cylinder_face_refuse_by_kind() {
     let cone = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
+        apex: Point3::new(0.0, 0.0, 0.0),
         axis: z_axis(),
         half_angle: FRAC_PI_4,
         u_ref: x_axis(),
@@ -184,7 +181,7 @@ fn a_cone_apex_cap_and_a_one_rim_cylinder_face_refuse_by_kind() {
         assert_refuses_meridian_free(name, &body, SurfaceKind::Cone, 0.05);
     }
     let cylinder = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         axis: z_axis(),
         radius: 1.0,
         u_ref: x_axis(),
@@ -195,10 +192,10 @@ fn a_cone_apex_cap_and_a_one_rim_cylinder_face_refuse_by_kind() {
 
 /// The hemisphere as revolve states it: a quarter disc about +Y.
 fn dome() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), (PI / 8.0).tan()),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), (PI / 8.0).tan()),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -212,7 +209,12 @@ fn dome() -> Body<f64> {
 
 /// The block `|x|, |z| ≤ 2`, `−2 ≤ y ≤ y0`.
 fn slab_below_y(y0: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, y0), p2(-2.0, y0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(-2.0, -2.0),
+        Point2::new(2.0, -2.0),
+        Point2::new(2.0, y0),
+        Point2::new(-2.0, y0),
+    ]);
     let block = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(4.0),
@@ -292,7 +294,7 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
 #[test]
 fn a_rim_only_torus_face_refuses_at_the_shape_door_on_the_same_fact() {
     let torus = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis: z_axis(),
         major_radius: 2.0,
         minor_radius: 0.5,

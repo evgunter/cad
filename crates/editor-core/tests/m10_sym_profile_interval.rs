@@ -40,6 +40,7 @@ test_utils::gated_to![
     "crates/editor-core/tests/m10_7_plate.rs",
     "crates/editor-core/tests/m10_8_arc_family_interval.rs",
     "crates/editor-core/tests/m10_8_harness.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::collections::BTreeMap;
@@ -66,7 +67,7 @@ use std::sync::Arc;
 /// no shape report (which renders every blocked residual through the
 /// walks, ~1 % of a replay's instructions) — so a callgrind count over
 /// it is the tier's and the numeric channel's alone.
-fn bare_replay(doc: &ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
+fn bare_replay(doc: &editor_core::ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
         profile_lift: ProfileLift::Guided,
@@ -88,9 +89,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-/// **The M10-3 slab**: the bounded chamber exactly as
-/// `the_driven_chamber_replays_bit_identically_names_both_wall_flips_and_reports_containment`
-/// builds it — the row S-TCOST bisected the tier's cost on.
+/// **The M10-3 slab**: the bounded chamber at the dimensions S-TCOST
+/// bisected the tier's cost on.
 fn slab() -> ProfileDoc {
     bounded_chamber(60.0 * eps(), 30.0 * eps(), 100.0 * eps())
 }

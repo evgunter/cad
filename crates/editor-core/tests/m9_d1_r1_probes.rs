@@ -10,10 +10,10 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName,
-    ValuePayload, evaluate, vertex_position,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, evaluate,
+    vertex_position,
 };
-use fixture::{ang, insert, len, scl, table};
+use fixture::{ang, insert, len, len2, scl, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -28,14 +28,8 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 
 /// A pole of the document's one outer loop — the only loop these
 /// revolves have, so a row names a pole by its vertex alone.
-fn outer_pole(node: RecipeNodeId, v: u32) -> StableName {
-    fixture::pole(
-        node,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex: v,
-        },
-    )
+fn outer_pole(doc: &editor_core::ProfileDoc, node: RecipeNodeId, v: u32) -> StableName {
+    fixture::pole(node, crate::fixture::vpiece(doc, node, 0, v as usize))
 }
 
 /// A revolve doc for one authored chain on the xz-authoring plane of
@@ -48,6 +42,7 @@ fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNode
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Chain(steps)],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(
@@ -65,10 +60,6 @@ fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNode
             angle: ang(angle),
         },
     )
-}
-
-fn p2(x: f64, y: f64) -> [editor_core::Expr; 2] {
-    [len(x), len(y)]
 }
 
 /// A SUBDIVIDED axis run — an on-axis side carried by two collinear
@@ -89,8 +80,8 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
     let node = Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At(p2(0.0, 1.0)),
-            ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),
+            ProgramStep::At(len2([0.0, 1.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),
             ProgramStep::Tangent,
             ProgramStep::Line(len(1.0)),
             ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -98,6 +89,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
                 b: scl(1.0),
             }),
         ])],
+        ids: Vec::new(),
     });
     doc.apply(
         &DocEdit::InsertNode { node },
@@ -116,10 +108,10 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let (doc, rev) = revolve_chain(
         vec![
-            ProgramStep::At(p2(0.0, 0.0)),
-            ProgramStep::LineTo(ProgramTarget::Point(p2(1.0, 0.0))),
+            ProgramStep::At(len2([0.0, 0.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.0]))),
             ProgramStep::ArcTo(ProgramArcData::Bulge {
-                target: ProgramTarget::Point(p2(0.0, 1.0)),
+                target: ProgramTarget::Point(len2([0.0, 1.0])),
                 b: scl(b),
             }),
             ProgramStep::LineTo(ProgramTarget::Start),
@@ -129,12 +121,12 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     // Canonical v0=(0,0), v1=(1,0) off-axis, v2=(0,1).
-    assert!(t.lookup(&outer_pole(rev, 0)).is_some());
+    assert!(t.lookup(&outer_pole(&doc, rev, 0)).is_some());
     assert!(
-        t.lookup(&outer_pole(rev, 1)).is_none(),
+        t.lookup(&outer_pole(&doc, rev, 1)).is_none(),
         "off-axis vertex is not a pole"
     );
-    assert!(t.lookup(&outer_pole(rev, 2)).is_some());
+    assert!(t.lookup(&outer_pole(&doc, rev, 2)).is_some());
 }
 
 /// The subdivided axis run, authored through the program layer: the
@@ -143,8 +135,8 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
 fn subdivided_axis_run(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     revolve_chain(
         vec![
-            ProgramStep::At(p2(0.0, 1.0)),
-            ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),
+            ProgramStep::At(len2([0.0, 1.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),
             ProgramStep::Tangent,
             ProgramStep::Line(len(1.0)),
             ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -201,15 +193,15 @@ fn full_subdivided_axis_run_names_no_vertex_for_the_interior() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     assert!(
-        t.lookup(&outer_pole(rev, 0)).is_some(),
+        t.lookup(&outer_pole(&doc, rev, 0)).is_some(),
         "run tip v0 unnamed"
     );
     assert!(
-        t.lookup(&outer_pole(rev, 1)).is_none(),
+        t.lookup(&outer_pole(&doc, rev, 1)).is_none(),
         "the deleted interior vertex must have no name"
     );
     assert!(
-        t.lookup(&outer_pole(rev, 2)).is_some(),
+        t.lookup(&outer_pole(&doc, rev, 2)).is_some(),
         "run tip v2 unnamed"
     );
     assert_eq!(
@@ -230,11 +222,15 @@ fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     for v in 0..3 {
-        assert!(t.lookup(&outer_pole(rev, v)).is_some(), "pole {v} unnamed");
+        assert!(
+            t.lookup(&outer_pole(&doc, rev, v)).is_some(),
+            "pole {v} unnamed"
+        );
     }
     // The interior vertex is the run's midpoint, not a third tip.
-    let at =
-        |v| vertex_position(&ev, rev, &outer_pole(rev, v)).expect("a named pole has a position");
+    let at = |v| {
+        vertex_position(&ev, rev, &outer_pole(&doc, rev, v)).expect("a named pole has a position")
+    };
     let (a, b, c) = (at(0), at(1), at(2));
     for (mid, ends) in [(b.x, a.x + c.x), (b.y, a.y + c.y), (b.z, a.z + c.z)] {
         assert!(

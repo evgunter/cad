@@ -6,35 +6,29 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Bounds, Interval, Point2, Point3, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Bounds, Interval};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate_geometric};
+
+use crate::common::interval::{iv, p2, p3, v3};
 
 const R: f64 = 0.5;
 const H: f64 = 1.0;
 const PHI: f64 = 0.3;
 
-fn i(x: f64) -> Interval {
-    geom_core::Real::from_f64(x)
-}
-
 fn halves() -> (Body<Interval>, Body<Interval>) {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(i(-R), i(0.0)), i(1.0)),
-        ProfileVertex::new(Point2::new(i(R), i(0.0)), i(1.0)),
-    ]);
+    let lp = bulge_loop(vec![(p2(-R, 0.0), iv(1.0)), (p2(R, 0.0), iv(1.0))]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(i(H)), Tol::witness())
+    let cylinder = extrude(&profile, Extrusion::Distance(iv(H)), Tol::witness())
         .unwrap()
         .body;
     let plane = SplitPlane {
-        origin: Point3::new(i(0.0), i(0.0), i(H / 2.0)),
-        normal: Vec3::new(i(PHI.sin()), i(0.0), i(PHI.cos())),
+        origin: p3(0.0, 0.0, H / 2.0),
+        normal: v3(PHI.sin(), 0.0, PHI.cos()),
     };
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {

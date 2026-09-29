@@ -26,10 +26,6 @@ use common::pinned;
 use geom_core::{Point2, Tol};
 use profile::{ClosedLoop, Open, PathError, Profile, ProfileLoop, SketchPlane, Start};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validate_ok(l: &ProfileLoop<f64>) {
     Profile::new(SketchPlane::xy(), vec![l.clone()])
         .validate(Tol::witness())
@@ -52,24 +48,24 @@ fn band() -> (f64, f64) {
 /// one in which a straight run crosses the seam.
 fn subdivided_square(t: Tol) -> ClosedLoop<f64> {
     use std::f64::consts::FRAC_PI_2;
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, 0.0), t)
+        .continue_to(Point2::new(2.0, 0.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, 2.0), t)
+        .continue_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(0.0, 2.0), t)
+        .continue_to(Point2::new(0.0, 2.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
@@ -105,7 +101,7 @@ fn the_subdivided_square_closes_and_validates() {
         (0.0, 1.0),
     ];
     for (i, (wx, wy)) in want.iter().enumerate() {
-        let got = loop_.vertices()[i].pos();
+        let got = loop_.vertices()[i];
         // The three point-target vertices land EXACTLY where they were
         // authored; the four `line(len)` vertices are `at + û·len`, and
         // û comes from `turn`'s round trip through the angle, so their
@@ -137,9 +133,9 @@ fn an_accepted_target_lands_where_it_was_authored() {
     let t = Tol::witness();
     let (eps, _) = band();
     let off = 0.01 * eps;
-    let target = p2(2.0, off);
+    let target = Point2::new(2.0, off);
     let chain = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
@@ -147,12 +143,12 @@ fn an_accepted_target_lands_where_it_was_authored() {
         .continue_to(target, t)
         .unwrap();
     let closed = chain
-        .line_to(p2(2.0, 2.0), t)
+        .line_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();
     let v = pinned(closed);
-    let landed = v.vertices()[2].pos();
+    let landed = v.vertices()[2];
     assert_eq!(
         (landed.x.to_bits(), landed.y.to_bits()),
         (target.x.to_bits(), target.y.to_bits()),
@@ -175,16 +171,16 @@ fn an_accepted_target_lands_where_it_was_authored() {
 fn the_closer_mints_no_vertex_at_the_entry() {
     use std::f64::consts::FRAC_PI_2;
     let t = Tol::witness();
-    let entry = p2(0.3, -0.7);
+    let entry = Point2::new(0.3, -0.7);
     let closed = Open
         .at(entry)
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .line_to(p2(1.3, 1.0), t)
+        .line_to(Point2::new(1.3, 1.0), t)
         .unwrap()
-        .line_to(p2(0.3, 1.0), t)
+        .line_to(Point2::new(0.3, 1.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
@@ -194,7 +190,7 @@ fn the_closer_mints_no_vertex_at_the_entry() {
         .unwrap();
     let loop_ = pinned(closed);
     assert_eq!(loop_.vertices().len(), 5);
-    let first = loop_.vertices()[0].pos();
+    let first = loop_.vertices()[0];
     assert_eq!(
         (first.x.to_bits(), first.y.to_bits()),
         (entry.x.to_bits(), entry.y.to_bits()),
@@ -219,18 +215,18 @@ fn the_closer_mints_no_vertex_at_the_entry() {
 fn the_declaration_is_what_separates_the_two_spellings() {
     let t = Tol::witness();
     let run = |t: Tol| {
-        Open.at(p2(0.0, 0.0))
+        Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, t)
             .unwrap()
             .line(1.0, t)
             .unwrap()
     };
-    let inferred = run(t).line_to(p2(2.0, 0.0), t);
+    let inferred = run(t).line_to(Point2::new(2.0, 0.0), t);
     assert!(
         matches!(inferred, Err(PathError::JunctionTangent { .. })),
         "the undeclared spelling must still refuse: {inferred:?}"
     );
-    assert!(run(t).continue_to(p2(2.0, 0.0), t).is_ok());
+    assert!(run(t).continue_to(Point2::new(2.0, 0.0), t).is_ok());
 }
 
 /// **The band, on both sides and in the middle.** One fixture, one
@@ -254,12 +250,12 @@ fn the_on_ray_check_is_banded_on_both_sides() {
     let t = Tol::witness();
     let (eps, eps_input) = band();
     let attempt = |dy: f64| {
-        Open.at(p2(0.0, 0.0))
+        Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, t)
             .unwrap()
             .line(1.0, t)
             .unwrap()
-            .continue_to(p2(2.0, dy), t)
+            .continue_to(Point2::new(2.0, dy), t)
     };
     assert!(attempt(0.01 * eps).is_ok(), "inside ε must be accepted");
     assert!(
@@ -286,12 +282,12 @@ fn the_off_ray_message_names_the_intent_and_the_miss() {
     let t = Tol::witness();
     let (_, eps_input) = band();
     let err = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, 1000.0 * eps_input), t)
+        .continue_to(Point2::new(2.0, 1000.0 * eps_input), t)
         .expect_err("definitely off the ray");
     let msg = err.to_string();
     assert!(msg.contains("declared straight continuation"), "{msg}");
@@ -307,12 +303,12 @@ fn the_off_ray_message_names_the_intent_and_the_miss() {
 fn a_target_behind_the_departure_is_a_nonpositive_leg() {
     let t = Tol::witness();
     let behind = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(0.5, 0.0), t);
+        .continue_to(Point2::new(0.5, 0.0), t);
     match behind {
         Err(PathError::NonpositiveLeg { length }) => assert!(length < 0.0),
         other => panic!("a target behind the departure must refuse: {other:?}"),
@@ -337,7 +333,7 @@ fn a_continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
     use std::f64::consts::FRAC_PI_2;
     let t = Tol::witness();
     let closed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .arc_to(
@@ -349,9 +345,9 @@ fn a_continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
             t,
         )
         .unwrap()
-        .continue_to(p2(1.0, 3.0), t)
+        .continue_to(Point2::new(1.0, 3.0), t)
         .expect("a target on the arc's own end tangent passes the on-ray check")
-        .line_to(p2(-1.0, 3.0), t)
+        .line_to(Point2::new(-1.0, 3.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();
@@ -384,9 +380,9 @@ fn a_continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
 fn lilys_measured_corner_miss_is_deep_inside_the_band() {
     let t = Tol::witness();
     let (eps, _) = band();
-    let right = p2(1.0, 0.0);
-    let keel = p2(0.0, -1.0);
-    let m3 = p2(0.5 * (keel.x + right.x), 0.5 * (keel.y + right.y));
+    let right = Point2::new(1.0, 0.0);
+    let keel = Point2::new(0.0, -1.0);
+    let m3 = Point2::new(0.5 * (keel.x + right.x), 0.5 * (keel.y + right.y));
     // The ray the closer departs on: the run from `keel` through `m3`,
     // as `toward` binds it.
     let d = right - keel;
@@ -434,7 +430,7 @@ fn a_seam_at_a_subdivision_vertex_still_refuses_as_a_mid_carrier_seam() {
     // Ring from (2,0): corner (3,0), corner (3,3), corner (0,3),
     // corner (0,0), subdivision (1,0), close on (2,0).
     let attempt = Open
-        .at(p2(2.0, 0.0))
+        .at(Point2::new(2.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
@@ -490,7 +486,7 @@ fn the_per_leg_band_composes_and_the_data_gate_catches_the_sum() {
     let bias = 0.5 * eps;
     let n = 40usize;
     let mut chain = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
@@ -498,13 +494,13 @@ fn the_per_leg_band_composes_and_the_data_gate_catches_the_sum() {
     for i in 0..n {
         let step = i as f64 + 1.0;
         chain = chain
-            .continue_to(p2(1.0 + step, step * bias), t)
+            .continue_to(Point2::new(1.0 + step, step * bias), t)
             .unwrap_or_else(|e| panic!("leg {i} must pass its OWN per-leg check: {e:?}"));
     }
     let closed = chain
-        .line_to(p2(1.0 + n as f64, 50.0), t)
+        .line_to(Point2::new(1.0 + n as f64, 50.0), t)
         .unwrap()
-        .line_to(p2(0.0, 50.0), t)
+        .line_to(Point2::new(0.0, 50.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();
@@ -512,7 +508,7 @@ fn the_per_leg_band_composes_and_the_data_gate_catches_the_sum() {
 
     // The drift is real and is larger than any single leg's bound: it is
     // the SUM of n accepted misses, so it passes ε_input (= K·ε).
-    let drift = loop_.vertices()[n + 1].pos().y;
+    let drift = loop_.vertices()[n + 1].y;
     assert!(
         drift > t.k() * eps,
         "the accumulated drift {drift:e} should exceed one full input tolerance \

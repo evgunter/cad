@@ -120,97 +120,12 @@ fn section_faces_with(body: &Body<f64>, o: Point3<f64>, n: Vec3<f64>) -> Vec<top
 }
 
 /// A geometric genus-1 box: outer 4×2×2, square 1×1 hole through z at
-/// (0.5..1.5)² — the box_with_hole construction (§9.3) followed by a
-/// plating pass that gives every face its own Newell plane from its
-/// outer loop (loops are CCW-from-outside by construction, so Newell
-/// yields outward normals).
+/// (0.5..1.5)², every face on its own outward Newell plane
+/// ([`common::holed_block`]), and the construction-final description
+/// step (D6) run — the fixture is a split operand, tier-3-grade by
+/// construction.
 fn holed_box_geometric() -> Body<f64> {
-    use topo::{MefSite, MevSite};
-    let pt = Point3::new;
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
-    let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(
-            MevSite::Fan { he1: at, he2: at },
-            pt(x, y, z),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
-    let mef = |body: &mut Body<f64>, he1, he2| {
-        body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
-            .unwrap()
-    };
-    // Bottom chain A→B→C→D, closed; verticals; sides (§9.4.2).
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(4.0, 0.0, 0.0),
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_bc = strut(&mut body, e_ab.he_minus, 4.0, 2.0, 0.0);
-    let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 2.0, 0.0);
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = mef(&mut body, he_dc, e_ab.he_plus);
-    let e_aa = strut(&mut body, e_ab.he_plus, 0.0, 0.0, 2.0);
-    let e_bb = strut(&mut body, e_bc.he_plus, 4.0, 0.0, 2.0);
-    let e_cc = strut(&mut body, e_cd.he_plus, 4.0, 2.0, 2.0);
-    let e_dd = strut(&mut body, f_bottom.he_plus, 0.0, 2.0, 2.0);
-    let f_front = mef(&mut body, e_aa.he_minus, e_bb.he_minus);
-    let _f_right = mef(&mut body, e_bb.he_minus, e_cc.he_minus);
-    let _f_back = mef(&mut body, e_cc.he_minus, e_dd.he_minus);
-    let _f_left = mef(&mut body, e_dd.he_minus, f_front.he_plus);
-    // Hole: strut A'→P, kemr to plant the ring, grow P→Q→R→S, close,
-    // drop verticals, cut the tube walls, kfmrh the membrane.
-    let hole = strut(&mut body, f_front.he_plus, 0.5, 0.5, 2.0);
-    let kill = body.kemr(hole.he_plus, hole.he_minus).unwrap();
-    let s_pq = body
-        .mev_line(
-            MevSite::Lone { r#loop: kill.ring },
-            pt(1.5, 0.5, 2.0),
-            Tol::witness(),
-        )
-        .unwrap();
-    let s_qr = strut(&mut body, s_pq.he_minus, 1.5, 1.5, 2.0);
-    let s_rs = strut(&mut body, s_qr.he_minus, 0.5, 1.5, 2.0);
-    let mef_top = mef(&mut body, s_pq.he_plus, s_rs.he_minus);
-    let e_pp = strut(&mut body, s_pq.he_plus, 0.5, 0.5, 0.0);
-    let e_qq = strut(&mut body, s_qr.he_plus, 1.5, 0.5, 0.0);
-    let e_rr = strut(&mut body, s_rs.he_plus, 1.5, 1.5, 0.0);
-    let e_ss = strut(&mut body, mef_top.he_minus, 0.5, 1.5, 0.0);
-    let w_front = mef(&mut body, e_pp.he_minus, e_qq.he_minus);
-    let _w_right = mef(&mut body, e_qq.he_minus, e_rr.he_minus);
-    let _w_back = mef(&mut body, e_rr.he_minus, e_ss.he_minus);
-    let _w_left = mef(&mut body, e_ss.he_minus, w_front.he_plus);
-    body.kfmrh(f_bottom.face, mef_top.face).unwrap();
-    // Plating pass: every face gets its own outward Newell plane.
-    let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    for f in faces {
-        let outer = body.get_face(f).unwrap().outer;
-        let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
-            panic!("outer loops are cycles");
-        };
-        let pts: Vec<Point3<f64>> = body
-            .loop_cycle(first)
-            .unwrap()
-            .iter()
-            .map(|&he| {
-                let v = body.get_half_edge(he).unwrap().start;
-                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
-            })
-            .collect();
-        let plane = geom_brep::newell_plane(&pts, band).unwrap();
-        body.set_face_surface(f, topo::FaceSurface::New(plane))
-            .unwrap();
-    }
-    // Construction-final description step (D6): the fixture is a split
-    // operand — tier-3-grade by construction.
+    let mut body = common::holed_block::<f64>(4.0, &[1.0], Tol::witness());
     common::describe_as_intersections(&mut body, Tol::witness());
     body
 }

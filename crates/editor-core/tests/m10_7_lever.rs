@@ -67,7 +67,7 @@ fn arm_of(half: f64) -> f64 {
     2.0 * std::f64::consts::SQRT_2 * half + SEPARATION
 }
 
-fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode { node },
@@ -121,6 +121,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
             Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square.clone()],
+                ids: Vec::new(),
             }),
         );
         doc = next;

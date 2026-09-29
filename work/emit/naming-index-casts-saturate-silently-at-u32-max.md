@@ -2,10 +2,12 @@
 id: naming-index-casts-saturate-silently-at-u32-max
 kind: issue
 title: editor-core index and count casts saturate or wrap at u32::MAX instead of refusing
-status: open
+status: closed
 opened: 2026-09-24
 priority: P4
 cost: E
+closed: 2026-09-25
+pr: 3226
 ---
 
 `names/emit_sweep.rs::ix` (`:63` at filing) turns a loop, segment or vertex

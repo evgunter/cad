@@ -72,6 +72,7 @@ pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
+pub mod recourse;
 pub mod ssi;
 pub mod tangent;
 
@@ -84,24 +85,29 @@ pub use description::{
 };
 pub use dihedral::{
     DihedralClass, MaterialPairing, MaterialWedge, MustCarryVerdict, SecondOrder,
-    classify_dihedral, classify_material_pairing, folded_lever_arm, material_kappa_rel,
-    must_carry_over_edge, tangent_second_order,
+    classify_dihedral, classify_material_pairing, classify_material_pairing_as, folded_lever_arm,
+    material_kappa_rel, must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
+/// The ring-torus convention's one home is `geom` (below this crate, so
+/// the spiric carrier's constructor reads it too); re-exported so the
+/// doors above read it by the name they already use.
+pub use geom::ring_torus;
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
-    circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
+    circle_residual_extremes, cone_elevation, curvature_lever_arm, implicit_gradient,
+    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
+    implicit_residual, min_radius_of_curvature,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
     PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
     Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
     cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
-    plane_sphere_section, plane_torus_section, route, sphere_sphere_section,
+    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};
@@ -111,9 +117,9 @@ pub use nurbs_iso::{
 };
 pub use offset::{ConeOffset, Nappe, OffsetError, offset_surface};
 pub use offset_fit::{
-    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, approx_offset_surface_at,
-    certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
-    fit_offset_at, recertify_approx, recertify_approx_at,
+    BestBound, LastRound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
+    approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
+    certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use offset_fit_lane::OffsetFitLane;
 pub use pcurve::{

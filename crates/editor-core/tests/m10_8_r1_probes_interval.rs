@@ -13,7 +13,7 @@
 //!   — so it can neither run away nor downgrade a plain-form theorem.
 //!
 //! EVERY ROW IS EVIDENCE-ONLY (`#[ignore]`d, prints, asserts nothing a
-//! gate could read — [[test-suite-cost]]). Run:
+//! gate could read — implementer-discipline §8). Run:
 //!
 //! ```sh
 //! cargo test -p editor-core --test all -- \
@@ -28,14 +28,14 @@ use std::time::Instant;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, select_where,
 };
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, scl, xy_frame};
 use crate::m10_7_plate::plate;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
 use crate::m10_8_arc_family_interval::replay;
@@ -254,8 +254,6 @@ fn r1_ceilings_per_variant() {
 /// `scale` multiplies every tolerance; `1.0` is the study a user would
 /// ask for.
 pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite length");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let plen = |n: &str| Expr::param(ParamName::new(n), Dimension::Length);
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
@@ -295,11 +293,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             sigma: 1.0e-5 * scale,
         },
     );
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let thickness = Expr::div(plen("outer_r"), scl(5.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -307,6 +301,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             centre: [len(0.0), len(0.0)],
             radius: plen("outer_r"),
         }],
+        ids: Vec::new(),
     }));
     let disc = r.insert(Node::Extrude {
         profile: disc_profile,
@@ -318,6 +313,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,

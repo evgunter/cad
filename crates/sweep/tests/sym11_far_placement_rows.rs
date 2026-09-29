@@ -35,7 +35,7 @@ use geom_core::sym::with_session_rules;
 use geom_core::{
     Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2,
 };
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis};
 
 fn budget() -> SymBudget {
@@ -52,11 +52,11 @@ fn budget() -> SymBudget {
 fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(lit(-1.0), lit(0.0) - r), lit(0.0)),
-        ProfileVertex::new(Point2::new(lit(1.0), lit(0.0) - r), lit(0.5)),
-        ProfileVertex::new(Point2::new(lit(1.0), r), lit(0.0)),
-        ProfileVertex::new(Point2::new(lit(-1.0), r), lit(0.5)),
+    let lp = bulge_loop(vec![
+        (Point2::new(lit(-1.0), lit(0.0) - r), lit(0.0)),
+        (Point2::new(lit(1.0), lit(0.0) - r), lit(0.5)),
+        (Point2::new(lit(1.0), r), lit(0.0)),
+        (Point2::new(lit(-1.0), r), lit(0.5)),
     ]);
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())

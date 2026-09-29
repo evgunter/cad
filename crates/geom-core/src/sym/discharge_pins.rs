@@ -225,7 +225,11 @@ fn every_discharge_kind_records_a_report_row_of_its_own() {
         // The numeric side of the pair is ignored by every discharge
         // arm of `record`'s match; a definite sign here is the reading
         // that would mask a mis-wired arm rather than agree with it.
-        report::record(&Ok(Sign::Positive), Some(kind), None, None);
+        let definite = crate::predicate::Decided {
+            sign: Sign::Positive,
+            margin: crate::MarginDiag::value(1.0),
+        };
+        report::record(&Ok(definite), Some(kind), None, None);
     }
     let rows: Vec<ShapeOutcome> = report::take_shape_report()
         .into_iter()

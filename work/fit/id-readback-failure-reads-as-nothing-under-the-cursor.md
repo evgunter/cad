@@ -38,10 +38,13 @@ it as a fresh, valid reply.
 
 `crate::idpass::disagreement` reads that word back and compares the
 two picking paths by name. `id == IdMap::NOTHING` gives `from_gpu =
-None`; a ray that DID find a face then gives
-`from_gpu.as_ref() != from_ray`, and the frame pushes
-`Disagreement { from_gpu: None, from_ray: Some(name) }` onto the
-status line. So a device that could not answer is reported to the
+IdAnswer::Nothing` (`idpass::IdAnswer::of`); a ray that DID find a
+face then does not contain it (`disagreement`'s `agrees` is
+`from_ray.is_empty()` for that arm), and the frame pushes
+`Disagreement { from_gpu: IdAnswer::Nothing, from_ray: vec![name] }`
+onto the status line as *"id buffer nothing"*. `IdAnswer::Nothing`'s
+doc now cites this row: the arm holds a failed readback as well as
+empty space until the channel word tells them apart. So a device that could not answer is reported to the
 reader as **the id pass and the ray disagreeing about the picture** —
 a sentence about the model, blaming the half of the crate that was
 working. The GUI0 role inversion recorded at `disagreement` makes the

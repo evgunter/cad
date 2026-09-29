@@ -43,6 +43,7 @@ use topo::{Body, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, PcurveMintError, V
 
 use super::common::approx::twisted_loft;
 use super::common::latitude_seam::{collinear_cap_drum, door_cavity, two_arc_sphere};
+use super::common::shell_operands::vessel;
 use super::revolve_common::donut_profile;
 use super::shell7_common::*;
 
@@ -67,6 +68,8 @@ fn half_drum() -> Body<f64> {
 
 /// Every stored row of `body`, keyed by its half-edge, as `Debug`
 /// text: image, interval and certificate, bit for bit.
+/// NOT `common::pcurve_rows::rows`, which omits the certificate and
+/// the key this suite compares by.
 fn rows(body: &Body<f64>) -> Vec<(HalfEdgeKey, String)> {
     body.pcurves()
         .map(|(he, cache)| (he, format!("{cache:?}")))
@@ -243,7 +246,7 @@ fn periodic_charts_without_a_closure_wrap_are_re_anchored_and_report_only_the_co
     for (label, body) in [
         ("tube torus", tube_torus(2.0, 0.5)),
         ("two-arc torus", two_arc_torus()),
-        ("drum", drum(1.0, 2.0)),
+        ("drum", vessel(1.0, 2.0)),
         ("collinear-cap drum", collinear_cap_drum()),
         ("drum cavity", door_cavity(&collinear_cap_drum(), 0.05)),
         ("half drum", half_drum()),

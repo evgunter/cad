@@ -104,6 +104,7 @@ conditional. That much is confirmed. Three things refuse it:
 
 ## Fence
 
-The CI row is `.github/workflows/ci.yml`, which is **CIW's**. The
+The CI row would sit beside the rustdoc gate in
+`.github/workflows/nightly.yml` (`rustdoc-roots`), which is **CIW's**. The
 `examples/` fix and the lint selection for a browser pass are this
 crate's.

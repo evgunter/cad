@@ -2,9 +2,11 @@
 id: the-viewer-keeps-its-profile-lock-and-order-search-after-set-program
 kind: issue
 title: The viewer's profile editor still locks the shape and searches a write order: SetProgram exists and the lock, program_edits, accepted_order and three refusals are droppable
-status: open
+status: dispatched
 opened: 2026-09-20
 refs: [a-committed-profile-program-has-no-whole-program-edit]
+priority: P0
+cost: D
 ---
 
 ## The finding
@@ -103,3 +105,7 @@ enum and matches no word of the pattern; it was found by reading. The
 pattern cannot match a control that is disabled by a different word
 than `Locked` — none was found by reading `path_steps_ui`, which takes
 the enum.
+
+## Triaged P0 and dispatched (2026-09-29)
+
+Filed with no priority. Triaged **P0**: a committed sketch's shape controls are drawn disabled under a sentence (`SHAPE_LOCKED`) that has been false since `DocEdit::SetProgram` landed, so reshaping a sketch after committing it is a door the GUI cannot author, which is AUTHOR's charter. Dispatched as **AUTH-6** (`docs/AUTH-6-SPEC.md`, branch `author/profile-reshape`) in parallel with AUTH-5, which works in `sketch::preview`.

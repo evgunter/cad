@@ -1,14 +1,13 @@
 //! R2 review probes, ADOPTED (PR #1131), sweep side. Written against a
 //! GATE EXEMPTION that was withdrawn on their evidence; what ships is
-//! the collinear-seam repair in `merge_coplanar_faces`. The pole
-//! acceptance row at the foot of this file is the positive pole of
-//! that differential.
+//! the dangling-seam pruning in `merge_coplanar_faces`, and the pole
+//! acceptance row at the foot of this file is its revolve instance.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
 
-use geom_core::{Point3, Tol};
+use geom_core::{Point2, Point3, Tol};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
@@ -18,7 +17,11 @@ use topo::{
 };
 
 fn triangle() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ])
 }
 
 fn cone() -> Body<f64> {
@@ -165,10 +168,11 @@ fn r2_one_face_cap_via_kef_then_kev() {
 
 /// **The unit's headline acceptance.** A full revolve's axis-touching
 /// planar cap is two half-discs sharing the two halves of the disc's
-/// DIAMETER, meeting at the pole — a vertex interior to one straight
-/// carrier. `merge_coplanar_faces` must now repair exactly that: the
-/// pair becomes ONE face bounded by its rim alone, the pole vertex
-/// goes with the seam, and the body stays valid.
+/// DIAMETER, meeting at the pole. `merge_coplanar_faces` repairs it:
+/// once the half-discs are joined, the second half of the diameter
+/// dangles from the pole, and it goes with the pole — the pair
+/// becomes ONE face bounded by its rim alone, and the body stays
+/// valid.
 ///
 /// The fixture is R2's own `cone()` (a triangle revolved about the
 /// axis it touches). What is asserted is the repair, not the trigger:

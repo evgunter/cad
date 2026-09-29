@@ -25,7 +25,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
+fn rerun(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         Some(prior),
@@ -108,13 +108,7 @@ fn set_appearance_validates_and_applies_purely() {
     let edge = minted(
         EntityKind::Edge,
         ext,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            editor_core::ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
-        ),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0)),
     );
     assert_eq!(
         doc.apply(
@@ -265,7 +259,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             node: doc3.node(plane).unwrap().clone(),
         },
         DocEdit::InsertNode {
-            node: doc3.node(p).unwrap().clone(),
+            node: crate::fixture::as_authored(doc3.node(p).unwrap()),
         },
         DocEdit::InsertNode {
             node: doc3.node(ext).unwrap().clone(),

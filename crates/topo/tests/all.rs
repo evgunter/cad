@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "axis_source_rows.rs"]
+mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
 mod bool4_material_containment;
 #[path = "bool4r1_probes.rs"]
@@ -77,6 +79,16 @@ mod box_with_hole;
 mod census_g2_carrier;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
+#[path = "contact1_touch_cones.rs"]
+mod contact1_touch_cones;
+#[path = "contact5_gate_and_beam.rs"]
+mod contact5_gate_and_beam;
+#[path = "contact7_touch_sweeps.rs"]
+mod contact7_touch_sweeps;
+#[path = "contact8_dangling_seam.rs"]
+mod contact8_dangling_seam;
+#[path = "contact9_side_codes.rs"]
+mod contact9_side_codes;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
@@ -227,6 +239,8 @@ mod review_s6_probe;
 mod review_ssiflat_r1_probes;
 #[path = "review_ssiflat_r2_probes.rs"]
 mod review_ssiflat_r2_probes;
+#[path = "rigid_map_near_eps_approx.rs"]
+mod rigid_map_near_eps_approx;
 #[path = "rim_dim_boolean_twins.rs"]
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
@@ -237,6 +251,8 @@ mod seat3_flush_detector;
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]
 mod shell_tolerance_chain;
+#[path = "shell_winding.rs"]
+mod shell_winding;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "split_edge_pcurve_rows.rs"]
@@ -277,6 +293,8 @@ mod r2_rim_probes;
 mod lane0_r2_probes;
 #[path = "lane2_r2_probes.rs"]
 mod lane2_r2_probes;
+#[path = "replace_face_band_probes.rs"]
+mod replace_face_band_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;

@@ -2,10 +2,12 @@
 id: the-viewer-drops-every-dm7-rename-report
 kind: issue
 title: The viewer keeps only cluster_rows() of an applied edit, so no Rebound or Strand row ever reaches a GUI user
-status: open
+status: closed
 opened: 2026-09-24
 priority: P1
 cost: D
+closed: 2026-09-25
+pr: 3196
 ---
 
 

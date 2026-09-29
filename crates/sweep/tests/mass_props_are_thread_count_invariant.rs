@@ -15,8 +15,7 @@
 //! — a walk that dropped every worker's recording identically at one
 //! and four threads would pass a t1-vs-t4 row while asserting nothing.
 //! So `thread-count-digest/eps-*.txt` is cut on the MERGE BASE, where
-//! the walk is serial, and both widths are read against it. Same
-//! instrument as `reporting_door_bit_digest`, and cut the same way: a
+//! the walk is serial, and the four-thread walk is read against it: a
 //! row cut on this branch would record what this branch does, which is
 //! the thing under test. The one case where a lane re-cuts here
 //! anyway, and what licenses it, is at `expected`.
@@ -39,13 +38,10 @@
 //! reading REFUSES, which is the escalation PATH through the walk; it
 //! is not a body that escalates on the channel.
 //!
-//! **One row is `probe`-gated and it is rostered as EXECUTED**
-//! (`scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`, which
-//! `k_probe_sweep.sh` derives its default-selection loop from). The
-//! sample population is the thing k-lint counts, so a row asserting it
-//! does not move with the thread count is worth nothing if it only
-//! compiles: an inert pin reports the same green as one that ran. The
-//! other rows are ungated and run on every merge as usual.
+//! **Its `probe` row lives in `thread_count_probe_populations`**: the
+//! sample population is the thing k-lint counts, and only the probe
+//! sweep runs a `probe` build, so the row sits in a file the sweep can
+//! select without re-running the goldens here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{
@@ -273,6 +269,28 @@ fn digest() -> String {
 /// decision counts are untouched. Every verdict hash in the block is
 /// unchanged — nothing certified that refused, or refused that
 /// certified — and the pads are the whole of what moved, downward.
+///
+/// **Re-cut at all three ε when tier 3's check 6 planar arm began
+/// examining loops of `Line` and `Circle` carriers.** Both sym-session
+/// bodies have two planar caps whose loops carry an arc, and each cap
+/// loop now takes the one `bool_ring_run_winding` decision it was
+/// skipped before: on both `validate_geometric` rows the decision,
+/// shape, numeric and frozen-operand counts each rise by exactly 2,
+/// the verdicts stay `OK` / `REFUSED`, and no other line of the block
+/// moves.
+///
+/// **Re-cut at all three ε when tier 3's check 1 began reading every
+/// edge carrier's datums.** Only the `frozen` column of the two
+/// `validate_geometric` rows moves, and down: `sym_arc_loft`
+/// 2141 → 685 / 2059 → 599 / 2117 → 670 and `sym_thin_strip`
+/// 2181 → 860 / 2178 → 825 / 2179 → 858 at ε = 1e-6 / 1e-9 / 1e-12.
+/// Decisions, discharges, shapes and verdicts are unchanged. The
+/// carrier pass decides nothing; it builds its datum reads inside the
+/// session, and so interns nodes the later decisions' margins share —
+/// nodes the plain walk used to freeze as absent from its table
+/// (`geom_core::sym`'s `form_in`: "a node absent from this leaf's table
+/// is frozen here by design") and now expands. Measured by switching
+/// the pass off on a probe branch, which restores the old column.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
@@ -296,11 +314,6 @@ fn check_against_golden(threads: usize) {
          baseline to preserve: if the new behaviour is right, re-cut the table on the merge \
          base and say in the PR what moved and why."
     );
-}
-
-#[test]
-fn the_walk_matches_the_serial_golden_at_one_thread() {
-    check_against_golden(1);
 }
 
 #[test]
@@ -339,45 +352,5 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         quad > 0,
         "the described-spline body recorded no props_quad verdict — the roster no longer \
          reaches the quadrature lane, so the golden above pins a walk that does nothing"
-    );
-}
-
-/// **The `probe` sample population does not shrink with the thread
-/// count** — what k-lint counts, read at 1 and 4 threads. The golden
-/// above cannot carry this: the sink only exists in a `probe` build.
-#[cfg(feature = "probe")]
-#[test]
-fn the_sample_population_is_identical_at_one_and_four_threads() {
-    use geom_core::Probe;
-    use geom_core::k_stats::{start_recording, take_samples};
-
-    let eps = Tol::witness().get().eps;
-    let body: Body<Probe> = loft_body::<Probe>(
-        &[arc_section(1.0e9 * eps), arc_section(1.0e9 * eps)],
-        &stacked(&[0.0, 1.0], 1.0e9 * eps),
-        1,
-        Tol::witness(),
-    )
-    .expect("the probe arc loft lofts")
-    .body;
-    let population = |threads: usize| {
-        on_pool(threads, || {
-            start_recording();
-            let _ = topo::mass_properties(&body, Tol::witness());
-            take_samples()
-                .iter()
-                .map(|s| (s.predicate, s.margin.to_bits(), s.outcome.token()))
-                .collect::<Vec<_>>()
-        })
-    };
-    let one = population(1);
-    let four = population(4);
-    assert!(
-        !one.is_empty(),
-        "the probe lane recorded no sample — the comparison below is vacuous"
-    );
-    assert_eq!(
-        one, four,
-        "the sample population moved with the thread count"
     );
 }

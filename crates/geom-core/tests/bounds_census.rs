@@ -328,6 +328,38 @@ const ROSTER: &[Site] = &[
         why: Selection("the C6 inventory gate's `is the trig channel exactly 0.0` read"),
     },
     Site {
+        path: "crates/topo/src/validate.rs",
+        subject: "curve_datum_errors",
+        why: Selection(
+            "check 1's carrier datum findings: reads no bracket itself, and carries the \
+             bound only to hand the carrier's margins to `analytic_datum_verdicts`, whose \
+             line is this file's one representability read",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/validate.rs",
+        subject: "surface_datum_errors",
+        why: Selection(
+            "check 1's surface datum findings: reads no bracket itself, and carries the \
+             bound only to hand the surface's margins to `analytic_datum_verdicts`, whose \
+             line is this file's one representability read",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/validate.rs",
+        subject: "analytic_datum_verdicts",
+        why: Selection(
+            "tier-3 check 1's representability read: `Bounds::lo` of each STORED datum's \
+             convention margin (`geom::Surface::representability_margins`, \
+             `geom::Curve3::representability_margins`) compared with \
+             zero — whether a datum lies inside the convention its variant states, a \
+             locally constant fact about data, not a geometric quantity of the body. It \
+             selects the refusal and never crosses into a certificate; the argument is \
+             the `bounds_allowlist` 2026-09-02 certified at-rest entry in `real.rs`, which \
+             discloses this as the file's one bracket read",
+        ),
+    },
+    Site {
         path: "crates/topo/src/query.rs",
         subject: "rim_of",
         why: Selection(

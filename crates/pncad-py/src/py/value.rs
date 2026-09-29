@@ -223,8 +223,8 @@ impl From<topo::MassProperties<f64>> for MassProperties {
 /// One construction site for the same reason
 /// [`Body::validator_err`] is one: two doors that refuse the same
 /// class must not drift on the word. `extra` is where they legitimately
-/// differ — the certificate door has a sign-level bracket to hand over
-/// and the reporting door has none.
+/// differ — the certificate door has a bracket to hand over and the
+/// reporting door has none.
 fn measurement_err(
     py: Python<'_>,
     err: &topo::MassPropsError,
@@ -235,6 +235,26 @@ fn measurement_err(
         ErrorClass::Validation(ValidationRefusal::MassProperties),
         err.to_string(),
         &extra,
+    )
+}
+
+/// The refusal a door raises when a gate's certificate could not be
+/// continued to the number ([`topo::SignCertificate::measure`]): the
+/// measurement refusal, carrying the kernel's bracket as
+/// `volume_lo`/`volume_hi`/`surface_area` when the kernel classified
+/// the refusal as the schedule running out, and `None` on every other
+/// refusal because no other refusal has one. The classification is the
+/// kernel's ([`topo::TargetUnreached::bracket`]); this only spells it.
+fn unreached_err(py: Python<'_>, unreached: &topo::TargetUnreached<f64>) -> PyErr {
+    let bracket = unreached.bracket;
+    measurement_err(
+        py,
+        &unreached.refusal,
+        vec![
+            ("volume_lo", pyfloat(py, bracket.map(|b| b.volume_lo))),
+            ("volume_hi", pyfloat(py, bracket.map(|b| b.volume_hi))),
+            ("surface_area", pyfloat(py, bracket.map(|b| b.surface_area))),
+        ],
     )
 }
 
@@ -402,10 +422,11 @@ impl Body {
     /// the same `ValidationError` and the same `reason`
     /// ([`ValidationRefusal::MassProperties`]) `mass_properties()`
     /// raises on that body. On THAT refusal the exception also carries the
-    /// sign-level bracket the gate decided on — `volume_lo`,
-    /// `volume_hi`, `surface_area` — which is the whole of what the
-    /// certified quadrature is entitled to say about the body, and is
-    /// `None` on every other refusal because no other refusal has one.
+    /// narrowest bracket the gate's certificate or its continuation
+    /// held — `volume_lo`, `volume_hi`, `surface_area` — which is the
+    /// whole of what the certified quadrature is entitled to say about
+    /// the body, and is `None` on every other refusal because no other
+    /// refusal has one.
     fn validate_geometric_measured(&self, py: Python<'_>) -> PyResult<MassProperties> {
         let tol = Tol::witness();
         let certificate = match topo::validate_geometric_certificate(&self.inner, tol) {
@@ -421,41 +442,10 @@ impl Body {
                 )?);
             }
         };
-        // The bracket has to be read BEFORE the continuation consumes
-        // the certificate, on the chance it turns out to be wanted.
-        //
-        // GAP (`memories/demo-purpose.md`): that read, and the
-        // two-crates-deep match below, are both the same missing
-        // affordance — a budget refusal is exactly the case that HAS
-        // a certified bracket and it carries neither the bracket nor
-        // its own classification. `SignCertificate::target_refusal`
-        // answers the classification but is unreachable once
-        // `refine_to_target` has consumed the certificate. Filed as
-        // `work/perf`'s
-        // `budget-refusal-drops-the-enclosure-the-caller-needs`.
-        let sign_level = certificate.enclosure();
         certificate
-            .refine_to_target()
+            .measure()
             .map(MassProperties::from)
-            .map_err(|err| {
-                let bracket = matches!(
-                    &err,
-                    topo::MassPropsError::Face {
-                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
-                        ..
-                    }
-                )
-                .then_some(sign_level);
-                measurement_err(
-                    py,
-                    &err,
-                    vec![
-                        ("volume_lo", pyfloat(py, bracket.map(|b| b.volume_lo))),
-                        ("volume_hi", pyfloat(py, bracket.map(|b| b.volume_hi))),
-                        ("surface_area", pyfloat(py, bracket.map(|b| b.surface_area))),
-                    ],
-                )
-            })
+            .map_err(|unreached| unreached_err(py, &unreached))
     }
 
     /// **Tier 3′** — the ladder's fourth rung: tier 3's whole local
@@ -592,9 +582,11 @@ impl Body {
 ///   `"patch"`). The granularity is which record to withdraw or
 ///   re-seat; withdrawing another one leaves the refusal standing.
 /// * `ring_contact_kind` — how a ring meets its face's own outer loop
-///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`).
+///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
+///   `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
 ///   The word says where the ring has to move: a shared position one
-///   vertex clears, or a shared arc no single move separates.
+///   vertex clears, a shared arc no single move separates, or a
+///   crossing or touching point no vertex carries.
 ///
 /// **No arena key crosses**, here as everywhere: a `Body` is an opaque
 /// handle, so WHICH face or vertex a finding names stays in the
@@ -1968,9 +1960,10 @@ pub(crate) struct ImportReport {
     /// rest, checked before it was handed out.
     #[pyo3(get)]
     body: Body,
-    /// The at-rest gate's own enclosure of `body`.
-    #[pyo3(get)]
-    enclosure: MassProperties,
+    /// The at-rest gate's own enclosure of `body`, continued to the
+    /// number — or why it could not be (read through the `enclosure`
+    /// getter, which raises that refusal).
+    enclosure: Result<MassProperties, topo::TargetUnreached<f64>>,
     /// The import's input tolerance in metres: the file's declared
     /// uncertainty, which is a separate quantity from the kernel's ε.
     #[pyo3(get)]
@@ -1982,6 +1975,23 @@ pub(crate) struct ImportReport {
 
 #[pymethods]
 impl ImportReport {
+    /// The at-rest gate's own measurement of `body` — its certificate
+    /// continued to the number, not a second computation.
+    ///
+    /// # Errors
+    ///
+    /// The import SUCCEEDED either way: the gate decides each solid's
+    /// volume sign, and admits a valid body whose volume is not
+    /// measurable at this ε. Reading this on such a report raises the
+    /// measurement refusal `validate_geometric_measured` raises, with
+    /// its bracket when the schedule ran out.
+    #[getter]
+    fn enclosure(&self, py: Python<'_>) -> PyResult<MassProperties> {
+        self.enclosure
+            .clone()
+            .map_err(|unreached| unreached_err(py, &unreached))
+    }
+
     /// Every boundary graph the adoption re-minted, in resolution
     /// order — empty for a file the kernel represents as stated.
     #[getter]
@@ -2006,8 +2016,11 @@ impl ImportReport {
 
     fn __repr__(&self) -> String {
         format!(
-            "ImportReport(volume={} m^3, {} normalization(s), {} promotion(s), {} instance(s))",
-            self.enclosure.volume,
+            "ImportReport(volume={}, {} normalization(s), {} promotion(s), {} instance(s))",
+            match &self.enclosure {
+                Ok(enclosure) => format!("{} m^3", enclosure.volume),
+                Err(_) => "unmeasured".to_owned(),
+            },
             self.normalizations.len(),
             self.promotions.len(),
             self.instances.len()
@@ -2074,12 +2087,7 @@ pub(crate) fn import_step(
             coherence: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
-            enclosure: MassProperties {
-                volume: enclosure.volume,
-                surface_area: enclosure.surface_area,
-                volume_pad: enclosure.volume_pad,
-                area_pad: enclosure.area_pad,
-            },
+            enclosure: enclosure.map(MassProperties::from),
             eps_in,
             normalizations: normalizations
                 .into_iter()

@@ -25,8 +25,7 @@
 # and its subject drifting apart is worse than a redundant cfg. Setting
 # only the flag, without the feature, IS still an error. It is passed as
 # a per-command prefix rather than an `export` because RUSTFLAGS
-# silently REPLACES any .cargo/config.toml rustflags — see gate.sh's
-# hazard list. The repo sets none today, so scoping it costs nothing and
+# silently REPLACES any .cargo/config.toml rustflags. The repo sets none today, so scoping it costs nothing and
 # means a future config.toml entry is not quietly dropped by this script.
 #
 # WHY ONLY THE BUILD TAKES A BUILD SLOT. test-fast.sh re-execs itself

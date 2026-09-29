@@ -3,6 +3,7 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
   "snapshot": {
     "id": "1c20a55875fd2760f4d43eb67ee0d135",
     "next_id": 4,
+    "next_step": 2,
     "nodes": {
       "0": {
         "Datum": {
@@ -137,6 +138,14 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
                 }
               }
             }
+          ],
+          "ids": [
+            [
+              0
+            ],
+            [
+              1
+            ]
           ]
         }
       },

@@ -881,10 +881,13 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(14);
             for lp in p.validated.loops() {
                 d.u64(lp.vertices().len() as u64);
-                for v in lp.vertices() {
-                    d.scalar(v.pos().x);
-                    d.scalar(v.pos().y);
-                    d.scalar(v.bulge());
+                // Each vertex with the bulge its segment was lowered
+                // from: an arc's carrier and sweep are functions of
+                // these, so they are digested through them.
+                for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                    d.scalar(v.x);
+                    d.scalar(v.y);
+                    d.scalar(s.bulge);
                 }
             }
         }

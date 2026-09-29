@@ -22,7 +22,7 @@ use crate::doc::Doc;
 use crate::eval::slots::{SlotValues, eval_slots};
 use crate::eval::{NodeErrorKind, NodeRefusal, Seated, SteppedOperands, need_scalar, need_vec3};
 use crate::expr::ParamEnv;
-use crate::names::RoleSeg;
+use crate::names::{RoleSeg, VerbatimEdge};
 use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 
 /// **The member a mate reference resolves to** (A11's member
@@ -173,24 +173,25 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
     let mut part: Option<RecipeNodeId> = None;
     loop {
         if at != name.node {
-            // Not the head yet: only a node that places or projects
-            // this body without renaming it may stand between an
-            // operand and the material it speaks about. A transform
-            // moves the body and contributes no `RolePath` segment; a
-            // `Part` selecting an instance moves nothing at all and
-            // carries every name VERBATIM. Anything else — a boolean,
-            // a union, a split, a `Part` naming a split HALF — is a
+            // Not the head yet: only a name-carrying edge
+            // ([`crate::names::verbatim_edge`]) that places or projects
+            // this body may stand between an operand and the material
+            // it speaks about. A whole edge moves the body and
+            // contributes no `RolePath` segment; a `Part` selecting an
+            // instance moves nothing at all and carries every name
+            // VERBATIM. Anything else — a boolean, a union, a split's
+            // intact pass-through, a `Part` naming a split HALF — is a
             // different body, not this one placed.
-            match doc.node(at) {
-                // A transform is shape-preserving over the value —
+            match doc.node(at).and_then(crate::names::verbatim_edge) {
+                // A whole edge is shape-preserving over the value —
                 // body `k` in, body `k` out — so a `Part` above it
                 // still selects body `k` of whatever stands below,
                 // and is carried down to the pattern it checks against.
-                Some(Node::Transform { input, .. }) => {
+                Some(VerbatimEdge::Whole { input }) => {
                     chain.push(Placer::Transform(at));
-                    at = *input;
+                    at = input;
                 }
-                Some(Node::Part {
+                Some(VerbatimEdge::Selected {
                     of,
                     select: PartSelect::Instance(_),
                 }) => {
@@ -201,9 +202,16 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                     // copy; this node is checked against it where the
                     // offset already evaluates ([`derived_offset`]).
                     part = Some(at);
-                    at = *of;
+                    at = of;
                 }
-                _ => return Err(at),
+                Some(
+                    VerbatimEdge::Selected {
+                        select: PartSelect::SplitHalf(_),
+                        ..
+                    }
+                    | VerbatimEdge::Intact,
+                )
+                | None => return Err(at),
             }
             continue;
         }
@@ -759,9 +767,10 @@ mod tests {
     use super::*;
     use crate::edit::DocEdit;
     use crate::eval::{CancelToken, EvalOptions, NodeResult, evaluate};
-    use crate::expr::{Dimension, Expr};
+    use crate::expr::Expr;
     use crate::ident::DocumentId;
     use crate::program::{LoopProgram, ProfileProgram};
+    use crate::test_support::{ang, len, scl, xy_frame};
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
@@ -775,15 +784,6 @@ mod tests {
     const DANGLING: RecipeNodeId = RecipeNodeId(40);
     const MATE: RecipeNodeId = RecipeNodeId(50);
 
-    fn len(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Length).unwrap()
-    }
-    fn ang(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Angle).unwrap()
-    }
-    fn scl(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Scalar).unwrap()
-    }
     fn xf(input: RecipeNodeId) -> Node<ProfileProgram> {
         Node::Transform {
             input,
@@ -791,13 +791,6 @@ mod tests {
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
             rotation_angle: ang(0.0),
         }
-    }
-    fn frame_datum() -> Node<ProfileProgram> {
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })
     }
     fn axis_datum_node() -> Node<ProfileProgram> {
         Node::Datum(Datum::Axis {
@@ -833,7 +826,7 @@ mod tests {
             (a.doc, a.record.minted.unwrap())
         };
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, plane) = ins(doc, frame_datum());
+        let (doc, plane) = ins(doc, xy_frame());
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
@@ -841,6 +834,7 @@ mod tests {
                 loops: vec![
                     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
                 ],
+                ids: Vec::new(),
             }),
         );
         let (mut doc, body) = ins(
@@ -863,7 +857,7 @@ mod tests {
             doc.order.push(id);
         };
         push(AXIS, axis_datum_node());
-        push(FRAME2, frame_datum());
+        push(FRAME2, xy_frame());
         push(T1, xf(id(t1_in)));
         push(T2, xf(T1));
         push(

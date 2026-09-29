@@ -22,7 +22,9 @@ use editor_core::{
     RoleSeg, StableName, assemble, clusters,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
-use fixture::{door_refusal, in_copy, insert, len, on_frame, relations, run, scl, solve, step};
+use fixture::{
+    ang, door_refusal, in_copy, insert, len, on_frame, relations, run, scl, solve, step,
+};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -235,8 +237,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
             count: Expr::count(4),
             kind: PatternKind::Circular {
                 axis,
-                step: Expr::literal(theta, editor_core::Dimension::Angle)
-                    .expect("an angle literal"),
+                step: ang(theta),
             },
         },
     );

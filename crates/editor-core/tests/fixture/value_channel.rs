@@ -235,10 +235,10 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.u64(13);
                     for lp in p.validated.loops() {
                         d.u64(lp.vertices().len() as u64);
-                        for v in lp.vertices() {
-                            d.scalar(v.pos().x);
-                            d.scalar(v.pos().y);
-                            d.scalar(v.bulge());
+                        for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                            d.scalar(v.x);
+                            d.scalar(v.y);
+                            d.scalar(s.bulge);
                         }
                     }
                 }

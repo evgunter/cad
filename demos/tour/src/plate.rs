@@ -145,6 +145,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
                 ])
                 .expect("finite plate corners"),
             ],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -166,6 +167,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
                     centre: [centre, len(0.0)],
                     radius: param(radius),
                 }],
+                ids: Vec::new(),
             }),
             tol,
         );
