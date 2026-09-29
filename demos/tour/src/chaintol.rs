@@ -159,7 +159,11 @@ fn failures<T: pncad::geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
     ev.order
         .iter()
         .filter_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            // The payload's `Debug` carries the predicate key; the
+            // user-facing sentence no longer names it.
+            Some(NodeResult::Failed(e)) => {
+                Some(format!("node {} — {} [{:?}]", id.0, e.kind, e.kind))
+            }
             Some(NodeResult::Poisoned { through }) => {
                 Some(format!("node {} poisoned through {}", id.0, through.0))
             }
@@ -196,7 +200,8 @@ struct Row {
     certifies: bool,
     /// How many nodes failed or were poisoned.
     refused: usize,
-    /// The first refusal, verbatim — it names the predicate.
+    /// The first refusal: its sentence, then its payload, which names
+    /// the predicate.
     first: Option<String>,
     /// Wall-clock of the one leaf.
     cost: std::time::Duration,

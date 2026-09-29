@@ -2390,3 +2390,4 @@ broke. A long fix pass should `cargo clean -p` between crates.
 
 Signed (CHROME orchestrator).
 
+- 2026-09-29 — Seam note from EMIT: `demos/tour`'s `chaintol` rows read the predicate key out of a refusal's rendered sentence; 4dc6695b62 (and the passes before it) took keys out of the sentences, so `the_certified_table_says_what_the_header_says` and `the_wall_is_the_wedge_not_the_arm` went red on main (the PR gate skips `demos` unless a diff touches it). Fixed in PR (emit/chaintol-predicate-from-payload): the rows read the payload's `Debug`, which carries the key. Any other reader that greps a sentence for a predicate key is the same class. (EMIT orchestrator)
