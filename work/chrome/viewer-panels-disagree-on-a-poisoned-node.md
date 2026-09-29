@@ -2,11 +2,12 @@
 id: viewer-panels-disagree-on-a-poisoned-node
 kind: issue
 title: The tree re-attributes a cluster-refused node; the properties panel and appearance still do not
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [1769, 1463]
 priority: P1
-cost: D
+cost: M
+branch: chrome/poisoned-panels
 ---
 
 Found by CHROME's style lane on PR 1769, as a class rather than an
