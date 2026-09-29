@@ -1293,8 +1293,15 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     body.points.remove(vpoint);
     let _ = stray;
     let started = std::time::Instant::now();
+    // Both kill doors: the keys-only one refuses a fan merge in its
+    // plan phase, so the describing one — handed every merged member's
+    // chord where the torn arena still lets them be read — is what
+    // carries a fan-merging kill into the mutation phase they share.
     for &he in &halves {
         let _ = body.clone().kev(he);
+        if let Some(chords) = crate::seqgen::try_chord_redescriptions(&body, he) {
+            let _ = body.clone().kev_describing(he, &chords, tol);
+        }
         let _ = body.clone().kef(he);
     }
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();

@@ -88,6 +88,7 @@ test_utils::gated_to![
     "crates/topo/src/entity.rs",
     "crates/topo/src/fixtures.rs",
     "crates/topo/src/test_support_fixtures.rs",
+    "crates/topo/src/seqgen.rs",
 ];
 
 use geom_core::Point3;
@@ -902,6 +903,30 @@ fn tear_landed(tear: Tear) -> String {
     format!("tear landed: {tear:?}")
 }
 
+/// Whether a kill at `he` ran [`Body::kev`]'s mutation phase, which
+/// both kill doors share. The keys-only door refuses in its plan phase
+/// wherever the merge would re-base a certified member
+/// ([`EulerOpError::MergeRebasesCarriers`]) — on these fixtures, every
+/// kill whose far vertex carries a fan — so where it does, the same
+/// kill is driven again through [`Body::kev_describing`] with every
+/// merged member re-described as its chord
+/// ([`crate::seqgen::try_chord_redescriptions`]): the arms under attack
+/// sit behind that refusal, and a plan-phase refusal would otherwise
+/// be the whole of what the pass reaches there. One call to the
+/// census either way, since it is one kill.
+#[cfg(not(debug_assertions))]
+fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) -> bool {
+    match body.clone().kev(he) {
+        Ok(_) => true,
+        Err(EulerOpError::MergeRebasesCarriers { .. }) => {
+            crate::seqgen::try_chord_redescriptions(body, he).is_some_and(|chords| {
+                body.clone().kev_describing(he, &chords, tol).is_ok()
+            })
+        }
+        Err(_) => false,
+    }
+}
+
 /// Calls every operator [`OPS`] names at every key of a torn body, and
 /// returns what the pass actually reached as an anti-vacuity exposure
 /// ([`test_utils::vacuity`]).
@@ -961,7 +986,7 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
     };
     for &he in &halves {
         note("kef", body.clone().kef(he).is_ok());
-        note("kev", body.clone().kev(he).is_ok());
+        note("kev", kill_reaches_its_mutation_phase(body, he, tol));
         note(
             "mev_line",
             body.clone()

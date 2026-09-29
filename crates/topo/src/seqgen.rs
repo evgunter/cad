@@ -1020,41 +1020,50 @@ fn kev_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 /// [`split_site`] and [`assert_run_site_refuses`] assert coherence
 /// rather than filter on it.
 fn chord_redescriptions(body: &Body<f64>, he: HalfEdgeKey) -> Vec<(EdgeKey, EdgeCurveSpec<f64>)> {
-    let v = body.get_half_edge(he).expect("a kev site resolves").start;
-    let mate = body.mate(he).expect("valid body: mate resolves");
-    let orbit = body.vertex_orbit(mate).expect("valid body: orbit closes");
-    let fan = &orbit[1..];
+    try_chord_redescriptions(body, he).expect("valid body: a kev site's merged fan resolves")
+}
+
+/// [`chord_redescriptions`] over a body that need not be valid:
+/// `None` where a key the chords are read through does not resolve or
+/// the dying vertex's orbit does not close. The torn-body rows drive
+/// the describing kill with it, so its mutation phase stays under
+/// attack where the keys-only door refuses the merge in its plan
+/// phase.
+pub(crate) fn try_chord_redescriptions(
+    body: &Body<f64>,
+    he: HalfEdgeKey,
+) -> Option<Vec<(EdgeKey, EdgeCurveSpec<f64>)>> {
+    let v = body.get_half_edge(he)?.start;
+    let orbit = body.vertex_orbit(body.mate(he)?)?;
+    let fan = orbit.get(1..)?;
     let point_of = |vertex| {
-        *body
-            .get_vertex(vertex)
+        body.get_vertex(vertex)
             .and_then(|vd| body.get_point(vd.point))
-            .expect("valid body: a vertex's point resolves")
+            .copied()
     };
     let end = |h: HalfEdgeKey| {
         if fan.contains(&h) {
-            v
+            Some(v)
         } else {
-            body.get_half_edge(h)
-                .expect("valid body: a half resolves")
-                .start
+            body.get_half_edge(h).map(|hd| hd.start)
         }
     };
     let mut out: Vec<(EdgeKey, EdgeCurveSpec<f64>)> = Vec::new();
     for &moved in fan {
-        let edge = body.get_half_edge(moved).expect("resolves").edge;
+        let edge = body.get_half_edge(moved)?.edge;
         if out.iter().any(|(e, _)| *e == edge) {
             continue;
         }
-        let e = body.get_edge(edge).expect("valid body: an edge resolves");
-        let (start, stop) = (end(e.he_plus), end(e.he_minus));
+        let e = body.get_edge(edge)?;
+        let (start, stop) = (end(e.he_plus)?, end(e.he_minus)?);
         let spec = if start == stop {
-            EdgeCurveSpec::self_loop_circle_at(point_of(start))
+            EdgeCurveSpec::self_loop_circle_at(point_of(start)?)
         } else {
-            EdgeCurveSpec::line_between(point_of(start), point_of(stop))
+            EdgeCurveSpec::line_between(point_of(start)?, point_of(stop)?)
         };
         out.push((edge, spec));
     }
-    out
+    Some(out)
 }
 
 fn kef_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
