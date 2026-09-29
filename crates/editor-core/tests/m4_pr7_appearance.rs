@@ -318,7 +318,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     let (doc2, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
+            name: ParamName::from_static("pip_depth"),
             value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
         },
     );

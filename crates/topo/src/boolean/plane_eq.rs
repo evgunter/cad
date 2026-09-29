@@ -75,7 +75,7 @@ pub struct PlaneIdentity<'a> {
     /// underneath it: a face's outward normal is the surface
     /// expression's reversal when the face's `sense` is `false`, and
     /// `orient` is the tag that says so, so callers holding faces
-    /// pass `boolean::reduce::face_plane_source`, never the raw
+    /// pass `boolean::reduce::face_oriented_source`, never the raw
     /// surface source (S10).
     pub s1: Option<&'a GeomSource>,
     /// The second description's recipe source, same contract as

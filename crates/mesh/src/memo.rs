@@ -87,7 +87,9 @@
 
 use std::collections::HashMap;
 
-use geom::{Curve3, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData};
+use geom::{
+    Curve3, CurveData, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData,
+};
 use geom_brep::{EdgeDescription, Pcurve};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
@@ -1047,69 +1049,41 @@ impl KeyWriter {
             SurfaceData::Approx(a) => self.nurbs_surface(a.fit()),
             SurfaceData::Analytic(data) => {
                 for (_, value) in data {
-                    match value {
-                        DatumValue::Point(p) => self.p3(p),
-                        DatumValue::Direction(v) => self.v3(v),
-                        DatumValue::Scalar(x) => self.f64(x),
-                    }
+                    self.datum(value);
                 }
             }
         }
     }
 
+    fn curve3_kind(&mut self, c: &Curve3<f64>) {
+        self.u8(match c {
+            Curve3::Line { .. } => 0,
+            Curve3::Circle { .. } => 1,
+            Curve3::Ellipse { .. } => 2,
+            Curve3::Nurbs(_) => 3,
+            Curve3::Spiric { .. } => 4,
+        });
+    }
+
+    /// The carrier's fields, through [`Curve3::data`], as
+    /// [`Self::surface`] reads a surface's.
     fn curve3(&mut self, c: &Curve3<f64>) {
-        match c {
-            Curve3::Line { origin, dir } => {
-                self.u8(0);
-                self.p3(*origin);
-                self.v3(*dir);
+        self.curve3_kind(c);
+        match c.data() {
+            CurveData::Nurbs(n) => self.nurbs3(n),
+            CurveData::Analytic(data) => {
+                for (_, value) in data {
+                    self.datum(value);
+                }
             }
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => {
-                self.u8(1);
-                self.p3(*center);
-                self.v3(*axis);
-                self.f64(*radius);
-                self.v3(*u_ref);
-            }
-            Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } => {
-                self.u8(2);
-                self.p3(*center);
-                self.v3(*axis);
-                self.f64(*major);
-                self.f64(*minor);
-                self.v3(*u_ref);
-            }
-            Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-            } => {
-                self.u8(4);
-                self.p3(*center);
-                self.v3(*axis);
-                self.v3(*u_ref);
-                self.f64(*major_radius);
-                self.f64(*minor_radius);
-                self.f64(*offset);
-            }
-            Curve3::Nurbs(n) => {
-                self.u8(3);
-                self.nurbs3(n);
-            }
+        }
+    }
+
+    fn datum(&mut self, value: DatumValue<f64>) {
+        match value {
+            DatumValue::Point(p) => self.p3(p),
+            DatumValue::Direction(v) => self.v3(v),
+            DatumValue::Scalar(x) => self.f64(x),
         }
     }
 
@@ -1543,60 +1517,21 @@ mod tests {
     }
 
     /// **The key reads every scalar the surface walk yields.** Each
-    /// analytic kind is built from a flat scalar list; the walk's own
-    /// scalars, flattened, must be that list, and every one of them,
-    /// changed alone, must change the key. The field list is the
-    /// walk's, so a field a kind gains is a row here the day the walk
-    /// names it.
+    /// analytic kind ([`geom::test_support::analytic_surfaces`]) is built
+    /// from a flat scalar list; the walk's own scalars, flattened, must
+    /// be exactly the builder's (so a walk that drops a field, last
+    /// included, is a short list), and every one of them, changed
+    /// alone, must change the key.
     #[test]
     fn the_surface_key_reads_every_scalar_the_walk_yields() {
-        fn pt(x: &[f64]) -> Point3<f64> {
-            Point3::new(x[0], x[1], x[2])
-        }
-        fn dir(x: &[f64]) -> Vec3<f64> {
-            Vec3::new(x[0], x[1], x[2])
-        }
-        type Build = fn(&[f64]) -> Surface<f64>;
-        let kinds: [Build; 5] = [
-            |x| Surface::Plane {
-                origin: pt(&x[0..3]),
-                normal: dir(&x[3..6]),
-                u_ref: dir(&x[6..9]),
-            },
-            |x| Surface::Cylinder {
-                origin: pt(&x[0..3]),
-                axis: dir(&x[3..6]),
-                radius: x[6],
-                u_ref: dir(&x[7..10]),
-            },
-            |x| Surface::Cone {
-                apex: pt(&x[0..3]),
-                axis: dir(&x[3..6]),
-                half_angle: x[6],
-                u_ref: dir(&x[7..10]),
-            },
-            |x| Surface::Sphere {
-                center: pt(&x[0..3]),
-                radius: x[3],
-                axis: dir(&x[4..7]),
-                u_ref: dir(&x[7..10]),
-            },
-            |x| Surface::Torus {
-                center: pt(&x[0..3]),
-                axis: dir(&x[3..6]),
-                major_radius: x[6],
-                minor_radius: x[7],
-                u_ref: dir(&x[8..11]),
-            },
-        ];
         let key = |s: &Surface<f64>| {
             let mut w = KeyWriter::default();
             w.surface(s);
             w.0
         };
-        let base: Vec<f64> = (1..=11).map(f64::from).collect();
-        for build in kinds {
-            let at_rest = build(&base);
+        let base = geom::test_support::scalar_base();
+        for kind in geom::test_support::analytic_surfaces() {
+            let at_rest = (kind.build)(&base);
             let SurfaceData::Analytic(data) = at_rest.data() else {
                 panic!("{at_rest:?}: an analytic kind reads as analytic data")
             };
@@ -1606,14 +1541,51 @@ mod tests {
                 .collect();
             assert_eq!(
                 walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
-                base[..walked.len()],
-                "{at_rest:?}: the builder lays the scalars out in the walk's order"
+                base[..kind.scalars],
+                "{at_rest:?}: the walk yields the builder's scalars, in its order"
             );
             for (i, &(datum, _)) in walked.iter().enumerate() {
                 let mut moved = base.clone();
                 moved[i] += 0.5;
                 assert_ne!(
-                    key(&build(&moved)),
+                    key(&(kind.build)(&moved)),
+                    key(&at_rest),
+                    "{at_rest:?}: the key missed a change to {} (scalar {i})",
+                    datum.name()
+                );
+            }
+        }
+    }
+
+    /// **The key reads every scalar the curve walk yields** — the
+    /// carrier twin of the surface row above, over [`Curve3::data`].
+    #[test]
+    fn the_curve_key_reads_every_scalar_the_walk_yields() {
+        let key = |c: &Curve3<f64>| {
+            let mut w = KeyWriter::default();
+            w.curve3(c);
+            w.0
+        };
+        let base = geom::test_support::scalar_base();
+        for kind in geom::test_support::analytic_curves() {
+            let at_rest = (kind.build)(&base);
+            let CurveData::Analytic(data) = at_rest.data() else {
+                panic!("{at_rest:?}: an analytic kind reads as analytic data")
+            };
+            let walked: Vec<(geom::CurveDatum, f64)> = data
+                .into_iter()
+                .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+                .collect();
+            assert_eq!(
+                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+                base[..kind.scalars],
+                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+            );
+            for (i, &(datum, _)) in walked.iter().enumerate() {
+                let mut moved = base.clone();
+                moved[i] += 0.5;
+                assert_ne!(
+                    key(&(kind.build)(&moved)),
                     key(&at_rest),
                     "{at_rest:?}: the key missed a change to {} (scalar {i})",
                     datum.name()
