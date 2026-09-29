@@ -439,17 +439,21 @@ Components are listed on the DOUBLE cone.
 
 #### 2.5.1 Cone × plane
 
-The plane is `(p₀, n̂)`. Let `m_A = (A − p₀)·n̂` in metres, and let the
-aperture margin be `μ = |n̂·â| − s`, levered.
+The plane is `(p₀, n̂)`. The aperture margin is `μ = |n̂·â| − s`,
+levered by the reach's farthest distance from the apex plus its
+farthest distance from the plane. It alone decides the class. The
+apex's offset `m_A = (A − p₀)·n̂` is never read: every row holds at any
+offset, and a small offset does not bound the ellipse. With `m_A` in
+the band and `μ` a few bands positive, the ellipse runs `m_A·cos α/μ`
+along a generator, so reading a Zero `m_A` as "the apex alone" would
+clear a real closed curve by W0.
 
 | pose | section | parts |
 |---|---|---|
-| `m_A` definite, `μ` Positive | an ellipse, one closed curve on one nappe | one part, `essential_f`, `single: true`, witness the vertex below |
-| `m_A` definite, `μ` Negative | a hyperbola, one branch per nappe | two parts, `unbounded` |
-| `m_A` definite, `μ` Zero | a parabola, or a near one: 1 or 2 components, each unbounded or essential | one part, `essential_f`, no witness, `single: false`. W2 clears it when `F` describes; otherwise R-undec. |
-| `m_A` Zero, `s‖â×n̂‖ − c|â·n̂|` Negative | the apex alone | `none()`: the apex is never in `int F`. It is on `∂F` for an apex-closed face, and every other describable cone face stays off it, because `cone_nappe` escalates a window that straddles the apex. |
-| `m_A` Zero, that margin Positive or Zero | two lines, or one double line, through the apex | one part, `unbounded` |
-| `m_A` undecided | — | `Tangent("section_cone_plane_apex")` |
+| `μ` Positive | an ellipse, one closed curve on one nappe (at `m_A = 0`, the apex point) | one part, `essential_f`, `single: true`, witness the vertex below |
+| `μ` Negative | a hyperbola (one branch per nappe), or two lines through the apex | two parts, `unbounded` |
+| `μ` Zero | a parabola, the double line, or an ellipse or hyperbola near one: each component unbounded or essential | one part, `essential_f`, no witness, `single: false`. W2 clears it when `F` describes; otherwise R-undec. |
+| `μ` undecided | — | `Tangent("section_cone_plane_aperture")` |
 
 **Why the ellipse is essential.** When `μ > 0`, the plane's direction
 set misses the cone's asymptotic directions. So the section on each
@@ -457,12 +461,12 @@ nappe is bounded, and a bounded section is met once by each generator of
 its nappe. It is a graph over the azimuth, and it winds once about the
 axis.
 
-**The witness** is a vertex of the major axis. In the meridian plane
-through `A` spanned by `â` and `m̂ = unit(n̂ − (n̂·â)â)` (use the cone's
-`u_ref` when `n̂ ∥ â`), the generator LINE `g = c·â + s·m̂` meets the
-plane at `A + λg`, with `λ = ((p₀ − A)·n̂)/(g·n̂)`. When `μ > 0`,
-`g·n̂ = sin(α + β)` with `cos β = |n̂·â|`, and it is nonzero. That point
-lies on the ellipse, on whichever nappe the ellipse is.
+**The witness** is the vertex of the major axis nearer the apex. Flip
+`n̂` to face `â` (a decided sign, definite wherever `μ > 0`), and take
+`m̂ = unit(n̂ − (n̂·â)â)`, or the cone's `u_ref` when that is Zero. The
+generator LINE `g = c·â + s·m̂` meets the plane at `A + λg`, with
+`λ = ((p₀ − A)·n̂)/(g·n̂)` and `g·n̂ = cos(α − β)`, `cos β = |n̂·â|`, never
+small. That point lies on the ellipse, on whichever nappe it is.
 
 **The item's claim, "the ellipse is always essential on a face with a
 seam": confirmed, with one qualification.** It is essential on every
@@ -473,9 +477,10 @@ cone face.
 - It clears by W4 when evented, or by its witness, on a face that does
   not: a seamless band, or an apex-closed face before §2.4.
 
-It can never be an interior loop. It meets every generator of its nappe,
-and so every generator edge's line, which puts it on `∂F` or outside the
-slant window at that azimuth.
+It meets every generator of its nappe, so on a face with a generator
+edge it is on `∂F` or outside the face at that azimuth. On a face with
+none (a seamless band) it can lie inside the face: there it clears by
+W4 with an event, and otherwise by its witness or not at all.
 
 #### 2.5.2 Cone × sphere
 
@@ -609,9 +614,9 @@ here.
 
 | pose | row | answer |
 |---|---|---|
-| apex on the partner | plane: `m_A` Zero; sphere: `k` Zero; parallel cylinder: `e = r_c`; parallel cone: an interval end at an apex level; coaxial cone: `d` Zero | plane: the lines or the point, as in the table (never an interior loop). Every other row: R-tan. |
+| apex on the partner | plane: `m_A` Zero; sphere: `k` Zero; parallel cylinder: `e = r_c`; parallel cone: an interval end at an apex level; coaxial cone: `d` Zero | plane: the table's rows by `μ`, which never read `m_A`. Every other row: R-tan. |
 | axis through the partner | plane containing the axis: through the apex, so two lines, unbounded; sphere centred on the axis: `β₁ = 0`, parallels; cylinder: coaxial | the rows above |
-| a tangent generator | plane: `m_A` Zero, the double line, unbounded; sphere: an arc-bound margin Zero | W1, or R-tan |
+| a tangent generator | plane: `μ` Zero (the double line through the apex), essential with no witness; sphere: an arc-bound margin Zero | plane: W2 or R-undec; sphere: R-tan |
 | a tangency elsewhere | any margin Zero | R-tan |
 
 ### 2.6 The no-crossings arm
