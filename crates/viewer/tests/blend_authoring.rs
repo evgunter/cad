@@ -520,12 +520,16 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         "expected a selection-resolve refusal, got {:?}",
         error.kind
     );
-    let rows = tree::rows(session.committed_doc(), Some(eval));
+    let rows = tree::rows(
+        session.committed_doc(),
+        Some(eval),
+        &viewer::parts::PartFiles::default(),
+    );
     let row = rows
         .iter()
         .find(|row| row.id == fillet)
         .expect("the fillet has a tree row");
-    let RowStatus::Failed { message } = &row.status else {
+    let RowStatus::Failed { message, .. } = &row.status else {
         panic!("the authored blend badges FAILED, got {:?}", row.status);
     };
     assert_eq!(
@@ -563,13 +567,17 @@ fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
         "the kernel's own refusal, carried unaltered: {:?}",
         error.kind
     );
-    let rows = tree::rows(session.committed_doc(), Some(eval));
+    let rows = tree::rows(
+        session.committed_doc(),
+        Some(eval),
+        &viewer::parts::PartFiles::default(),
+    );
     let row = rows
         .iter()
         .find(|row| row.id == fillet)
         .expect("the fillet has a tree row");
     assert!(
-        matches!(&row.status, RowStatus::Failed { message } if *message == error.to_string()),
+        matches!(&row.status, RowStatus::Failed { message, .. } if *message == error.to_string()),
         "the badge renders the typed refusal: {:?}",
         row.status
     );

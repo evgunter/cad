@@ -65,12 +65,12 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 /// any future one, because no raise of this class can be written
 /// without naming a variant of the enum.
 ///
-/// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
-/// the exception — `None` where the reason has no failing kind, no
-/// arm under that kind, no poisoning ancestor, or no refusal-menu
-/// payload — so stub-guided code can read them without an
-/// `AttributeError` trap — a stub that over-promises is worse than one
-/// that says `None`.
+/// `kind`, `inner_kind`, `through`, `finding` and `document` are ALWAYS
+/// present on the exception — `None` where the reason has no failing
+/// kind, no arm under that kind, no poisoning ancestor, no refusal-menu
+/// payload, or the node is the evaluated document's own — so
+/// stub-guided code can read them without an `AttributeError` trap — a
+/// stub that over-promises is worse than one that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -88,6 +88,7 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
             ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
             ("finding", py.None().into_any()),
+            ("document", py.None().into_any()),
         ],
     )
 }
@@ -100,17 +101,43 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 /// is the arm of the kernel refusal that door holds, `None` where that
 /// refusal has no arms. Two enums, two discriminants, each projected
 /// where it lives.
+///
+/// A refusal that CARRIES another node's (a part whose root failed, a
+/// mate whose placer's row cannot state its refusal) never quotes it in
+/// its message; the carried refusal crosses typed, as this exception's
+/// `__cause__` ([`with_carried`]).
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
+    let err = refused(py, node, &error.kind, error.to_string(), None);
+    with_carried(py, err, error.kind.carried_chain())
+}
+
+/// [`node_failure`]'s one exception, over a kind, its rendering and the
+/// document its node is in (`None` for the evaluated document's own),
+/// with no cause: what one level of a carried chain is.
+fn refused(
+    py: Python<'_>,
+    node: NodeId,
+    kind: &d::NodeErrorKind,
+    message: String,
+    document: Option<&d::DocRef>,
+) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
+    };
+    let document = match document {
+        Some(doc_ref) => match super::store::DocRef(*doc_ref).into_pyobject(py) {
+            Ok(bound) => bound.unbind().into_any(),
+            Err(failed) => return failed,
+        },
+        None => py.None().into_any(),
     };
     // The refusal MENU: an undeclared-contact
     // refusal carries its candidate declaration as a typed
     // `FlushFinding` on the exception — the same value shape
     // `Evaluation.find_flush_candidates` answers with, ready for
     // `Node.declare`/`Doc.declare`. `None` on every other kind.
-    let finding = match &error.kind {
+    let finding = match kind {
         d::NodeErrorKind::UndeclaredContact { finding, .. } => {
             match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
                 Ok(bound) => bound.unbind().into_any(),
@@ -122,26 +149,63 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Evaluation(EvalReason::NodeFailed),
-        error.to_string(),
+        message,
         &[
             ("node", node_obj),
             (
                 "kind",
-                PyString::new(py, node_error_tag(&error.kind))
-                    .unbind()
-                    .into_any(),
+                PyString::new(py, node_error_tag(kind)).unbind().into_any(),
             ),
-            ("inner_kind", inner_kind(py, &error.kind)),
+            ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
             ("finding", finding),
+            ("document", document),
         ],
     )
+}
+
+/// **`chain` as `err`'s `__cause__`** ([`carried_cause`]).
+pub(crate) fn with_carried(py: Python<'_>, err: PyErr, chain: d::CarriedChain<'_>) -> PyErr {
+    if let Some(cause) = carried_cause(py, chain) {
+        err.set_cause(py, Some(cause));
+    }
+    err
+}
+
+/// **A carried chain, typed**: one `EvaluationError` per level of the
+/// kernel's chain ([`d::NodeErrorKind::carried_chain`]), each raised
+/// for its node as [`node_failure`] raises one and each the `__cause__`
+/// of the level above, so a part inside a part is a chain of causes,
+/// one per document. A level's `node` is in the id space of its
+/// `document`, the part's `DocRef`, or `None` for the evaluated
+/// document's own. `None` for a chain with no level.
+pub(crate) fn carried_cause(py: Python<'_>, chain: d::CarriedChain<'_>) -> Option<PyErr> {
+    let levels: Vec<d::CarriedLevel<'_>> = chain.collect();
+    levels.iter().rev().fold(None, |inner, level| {
+        let document = match level.document {
+            d::CarriedIn::ThisDocument => None,
+            d::CarriedIn::Part(doc_ref) => Some(doc_ref),
+        };
+        let err = refused(
+            py,
+            NodeId(level.node),
+            level.refusal.kind(),
+            level.line(),
+            document,
+        );
+        if inner.is_some() {
+            err.set_cause(py, inner);
+        }
+        Some(err)
+    })
 }
 
 /// Raise `EvaluationError` for a POISONED node: `through` names the
 /// nearest failed ancestor, `kind` tags its root cause (present
 /// whenever the evaluation's own invariant holds — fail-honest, so a
-/// broken hop yields no `kind` rather than a wrong one).
+/// broken hop yields no `kind` rather than a wrong one). A root cause
+/// that carries a refusal hands it on as `__cause__`, as
+/// [`node_failure`] does.
 fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::NodeError>) -> PyErr {
     let objs = (node.into_pyobject(py), through.into_pyobject(py));
     let (node_obj, through_obj) = match objs {
@@ -152,6 +216,7 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("node", node_obj),
         ("through", through_obj),
         ("finding", py.None().into_any()),
+        ("document", py.None().into_any()),
     ];
     // The message is the root cause's `Display` prose: the node
     // never ran, so the honest sentence names the ancestor's problem.
@@ -172,12 +237,16 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
             format!("never ran — poisoned through node {}", through.0.0)
         }
     };
-    typed_err(
+    let err = typed_err(
         py,
         ErrorClass::Evaluation(EvalReason::Poisoned),
         message,
         &fields,
-    )
+    );
+    match root {
+        Some(error) => with_carried(py, err, error.kind.carried_chain()),
+        None => err,
+    }
 }
 
 /// Bulk mass properties of a body, in canonical units.
