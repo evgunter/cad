@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, Maintenance,
-    ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId,
+    ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -483,42 +483,40 @@ pub enum SessionOp {
         /// The loop programs, in description order.
         loops: Vec<LoopProgram>,
     },
-    /// **Write the path editor's numbers over a committed profile's**
+    /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when
     /// it is opened on an existing node instead of on nothing. A
     /// `node` that is not a `Node::Profile` refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
     /// `loops` is the whole program as the editor holds it, lowered in
-    /// the form's notation. What reaches the history is the slot write
-    /// for each argument that MOVED ([`crate::sketch::program_edits`]),
-    /// as ONE action and one undo step — and nothing at all when none
-    /// did, which is what makes opening a profile and applying it
-    /// untouched cost no history entry. A program whose structure
-    /// differs from the committed one's refuses
-    /// [`Refusal::ProfileRestructure`]: the document's edit vocabulary
-    /// writes slots and has no door that rewrites a program's shape. A
-    /// moved argument an expression drives refuses with the affordance
-    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
-    /// does.
+    /// the form's notation, and `ids` says which committed step each
+    /// of its steps is: per loop, per step, the committed step's
+    /// [`StepId`] it keeps, or `None` for a step the editor made. What
+    /// reaches the history is ONE `DocEdit::SetProgram` — one action,
+    /// one undo — whatever moved: numbers, steps inserted, removed or
+    /// reordered, verbs, arc modes, targets, a split circle's count.
+    /// Nothing at all reaches it when the program is the committed one
+    /// with every step kept in place, which is what makes opening a
+    /// profile and applying it untouched cost no history entry.
     ///
-    /// The whole program is checked once before any slot is written,
-    /// so a profile that does not close or validate refuses in the
-    /// insert door's own words ([`Refusal::Edit`]). The slot writes
-    /// then land in an order the door accepts one at a time — each
-    /// write re-validates the program, so a corner moved past another
-    /// can refuse until its neighbour follows. The order is searched
-    /// exactly up to [`crate::session::ORDER_SEARCH_CAP`] writes; a
-    /// program that is valid whole and has no such order is
-    /// [`Refusal::ProfileEditOrder`], and one past the cap whose slot
-    /// order does not land is [`Refusal::ProfileEditOrderCapped`] —
-    /// the cost of the missing whole-program door said out loud rather
-    /// than as a refusal about a state nobody wrote.
+    /// Every argument of a kept step that did not move is written as
+    /// the document holds it, so only what moved takes the editor's
+    /// notation. A kept step's argument an expression drives refuses
+    /// with the affordance if the program does not hold it unmoved
+    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
+    /// does. The program itself, and `ids`' shape, are the edit door's
+    /// to judge, and refuse in its words ([`Refusal::Edit`]).
+    ///
+    /// A name on a step the program does not keep is stranded, and the
+    /// door's report of it rides [`OpOutcome::maintenance`];
+    /// [`crate::session::DocSession::edit_profile_report`] reads the
+    /// same rows before the op is performed.
     ///
     /// `base` is the program the editor was loaded from. A document
     /// whose program is no longer that one (compared by value) refuses
-    /// [`Refusal::ProfileEditStale`]: the numbers were an edit of a
-    /// program that is not there any more.
+    /// [`Refusal::ProfileEditStale`]: the editor's program was an edit
+    /// of one that is not there any more.
     EditProfile {
         /// The profile node.
         node: RecipeNodeId,
@@ -527,6 +525,9 @@ pub enum SessionOp {
         base: ProfileProgram,
         /// The loop programs the editor holds, in description order.
         loops: Vec<LoopProgram>,
+        /// Per loop, per step: the committed step it keeps, or `None`
+        /// for a new one (`DocEdit::SetProgram`'s `ids`).
+        ids: Vec<Vec<Option<StepId>>>,
     },
     /// Insert one extrude of an existing profile node — the extrude
     /// tool's one committed edit. A `profile` that is not a
@@ -1425,9 +1426,8 @@ pub struct OpOutcome {
     /// [`crate::frame::outcome_notices`].
     ///
     /// **Net over the action, not per edit.** One action can apply
-    /// several edits (a cascade delete, a profile edit's one-slot
-    /// writes), and a row an earlier edit reported can be made moot by
-    /// a later one — a strand the action went on to repair or whose
+    /// several edits (a cascade delete, a profile on a new frame), and
+    /// a row an earlier edit reported can be made moot by a later one — a strand the action went on to repair or whose
     /// carrier it deleted, an orphan it consumed again, a name it moved
     /// twice. The rows are folded through
     /// `pncad::document::MaintenanceNet`, which states which survive,

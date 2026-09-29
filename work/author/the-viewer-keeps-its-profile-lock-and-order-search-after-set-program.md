@@ -2,7 +2,7 @@
 id: the-viewer-keeps-its-profile-lock-and-order-search-after-set-program
 kind: issue
 title: The viewer's profile editor still locks the shape and searches a write order: SetProgram exists and the lock, program_edits, accepted_order and three refusals are droppable
-status: dispatched
+status: review
 opened: 2026-09-20
 refs: [a-committed-profile-program-has-no-whole-program-edit]
 priority: P0
@@ -109,3 +109,32 @@ the enum.
 ## Triaged P0 and dispatched (2026-09-29)
 
 Filed with no priority. Triaged **P0**: a committed sketch's shape controls are drawn disabled under a sentence (`SHAPE_LOCKED`) that has been false since `DocEdit::SetProgram` landed, so reshaping a sketch after committing it is a door the GUI cannot author, which is AUTHOR's charter. Dispatched as **AUTH-6** (`docs/AUTH-6-SPEC.md`, branch `author/profile-reshape`) in parallel with AUTH-5, which works in `sketch::preview`.
+
+## AUTH-6 landed the unit (2026-09-29, `author/profile-reshape`)
+
+The edit door commits one `DocEdit::SetProgram`. The lock,
+`program_edits`/`Restructure`, `accepted_order`/`ORDER_SEARCH_CAP` and
+the three refusals are gone, along with the rows that pinned them. The
+three design calls and the mutation table are in the PR body.
+
+**Two premises above were stale, and so was the spec.** Since #3193
+(2026-09-25), `SetProgram` carries `ids: Vec<Vec<Option<StepId>>>`, not
+a provenance. `LoopProvenance::identity` no longer exists, and neither
+does `Maintenance::Rebound`: a kept step's names keep their spelling and
+nothing is rewritten. The editor's provenance is therefore which
+committed step each held step IS (`ProfileEdit::ids`). The stale
+sentence in `SlotId::Profile`'s doc is filed as
+`work/edit/slot-id-profile-doc-says-set-program-rebinds-names`. Also,
+"the delete cascade's strand-count affordance" counts dependent
+features, not strands, so the strand count on the edit door's Apply is
+new, modelled on it.
+
+**The sweep's blind spot, checked.** Grepping the TYPE `ShapeEdits`
+rather than the variant `Locked` found a twelfth file the row's pattern
+missed: `widgets.rs`. Its `path_step_fields`, `arc_fields` and
+`target_fields` took `shape: ShapeEdits` and disabled the arc-mode,
+side, winding, target-form and split-count controls with
+`shape.free()`. No word of the row's pattern appears there. All are
+live now. A second pass, `rg 'add_enabled|add_enabled_ui'` over
+`pane/profile.rs`, `pane/create.rs` and `widgets.rs`, found no other
+shape control disabled by a word other than `Locked`.

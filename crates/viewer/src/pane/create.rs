@@ -15,7 +15,7 @@ use crate::combine::{DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PartSelectChoice, PatternKindChoice, ShapeEdits, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    PartSelectChoice, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
     split_half_label,
 };
 use crate::frame::{self, Tone};
@@ -1079,14 +1079,15 @@ impl ViewerBehavior<'_> {
                     &mut self.drafts.length_unit,
                     &mut self.drafts.angle_unit,
                 );
-                path_steps_ui(
+                if let Some(row) = path_steps_ui(
                     ui,
                     "path",
                     self.session.tol(),
                     (self.drafts.length_unit.def(), self.drafts.angle_unit.def()),
-                    ShapeEdits::Free,
                     &mut self.drafts.profile_path,
-                );
+                ) {
+                    row.apply(&mut self.drafts.profile_path);
+                }
                 // A chain with no steps is a form waiting for its
                 // first one, not a chain that fails to close. Without
                 // this the empty list drew the lattice's own refusal

@@ -139,8 +139,6 @@ mod prefs;
 mod profile_draw;
 #[path = "profile_edit.rs"]
 mod profile_edit;
-#[path = "profile_edit_order.rs"]
-mod profile_edit_order;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
 #[path = "review_gui0_r1.rs"]
