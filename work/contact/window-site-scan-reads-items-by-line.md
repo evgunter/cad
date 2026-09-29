@@ -48,3 +48,9 @@ and `solid_contain.rs` (CONTACT's) and CONTACT last maintained the row
 `source_walk::CodeOnly::fns`, which now recurses into nested items and
 offers each item's own text (`FnItem::own_body`, PR 3424) — is
 ORIGIN's ground; announce the seam there.
+
+## More evidence (2026-09-29, PR 3425's sweep, ORIGIN)
+
+The same guard's `MARKS` needles end in `(`, so a point-free site also
+goes uninventoried — a second reason to read it through
+`source_walk`'s whole-token matcher.
