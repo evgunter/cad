@@ -870,7 +870,9 @@ const CALLS: &str = "operator calls";
 /// KINDS are: this is an enumerated dimension, and an aggregate over it
 /// would let a body silently leave the sweep while the others carried
 /// the floors.
-#[cfg(not(debug_assertions))]
+///
+/// Untorn, they are also the valid bodies the kill anchors' over-refusal
+/// row sweeps ([`valid_fixtures_never_refuse_a_kill_orbit_broken`]).
 const FIXTURES: [(&str, fn(Tol) -> Body<f64>); 3] = [
     ("declined_cube", |tol| declined_cube::<f64>(tol).body),
     ("ops_ring_bridge", |tol| ops_ring_bridge(tol).body),
@@ -903,27 +905,39 @@ fn tear_landed(tear: Tear) -> String {
     format!("tear landed: {tear:?}")
 }
 
+/// One kill at `he` through whichever door runs it. The keys-only door
+/// refuses in its plan phase wherever the merge would re-base a
+/// certified member ([`EulerOpError::MergeRebasesCarriers`]) — on these
+/// fixtures, every kill whose far vertex carries a fan — so where it
+/// does, the same kill is driven again through [`Body::kev_describing`]
+/// with every merged member re-described as its chord
+/// ([`crate::seqgen::try_chord_redescriptions`]). The first door's
+/// refusal leaves `body` untouched, so the second runs on the same one.
+fn kev_either_door(
+    body: &mut Body<f64>,
+    he: HalfEdgeKey,
+    tol: Tol,
+) -> Result<crate::KevResult, EulerOpError> {
+    match body.kev(he) {
+        Err(refusal @ EulerOpError::MergeRebasesCarriers { .. }) => {
+            match crate::seqgen::try_chord_redescriptions(body, he) {
+                Some(chords) => body.kev_describing(he, &chords, tol),
+                None => Err(refusal),
+            }
+        }
+        outcome => outcome,
+    }
+}
+
 /// Whether a kill at `he` ran [`Body::kev`]'s mutation phase, which
-/// both kill doors share. The keys-only door refuses in its plan phase
-/// wherever the merge would re-base a certified member
-/// ([`EulerOpError::MergeRebasesCarriers`]) — on these fixtures, every
-/// kill whose far vertex carries a fan — so where it does, the same
-/// kill is driven again through [`Body::kev_describing`] with every
-/// merged member re-described as its chord
-/// ([`crate::seqgen::try_chord_redescriptions`]): the arms under attack
-/// sit behind that refusal, and a plan-phase refusal would otherwise
-/// be the whole of what the pass reaches there. One call to the
-/// census either way, since it is one kill.
+/// both kill doors share ([`kev_either_door`]): the arms under attack
+/// sit behind the keys-only door's certified-member refusal, and a
+/// plan-phase refusal would otherwise be the whole of what the pass
+/// reaches there. One call to the census either way, since it is one
+/// kill.
 #[cfg(not(debug_assertions))]
 fn kill_reaches_its_mutation_phase(body: &Body<f64>, he: HalfEdgeKey, tol: Tol) -> bool {
-    match body.clone().kev(he) {
-        Ok(_) => true,
-        Err(EulerOpError::MergeRebasesCarriers { .. }) => {
-            crate::seqgen::try_chord_redescriptions(body, he)
-                .is_some_and(|chords| body.clone().kev_describing(he, &chords, tol).is_ok())
-        }
-        Err(_) => false,
-    }
+    kev_either_door(&mut body.clone(), he, tol).is_ok()
 }
 
 /// Calls every operator [`OPS`] names at every key of a torn body, and
@@ -1288,4 +1302,161 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
         SPENT_GRAFT_CALLS,
         "the spent destination no longer presents the keys this row hammers: {census}"
     );
+}
+
+/// No over-refusal of the kill operators' anchor proofs: on every valid
+/// body [`FIXTURES`] builds, `kef`, `kemr` (the mate pair) and `kev`
+/// ([`kev_either_door`]) at every half-edge refuse nothing as
+/// `OrbitBroken`. An enumeration, not a sample.
+///
+/// Each proof sits late in its plan, so a sweep whose calls all refused
+/// earlier would pass having asked none of them; the floors say each
+/// operator ran to `Ok` somewhere, and `kev` did so at a strut, the one
+/// kill whose anchor its merged fan does not prove.
+#[test]
+fn valid_fixtures_never_refuse_a_kill_orbit_broken() {
+    let tol = Tol::witness();
+    let mut ran = [
+        ("kef", 0usize),
+        ("kemr", 0),
+        ("kev", 0),
+        ("kev at a strut", 0),
+    ];
+    for (fixture, build) in FIXTURES {
+        let body = build(tol);
+        assert_eq!(
+            crate::validate::validate(&body),
+            Ok(()),
+            "{fixture} is valid"
+        );
+        for (he, data) in body.half_edges() {
+            let m = body.mate(he).expect("a valid body's half-edge has a mate");
+            let strut = body.vertex_orbit(m) == Some(vec![m])
+                && body.get_half_edge(m).map(|mate| mate.next) != Some(he);
+            let outcomes = [
+                ("kef", body.clone().kef(he).map(|_| ())),
+                ("kemr", body.clone().kemr(he, m).map(|_| ())),
+                (
+                    "kev",
+                    kev_either_door(&mut body.clone(), he, tol).map(|_| ()),
+                ),
+            ];
+            for (op, outcome) in outcomes {
+                match outcome {
+                    Ok(()) => {
+                        ran.iter_mut().find(|(name, _)| *name == op).unwrap().1 += 1;
+                        if op == "kev" && strut {
+                            ran[3].1 += 1;
+                        }
+                    }
+                    Err(refusal @ EulerOpError::OrbitBroken { .. }) => panic!(
+                        "{op} at {he:?} (start {:?}) on the valid {fixture} refuses {refusal:?}",
+                        data.start
+                    ),
+                    Err(_) => {}
+                }
+            }
+        }
+    }
+    for (op, count) in ran {
+        assert!(
+            count > 0,
+            "no `{op}` ran to Ok on the valid fixtures: {ran:?}"
+        );
+    }
+}
+
+/// **Evidence, not a gate**: the kill operators' anchor measurement, run
+/// by hand. Every [`FIXTURES`] body under one and under two random
+/// `NextForeign` tears, seeds `1..=2000`, and at every half-edge `kef`,
+/// `kemr` (the mate pair) and `kev` ([`kev_either_door`]). Each `Ok` is
+/// read for a vertex whose `emanating` does not start at it ("anchor
+/// off"), and, separately, for a loop whose `first` is dead or lies in
+/// another loop. A torn `next` moves neither, so what the result shows
+/// the kill wrote.
+///
+/// `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false cargo test --release -p
+/// topo --lib -- --ignored --nocapture
+/// review_d18::kill_anchors_on_torn_bodies`
+#[test]
+#[ignore = "evidence: the kill anchors' tear measurement, run by hand"]
+#[cfg(not(debug_assertions))]
+fn kill_anchors_on_torn_bodies() {
+    use test_utils::fuzz::Rng;
+    let anchor_off = |body: &Body<f64>| {
+        body.vertices().any(|(v, vertex)| {
+            vertex
+                .emanating
+                .is_some_and(|he| body.get_half_edge(he).map(|h| h.start) != Some(v))
+        })
+    };
+    let loop_off = |body: &Body<f64>| {
+        body.loops().any(|(l, data)| match data.boundary {
+            crate::LoopBoundary::Cycle { first } => {
+                body.get_half_edge(first).map(|h| h.parent_loop) != Some(l)
+            }
+            crate::LoopBoundary::Empty { .. } => false,
+        })
+    };
+    let tol = Tol::witness();
+    let ops = ["kef", "kemr", "kev"];
+    // Per operator: calls, Ok with an anchor off, Ok anchored, Err, and
+    // Ok with a loop's `first` off.
+    let mut table = [[0usize; 5]; 3];
+    for seed in 1..=2000u64 {
+        for tears in [1, 2] {
+            for (_, build) in FIXTURES {
+                let mut body = build(tol);
+                let mut rng = Rng::from_seed(seed);
+                for _ in 0..tears {
+                    plant(
+                        &mut body,
+                        Tear::NextForeign,
+                        &mut rng,
+                        HalfEdgeKey::default(),
+                    );
+                }
+                let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+                for &he in &halves {
+                    for (row, op) in ops.iter().enumerate() {
+                        let mut trial = body.clone();
+                        let outcome = match *op {
+                            "kef" => trial.kef(he).map(|_| ()),
+                            "kemr" => match body.mate(he) {
+                                Some(m) => trial.kemr(he, m).map(|_| ()),
+                                None => Err(EulerOpError::StaleKey {
+                                    key: EntityId::HalfEdge(he),
+                                }),
+                            },
+                            _ => kev_either_door(&mut trial, he, tol).map(|_| ()),
+                        };
+                        let cells = &mut table[row];
+                        cells[0] += 1;
+                        match outcome {
+                            Ok(()) if anchor_off(&trial) => cells[1] += 1,
+                            Ok(()) => cells[2] += 1,
+                            Err(_) => cells[3] += 1,
+                        }
+                        if outcome.is_ok() && loop_off(&trial) {
+                            cells[4] += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("| op | calls | `Ok`, anchor off | `Ok`, anchored | `Err` | `Ok`, loop `first` off |");
+    println!("| --- | --- | --- | --- | --- | --- |");
+    for (op, cells) in ops.iter().zip(table) {
+        println!(
+            "| `{op}` | {} | {} | {} | {} | {} |",
+            cells[0], cells[1], cells[2], cells[3], cells[4]
+        );
+    }
+    for (op, cells) in ops.iter().zip(table) {
+        assert_eq!(
+            cells[1], 0,
+            "`{op}` wrote an anchor off its vertex through `Ok`"
+        );
+    }
 }

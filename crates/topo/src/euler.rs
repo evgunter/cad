@@ -721,7 +721,9 @@ pub enum EulerOpError {
     /// reached a half-edge that does not start at `he`'s start vertex —
     /// tier-1-invalid input (fired by [`Body::kev`] and
     /// [`Body::kev_describing`], which walk the far vertex's whole fan,
-    /// and by a fan [`Body::mev`] or [`Body::mev_null`] for a walk from
+    /// by [`Body::kef`], [`Body::kemr`] and a strut's [`Body::kev`] for
+    /// the half-edge that would re-anchor `he`'s start vertex, and by a
+    /// fan [`Body::mev`] or [`Body::mev_null`] for a walk from
     /// `he1` that leaves the split vertex; the mev-specific form for a
     /// walk that fails to close or misses `he2` is
     /// [`EulerOpError::FanOrbitBroken`]).
@@ -2555,15 +2557,18 @@ impl<T: Decide> Body<T> {
     }
 
     /// Proves that every member of a closed orbit walk
-    /// ([`Body::vertex_orbit`]) starts at `v`, refusing
+    /// ([`Body::vertex_orbit`]), or the one half-edge a kill re-anchors
+    /// `v`'s `emanating` at, starts at `v`, refusing
     /// [`EulerOpError::OrbitBroken`] naming the walk's origin otherwise.
     ///
     /// The walk steps `next(mate(·))` and reads no start vertex, so a
-    /// torn `next` can close it through another vertex's half-edges; a
-    /// plan that moves or splices into a vertex's orbit proves its walk
-    /// here. The validator's pass 6 ([`crate::validate::validate`])
-    /// reports the same fault. A closed walk holds only live keys, so
-    /// the lookup never misses.
+    /// torn `next` can close it through another vertex's half-edges, and
+    /// a kill's anchor is one such step from the killed half; a plan that
+    /// moves or splices into a vertex's orbit, or re-anchors a vertex,
+    /// proves the half-edges it takes here. The validator
+    /// ([`crate::validate::validate`]) reports the same faults, in pass 6
+    /// for a walk and pass 5 for an anchor. A member that does not
+    /// resolve fails the proof.
     pub(crate) fn require_orbit_starts_at(
         &self,
         members: &[HalfEdgeKey],

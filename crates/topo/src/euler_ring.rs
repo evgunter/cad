@@ -395,9 +395,15 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::LoopNotCycle`]); the loop's face resolves
     /// (`StaleKey`); the cycle walk from `he1` reaches `he2`
     /// ([`EulerOpError::LoopCycleBroken`]); both start vertices resolve
-    /// (`StaleKey`); the two empty components (if both sides are empty)
+    /// (`StaleKey`); each non-empty side's first member, the new
+    /// `emanating` of its vertex, starts there, `he2`'s side at
+    /// `start(he1)` and then `he1`'s at `start(he2)`
+    /// ([`EulerOpError::OrbitBroken`] naming `he1`, then `he2` —
+    /// tier-1-invalid input: a torn `next` can put either on another
+    /// vertex); the two empty components (if both sides are empty)
     /// anchor at distinct vertices
-    /// ([`EulerOpError::EmptyAnchorsCollide`]).
+    /// ([`EulerOpError::EmptyAnchorsCollide`]). The last two cannot
+    /// both apply: two empty sides anchor no `emanating`.
     ///
     /// # Errors
     ///
@@ -457,6 +463,18 @@ impl<T: Decide> Body<T> {
         // vertex is tier-1-invalid input caught here.
         for vertex in [u, w] {
             require_key(&self.vertices, vertex, EntityId::Vertex)?;
+        }
+        // Emanating (unconditional rule, module docs): `u` takes
+        // `next(he2)`, its orbit step from `he1`, and `w` takes
+        // `next(he1)`, its step from `he2`. A torn `next` can put either
+        // on another vertex; each is refused naming the killed half that
+        // starts at its vertex.
+        let u_anchor = old_side.first().map(|&member| member.key());
+        let w_anchor = ring_side.first().map(|&member| member.key());
+        for (vertex, anchor, origin) in [(u, u_anchor, he1), (w, w_anchor, he2)] {
+            if let Some(anchor) = anchor {
+                self.require_orbit_starts_at(core::slice::from_ref(&anchor), vertex, origin)?;
+            }
         }
         if ring_side.is_empty() && old_side.is_empty() && u == w {
             return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
@@ -523,10 +541,8 @@ impl<T: Decide> Body<T> {
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
-        // Emanating (unconditional rule, module docs). When u == w the
-        // second write wins — deterministic.
-        let u_anchor = old_side.first().map(|&member| member.key());
-        let w_anchor = ring_side.first().map(|&member| member.key());
+        // Emanating, as the plan phase proved it. When u == w the second
+        // write wins — deterministic.
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("kemr: `u` resolved in the plan phase")
         };
@@ -3075,5 +3091,25 @@ mod tests {
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.ring_move(kill.ring, other.face).unwrap_err()
         });
+    }
+
+    #[test]
+    fn kemr_refuses_a_ring_anchor_that_leaves_its_vertex() {
+        // The first counterexample of a seeded search of one `next`
+        // tear on the ring bridge: the tear shortcuts the ring side,
+        // whose first member anchors `start(he2)` and now starts at
+        // another vertex. Unchecked, the kill writes that anchor and
+        // returns `Ok`.
+        let mut body = crate::fixtures::ops_ring_bridge(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[48]).unwrap().next = halves[27];
+        let (he1, he2) = (halves[48], body.mate(halves[48]).unwrap());
+        assert_ne!(
+            body.get_half_edge(halves[27]).unwrap().start,
+            body.get_half_edge(he2).unwrap().start,
+            "the ring side's first member starts off the vertex it would anchor"
+        );
+        let torn = EulerOpError::OrbitBroken { he: he2 };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
     }
 }
