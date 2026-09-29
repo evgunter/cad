@@ -4452,10 +4452,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry; and the identity the lane seams share, `Lane` with its
-///   `BracketEnd`, which is how a lane names itself and reads a
-///   bracket's end when a refusal's number crosses into the
-///   scalar-free vocabulary).
+///   can carry).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   (M10-6): the driver and its box,
@@ -4489,7 +4486,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 97] = [
+const NOT_CARRIED: [&str; 95] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4499,7 +4496,6 @@ const NOT_CARRIED: [&str; 97] = [
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
-    "BracketEnd",
     "BranchCertification",
     "BranchMarginEvidence",
     "CertifiedRange",
@@ -4520,7 +4516,6 @@ const NOT_CARRIED: [&str; 97] = [
     "FragmentGroups",
     "GroupCutters",
     "Implicated",
-    "Lane",
     "MeshPatchKey",
     "MeshPick",
     "MetaError",
@@ -6242,7 +6237,10 @@ mod the_hollowed_box_through_the_facade {
             panic!("the shell did not refuse at a dual: {head:?}");
         };
         assert!(
-            matches!(e.kind, NodeErrorKind::ShellLaneUnsupported { lane: "Dual" }),
+            matches!(
+                e.kind,
+                NodeErrorKind::ShellLaneUnsupported { scalar: "dual" }
+            ),
             "the refusal is not the typed shell-door absence: {:?}",
             e.kind
         );

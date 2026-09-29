@@ -813,8 +813,10 @@ pub enum ValidationError {
     /// face whose certificate nothing re-derived would make it exactly
     /// that.
     ApproxLaneUnsupported {
-        /// The face whose approximating surface has no lane.
+        /// The face whose approximating surface has no door.
         face: FaceKey,
+        /// The scalar the check ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// Tier 3: a face's torus violates D3's ring convention `R > r > 0`
     /// — a horn (`R == r`) or spindle (`R < r`) torus, whose axis
@@ -2827,11 +2829,13 @@ impl fmt::Display for ValidationError {
                      it approximates: {why}. {recourse}"
                 )
             }
-            Self::ApproxLaneUnsupported { .. } => write!(
+            Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,
-                "a face carries a fitted offset surface, and this scalar has no \
-                 re-derivation lane for its certificate. Recourse: check the body at f64, \
-                 the one scalar that re-derives it"
+                "a face carries a fitted offset surface, and the check at the {scalar} scalar \
+                 had no offset-fit door to re-derive its certificate with; only {holders} holds \
+                 that door (the fit is derived there alone). Recourse: check the body at \
+                 {holders}",
+                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::DegenerateTorus { verdict, .. } => write!(
                 f,
@@ -5244,7 +5248,10 @@ pub(crate) fn tier3_local_checks_marked<
                     }
                 }
                 None => {
-                    errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
+                    errors.push(ValidationError::ApproxLaneUnsupported {
+                        face: face_key,
+                        scalar: T::NAME,
+                    });
                 }
             },
             // Every analytic kind: its datums first, then its
@@ -12693,15 +12700,17 @@ mod offset_fit_door_rows {
         (errors, face)
     }
 
-    /// **No door: the face is REPORTED, not skipped**, with the variant
-    /// and the payload the absence has always had.
+    /// **No door: the face is REPORTED, not skipped**, naming the face
+    /// and the scalar the check ran at — here `f64`, the door's own
+    /// scalar, handed none.
     #[test]
     fn no_door_refuses_the_approx_face_by_name() {
         let (errors, face) = check1::<f64>(None);
         assert!(
-            errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
-            ),
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ApproxLaneUnsupported { face: f, scalar: "f64" } if *f == face
+            )),
             "check 1 must report the face it could not re-derive: {errors:?}"
         );
     }
@@ -12737,10 +12746,13 @@ mod offset_fit_door_rows {
             <geom_core::Probe as crate::props::AtRestPolicy>::offset_fit_lane(),
         );
         assert!(
-            errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
-            ),
-            "the probe scalar has no fit, so its face must report the absence: {errors:?}"
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ApproxLaneUnsupported { face: f, scalar: "telemetry probe" }
+                    if *f == face
+            )),
+            "the probe scalar has no fit, so its face must report the absence, naming the \
+             probe: {errors:?}"
         );
     }
 
@@ -12763,7 +12775,7 @@ mod offset_fit_door_rows {
         );
         assert!(
             !errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f, .. } if *f == face)
             ),
             "the `f64` seam answers the door, so check 1 must re-derive rather than refuse: \
              {errors:?}"
