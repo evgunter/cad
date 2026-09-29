@@ -332,8 +332,8 @@ pub enum MergeCoplanarError {
     /// The hard rungs glue on *source* identity, not on kind, and a
     /// source can join descriptions nothing compared — the graft copies
     /// origin rows verbatim, and [`Body::set_surface_source`] checks
-    /// agreement only in a debug build — so a body can declare a plane
-    /// and a cylinder to be one recipe
+    /// agreement only where debug assertions are compiled in — so a
+    /// body can declare a plane and a cylinder to be one recipe
     /// surface, or a plane and a placeholder that describes nothing
     /// yet. Deciding the group's kind off one member would let arena
     /// order pick its contract; this refuses instead. The two members
@@ -3495,8 +3495,8 @@ mod tests {
     }
 
     /// Writes a recipe origin on `key` with no agreement check — the
-    /// way the graft carries one in. The stamp door refuses a pair of
-    /// unequal descriptions under one source in a debug build.
+    /// way the graft carries one in. The stamp door's assertion refuses
+    /// a pair of unequal descriptions under one source.
     fn forge_source(body: &mut Body<f64>, key: crate::SurfaceKey, source: &crate::GeomSource) {
         body.surface_origins
             .insert(key, crate::GeomOrigin::Recipe(source.clone()));

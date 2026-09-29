@@ -681,10 +681,13 @@ impl<T: Real> Body<T> {
     ///
     /// # Panics
     ///
-    /// In a debug build, when another live key already carries `source`
-    /// over a description that differs bitwise — one recipe evaluates
-    /// to one description (N6). A scalar with no bit channel (`Dual`,
-    /// `Sym`) offers no evidence and never panics.
+    /// Where debug assertions are compiled in (this workspace's release
+    /// profile keeps them), when another live key already carries
+    /// `source` over a description that differs — one recipe evaluates
+    /// to one description (N6). Two different surface kinds differ at
+    /// any scalar; within one kind a scalar with no bit channel (`Dual`,
+    /// `Sym`) offers no evidence, and only the parts that have one are
+    /// compared.
     pub fn set_surface_source(
         &mut self,
         key: SurfaceKey,
@@ -694,21 +697,29 @@ impl<T: Real> Body<T> {
             return Err(SourceAttachError::StaleKey);
         }
         // The one door that can break N6 from outside the recipe layer.
+        // Every other holder is read, not the first that answers: with a
+        // disagreeing pair already present (a graft copies stamps
+        // unchecked), which holder answered first would be arena order.
+        // One scan per stamp is O(keys) — quadratic over a body stamped
+        // key by key — which the assertion build pays deliberately: an
+        // index keyed by source would be a second record of every origin
+        // write (graft, clear, reap) to keep coherent for a check.
         #[cfg(debug_assertions)]
-        if let Some((other, agree)) = self
-            .surface_origins
-            .iter()
-            .filter(|&(k, origin)| k != key && origin.source() == Some(&source))
-            .find_map(|(k, _)| {
-                let (stamped, held) = (self.surfaces.get(key)?, self.surfaces.get(k)?);
-                crate::source::surface_bits_witness(stamped, held).map(|agree| (k, agree))
-            })
-        {
-            debug_assert!(
-                agree,
-                "set_surface_source: {source:?} already stamps {other:?}, whose description \
-                 differs from {key:?}'s bitwise — one recipe evaluates to one description (N6)"
-            );
+        if let Some(stamped) = self.surfaces.get(key) {
+            for (other, _) in self
+                .surface_origins
+                .iter()
+                .filter(|&(k, origin)| k != key && origin.source() == Some(&source))
+            {
+                let Some(held) = self.surfaces.get(other) else {
+                    continue;
+                };
+                debug_assert!(
+                    crate::source::surface_bits_witness(stamped, held) != Some(false),
+                    "set_surface_source: {source:?} already stamps {other:?}, whose description \
+                     differs from {key:?}'s — one recipe evaluates to one description (N6)"
+                );
+            }
         }
         self.surface_origins.insert(key, GeomOrigin::Recipe(source));
         Ok(())

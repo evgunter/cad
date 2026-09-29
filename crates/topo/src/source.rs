@@ -203,7 +203,7 @@ pub(crate) fn plane_bits_witness<T: geom_core::Real>(
         (n1.y, n2.y),
         (n1.z, n2.z),
     ];
-    bits_witness(&pairs)
+    bits_witness(pairs)
 }
 
 /// Debug-only bit agreement of two vectors (the `u_ref` leg of the
@@ -214,107 +214,153 @@ pub(crate) fn vec3_bits_witness<T: geom_core::Real>(
     a: geom_core::Vec3<T>,
     b: geom_core::Vec3<T>,
 ) -> Option<bool> {
-    bits_witness(&[(a.x, b.x), (a.y, b.y), (a.z, b.z)])
+    bits_witness([(a.x, b.x), (a.y, b.y), (a.z, b.z)])
 }
 
-/// Debug-only bit agreement of two surface descriptions of any kind —
-/// the check behind [`crate::Body::set_surface_source`], with the
-/// tri-state of [`plane_bits_witness`]. A shared payload `Arc` agrees
-/// unread; an `Approx` pair is read through its fit and window; two
-/// different kinds disagree, answered `None` like any other read at a
-/// scalar with no channel.
+/// Assertion-build agreement of two surface descriptions of any kind — the
+/// check behind [`crate::Body::set_surface_source`], with the tri-state
+/// of [`plane_bits_witness`]. Two different kinds, or two NURBS nets of
+/// different shape, disagree at any scalar; a shared payload `Arc`
+/// agrees unread; otherwise every part is compared, and a part that
+/// differs decides the answer even where another part has no bit
+/// channel to read.
 #[cfg(debug_assertions)]
 pub(crate) fn surface_bits_witness<T: geom_core::Real>(
     a: &geom::Surface<T>,
     b: &geom::Surface<T>,
 ) -> Option<bool> {
     use geom::Surface as S;
-    match (a, b) {
-        (S::Nurbs(x), S::Nurbs(y)) => {
-            if std::sync::Arc::ptr_eq(x, y) {
-                return Some(true);
-            }
-            nurbs_surface_bits_witness(x, y)
-        }
-        (S::Approx(x), S::Approx(y)) => {
-            if std::sync::Arc::ptr_eq(x, y) {
-                return Some(true);
-            }
-            let (wx, wy) = (x.window(), y.window());
-            let window = bits_witness(&[
-                (wx.u.0, wy.u.0),
-                (wx.u.1, wy.u.1),
-                (wx.v.0, wy.v.0),
-                (wx.v.1, wy.v.1),
-            ])?;
-            nurbs_surface_bits_witness(x.fit(), y.fit()).map(|fit| fit && window)
-        }
-        _ => match (analytic_scalars(a), analytic_scalars(b)) {
-            (Some((ka, xa)), Some((kb, xb))) if ka == kb => {
-                let pairs: Vec<(T, T)> = xa.into_iter().zip(xb).collect();
-                bits_witness(&pairs)
-            }
-            _ => bits_witness(&[(T::zero(), T::zero())]).map(|_| false),
-        },
-    }
-}
-
-/// An analytic surface's kind and scalars in field order; `None` for
-/// the two payload kinds.
-#[cfg(debug_assertions)]
-fn analytic_scalars<T: geom_core::Real>(s: &geom::Surface<T>) -> Option<(u8, Vec<T>)> {
-    use geom::Surface as S;
-    let p = |q: geom_core::Point3<T>| [q.x, q.y, q.z];
-    let v = |w: geom_core::Vec3<T>| [w.x, w.y, w.z];
-    Some(match *s {
+    let p = |x: geom_core::Point3<T>, y: geom_core::Point3<T>| {
+        bits_witness([(x.x, y.x), (x.y, y.y), (x.z, y.z)])
+    };
+    let v = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
+        bits_witness([(x.x, y.x), (x.y, y.y), (x.z, y.z)])
+    };
+    let s = |x: T, y: T| bits_witness([(x, y)]);
+    match *a {
         S::Plane {
             origin,
             normal,
             u_ref,
-        } => (0, [p(origin), v(normal), v(u_ref)].concat()),
+        } => {
+            let S::Plane {
+                origin: o,
+                normal: n,
+                u_ref: r,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([p(origin, o), v(normal, n), v(u_ref, r)])
+        }
         S::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
-        } => (1, [&p(origin)[..], &v(axis), &[radius], &v(u_ref)].concat()),
+        } => {
+            let S::Cylinder {
+                origin: o,
+                axis: ax,
+                radius: r,
+                u_ref: u,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([p(origin, o), v(axis, ax), s(radius, r), v(u_ref, u)])
+        }
         S::Cone {
             apex,
             axis,
             half_angle,
             u_ref,
-        } => (
-            2,
-            [&p(apex)[..], &v(axis), &[half_angle], &v(u_ref)].concat(),
-        ),
+        } => {
+            let S::Cone {
+                apex: o,
+                axis: ax,
+                half_angle: h,
+                u_ref: u,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([p(apex, o), v(axis, ax), s(half_angle, h), v(u_ref, u)])
+        }
         S::Sphere {
             center,
             radius,
             axis,
             u_ref,
-        } => (3, [&p(center)[..], &[radius], &v(axis), &v(u_ref)].concat()),
+        } => {
+            let S::Sphere {
+                center: c,
+                radius: r,
+                axis: ax,
+                u_ref: u,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([p(center, c), s(radius, r), v(axis, ax), v(u_ref, u)])
+        }
         S::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             u_ref,
-        } => (
-            4,
-            [
-                &p(center)[..],
-                &v(axis),
-                &[major_radius, minor_radius],
-                &v(u_ref),
-            ]
-            .concat(),
-        ),
-        S::Nurbs(_) | S::Approx(_) => return None,
-    })
+        } => {
+            let S::Torus {
+                center: c,
+                axis: ax,
+                major_radius: big,
+                minor_radius: small,
+                u_ref: u,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([
+                p(center, c),
+                v(axis, ax),
+                s(major_radius, big),
+                s(minor_radius, small),
+                v(u_ref, u),
+            ])
+        }
+        S::Nurbs(ref x) => {
+            let S::Nurbs(ref y) = *b else {
+                return Some(false);
+            };
+            if std::sync::Arc::ptr_eq(x, y) {
+                return Some(true);
+            }
+            nurbs_surface_bits_witness(x, y)
+        }
+        S::Approx(ref x) => {
+            let S::Approx(ref y) = *b else {
+                return Some(false);
+            };
+            if std::sync::Arc::ptr_eq(x, y) {
+                return Some(true);
+            }
+            let (wx, wy) = (x.window(), y.window());
+            let window = bits_witness([
+                (wx.u.0, wy.u.0),
+                (wx.u.1, wy.u.1),
+                (wx.v.0, wy.v.0),
+                (wx.v.1, wy.v.1),
+            ]);
+            joined([window, nurbs_surface_bits_witness(x.fit(), y.fit())])
+        }
+    }
 }
 
-/// Debug-only bit agreement of two NURBS surfaces: knots, weights and
-/// control net, with the degrees and counts that shape them.
+/// Assertion-build agreement of two NURBS surfaces: degrees and counts
+/// decide unread; then knots, weights and control net are each
+/// compared, so knots or weights that differ answer `Some(false)` even
+/// where the net's scalar has no bit channel.
 #[cfg(debug_assertions)]
 fn nurbs_surface_bits_witness<T: geom_core::Real>(
     x: &geom::NurbsSurface<T>,
@@ -326,24 +372,34 @@ fn nurbs_surface_bits_witness<T: geom_core::Real>(
         && x.knots_v().knots().len() == y.knots_v().knots().len()
         && x.control_counts() == y.control_counts();
     if !shape {
-        return bits_witness(&[(T::zero(), T::zero())]).map(|_| false);
+        return Some(false);
     }
-    let reals: Vec<(f64, f64)> = [
-        (x.knots_u().knots(), y.knots_u().knots()),
-        (x.knots_v().knots(), y.knots_v().knots()),
-        (x.weights(), y.weights()),
-    ]
-    .into_iter()
-    .flat_map(|(a, b)| a.iter().copied().zip(b.iter().copied()))
-    .collect();
-    let net: Vec<(T, T)> = x
-        .control()
-        .iter()
-        .zip(y.control())
-        .flat_map(|(a, b)| [(a.x, b.x), (a.y, b.y), (a.z, b.z)])
-        .collect();
-    let net = bits_witness(&net)?;
-    bits_witness(&reals).map(|reals| reals && net)
+    let reals = |a: &[f64], b: &[f64]| bits_witness(a.iter().copied().zip(b.iter().copied()));
+    joined([
+        reals(x.knots_u().knots(), y.knots_u().knots()),
+        reals(x.knots_v().knots(), y.knots_v().knots()),
+        reals(x.weights(), y.weights()),
+        bits_witness(
+            x.control()
+                .iter()
+                .zip(y.control())
+                .flat_map(|(a, b)| [(a.x, b.x), (a.y, b.y), (a.z, b.z)]),
+        ),
+    ])
+}
+
+/// Folds part verdicts: any part that differs decides `Some(false)`;
+/// otherwise a part with no bit channel leaves `None`.
+#[cfg(debug_assertions)]
+fn joined(parts: impl IntoIterator<Item = Option<bool>>) -> Option<bool> {
+    parts
+        .into_iter()
+        .try_fold(Some(true), |acc, part| match part {
+            Some(false) => Err(()),
+            Some(true) => Ok(acc),
+            None => Ok(None),
+        })
+        .unwrap_or(Some(false))
 }
 
 /// `Some(all pairs bit-equal)` where the scalar has a bit channel,
@@ -355,9 +411,9 @@ fn nurbs_surface_bits_witness<T: geom_core::Real>(
 /// read at one, so a `[T; N]` parameter here would report this use
 /// ungated (`work/issues/bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`).
 #[cfg(debug_assertions)]
-fn bits_witness<T: geom_core::Real>(pairs: &[(T, T)]) -> Option<bool> {
-    pairs.iter().try_fold(true, |agree, (a, b)| {
-        geom_core::bit_identity::eq_bits(a, b).map(|eq| agree && eq)
+fn bits_witness<T: geom_core::Real>(pairs: impl IntoIterator<Item = (T, T)>) -> Option<bool> {
+    pairs.into_iter().try_fold(true, |agree, (a, b)| {
+        geom_core::bit_identity::eq_bits(&a, &b).map(|eq| agree && eq)
     })
 }
 

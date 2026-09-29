@@ -16,7 +16,10 @@
 //! place: no loop moves and no key changes, and every row the face
 //! stores is a curve stated in the chart the face LEFT. Each is rowed
 //! on this same fixture, and each takes the same answer — carried
-//! across one chart, dropped across two.
+//! across one chart, dropped across two. The last two headings row the
+//! one tie between two keys the doors read (a shared payload `Arc`) and
+//! the stamp door whose assertion keeps a recipe stamp to one
+//! description.
 //!
 //! The fixture is a minted cylinder-wall sheet split at mid-height into
 //! two curved faces, with the sheet's other side put on a PLANE: three
@@ -920,16 +923,11 @@ fn mef_onto_a_second_key_sharing_a_recipe_drops_the_runs_rows() {
     );
 }
 
-/// **A forged recipe stamp moves no row.** The sheet's cylinder and a
-/// PLANE carry one `GeomSource` — the stamp door refuses that in a debug
-/// build, so the pair arrives the way the graft brings it, each stamp
-/// true in its own body — and `mef` with `Shared(plane)` sends the run
-/// onto the planar face. Its two cylinder rows do not come with it: a
-/// row carried there would be one no reader is ever warned about, since
-/// the pass skips a planar face.
-#[test]
-fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_onto_the_plane() {
-    let mut s = sheet();
+/// Stamps the sheet's cylinder with `one_recipe()` and grafts in a
+/// PLANE carrying the same stamp; returns the plane's key. The stamp
+/// door's assertion refuses that pair, so it arrives the way the graft
+/// brings it — each stamp true in its own body.
+fn forge(s: &mut Sheet) -> topo::SurfaceKey {
     let cyl = s.body.get_face(s.low).unwrap().surface;
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
     let mut other = Body::<f64>::new();
@@ -949,13 +947,70 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_onto_the_plane() 
         s.body.get_surface(forged),
         Some(Surface::Plane { .. })
     ));
+    forged
+}
 
+/// **A forged recipe stamp moves no row.** The sheet's cylinder and a
+/// PLANE carry one `GeomSource` ([`forge`]), and `mef` with
+/// `Shared(plane)` sends the run onto the planar face. Its two cylinder
+/// rows do not come with it: a row carried there would be one no reader
+/// is ever warned about, since the pass skips a planar face.
+#[test]
+fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_onto_the_plane() {
+    let mut s = sheet();
+    let forged = forge(&mut s);
     let made = split_low(&mut s, FaceSurface::Shared(forged));
     assert_eq!(
         rows_of(&s.body, made.face),
         (0, 3),
         "a cylinder row landed on the planar face"
     );
+}
+
+/// The same forged pair at the other five doors: each moves the
+/// cylinder panel's rows onto the planar key and carries none of them.
+#[test]
+fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door() {
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    s.body
+        .set_face_surface(s.low, FaceSurface::Shared(forged))
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 4), "set_face_surface");
+
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    s.body
+        .set_face_surface(s.plane, FaceSurface::Shared(forged))
+        .unwrap();
+    s.body.kfmrh(s.plane, s.low).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 10), "kfmrh");
+
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    s.body
+        .set_face_surface(s.plane, FaceSurface::Shared(forged))
+        .unwrap();
+    s.body.ring_move(ring, s.plane).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 10), "ring_move");
+
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let made = s.body.mfkrh(ring, FaceSurface::Shared(forged)).unwrap();
+    assert_eq!(rows_of(&s.body, made.face), (0, 4), "mfkrh");
+
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    s.body
+        .set_face_surface(s.plane, FaceSurface::Shared(forged))
+        .unwrap();
+    let he = he_at(&s.body, s.low, at(U0, V0));
+    s.body.kef(he).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 8), "kef");
 }
 
 /// **`kef` into a face on a chart that mints nothing drops the
@@ -1373,4 +1428,341 @@ fn a_carrier_swap_on_a_half_minted_face_is_refused_only_by_the_complete_side() {
         s.body.pcurve(he).is_some(),
         "the staled row is still there — unmeasured, not removed"
     );
+}
+
+// ---------------------------------------------------------------
+// The one tie across two keys: a shared payload `Arc`.
+// ---------------------------------------------------------------
+//
+// Every face is put on a NURBS patch, which drops every row, and the
+// minted rows are then re-attached verbatim through
+// `Body::attach_pcurve`. Those rows are not coherent with the patch,
+// so these rows assert what each door DECIDED — carried or dropped —
+// and never ask the pcurve pass. Each runs twice: with one payload
+// `Arc` on every key, and with a deep copy per key, which holds an
+// equal patch with no identity tie and must drop.
+
+/// A flat bilinear patch.
+fn patch() -> std::sync::Arc<geom::NurbsSurface<f64>> {
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 1.0, 0.0),
+    ];
+    std::sync::Arc::new(geom::NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).unwrap())
+}
+
+struct ArcSheet {
+    s: Sheet,
+    /// `low`'s, `up`'s and `plane`'s keys: one payload `Arc` on three
+    /// keys (`tied`), or three deep copies.
+    keys: [topo::SurfaceKey; 3],
+}
+
+/// The sheet with all three faces on [`patch`] — tied or deep-copied —
+/// and the two curved panels' eight minted rows attached back.
+fn arc_sheet(tied: bool) -> ArcSheet {
+    let mut s = sheet();
+    let saved: Vec<_> = s.body.pcurves().map(|(h, c)| (h, c.clone())).collect();
+    assert_eq!(saved.len(), 8);
+    let p = patch();
+    let mut keys = Vec::new();
+    for face in [s.low, s.up, s.plane] {
+        let payload = if tied {
+            p.clone()
+        } else {
+            std::sync::Arc::new((*p).clone())
+        };
+        keys.push(
+            s.body
+                .set_face_surface(face, FaceSurface::New(Surface::Nurbs(payload)))
+                .unwrap(),
+        );
+    }
+    let arc = |k| match s.body.get_surface(k) {
+        Some(Surface::Nurbs(x)) => x.clone(),
+        _ => panic!("every face was put on the patch"),
+    };
+    assert_eq!(
+        std::sync::Arc::ptr_eq(&arc(keys[0]), &arc(keys[1])),
+        tied,
+        "the door keeps the caller's payload Arc"
+    );
+    assert_eq!(rows_total(&s.body), 0, "the swaps dropped every row");
+    for (h, c) in saved {
+        s.body.attach_pcurve(h, c);
+    }
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    ArcSheet {
+        s,
+        keys: [keys[0], keys[1], keys[2]],
+    }
+}
+
+/// **The swap decides before it reaps.** Moving `low` onto `up`'s key
+/// orphans `low`'s own key, which the swap removes; a decision taken
+/// after that removal reads a dead key and drops the rows whatever
+/// the two keys held.
+#[test]
+fn a_swap_orphaning_the_old_key_carries_every_row_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body
+            .set_face_surface(s.low, FaceSurface::Shared(keys[1]))
+            .unwrap();
+        assert!(
+            s.body.get_surface(keys[0]).is_none(),
+            "the old key was reaped"
+        );
+        let want = if tied { (4, 0) } else { (0, 4) };
+        assert_eq!(rows_of(&s.body, s.low), want, "tied: {tied}");
+    }
+}
+
+/// **`kef` decides before it reaps.** Killing the rim between the two
+/// panels from `low`'s side kills `low` and orphans its key; the
+/// remnant's three rows are carried onto `up` only if the decision
+/// was taken while that key still resolved.
+#[test]
+fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        let he = he_at(&s.body, s.low, at(U1, VM));
+        let killed = s.body.kef(he).unwrap();
+        assert_eq!(killed.killed_face, s.low);
+        assert!(
+            s.body.get_surface(keys[0]).is_none(),
+            "the dying key was reaped"
+        );
+        let want = if tied { (6, 0) } else { (3, 3) };
+        assert_eq!(rows_of(&s.body, s.up), want, "tied: {tied}");
+    }
+}
+
+#[test]
+fn kfmrh_carries_every_row_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, .. } = arc_sheet(tied);
+        s.body.kfmrh(s.low, s.up).unwrap();
+        let want = if tied { (8, 0) } else { (4, 4) };
+        assert_eq!(rows_of(&s.body, s.low), want, "tied: {tied}");
+    }
+}
+
+/// `up` is first moved onto `low`'s key, so the demotion into `low`
+/// is one key and carries whatever `up` kept; the ring then moves (or
+/// is promoted) onto the plane face's key, which is the question.
+#[test]
+fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body
+            .set_face_surface(s.up, FaceSurface::Shared(keys[0]))
+            .unwrap();
+        let ring_rows = rows_of(&s.body, s.up).0;
+        s.body.kfmrh(s.low, s.up).unwrap();
+        let ring = ring_of(&s.body, s.low);
+        s.body.ring_move(ring, s.plane).unwrap();
+        let want = if tied {
+            (ring_rows, 6 + 4 - ring_rows)
+        } else {
+            (0, 10)
+        };
+        assert_eq!(rows_of(&s.body, s.plane), want, "ring_move tied: {tied}");
+
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body
+            .set_face_surface(s.up, FaceSurface::Shared(keys[0]))
+            .unwrap();
+        let ring_rows = rows_of(&s.body, s.up).0;
+        s.body.kfmrh(s.low, s.up).unwrap();
+        let ring = ring_of(&s.body, s.low);
+        let made = s.body.mfkrh(ring, FaceSurface::Shared(keys[2])).unwrap();
+        let want = if tied {
+            (ring_rows, 4 - ring_rows)
+        } else {
+            (0, 4)
+        };
+        assert_eq!(rows_of(&s.body, made.face), want, "mfkrh tied: {tied}");
+    }
+}
+
+#[test]
+fn mef_carries_the_runs_rows_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        let made = split_low(&mut s, FaceSurface::Shared(keys[2]));
+        let want = if tied { (2, 1) } else { (0, 3) };
+        assert_eq!(rows_of(&s.body, made.face), want, "tied: {tied}");
+    }
+}
+
+// ---------------------------------------------------------------
+// The stamp door's assertion: one recipe, one description (N6).
+// ---------------------------------------------------------------
+
+/// Stamps `one_recipe()` on two fresh keys holding `a` and `b`.
+fn stamp_both<T: geom_core::Decide>(a: Surface<T>, b: Surface<T>, seed: Point3<T>) {
+    let mut body = Body::<T>::new();
+    let fa = body.mvfs(seed).unwrap().face;
+    let fb = body.mvfs(seed).unwrap().face;
+    let ka = body.set_face_surface(fa, FaceSurface::New(a)).unwrap();
+    let kb = body.set_face_surface(fb, FaceSurface::New(b)).unwrap();
+    assert_ne!(ka, kb);
+    body.set_surface_source(ka, one_recipe()).unwrap();
+    body.set_surface_source(kb, one_recipe()).unwrap();
+}
+
+/// Whether stamping one recipe on `a` and `b` trips the assertion.
+fn stamp_panics<T: geom_core::Decide>(a: Surface<T>, b: Surface<T>, seed: Point3<T>) -> bool {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| stamp_both(a, b, seed))).is_err()
+}
+
+/// [`patch`] generic over the scalar, lifted by `dz`, with its second
+/// weight `w`.
+fn patch_at<T: geom_core::Real>(lift: impl Fn(f64) -> T, dz: f64, w: f64) -> Surface<T> {
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+        .into_iter()
+        .map(|(x, y)| Point3::new(lift(x), lift(y), lift(dz)))
+        .collect();
+    Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(k.clone(), k, control, vec![1.0, w, 1.0, 1.0]).unwrap(),
+    ))
+}
+
+fn cone(half_angle: f64) -> Surface<f64> {
+    Surface::Cone {
+        apex: Point3::origin(),
+        axis: axis(),
+        half_angle,
+        u_ref: u_ref(),
+    }
+}
+
+fn sphere(radius: f64) -> Surface<f64> {
+    Surface::Sphere {
+        center: Point3::origin(),
+        radius,
+        axis: axis(),
+        u_ref: u_ref(),
+    }
+}
+
+fn torus(minor_radius: f64) -> Surface<f64> {
+    Surface::Torus {
+        center: Point3::origin(),
+        axis: axis(),
+        major_radius: 3.0,
+        minor_radius,
+        u_ref: u_ref(),
+    }
+}
+
+fn plane_at_x(x: f64) -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(x, 0.0, 0.0),
+        normal: axis(),
+        u_ref: u_ref(),
+    }
+}
+
+/// **Every kind, both ways**: one description under one recipe on two
+/// keys is accepted, and two that differ in any one part — a scalar of
+/// each kind, a NURBS net or weight, the kind itself, a zero's sign —
+/// are refused.
+#[cfg(debug_assertions)]
+#[test]
+fn the_stamp_door_refuses_one_recipe_over_two_descriptions_on_every_kind() {
+    let id = |x: f64| x;
+    let o = Point3::origin();
+    let shared = Surface::Nurbs(patch());
+    let equal = [
+        ("plane", flat(), flat()),
+        ("cylinder", cylinder(), cylinder()),
+        ("cone", cone(0.3), cone(0.3)),
+        ("sphere", sphere(1.0), sphere(1.0)),
+        ("torus", torus(1.0), torus(1.0)),
+        ("nurbs", patch_at(id, 0.0, 1.0), patch_at(id, 0.0, 1.0)),
+        ("one payload", shared.clone(), shared),
+    ];
+    for (what, a, b) in equal {
+        assert!(!stamp_panics(a, b, o), "{what}: an equal pair was refused");
+    }
+    let differing = [
+        ("plane", plane_at_x(0.0), plane_at_x(1e-12)),
+        ("cylinder", cylinder(), other_cylinder()),
+        ("cone", cone(0.3), cone(0.31)),
+        ("sphere", sphere(1.0), sphere(1.5)),
+        ("torus", torus(1.0), torus(1.5)),
+        ("nurbs net", patch_at(id, 0.0, 1.0), patch_at(id, 0.5, 1.0)),
+        ("nurbs weight", patch_at(id, 0.0, 1.0), patch_at(id, 0.0, 2.0)),
+        ("kind", flat(), cylinder()),
+        ("signed zero", plane_at_x(0.0), plane_at_x(-0.0)),
+    ];
+    for (what, a, b) in differing {
+        assert!(stamp_panics(a, b, o), "{what}: a differing pair was accepted");
+    }
+}
+
+/// **At `Dual`, what needs no bit channel is still decided.** A dual
+/// scalar has no bit channel, so two same-kind analytic surfaces that
+/// differ only in a dual scalar offer no evidence and pass; but a kind
+/// mismatch, and a NURBS pair whose `f64` weights differ, are refused.
+#[cfg(debug_assertions)]
+#[test]
+fn the_stamp_door_decides_at_dual_what_needs_no_bit_channel() {
+    use geom_core::Dual64 as D;
+    let c = D::constant;
+    let o = Point3::new(c(0.0), c(0.0), c(0.0));
+    let v = |x: f64, y: f64, z: f64| Vec3::new(c(x), c(y), c(z));
+    let plane = Surface::Plane {
+        origin: o,
+        normal: v(0.0, 0.0, 1.0),
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    let cyl = |r: f64| Surface::Cylinder {
+        origin: o,
+        axis: v(0.0, 0.0, 1.0),
+        radius: c(r),
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    assert!(
+        !stamp_panics(cyl(1.0), cyl(2.0), o),
+        "a dual radius is no evidence"
+    );
+    assert!(
+        !stamp_panics(patch_at(c, 0.0, 1.0), patch_at(c, 0.5, 1.0), o),
+        "a dual control net is no evidence"
+    );
+    assert!(stamp_panics(plane, cyl(1.0), o), "kind mismatch at Dual");
+    assert!(
+        stamp_panics(patch_at(c, 0.0, 1.0), patch_at(c, 0.0, 2.0), o),
+        "f64 weights at Dual"
+    );
+}
+
+/// **Every holder is read.** A graft brings in a key carrying the
+/// recipe over a PLANE beside the sheet's stamped cylinder; stamping a
+/// third key holding the cylinder again agrees with the first holder
+/// in arena order and disagrees with the second, and is refused.
+#[cfg(debug_assertions)]
+#[test]
+fn the_stamp_door_reads_every_holder_not_the_first() {
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let third = s
+        .body
+        .set_face_surface(s.up, FaceSurface::New(cylinder()))
+        .unwrap();
+    assert!(third != cyl && third != forged);
+    let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        s.body.set_surface_source(third, one_recipe()).unwrap();
+    }))
+    .is_err();
+    assert!(refused, "the forged holder went unread");
 }
