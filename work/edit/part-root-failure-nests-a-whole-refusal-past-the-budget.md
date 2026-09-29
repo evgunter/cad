@@ -5,7 +5,6 @@ title: editor-core: a part's root failure renders the part's own node refusal in
 status: open
 priority: P3
 cost: M
-needs_ev: true
 opened: 2026-09-23
 refs: [error-and-check-text-overflows-its-region]
 ---
@@ -94,3 +93,17 @@ Seams the unit will carry:
   (`NoResolver`, `DepthExceeded`, `ReferenceCycle`, `PartProduct`).
 - **`product_fault`'s placeholder** "records no cause" becomes a typed
   kernel-bug arm.
+
+## RULED (2026-09-29, Ev on `[ev]` #3444) — (a), the full traceback
+
+"i think go for the full traceback in (a); if that turns out annoying we
+can change it later." The tree draws a nested part failure as one line
+per document level under the instance row.
+- Each level's line is that level's bounded instance sentence, naming the
+  failed node in that level's part and giving its recourse.
+- The last line is the failing node's own refusal, drawn exactly as its
+  own tree draws it.
+
+Everything under "What the designers converged on" stands. If the block
+proves too long in use, the value supports drawing fewer lines without a
+kernel change.
