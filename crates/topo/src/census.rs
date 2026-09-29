@@ -66,11 +66,10 @@
 //!   [`sweep_cross_solid_backstop`].
 //! - **Genuinely undetected until C9/C6**: SAME-solid distinct-key
 //!   curved pairs (the backstop is cross-solid — a single solid's own
-//!   curved faces are its constructor's obligations), and one
-//!   cross-solid residue named at that loop: a pair whose ONLY
-//!   meetings are declared has some of its records taken on their word
-//!   (`work/contact/declared-only-meetings-clear-at-the-census-gate-unread.md`).
-//!   Cross-solid
+//!   curved faces are its constructor's obligations). A declaration
+//!   licenses a coincidence, never a side: every meeting the sweeps
+//!   decide enters one ledger with its backing, and arm 2 reads each
+//!   one between two solids, declared or not. Cross-solid
 //!   pairs the reach filter CLEARS are cleared soundly (the pads are
 //!   sound bounds for the kinds that take the test), so clearance is a
 //!   genuine no-touch certificate, not a skip. Named, not sampled.
@@ -922,13 +921,14 @@ fn meet<T: Real>(
     backing: Backing,
     witness: impl FnOnce() -> String,
 ) {
-    if backing == Backing::Undeclared {
+    let meeting = Meeting { site, backing };
+    if meeting.backing == Backing::Undeclared {
         errors.push(ValidationError::UndeclaredContact {
-            contact: site.contact(),
+            contact: meeting.site.contact(),
             witness: witness(),
         });
     }
-    ledger.push(Meeting { site, backing });
+    ledger.push(meeting);
 }
 
 /// The planar snapshot entry for a face, or `None` for a curved one.
@@ -3363,7 +3363,7 @@ impl TouchVerdict {
 
 /// Where a meeting of two boundaries is, as the analysis reads it: the
 /// one mapping from a meeting's kind to the two stars it compares.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 enum TouchSite<T: Real> {
     VertexVertex(VertexKey, VertexKey),
     VertexOnEdge(VertexKey, EdgeKey),
@@ -5402,7 +5402,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     reaches |= !separated;
                 }
             }
-            let meet = meets(&errors[..standing], sa, sb);
+            let on_record = meets(&errors[..standing], sa, sb);
             // **Why arm 2 decides the pair** — the one statement of the
             // argument; the module and arm docs point here.
             //
@@ -5473,7 +5473,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             // no dip beyond a ball to find.
             // "No point of `U` is near a rest" above holds in exactly
             // that sense: `U` near a rest is confined to that slab.
-            if !unclaimable && (reaches || meet) {
+            if !unclaimable && (reaches || on_record) {
                 // The material test, both orderings, every vertex. An
                 // `In` is the decided interference whatever else stands.
                 let mut interfered = false;
@@ -7958,7 +7958,7 @@ mod tests {
         let face = star
             .faces
             .iter()
-            .find(|f| (f.outward - m).norm() < 1e-9)
+            .find(|f| f.outward.is_some_and(|n| (n - m).norm() < 1e-9))
             .expect("the face");
         face.piece.iter().map(|&i| star.verts[i]).collect()
     }
@@ -8484,8 +8484,9 @@ mod tests {
                     u_ref: m.cross(Vec3::new(1.0, 1.0, 1.0)).normalize(),
                 },
                 sense: true,
-                outward: *m,
+                outward: Some(*m),
                 piece: (start..all.len()).collect(),
+                coarse: false,
             });
         }
         let mut rays = Vec::new();
