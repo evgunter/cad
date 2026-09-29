@@ -109,7 +109,7 @@ use topo::{Body, FaceKey, PlaneRelation};
 
 use crate::doc::Doc;
 use crate::edit::{Applied, DocEdit, EditError, apply};
-use crate::eval::{Evaluation, NodeResult, NodeValue};
+use crate::eval::{Evaluation, NodeValue};
 use crate::names::geompred::SelectRefusal;
 use crate::names::interrogate;
 use crate::names::interrogate::InterrogateError;
@@ -177,11 +177,16 @@ pub type FlushFinding = topo::flush::FlushFinding<(SitedRef, SitedRef)>;
 /// candidate-generation mode (module docs; SELECT-DESIGN §3a/b).
 ///
 /// Findings come back in canonical order (sorted by name pair) and
-/// are only ever DEFINITE. Like [`select`](fn@super::select), the query
-/// answers empty if either node has no value in this evaluation.
+/// are only ever DEFINITE.
+///
+/// A node with no value refuses rather than answering empty: this is
+/// an inspection door, and "no flush pair" about a node that did not
+/// build would read as a fact about its geometry.
 ///
 /// # Errors
 ///
+/// [`SelectRefusal::NodeHasNoValue`] when `a` or `b` has no value,
+/// carrying its standing;
 /// [`SelectRefusal::PairInBand`] when a pair's verify-door margin is
 /// indeterminate (never silently included or dropped),
 /// [`SelectRefusal::TiedDisagrees`] when a tied name's candidates
@@ -195,10 +200,8 @@ pub fn find_flush_candidates<T: Decide>(
     b: RecipeNodeId,
     tol: Tol,
 ) -> Result<Vec<FlushFinding>, SelectRefusal> {
-    let (Some(NodeResult::Ok(va)), Some(NodeResult::Ok(vb))) = (ev.nodes.get(&a), ev.nodes.get(&b))
-    else {
-        return Ok(Vec::new());
-    };
+    let va = ev.usable(a).map_err(SelectRefusal::NodeHasNoValue)?;
+    let vb = ev.usable(b).map_err(SelectRefusal::NodeHasNoValue)?;
     let band = Band::linear(tol)?;
     let fa = face_candidates(va)?;
     let fb = face_candidates(vb)?;

@@ -229,7 +229,7 @@ use pncad::document::{
     ChecksReport, Evaluation, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind,
     RecipeNodeId, SlotId,
 };
-use pncad::select::{HitTestError, NodePickError};
+use pncad::select::{HitTestError, NameLookupError, NodePickError};
 
 use crate::blend::BlendEvent;
 use crate::camera::CameraError;
@@ -2069,7 +2069,9 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
         ToolNotice::Blend(BlendEvent::TargetLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
-        ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { .. }) => Retold::Again,
+        ToolNotice::Blend(
+            BlendEvent::NoEdgesOnTarget { .. } | BlendEvent::TargetHasNoValue { .. },
+        ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.to_string(), retold)
 }
@@ -2392,14 +2394,11 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// not reached; the label says the index waits on this row and does
 /// not promise it builds once the row is fixed.
 ///
-/// **The tooltip may name a different node from the label, on
-/// purpose.** The tooltip is the index's own words, which name the
-/// root the build refused on and, for a poisoned root, the kernel's
-/// nearest failed ancestor. The label names the tree's row, which for
-/// a root a mate refusal reached is the mate the fault blames rather
-/// than the root. The label is the one that matches the row a reader
-/// can act on, and the tooltip is kept unaltered because it is another
-/// layer's refusal ([`PickIndexError`]'s `Display`).
+/// **The tooltip is the index's own words with the tree's row in
+/// them.** It names the root the build refused on, and the standing it
+/// carries is read as the tree reads it ([`index_refusal_as_drawn`]),
+/// so for a root a mate refusal reached it names the mate the label
+/// names rather than the root or the root's DAG ancestor.
 ///
 /// Every other refusal is the index's own and stays
 /// [`Tone::Actionable`] in its own words — and so does a standing
@@ -2414,6 +2413,10 @@ pub fn index_badge(
     let cause = downstream_root(error)
         .zip(evaluation)
         .and_then(|(root, evaluation)| crate::tree::cause_row(root, evaluation));
+    let said = match evaluation {
+        Some(evaluation) => format!("pick index: {}", index_refusal_as_drawn(error, evaluation)),
+        None => format!("pick index: {error}"),
+    };
     Some(match cause {
         Some(cause) => Badge::read(
             PickIndexError::SUBJECT,
@@ -2424,13 +2427,34 @@ pub fn index_badge(
             ),
             Tone::Advisory,
         )
-        .detailed(format!("pick index: {error}")),
-        None => Badge::read(
-            PickIndexError::SUBJECT,
-            format!("pick index: {error}"),
-            Tone::Actionable,
-        ),
+        .detailed(said),
+        None => Badge::read(PickIndexError::SUBJECT, said, Tone::Actionable),
     })
+}
+
+/// A pick-index refusal, every standing it carries re-read by
+/// [`crate::tree::standing_as_drawn`]; every other refusal is the
+/// index's, unchanged.
+fn index_refusal_as_drawn(error: &PickIndexError, evaluation: &Evaluation<f64>) -> PickIndexError {
+    let drawn = |standing| crate::tree::standing_as_drawn(standing, evaluation);
+    match error {
+        PickIndexError::Node { node, error } => PickIndexError::Node {
+            node: *node,
+            error: match error {
+                NodePickError::Standing(standing) => NodePickError::Standing(drawn(*standing)),
+                NodePickError::NotABody { .. }
+                | NodePickError::NoSuchBody { .. }
+                | NodePickError::Tessellate(_)
+                | NodePickError::Index(_) => error.clone(),
+            },
+        },
+        PickIndexError::Names(NameLookupError::Standing(standing)) => {
+            PickIndexError::Names(NameLookupError::Standing(drawn(*standing)))
+        }
+        PickIndexError::Names(NameLookupError::EvaluationOfAnotherDocument(_))
+        | PickIndexError::Ids(_)
+        | PickIndexError::DrawnTwice { .. } => error.clone(),
+    }
 }
 
 /// **The root a pick-index refusal is a consequence of**, when the

@@ -779,6 +779,94 @@ pub fn shared_clause_only(predicate: &str) -> Option<&'static str> {
         .map(|(_, reason)| *reason)
 }
 
+/// The subject a door states for an escalation whose name has no words
+/// in [`decision_subject`]: `geom_core::UNNAMED_DECISION`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const UNNAMED_DECISION: &str = geom_core::UNNAMED_DECISION;
+
+/// What an escalated decision of this crate was deciding, in the words
+/// a refusal states before the margin it could not call: each a clause
+/// that stands alone, with no colon or dash of its own, so the door can
+/// follow it with "is too close to call". The one home of these words,
+/// read by [`ProfileError::Escalated`] and [`crate::PathError::Escalated`]'s
+/// fall-through; [`SHARED_CLAUSE_ONLY`]'s reasons are for the roster's
+/// readers, not for the screen. `None` only for the fillet
+/// constructor's gates, which the path door routes to a sentence of
+/// their own and which validation never decides;
+/// `recourse_roster::every_decided_name_has_a_subject_or_a_sentence`
+/// holds that against the names `src` decides.
+#[must_use]
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub fn decision_subject(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        "arc_apex_identity" => "whether two arc apexes are one point",
+        "arc_span" => "whether a point falls inside an arc's span",
+        "arc_diameter_clearance" => "whether an arc stops short of a full circle",
+        "canonical_order_x" => "which of two points comes first along x",
+        "canonical_order_y" => "which of two points comes first along y",
+        "carrier_circles_external" => "whether two circles touch from outside",
+        "carrier_circles_identity" => "whether two circles are one circle",
+        "carrier_circles_internal" => "whether two circles touch from inside",
+        "carrier_line_circle" => "whether a line and a circle cross, touch or miss",
+        "chord_side" => "which side of a chord a point lies on",
+        "collinear_overlap" => "whether two segments on one line overlap",
+        "contact_at_shared_vertex" => "whether a contact point is a loop vertex",
+        "line_span" => "whether a point falls inside a segment",
+        "loop_orientation" => "which way round a loop runs",
+        "path_arc_bulge" => "whether an authored bulge is zero",
+        "path_arc_center_equidistant" => {
+            "whether an authored centre is as far from one end of its arc as from the other"
+        }
+        "path_arc_center_radius" => "whether an authored radius is zero",
+        "path_arc_chord" => "whether an authored chord has any length",
+        "path_arc_sweep" => "whether an authored sweep angle is zero",
+        "path_arc_via_offset" => "whether a via point lies off the chord it bulges",
+        "path_carrier_identity" => "whether two arc carriers are one circle",
+        "path_carrier_meet" => "whether a ray meets a circle",
+        "path_circle_radius" => "whether a circle's radius is zero",
+        "path_collinear_target" => "whether a declared target lies on the tip's line",
+        "path_continuation_target_offset" => {
+            "whether a declared straight continuation's target lies on the departing ray"
+        }
+        "path_corner_advance" => "whether the corner lies ahead of its anchor on a straight side",
+        "path_corner_advance_arc" => "whether the corner lies ahead of its anchor on an arc side",
+        "path_corner_reach_arc" => "whether the corner lies short of an arc arrival's anchor",
+        "path_corner_turn" => "whether the two carriers turn at the corner",
+        "path_director_norm" => "whether a direction has any length",
+        "path_fillet_radius" => "whether an authored fillet radius is zero",
+        "path_junction_side" => {
+            "whether the path carries straight on at this junction or doubles back into a cusp"
+        }
+        "path_junction_turn" => "whether the path turns at this junction",
+        "path_leg_length" => "whether an authored leg has any length",
+        "path_run_out_carrier" => "whether an emitted segment lands on a fillet's arrival carrier",
+        "path_seam_arrival_lever" => "whether the seam arrival has a leg long enough to measure",
+        "path_seam_arrival_side" => {
+            "whether the seam arrival carries straight on or doubles back into a cusp"
+        }
+        "path_seam_arrival_turn" => "whether the seam arrival turns",
+        "ray_advance" => "whether a crossing lies ahead on a containment ray",
+        "ray_side" => "which side of a containment ray a point lies on",
+        "segment_straightness" => "whether a segment is straight or an arc",
+        "vertex_separation" => "whether a segment has any length",
+        _ => return None,
+    })
+}
+
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
 /// D9: never a panic). All indices reference the *input* profile.
@@ -1000,7 +1088,14 @@ impl fmt::Display for ProfileError {
                  candidate ray grazed — escalating rather than guessing"
             ),
             Self::Escalated { site, source } => {
-                write!(f, "validation escalated {site}: {source}")?;
+                let what = source
+                    .predicate
+                    .and_then(decision_subject)
+                    .unwrap_or(UNNAMED_DECISION);
+                write!(
+                    f,
+                    "validation escalated {site}: {what} is too close to call: {source}"
+                )?;
                 // The near-tangency site note (#101 point 2, reworked by
                 // the S6 two-tolerance sweep): the recourse levers ride
                 // `{source}` (the shared carrier); this addendum adds

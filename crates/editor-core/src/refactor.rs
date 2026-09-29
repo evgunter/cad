@@ -113,8 +113,9 @@ use crate::names::{
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
-use crate::program::{ProfileDoc, ProfileProgram};
+use crate::program::{ProfileDoc, ProfilePayload as _, ProfileProgram};
 use crate::resolve::derivation_nodes;
+use crate::step_mint::StepMint;
 use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
@@ -235,25 +236,46 @@ fn step_map_check(
 }
 
 /// The step map a refactoring's inserts will mint, precomputed: every
-/// profile among `nodes`, in the order they are inserted, has each of
-/// its steps re-minted from `next_step` onward, in loop then step
-/// order — exactly the insert door's minting order, which
-/// [`step_map_check`] confirms once the inserts are done.
+/// profile among `nodes`, in the order they are inserted and under the
+/// id `node_map` gives it, has its steps minted from `mint` by the insert
+/// door's own minting ([`crate::ProfilePayload::mint_step_ids`]) — the
+/// same canonical bytes, so the same ids — which [`step_map_check`]
+/// confirms once the inserts are done. A profile whose plane or node
+/// `node_map` does not carry ends the map there: its insert refuses
+/// under its own name.
+///
+/// # Errors
+///
+/// The mint's refusal, as the insert would report it.
 fn step_map_of<'a>(
-    nodes: impl Iterator<Item = &'a Node<ProfileProgram>>,
-    next_step: u64,
-) -> StepMap {
-    let mut next = next_step;
+    nodes: impl Iterator<Item = (RecipeNodeId, &'a Node<ProfileProgram>)>,
+    node_map: &NodeMap,
+    mint: &StepMint,
+) -> Result<StepMap, EditError> {
+    let mut mint = mint.clone();
     let mut map = StepMap::new();
-    for node in nodes {
-        if let Node::Profile(p) = node {
-            for &old in p.ids.iter().flatten() {
-                map.insert(old, StepId(next));
-                next += 1;
-            }
-        }
+    for (old, node) in nodes {
+        let Node::Profile(p) = node else { continue };
+        let (Some(&id), Some(&plane)) = (node_map.get(&old), node_map.get(&p.plane)) else {
+            break;
+        };
+        let mut carried = ProfileProgram {
+            plane,
+            loops: p.loops.clone(),
+            ids: Vec::new(),
+        };
+        carried
+            .mint_step_ids(id, &mut mint)
+            .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
+        map.extend(
+            p.ids
+                .iter()
+                .flatten()
+                .copied()
+                .zip(carried.ids.iter().flatten().copied()),
+        );
     }
-    map
+    Ok(map)
 }
 
 /// Why [`split`] refused. Typed and specific (spec D-2): every arm
@@ -1120,8 +1142,7 @@ fn remap_node(
         //
         // Its step ids do NOT cross: the other document's insert door
         // mints its own, and the names that spell them cross through
-        // the step map precomputed from that minting order
-        // (`step_map_of`).
+        // the step map precomputed from that minting (`step_map_of`).
         Node::Profile(p) => Node::Profile(ProfileProgram {
             plane: id(p.plane)?,
             loops: p.loops.clone(),
@@ -1619,14 +1640,18 @@ pub fn split(
         .map(|(i, &old)| (old, RecipeNodeId(i as u64)))
         .collect();
     // The same for the cut profiles' steps: the part's insert door
-    // mints them from its empty step counter, in insertion order.
+    // mints them from the empty document's mint, in insertion order.
     let step_map = step_map_of(
         doc.order()
             .iter()
             .filter(|id| cut.contains(id))
-            .filter_map(|id| doc.node(*id)),
-        0,
-    );
+            .filter_map(|id| doc.node(*id).map(|node| (*id, node))),
+        &node_map,
+        &StepMint::empty(),
+    )
+    .map_err(|error| SplitError::PartEdit {
+        error: Box::new(error),
+    })?;
 
     // ---- The part document, as recorded edits from empty ----
     // The part side's edits are inserts into a document being built —
@@ -2045,12 +2070,18 @@ pub fn inline(
         .enumerate()
         .map(|(i, &old)| (old, RecipeNodeId(doc.next_id + i as u64)))
         .collect();
-    // The part's profile steps land the same way on the host's step
-    // counter, which inserts of the part's nodes alone advance.
+    // The part's profile steps are minted from the host's mint, which
+    // inserts of the part's nodes alone extend.
     let step_map = step_map_of(
-        part.order().iter().filter_map(|id| part.node(*id)),
-        doc.next_step,
-    );
+        part.order()
+            .iter()
+            .filter_map(|id| part.node(*id).map(|node| (*id, node))),
+        &node_map,
+        doc.step_mint(),
+    )
+    .map_err(|error| InlineError::Edit {
+        error: Box::new(error),
+    })?;
 
     let mut current = Recording::start(doc.clone());
     let step =

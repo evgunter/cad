@@ -1612,40 +1612,54 @@ fn flat_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId>
 }
 
 /// **A split re-mints the cut profiles' steps in the part's own order,
-/// and its step map says so, however the source numbered them.** The
-/// cut profile's step 2 was re-minted by a reshaping, so its ids are
-/// not contiguous — `[5, 6, 10, 8, 9]`, the first component's five
-/// taking `0..5`. The part document mints its one profile's steps from
-/// zero in step order, and the step map pairs each old id with the id
-/// in the same position.
+/// and its step map says so, however the source minted them.** The cut
+/// profile's step 2 was re-minted by a reshaping, so its ids come from
+/// two different edits. The part document mints its one profile's steps
+/// from its own empty mint, in step order, and the step map pairs each
+/// old id with the id in the same position; the same split minted twice
+/// mints the same ids (D9).
 #[test]
 fn a_split_step_map_follows_a_non_contiguous_re_mint() {
     let (doc, [f2, p2, e2], _) = reshaped_component("asm4-steps", 2, false);
     let old = flat_ids(&doc, p2);
     let n = 5;
-    assert_eq!(
-        old,
-        [5, 6, 10, 8, 9].map(editor_core::StepId).to_vec(),
-        "the reshaped profile's ids skip the re-minted step's old id"
-    );
-    let out = split(
-        &doc,
-        &BTreeSet::from([f2, p2, e2]),
-        DocumentId::derive("asm4-steps-new"),
-        Tol::witness(),
-        None,
-    )
-    .expect("legal");
+    assert_eq!(old.len(), n, "one id per authored step");
+    let cut = || {
+        split(
+            &doc,
+            &BTreeSet::from([f2, p2, e2]),
+            DocumentId::derive("asm4-steps-new"),
+            Tol::witness(),
+            None,
+        )
+        .expect("legal")
+    };
+    let out = cut();
     let part_profile = out.node_map[&p2];
     let minted = flat_ids(&out.part, part_profile);
-    assert_eq!(minted, (0..n).map(editor_core::StepId).collect::<Vec<_>>());
-    let expected: editor_core::StepMap = old.iter().copied().zip(minted).collect();
+    assert_eq!(
+        out.part.step_mint().log(),
+        minted
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>(),
+        "the part's mint log holds exactly its one profile's {n} ids"
+    );
+    assert_eq!(minted.len(), n);
+    let expected: editor_core::StepMap = old.iter().copied().zip(minted.clone()).collect();
     assert_eq!(out.step_map, expected);
+    assert_eq!(
+        flat_ids(&cut().part, part_profile),
+        minted,
+        "one split mints one set of ids"
+    );
 }
 
 /// **A name on a step a `SetProgram` dropped does not cross a split or
-/// an inline**: the part document would mint that id afresh for a
-/// step of its own, so each refactoring refuses typed, naming the
+/// an inline**: no carried profile holds the step, so the step map has
+/// no id for it, and each refactoring refuses typed, naming the
 /// stranded name and the dropped step.
 #[test]
 fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
