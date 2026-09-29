@@ -20,6 +20,15 @@
 //! re-evaluation that changed nothing across the seam does no
 //! cross-document work at all.
 //!
+//! # The descent runs on the heap
+//!
+//! Below the top, the descent is bottom-up on an explicit stack
+//! (`PartCache::resolve_and_evaluate`): a referenced document is
+//! evaluated once the parts it instantiates are, and its cache starts
+//! with their rows. So how deep an assembly nests costs heap, never
+//! the thread's stack, and every depth either evaluates or refuses
+//! typed on whatever thread the evaluation runs on.
+//!
 //! # Cycles are decided, not waited out
 //!
 //! The cache also carries the DESCENT CHAIN — the references this
@@ -38,6 +47,7 @@ use geom_core::Decide;
 use topo::Body;
 
 use crate::ident::DocRef;
+use crate::ProfileDoc;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
@@ -52,7 +62,7 @@ use geom_core::Tol;
 /// cycle, which is the diagnosis an author can act on. This constant
 /// is what remains after that: a bound on genuinely deep, genuinely
 /// acyclic nesting, high enough that no real assembly meets it and
-/// finite so that nothing recurses without end. It diagnoses nothing;
+/// finite so that no descent runs without end. It diagnoses nothing;
 /// reaching it means the descent chain was long, not that it looped.
 pub(crate) const MAX_DEPTH: usize = 1024;
 
@@ -400,6 +410,7 @@ impl<'a, T: Decide> PartCache<'a, T> {
     pub(crate) fn new(
         resolver: Option<&'a Arc<dyn PartResolver>>,
         chain: &'a [DocRef],
+        reached: Reached<T>,
         boolean_sweep: topo::SweepStrategy,
         profile_lift: super::ProfileLift,
         tol: Tol,
@@ -410,7 +421,7 @@ impl<'a, T: Decide> PartCache<'a, T> {
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             profile_lift,
-            entries: Mutex::new(BTreeMap::new()),
+            entries: Mutex::new(reached.0),
             evaluations: AtomicUsize::new(0),
         }
     }
@@ -465,24 +476,63 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         value
     }
 
+    /// The descent below `doc_ref`, run BOTTOM-UP on an explicit stack.
+    ///
+    /// Every document on the way down is resolved and entered before
+    /// any is evaluated, and each is evaluated only once every part it
+    /// instantiates has its row, which its evaluation then finds in its
+    /// own cache (a [`Reached`]) instead of descending for. So one
+    /// nested evaluation is on the thread's stack at a time however
+    /// deep the assembly nests, and [`MAX_DEPTH`] is the one bound on
+    /// nesting: a descent that recursed through the evaluator would run
+    /// out of stack hundreds of documents short of it and kill the
+    /// process instead of refusing.
+    ///
+    /// A document's rows are exactly the references its evaluation asks
+    /// for — its `InstantiatePart` nodes', which its mate solve reaches
+    /// through too — each decided against that document's own chain. So
+    /// every row is the one a descent at the ask would produce: the same
+    /// cycle and depth decisions, the same sharing within a document
+    /// and none across two.
     fn resolve_and_evaluate(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
         let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
-        // The cycle, decided structurally and named: the loop runs from
-        // the reference's earlier appearance to this repeat of it.
-        if let Some(at) = self.chain.iter().position(|r| r == doc_ref) {
-            let mut cycle = self.chain[at..].to_vec();
-            cycle.push(*doc_ref);
-            return Err(PartFault::ReferenceCycle { cycle });
+        let mut path = self.chain.to_vec();
+        let mut current = Entered::enter(resolver, &path, doc_ref, tol)?;
+        path.push(*doc_ref);
+        let mut waiting: Vec<Entered<T>> = Vec::new();
+        loop {
+            if let Some(child) = current.next_unreached(self.eps_bits) {
+                match Entered::enter(resolver, &path, &child, tol) {
+                    Ok(entered) => {
+                        path.push(child);
+                        waiting.push(core::mem::replace(&mut current, entered));
+                    }
+                    Err(fault) => {
+                        current.reached.insert((child, self.eps_bits), Err(fault));
+                    }
+                }
+                continue;
+            }
+            let reached = core::mem::take(&mut current.reached);
+            let value = self.evaluate_entered(&current.doc, &path, reached, tol);
+            path.pop();
+            let Some(parent) = waiting.pop() else {
+                return value;
+            };
+            let done = core::mem::replace(&mut current, parent);
+            current.reached.insert((done.doc_ref, self.eps_bits), value);
         }
-        if self.chain.len() >= MAX_DEPTH {
-            return Err(PartFault::DepthExceeded);
-        }
-        let doc = resolver
-            .resolve(doc_ref, tol)
-            .map_err(|e| PartFault::Unresolved {
-                fault: e.fault,
-                message: e.message,
-            })?;
+    }
+
+    /// One entered document's evaluation, at the end of `chain` (its
+    /// own reference last), over the parts it instantiates, reached.
+    fn evaluate_entered(
+        &self,
+        doc: &ProfileDoc,
+        chain: &[DocRef],
+        reached: Rows<T>,
+        tol: Tol,
+    ) -> Result<PartValue<T>, PartFault> {
         self.evaluations.fetch_add(1, Ordering::Relaxed);
         // AQ4: the referenced document evaluates at its OWN parameters
         // — v1 instantiation takes no arguments. Sequentially, with a
@@ -508,13 +558,16 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             // every tangent it carries is zero.
             seed: None,
         };
-        let mut chain = self.chain.to_vec();
-        chain.push(*doc_ref);
-        let evaluation =
-            super::evaluate_nested::<T>(&doc, &super::CancelToken::new(), &opts, &chain, tol);
-        // The nested run's own crossings are crossings of THIS run:
-        // fold them in, so the outermost counter is the whole run's
-        // evidence rather than one level's.
+        let evaluation = super::evaluate_nested::<T>(
+            doc,
+            &super::CancelToken::new(),
+            &opts,
+            chain,
+            Reached(reached),
+            tol,
+        );
+        // A crossing the nested run made itself is a crossing of THIS
+        // run, so the outermost counter is the whole run's evidence.
         self.evaluations
             .fetch_add(evaluation.part_evaluations, Ordering::Relaxed);
         // A2's uniformity: what a document MEANS is its product, one
@@ -527,7 +580,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // placing path maps all N as one body and the gather grafts
         // them as N, so a narrower rule at this door would be a second
         // truth about what instantiating a document means.
-        let product = match crate::product::product_recorded(&doc, &evaluation, tol) {
+        let product = match crate::product::product_recorded(doc, &evaluation, tol) {
             Ok(product) => product,
             Err(e) => return Err(product_fault(&e, evaluation)),
         };
@@ -545,6 +598,87 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             carried: Arc::new(product.carried),
             carried_unminted: Arc::new(product.carried_unminted),
         })
+    }
+}
+
+/// **The parts a nested evaluation instantiates, already evaluated** —
+/// the rows its cache starts from.
+pub(crate) struct Reached<T: Decide>(Rows<T>);
+
+impl<T: Decide> Reached<T> {
+    /// No part reached: the top of a descent, whose cache asks lazily.
+    pub(crate) fn none() -> Self {
+        Self(BTreeMap::new())
+    }
+}
+
+/// A document on the descent stack: resolved, and waiting for the
+/// parts it instantiates.
+struct Entered<T: Decide> {
+    doc_ref: DocRef,
+    doc: ProfileDoc,
+    /// Its `InstantiatePart` references in document order, repeats
+    /// included; `next` is how far the descent has read them.
+    refs: Vec<DocRef>,
+    next: usize,
+    reached: Rows<T>,
+}
+
+impl<T: Decide> Entered<T> {
+    /// Enters `doc_ref` from the document at the end of `path`, or says
+    /// why it cannot be entered.
+    fn enter(
+        resolver: &Arc<dyn PartResolver>,
+        path: &[DocRef],
+        doc_ref: &DocRef,
+        tol: Tol,
+    ) -> Result<Self, PartFault> {
+        // The cycle, decided structurally and named: the loop runs from
+        // the reference's earlier appearance to this repeat of it.
+        if let Some(at) = path.iter().position(|r| r == doc_ref) {
+            let mut cycle = path[at..].to_vec();
+            cycle.push(*doc_ref);
+            return Err(PartFault::ReferenceCycle { cycle });
+        }
+        if path.len() >= MAX_DEPTH {
+            return Err(PartFault::DepthExceeded);
+        }
+        let doc = resolver
+            .resolve(doc_ref, tol)
+            .map_err(|e| PartFault::Unresolved {
+                fault: e.fault,
+                message: e.message,
+            })?;
+        let refs = if super::recorded_at_process_eps(&doc, tol) {
+            doc.order()
+                .iter()
+                .filter_map(|&id| match doc.node(id) {
+                    Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),
+                    _ => None,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Ok(Self {
+            doc_ref: *doc_ref,
+            doc,
+            refs,
+            next: 0,
+            reached: BTreeMap::new(),
+        })
+    }
+
+    /// The next reference this document instantiates that has no row
+    /// yet.
+    fn next_unreached(&mut self, eps_bits: u64) -> Option<DocRef> {
+        while let Some(r) = self.refs.get(self.next).copied() {
+            self.next += 1;
+            if !self.reached.contains_key(&(r, eps_bits)) {
+                return Some(r);
+            }
+        }
+        None
     }
 }
 
