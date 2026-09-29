@@ -163,8 +163,8 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    ApproxSurface, ApproxWindow, KnotMirrorError, NetState, NurbsSurface, OffsetCertificate,
-    Surface, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection,
+    ApproxSurface, ApproxWindow, DatumValue, KnotMirrorError, NetState, NurbsSurface,
+    OffsetCertificate, Surface, SurfaceDatum, SurfacePairing, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection,
     SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, require_ring_torus, ring_torus,
     torus_tube,
 };

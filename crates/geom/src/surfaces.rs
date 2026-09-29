@@ -560,6 +560,148 @@ impl SurfaceDatum {
     }
 }
 
+/// One stored datum's value, by shape — what [`Surface::analytic_data`]
+/// yields beside the datum's name.
+#[derive(Clone, Copy, Debug)]
+pub enum DatumValue<T: Real> {
+    /// A location: an `origin`, `apex` or `center`.
+    Point(Point3<T>),
+    /// A direction: a `normal`, `axis` or `u_ref`.
+    Direction(Vec3<T>),
+    /// A number: a radius or a `half_angle`.
+    Scalar(T),
+}
+
+impl<T: Real> DatumValue<T> {
+    /// The datum's scalars: a point's or direction's `x`, `y`, `z`, or
+    /// the number alone.
+    pub fn scalars(self) -> impl Iterator<Item = T> {
+        let (all, len) = match self {
+            Self::Point(p) => ([p.x, p.y, p.z], 3),
+            Self::Direction(v) => ([v.x, v.y, v.z], 3),
+            Self::Scalar(s) => ([s, s, s], 1),
+        };
+        all.into_iter().take(len)
+    }
+}
+
+/// Two surfaces read side by side ([`Surface::paired_with`]).
+#[derive(Debug)]
+pub enum SurfacePairing<'a, T: Real> {
+    /// The kinds differ, so no datum of one answers a datum of the
+    /// other.
+    KindsDiffer,
+    /// One analytic kind: each stored datum with its counterpart, in
+    /// [`Surface::analytic_data`]'s order.
+    Analytic(Vec<(SurfaceDatum, DatumValue<T>, DatumValue<T>)>),
+    /// Two spline payloads, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>, &'a Arc<NurbsSurface<T>>),
+    /// Two fitted payloads, unread.
+    Approx(&'a Arc<ApproxSurface<T>>, &'a Arc<ApproxSurface<T>>),
+}
+
+impl<T: Real> Surface<T> {
+    /// **Every stored datum of an analytic surface**, in the variant's
+    /// field order — the one walk of the analytic kinds' fields, which
+    /// each reader that visits them field by field folds with its own
+    /// question (a poison read, a comparison through a comparator of
+    /// its choosing). `None` for [`Surface::Nurbs`] and
+    /// [`Surface::Approx`], whose datum is a payload.
+    ///
+    /// The variants are destructured without `..`, so a field a variant
+    /// gains is a compile error here rather than a datum every reader
+    /// silently skips.
+    pub fn analytic_data(&self) -> Option<Vec<(SurfaceDatum, DatumValue<T>)>> {
+        use DatumValue::{Direction, Point, Scalar};
+        use SurfaceDatum as D;
+        Some(match *self {
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => vec![
+                (D::Origin, Point(origin)),
+                (D::Normal, Direction(normal)),
+                (D::URef, Direction(u_ref)),
+            ],
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => vec![
+                (D::Origin, Point(origin)),
+                (D::Axis, Direction(axis)),
+                (D::Radius, Scalar(radius)),
+                (D::URef, Direction(u_ref)),
+            ],
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => vec![
+                (D::Apex, Point(apex)),
+                (D::Axis, Direction(axis)),
+                (D::HalfAngle, Scalar(half_angle)),
+                (D::URef, Direction(u_ref)),
+            ],
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => vec![
+                (D::Center, Point(center)),
+                (D::Radius, Scalar(radius)),
+                (D::Axis, Direction(axis)),
+                (D::URef, Direction(u_ref)),
+            ],
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => vec![
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::URef, Direction(u_ref)),
+            ],
+            Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        })
+    }
+
+    /// `self` and `other` read side by side: [`Surface::analytic_data`]
+    /// zipped when they are one analytic kind, the two payloads when
+    /// they are one spline kind, [`SurfacePairing::KindsDiffer`]
+    /// otherwise. Each comparator folds the pairs its own way; none
+    /// walks the fields again.
+    pub fn paired_with<'a>(&'a self, other: &'a Self) -> SurfacePairing<'a, T> {
+        match (self, other) {
+            (Surface::Nurbs(a), Surface::Nurbs(b)) => SurfacePairing::Nurbs(a, b),
+            (Surface::Approx(a), Surface::Approx(b)) => SurfacePairing::Approx(a, b),
+            _ if core::mem::discriminant(self) != core::mem::discriminant(other) => {
+                SurfacePairing::KindsDiffer
+            }
+            _ => match (self.analytic_data(), other.analytic_data()) {
+                (Some(a), Some(b)) => SurfacePairing::Analytic(
+                    a.into_iter()
+                        .zip(b)
+                        .map(|((datum, x), (_, y))| (datum, x, y))
+                        .collect(),
+                ),
+                _ => unreachable!(
+                    "one surface kind, neither spline: `analytic_data` answers for every \
+                     other kind"
+                ),
+            },
+        }
+    }
+}
+
 impl<T: SpanLocate> Surface<T> {
     /// The point at parameters `(u, v)` — each variant's formula and
     /// conventions are on the variant (this module's docs carry the

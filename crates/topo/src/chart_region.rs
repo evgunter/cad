@@ -2273,9 +2273,10 @@ fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
     out
 }
 
-/// The structural chart-identity gate (module docs): shared
-/// `SurfaceKey` on one body, or the same [`crate::GeomSource`] across
-/// bodies (N6: bit-identical descriptions ⇒ the identical chart).
+/// The structural chart-identity gate (module docs): the recipe
+/// declared the two surfaces one ([`crate::source::surface_declaration`]),
+/// and where that declaration is a shared [`crate::GeomSource`], the
+/// two descriptions read bit-identical through [`surface_bits_equal`].
 /// Anything weaker escalates typed.
 fn same_chart<T: Decide + Bounds>(
     body_a: &Body<T>,
@@ -2283,6 +2284,7 @@ fn same_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
+    use crate::source::SurfaceDeclaration as D;
     let key_a = body_a
         .get_face(face_a)
         .ok_or(ChartRegionError::Corrupt)?
@@ -2291,50 +2293,34 @@ fn same_chart<T: Decide + Bounds>(
         .get_face(face_b)
         .ok_or(ChartRegionError::Corrupt)?
         .surface;
-    // Arena keys are meaningful only within one arena: the key rung
-    // exists only for the one-body site.
-    let same_body = core::ptr::eq(body_a, body_b);
-    if same_body && key_a == key_b {
-        return body_a
+    let divergence = |detail| Err(ChartRegionError::ChartDivergence { detail });
+    match crate::source::surface_declaration(body_a, key_a, body_b, key_b) {
+        D::SameKey => body_a
             .get_surface(key_a)
             .cloned()
-            .ok_or(ChartRegionError::Corrupt);
-    }
-    match (body_a.surface_source(key_a), body_b.surface_source(key_b)) {
-        // Full `GeomSource` equality, orientation included: N6's
-        // theorem is about the WHOLE recipe identity — a same-base
-        // reverted pair describes the mirrored chart and diverges.
-        //
-        // The theorem's conclusion is VERIFIED, not assumed (union
-        // fix U1): `set_surface_source` is a pub door, so "same
-        // source" is a claim any caller can attach — and PR-2's
-        // import-side declaration channel is where a wrong attachment
-        // first becomes plausible. Bit-identical descriptions are
-        // re-checked through the module's own exact-bracket
-        // comparator; a same-source pair whose descriptions differ by
-        // one bit refuses typed instead of certifying overlap in an
-        // arbitrarily chosen chart.
-        (Some(sa), Some(sb)) if sa == sb => {
+            .ok_or(ChartRegionError::Corrupt),
+        // The stamp door compares a stamp against its own body's keys
+        // only, so two bodies' stamps were never compared: the chart is
+        // handed out only once the descriptions read bit-identical, and
+        // a same-source pair that does not refuses typed rather than
+        // certify overlap in an arbitrarily chosen chart.
+        D::SameSource => {
             let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
             let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
             if surface_bits_equal(s_a, s_b) {
                 Ok(s_a.clone())
             } else {
-                Err(ChartRegionError::ChartDivergence {
-                    detail: "same GeomSource with non-bit-identical descriptions — \
-                             the same-source theorem violated (forged or corrupted source attachment)",
-                })
+                divergence(
+                    "same GeomSource with non-bit-identical descriptions — \
+                     the same-source theorem violated (forged or corrupted source attachment)",
+                )
             }
         }
-        (Some(sa), Some(sb)) if sa.same_base(sb) => Err(ChartRegionError::ChartDivergence {
-            detail: "same source base with flipped orientation — the charts mirror",
-        }),
-        (Some(_), Some(_)) => Err(ChartRegionError::ChartDivergence {
-            detail: "distinct GeomSources — equal-but-independent descriptions do not glue",
-        }),
-        _ => Err(ChartRegionError::ChartDivergence {
-            detail: "no shared SurfaceKey and no GeomSource on both faces",
-        }),
+        D::Mirrored => divergence("same source base with flipped orientation — the charts mirror"),
+        D::DistinctSources => {
+            divergence("distinct GeomSources — equal-but-independent descriptions do not glue")
+        }
+        D::Unsourced => divergence("no shared SurfaceKey and no GeomSource on both faces"),
     }
 }
 
@@ -2346,106 +2332,24 @@ fn exact_pair<T: Bounds>(a: T, b: T) -> bool {
     a.lo() == a.hi() && b.lo() == b.hi() && a.lo() == b.lo() && a.lo().is_finite()
 }
 
-/// Bit-identity of two surface DESCRIPTIONS, read structurally (union
-/// fix U1; the rung-2 verification). Analytic kinds compare every
-/// scalar field; `Nurbs` payloads verify only through pointer
-/// identity today (one shared description object) — an independent
-/// cross-body NURBS pair conservatively fails and takes the typed
-/// divergence, which costs nothing the arm gate would not refuse
-/// anyway; net-level verification extends with the census/inf-bounds
-/// work. Different kinds are never identical.
-fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface<T>) -> bool {
-    let v3 = |p: geom_core::Vec3<T>, q: geom_core::Vec3<T>| {
-        exact_pair(p.x, q.x) && exact_pair(p.y, q.y) && exact_pair(p.z, q.z)
-    };
-    let p3 = |p: geom_core::Point3<T>, q: geom_core::Point3<T>| {
-        exact_pair(p.x, q.x) && exact_pair(p.y, q.y) && exact_pair(p.z, q.z)
-    };
-    match (a, b) {
-        (
-            Surface::Plane {
-                origin: o1,
-                normal: n1,
-                u_ref: u1,
-            },
-            Surface::Plane {
-                origin: o2,
-                normal: n2,
-                u_ref: u2,
-            },
-        ) => p3(*o1, *o2) && v3(*n1, *n2) && v3(*u1, *u2),
-        (
-            Surface::Cylinder {
-                origin: o1,
-                axis: a1,
-                radius: r1,
-                u_ref: u1,
-            },
-            Surface::Cylinder {
-                origin: o2,
-                axis: a2,
-                radius: r2,
-                u_ref: u2,
-            },
-        ) => p3(*o1, *o2) && v3(*a1, *a2) && exact_pair(*r1, *r2) && v3(*u1, *u2),
-        (
-            Surface::Cone {
-                apex: p1,
-                axis: a1,
-                half_angle: h1,
-                u_ref: u1,
-            },
-            Surface::Cone {
-                apex: p2,
-                axis: a2,
-                half_angle: h2,
-                u_ref: u2,
-            },
-        ) => p3(*p1, *p2) && v3(*a1, *a2) && exact_pair(*h1, *h2) && v3(*u1, *u2),
-        (
-            Surface::Sphere {
-                center: c1,
-                radius: r1,
-                axis: a1,
-                u_ref: u1,
-            },
-            Surface::Sphere {
-                center: c2,
-                radius: r2,
-                axis: a2,
-                u_ref: u2,
-            },
-        ) => p3(*c1, *c2) && exact_pair(*r1, *r2) && v3(*a1, *a2) && v3(*u1, *u2),
-        (
-            Surface::Torus {
-                center: c1,
-                axis: a1,
-                major_radius: j1,
-                minor_radius: m1,
-                u_ref: u1,
-            },
-            Surface::Torus {
-                center: c2,
-                axis: a2,
-                major_radius: j2,
-                minor_radius: m2,
-                u_ref: u2,
-            },
-        ) => {
-            p3(*c1, *c2)
-                && v3(*a1, *a2)
-                && exact_pair(*j1, *j2)
-                && exact_pair(*m1, *m2)
-                && v3(*u1, *u2)
-        }
-        (Surface::Nurbs(x), Surface::Nurbs(y)) => std::sync::Arc::ptr_eq(x, y),
-        // Shared-payload identity, exactly as the `Nurbs` arm: two
-        // faces carrying the same `Arc` carry the same chart. Distinct
-        // payloads answer `false` even when structurally equal —
-        // conservative in the direction this predicate needs.
-        (Surface::Approx(x), Surface::Approx(y)) => std::sync::Arc::ptr_eq(x, y),
-        // Mismatched kinds are never the same chart.
-        _ => false,
+/// Bit-identity of two surface DESCRIPTIONS, read structurally: the
+/// analytic kinds through [`geom::Surface::paired_with`]'s one walk of
+/// their data, every scalar through [`exact_pair`]. Spline payloads
+/// verify only through pointer identity (one shared description
+/// object) — an independent cross-body pair conservatively fails and
+/// takes the typed divergence, which costs nothing the arm gate would
+/// not refuse anyway. Different kinds are never identical.
+pub(crate) fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface<T>) -> bool {
+    use geom::SurfacePairing as P;
+    match a.paired_with(b) {
+        P::KindsDiffer => false,
+        P::Analytic(data) => data.into_iter().all(|(_, x, y)| {
+            x.scalars()
+                .zip(y.scalars())
+                .all(|(p, q)| exact_pair(p, q))
+        }),
+        P::Nurbs(x, y) => std::sync::Arc::ptr_eq(x, y),
+        P::Approx(x, y) => std::sync::Arc::ptr_eq(x, y),
     }
 }
 

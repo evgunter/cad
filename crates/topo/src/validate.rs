@@ -4947,9 +4947,10 @@ fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 ///
 /// Asked through the value channel ([`geom_core::is_finite_length`]),
 /// with no bracket read and no threshold: whether a stored number is a
-/// number is not a decision about geometry. The fields are destructured
-/// without `..`, so a datum a variant gains is a compile error here
-/// rather than a field this read silently skips.
+/// number is not a decision about geometry. The fields are
+/// [`geom::Surface::analytic_data`]'s, the one walk every field-by-field
+/// reader of a surface folds, so a datum a variant gains is read here
+/// the day the walk names it.
 ///
 /// **A zero direction is poison, the same argument for every one of
 /// them**: a zero `normal` collapses a plane's `v_ref = normal × u_ref`;
@@ -4969,71 +4970,19 @@ fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 /// at interval type; filed as
 /// `work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo`.
 pub(crate) fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
-    use geom::SurfaceDatum as D;
-    use geom_core::is_finite_length as finite;
-    let point = is_finite_point::<T>;
-    let direction = is_direction::<T>;
-    let fields: Vec<(D, bool)> = match surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => vec![
-            (D::Origin, point(origin)),
-            (D::Normal, direction(normal)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => vec![
-            (D::Origin, point(origin)),
-            (D::Axis, direction(axis)),
-            (D::Radius, finite(*radius)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => vec![
-            (D::Apex, point(apex)),
-            (D::Axis, direction(axis)),
-            (D::HalfAngle, finite(*half_angle)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Radius, finite(*radius)),
-            (D::Axis, direction(axis)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Axis, direction(axis)),
-            (D::MajorRadius, finite(*major_radius)),
-            (D::MinorRadius, finite(*minor_radius)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
-    };
-    fields
+    use geom::DatumValue as V;
+    surface
+        .analytic_data()
+        .unwrap_or_default()
         .into_iter()
-        .filter_map(|(datum, is_number)| (!is_number).then_some(datum))
+        .filter_map(|(datum, value)| {
+            let is_number = match value {
+                V::Point(p) => is_finite_point(&p),
+                V::Direction(v) => is_direction(&v),
+                V::Scalar(x) => geom_core::is_finite_length(x),
+            };
+            (!is_number).then_some(datum)
+        })
         .collect()
 }
 

@@ -110,6 +110,21 @@ pub struct PlaneDesc<T: geom_core::Real> {
     pub normal: Vec3<T>,
 }
 
+/// A plane description's data, its normal negated when `flip` — rung
+/// 1's walk for its bit assertion. Destructured without `..`, so a
+/// field the description gains is a compile error here.
+#[cfg(debug_assertions)]
+fn plane_data<T: geom_core::Real>(
+    &PlaneDesc { origin, normal }: &PlaneDesc<T>,
+    flip: bool,
+) -> [geom::DatumValue<T>; 2] {
+    let normal = if flip { -normal } else { normal };
+    [
+        geom::DatumValue::Point(origin),
+        geom::DatumValue::Direction(normal),
+    ]
+}
+
 /// **`oriented_plane_eq`** — module docs for the ladder. `id` is the
 /// comparison's identity evidence (sources + declared intent, M4
 /// PR 5); `arm` is the lever arm in meters metering the angular/offset
@@ -171,9 +186,11 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         // and a scalar with no channel (`Dual`, `Sym`) offers none —
         // `None` there is not disagreement.
         #[cfg(debug_assertions)]
-        if let Some(agree) =
-            crate::source::plane_bits_witness(p1.origin, p1.normal, p2.origin, p2.normal, opposite)
-        {
+        if let Some(agree) = crate::source::data_bits_witness(
+            plane_data(p1, false)
+                .into_iter()
+                .zip(plane_data(p2, opposite)),
+        ) {
             debug_assert!(
                 agree,
                 "same-source theorem violated: same-source descriptions disagree bitwise (kernel \
