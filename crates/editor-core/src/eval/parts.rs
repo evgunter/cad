@@ -41,6 +41,7 @@ use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
+use crate::sentence::{PASS_A_RESOLVER, Recourse, Staged};
 use geom_core::Tol;
 
 /// Pure runaway insurance: the depth at which instantiation gives up,
@@ -185,7 +186,8 @@ pub enum PartFault {
     ///
     /// A4 makes this unconstructible through an honest store (a
     /// document would have to contain its own hash), so the fault names
-    /// a broken RESOLVER or a hand-built cycle. It carries the loop
+    /// a resolver that checks no pins. Every shipped resolver checks
+    /// them, so it renders as a kernel defect. It carries the loop
     /// itself, first repeated reference through last, because the loop
     /// is the diagnosis.
     ReferenceCycle {
@@ -222,11 +224,19 @@ impl PartFault {
 impl core::fmt::Display for PartFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // Raised only at an API door, each of which takes a
+            // resolver; the viewer always carries one of its own.
             Self::NoResolver => write!(
                 f,
-                "this evaluation carries no part resolver, so a referenced document cannot be \
-                 reached"
+                "no part resolver was given, so a referenced document cannot be reached. {}",
+                Recourse(PASS_A_RESOLVER)
             ),
+            // The resolver knows what went wrong in its store, so its
+            // message states the recourse of a pin or a lookup. The ε
+            // seam's is the same whatever the store: a document keeps
+            // the ε it was written at, a process holds one, and the
+            // recorded-ε edit moves a part onto another while it keeps
+            // its id, whether that was minted or derived.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
                     write!(f, "the reference's pin does not hold: {message}")
@@ -234,7 +244,12 @@ impl core::fmt::Display for PartFault {
                 ResolveFault::EpsilonSeam => write!(
                     f,
                     "the referenced document's recorded tolerance disagrees with this process's: \
-                     {message}"
+                     {message}. {}",
+                    Recourse(
+                        "open the part in a process at its own tolerance, record the edit that \
+                         sets this process's tolerance, save it over its file, then accept its \
+                         updated version here"
+                    )
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
@@ -283,12 +298,16 @@ impl core::fmt::Display for PartFault {
                     }
                     write!(f, "{r}")?;
                 }
-                Ok(())
+                // A pin is its document's hash, so a store that checks
+                // pins cannot hold a loop: every door resolves through
+                // one, and a loop is a resolver's defect.
+                write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::DepthExceeded => write!(
                 f,
                 "instantiation nested deeper than {MAX_DEPTH} documents without repeating a \
-                 reference"
+                 reference. {}",
+                Recourse("flatten the assembly so its parts nest fewer documents deep")
             ),
         }
     }
@@ -300,7 +319,11 @@ struct InThePart<A>(A);
 
 impl<A: core::fmt::Display> core::fmt::Display for InThePart<A> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Recourse: open the part and {}", self.0)
+        write!(
+            f,
+            "{}",
+            Recourse(format_args!("open the part and {}", self.0))
+        )
     }
 }
 

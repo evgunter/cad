@@ -21,9 +21,9 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
     EditError, EvalOptions, Frame, FrameFault, Lever, LeverRefusal, LoggedEdit, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult, PartFault,
-    PartReach, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SplitError,
-    content_pin, mate_reach, product, split,
+    MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult,
+    PASS_A_RESOLVER, PartFault, PartReach, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId,
+    Recourse, ResolveFault, SplitError, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -1822,9 +1822,9 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         .map(ToString::to_string)
         .unwrap_or_default();
     assert!(
-        text.contains(
-            "Recourse: give the split a resolver that holds every part the document places"
-        ) && text.matches("Recourse:").count() == 1,
+        text.contains("the split was given no resolver")
+            && text.contains(&Recourse(PASS_A_RESOLVER).to_string())
+            && text.matches("Recourse:").count() == 1,
         "the split's recourse: {text}"
     );
     match none {

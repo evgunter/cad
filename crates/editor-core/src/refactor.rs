@@ -115,6 +115,7 @@ use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfilePayload as _, ProfileProgram};
 use crate::resolve::derivation_nodes;
+use crate::sentence::{PASS_A_RESOLVER, Recourse};
 use crate::step_mint::StepMint;
 use geom_core::Tol;
 
@@ -813,15 +814,22 @@ impl core::fmt::Display for ReplayTail<'_> {
             // it. The remainder inserts one instance, whose names the
             // replay wrote itself.
             EditError::DeclareNamesMissingNode { .. } => match replay {
-                Replay::SplitPart => f.write_str(
-                    ". Recourse: rebind that reference to an entity of a node that comes \
-                     before the node carrying it, since the split rebuilds the part in \
-                     document order",
+                Replay::SplitPart => write!(
+                    f,
+                    ". {}",
+                    Recourse(
+                        "rebind that reference to an entity of a node that comes before the \
+                         node carrying it, since the split rebuilds the part in document order"
+                    )
                 ),
-                Replay::Inline => f.write_str(
-                    ". Recourse: in the part document, rebind that reference to an entity of \
-                     a node that comes before the node carrying it, since the inline splices \
-                     the part in its document order",
+                Replay::Inline => write!(
+                    f,
+                    ". {}",
+                    Recourse(
+                        "in the part document, rebind that reference to an entity of a node \
+                         that comes before the node carrying it, since the inline splices the \
+                         part in its document order"
+                    )
                 ),
                 Replay::SplitRemainder => defect(f),
             },
@@ -832,34 +840,22 @@ impl core::fmt::Display for ReplayTail<'_> {
             // instance it has just minted, which carry nothing.
             EditError::RebindAppearanceCollision { .. }
             | EditError::RebindMetadataCollision { .. } => match replay {
-                Replay::Inline => f.write_str(
-                    ". Recourse: clear what this document sets on the instance's name, since \
-                     the part carries its own",
+                Replay::Inline => write!(
+                    f,
+                    ". {}",
+                    Recourse(
+                        "clear what this document sets on the instance's name, since the part \
+                         carries its own"
+                    )
                 ),
                 Replay::SplitPart | Replay::SplitRemainder => defect(f),
             },
-            // The solve levers through the parts the replay's resolver
-            // holds, and a split may be given none. Any other solve
-            // fault is the forwarded mate refusal's whole sentence,
-            // which the mate solve owns.
-            EditError::MaintenanceRefused {
-                fault: Some(fault), ..
-            }
-            | EditError::MateRefused { fault, .. } => {
-                if !unresolved_part(fault) {
-                    return Ok(());
-                }
-                f.write_str(match replay {
-                    Replay::SplitPart | Replay::SplitRemainder => {
-                        ". Recourse: give the split a resolver that holds every part the \
-                         document places"
-                    }
-                    Replay::Inline => {
-                        ". Recourse: give the inline a resolver that holds every part the \
-                         referenced document places"
-                    }
-                })
-            }
+            // The forwarded mate refusal's whole sentence, which the
+            // mate solve owns. A part the solve could not lever through
+            // states its resolver's recourse inside it: the fault's own,
+            // or the split's resolver's (`WithPart`).
+            EditError::MaintenanceRefused { fault: Some(_), .. }
+            | EditError::MateRefused { .. } => Ok(()),
             // Every other edit re-writes what the source document or
             // the part already holds, each validated at its own door
             // when it was written: a refusal here is this module's
@@ -932,27 +928,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PinUnchanged { .. } => defect(f),
         }
     }
-}
-
-/// Whether a mate solve refused because a part it levers through did
-/// not resolve at all — the one solve fault a replaying door's
-/// resolver answers.
-fn unresolved_part(fault: &crate::mate::MateFault) -> bool {
-    use crate::eval::PartFault;
-    matches!(
-        fault,
-        crate::mate::MateFault::Unleverable {
-            refusal: crate::mate::LeverRefusal::PartUnresolved {
-                fault: PartFault::NoResolver
-                    | PartFault::Unresolved {
-                        fault: crate::part::ResolveFault::Unresolved,
-                        ..
-                    },
-                ..
-            },
-            ..
-        }
-    )
 }
 
 /// What [`split`] produced: the two documents, the recorded edits
@@ -2445,19 +2420,25 @@ struct WithPart {
 impl PartResolver for WithPart {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         if doc_ref.id == self.doc_ref.id {
+            // A kept instance may reference `part_id` (the split's
+            // freshness check reads only the cut), and the solve the
+            // remainder's maintenance makes asks this resolver for it.
             if doc_ref.pin != self.doc_ref.pin {
-                return Err(ResolveFailure::pin_mismatch(
-                    "the reference names another version of the part this split is minting",
-                ));
+                return Err(ResolveFailure::pin_mismatch(format!(
+                    "the reference shares its id with the part this split is minting, and names \
+                     another version of it. {}",
+                    Recourse("split under an id this document does not reference")
+                )));
             }
             return Ok(self.part.clone());
         }
         match &self.inner {
             Some(inner) => inner.resolve(doc_ref, tol),
-            None => Err(ResolveFailure::unresolved(
+            None => Err(ResolveFailure::unresolved(format!(
                 "the split was given no resolver, and the reference is not the part it is \
-                 minting",
-            )),
+                 minting. {}",
+                Recourse(PASS_A_RESOLVER)
+            ))),
         }
     }
 }
