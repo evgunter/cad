@@ -292,5 +292,7 @@ mod replace_face_band_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
+#[path = "rowid_rev_probes.rs"]
+mod rowid_rev_probes;
 #[path = "split_tangent_spur.rs"]
 mod split_tangent_spur;
