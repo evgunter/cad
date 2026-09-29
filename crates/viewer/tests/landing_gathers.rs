@@ -28,8 +28,8 @@ use crate::common;
 use std::sync::Arc;
 
 use pncad::document::{
-    Doc, DocumentId, Expr, MeasureExpr, Node, ProductError, ProfileDoc, ProfileProgram, SitedRef,
-    gathers_on_this_thread,
+    Doc, DocumentId, Expr, MeasureExpr, Node, NodeStanding, ProductError, ProfileDoc,
+    ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -431,7 +431,7 @@ fn an_assembly_whose_gather_refuses_keeps_the_refused_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::RootFailed { .. })
+            Some(ProductError::Root(NodeStanding::Failed { .. }))
         ),
         "the premise: a failed root, which is a refusal and not an absence: {:?}",
         session.product_fault()

@@ -1887,7 +1887,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             "\n  root 3 output 1: a solid encloses negative volume, so it is inside-out",
         ],
         &["root 2's face name (minted by node 1) collides"],
-        &["grafting root 5 refused: the band's "],
+        &["the kernel could not graft root 5's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
         // Through the assembly surface, exactly as a caller sees it.

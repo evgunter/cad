@@ -202,6 +202,8 @@ pub enum NodeErrorClass {
     PartUnresolved,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::PartRootFailed`].
     PartRootFailed,
+    /// [`NodeErrorKind::Part`] carrying [`PartFault::PartRootPoisoned`].
+    PartRootPoisoned,
     /// [`NodeErrorKind::Part`] carrying
     /// [`PartFault::RootFailureUnrecorded`].
     PartRootFailureUnrecorded,
@@ -355,6 +357,7 @@ impl NodeErrorKind {
                     ResolveFault::Unresolved => C::PartUnresolved,
                 },
                 PartFault::PartRootFailed { .. } => C::PartRootFailed,
+                PartFault::PartRootPoisoned { .. } => C::PartRootPoisoned,
                 PartFault::RootFailureUnrecorded { .. } => C::PartRootFailureUnrecorded,
                 PartFault::PartProduct { .. } => C::PartProduct,
                 PartFault::ReferenceCycle { .. } => C::PartReferenceCycle,
@@ -553,6 +556,7 @@ mod tests {
         PartEpsilonSeam,
         PartUnresolved,
         PartRootFailed,
+        PartRootPoisoned,
         PartRootFailureUnrecorded,
         PartProduct,
         PartReferenceCycle,
@@ -911,6 +915,11 @@ mod tests {
             }
             C::PartRootFailed => part(crate::PartFault::PartRootFailed {
                 node: n(7),
+                refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
+            }),
+            C::PartRootPoisoned => part(crate::PartFault::PartRootPoisoned {
+                root: n(8),
+                through: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
             C::PartRootFailureUnrecorded => {
