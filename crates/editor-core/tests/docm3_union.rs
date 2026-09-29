@@ -969,10 +969,16 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     );
     let ev = run(&doc);
     let pf = failure(&ev, pair).expect("the pair spelling refuses the undeclared contact");
-    assert!(pf.contains("UndeclaredContact"), "{pf}");
+    let class = |id| ev.node_error(id).map(|e| e.kind.kind());
+    assert_eq!(
+        class(pair),
+        Some(editor_core::NodeErrorClass::UndeclaredContact),
+        "{pf}"
+    );
     let uf = failure(&ev, u).expect("the fold refuses the undeclared contact at step 2");
-    assert!(
-        uf.contains("UndeclaredContact"),
+    assert_eq!(
+        class(u),
+        class(pair),
         "the fold's refusal is the pair's, not a new class: {uf}"
     );
     // The whole point: no fold row survives into the refusal.

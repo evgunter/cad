@@ -27,8 +27,9 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
-    EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, StableName,
+    EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass,
+    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
+    StableName,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
@@ -213,6 +214,14 @@ fn carried(fault: &MateFault) -> (RecipeNodeId, String) {
     }
 }
 
+/// The class of the refusal a `PlacerRefused` carries.
+fn carried_class(fault: &MateFault) -> NodeErrorClass {
+    match fault {
+        MateFault::PlacerRefused { error, .. } => error.kind().kind(),
+        other => panic!("expected PlacerRefused, got {other:?}"),
+    }
+}
+
 // ---- A1: the cause, in the placer's own words ----
 
 /// **The finding's own document.** A pattern direction of `1e200` has
@@ -242,7 +251,8 @@ fn a1_a_non_finite_pattern_direction_names_the_direction() {
         "the carried refusal is the one the placer's own evaluation raises"
     );
     assert!(
-        kind.contains("NonFiniteDirection") && kind.contains("pattern direction"),
+        carried_class(&f) == NodeErrorClass::NonFiniteDirection
+            && kind.contains("pattern direction"),
         "and it is the direction door's own: {kind}"
     );
     // The fold path: the placer is poisoned, so the fault carries its
@@ -288,7 +298,8 @@ fn a1_a_degenerate_pattern_direction_names_the_direction() {
     let (_, kind) = carried(&f);
     assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
     assert!(
-        kind.contains("DegenerateDirection") && kind.contains("pattern direction"),
+        carried_class(&f) == NodeErrorClass::DegenerateDirection
+            && kind.contains("pattern direction"),
         "{kind}"
     );
 }
@@ -312,7 +323,8 @@ fn a1_a_slot_that_does_not_evaluate_names_the_slot() {
     let (_, kind) = carried(&f);
     assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
     assert!(
-        kind.contains("Expr") && kind.contains(&format!("{:?}", SlotId::Spacing)),
+        carried_class(&f) == NodeErrorClass::Expr
+            && kind.contains(&format!("{:?}", SlotId::Spacing)),
         "the refusal names the slot it read: {kind}"
     );
 }
@@ -332,7 +344,8 @@ fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
     assert_eq!(placer, scene.placer, "{f:?}");
     assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
     assert!(
-        kind.contains("NonFiniteDirection") && kind.contains("transform rotation axis"),
+        carried_class(&f) == NodeErrorClass::NonFiniteDirection
+            && kind.contains("transform rotation axis"),
         "{kind}"
     );
 }
@@ -396,7 +409,9 @@ fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
     assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
     assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("datum axis") && kind.contains("\"datum\""),
+        carried_class(&f) == NodeErrorClass::WrongOperand
+            && kind.contains("datum axis")
+            && kind.contains("\"datum\""),
         "{kind}"
     );
 }
@@ -429,7 +444,7 @@ fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
     let (_, kind) = carried(&f);
     assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("\"body\""),
+        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"body\""),
         "{kind}"
     );
 }
@@ -474,7 +489,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
     assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
     assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("\"instances\""),
+        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"instances\""),
         "{kind}"
     );
 }
@@ -504,7 +519,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_oper
     let (_, kind) = carried(&f);
     assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("\"body\""),
+        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"body\""),
         "{kind}"
     );
 }
@@ -611,7 +626,8 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
         "word for word with the datum's own"
     );
     assert!(
-        kind.contains("DegenerateDirection") && kind.contains("datum axis direction"),
+        carried_class(&f) == NodeErrorClass::DegenerateDirection
+            && kind.contains("datum axis direction"),
         "{kind}"
     );
 }
