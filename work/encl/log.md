@@ -1236,3 +1236,4 @@ class of 65 sites is PRED's row.
   - `sym_rule_f_rows` copysign: a new site at `topo/src/boolean/section_cert.rs:827`, from GERM.
   - Fix lane dispatched. Both break the `test` job for 3398 and 3402.
 - 2026-09-29 — PR 3407 merged (`4b47a29dd9`): main's two red geom-core census rows are fixed. `ssi/certify.rs` endpoint reads go 16→15 (3392 spelled one as a path; blind spot 7 is documented). The `section_cert.rs` copysign site is registered as UNMEASURED, with evidence added to GERM's P1 row. Ported into 3402 before the merge.
+- 2026-09-29 — `[ev]` PR 3402 merged (`f20c3276e1`) on Ev's answer: Bounds clause 2 now carries the reporting-only margin, and fork-log row 10 is complete. `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M) is held until 3398 lands.
