@@ -3317,9 +3317,26 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             }),
         ),
         (
-            "Loop(Escalated)",
+            "Loop(Escalated/Boundary)",
             PointInSolidError::Loop(topo::PointInLoopError::Escalated {
                 r#loop: topo::LoopKey::default(),
+                decision: topo::ContainDecision::Boundary,
+                diag: diag(),
+            }),
+        ),
+        (
+            "Loop(Escalated/Ray)",
+            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                r#loop: topo::LoopKey::default(),
+                decision: topo::ContainDecision::Ray,
+                diag: diag(),
+            }),
+        ),
+        (
+            "Loop(Escalated/ArcSpan)",
+            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                r#loop: topo::LoopKey::default(),
+                decision: topo::ContainDecision::ArcSpan,
                 diag: diag(),
             }),
         ),

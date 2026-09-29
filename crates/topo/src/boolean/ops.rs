@@ -2198,7 +2198,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 }
                                 let witness = foot + u_ref * rho;
                                 match contfp(y, yf, normal, witness, band).map_err(|e| match e {
-                                    ContainError::Escalated(diag) => {
+                                    ContainError::Escalated { diag, .. } => {
                                         BooleanError::Escalated { diag }
                                     }
                                     ContainError::RayExhausted => {

@@ -92,9 +92,11 @@
 //! **`point_in_arc_loop_boundary_disagreement`**, the walk meeting on an
 //! edge a point its caller's pass placed off it.
 
+use geom_brep::recourse::Reading;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
+use crate::boolean::ContainDecision;
 use crate::entity::{EdgeKey, LoopBoundary, LoopKey};
 use crate::ray_parity::{self, ParityRows};
 use crate::validate::decide;
@@ -130,6 +132,8 @@ pub enum PointInLoopError {
     Escalated {
         /// The loop being tested.
         r#loop: LoopKey,
+        /// The question it escalated on.
+        decision: ContainDecision,
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
@@ -149,12 +153,12 @@ pub enum PointInLoopError {
 impl core::fmt::Display for PointInLoopError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Escalated { diag, .. } => {
-                write!(
-                    f,
-                    "whether a point lies in a loop is too close to call: {diag}"
-                )
-            }
+            Self::Escalated { decision, diag, .. } => write!(
+                f,
+                "whether a point lies in a loop is too close to call: {}. {}",
+                diag.payload(),
+                decision.ending(diag, Reading::Build)
+            ),
             Self::RayExhausted { .. } => write!(
                 f,
                 "every test ray grazed the loop, so containment is ill-conditioned at \
@@ -286,7 +290,11 @@ pub fn point_in_loop<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
+    let escalate = |diag| PointInLoopError::Escalated {
+        r#loop,
+        decision: ContainDecision::Boundary,
+        diag,
+    };
     let points = loop_points(body, r#loop)?;
 
     if ray_parity::on_boundary(&points, q, &ROWS, band).map_err(escalate)? {
@@ -304,7 +312,11 @@ fn polygon_walk<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
+    let escalate = |diag| PointInLoopError::Escalated {
+        r#loop,
+        decision: ContainDecision::Ray,
+        diag,
+    };
     // The loop's own reach from q (evaluation-lane fold): the lever
     // arm for the probe-direction gate below. A degenerate loop
     // collapsed onto q gives a zero arm, every schedule member skips,
@@ -358,7 +370,13 @@ fn walk_schedule<T: Decide>(
             Ok(Sign::Positive) => {}
             Ok(_) => continue, // near-parallel schedule member: skip
             Err(_) if arm_band == ArmBand::Retry => continue,
-            Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
+            Err(diag) => {
+                return Err(PointInLoopError::Escalated {
+                    r#loop,
+                    decision: ContainDecision::Ray,
+                    diag,
+                });
+            }
         }
         let d = d_raw.normalize();
         let side_axis = normal.cross(d); // in-plane ⟂, unit
@@ -993,7 +1011,11 @@ pub(crate) fn carrier_loop<T: Decide>(
             Ok(None) => {}
             Err(ConicArcError::WoundPastPeriod) => return Err(corrupt()),
             Err(ConicArcError::Escalated(diag)) => {
-                return Err(PointInLoopError::Escalated { r#loop, diag });
+                return Err(PointInLoopError::Escalated {
+                    r#loop,
+                    decision: ContainDecision::ArcSpan,
+                    diag,
+                });
             }
         }
         edges.push(match carrier {
@@ -1156,7 +1178,11 @@ fn carrier_walk<T: Decide>(
     band: Band,
     boundary: Boundary,
 ) -> Result<Option<WalkSide>, PointInLoopError> {
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
+    let escalate = |diag| PointInLoopError::Escalated {
+        r#loop,
+        decision: ContainDecision::Boundary,
+        diag,
+    };
     let (verts, edges) = (&lp.verts, &lp.edges);
     // The loop's reach from `q`: the schedule gate's lever.
     let extent = reach_from(verts, edges, q);

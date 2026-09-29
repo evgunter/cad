@@ -209,14 +209,18 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     fn shape(r: &Result<LoopContainment, PointInLoopError>) -> String {
         match r {
             Ok(v) => format!("{v:?}"),
-            Err(PointInLoopError::Escalated { r#loop, diag }) => {
+            Err(PointInLoopError::Escalated {
+                r#loop,
+                decision,
+                diag,
+            }) => {
                 let kind = match diag.margin {
                     geom_core::MarginDiag::Value(_) => "Value",
                     geom_core::MarginDiag::Enclosure { .. } => "Enclosure",
                     geom_core::MarginDiag::Invalid => "Invalid",
                 };
                 format!(
-                    "Escalated{loop:?}/{:?}/{:?}/{kind}",
+                    "Escalated{loop:?}/{decision:?}/{:?}/{:?}/{kind}",
                     diag.predicate, diag.band
                 )
             }

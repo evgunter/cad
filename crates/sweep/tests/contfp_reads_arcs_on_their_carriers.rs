@@ -461,7 +461,8 @@ fn a_steep_ellipses_end_zone_is_the_bands_own_width() {
                     let got = contfp(&body, cap.0, cap.1, q, band());
                     assert!(
                         matches!(got, Ok(FaceContainment::OnEdge(k)) if k == e)
-                            || (k < 15.0 && matches!(got, Err(topo::ContainError::Escalated(_)))),
+                            || (k < 15.0
+                                && matches!(got, Err(topo::ContainError::Escalated { .. }))),
                         "tilt {tilt}: {k}ε inside the end at {te} reads {got:?}"
                     );
                 }
@@ -687,7 +688,7 @@ fn an_in_band_ball_clearance_skips_the_ray() {
                         let got = contfp(&cavity, fk, normal, q, band());
                         asked += 1;
                         assert!(
-                            !matches!(got, Err(topo::ContainError::Escalated(_))),
+                            !matches!(got, Err(topo::ContainError::Escalated { .. })),
                             "{fk:?}: {k}ε past the ball's reach, {back} m back, reads {got:?}"
                         );
                     }

@@ -1949,7 +1949,7 @@ fn wall_crossing<T: Decide>(
             // still land in the face, so the loop continues.
             Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => crossed_elsewhere = true,
             Ok(CurvedPlacement::Trim(Some(at))) => return Ok(SpanVerdict::Pierce { t, p, at }),
-            Err(super::contain::ContainError::Escalated(diag)) => {
+            Err(super::contain::ContainError::Escalated { diag, .. }) => {
                 return Err(BooleanError::Escalated { diag });
             }
             // Unwalkable topology under a query the crossing layer just
@@ -2257,7 +2257,7 @@ fn vertex_on_curved_face<T: Decide>(
 
 fn esc(e: ContainError, operand: Operand) -> BooleanError {
     match e {
-        ContainError::Escalated(diag) => BooleanError::Escalated { diag },
+        ContainError::Escalated { diag, .. } => BooleanError::Escalated { diag },
         ContainError::RayExhausted => BooleanError::ClassificationInvariant {
             what: "contfp ray schedule exhausted",
         },

@@ -2663,27 +2663,20 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     (why, recourse.into())
 }
 
-/// A point too near a boundary to place: the lever is the point's own.
-/// The refusal does not carry which of the walk's decisions it is.
-const OFF_BOUNDARY: &str = "Recourse: move the geometry clear of the boundary";
-
-fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
-    match e {
-        ContainError::Escalated(diag) => (
-            "a point of it lies too close to a boundary to place at this tolerance",
-            own_close(&diag.margin, OFF_BOUNDARY),
-        ),
-        ContainError::RayExhausted => (
-            "a point of it lies too close to a boundary to place at this tolerance",
-            OFF_BOUNDARY,
-        ),
-        ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
-        ContainError::ArcLoopUnsupported { .. } => (
+/// A containment refusal ends as its decision gives it at rest
+/// (`ContainError::ending`).
+fn classify_contain(e: &ContainError) -> (&'static str, Cow<'static, str>) {
+    let why = match e {
+        ContainError::Escalated { .. } | ContainError::RayExhausted => {
+            "a point of it lies too close to a boundary to place at this tolerance"
+        }
+        ContainError::Corrupt => "its boundary could not be walked",
+        ContainError::ArcLoopUnsupported { .. } => {
             "its boundary has a spiric or spline edge near a point the check asked about, \
-             which the check cannot yet read across",
-            "Recourse: model the boundary with lines, circles or ellipses",
-        ),
-    }
+             which the check cannot yet read across"
+        }
+    };
+    (why, e.ending(Reading::AtRest).into())
 }
 
 fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
@@ -2764,16 +2757,17 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     }
 }
 
-fn classify_census_cause(cause: &CensusUnsupportedCause) -> (&'static str, &'static str) {
-    match cause {
+fn classify_census_cause(cause: &CensusUnsupportedCause) -> (&'static str, Cow<'static, str>) {
+    let (why, recourse) = match cause {
         CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
         CensusUnsupportedCause::ContactLane(e) => classify_contact_lane(e),
-        CensusUnsupportedCause::Containment(e) => classify_contain(e),
+        CensusUnsupportedCause::Containment(e) => return classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
             "a face has no corner to bound it by (an empty or broken outer loop)",
             DEFECT,
         ),
-    }
+    };
+    (why, recourse.into())
 }
 
 // Every arm says, in the words of a person at the viewer, what is
@@ -11213,7 +11207,7 @@ mod tests {
                 // gap — is the predicate that speaks, not a ray's.
                 _ => matches!(
                     verdict,
-                    RingNestingVerdict::Undecided(ContainError::Escalated(ref d))
+                    RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
                         if d.predicate == Some("point_in_arc_loop_conic_on")
                 ),
             };

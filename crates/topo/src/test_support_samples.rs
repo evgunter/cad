@@ -173,14 +173,21 @@ fn contact_refusals() -> Vec<ContactRefusal> {
 }
 
 fn contain_errors() -> Vec<ContainError> {
-    vec![
-        ContainError::Escalated(diag()),
+    let mut v: Vec<ContainError> =
+        <crate::boolean::ContainDecision as strum::IntoEnumIterator>::iter()
+            .map(|decision| ContainError::Escalated {
+                decision,
+                diag: diag(),
+            })
+            .collect();
+    v.extend([
         ContainError::RayExhausted,
         ContainError::Corrupt,
         ContainError::ArcLoopUnsupported {
             r#loop: LoopKey::default(),
         },
-    ]
+    ]);
+    v
 }
 
 fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
@@ -609,6 +616,15 @@ fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
     format!("{arm}/{head}")
 }
 
+/// [`label`] for a containment refusal, naming an escalation's decision
+/// too: each decision ends its own way.
+fn contain_label(arm: &str, e: &ContainError) -> String {
+    match e {
+        ContainError::Escalated { decision, .. } => format!("{arm}/Escalated/{decision:?}"),
+        _ => label(arm, e),
+    }
+}
+
 /// Every [`ValidationError`] shape the viewer can draw, each with a
 /// short label naming the arm and the nested variant it carries (the
 /// module docs).
@@ -916,7 +932,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     for source in contain_errors() {
         s.push((
-            label("RingNestingUndecided", &source),
+            contain_label("RingNestingUndecided", &source),
             ValidationError::RingNestingUndecided {
                 face,
                 ring: loop_,
@@ -1012,7 +1028,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     for e in contain_errors() {
         causes.push((
-            label("CensusUnsupported/Containment", &e),
+            contain_label("CensusUnsupported/Containment", &e),
             CensusUnsupportedCause::Containment(e),
         ));
     }
@@ -1033,7 +1049,9 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Every `what` the backstop raises, on the pair kind its arm raises
     // it on (`Undecided` is their one source).
-    for why in Undecided::iter() {
+    let carried = <crate::boolean::ContainDecision as strum::IntoEnumIterator>::iter()
+        .map(|decision| Undecided::WitnessTooClose(Some(decision)));
+    for why in Undecided::iter().chain(carried) {
         let (a, b) = if why.on_faces() {
             (EntityId::Face(face), EntityId::Face(face))
         } else {

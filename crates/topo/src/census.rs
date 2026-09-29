@@ -1394,7 +1394,7 @@ fn contain<T: Decide>(
 ) -> Option<FaceContainment> {
     match contfp(body, f.key, f.normal, q, band) {
         Ok(c) => Some(c),
-        Err(ContainError::Escalated(cause)) => {
+        Err(ContainError::Escalated { diag: cause, .. }) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None
         }
@@ -2900,8 +2900,10 @@ pub(crate) enum Undecided {
     /// Arm 2: the contained instance has no vertex.
     NoVertex,
     /// Arm 2: the point-in-solid door could not place a vertex near
-    /// the boundary (escalated, every ray grazed, or its loop walk).
-    WitnessTooClose,
+    /// the boundary: its planar loop walk escalated on the decision
+    /// carried, or (`None`) the door escalated on a row of its own, which
+    /// its refusal does not name, or every ray grazed.
+    WitnessTooClose(Option<crate::boolean::ContainDecision>),
     /// Arm 2: an instance of (near-)zero signed volume.
     ZeroVolume,
     /// Arm 2: an instance whose closed-form volume is uncertified.
@@ -3030,10 +3032,32 @@ impl Undecided {
                  yet for this shape; if they are not meant to meet, move them until their \
                  bounding boxes no longer overlap"
             }
-            Self::WitnessTooClose => {
+            Self::WitnessTooClose(None) => {
                 "a corner of one lies too close to the other's boundary to place at this \
                  tolerance. Recourse: move the parts until their bounding boxes no longer \
                  overlap"
+            }
+            // The decision's lever alone: `what` is a `&'static str`, so
+            // the margin that would value a tighter tolerance stops here.
+            Self::WitnessTooClose(Some(decision)) => {
+                use crate::boolean::{ContainDecision as D, contain_lever};
+                macro_rules! witness {
+                    ($lever:ident) => {
+                        concat!(
+                            "a corner of one lies too close to the other's boundary to place at \
+                             this tolerance. Recourse: ",
+                            contain_lever!($lever)
+                        )
+                    };
+                }
+                match decision {
+                    D::Boundary => witness!(Boundary),
+                    D::ArcSpan => witness!(ArcSpan),
+                    D::OneCircle => witness!(OneCircle),
+                    D::Carrier => witness!(Carrier),
+                    D::WindowPeriod => witness!(WindowPeriod),
+                    D::Ray | D::ArcEnd | D::SolidDoor => witness!(OffBoundary),
+                }
             }
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \
@@ -3062,7 +3086,15 @@ impl Undecided {
     pub(crate) fn of_point_in_solid(e: &crate::boolean::PointInSolidError) -> Self {
         use crate::boolean::PointInSolidError as E;
         match e {
-            E::Escalated { .. } | E::RayExhausted | E::Loop(_) => Self::WitnessTooClose,
+            E::Loop(crate::splitting::PointInLoopError::Escalated { decision, .. }) => {
+                Self::WitnessTooClose(Some(*decision))
+            }
+            E::Escalated { .. }
+            | E::RayExhausted
+            | E::Loop(
+                crate::splitting::PointInLoopError::RayExhausted { .. }
+                | crate::splitting::PointInLoopError::CorruptLoop { .. },
+            ) => Self::WitnessTooClose(None),
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
             E::KindUnsupported { .. }
@@ -5742,6 +5774,67 @@ mod tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// A witness the loop walk could not place carries the walk's
+    /// decision into the reason, and ends in that decision's lever alone:
+    /// `what` is a `&'static str`, so the margin that would value a
+    /// tighter tolerance does not reach it. The door's own escalation and
+    /// an exhausted schedule carry no decision and keep the pair's lever.
+    #[test]
+    fn a_witness_too_close_ends_in_its_decisions_lever() {
+        use crate::boolean::{ContainDecision, PointInSolidError as E};
+        use crate::splitting::PointInLoopError as L;
+        use geom_core::{Indeterminate, MarginDiag};
+        let diag = Indeterminate {
+            margin: MarginDiag::Value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("a_margin"),
+        };
+        let lead = "a corner of one lies too close to the other's boundary to place at this \
+                    tolerance. ";
+        let walk = |decision| {
+            E::Loop(L::Escalated {
+                r#loop: LoopKey::default(),
+                decision,
+                diag,
+            })
+        };
+        let rows = [
+            (
+                "boundary",
+                walk(ContainDecision::Boundary),
+                "Recourse: move the geometry so the point lies either exactly on the boundary \
+                 or clearly off it",
+            ),
+            (
+                "ray",
+                walk(ContainDecision::Ray),
+                "Recourse: move the geometry clear of the boundary",
+            ),
+            (
+                "arc span",
+                walk(ContainDecision::ArcSpan),
+                "Recourse: move the geometry so this arc stays clearly short of a full turn",
+            ),
+            (
+                "the door's own escalation",
+                E::Escalated {
+                    face: FaceKey::default(),
+                    diag,
+                },
+                "Recourse: move the parts until their bounding boxes no longer overlap",
+            ),
+            (
+                "an exhausted schedule",
+                E::RayExhausted,
+                "Recourse: move the parts until their bounding boxes no longer overlap",
+            ),
+        ];
+        for (row, refusal, ending) in rows {
+            let what = Undecided::of_point_in_solid(&refusal).what();
+            assert_eq!(what, format!("{lead}{ending}"), "{row}");
+        }
     }
 
     /// **The backstop writes no sentence of its own**: every `what` it

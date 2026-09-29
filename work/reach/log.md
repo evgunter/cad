@@ -130,3 +130,20 @@ The ATREST-9 rows are green on the change: `pis_arc_capped_poses::*` and `bool3_
   normal. The change is one line at `finish.rs`'s promotion loop.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — seam note from CONTACT-10 (branch `contact/10-contain-endings`)
+
+`splitting/containment.rs`: `PointInLoopError::Escalated` gains
+`decision: ContainDecision` (the closed type lives in
+`boolean::contain`). Its rows map as follows:
+
+- the boundary rows of `point_in_loop` and `carrier_walk` map to `Boundary`;
+- `polygon_walk`'s side, advance and arm rows map to `Ray`;
+- `carrier_loop`'s span escalation maps to `ArcSpan`.
+
+Its `Display` now renders the payload and the decision's ending in
+place of `Indeterminate`'s coincidence menu. `boolean/ops.rs` and
+`boolean/reduce.rs` only change their `ContainError::Escalated` patterns
+to the struct shape. No verdict changes.
+
+Signed: (CONTACT-10 implementer)
