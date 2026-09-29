@@ -2,7 +2,9 @@
 id: certification-refusal-still-called-poison-outside-the-importers
 kind: issue
 title: outside the certification importers, holders and tests still call the certification refusal 'poison'
-status: open
+status: review
+branch: scalar/cert-names
+pr: 3448
 opened: 2026-09-24
 priority: P4
 cost: D
