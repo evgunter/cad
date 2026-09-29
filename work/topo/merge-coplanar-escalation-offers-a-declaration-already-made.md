@@ -29,8 +29,23 @@ margin escalated verifying a declared pair ({diag})": the whole
 
 ## Repair shape
 
-Name the decision (whether the declared planes face the same way or
-opposite ways) and a lever the merge's caller can take, without the
-payload for an `INVALID` margin; drop the label. PR 3493 did this for
-the sibling `DeclarationContradicted` arm through
-`boolean::refusal_routes`.
+D4 ¶1 (i): carry the decision as a closed type from the raise, and
+compute the ending from the decision and its verdict; never route by
+`diag.predicate`.
+
+- `plane_eq`'s declared rung knows which rung refused. Carry it on
+  `PlaneEqError::Escalated` (for example a `PlaneRung` beside the
+  diagnostics), and carry the orientation rung's decided margin
+  (`decide_reported`) rather than minting `INVALID` for its Zero
+  verdict.
+- The orientation decision passes on either definite sign, so its Zero
+  verdict is band-decided: end it in a
+  `geom_brep::recourse::SizedDecision` (`SizedPass::NonZero`) whose
+  lever the merge's caller can take (turn one of the declared faces
+  so the two clearly face the same way or clearly opposite ways), and
+  the tolerance its margin gives.
+- Name the decision in plain words (whether the declared planes face
+  the same way or opposite ways), offer no declaration, and drop the
+  `merge_coplanar_faces:` label. PR 3493 gave the sibling
+  `DeclarationContradicted` arm its closed type
+  (`boolean::Contradiction`) the same way.

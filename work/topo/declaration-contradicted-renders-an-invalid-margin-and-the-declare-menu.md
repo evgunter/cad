@@ -95,3 +95,15 @@ from a separation; the table can start there. Then label the existing lever:
 exactly one marker. If the measured margin is worth showing, the raise
 sites have to carry it (`plane_eq` decides the sign, then throws the
 margin away); `INVALID` cannot stand in for it.
+
+## How PR 3493 routes it
+
+Not by `diag.predicate`, as the repair shape above prescribes: D4 ¶1
+(i), ratified in PR 3352, makes the decision a closed type at its site,
+so its sentence is an exhaustive match, never a lookup by predicate
+name. The rung that finds the pair distinct sets a
+`boolean::Contradiction` (`plane_eq`'s declared rung, `carrier_eq`'s
+kind arm and `data_rungs`), carried in
+`CarrierEqError::Contradicted` and in both `DeclarationContradicted`
+arms in place of the `Indeterminate`; `contact_verify::fit_steer` reads
+the same enum.

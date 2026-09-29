@@ -53,5 +53,6 @@ advice a face-pair declaration cannot follow there: a ray cast's
 graze, or a point near a face of the other solid, is not a pair of
 faces. PR 3493 gives the Boolean's face-containment escalations
 (`ContainError::Escalated`, through `BooleanError::Escalated`) their
-own subject and a geometry-only lever in `boolean::refusal_routes`.
+own closed decision, `boolean::BooleanDecision::Containment`, ending in
+a `SizedDecision` (`SizedPass::NonZero`) in `boolean::refusal_routes`.
 These three arms want the same change when the decision is carried.

@@ -10,14 +10,16 @@ opened: 2026-09-29
 
 ## What
 
-PR 3493 routes `BooleanError::Escalated` by predicate
-(`crates/topo/src/boolean/refusal_routes.rs`, `fn lever`). Following
-the triage in
+PR 3493 carries a closed decision type on `BooleanError::Escalated`
+(`boolean::BooleanDecision`, `crates/topo/src/boolean/refusal_routes.rs`),
+set at the site that wraps each escalation. Following the triage in
 `work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`,
-everything except the sector rung, the pierce normal, face
-containment, where a crossing lands on an edge, and the kernel checks
-keeps the coincidence story and its declare lever. Some names in that
-coincidence group are decisions a face-pair declaration cannot name:
+every wrap site except the sector rung, the pierce normal and the
+torus convention, face containment, where a crossing lands on an edge
+and in what order, the split point on its circle, the arc span and the
+volume backstop sets `BooleanDecision::Coincidence`, which keeps the
+coincidence story and its declare lever. Some decisions those sites
+wrap are ones a face-pair declaration cannot name:
 
 - the lever-arm gates `enters_material_arm`,
   `tangent_sector_order2_arm` (`geom-brep/src/enters.rs`) and
@@ -42,9 +44,21 @@ Three definite `BooleanError` arms offer the same menu
 
 ## Repair shape
 
-Decide per name whether a declaration can settle it. Move each that
-cannot into a lever of its own in `refusal_routes::lever`, with words in
-`boolean::decision_words`.
-`refusal_routes::tests::every_escalation_lever_renders_its_subject_and_its_recourse`
-takes one row per lever. The three definite arms want the same
-question asked of their recourse.
+D4 ¶1 (i): the decision is a closed type at its site; never route by
+`diag.predicate`.
+
+- Decide per decision whether a declaration can settle it. Each that
+  cannot gets a `BooleanDecision` variant with its subject, and an
+  ending in `BooleanDecision::ending` from what it passes on (a
+  `geom_brep::recourse::SizedDecision`, or `Unsized` for a residual).
+- Where one wrap site receives several decisions, the raiser carries
+  which one, as `splitting::ConicRootFault` does for the conic root
+  lane: the lever-arm gates in `geom_brep::enters_material` and
+  `classify_dihedral` need a typed rung on their escalation, as do the
+  `cylinder_sphere_section` operand guards (`SectionError`), and
+  `solid_contain::line_wall_roots` / `line_torus_roots` need one on
+  theirs, so `reduce`'s wrap sites can set the variant.
+- `refusal_routes::tests::every_escalation_ends_as_its_decision_and_verdict_give`
+  takes one row per variant through its `DECISIONS` list and `want`.
+- The three definite arms want the same question asked of their
+  recourse.

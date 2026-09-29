@@ -24,14 +24,26 @@ tolerance".
   and the Boolean (`BooleanError::CrossingInsertion`). None of them
   takes a declaration that names where on an edge a crossing lands.
 - The two arms are one decision (`split_edge_param_interior`), so
-  D4 ¶1 (i) wants one recourse for both. After PR 3493 the escalated
-  arm ends in `boolean::CROSSING_RECOURSE` and this one does not.
+  D4 ¶1 (i) wants one ending computed from the decision and the
+  verdict. After PR 3493 the escalated arm ends through
+  `boolean::refusal_routes::SPLIT_PARAM_INTERIOR` (a
+  `geom_brep::recourse::SizedDecision` passing on a positive margin)
+  and this one does not.
+- The arm carries no margin: `split.rs` decides through
+  `k_stats::decide` and keeps only the sign, so the Zero verdict (a
+  crossing within the zero band of an end, which a smaller tolerance
+  may decide inside) cannot quote the tolerance its margin gives.
 - It opens with the stage label `split_edge:` and names an arena key.
 
 ## Repair shape
 
-End the arm in the escalated arm's subject words
-(`boolean::CROSSING_INTERIOR`) and its recourse
-(`boolean::CROSSING_RECOURSE`), drop the label and the key, and
-re-baseline `euler::tests::split_param_pair_carries_the_shared_recourse`,
-which pins the menu on this arm today.
+Decide through `k_stats::decide_reported` in `split.rs` and carry the
+verdict on the arm as a `geom_brep::recourse::Refused`
+(`Refused::of`: `Zero` with its classified margin, or the sign-certain
+`Negative`). Render `refusal_routes::CROSSING_INTERIOR` and end in
+`SPLIT_PARAM_INTERIOR.recourse(refused.arm(), Reading::Build)`: the
+Zero arm then names the lever and the tolerance its margin gives, the
+Negative arm the lever alone, and neither offers a declaration. Drop
+the label and the key, and re-baseline
+`euler::tests::split_param_pair_carries_the_shared_recourse`, which
+pins the menu on this arm today.
