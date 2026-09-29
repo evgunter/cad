@@ -63,6 +63,8 @@ mod bounds_census;
 mod cert3r1_poison_detail;
 #[path = "cert3r1_probes.rs"]
 mod cert3r1_probes;
+#[path = "certification_door_differential.rs"]
+mod certification_door_differential;
 #[path = "certified_door.rs"]
 mod certified_door;
 #[path = "certified_endpoint_census.rs"]

@@ -27,3 +27,17 @@ cost: D
   sign-hull ruling (this item's neighbour): under (c′) nothing depends
   on the bit and the convention is "none, and say so"; under (c) it
   would have to be "preserved everywhere", a backend invariant.
+
+(SCALAR, `scalar/cert-diff`) A fourth instance, from the certification
+door differential (`crates/geom-core/tests/certification_door_differential.rs`):
+where `DInterval::hull` (`interval-transcendentals/src/ops.rs`) and
+`Certification::clamped_to` (`crates/geom-core/src/interval/certification.rs`)
+choose an endpoint between zeros of opposite sign, the sign comes from
+`f64::min`/`f64::max` (IEEE 754-2008 `minNum`/`maxNum`), which do not
+fix it for zeros of opposite sign. On x86-64 at 1.97 the second operand wins, so `hull` is
+not bit-commutative: `hull([-0, 1], [0, 1])` is `[0, 1]` and
+`hull([0, 1], [-0, 1])` is `[-0, 1]`; a clamp of `[-0, 1]` to `[0, 1]`
+gives `[0, 1]` and of `[0, 1]` to `[-0, 1]` gives `[-0, 1]`. The
+differential compares those zeros by value and says why. Whatever
+convention the sign-hull ruling settles on would have to be spelled
+past `f64::min`/`max` to be one.
