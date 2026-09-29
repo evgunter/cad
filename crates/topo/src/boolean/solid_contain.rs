@@ -1522,7 +1522,11 @@ fn cone_trimmed_window<T: Decide>(
         Err(SplitJoinError::Escalated { diag, .. }) => return Err(esc(diag)),
         Err(_) => return Err(PointInSolidError::CorruptFace { face }),
     };
-    let (az, chart_v, defect) = crate::chord_join::chart_box_defect(&images)
+    let crate::chord_join::ChartBox {
+        u: az,
+        v: chart_v,
+        defect,
+    } = crate::chord_join::chart_box_defect(&images)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let lever = v.0.abs().max(v.1.abs());
     if decide(

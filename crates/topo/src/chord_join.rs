@@ -1820,9 +1820,9 @@ fn outer_cycle<T: Decide>(
 /// was closed there), is a rectilinear chart polygon. Such a polygon is
 /// its bounding box exactly when its enclosed area is the box's; an L or
 /// a notch has strictly less, and every one of them has the same hull,
-/// so a window read off the hull would cover the notch. Returns
-/// `(u window, v window, box area − |area|)`, `None` for an empty walk.
-pub(crate) fn chart_box_defect<T: Real>(images: &[AzimuthImage<T>]) -> Option<((T, T), (T, T), T)> {
+/// so a window read off the hull would cover the notch. `None` for an
+/// empty walk.
+pub(crate) fn chart_box_defect<T: Real>(images: &[AzimuthImage<T>]) -> Option<ChartBox<T>> {
     let (first, last) = (images.first()?, images.last()?);
     let u = azimuth_hull(images)?;
     let mut v = (first.v.0, first.v.0);
@@ -1837,7 +1837,24 @@ pub(crate) fn chart_box_defect<T: Real>(images: &[AzimuthImage<T>]) -> Option<((
         twice = twice + (u0 * v1 - u1 * v0);
     }
     let area = twice.abs() / T::from_f64(2.0);
-    Some((u, v, (u.1 - u.0) * (v.1 - v.0) - area))
+    Some(ChartBox {
+        u,
+        v,
+        defect: (u.1 - u.0) * (v.1 - v.0) - area,
+    })
+}
+
+/// A walk's chart bounding box, and how far its polygon falls short of
+/// it ([`chart_box_defect`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ChartBox<T: Real> {
+    /// The azimuth window.
+    pub(crate) u: (T, T),
+    /// The second coordinate's window.
+    pub(crate) v: (T, T),
+    /// The box's area less the polygon's: zero exactly when the polygon
+    /// is the box.
+    pub(crate) defect: T,
 }
 
 /// What the apex closure makes of a cone face's outer cycle.
