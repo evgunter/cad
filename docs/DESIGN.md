@@ -386,8 +386,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   Δθ, |Δθ| ≤ 2π). Vertices are stored verbatim and are authoritative; a
   full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
   carrier is one edge. The form is redundant (the vertices lie on the
-  carrier, Δθ agrees with them mod 2π), and those consistency
-  conditions are verified at validate, never trusted. Bulge
+  carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
+  consistency conditions are verified at validate as ε-decisions at the
+  validating scalar, never trusted; a stored carrier is carried
+  verbatim, including across scalars, and never re-derived from its
+  vertices. An arc may also carry an exactness witness naming which of
+  those conditions its construction proves over the reals: set only by
+  constructions, cleared by every embedding, and read only where an
+  exact identity is registered. Bulge
   (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
   modes, lowered into this form once, at the algebra — not the
   storage. Winding is invisible to users (roles derive from
