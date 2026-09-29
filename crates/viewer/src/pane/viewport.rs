@@ -1859,6 +1859,50 @@ mod tests {
         );
     }
 
+    /// **The id buffer's clear value beside a refused ray is no
+    /// verdict**: *nothing* is a claim only a ray answer could
+    /// contradict, so on the frame the pick path asked the comparison
+    /// adds nothing, and on the frame it did not it says the refusal
+    /// alone.
+    #[test]
+    fn nothing_beside_a_refused_ray_is_no_verdict() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let display = DisplayView::none();
+        let refusal = fixture
+            .index
+            .faces_under_cursor(
+                foreign,
+                &fixture.camera,
+                fixture.pane,
+                fixture.cursor,
+                &display,
+            )
+            .expect_err("an evaluation of another document is refused");
+        let answer = (u64::from(fixture.serial) << 32) | u64::from(IdMap::NOTHING);
+        let question = RayQuestion {
+            eval: foreign,
+            camera: &fixture.camera,
+            viewport: fixture.pane,
+            cursor: fixture.cursor,
+            display: &display,
+        };
+        let serial = Some(fixture.serial);
+        assert_eq!(
+            cursor_news(&fixture.index, question, answer, serial, true),
+            Vec::new(),
+            "the pick path said the refusal, and nothing beside it is no news"
+        );
+        assert_eq!(
+            cursor_news(&fixture.index, question, answer, serial, false),
+            vec![frame::pick_refusal(&refusal)],
+            "the comparison says the refusal alone"
+        );
+    }
+
     /// **An id-buffer word that lands on a hidden root's patch is an id
     /// this picture does not draw**, not the face the index names it:
     /// the index keeps a hidden part's ids and names them, and the
@@ -1946,9 +1990,7 @@ mod tests {
             .expect_err("an evaluation of another document is refused");
         assert_eq!(
             idpass::compare(&index, &hidden, answer, Some(serial), Err(&refusal)),
-            Some(idpass::IdNews::BesideRefusal(idpass::IdAnswer::Undrawn {
-                id
-            })),
+            Some(idpass::IdNews::BesideRefusal { id }),
             "and beside a refused ray it is still said"
         );
     }

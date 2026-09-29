@@ -162,3 +162,16 @@ while taking this row first does nothing for that one.
   `crates/viewer/src/frame.rs:334`.
 - `frame_policy::a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ`
   is `crates/viewer/tests/frame_policy.rs:891`.
+
+### A second Cursor producer, always mixed (2026-09-28, `vnews/every-id-is-said`)
+
+The table above lists only `Disagreement::notice` for `Cursor`.
+`crates/viewer/src/idpass.rs`'s `IdNews::notice` is a second producer.
+Its `IdNews::BesideRefusal` arm (an id the picture does not draw,
+said beside a refused ray) is raised ONLY on a frame whose ray path
+refused, and that refusal is said on the same frame as a
+`Subject::Document` notice (`frame::pick_refusal`, from the pick loop
+or from `pane/viewport.rs`'s `cursor_news`). So this producer never
+reaches the line alone: the joined line is always `Document`, and
+`frame::cursor_status`'s `Expire(Cursor)` never retires it. It is
+this row's defect, reachable on every frame the producer fires.

@@ -18,8 +18,8 @@
 //! counts as the same question, [`IdStep`] is the verdict about this
 //! frame, and [`IdNews`] is what an answer amounts to once it has been
 //! matched to the question it answers: the two picking paths'
-//! [`Disagreement`], or an id the picture has no name for beside a
-//! ray path that refused.
+//! [`Disagreement`], or an id the picture does not draw beside a ray
+//! path that refused.
 //!
 //! **The failure mode the memory exists for is an answer outliving its
 //! question**, and it does not look like a fault: a matched-but-stale
@@ -186,7 +186,10 @@ pub enum IdAnswer {
     /// name would say the id buffer saw a face that is not on screen.
     /// The picture is the one this index drew under this view (the
     /// viewport compares against no other), so the word itself is
-    /// wrong: the symptom of a corrupt readback.
+    /// wrong: the symptom of a corrupt readback. The view half of that
+    /// holds only while the view in hand is the one the picture was
+    /// drawn under, which a refused rebuild breaks
+    /// (`work/vnews/the-cursor-reads-the-display-view-in-hand-not-the-one-the-picture-was-drawn-under.md`).
     Undrawn {
         /// The id the id buffer read back.
         id: u32,
@@ -320,8 +323,14 @@ impl Disagreement {
     /// [`Retold::Again`]: the same hover says it again while the
     /// paths still disagree.
     pub fn notice(&self) -> Message {
-        Message::new(Subject::Cursor, self.to_string(), Retold::Again)
+        cursor_notice(self)
     }
+}
+
+/// The one construction of a cursor message: [`Subject::Cursor`] and
+/// [`Retold::Again`], in the words of the value's own `Display`.
+fn cursor_notice(news: &impl core::fmt::Display) -> Message {
+    Message::new(Subject::Cursor, news.to_string(), Retold::Again)
 }
 
 /// **What one fresh id answer has to say**, beside the ray path's
@@ -331,41 +340,47 @@ pub enum IdNews {
     /// The two paths both answered, and the answers differ.
     Disagreement(Disagreement),
     /// The ray path refused, so there is no ray answer to compare, and
-    /// the id buffer answered an id this picture has no name for:
-    /// [`IdAnswer::Undrawn`] or [`IdAnswer::Unnamed`], the answers no
-    /// ray answer could agree with ([`compare`] raises it for nothing
-    /// else). Such an id is wrong without a ray to contradict it, so a
-    /// refusal beside it does not excuse it.
-    BesideRefusal(IdAnswer),
+    /// the id buffer answered an id no patch of this picture draws
+    /// ([`IdAnswer::Undrawn`]). Such an id is wrong without a ray to
+    /// contradict it, so a refusal beside it does not excuse it.
+    BesideRefusal {
+        /// The id the id buffer read back.
+        id: u32,
+    },
 }
 
 impl core::fmt::Display for IdNews {
-    /// A disagreement in its own words; an id beside a refusal as what
-    /// the id buffer read at the cursor, in [`IdAnswer`]'s words for
-    /// it. The ray's refusal is not in the sentence: it is the ray
+    /// A disagreement in its own words; an undrawn id beside a refusal
+    /// as what the id buffer read at the cursor, in [`IdAnswer`]'s
+    /// words for it. The ray's refusal is not in the sentence: it is the ray
     /// path's news and is said in its own words ([`compare`]).
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Disagreement(disagreement) => core::fmt::Display::fmt(disagreement, f),
-            Self::BesideRefusal(from_gpu) => write!(f, "id buffer at the cursor: {from_gpu}"),
+            Self::BesideRefusal { id } => write!(
+                f,
+                "id buffer at the cursor: {}",
+                IdAnswer::Undrawn { id: *id }
+            ),
         }
     }
 }
 
 impl IdNews {
-    /// This news as a message for the status line, on
-    /// [`Disagreement::notice`]'s terms for either arm:
-    /// [`Subject::Cursor`], because it is a claim about what lies under
-    /// THIS cursor over THIS picture, and [`Retold::Again`], because
-    /// the same hover says it again while the id buffer still answers
-    /// it.
+    /// This news as a message for the status line: [`Subject::Cursor`]
+    /// and [`Retold::Again`] for either arm, as
+    /// [`Disagreement::notice`] gives them.
+    ///
+    /// **A [`IdNews::BesideRefusal`] is never retired as cursor news.**
+    /// It is raised only beside a ray refusal, which is said on the
+    /// same frame as a [`Subject::Document`] notice
+    /// ([`crate::frame::pick_refusal`]), and a frame joins its notices
+    /// into one line under one subject. So the line wears `Document`,
+    /// and [`crate::frame::cursor_status`]'s expiry of the cursor's
+    /// subject does not reach it
+    /// (`work/vnews/one-line-one-subject-loses-a-mixed-frames-expiry.md`).
     pub fn notice(&self) -> Message {
-        match self {
-            Self::Disagreement(disagreement) => disagreement.notice(),
-            Self::BesideRefusal(_) => {
-                Message::new(Subject::Cursor, self.to_string(), Retold::Again)
-            }
-        }
+        cursor_notice(self)
     }
 }
 
@@ -414,13 +429,19 @@ impl IdNews {
 /// cursors the kernel declines, which are the ones the id pass is
 /// likeliest to answer with a face.
 ///
-/// **Except an id the picture has no name for**, which needs no ray to
-/// be wrong: it is said on its own beside the refusal
-/// ([`IdNews::BesideRefusal`]), for the reason the next section gives
-/// for saying it at all. *Nothing* and a name are claims about the
-/// cursor that only a ray answer could contradict, and a refused ray
-/// gives them no verdict — the same answer this function gives when
-/// the id pass has no fresh claim of its own.
+/// **Except an id the picture does not draw** ([`IdAnswer::Undrawn`]),
+/// which needs no ray to be wrong: it is said on its own beside the
+/// refusal ([`IdNews::BesideRefusal`]). *Nothing* and a name are
+/// claims about the cursor that only a ray answer could contradict, and
+/// a refused ray gives them no verdict — the same answer this function
+/// gives when the id pass has no fresh claim of its own.
+///
+/// **An unnamed patch beside a refusal is no verdict either.** The
+/// refusal a ray meets over a drawn patch is the hit test's
+/// unnamed-entity arm, and there the id buffer's patch carries the same
+/// naming error, so
+/// saying [`IdAnswer::Unnamed`] beside that refusal would say one fact
+/// twice.
 ///
 /// Declining to compare is not dropping the refusal: it is the ray
 /// path's news, not the comparison's, and it is said in the ray path's
@@ -438,20 +459,22 @@ impl IdNews {
 /// id no patch of this picture is drawn under ([`IdAnswer::Undrawn`]:
 /// never assigned, or assigned to a hidden root's part, which the
 /// index would otherwise name). `display` is the view the picture and
-/// the ray were both drawn and asked under. Neither AGREES with any
+/// the ray were both drawn and asked under, while the view in hand is
+/// the one the picture was drawn under
+/// (`work/vnews/the-cursor-reads-the-display-view-in-hand-not-the-one-the-picture-was-drawn-under.md`
+/// is where it is not). Neither AGREES with any
 /// ray answer. Agreement is a shared name, and these have
 /// none, so silence here would claim an agreement nobody can check.
 /// Nor is either said anywhere else. This comparison is the id
 /// answer's only reader, so the notice is where each is said, with
 /// the id, which is what issue #1097 §4 asks an operator to record.
-/// The ray path's own brush with an unnamed face is a refusal, which
-/// is no ray answer (above), and the id beside it is still the id
-/// buffer's to say.
+/// The ray path's own brush with an unnamed face is a refusal, and
+/// beside a refusal only an undrawn id is said (above).
 ///
 /// `answer` is the raw channel word (`serial << 32 | id`); `expected`
 /// is [`IdQueryLog::outstanding`]. `None` means "nothing to say": no
 /// query outstanding, a stale answer, a refused ray path beside
-/// *nothing* or a name, or the two agree.
+/// anything but an undrawn id, or the two agree.
 pub fn compare(
     index: &PickIndex,
     display: &DisplayView,
@@ -464,12 +487,7 @@ pub fn compare(
     }
     let from_gpu = IdAnswer::of(index, display, answer as u32);
     let Ok(from_ray) = from_ray else {
-        return match from_gpu {
-            IdAnswer::Nothing | IdAnswer::Named(_) => None,
-            IdAnswer::Unnamed { .. } | IdAnswer::Undrawn { .. } => {
-                Some(IdNews::BesideRefusal(from_gpu))
-            }
-        };
+        return beside_refusal(&from_gpu);
     };
     let agrees = match &from_gpu {
         IdAnswer::Nothing => from_ray.is_empty(),
@@ -482,4 +500,49 @@ pub fn compare(
             from_ray: from_ray.to_vec(),
         })
     })
+}
+
+/// What an id answer amounts to beside a ray path that refused: only
+/// an undrawn id is news ([`compare`] says why each arm is what it is).
+fn beside_refusal(from_gpu: &IdAnswer) -> Option<IdNews> {
+    match *from_gpu {
+        IdAnswer::Undrawn { id } => Some(IdNews::BesideRefusal { id }),
+        IdAnswer::Nothing | IdAnswer::Named(_) | IdAnswer::Unnamed { .. } => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pncad::document::RecipeNodeId;
+    use pncad::select::HitTestError;
+
+    use super::{IdAnswer, IdNews, beside_refusal};
+
+    /// **An unnamed patch beside a refused ray is no verdict**, and an
+    /// undrawn id beside one is. No document plants the naming layer's
+    /// bug arm, so the answer is built as the index would have stored
+    /// it; the refused-ray rows in `pane::viewport` drive the other
+    /// arms through a real index.
+    #[test]
+    fn beside_a_refusal_an_unnamed_patch_is_no_verdict_and_an_undrawn_id_is_news() {
+        let unnamed = IdAnswer::Unnamed {
+            id: 9,
+            error: HitTestError::Unnamed {
+                node: RecipeNodeId(2),
+                entity: editor_core::names::EntityRef {
+                    body: 0,
+                    key: editor_core::names::EntityKey::Body,
+                },
+            },
+        };
+        assert_eq!(
+            beside_refusal(&unnamed),
+            None,
+            "the refusal already carries the naming error"
+        );
+        assert_eq!(
+            beside_refusal(&IdAnswer::Undrawn { id: 9 }),
+            Some(IdNews::BesideRefusal { id: 9 }),
+        );
+    }
 }
