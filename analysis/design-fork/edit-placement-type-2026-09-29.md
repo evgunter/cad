@@ -15,3 +15,11 @@ Fork: the same row and PR; Ev asked for a "keep the source"-shaped answer to wha
 - `/dev/urandom` byte: 59 (odd)
 - Mapping: Fable = A, Opus = B
 - Protocol: bb10a4cdd
+
+## Third fork, 2026-09-29: what an unplaced group is (narrowed by Ev on #3441, 14:21)
+
+Ev leans towards (a), with a "copy gauge then mate" shortcut, and ruled that deleting a gauge is not refused. The open question is whether "unplaced" is a canonical logical pose with a separate display pose, or a relatively-unconstrained state with no absolute pose in the logic.
+
+- `/dev/urandom` byte: 149
+- Mapping: Fable = A, Opus = B
+- Protocol: bb10a4cdd
