@@ -2,7 +2,8 @@
 id: part-root-failure-nests-a-whole-refusal-past-the-budget
 kind: issue
 title: editor-core: a part's root failure renders the part's own node refusal inside an 11-word wrapper, so it can outgrow the viewer's 75-word budget by construction
-status: review
+status: closed
+closed: 2026-09-29
 pr: 3459
 branch: edit/part-root-carried-refusal
 priority: P3
