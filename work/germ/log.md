@@ -584,3 +584,17 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
   - root-free gaps by the Bernstein bound |F′| ≤ 2A;
   - a door for anything unseparated.
 - **Owed:** measuring circle × torus on MAIN for the same failure. If it certifies wrong answers there, that is a later escape of DR-16 (PR 3375), to be appended under its row.
+
+## 2026-09-29 — Ev: finish what is started, plus the P1, then pause
+
+Ev's instruction: finish the in-flight work and the P1, then pause until the weekly limit resets.
+
+**In scope before pausing:**
+- PR 3423 (cone U1+U2): fix pass, delta review, then merge.
+- U4 (`germ/cone-section-rows`): dual review, then merge after 3423.
+- The P1 tilted-rod re-measure (`germ/tilted-rod-remeasure`, dispatched).
+
+**Not started until Ev resumes:**
+- U7 (the cone roster flip);
+- the P2s (cone pairs in general pose; the radial hole through a tube);
+- the P3/P4 queue.
