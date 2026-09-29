@@ -214,3 +214,7 @@ declared-identity predicate shared by the merge door and chart-region
 questions. The design choices left open on both rows are code
 structure, decided here. Review tier: single FULL — a refactor across
 four comparison sites whose drift is exactly the defect.
+## 2026-09-29 — PR 3412 ruled: charts are body-wide
+
+Ev took (B) ("sounds good!"). `a-chart-spans-solids-…` is a unit at
+`spec` again, now for the scoped-grouping change; fork row 12 completed.
