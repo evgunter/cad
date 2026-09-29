@@ -1395,5 +1395,8 @@ pub(crate) fn certify<T: Decide>(
 #[path = "section_cert_cone_rows.rs"]
 mod section_cert_cone_rows;
 #[cfg(test)]
+#[path = "section_cert_cone_search.rs"]
+mod section_cert_cone_search;
+#[cfg(test)]
 #[path = "section_cert_rows.rs"]
 mod section_cert_rows;
