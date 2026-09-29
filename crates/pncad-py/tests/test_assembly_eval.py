@@ -427,6 +427,66 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertEqual(cause.__cause__.document, self.boss_ref)
 
 
+class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
+    """`part_root_poisoned`, reached: a part whose extrude refuses and
+    whose one root, a transform over it, never runs.
+
+    The instance names the part's root and points at the extrude, the
+    node the author repairs; the extrude's refusal crosses TYPED as the
+    exception's `__cause__`, raised the way the part's own evaluation
+    raises it.
+    """
+
+    def setUp(self):
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        self.store = Workspace(str(directory))
+        part = pncad.Doc("pncad-partpoison-part")
+        profile = part.insert(
+            Node.polygon(
+                [
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(0.02, m), Expr.length_in(0, m)),
+                    (Expr.length_in(0.02, m), Expr.length_in(0.02, m)),
+                    (Expr.length_in(0, m), Expr.length_in(0.02, m)),
+                ],
+                plane=part.sketch_frame(elevation=Expr.length_in(0, m)),
+            )
+        )
+        # No length to extrude, so the extrude refuses.
+        self.extrude = part.insert(Node.extrude(profile, Expr.length_in(0.0, m)))
+        self.root = part.insert(
+            Node.transform(
+                self.extrude,
+                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
+            )
+        )
+        self.store.create(part)
+        self.part_ref = DocRef(part.id, pncad.content_pin(part))
+        self.assembly = pncad.Doc("pncad-partpoison-assembly")
+        self.instance = self.assembly.insert(Node.instantiate_part(self.part_ref))
+
+    def test_the_instance_carries_the_failure_that_poisoned_the_root(self):
+        refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
+        self.assertEqual(refusal.kind, "part_root_poisoned")
+        text = str(refusal)
+        self.assertIn(f"its root, node {repr(self.root)[7:-1]}", text)
+        self.assertIn(f"repair node {repr(self.extrude)[7:-1]}", text)
+
+        cause = refusal.__cause__
+        self.assertIsInstance(cause, pncad.EvaluationError)
+        self.assertEqual(cause.kind, "extrude")
+        self.assertEqual(
+            (cause.node, cause.document),
+            (self.extrude, self.part_ref),
+            "the cause is the extrude, in the part's id space",
+        )
+        self.assertIsNone(cause.__cause__, "the chain ends at the refusing node")
+        self.assertNotIn(str(cause), text, "the instance never quotes it")
+
+
 class TestTheMemoIsObservable(CorpusCase):
     """PYPU's banked finding — "memoized recompute is unobservable from
     Python" — closed at the same signature.

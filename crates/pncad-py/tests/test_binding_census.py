@@ -695,14 +695,15 @@ BOUND_AS = {
     # `PartFault`'s arms and the `ResolveFault` classification inside
     # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
-    # `part_root_failed`, `part_root_failure_unrecorded`,
-    # `part_product`, `part_reference_cycle`, `part_depth_exceeded` —
+    # `part_root_failed`, `part_root_poisoned`,
+    # `part_root_failure_unrecorded`, `part_product`,
+    # `part_reference_cycle`, `part_depth_exceeded` —
     # the same flattening `NodeErrorKind` gets above. They left the
     # `gap` roster at LIB-G18a, when the resolver parameter made them
     # reachable: the tags existed before it, and `part_no_resolver` was
     # the only one an evaluation could produce. The refusal a failed
-    # part root CARRIES crosses as the exception's `__cause__`, an
-    # `EvaluationError` of its own.
+    # part root, or a poisoned root's failed ancestor, CARRIES crosses
+    # as the exception's `__cause__`, an `EvaluationError` of its own.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
     # The read-back doors, which hang off the evaluation because a
@@ -3493,11 +3494,9 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
-    "ProductError::UnknownNode": "ProductError.variant",
+    "ProductError::Root": "ProductError.variant",
     "ProductError::PlacedUnderTwoRoots": "ProductError.variant",
     "ProductError::Naming": "ProductError.variant",
-    "ProductError::RootFailed": "ProductError.variant",
-    "ProductError::RootPoisoned": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",

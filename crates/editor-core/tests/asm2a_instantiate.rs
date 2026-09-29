@@ -1133,6 +1133,91 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     assert_eq!(levels[2].2, p3_own, "the last line is p3's own rendering");
 }
 
+/// **A part whose root was poisoned carries the failure that poisoned
+/// it.** The part's extrude refuses and its one root, a transform over
+/// the extrude, never runs: the instance names both nodes, points at
+/// the extrude, and carries the extrude's own refusal typed — the last
+/// level of its chain is the extrude's line exactly as the part's own
+/// evaluation draws it.
+#[test]
+fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
+    let tol = Tol::witness();
+    let part = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-part"), tol);
+    let (part, profile) = on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (part, extrude) = insert(
+        part,
+        Node::Extrude {
+            profile,
+            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+        },
+    );
+    let (part, moved) = insert(
+        part,
+        Node::Transform {
+            input: extrude,
+            translation: [len(0.1), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    );
+    assert_eq!(
+        part.roots(),
+        &[moved],
+        "the transform is the part's one root"
+    );
+    let own = match run(&part, &EvalOptions::default()).result(extrude) {
+        Some(NodeResult::Failed(e)) => e.to_string(),
+        other => panic!("the part's extrude refuses on its own: {other:?}"),
+    };
+    let mut store = StubStore::default();
+    let part_ref = store.insert(part, tol);
+    let (doc, ids) = assembly("asm2a-poisoned-asm", &[part_ref]);
+    let ev = run(&doc, &with_resolver(store));
+
+    let fault = part_fault(&ev, ids[0]);
+    let PartFault::PartRootPoisoned {
+        root,
+        through,
+        refusal,
+    } = &fault
+    else {
+        panic!("expected PartRootPoisoned, got {fault:?}");
+    };
+    assert_eq!((*root, *through), (moved, extrude), "both nodes are named");
+    assert!(
+        matches!(refusal.kind(), NodeErrorKind::Expr { .. }),
+        "the extrude's refusal travels typed: {refusal:?}"
+    );
+    let rendered = fault.to_string();
+    assert!(
+        rendered.contains(&format!("repair node {}", extrude.0))
+            && rendered.contains(&format!("node {}", moved.0)),
+        "the instance names the root and points at the failed node: {rendered}"
+    );
+    let levels: Vec<_> = failure(&ev, ids[0])
+        .carried_chain()
+        .map(|level| (level.document, level.node, level.line()))
+        .collect();
+    assert_eq!(
+        levels,
+        vec![(CarriedIn::Part(&part_ref), extrude, own.clone())],
+        "the traceback ends at the failing node, drawn as the part draws it"
+    );
+    let refused = own
+        .strip_prefix(&format!("node {} failed: ", extrude.0))
+        .expect("a node line opens with its node");
+    assert!(
+        !rendered.contains(refused),
+        "the instance never quotes the refusal it carries: {rendered}"
+    );
+}
+
 /// The gather's OTHER refusals cross the seam as a CLASS beside their
 /// sentence, so a consumer branches instead of substring-matching.
 ///
@@ -1140,14 +1225,10 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
 /// arrive as [`PartFault::PartProduct`]: the prose differs, which is
 /// all a caller used to have, and the classes differ too — including
 /// on `means_no_body`, the one reading every consumer of a gather
-/// refusal draws. `RootFailed` is the arm that does NOT come here (it
-/// chains, typed, above).
+/// refusal draws. A failed or poisoned root is what does NOT come here
+/// (it chains, typed, above).
 #[test]
 fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
-    let missing = DocRef {
-        id: DocumentId::derive("asm2a-class-missing"),
-        pin: ContentPin([9u8; 32]),
-    };
     let mut store = StubStore::default();
 
     // Nothing denotes a body: the one class that is an ABSENCE rather
@@ -1156,33 +1237,37 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
         ProfileDoc::empty(DocumentId::derive("asm2a-class-empty"), Tol::witness()),
         Tol::witness(),
     );
-    // A root that never ran, poisoned through a failed ancestor: a
-    // refusal, and NOT the absence above.
-    let poisoned = {
-        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-class-poisoned"), Tol::witness());
-        let (doc, inner) = insert(doc, Node::instantiate_part(missing));
-        let (doc, _) = insert(
-            doc,
-            Node::Transform {
-                input: inner,
-                translation: [len(0.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
-        );
-        doc
+    // One body placed under two roots: a refusal, and NOT the absence
+    // above.
+    let twice = {
+        let doc = part("asm2a-class-twice", 0.0, 1.0);
+        let body = *doc.order().last().expect("the part has its extrude");
+        let moved = |doc, dx| {
+            insert(
+                doc,
+                Node::Transform {
+                    input: body,
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    rotation_angle: ang(0.0),
+                },
+            )
+            .0
+        };
+        moved(moved(doc, 2.0), 4.0)
     };
-    let poisoned = store.insert(poisoned, Tol::witness());
+    let twice = store.insert(twice, Tol::witness());
 
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-class-asm", &[empty, poisoned]);
+    let (doc, ids) = assembly("asm2a-class-asm", &[empty, twice]);
     let ev = run(&doc, &opts);
 
     let kind_of = |fault: &PartFault| match fault {
         PartFault::PartProduct { kind, message } => {
             assert!(
-                message.starts_with("product: "),
-                "the gather's own sentence travels beside the class: {message}"
+                !message.starts_with("product"),
+                "the gather's own sentence travels beside the class, without the gather's \
+                 stage word: {message}"
             );
             *kind
         }
@@ -1201,15 +1286,15 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
         "and the sentence says so: {empty_fault}"
     );
 
-    let poisoned_fault = part_fault(&ev, ids[1]);
-    let poisoned_kind = kind_of(&poisoned_fault);
-    assert_eq!(poisoned_kind, ProductErrorKind::RootPoisoned);
+    let twice_fault = part_fault(&ev, ids[1]);
+    let twice_kind = kind_of(&twice_fault);
+    assert_eq!(twice_kind, ProductErrorKind::PlacedUnderTwoRoots);
     assert!(
-        !poisoned_kind.means_no_body(),
-        "a poisoned root is a fault, not an absence"
+        !twice_kind.means_no_body(),
+        "a body placed twice is a fault, not an absence"
     );
     assert_ne!(
-        empty_kind, poisoned_kind,
+        empty_kind, twice_kind,
         "the two refusals are distinguishable without reading either sentence"
     );
 }

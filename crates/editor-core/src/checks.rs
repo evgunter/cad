@@ -1442,9 +1442,11 @@ mod tests {
     /// caller deriving its own subject can get wrong.
     #[test]
     fn the_subject_door_carries_the_class_of_the_gather_refusal_it_saw() {
-        let refusal = crate::ProductError::RootPoisoned {
-            node: RecipeNodeId(7),
-            through: RecipeNodeId(2),
+        let refusal = crate::ProductError::PlacedUnderTwoRoots {
+            placed: RecipeNodeId(2),
+            select: None,
+            first: RecipeNodeId(7),
+            second: RecipeNodeId(8),
         };
         let subject: Subject<'_, f64> = Subject::refused(&refusal);
         let Subject::Unavailable { kind, reason } = &subject else {
@@ -1495,10 +1497,10 @@ mod tests {
     fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
         for refusal in [
             crate::ProductError::NoBodyRoots,
-            crate::ProductError::RootPoisoned {
+            crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId(7),
                 through: RecipeNodeId(2),
-            },
+            }),
         ] {
             let absence = refusal.kind().means_no_body();
             let subject: Subject<'_, f64> = Subject::refused(&refusal);

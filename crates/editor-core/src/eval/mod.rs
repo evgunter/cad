@@ -934,8 +934,9 @@ pub struct NodeError {
 
 /// **An evaluation refusal, carried into a document-layer
 /// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault),
-/// [`EditError::PlacementAxis`](crate::EditError) and
-/// [`PartFault::PartRootFailed`](crate::PartFault) hold one.
+/// [`EditError::PlacementAxis`](crate::EditError),
+/// [`PartFault::PartRootFailed`](crate::PartFault) and
+/// [`PartFault::PartRootPoisoned`](crate::PartFault) hold one.
 ///
 /// It exists because [`NodeErrorKind`] carries kernel refusals
 /// UNALTERED (D2) and those kernel types have neither `Clone` nor
@@ -2052,8 +2053,8 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // ([`crate::finding`]): subject, story, its two-armed recourse.
 //
 // The one exception is a CARRIED refusal: another node's refusal, with
-// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`,
-// `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
+// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`
+// and `PartRootPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
 // never rendered inside this sentence, which names that node and points
 // at it; it is drawn as its own line, read off
 // [`NodeErrorKind::carried_chain`].
@@ -2461,7 +2462,8 @@ impl NodeErrorKind {
     /// over this type's `Display`, as a value.
     ///
     /// Two arms carry one. A part whose root failed carries that root's
-    /// refusal, in the REFERENCED document's id space; a mate whose
+    /// refusal, and one whose root was poisoned carries the refusal of
+    /// the node that poisoned it, in the REFERENCED document's id space; a mate whose
     /// placer's own row cannot state its refusal carries the placer's,
     /// in the mate's document. One step only: a surface reads the whole
     /// chain through [`NodeErrorKind::carried_chain`].

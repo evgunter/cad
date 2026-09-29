@@ -974,6 +974,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartEpsilonSeam => resolve_fault_tag(&ResolveFault::EpsilonSeam),
         C::PartUnresolved => resolve_fault_tag(&ResolveFault::Unresolved),
         C::PartRootFailed => "part_root_failed",
+        C::PartRootPoisoned => "part_root_poisoned",
         C::PartRootFailureUnrecorded => "part_root_failure_unrecorded",
         C::PartProduct => "part_product",
         C::PartReferenceCycle => "part_reference_cycle",
@@ -2010,10 +2011,14 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     use pncad::document::ProductError as E;
     match err {
         E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
-        E::UnknownNode { .. } => "unknown_node",
+        E::Root(standing) => match standing {
+            NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+                "unknown_node"
+            }
+            NodeStanding::Failed { .. } => "root_failed",
+            NodeStanding::Poisoned { .. } => "root_poisoned",
+        },
         E::PlacedUnderTwoRoots { .. } => "placed_under_two_roots",
-        E::RootFailed { .. } => "root_failed",
-        E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
         E::Graft { .. } => "graft_refused",
         E::RootInvalid { .. } => "root_invalid",

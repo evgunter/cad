@@ -2229,9 +2229,10 @@ enum BadgeSite {
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
 /// `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
-/// [`ProductError::UnknownNode`] are those same three states seen from
-/// the gather. That count is a MEASUREMENT of another module's enum,
+/// [`ProductErrorKind::RootFailed`], [`ProductErrorKind::RootPoisoned`]
+/// and [`ProductErrorKind::UnknownNode`] — the classes of
+/// [`ProductError::Root`], by the root's standing — are those same three
+/// states seen from the gather. That count is a MEASUREMENT of another module's enum,
 /// so it does not stand on this `match` being exhaustive:
 /// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
 /// is its guard, and a fourth non-`Ok` state reds there. The tree
@@ -2761,7 +2762,7 @@ mod tests {
     use super::*;
 
     use bvh::Aabb;
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{NodeStanding, RecipeNodeId};
     use pncad::prelude::{EntityKind, StableName};
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
@@ -3061,15 +3062,21 @@ mod tests {
         // nothing, so it must not wear the spelling rustdoc gates.)
         for (quiet, site) in [
             (ProductError::NoBodyRoots, BadgeSite::NotAFault),
-            (ProductError::RootFailed { node }, BadgeSite::FeatureTree),
             (
-                ProductError::RootPoisoned {
-                    node,
-                    through: RecipeNodeId(1),
-                },
+                ProductError::Root(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,
             ),
-            (ProductError::UnknownNode { node }, BadgeSite::FeatureTree),
+            (
+                ProductError::Root(NodeStanding::Poisoned {
+                    node,
+                    through: RecipeNodeId(1),
+                }),
+                BadgeSite::FeatureTree,
+            ),
+            (
+                ProductError::Root(NodeStanding::NotEvaluated { node }),
+                BadgeSite::FeatureTree,
+            ),
         ] {
             assert_eq!(
                 badge_site(quiet.kind()),

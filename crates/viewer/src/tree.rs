@@ -13,14 +13,14 @@
 //! ([`repair_wording`]), and both say only WHERE to go.
 //!
 //! A failure that CARRIES another node's refusal — a part whose root
-//! failed, a mate whose placer refused — points at that node and never
-//! quotes it, so the carried refusal is drawn under the row as a line
-//! of its own, and so on down, one line per document level
-//! ([`carried_lines`]). Each line is the kernel's own rendering of that
-//! node's failure, byte for byte. What this module adds is a label
-//! beside it, never inside it: WHICH document the line's node number
-//! belongs to, by file name, since the kernel knows a part only by its
-//! id.
+//! failed or was poisoned, a mate whose placer refused — points at the
+//! node that failed and never quotes it, so the carried refusal is
+//! drawn under the row as a line of its own, and so on down, one line
+//! per document level ([`carried_lines`]). Each line is the kernel's
+//! own rendering of that node's failure, byte for byte. What this
+//! module adds is a label beside it, never inside it: WHICH document
+//! the line's node number belongs to, by file name, since the kernel
+//! knows a part only by its id.
 //!
 //! What it does write, and what the rule above does not reach, is what
 //! a node IS: [`node_kind`]'s vocabulary spelling, [`node_number`]'s

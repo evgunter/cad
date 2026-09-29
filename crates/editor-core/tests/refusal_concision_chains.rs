@@ -428,7 +428,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/edit/edit-refusals-short-of-the-shape-guard.md
     "Part/DepthExceeded",
     "Part/NoResolver",
-    "Part/PartProduct",
     "Part/ReferenceCycle",
     "Part/Unresolved(EpsilonSeam)",
     "Part/Unresolved(PinMismatch)",
@@ -3264,16 +3263,17 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "RootFailureUnrecorded",
-            PartFault::RootFailureUnrecorded {
-                node: RecipeNodeId(7),
+            "PartRootPoisoned",
+            PartFault::PartRootPoisoned {
+                root: RecipeNodeId(8),
+                through: RecipeNodeId(7),
+                refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "PartProduct",
-            PartFault::PartProduct {
-                kind: editor_core::product::ProductErrorKind::NoBodyRoots,
-                message: "the document declares no body root".to_owned(),
+            "RootFailureUnrecorded",
+            PartFault::RootFailureUnrecorded {
+                node: RecipeNodeId(7),
             },
         ),
         (
@@ -3293,7 +3293,86 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ));
     }
+    rows.extend(part_products());
     rows
+}
+
+/// The instance rows of a part with no product, raised through real
+/// documents so each carries the gather's own sentence: a sketch-only
+/// part, whose roots denote no body, and a part that places its body
+/// under two roots.
+fn part_products() -> Vec<(String, NodeErrorKind)> {
+    use crate::fixture::resolver::{PartStore, with_resolver};
+    use crate::fixture::{ang, insert, len, on_frame, scl, square};
+    use editor_core::{CancelToken, DocumentId, Node, NodeResult, ProfileDoc, evaluate};
+    use geom_core::Tol;
+    let tol = Tol::witness();
+    let sketch = |label| {
+        on_frame(
+            ProfileDoc::empty(DocumentId::derive(label), tol),
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(0.0, 0.0, 0.5)],
+        )
+    };
+    let moved = |doc, input, dx| {
+        insert(
+            doc,
+            Node::Transform {
+                input,
+                translation: [len(dx), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        )
+        .0
+    };
+    let twice = {
+        let (doc, profile) = sketch("concision-part-twice");
+        let (doc, body) = insert(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
+        moved(moved(doc, body, 2.0), body, 4.0)
+    };
+    let mut store = PartStore::new();
+    let parts = [
+        (
+            "Part/PartProduct",
+            store.insert(sketch("concision-part-sketch").0, tol),
+        ),
+        (
+            "Part/PartProduct(PlacedUnderTwoRoots)",
+            store.insert(twice, tol),
+        ),
+    ];
+    let opts = with_resolver(store);
+    parts
+        .into_iter()
+        .map(|(name, part)| {
+            let (doc, instance) = insert(
+                ProfileDoc::empty(DocumentId::derive(name), tol),
+                Node::instantiate_part(part),
+            );
+            match evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol).result(instance) {
+                Some(NodeResult::Failed(error)) => match &error.kind {
+                    NodeErrorKind::Part { doc_ref, fault } => row(
+                        name,
+                        NodeErrorKind::Part {
+                            doc_ref: *doc_ref,
+                            fault: fault.clone(),
+                        },
+                    ),
+                    other => panic!("{name}: the instance refuses as a part: {other:?}"),
+                },
+                other => panic!("{name}: the instance refuses: {other:?}"),
+            }
+        })
+        .collect()
 }
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
