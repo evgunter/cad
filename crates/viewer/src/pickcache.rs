@@ -242,7 +242,7 @@ pub enum CacheStep {
     /// resubmitted.
     ///
     /// **A statement about the picture THIS sync asked about**, where
-    /// [`PickCache::indexing`] is the standing fact the chrome reads.
+    /// [`PickCache::indexing`] is the cache's standing record.
     /// The two are not the same question: a frame that submits a new
     /// picture answers [`CacheStep::Submitted`] and is indexing all
     /// the same.
@@ -466,8 +466,8 @@ impl PickCache {
         self.index.as_ref()
     }
 
-    /// Whether a build is outstanding: the indexing state the chrome
-    /// reads, as a value (`crate::frame::progress`).
+    /// Whether a build is outstanding: the cache's own record, one of
+    /// the two [`PickCache::index_seam`] reads for the chrome.
     ///
     /// **The cache's own record, and it is the only thing that can
     /// answer.** It says which PICTURE was asked for, where the seam
@@ -477,8 +477,8 @@ impl PickCache {
     /// picture stops existing, while the seam goes on building the
     /// orphan and goes on reporting itself busy for it.
     ///
-    /// **And the seam cannot disagree in the other direction**, which
-    /// is why it is not consulted as well. An attempt is recorded in
+    /// **And the index seam cannot disagree in the other direction**,
+    /// which is why it is not consulted as well. An attempt is recorded in
     /// the same step it is submitted, and from there the seam holds it
     /// — running or waiting — until it hands back the answer
     /// [`PickCache::pump`] takes straight to [`PickCache::land`],
@@ -492,14 +492,21 @@ impl PickCache {
     }
 
     /// Whether an index for the picture on screen is on its way, from
-    /// this cache's record and the fit seam the build waits on — the
-    /// one site that reads both, and what every consumer is handed.
+    /// this cache's record and the fit seam the build waits on.
     ///
     /// **The cache's record alone reads idle through the fit.** While
     /// the δ a document opens at is still being priced there is no δ
     /// to build at, so [`PickCache::sync`] is handed `None` and
     /// forgets; the build follows the fit with no gap, and from a
     /// user's seat the fit is its first step.
+    ///
+    /// **The fit's `busy` is read directly, where the index seam's is
+    /// not** ([`PickCache::indexing`] argues against it: that seam can
+    /// be busy with an orphan). A busy fit cannot be an orphan in the
+    /// sense that matters, because it holds the build back whatever it
+    /// is fitting: `ViewerApp::sync_scene` hands [`PickCache::sync`] a
+    /// δ only once the fit is idle. That is a fact of the call site,
+    /// not of this cache, and it is what this read leans on.
     pub fn index_seam(&self, fit: &dyn FitService) -> IndexSeam {
         if self.indexing() || fit.busy() {
             IndexSeam::Building
@@ -517,10 +524,13 @@ impl PickCache {
 /// **Whether the index seam is working toward the picture on screen**,
 /// as the chrome and a refused pick both read it.
 ///
-/// A value rather than a `bool` so that it has one door,
-/// [`PickCache::index_seam`], and a consumer cannot be handed
+/// A value rather than a `bool`, so a consumer cannot be handed
 /// [`PickCache::indexing`] in its place — the cache's record alone,
 /// which reads idle through the fit that precedes every first build.
+/// That is all the type stops: the variants are public, so a call site
+/// can still hand over one it built, and which door a consumer's value
+/// came from ([`PickCache::index_seam`]) is held by rows that drive the
+/// app, not by the type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IndexSeam {
     /// Nothing is being built, and nothing a build waits on is running.
@@ -633,10 +643,13 @@ impl core::error::Error for NotIndexed {}
 /// chosen at the call site. `held` is the index in hand
 /// ([`PickCache::index`]) and `seam` is [`PickCache::index_seam`].
 ///
-/// **The two cannot both be set**: [`PickCache::sync`] drops the held
-/// index in the same step that marks a build outstanding, and forgets
-/// it on every frame the fit is still pricing the δ, which is the
-/// whole of *current or absent, never behind* above.
+/// **The two cannot both be set, and half of that is the caller's
+/// ordering.** [`PickCache::sync`] drops the held index in the same
+/// step that marks a build outstanding — the cache's half. For a busy
+/// fit, the cache knows nothing of it: it is `ViewerApp::sync_scene`
+/// that submits the fit and then hands [`PickCache::sync`] no δ in the
+/// same frame, before any pane reads the seam, and that forgets the
+/// index.
 ///
 /// **This door is asked where no index describes the picture on
 /// screen** — the `else` of the pane's one currency read, which is

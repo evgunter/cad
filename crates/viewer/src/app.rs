@@ -3352,7 +3352,7 @@ mod properties_pane_tests {
     /// **One frame of the real app**, at a 1600 by 1000 window, with
     /// `time` and `events` as its input: every text run it painted and
     /// where. The one frame body every whole-app row here draws with.
-    fn app_frame(
+    pub(super) fn app_frame(
         ctx: &egui::Context,
         app: &mut ViewerApp,
         frame: &mut eframe::Frame,
@@ -3963,6 +3963,99 @@ mod properties_pane_tests {
         assert_eq!(
             held_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Path),
             ["add a step to the chain"]
+        );
+    }
+}
+
+/// **A click in the viewport while the index seam is busy**, driven
+/// through the whole app: the value `ViewerApp::ui` hands the viewport
+/// ([`ViewerBehavior::indexing`]) is what decides which refusal the
+/// click earns, and this row is where that call site is read.
+#[cfg(test)]
+mod index_seam_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use eframe::egui;
+    use egui_tiles::Tile;
+
+    use super::properties_pane_tests::app_frame;
+    use super::{Pane, ViewerApp};
+    use crate::evalseam::{FitDone, FitRequest, FitService};
+    use crate::pickcache::NotIndexed;
+    use crate::session::DocSession;
+
+    /// A fit seam that is always pricing and never answers: the
+    /// window between a document landing and its δ being chosen, held
+    /// open for as many frames as the row needs.
+    struct Pricing;
+
+    impl FitService for Pricing {
+        fn submit(&mut self, _request: FitRequest) {}
+        fn poll(&mut self) -> Option<FitDone> {
+            None
+        }
+        fn busy(&self) -> bool {
+            true
+        }
+    }
+
+    /// **The click is told an index is coming**, over a document that
+    /// has landed while its δ is still being fitted. That is the state
+    /// a document opens into: `sync_scene` hands the pick cache no δ,
+    /// so the cache holds no attempt and its own record reads idle, and
+    /// only a viewport handed the index seam's door hears the fit.
+    #[test]
+    fn a_click_while_the_fit_prices_the_delta_is_told_an_index_is_coming() {
+        let ctx = egui::Context::default();
+        let tol = pncad::tolerance::witness();
+        let mut app =
+            ViewerApp::assemble(&ctx, tol).expect("startup that needs no graphics device");
+        let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let mut session = DocSession::inline(document, tol);
+        session.pump();
+        app.session = session;
+        app.fit = Box::new(Pricing);
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut time = 0.0;
+        let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
+            time += 1.0;
+            app_frame(&ctx, app, &mut frame, Some(time), events)
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect::<Vec<_>>()
+        };
+
+        paint(&mut app, Vec::new());
+        assert!(
+            !app.picks.indexing() && app.picks.index().is_none(),
+            "the fixture is the cache's idle record under a fit in flight"
+        );
+        let at = app
+            .tree
+            .tiles
+            .iter()
+            .find(|(_, tile)| matches!(tile, Tile::Pane(Pane::Viewport)))
+            .and_then(|(id, _)| app.tree.tiles.rect(*id))
+            .expect("the viewport is laid out")
+            .center();
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        paint(&mut app, vec![egui::Event::PointerMoved(at)]);
+        paint(&mut app, vec![press(true), press(false)]);
+        let painted = paint(&mut app, Vec::new());
+
+        assert!(
+            painted.contains(&NotIndexed::Building.to_string()),
+            "the click's refusal promises the index the toolbar is spinning for: {painted:?}"
+        );
+        assert!(
+            !painted.contains(&NotIndexed::Absent.to_string()),
+            "and does not say none is being built"
         );
     }
 }

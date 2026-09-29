@@ -385,6 +385,18 @@ there is no argument list for them to be positions in — and
 site can transpose. The fold itself is covered by driving a session into each of
 the three states (`tests/eval_seam.rs`), because a row that names the
 states says nothing about which session state produces which.
+`frame::Progress` spells two of its states with `Outstanding`'s names
+because they are the same facts; its doc argues that against
+`frame::RankedVerdict`, which was split because one spelling carried
+two meanings.
+
+**What the types stop is a `bool` in the value's place, and only
+that.** `Outstanding`'s and `IndexSeam`'s variants are public — the
+rows plant them — so a call site can still hand a consumer a variant
+it built itself, and nothing in the type says which door the value came
+from. That half is held by rows that drive the call sites: the session
+fold above, and for the index seam the whole-app click and the
+toolbar's drawing in `app.rs`'s tests.
 
 `platform`'s `Zenity` and `SessionBus` are the same rule one module
 over: two independent environment readings that `ChooserBackend`
@@ -418,13 +430,17 @@ one that decides.
   record to consult.
 
 **The index seam is the one fact two of those records answer
-together.** The first build of a document waits on the fit that prices
-its δ, and while it waits `PickCache::sync` is handed no δ and holds no
-attempt, so the cache's record reads idle through a wait the build is
-already part of. `PickCache::index_seam` reads both and is the one
-door `IndexSeam` comes from; the toolbar's progress state and a refused
-pick (`pickcache::unindexed`) are each handed its value, and neither
-takes a `bool` a consumer could fill from the cache's record alone.
+together.** `ViewerApp::sync_scene` hands `PickCache::sync` no δ while
+the fit is busy, so a busy fit delays the build for the picture on
+screen whatever the fit is for — and while it waits the cache holds no
+attempt, and its record reads idle through a wait the build is already
+part of. That is why the fit's `busy` is consulted where the index
+seam's is not: the index seam can be busy with an orphan, and the fit
+cannot be busy without holding the build back. `PickCache::index_seam`
+reads both; the toolbar's progress state and a refused pick
+(`pickcache::unindexed`) are each handed its value from `ViewerApp`,
+and neither takes a `bool` a consumer could fill from the cache's
+record alone.
 
 **A seam that has stopped answering is no longer one of the states any
 of this covers.** It used to be: reporting the cache's record alone

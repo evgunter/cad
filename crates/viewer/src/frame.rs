@@ -2604,7 +2604,8 @@ pub enum Progress {
     /// alone would be a lie about work nobody is doing.
     ///
     /// `index` is whether a seam BELOW the evaluation is nonetheless
-    /// busy, and it is carried here rather than answered by a second
+    /// busy — an index build, or the display fit the index waits on —
+    /// and it is carried here rather than answered by a second
     /// indicator because this is the one state where the seams
     /// disagree about whether anything is happening: a build submitted
     /// before the cancel is still running, and it will change the
