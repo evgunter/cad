@@ -523,6 +523,8 @@ mod germ_interior_oval;
 mod germ_interior_saddle;
 #[path = "germ_sphere_no_crossings.rs"]
 mod germ_sphere_no_crossings;
+#[path = "germ_tilted_rod.rs"]
+mod germ_tilted_rod;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]

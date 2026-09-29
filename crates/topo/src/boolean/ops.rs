@@ -534,9 +534,9 @@ fn boolean_op_recut<
     // verbatim. The clones are taken only when the door can open
     // (declared union), so undeclared and non-union ops pay nothing.
     // Decided on the reduction, while its contacts still name the
-    // operands' own faces; RAISED only where a body is about to be
-    // returned, so every refusal the pipeline meets first stands
-    // verbatim ([`interior_loop_verdict`]).
+    // operands' own faces; raised on the built body, after the
+    // structural gate and before the volume backstop
+    // ([`interior_loop_verdict`]).
     let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
@@ -560,11 +560,16 @@ fn boolean_op_recut<
             Some((sa, sb)) => {
                 red.a = sa;
                 red.b = sb;
-                return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
-                    Some(result) => {
-                        interior_loops?;
-                        Ok(result)
-                    }
+                return match super::rest::try_rest_union(
+                    red,
+                    a,
+                    b,
+                    decls,
+                    interior_loops,
+                    band,
+                    tol,
+                )? {
+                    Some(result) => Ok(result),
                     // Not the REST frontier: the original join
                     // refusal stands, verbatim.
                     None => Err(err),
@@ -630,8 +635,8 @@ fn boolean_op_recut<
     body.sweep_and_close();
     let body = finished;
     gate(&body)?;
-    volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
+    volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -669,9 +674,13 @@ fn boolean_op_recut<
 /// `face` is the pair's A face when that face is curved, else its B
 /// face.
 ///
-/// Decided on the unmutated reduction and raised only where a body
-/// would be returned (the call site), so every refusal the pipeline
-/// meets first stands verbatim.
+/// Decided on the unmutated reduction and raised on the built body,
+/// so every refusal the join and the build meet first stands verbatim.
+/// It is raised after `gate`, whose tiers hold for a correct surgery
+/// whatever the classification, and before the volume backstop, which
+/// checks the classification this verdict has already declined to
+/// certify: on a refused pair the verdict is the cause, and the
+/// backstop's refusal on the same body would name a symptom.
 fn interior_loop_verdict<
     T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
 >(

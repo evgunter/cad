@@ -75,3 +75,18 @@ lune refuses identically, so the wedge arm is not involved; a notch in
 the lune's flat wall (`square(0, 3, 0.2)`) builds and gathers.
 Measured with a throwaway probe in `crates/editor-core/tests/m10_2_measure.rs`,
 not committed.
+
+## More evidence (GERM, branch `germ/tilted-rod-remeasure`, 2026-09-29)
+
+A box against an oblique rod, every face pair certified by the section
+certificate, refuses at the backstop on every op. The box is extruded
+from `[0.5, 3] × [−1, 1]` at `z = −2`, height 2. The rod is
+`germ_pair::cyl(0.15, 0.85)` tilted 0.5 rad about `y`, its axis from
+`(1.8, 0, 0)` along `(−sin 0.5, 0, −cos 0.5)` over `t ∈ [−0.3, 1.4]`,
+at spin 0 and spin π/2. ∪, ∩, and ∖ in both orders all refuse
+`ClassificationInvariant { "volume backstop: mass properties refused on
+a tier-valid planar body" }`. A logging patch, reverted, gave the source:
+`mass_properties_closed_form` on the result refuses `NotIsoRectangle
+"cylinder boundary carries an ellipse arc (curved cut)"`. The operands
+measure. Not pinned: the row belongs with the fix.
+
