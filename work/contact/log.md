@@ -830,3 +830,19 @@ Signed: (CONTACT orchestrator)
   survived with uncommitted work, and both lanes are resumed.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — Ev ruled on #3422; CONTACT-13 dispatched
+
+- **Ev's ruling:** "for 1, nice find! sounds good". Decision 2 takes C1,
+  the reach-box reading for curved star faces. Ev asked for a row for
+  the tighter curved-cone reading, filed as
+  `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box`
+  (P3, H).
+- Fork-log row 13 records the decision and the A/B mapping. The row
+  was renumbered at merge: ORIGIN took 11 and 12.
+- **CONTACT-13** carries the declared-only P0. It builds the meeting
+  ledger, makes only a Rest clear, and adds the C1 box reading. Review:
+  dual. It runs in parallel with CONTACT-12 on the same file, confined
+  to arm 1's skip, arm 2 and the star. CONTACT-12 lands first.
+
+Signed: (CONTACT orchestrator)
