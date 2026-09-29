@@ -258,3 +258,12 @@ slate. `curve-field-walks-…`, `surface-field-census-…` and
 `carrier-eq-source-rung-…` dispatched as one unit on
 `origin/curve-walk` (single STYLE review: the pattern is PR 3429's,
 repeated).
+
+## 2026-09-29 — PR 3442 lands (curve walk, SurfaceField, curved rung)
+
+Single STYLE review: APPROVE; the fix pass took its findings anyway
+(the surface memo row's prefix-only check — a half-fix the curve side
+had closed; the shared core moved to `geom::datum`; exhaustive kind
+fixtures; the `face_plane_source` → `face_oriented_source` rename with
+its planes-only premise). Three rows close. The slate left is design
+only (see `plan.md`).
