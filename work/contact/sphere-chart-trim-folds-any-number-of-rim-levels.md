@@ -44,3 +44,13 @@ Count the distinct rim latitudes, as `wall_outline` counts rim levels,
 and keep the rectangle for exactly two (one if a pole closes the face).
 Read anything else by parity along the meridian, or refuse it as
 `PartialSphereFace`. Either is the cylinder's discipline.
+
+## A second closing shape (CONTACT-11)
+
+The cone and torus trims now both decide the face-is-its-box question
+by area, on the one check `chord_join::chart_box_defect`
+(`bool_cone_chart_box`, `bool_torus_chart_box`). The sphere could share
+it instead of counting levels, provided a pole junction closes the
+chart polygon along the pole's own latitude (the cone's apex closure is
+the precedent). Either spelling closes this row; counting levels is
+still the cylinder's and the props door's.
