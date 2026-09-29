@@ -1484,10 +1484,9 @@ pub(super) fn cone_face_trim<T: Decide>(
 /// once. A face through the apex twice, or once with a ring, has no
 /// single lift. The window trims only when it is definitely narrower
 /// than a period AND the face is the chart rectangle it reports
-/// (`bool_cone_chart_box`, [`crate::chord_join::chart_box_defect`]): a
-/// face with a notch has the rectangle's hull, and the window would
-/// cover the notch. The torus trim decides the same defect
-/// (`bool_torus_chart_box`).
+/// (`bool_cone_chart_box`, [`chart_polygon_box`], the torus trim's
+/// decision too): a face with a notch has the rectangle's hull, and the
+/// window would cover the notch.
 ///
 /// # Errors
 ///
@@ -1522,12 +1521,12 @@ fn cone_trimmed_window<T: Decide>(
         Err(SplitJoinError::Escalated { diag, .. }) => return Err(esc(diag)),
         Err(_) => return Err(PointInSolidError::CorruptFace { face }),
     };
-    let crate::chord_join::ChartBox {
-        u: az,
-        v: chart_v,
-        defect,
-    } = crate::chord_join::chart_box_defect(&images)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let half_angle = match surf {
+        Surface::Cone { half_angle, .. } => half_angle,
+        _ => return Err(PointInSolidError::CorruptFace { face }),
+    };
+    let az =
+        crate::chord_join::azimuth_hull(&images).ok_or(PointInSolidError::CorruptFace { face })?;
     let lever = v.0.abs().max(v.1.abs());
     if decide(
         "bool_cone_trim_period",
@@ -1539,19 +1538,37 @@ fn cone_trimmed_window<T: Decide>(
     {
         return Err(partial);
     }
-    // The defect is an area in (radian × metre); over the slant span it
-    // is the azimuth the notch removes, levered like the period.
-    if decide(
+    // The polygon's sides: each image, then the side from the last exit
+    // back to the first entry, which is the apex jump when the walk was
+    // closed there (at `v = 0`, on the box's apex side). The arms bound
+    // the metric separation from above: a slant difference is the
+    // distance along a generator, exactly, and an azimuth difference
+    // moves a point at most the largest parallel radius per radian.
+    let (first, last) = (
+        images
+            .first()
+            .ok_or(PointInSolidError::CorruptFace { face })?,
+        images
+            .last()
+            .ok_or(PointInSolidError::CorruptFace { face })?,
+    );
+    let sides: Vec<((T, T), (T, T))> = images
+        .iter()
+        .map(|i| ((i.entry, i.v.0), (i.exit, i.v.1)))
+        .chain([((last.exit, last.v.1), (first.entry, first.v.0))])
+        .collect();
+    match chart_polygon_box(
         "bool_cone_chart_box",
-        Margin::levered(defect / (chart_v.1 - chart_v.0), lever),
+        &sides,
+        lever * half_angle.sin(),
+        T::one(),
         band,
     )
     .map_err(esc)?
-        != Sign::Zero
     {
-        return Err(partial);
+        Some(_) => Ok(az),
+        None => Err(partial),
     }
-    Ok(az)
 }
 
 /// The face's slant window, folded over its outer cycle's vertices.
@@ -1861,29 +1878,27 @@ pub(super) fn torus_face_windows<T: Decide>(
 /// axis-aligned segment (the affine guard below), so the boundary is a
 /// rectilinear chart polygon, and:
 ///
-/// * `bool_torus_chart_closure` — the last exit is the first entry, on
-///   the branch the walk pinned. A nonzero difference means the chain
-///   lost a branch and the window belongs to a different face;
-/// * `bool_torus_chart_box` — the polygon's area is its bounding box's
-///   ([`crate::chord_join::chart_box_defect`]). An L or a U falls short
-///   by its notch, and an L is monotone in both channels, so neither
-///   its extents nor its total variation can see it.
+/// * `bool_torus_chart_closure` — each entry is the previous exit, and
+///   the last exit is the first entry, on the branch the walk pinned. A
+///   nonzero difference means the chain lost a branch or stepped over an
+///   edge, and the window belongs to a different face;
+/// * `bool_torus_chart_box` — every side lies on a side of the bounding
+///   box ([`chart_polygon_box`]). An L's or a U's inner sides lie inside
+///   it, by the notch's own width or depth.
 ///
-/// **This is a class.** [`cone_chart_trim`] decides the same defect
-/// (`bool_cone_chart_box`). [`sphere_chart_trim`] builds its window the same way — a
-/// fold over boundary images — and does not check that the boundary is
-/// the rectangle it reports; its premise is stated (ISO-BOUNDED, with a
-/// checked edge-class membership) but the box itself is not checked
-/// there.
+/// **This is a class.** [`cone_chart_trim`] decides the same way
+/// (`bool_cone_chart_box`). [`sphere_chart_trim`] builds its window the
+/// same way — a fold over boundary images — and does not check that the
+/// boundary is the rectangle it reports; its premise is stated
+/// (ISO-BOUNDED, with a checked edge-class membership) but the box
+/// itself is not checked there.
 ///
-/// **The null-scaffolding skip is unchecked**, and stated so rather than
-/// premised silently: an edge with no certified curve geometry is
-/// stepped over on the grounds that it is a zero-length coincident copy,
-/// and nothing here verifies that its endpoints coincide. A
-/// NON-degenerate edge reaching that arm would be skipped, and both the
-/// closure and box checks above would then see a gap — so it fails
-/// loudly into `PartialTorusFace` rather than silently into a wrong
-/// window, which is why it is recorded rather than guarded.
+/// **The null-scaffolding skip is not a gap.** An edge with no certified
+/// curve geometry is stepped over as a zero-length coincident copy. The
+/// closure check decides that it is one: a NON-degenerate edge skipped
+/// there leaves the next entry away from the previous exit (or the last
+/// exit away from the first entry), and the face refuses as
+/// `PartialTorusFace` rather than being served the rest of its boundary.
 ///
 /// [`crate::chord_join`]'s `run_azimuth_window` is the same construction
 /// for the split/join lane. It is not shared with this one, and the
@@ -1921,8 +1936,9 @@ fn torus_chart_windows<T: Decide>(
         return Ok(None);
     };
     let tau = T::tau();
-    let mut prev_exit: Option<(T, T)> = None;
-    let mut images: Vec<crate::chord_join::AzimuthImage<T>> = Vec::new();
+    // Each boundary edge's chart image, `(entry, exit)` on the branch the
+    // walk pinned.
+    let mut sides: Vec<((T, T), (T, T))> = Vec::new();
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
@@ -1973,59 +1989,135 @@ fn torus_chart_windows<T: Decide>(
         };
         let at = |t: T| (p0.x + pl.x * t, p0.y + pl.y * t);
         let (mut entry, mut exit) = (at(entry_t), at(exit_t));
-        if let Some((pu, pv)) = prev_exit {
+        if let Some(&(_, (pu, pv))) = sides.last() {
             let ku = (pu - entry.0).periodic_branch(tau) * tau;
             let kv = (pv - entry.1).periodic_branch(tau) * tau;
             entry = (entry.0 + ku, entry.1 + kv);
             exit = (exit.0 + ku, exit.1 + kv);
+            // **The walk is continuous**: each entry is the previous
+            // exit, so an edge the walk stepped over leaves a gap here.
+            if !torus_chart_meets(face, (pu, pv), entry, (lever, minor_radius), band)? {
+                return Ok(None);
+            }
         }
-        images.push(crate::chord_join::AzimuthImage {
-            he,
-            entry: entry.0,
-            exit: exit.0,
-            range: (entry.0.min(exit.0), entry.0.max(exit.0)),
-            v: (entry.1, exit.1),
-        });
-        prev_exit = Some(exit);
+        sides.push((entry, exit));
     }
-    let (Some(first), Some(last)) = (images.first(), images.last()) else {
+    let (Some(&(start, _)), Some(&(_, end))) = (sides.first(), sides.last()) else {
         return Ok(None);
     };
-    // **The walk must close.** A cycle's last exit is its first entry, in
-    // both channels and on the branch the walk pinned — so a nonzero
-    // difference means the chain lost a branch somewhere, and every
-    // window read off it would be a different face's. Decided, not
-    // assumed: the two channels' own levers, as everywhere else here.
-    for (delta, lev) in [
-        (last.exit - first.entry, lever),
-        (last.v.1 - first.v.0, minor_radius),
-    ] {
+    // **The walk closes**: the last exit is the first entry on the branch
+    // the walk pinned. A walk that lost a branch, or stepped over its
+    // first or last edge, does not.
+    if !torus_chart_meets(face, end, start, (lever, minor_radius), band)? {
+        return Ok(None);
+    }
+    // **The window is a BOX, and this is what checks the face is one**
+    // (header). The arms bound the metric separation from above: a
+    // parallel's radius `R + r·cos t` is at most `R + r`, and a minor
+    // angle's arc on the tube is `r·Δt`, at least its chord.
+    chart_polygon_box("bool_torus_chart_box", &sides, lever, minor_radius, band)
+        .map_err(|diag| PointInSolidError::Escalated { face, diag })
+}
+
+/// Do two chart points of one torus walk coincide? Each channel's
+/// difference is decided at its arm (`(major, minor)`: `R + r` and `r`,
+/// each at least the metres a radian of it moves a point), so Zero is a
+/// coincidence in metres.
+///
+/// # Errors
+///
+/// [`PointInSolidError::Escalated`] in-band.
+fn torus_chart_meets<T: Decide>(
+    face: FaceKey,
+    a: (T, T),
+    b: (T, T),
+    (major, minor): (T, T),
+    band: Band,
+) -> Result<bool, PointInSolidError> {
+    for (delta, arm) in [(a.0 - b.0, major), (a.1 - b.1, minor)] {
         if decide(
             "bool_torus_chart_closure",
-            Margin::levered(delta, lev),
+            Margin::levered(delta, arm),
             band,
         )
         .map_err(|diag| PointInSolidError::Escalated { face, diag })?
             != Sign::Zero
         {
-            return Ok(None);
+            return Ok(false);
         }
     }
-    // **The window is a BOX, and this is what checks the face is one**
-    // (header). The defect is an area in radian²; over the minor span it
-    // is the major angle the notch removes, levered like the major
-    // window.
-    let crate::chord_join::ChartBox { u, v, defect } =
-        crate::chord_join::chart_box_defect(&images).ok_or_else(corrupt)?;
-    if decide(
-        "bool_torus_chart_box",
-        Margin::levered(defect / (v.1 - v.0), lever),
-        band,
-    )
-    .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-        != Sign::Zero
-    {
+    Ok(true)
+}
+
+/// **Is a rectilinear chart polygon its own bounding box?** The one
+/// decision behind `bool_torus_chart_box` and `bool_cone_chart_box`,
+/// decided under `name`.
+///
+/// `sides` are the polygon's sides as `(from, to)` chart points `(u, v)`,
+/// in order, and every one is an iso segment (the callers' premise). Such
+/// a polygon is its bounding box exactly when every side lies on one of
+/// the box's four sides: its boundary is then a closed curve inside the
+/// box's boundary, which a face's outer loop, walked once, covers. A
+/// notch's sides lie inside the box, each as far from the box's nearest
+/// side as the notch is wide or deep, so the distance decided here is
+/// linear in the notch, and the notch's centre is half of it from the
+/// face.
+///
+/// A side's distance from a box side is the larger of its two ends',
+/// crossed to metres by `u_arm` or `v_arm`. The verdict that accepts is
+/// Zero, so each arm must bound the true separation from ABOVE: an arm
+/// that understated it would read a real notch as coincident. Each
+/// caller says why its arms do.
+///
+/// `Some(box)` when every side lies on a side of the box, `None` when one
+/// definitely does not.
+///
+/// # Errors
+///
+/// The escalation of a side on no box side, which some box side holds in
+/// band.
+#[allow(clippy::type_complexity)] // the polygon's sides and its box
+fn chart_polygon_box<T: Decide>(
+    name: &'static str,
+    sides: &[((T, T), (T, T))],
+    u_arm: T,
+    v_arm: T,
+    band: Band,
+) -> Result<Option<((T, T), (T, T))>, Indeterminate> {
+    let Some(&(first, _)) = sides.first() else {
         return Ok(None);
+    };
+    let (mut u, mut v) = ((first.0, first.0), (first.1, first.1));
+    for &(a, b) in sides {
+        for q in [a, b] {
+            u = (u.0.min(q.0), u.1.max(q.0));
+            v = (v.0.min(q.1), v.1.max(q.1));
+        }
+    }
+    let far = |x: T, y: T, side: T| (x - side).abs().max((y - side).abs());
+    for &(a, b) in sides {
+        let mut escalated = None;
+        let mut on_a_side = false;
+        for (d, arm) in [
+            (far(a.0, b.0, u.0), u_arm),
+            (far(a.0, b.0, u.1), u_arm),
+            (far(a.1, b.1, v.0), v_arm),
+            (far(a.1, b.1, v.1), v_arm),
+        ] {
+            match decide(name, Margin::levered(d, arm), band) {
+                Ok(Sign::Zero) => {
+                    on_a_side = true;
+                    break;
+                }
+                Ok(Sign::Positive | Sign::Negative) => {}
+                Err(diag) => {
+                    escalated.get_or_insert(diag);
+                }
+            }
+        }
+        if !on_a_side {
+            return escalated.map_or(Ok(None), Err);
+        }
     }
     Ok(Some((u, v)))
 }
