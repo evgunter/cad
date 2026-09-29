@@ -14,8 +14,8 @@ cost: E
 
 ## What
 
-Two frame-side refusals offer "declare the coincidence" at doors that
-take no declaration:
+Two frame-side refusals offer "declare the coincidence" at doors whose
+declaration, if they take one, cannot name the decision:
 
 1. `UnitVec3Error::Escalated` (`crates/geom-core/src/linalg/unit_vec.rs`,
    the variant near :143, its `Display` near :165) renders "a direction
@@ -31,9 +31,10 @@ take no declaration:
    `Display` near :331) renders the payload, then
    `Recourse: {COINCIDENCE_RECOURSE}`. The mate solve raises it for an
    in-band aim direction (`crates/editor-core/src/mate/solve.rs` near
-   :608), and so do the frame ladder constructors. Neither a mate
-   (`Node::Mate`, `crates/editor-core/src/node.rs` near :2417) nor a
-   frame takes a declaration. The field-type greps in the CHROME row
+   :608), and so do the frame ladder constructors. A mate does carry a
+   declaration: `Node::Mate` (`crates/editor-core/src/node.rs` near
+   :2417) declares a face pair's contact class. But that declaration
+   has no object for a direction's length, and a frame takes none. The field-type greps in the CHROME row
    miss this one: its field is `indeterminate: Option<Indeterminate>`.
 
 ## Repair shape

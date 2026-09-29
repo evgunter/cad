@@ -73,9 +73,10 @@ words, with the name left to `Debug`:
   holds that against `src`, so a name decided later without words goes
   red there. A name from outside the crate reads `geom_core::UNNAMED_DECISION`,
   which the shape guard reads as no subject.
+
 ## Escalations that offer a declaration the door cannot take (CHROME triage)
 
-(From the triage in `work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`.) 
+(From the triage in `work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`.)
 
 - `StructureRefusalKind::Indeterminate` (`crates/profile/src/structure.rs`
   near :685, `Display` near :830) renders

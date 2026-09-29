@@ -47,3 +47,23 @@ lever that reaches the split's case is the split plane or the geometry.
 See `sweep::blend::BlendError::Escalated`'s `Display` (one match
 returning subject and recourse) and `profile::validate::decision_subject`.
 The guard is `test_utils::refusal::subjectless_escalations`.
+
+## The same case inside `BooleanError::Escalated`
+
+`BooleanError::Escalated` (`crates/topo/src/boolean/mod.rs` near :843,
+`Display` near :1702) renders the payload, then
+`Recourse: {COINCIDENCE_RECOURSE}`, for every decision that raises it.
+For its coincidence raisers that is right: the `carrier_eq`/`plane_eq`
+rungs, the tangent locus and the section escalations. A face-pair
+declaration names nothing for these raisers:
+
+- the sector rung, `SectorFault::Rung` (`crates/topo/src/boolean/sectors.rs` :235);
+- the pierce point's face normal, `NormalAtError::Escalated`
+  (`crates/topo/src/boolean/vtxfac.rs` :145);
+- point containment, `ContainError::Escalated`
+  (`crates/topo/src/boolean/reduce.rs` :1967 and :2274).
+
+A subject routed by `diag.predicate`, as blend does, would let the
+recourse follow the decision. `boolean/mod.rs` has no owner by
+`work.py territory`, and the sector, normal and containment files are
+TOPO's, so the row is here.

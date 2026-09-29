@@ -80,6 +80,19 @@ take no declaration:
   selection queries reach users through `pncad::select` and Python.
   A query takes no declaration.
 
+  `geompred.rs` :307–312 argues on purpose that the three-lever
+  sentence is right here, because "a selection margin IS a decidability
+  question". Every escalation is a decidability question, though, and
+  that is not what makes "declare the coincidence" advice. It is advice
+  only where some declaration can name the decision. `select`,
+  `select_where` and the `GeomPred` comparisons take none, and no
+  `Declare` node feeds a selector. The levers this door does have are
+  the geometry, the tolerance, and the selector's own comparand (its
+  `Cmp` bound or datum distance). Moving the comparand off the cliff is
+  the one lever the shared sentence leaves out. As with extrude and
+  revolve on CARVE, whether to keep the menu is WIRE's call; this row
+  records that the door has no declaration for it to name.
+
 `SelectRefusal::PairInBand` (near :277) is not listed. It is the flush
 detector's in-band pair, and declaring that pair on the Boolean's
 `declare` input is a real way through.

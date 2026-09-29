@@ -13,7 +13,10 @@ cost: E
 `work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`
 and filed here so the disclosure has a file. `work.py territory` gives
 `crates/topo/src/merge_faces.rs` to TOPO and ZIP. It names no owner for
-`crates/topo/src/boolean/mod.rs`, so this row takes both.)
+`crates/topo/src/boolean/mod.rs`, so this row takes both. The
+contradicting verdicts themselves are minted in
+`crates/topo/src/boolean/carrier_eq.rs`, which is TANG's ground, and
+the repair's routing table reads that file's predicate names.)
 
 ## What
 
@@ -22,8 +25,14 @@ recourse of their own:
 
 - `BooleanError::DeclarationContradicted`
   (`crates/topo/src/boolean/mod.rs:1750`, the variant at :871): "a
-  declared coincidence contradicts the geometry ({diag}) — … fix the
-  declaration or the geometry, the op never glues a lie".
+  declared coincidence contradicts the geometry ({diag}) — the declared
+  pair's planes are definitely distinct; fix the declaration or the
+  geometry, the op never glues a lie". It is raised at `reduce.rs:641`,
+  `vtxfac.rs:331` and `recl.rs:148`. The `recl.rs` site takes a
+  **non-planar** pair through `carrier_eq`. So the fixed words "the
+  declared pair's planes are definitely distinct" (`boolean/mod.rs:1752`)
+  are false there: the pair may be two cylinders, two spheres or two
+  tori.
 - `MergeCoplanarError::DeclarationContradicted`
   (`crates/topo/src/merge_faces.rs:560`, the variant at :417, raised at
   :1868): "merge_coplanar_faces: declared coincidence contradicts the
@@ -31,12 +40,19 @@ recourse of their own:
   function-name label is the shape guard's `stage_prefixes` problem as
   well.
 
-The `diag` is not an escalation. `plane_eq` builds it for a DEFINITE
-verdict with `margin: MarginDiag::INVALID`
-(`crates/topo/src/boolean/plane_eq.rs:304` and :344, for
-`bool_plane_parallel` and `bool_plane_offset`), and so does
-`carrier_eq` (`crates/topo/src/boolean/carrier_eq.rs:336`, for
-`carrier_kind`). So `{diag}` renders "margin is invalid (NaN or a
+The `diag` is not an escalation. Every site builds it for a DEFINITE
+verdict with `margin: MarginDiag::INVALID`, at four raise sites:
+
+- `crates/topo/src/boolean/plane_eq.rs:304` (`bool_plane_parallel`);
+- `plane_eq.rs:344` (`bool_plane_offset`);
+- `crates/topo/src/boolean/carrier_eq.rs:336` (`carrier_kind`);
+- `carrier_eq.rs:397–404`, in `data_rungs`: the cylinder, sphere and
+  torus parameter predicates (`carrier_cyl_axis_parallel`,
+  `carrier_cyl_axis_offset`, `carrier_cyl_radius`,
+  `carrier_sphere_center`, `carrier_sphere_radius`,
+  `carrier_torus_axis_parallel`, `carrier_torus_center`,
+  `carrier_torus_major_radius`, `carrier_torus_minor_radius`). These
+  reach the Boolean through `recl.rs:139–148`. So `{diag}` renders "margin is invalid (NaN or a
 poisoned enclosure) against the ambiguity band (…) — check the
 operation's inputs upstream, then declare the coincidence, move the
 geometry, or lower the tolerance". That text is wrong three ways:
@@ -63,10 +79,16 @@ samples today.
 Drop `{diag}` from both sentences, and do not substitute `payload()`:
 for this `INVALID` margin it says "margin is invalid (NaN or a poisoned
 enclosure)", which is equally false. Say which fact contradicted the
-declaration, in words routed by `diag.predicate` ("the declared faces'
-planes are not parallel" for `bool_plane_parallel`, "…are parallel but
-apart" for `bool_plane_offset`, "…are different kinds of surface" for
-`carrier_kind`). Then label the existing lever:
+declaration, in words routed by `diag.predicate`. That takes one clause
+per predicate above, not three: "the declared planes are not parallel"
+(`bool_plane_parallel`), "…are parallel but apart"
+(`bool_plane_offset`), "the declared faces are different kinds of
+surface" (`carrier_kind`), "the cylinders' axes are not parallel",
+"…their radii differ", "the spheres' centres differ", and so on for the
+torus rungs. Replace the fixed "planes" clause at `boolean/mod.rs:1752`
+with the routed one. `contact_verify.rs` :125–134 (`fit_steer`) already
+names several of these predicates and tells an angular contradiction
+from a separation; the table can start there. Then label the existing lever:
 `Recourse: fix the declaration or move the geometry`. That gives
 exactly one marker. If the measured margin is worth showing, the raise
 sites have to carry it (`plane_eq` decides the sign, then throws the

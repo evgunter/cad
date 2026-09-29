@@ -95,21 +95,48 @@ triage stands.
 ## Closed (CHROME triage, 2026-09-29)
 
 At `ec6bf25`, the two greps hit 88 sites outside `tests/`: 62 field-shaped
-and 26 tuple-shaped. Every one is classed below. A door's
-declaration is `BooleanDeclarations` (`crates/topo/src/boolean/mod.rs`
-near :378). In the recipe it is the `declare` input of `Node::Boolean`
-and `Node::Union` (`crates/editor-core/src/node.rs` near :2036 and
-:2144), and no other node carries one. A profile's declaration is its
-tangent joints (`ProfileLoop::tangent_joints`). The viewer draws
-`NodeErrorKind`'s `Display` (`crates/viewer/src/tree.rs`).
+and 26 tuple-shaped. Every one is classed below.
 
-Classes: **(a)** the door takes a declaration, so the menu is right;
-**(b)** it does not, so the site owes `payload()`, a subject and a
-routed `Recourse:`; **(c)** it is never shown, because it is caught and
-re-wrapped (the wrapper is cited); **(d)** it is done or filed.
+These are the declarations a door can take:
 
-Counts: **a 12, b 26, c 26, d 24.** None of the (b) sites is on
-CHROME's ground (`crates/viewer`). They are filed on seven programs'
+- `BooleanDeclarations` (`crates/topo/src/boolean/mod.rs` near :378): a
+  face pair and its class. In the recipe it is the `declare` input of
+  `Node::Boolean` and `Node::Union` (`crates/editor-core/src/node.rs`
+  near :2036 and :2144).
+- A mate's contact declaration: `Node::Mate` carries a face pair and a
+  `ContactClass` (`node.rs` near :2417). The at-rest gate mints it into
+  the assembly's contact records (`crates/pncad/src/document.rs`
+  :368–380).
+- STEP import's `ImportOptions::declared_contacts`
+  (`crates/pncad/src/prelude.rs` :568–592). Only the Rust door has it:
+  Python's `import_step` withholds the field.
+- A profile's tangent joints (`ProfileLoop::tangent_joints`).
+
+The viewer draws `NodeErrorKind`'s `Display` (`crates/viewer/src/tree.rs`).
+
+Classes:
+
+- **(a)** The door takes a declaration **that can name the decision
+  that failed**: a coincidence or contact between faces, or a tangency
+  at a profile joint. There the menu's "declare" lever is real advice.
+- **(b)** The door takes no declaration, or takes one that cannot name
+  the failed decision. A mate's contact pair says nothing about a
+  direction's length, and a Boolean face pair says nothing about where
+  a crossing lands on an edge. The site owes `payload()`, a subject and
+  a routed `Recourse:`.
+- **(c)** It is never shown: it is caught and re-wrapped (the wrapper is
+  cited).
+- **(d)** It is done or filed.
+
+A door that takes a declaration is a fact about the door. It is not a
+verdict on every site the door raises, so an entry whose raise sites
+differ says so.
+
+Counts: **a 11, b 27, c 26, d 24.** Two entries are mixed, and each is
+counted by its main class: `BooleanError::Escalated` (a, with its
+non-coincidence raisers filed) and `ValidationError::CensusEscalated`
+(b at the doors that take no declaration). None of the (b) sites is on
+CHROME's ground (`crates/viewer`). They are filed on these programs'
 slates and on `work/issues/`:
 
 - `work/carve/carve-refusals-short-of-the-shape-guard.md`: 13
@@ -123,6 +150,10 @@ slates and on `work/issues/`:
 - `work/curved/curved-escalations-offer-a-declaration-the-door-cannot-take.md`: 1
 - `work/linalg/linalg-escalations-offer-a-declaration-the-door-cannot-take.md`: 1,
   plus `FrameError::Degenerate`, which the second pass found
+- `work/lib/lib-escalations-offer-a-declaration-the-door-cannot-take.md`:
+  `CensusEscalated` at Python's `import_step` and `Body.validate_geometric`
+- `work/topo/topo-escalations-offer-a-declaration-the-door-cannot-take.md`
+  also takes `BooleanError::Escalated`'s raisers that no face pair names
 
 ### The table
 
@@ -132,7 +163,7 @@ editor-core
 - `eval/mod.rs:1580` `NodeErrorKind::UndeclaredContact`: a (Boolean/Union `declare`; payload with its own two-armed recourse)
 - `eval/mod.rs:1604` `NodeErrorKind::UndeclarableContact`: d (payload with a no-declare recourse)
 - `names/emit.rs:360` `NamingError::Escalated`: b, WIRE/EMIT (no declaration names a naming discriminator)
-- `names/geompred.rs:213` `SelectRefusal::InBand`: b, WIRE (reached through `pncad::select` and Python, not the viewer)
+- `names/geompred.rs:213` `SelectRefusal::InBand`: b, WIRE (reached through `pncad::select` and Python, not the viewer; the filing answers the argument at `geompred.rs` :307–312)
 - `names/geompred.rs:277` `SelectRefusal::PairInBand`: a (the flush pair is declarable on the Boolean's `declare` input)
 
 geom-brep
@@ -175,19 +206,19 @@ sweep
 - `revolve/tube.rs:149` `TubeError::Escalated`: b, CARVE
 
 topo
-- `boolean/carrier_eq.rs:82, :95, :103` (`Escalated`, `Undeclared`, `Contradicted`): c (`boolean/mod.rs` near :2250–:2340, `contact_verify.rs` near :184–:189, `flush.rs` near :263–:291)
-- `boolean/contain.rs:57` `ContainError::Escalated`: c (`census.rs` near :1397; `validate.rs` `classify_contain`)
+- `boolean/carrier_eq.rs:82, :95, :103` (`Escalated`, `Undeclared`, `Contradicted`): c, also reached as `plane_eq`'s `PlaneEqError` alias (`boolean/mod.rs` near :2250–:2340, `reduce.rs` :627–641, `rest.rs` :998–1016, `vtxfac.rs` :322–331, `recl.rs` :139–148, `contact_verify.rs` near :184–:189, `flush.rs` near :263–:291)
+- `boolean/contain.rs:57` `ContainError::Escalated`: c (`reduce.rs` :1967 and :2274 → `BooleanError::Escalated`; `census.rs` near :1397; `validate.rs` `classify_contain`)
 - `boolean/join.rs:729` `FrameError::Escalated`: c (`join.rs` near :707 → `BooleanError::Escalated`)
-- `boolean/mod.rs:843` `BooleanError::Escalated`: a
+- `boolean/mod.rs:843` `BooleanError::Escalated`: a, mixed. It is right for its coincidence raisers (the `carrier_eq`/`plane_eq` rungs, the tangent locus, the section escalations). The raisers a face pair cannot name (`sectors.rs` :235 sector rung, `vtxfac.rs` :145 pierce normal, `reduce.rs` :1967/:2274 containment) are filed on `work/topo/topo-escalations-offer-a-declaration-the-door-cannot-take.md`, the same case as `EulerOpError`'s Boolean route
 - `boolean/mod.rs:857` `BooleanError::UndeclaredCoincidence`: a
-- `boolean/mod.rs:873` `BooleanError::DeclarationContradicted`: a (but its `{diag}` is a definite verdict carried as an `INVALID` margin, rendered whole beside the arm's own recourse: `work/topo/declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu.md`)
+- `boolean/mod.rs:873` `BooleanError::DeclarationContradicted`: a (but its `{diag}` is a definite verdict carried as an `INVALID` margin, rendered whole beside the arm's own recourse, and its fixed "planes" wording is false for the non-planar pairs `recl.rs` :148 raises: `work/topo/declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu.md`)
 - `boolean/rest.rs:685` `TangentLocusError::Escalated`: c (`boolean/mod.rs` near :2371, `insert.rs` near :298, `sectors.rs` near :548)
 - `boolean/solid_contain.rs:167` `PointInSolidError::Escalated`: a (`BooleanError::Containment`)
 - `chart_region.rs:302` `ChartRegionError::Escalated`: c (`census.rs` near :2392, :5688 → `ValidationError::CensusEscalated`)
 - `chord_join.rs:184` `SplitJoinError::OrderEscalated`: d (payload and `NO_DECLARATION_RECOURSE`; the Boolean's wrapper adds the declaration back)
 - `chord_join.rs:191` `SplitJoinError::Escalated`: d (same)
 - `contact.rs:206, :217, :223` (`Contradicted`, `Escalated`, `Undeclared`): d (payload and `CONTACT_RECOURSE` or the contradiction recourse)
-- `euler.rs:852` `EulerOpError::SplitParamEscalated`: b, TOPO (split, blend)
+- `euler.rs:852` `EulerOpError::SplitParamEscalated`: b, TOPO (split and blend take no declaration; the Boolean's face pairs cannot name a crossing's place on an edge)
 - `face_normal.rs:112` `NormalAtError::Escalated`: c (`boolean/vtxfac.rs` near :145)
 - `flush.rs:195` `FlushRefusal::PairInBand`: c (no product crate calls `topo::flush::find_flush_candidates`; editor-core's detector goes through `pair_finding` → `SelectRefusal::PairInBand`)
 - `merge_faces.rs:419` `MergeCoplanarError::DeclarationContradicted`: a (verifies declared pairs at the Boolean's merge; same defect, same row)
@@ -201,10 +232,17 @@ topo
 - `shell.rs:520` `ShellError::Escalated`: b, SHELL
 - `splitting/containment.rs:134` `PointInLoopError::Escalated`: a (whole only through `PointInSolidError::Loop` at the Boolean; `contain.rs` near :80 and `SplitJoinError::RingHoming` re-wrap it)
 - `splitting/containment.rs:489` `ConicArcError::Escalated`: c (`containment.rs` near :995)
-- `splitting/finish.rs:181` `SplitFinishError::DescribeEscalated`: d
+- `splitting/finish.rs:181` `SplitFinishError::DescribeEscalated`: d (`Display` at `finish.rs:246`: payload and `SPLIT_COINCIDENCE_RECOURSE`)
 - `splitting/mod.rs:214, :244, :254` (`CrossingEscalated`, `SliverVertex`, `SliverSector`): d (payload and `SPLIT_COINCIDENCE_RECOURSE`)
 - `validate.rs:861, :1008, :1033, :1050, :1360` (`DegenerateTorusEscalated`, `PlanarFaceEscalated`, `PlanarBoundaryEscalated`, `SliverDihedral`, `RingContactEscalated`): d (each decision's own ending)
-- `validate.rs:1500` `ValidationError::CensusEscalated`: a (`too_close`: a census contact is declarable)
+- `validate.rs:1500` `ValidationError::CensusEscalated`: b, mixed by door. It renders `too_close`'s declare menu wherever it is shown:
+  - (a) at the product and assembly gates, whose contact records carry mate declarations (`crates/editor-core/src/product.rs`, `assembly.rs`);
+  - (a) at Rust STEP import, which takes `ImportOptions::declared_contacts`;
+  - (b) at Python's `import_step`, which withholds that field (`crates/step-import/src/error.rs` :485–492 `TierInvalid` renders each verdict);
+  - (b) at Python's `Body.validate_geometric` (`crates/pncad-py/src/py/value.rs` :465), which takes no declaration;
+  - (c) at the shell op's closing gate (`crates/topo/src/shell.rs` :1715), whose `NotValid` renders only a count.
+
+  Filed on `work/lib/lib-escalations-offer-a-declaration-the-door-cannot-take.md`.
 - `validate.rs:6340, :6809, :6819` (`RingOuterVerdict::Escalated`, `EdgePair::Unsure`, `Window::Unsure`): c (`validate.rs` near :6298 → `RingContactEscalated`; `shell.rs` near :1594 → `ShellError::Escalated`)
 
 ### What the greps cannot see
@@ -212,7 +250,7 @@ topo
 The two patterns match a field or tuple of exactly `Indeterminate`.
 They miss other field names, `Box<>` and `Option<>` wrappers, and
 multi-field tuples. A second pass over any field or variant whose type
-mentions `Indeterminate` found five more:
+mentions `Indeterminate` found seven more:
 
 - `editor-core` `MateFault::Indeterminate` (`mate.rs` near :793):
   payload only, with no menu. That it states no recourse at all is the
@@ -224,12 +262,20 @@ mentions `Indeterminate` found five more:
 - `splitting/classify.rs` `Roots`: internal.
 - `geom_core::FrameError::Degenerate` (`linalg/frame.rs` near :277):
   b, filed on LINALG.
+- `BooleanError::ContactContradicted` (`margin: Indeterminate`,
+  `boolean/mod.rs` :889) and `ValidationError::ContactContradicted`
+  (`validate.rs` :1484): neither `Display` renders the margin, so there
+  is nothing to class.
 
-The pass still cannot see a type that holds an `Indeterminate` behind
-another error type's field (for example `error: UnitVec3Error`). Those
+The pass reads only single-line field and variant declarations, so a
+type split across lines is not covered. It also cannot see a type that
+holds an `Indeterminate` behind another error type's field (for example `error: UnitVec3Error`). Those
 were followed by hand from each hit's type (`OrthoFrameError`,
 `DirectionRefusal`).
 
-The classing is by door. Where a door takes a declaration but the
-decision has no declarable object (Boolean crossing insertion, profile
-names such as `loop_orientation`), the row that lists the site says so.
+The classing asks whether the declaration can name the failed
+decision, not only whether the door takes one. The profile names such
+as `loop_orientation` fall on the wrong side of that test. They are
+left (a) as `ProfileError`'s entry and raised on PATHS as a question,
+because `validate::SHARED_CLAUSE_ONLY` records that choice as a
+decision the program made.
