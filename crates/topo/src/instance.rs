@@ -338,6 +338,7 @@ pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_brep::EdgeCurveSpec;
     use geom_core::Point3;
     use geom_core::Tol;
 
@@ -495,8 +496,15 @@ mod tests {
             .split_edge(e0, param(src, e0, 0.5), tol)
             .unwrap()
             .new_edge;
+        // The kill merges `e3` back over the dead child's span, so it
+        // takes the describing door: the chord from where `e0` starts
+        // to where `e3` ends.
         let he0 = src.get_edge(e0).unwrap().he_plus;
-        src.kev(he0).expect("the first child dies");
+        let point = |b: &Body<f64>, v| *b.get_point(b.get_vertex(v).unwrap().point).unwrap();
+        let from = point(src, src.get_half_edge(he0).unwrap().start);
+        let to = point(src, src.half_edge_end(src.get_edge(e3).unwrap().he_plus).unwrap());
+        src.kev_describing(he0, &[(e3, EdgeCurveSpec::line_between(from, to))], tol)
+            .expect("the first child dies");
         [e1, e2, e3]
     }
 
