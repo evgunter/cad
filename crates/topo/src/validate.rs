@@ -2074,6 +2074,24 @@ impl fmt::Display for StaleDeclaration {
 /// Which of check 4's decisions at an edge a
 /// [`ValidationError::SliverDihedral`] could not take: the closed type
 /// its ending is matched on (D4 ¶1 (i)).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — so what the prelude list would add is the CUR3
+/// property row `carried_refusal_payloads_are_matchable_through_the_prelude`
+/// extended to cover it, and a Python word beside the arm on
+/// `ValidationError.findings`. Both are the façade crate's to write
+/// (`work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md`), and
+/// publishing the name without them would add a subject to that rule
+/// with no row to check it.
+///
+/// **The falsifier is a Python caller who must tell an undecided wedge
+/// angle from an undecided second-order separation or material side**:
+/// their recourses differ, and today that caller reads which one out of
+/// the sentence. When the façade carries the check, delete this
+/// paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WedgeCheck {
     /// The first-order wedge between the faces' tangent planes, with the
