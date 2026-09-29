@@ -571,8 +571,8 @@ impl<T: Decide> Body<T> {
     /// −1 loop, +2 half-edges, +1 edge.
     ///
     /// **Pcurve rows**: as [`Body::mev`]'s — the face, when its rows
-    /// were complete, is re-minted with both halves in its merged loop
-    /// before any mutation, on the terms `mev` states.
+    /// were complete, has its merged loop re-minted with both halves in
+    /// it before any mutation, on the terms `mev` states.
     ///
     /// **Minting order** (D9, exact): curve (placeholder, anchored at
     /// the target anchor vertex's coordinates), edge, `he_plus`,
@@ -602,7 +602,13 @@ impl<T: Decide> Body<T> {
     /// gate: `curve` certifies against the anchors' points, u → w in
     /// the `he_plus` forward order
     /// ([`EulerOpError::Certification`]; `crate::euler` module docs,
-    /// M2 geometry policy). Chord sugar: [`Body::mekr_chord`].
+    /// M2 geometry policy). Last, the pcurve rows, as [`Body::mev`]
+    /// states them: the target loop, its face and the face's surface
+    /// resolve (`StaleKey` / `StaleGeometry`); then, only where that
+    /// face's rows are complete, the target's cycle from its anchor
+    /// walks ([`EulerOpError::LoopCycleBroken`]), and the face's row
+    /// plan is minted ([`EulerOpError::PcurveMint`]). Chord sugar:
+    /// [`Body::mekr_chord`].
     ///
     /// # Errors
     ///
@@ -1159,7 +1165,7 @@ impl<T: Decide> Body<T> {
             )
         };
         let loops = crate::pcurves::stored_rows(self, face_data).loops;
-        self.drop_rows(loops.into_iter().flatten().flatten());
+        self.drop_rows(loops.into_iter().filter_map(|(_, cycle)| cycle).flatten());
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve
@@ -1266,6 +1272,7 @@ impl<T: Decide> Body<T> {
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
+            &[target_loop],
             |body| {
                 let target_side = body.site_cycle_from(target, target_loop)?;
                 let ring_side = ring_members.iter().map(|m| m.key());
@@ -1359,6 +1366,7 @@ impl<T: Decide> Body<T> {
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
+            &[target_loop],
             |body| {
                 let target_side = body.site_cycle_from(target, target_loop)?;
                 body.mekr_site(face_key, target_loop, ring, [], target_side)
@@ -1440,6 +1448,7 @@ impl<T: Decide> Body<T> {
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus.
         let rows = self.plan_site_rows(
+            &[target],
             |body| {
                 let ring_side = ring_members.iter().map(|m| m.key());
                 body.mekr_site(face_key, target, ring_loop, ring_side, Vec::new())
@@ -1520,6 +1529,7 @@ impl<T: Decide> Body<T> {
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus.
         let rows = self.plan_site_rows(
+            &[target],
             |body| body.mekr_site(face_key, target, ring, [], Vec::new()),
             &certified,
             tol,
@@ -1669,8 +1679,8 @@ impl<T: Decide> Body<T> {
     }
 }
 
-/// [`Body::same_chart`]'s third rung: two spline surfaces holding one
-/// shared payload are one described chart.
+/// [`Body::same_chart`]'s second identity rung: two spline surfaces
+/// holding one shared payload are one described chart.
 fn one_payload<T: Decide>(a: &geom::Surface<T>, b: &geom::Surface<T>) -> bool {
     match (a, b) {
         (geom::Surface::Nurbs(x), geom::Surface::Nurbs(y)) => std::sync::Arc::ptr_eq(x, y),

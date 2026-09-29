@@ -4,12 +4,15 @@
 //! curved chart, so the face stores rows, and a ruling to grow struts
 //! along — a line ON the cylinder, whose chart image has a closed form.
 //!
-//! The claim under every row is one sentence: no Euler operator returns
-//! a face half-minted. A face whose rows were complete is complete after
-//! the op, with the rows the minting pass would derive; a face that
-//! stored no row still stores none; a face that was already half-minted
-//! is left as found; and where the row cannot be minted the op refuses
-//! before it mutates.
+//! The claim under every row is one sentence: `mev`, `mef` and `mekr`
+//! leave no complete face half-minted. A face whose rows were complete
+//! is complete after the op, with the rows the minting pass would
+//! derive, or — where the closed-form lane cannot mint it as the
+//! surgery leaves it — stores nothing; a face that stored no row still
+//! stores none; a face that was already half-minted is left as found;
+//! and on a spline chart the op refuses before it mutates. Doors that
+//! are not these three can still leave a face half-minted, and the
+//! `kef` row below is one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -201,26 +204,12 @@ fn a_mekr_on_a_minted_wall_leaves_the_face_complete() {
     assert_eq!(rows_deep(&body), minted);
 }
 
-/// **Absence is never a claim.** A wall that never ran the minting pass
-/// stores no rows, and the op mints none: an unminted face is the
-/// minting pass's, and a row minted onto it would half-mint it the
-/// other way.
-#[test]
-fn an_unminted_face_stays_rowless() {
-    let (mut body, face, m) = wall();
-    let keys: Vec<_> = body.pcurves().map(|(he, _)| he).collect();
-    for he in keys {
-        body.detach_pcurve(he);
-    }
-    strut(&mut body, face, m);
-    assert_eq!(body.pcurves().count(), 0);
-    assert_eq!(validate_pcurves(&body, band()), vec![]);
-}
-
-/// **The same on a body that stores rows elsewhere.** Only the wall's
-/// own rows are detached; the seed face on the same cylinder keeps
-/// its. The op reads the face it touches, not the body: the wall stays
-/// rowless and the seed face's rows are exactly as they were.
+/// **Absence is never a claim.** A wall whose rows are detached stores
+/// none, and the op mints none onto it: an unminted face is the minting
+/// pass's, and a row minted onto it would half-mint it the other way.
+/// The seed face on the same cylinder keeps its rows, so the op's plan
+/// runs; it reads the face it touches, not the body, and the seed
+/// face's rows are exactly as they were.
 #[test]
 fn an_unminted_face_beside_a_minted_one_stays_rowless() {
     let (mut body, face, m) = wall();
@@ -444,4 +433,291 @@ fn a_mef_closing_a_rim_circle_at_a_lone_vertex_mints_both_pieces() {
     let minted = rows_deep(&body);
     topo::mint_pcurves(&mut body, tol()).unwrap();
     assert_eq!(rows_deep(&body), minted);
+}
+
+/// A ring on the minted wall with two half-edges: a strut up the ruling
+/// with a second strut from its tip, the first cut away with `kemr`. The
+/// face is re-minted, so it is complete with a two-half ring.
+fn two_half_ring(body: &mut Body<f64>, face: FaceKey, m: VertexKey) -> topo::LoopKey {
+    let first = strut(body, face, m);
+    body.mev_line(
+        MevSite::Fan {
+            he1: first.he_minus,
+            he2: first.he_minus,
+        },
+        at(UM, 0.8),
+        tol(),
+    )
+    .unwrap();
+    let ring = body.kemr(first.he_plus, first.he_minus).unwrap().ring;
+    topo::mint_pcurves(body, tol()).unwrap();
+    assert_eq!(validate_pcurves(body, band()), vec![]);
+    assert_eq!(rows_of(body, face), (7, 0));
+    ring
+}
+
+/// The first half-edge of `face`'s outer loop.
+fn outer_first(body: &Body<f64>, face: FaceKey) -> HalfEdgeKey {
+    let outer = body.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the wall is bounded by a cycle")
+    };
+    first
+}
+
+/// **A loop the op does not touch keeps its rows.** A strut on the outer
+/// loop of a wall carrying a two-half ring re-mints the outer loop and
+/// leaves the ring's rows as they were, and the face's rows are still
+/// the pass's, byte for byte.
+#[test]
+fn a_strut_beside_a_ring_keeps_the_rings_rows() {
+    let (mut body, face, m) = wall();
+    let ring = two_half_ring(&mut body, face, m);
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(ring).unwrap().boundary else {
+        panic!("the ring is a cycle")
+    };
+    let ring_rows = |body: &Body<f64>| -> Vec<String> {
+        body.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .map(|he| {
+                let row = body.pcurve(he).unwrap();
+                format!(
+                    "{:?} {:?} {:?}",
+                    row.params(),
+                    row.pcurve(),
+                    row.certificate()
+                )
+            })
+            .collect()
+    };
+    let before = ring_rows(&body);
+    let o = outer_first(&body, face);
+    let v = body.get_half_edge(o).unwrap().start;
+    let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let rise = if p.z > 0.5 { -0.3 } else { 0.3 };
+    body.mev_line(
+        MevSite::Fan { he1: o, he2: o },
+        p + geom_core::Vec3::new(0.0, 0.0, rise),
+        tol(),
+    )
+    .unwrap();
+    assert_eq!(ring_rows(&body), before);
+    assert_eq!(rows_of(&body, face), (9, 0));
+    let minted = rows_deep(&body);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(rows_deep(&body), minted);
+}
+
+/// **A face the op clears is cleared whole, rings included.** A secant
+/// strut on the outer loop of a wall carrying a two-half ring leaves the
+/// wall with no closed-form row set: every row goes, the ring's with the
+/// outer loop's, and the face is unminted rather than half-minted.
+#[test]
+fn a_secant_strut_beside_a_ring_clears_the_ring_too() {
+    let (mut body, face, m) = wall();
+    two_half_ring(&mut body, face, m);
+    let first = outer_first(&body, face);
+    body.mev_line(
+        MevSite::Fan {
+            he1: first,
+            he2: first,
+        },
+        at(1.2, 0.5),
+        tol(),
+    )
+    .unwrap();
+    assert_eq!(rows_of(&body, face), (0, 9));
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+}
+
+/// **`mekr` across the chart's principal azimuth cut.** The wall sheet
+/// spans azimuth `[4.2, 5.2]`, across the cut at `3π/2` where the
+/// closed-form image's principal branch wraps. A ring whose halves
+/// straddle it — a strut up the ruling at `4.6`, an arc along the
+/// parallel to `4.8`, the strut cut away with `kemr` — is joined to the
+/// outer loop at `4.8`. The merged loop, walked from its new `first`,
+/// pins the ring's halves on the branch the outer loop reaches them on,
+/// and every row is the pass's, byte for byte.
+#[test]
+fn a_mekr_across_the_principal_azimuth_cut_mints_the_passs_rows() {
+    let (ua, ub) = (4.6_f64, 4.8_f64);
+    let frame = CylFrame::canonical(1.0);
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(&mut body, frame, None, (4.2, 5.2), (0.0, 1.0), tol());
+    let rim = body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| {
+            let c = body
+                .get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .unwrap();
+            matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (4.2, 5.2)
+        })
+        .unwrap();
+    let ma = body.split_edge(rim, ua, tol()).unwrap();
+    let mb = body.split_edge(ma.new_edge, ub, tol()).unwrap();
+    let he = leaving(&body, face, ma.vertex);
+    let s = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(ua, 0.5), tol())
+        .unwrap();
+    let circle = geom::Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.5),
+        axis: frame.axis,
+        radius: 1.0,
+        u_ref: frame.radial(ua),
+    };
+    let q = circle.eval(ub - ua);
+    let arc = body
+        .mev(
+            MevSite::Fan {
+                he1: s.he_minus,
+                he2: s.he_minus,
+            },
+            q,
+            geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, ub - ua).unwrap(),
+            tol(),
+        )
+        .unwrap();
+    body.kemr(s.he_plus, s.he_minus).unwrap();
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+
+    let target = leaving(&body, face, mb.vertex);
+    let from = *body
+        .get_point(body.get_vertex(mb.vertex).unwrap().point)
+        .unwrap();
+    let made = body
+        .mekr(
+            MekrSite::Cycles {
+                target,
+                ring: arc.he_minus,
+            },
+            geom_brep::EdgeCurveSpec::line_between(from, q),
+            tol(),
+        )
+        .unwrap();
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert!(body.pcurve(made.he_plus).is_some());
+    assert_eq!(rows_of(&body, face), (10, 0));
+    let minted = rows_deep(&body);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(rows_deep(&body), minted);
+}
+
+/// **A secant strut, then killed, leaves the wall unminted until the
+/// pass runs.** The strut clears the complete wall — it has no
+/// closed-form row set with the strut in it — and killing the strut,
+/// by `kemr` or by `kev`, does not bring the rows back: no operator
+/// re-mints a face that stores nothing. While the strut stands, the
+/// pcurve pass says nothing about the rowless wall, and the at-rest
+/// validation names the strut by its tip. The producer's closing mint
+/// is what restores the rows once the strut is gone.
+#[test]
+fn a_secant_strut_then_killed_leaves_the_wall_unminted_until_the_pass() {
+    for kill in ["kemr", "kev"] {
+        let (mut body, face, m) = wall();
+        let he = leaving(&body, face, m);
+        let s = body
+            .mev_line(MevSite::Fan { he1: he, he2: he }, at(1.2, 0.5), tol())
+            .unwrap();
+        assert_eq!(rows_of(&body, face), (0, 7), "{kill}");
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Err(vec![topo::ValidationError::ScaffoldingStrutVertex {
+                vertex: s.vertex
+            }]),
+            "{kill}: the at-rest validation names the standing strut"
+        );
+        if kill == "kemr" {
+            body.kemr(s.he_plus, s.he_minus).unwrap();
+        } else {
+            body.kev(s.he_minus).unwrap();
+        }
+        assert_eq!(rows_of(&body, face), (0, 5), "{kill}");
+        assert_eq!(validate_pcurves(&body, band()), vec![], "{kill}");
+        topo::mint_pcurves(&mut body, tol()).unwrap();
+        assert_eq!(rows_of(&body, face), (5, 0), "{kill}");
+    }
+}
+
+/// **`kef` merging a complete face into an unminted one on its chart
+/// leaves the survivor half-minted.** `kef` is not a minting operator:
+/// it moves the dying face's rows onto the survivor, whose own
+/// half-edges had none. The wall split along a ruling by `mef` is two
+/// complete faces; the new one's rows are detached, and `kef` on the old
+/// face's side of the chord kills the old face into it. The pass names
+/// every half-edge of the survivor that arrived without a row — the
+/// state `PcurveMintError::MissingCache` lists `kef` among the doors of.
+#[test]
+fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
+    let (mut body, face, m) = wall();
+    // The top rim, split where the ruling through `m` meets it.
+    let want_at = at(UM, 1.0);
+    let (rim, t) = body
+        .edges()
+        .map(|(e, _)| e)
+        .find_map(|e| {
+            let c = body
+                .get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .unwrap();
+            let (t0, t1) = c.params();
+            let geom::Curve3::Circle {
+                center,
+                axis,
+                u_ref,
+                ..
+            } = *c.carrier()
+            else {
+                return None;
+            };
+            let d = want_at - center;
+            let angle = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));
+            let tau = core::f64::consts::TAU;
+            let (lo, hi) = (t0.min(t1), t0.max(t1));
+            let t = angle + tau * ((lo - angle) / tau).ceil();
+            (center.z == 1.0 && t < hi).then_some((e, t))
+        })
+        .unwrap();
+    let top = body.split_edge(rim, t, tol()).unwrap().vertex;
+    let (he1, he2) = (leaving(&body, face, m), leaving(&body, face, top));
+    let point = |v: VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let chord = geom_brep::EdgeCurveSpec::line_between(point(m), point(top));
+    let made = body
+        .mef(
+            topo::MefSite::Chords { he1, he2 },
+            chord,
+            topo::FaceSurface::Inherit,
+            tol(),
+        )
+        .unwrap();
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert_eq!(
+        rows_of(&body, made.face),
+        (4, 0),
+        "the ruling mef mints both pieces"
+    );
+    let unminted: Vec<HalfEdgeKey> = halves_of(&body, made.face);
+    for &he in &unminted {
+        body.detach_pcurve(he).unwrap();
+    }
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    body.kef(made.he_plus).unwrap();
+    let mut want: Vec<HalfEdgeKey> = unminted
+        .into_iter()
+        .filter(|&he| he != made.he_minus)
+        .collect();
+    want.sort();
+    let mut missing: Vec<HalfEdgeKey> = validate_pcurves(&body, band())
+        .into_iter()
+        .map(|f| match f {
+            PcurveMintError::MissingCache { half_edge } => half_edge,
+            other => panic!("only missing rows are reported, got {other:?}"),
+        })
+        .collect();
+    missing.sort();
+    assert!(!want.is_empty());
+    assert_eq!(missing, want);
 }

@@ -138,3 +138,43 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
     topo::mint_pcurves_of(&mut body, &[cone], tol()).unwrap();
     assert!(cycle.iter().all(|&he| body.pcurve(he).is_none()));
 }
+
+/// **The fitted frontier refuses last.** On the lofted prism's minted
+/// wall, a `mef` whose chord misses its far end fails two gates: the
+/// geometry gate (the curve does not certify) and the mint-site gate
+/// (the wall is a spline chart). The operator's precondition order puts
+/// the mint-site refusal after every other check, so the refusal names
+/// the certification, and the body is untouched.
+#[test]
+fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+    let sq = || {
+        vec![bulge_loop(vec![
+            v(0.0, 0.0),
+            v(2.0, 0.0),
+            v(2.0, 2.0),
+            v(0.0, 2.0),
+        ])]
+    };
+    let mut body = sweep::loft_body::<f64>(&[sq(), sq()], &stacked_at(&[0.0, 1.0]), 1, tol())
+        .expect("the prism builds")
+        .body;
+    let (_, first) = minted_face(&body, |s| s.spline_chart().is_some());
+    let cycle = body.loop_cycle(first).unwrap();
+    let (he1, he2) = (cycle[0], cycle[2]);
+    let p1 = start_point(&body, he1);
+    let before = format!("{body:?}");
+    let refused = body
+        .mef(
+            topo::MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::line_between(p1, p1 + Vec3::new(0.3, 0.3, 0.3)),
+            topo::FaceSurface::Inherit,
+            tol(),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(refused, EulerOpError::Certification { .. }),
+        "{refused:?}"
+    );
+    assert_eq!(format!("{body:?}"), before);
+}

@@ -1686,15 +1686,13 @@ fn mef_carries_the_runs_rows_across_one_payload() {
                 tol(),
             )
             .unwrap_err();
-        assert!(
-            matches!(
-                refused,
-                topo::EulerOpError::PcurveMint {
-                    refusal: topo::SiteRowRefusal::SplineChart,
-                    ..
-                }
-            ),
-            "tied: {tied}: {refused:?}"
+        assert_eq!(
+            refused,
+            topo::EulerOpError::PcurveMint {
+                face: s.low,
+                refusal: topo::SiteRowRefusal::SplineChart,
+            },
+            "tied: {tied}"
         );
         assert_eq!(rows_deep(&s.body, s.low), before, "tied: {tied}");
 

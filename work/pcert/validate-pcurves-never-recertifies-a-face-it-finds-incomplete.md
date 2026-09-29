@@ -35,10 +35,16 @@ re-certified, and would not have been however wrong it was.
 module docs rest the whole `Neither` posture on this backstop — "the
 tier-3 pcurve pass catches a stale row LOUD — it re-certifies against
 the current carrier/surface/window and fails". The ops that stale a row
-in CONTENT are frequently the same ops that mint a rowless half-edge
-into the same face (`mev`/`mef`/`mekr`, and `split_edge` before TOPO's
-fix), so the incompleteness that fires `MissingCache` is exactly the
-state that switches the re-certification off. The body is still
+in CONTENT were frequently the same ops that minted a rowless half-edge
+into the same face (`mev`/`mef`/`mekr` before TOPO's
+`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`,
+`split_edge` before its own fix), so the incompleteness that fires
+`MissingCache` was exactly the state that switched the re-certification
+off. Those three now re-mint a complete face they touch. The doors that
+still leave a face half-minted are the ones
+`PcurveMintError::MissingCache`'s docs list (`kfmrh`, `ring_move`,
+`kef`'s same-chart merge, the chart-change drops, `mev_null`,
+`split_edge`'s fitted frontier), and on those the switch-off stands. The body is still
 refused, so this is a wrong REASON rather than a vacuous green — but it
 means the module's safety claim is not the one the code makes.
 
