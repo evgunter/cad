@@ -1075,9 +1075,10 @@ impl<T: Decide> Body<T> {
     /// chart is DERIVED, not restated — unlike
     /// [`Body::split_edge`]'s restriction of one image to a
     /// sub-interval of its own carrier — and every derivation door in
-    /// [`crate::pcurves`] carries the `PcurveFittedLane` bound, which
-    /// the `Decide` doors that call this do not have and cannot take
-    /// without rippling it through every caller. Dropping is the
+    /// [`crate::pcurves`] carries the [`crate::AtRestPolicy`] bound
+    /// its fitted door is read through, which the `Decide` doors that
+    /// call this do not have and cannot take without rippling it
+    /// through every caller. Dropping is the
     /// honest remainder: absence is never a claim, and a caller that
     /// wants the target face's rows runs
     /// [`crate::pcurves::mint_pcurves`].

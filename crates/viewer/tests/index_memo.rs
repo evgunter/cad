@@ -26,7 +26,7 @@ use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
     Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId,
-    StableName,
+    StableName, UnnamedEntity,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -393,7 +393,7 @@ fn assert_flat_reference(
     rays: &[Ray],
 ) -> usize {
     let (_, eval) = session.landed_pair().expect("a landed pair");
-    let names: Vec<Vec<Result<StableName, HitTestError>>> = index
+    let names: Vec<Vec<Result<StableName, UnnamedEntity>>> = index
         .parts()
         .iter()
         .map(|part: &NodePick| {
