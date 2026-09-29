@@ -1998,7 +1998,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         source
                             .predicate
                             .and_then(crate::validate::decision_subject)
-                            .unwrap_or_default()
+                            .unwrap_or(crate::validate::UNNAMED_DECISION)
                     ),
                     // A name no arm above claims. If the crate has
                     // decided it needs nothing beyond the shared clause

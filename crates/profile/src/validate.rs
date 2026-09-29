@@ -814,7 +814,7 @@ pub const UNNAMED_DECISION: &str = geom_core::UNNAMED_DECISION;
 pub fn decision_subject(predicate: &str) -> Option<&'static str> {
     Some(match predicate {
         "arc_apex_identity" => "whether two arc apexes are one point",
-        "arc_span" => "whether an arc bulges clear of its chord",
+        "arc_span" => "whether a point falls inside an arc's span",
         "arc_diameter_clearance" => "whether an arc stops short of a full circle",
         "canonical_order_x" => "which of two points comes first along x",
         "canonical_order_y" => "which of two points comes first along y",
