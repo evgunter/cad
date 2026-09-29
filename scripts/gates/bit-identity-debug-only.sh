@@ -15,13 +15,17 @@
 #     GATE IS THAT FILE'S ONLY CONTROL — `bit-identity-consumer.sh`
 #     excludes it wholesale — so what it can and cannot see is the whole
 #     guarantee. The row pins the channel call (`bit_identity::`,
-#     `eq_bits`) AND the three debug-only witnesses built on it —
-#     `plane_bits_witness`, `vec3_bits_witness`, `bits_witness` — whose
-#     own gated `fn` heads name the channel nowhere. A ROW HOLDS THE
+#     `eq_bits`) AND the debug-only witnesses built on it —
+#     `plane_bits_witness`, `vec3_bits_witness`, `surface_bits_witness`
+#     with its helpers `nurbs_surface_bits_witness` and
+#     `joined`, and `bits_witness` — whose own gated `fn`
+#     heads name the channel nowhere. A ROW HOLDS THE
 #     ATTRIBUTES ON THE STATEMENTS THAT NAME ITS SPELLINGS AND NO
 #     OTHERS, so a mechanism's every spelling belongs on its row.
-#   * `crates/topo/src/boolean/plane_eq.rs` and
-#     `crates/topo/src/merge_faces.rs` — the witnesses' CALLERS, a row
+#   * `crates/topo/src/boolean/plane_eq.rs`,
+#     `crates/topo/src/merge_faces.rs` and `crates/topo/src/body.rs`
+#     (`surface_bits_witness` at the stamp door) — the witnesses'
+#     CALLERS, a row
 #     each, because A SUBJECT IS A FILE and the row above pins the
 #     attributes on the DEFINITIONS only. Each caller stands under a
 #     STATEMENT-POSITION attribute over an `if let`, and names the
@@ -242,9 +246,10 @@ set -euo pipefail
 # to a file with no row — reds with the row named rather than lowering
 # the total in silence.
 SUBJECTS=(
-  'crates/topo/src/source.rs bit_identity::|eq_bits|plane_bits_witness|vec3_bits_witness|bits_witness 6 the bit channel'
+  'crates/topo/src/source.rs bit_identity::|eq_bits|plane_bits_witness|vec3_bits_witness|surface_bits_witness|nurbs_surface_bits_witness|joined|bits_witness 23 the bit channel'
   'crates/topo/src/boolean/plane_eq.rs plane_bits_witness 1 the same-source plane witness on the bit channel'
   'crates/topo/src/merge_faces.rs plane_bits_witness|vec3_bits_witness 2 the plane and u_ref witnesses on the bit channel'
+  'crates/topo/src/body.rs surface_bits_witness 1 the stamp door witness on the bit channel'
   'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 4 the debug-only gather counter'
   'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 5 the identified-vertex census the sphere/torus emit pass re-derives'
   'crates/mesh/src/tessellate.rs unpaired_chord_segment 2 the chord-segment pairing census'
