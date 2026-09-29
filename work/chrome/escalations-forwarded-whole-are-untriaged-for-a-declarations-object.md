@@ -180,7 +180,7 @@ topo
 - `boolean/join.rs:729` `FrameError::Escalated`: c (`join.rs` near :707 → `BooleanError::Escalated`)
 - `boolean/mod.rs:843` `BooleanError::Escalated`: a
 - `boolean/mod.rs:857` `BooleanError::UndeclaredCoincidence`: a
-- `boolean/mod.rs:873` `BooleanError::DeclarationContradicted`: a (note: it renders `({diag})` whole beside its own "fix the declaration" recourse, so the menu sits inside a parenthesis)
+- `boolean/mod.rs:873` `BooleanError::DeclarationContradicted`: a (but its `{diag}` is a definite verdict carried as an `INVALID` margin, rendered whole beside the arm's own recourse: `work/topo/declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu.md`)
 - `boolean/rest.rs:685` `TangentLocusError::Escalated`: c (`boolean/mod.rs` near :2371, `insert.rs` near :298, `sectors.rs` near :548)
 - `boolean/solid_contain.rs:167` `PointInSolidError::Escalated`: a (`BooleanError::Containment`)
 - `chart_region.rs:302` `ChartRegionError::Escalated`: c (`census.rs` near :2392, :5688 → `ValidationError::CensusEscalated`)
@@ -190,7 +190,7 @@ topo
 - `euler.rs:852` `EulerOpError::SplitParamEscalated`: b, TOPO (split, blend)
 - `face_normal.rs:112` `NormalAtError::Escalated`: c (`boolean/vtxfac.rs` near :145)
 - `flush.rs:195` `FlushRefusal::PairInBand`: c (no product crate calls `topo::flush::find_flush_candidates`; editor-core's detector goes through `pair_finding` → `SelectRefusal::PairInBand`)
-- `merge_faces.rs:419` `MergeCoplanarError::DeclarationContradicted`: a (verifies declared pairs at the Boolean's merge)
+- `merge_faces.rs:419` `MergeCoplanarError::DeclarationContradicted`: a (verifies declared pairs at the Boolean's merge; same defect, same row)
 - `merge_faces.rs:471` `MergeCoplanarError::Escalated`: a (same)
 - `pcurves.rs:415` `PcurveMintError::Escalated`: b, unowned (`work/issues/`)
 - `pcurves.rs:2489` `PinMiss::Escalated`: c (`pcurves.rs` near :2450 → `PcurveMintError::Escalated`)
