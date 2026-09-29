@@ -3,7 +3,6 @@
 //! These reproduce the PR's measured claims from scratch rather than
 //! reading its numbers back.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Bounds, Interval, Mat3, Point3, Real, Vec3};
@@ -64,11 +63,7 @@ fn r2_zero_angle_independence_swept_hard() {
         for h in [0.0f64, 1.0e-15, 1.0e-9, 1.0e-3, 1.0, 1.0e6] {
             let wi = |c: f64| Interval::from_bounds(c - h, c + h);
             let anchor = Point3::new(wi(1.0), wi(2.0), wi(-3.0));
-            let axis = Vec3::new(
-                Interval::from_f64(ax[0]),
-                Interval::from_f64(ax[1]),
-                Interval::from_f64(ax[2]),
-            );
+            let axis = Vec3::new(ax[0], ax[1], ax[2]).map(Interval::from_f64);
             let r = Affine3::rotation_about_axis(anchor, axis, Interval::zero());
             let tw = w(r.translation.x)
                 .max(w(r.translation.y))

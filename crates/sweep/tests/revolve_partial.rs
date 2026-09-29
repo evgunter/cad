@@ -12,7 +12,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
 use geom_brep::EdgeDescription;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::ProfileLoop;
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
@@ -21,7 +21,12 @@ use sweep::{Revolution, RevolvedKind, revolve};
 /// 0 bottom (⊥ axis, plane), 1 right (∥ axis, cylinder), 2 top
 /// (⊥ axis, plane), 3 left (ON axis, shared by the caps).
 fn square() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ])
 }
 
 fn check_wedge(theta: f64) {
@@ -124,8 +129,18 @@ fn off_axis_wedge_with_hole_is_extrude_shaped() {
     // machinery (hole planted through kemr + kfmrh in the start cap).
     // Square x ∈ [1, 3], y ∈ [0, 2]; square hole x ∈ [1.5, 2.5],
     // y ∈ [0.5, 1.5] (holes are canonicalized clockwise by validation).
-    let outer = ProfileLoop::polygon([p2(1.0, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(1.0, 2.0)]);
-    let hole = ProfileLoop::polygon([p2(1.5, 0.5), p2(2.5, 0.5), p2(2.5, 1.5), p2(1.5, 1.5)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(3.0, 0.0),
+        Point2::new(3.0, 2.0),
+        Point2::new(1.0, 2.0),
+    ]);
+    let hole = ProfileLoop::polygon([
+        Point2::new(1.5, 0.5),
+        Point2::new(2.5, 0.5),
+        Point2::new(2.5, 1.5),
+        Point2::new(1.5, 1.5),
+    ]);
     let vp = validated(vec![outer, hole]);
     let t = revolve(
         &vp,

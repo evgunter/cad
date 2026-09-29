@@ -7,7 +7,7 @@
 //!   polynomial, so the boundary-touch cell inclusion cannot inject a
 //!   neighbor-extension mismatch) — in BOTH parameter directions, with
 //!   homogeneous weights spanning [0.5, 8]. The composite must land at
-//!   ring rounding; a wrong insertion window, α, power table, or
+//!   outward rounding; a wrong insertion window, α, power table, or
 //!   binomial pair lands at the O(1) image scale instead. Plus a
 //!   two-sided pinch on a non-removable adversarial rational fixture.
 //! - B/C. Falsification battery: ≥1e5-sample dense scans across
@@ -19,7 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::RingInterval;
+use geom_core::Interval;
 use geom_core::spline::compose::CurveRingData;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
 use geom_core::spline::{KnotVector, basis};
@@ -68,10 +68,10 @@ fn surf_eval(s: &Surf, u: f64, v: f64) -> [f64; 3] {
     [num[0] / den, num[1] / den, num[2] / den]
 }
 
-fn lift(coords: &[Vec<f64>]) -> Vec<Vec<RingInterval>> {
+fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
     coords
         .iter()
-        .map(|ch| ch.iter().map(|x| RingInterval::point(*x)).collect())
+        .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
         .collect()
 }
 
@@ -170,11 +170,11 @@ fn removable_u_channel() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
 
 /// The u-direction exact iso fixture: cubic u on knots
 /// `[0,0,0,0,0.5,1,1,1,1]` (removable interior knot — the decomposition
-/// still inserts it twice more through the ring-α path), linear v with
+/// still inserts it twice more through certification arithmetic-α path), linear v with
 /// weight factor [1, 3]. The v = 0.25 iso-curve is EXACT on the shared
 /// lifted data: coords are the same `fl(Hx/Hw)` on both sides, weights
-/// dyadic, so `S(P(t)) − C(t)` is identically zero in the ring's
-/// inputs. Composite must land at ring rounding.
+/// dyadic, so `S(P(t)) − C(t)` is identically zero in certification arithmetic's
+/// inputs. Composite must land at outward rounding.
 fn iso_u() -> (Surf, Curve, Curve) {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kvv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -498,7 +498,7 @@ fn the_missing_center_shift_costs_bound_quality_far_from_origin() {
     // ORIGINALLY the review's cost witness for the shipped pipeline's
     // silent spec-§2.1 deviation (shift-free lift): this exact fixture
     // measured 1.128e-12 near the origin vs 1.866e-6 at 1e6 m — six
-    // orders of bound to ring rounding scaling with coefficient
+    // orders of bound to outward rounding scaling with coefficient
     // magnitude. The fix pass implemented the center-shift, and this
     // witness FLIPPED to the regression pin: the far bound must stay
     // at the translation's own representation floor (the +1e6 rounds

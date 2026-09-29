@@ -730,7 +730,7 @@ impl MateFault {
 
     /// The in-band margin the classifier saw, when it saw a value.
     ///
-    /// Reading it is not branching on it: what the escalation
+    /// For error text only, not a decision input: what the escalation
     /// contract forbids is recovering the margin to make the sign
     /// decision the classifier refused.
     #[getter]
@@ -739,13 +739,14 @@ impl MateFault {
     }
 
     /// The classified enclosure's lower bound, where the classifier
-    /// saw an enclosure rather than a value.
+    /// saw an enclosure rather than a value. For error text only, not
+    /// a decision input.
     #[getter]
     fn margin_low(&self) -> Option<Length> {
         self.payload().margin_low.map(length)
     }
 
-    /// Its upper bound.
+    /// Its upper bound. For error text only, not a decision input.
     #[getter]
     fn margin_high(&self) -> Option<Length> {
         self.payload().margin_high.map(length)
@@ -1037,9 +1038,7 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// `name` for a strand, `name` alone for a `stranded_appearance`,
 /// whose carrier is the appearance store and not a node, and `node`
 /// alone for an `orphaned_declare`, whose subject is the surviving
-/// declaration rather than anything the edit broke; `name` and
-/// `rebound_to` for a `rebound`, the spelling a reshaped profile's
-/// name had and the one it has now.
+/// declaration rather than anything the edit broke.
 /// (`source`/`target` rather than `from`/`to`: `from` is a Python
 /// keyword.)
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -1055,8 +1054,7 @@ impl Maintenance {
             d::Maintenance::Cluster(act) => Some(act),
             d::Maintenance::Strand { .. }
             | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::OrphanedDeclare { .. }
-            | d::Maintenance::Rebound { .. } => None,
+            | d::Maintenance::OrphanedDeclare { .. } => None,
         }
     }
 }
@@ -1064,8 +1062,8 @@ impl Maintenance {
 #[pymethods]
 impl Maintenance {
     /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
-    /// `strand`, `stranded_appearance`, `orphaned_declare` or
-    /// `rebound`, the eight the stub lists for this attribute. The
+    /// `strand`, `stranded_appearance` or `orphaned_declare`, the seven
+    /// the stub lists for this attribute. The
     /// word decides which of the payload attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
@@ -1090,46 +1088,24 @@ impl Maintenance {
         match &self.0 {
             d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
             d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(*declare)),
-            // A rebound name rides one row however many carriers held
-            // it, so the row names no carrier.
-            d::Maintenance::Cluster(_)
-            | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::Rebound { .. } => None,
+            d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
 
     /// The name this row is about, in the opaque text every name door
     /// on this surface speaks — the stranded payload name for a
     /// `strand`, the appearance store's stranded key for a
-    /// `stranded_appearance`, and the spelling every carrier held
-    /// BEFORE the edit for a `rebound`. A stranded name is spelled as
-    /// the document now holds it — its minting node deleted, or its
-    /// profile locator retired — and `DocEdit.rebind` from that
-    /// spelling is the repair this surface carries.
+    /// `stranded_appearance`. A stranded name is spelled as the
+    /// document holds it — its minting node deleted, or its profile
+    /// step dropped — and `DocEdit.rebind` from that spelling is the
+    /// repair this surface carries.
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
-            d::Maintenance::Strand { name, .. }
-            | d::Maintenance::StrandedAppearance { name }
-            | d::Maintenance::Rebound { from: name, .. } => {
+            d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
                 super::doc::name_text(py, name).map(Some)
             }
             d::Maintenance::Cluster(_) | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
-        }
-    }
-
-    /// The spelling every carrier holds NOW, for a `rebound` — the
-    /// same name, at the coordinates the reshaped program draws its
-    /// segment at. `None` on every other row: a strand is not moved,
-    /// and a cluster act names gauges.
-    #[getter]
-    fn rebound_to(&self, py: Python<'_>) -> PyResult<Option<String>> {
-        match &self.0 {
-            d::Maintenance::Rebound { to, .. } => super::doc::name_text(py, to).map(Some),
-            d::Maintenance::Strand { .. }
-            | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::Cluster(_)
-            | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
         }
     }
 

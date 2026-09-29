@@ -303,7 +303,7 @@ fn a_payload_reference_the_table_answers_round_trips() {
 /// read off the loaded document rather than off the wire, because the
 /// claim is about the value that reaches memory, and by BITS, which is
 /// the only comparison that can tell `-0.0` from `0.0`.
-fn signed_zero_leaf(doc: &ProfileDoc, measure: RecipeNodeId) -> bool {
+fn signed_zero_leaf(doc: &editor_core::ProfileDoc, measure: RecipeNodeId) -> bool {
     let node = doc.node(measure).expect("the measure survived");
     editor_core::node::payload_exprs(node)
         .into_iter()

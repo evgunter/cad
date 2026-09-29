@@ -260,6 +260,7 @@
 use core::fmt;
 
 use geom::Surface;
+use geom_brep::recourse::Reading;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 
@@ -877,137 +878,120 @@ pub enum EulerOpError {
     },
 }
 
-impl fmt::Display for EulerOpError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl EulerOpError {
+    /// This refusal's text, a certification refusal's ending read at
+    /// `reading` ([`CertifyError::ending`]): the door that reports the
+    /// refusal decides where it is read. `Display` reads it at
+    /// [`Reading::Build`], the operation that built the edge.
+    #[must_use]
+    pub fn render(&self, reading: Reading) -> String {
         match self {
             Self::Certification { error } => {
-                write!(f, "geometry attachment gate: {error}")
+                format!("geometry attachment gate: {}", error.render(reading))
             }
-            Self::RebasedCarrier { edge, error } => write!(
-                f,
-                "re-based edge {edge:?} would keep a carrier its endpoint left: {error}"
+            Self::RebasedCarrier { edge, error } => format!(
+                "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
+                error.render(reading)
             ),
-            Self::RebasedNullEdge { edge } => write!(
-                f,
+            Self::RebasedNullEdge { edge } => format!(
                 "mev fan: the moved run re-bases one end of null edge {edge:?} and not \
                  the other, and the re-basing gate cannot ask whether the moved end \
                  lands on the other's point (a fan split that moves nothing is mev_null)"
             ),
-            Self::DescriptionNotAdjacent { edge } => write!(
-                f,
+            Self::DescriptionNotAdjacent { edge } => format!(
                 "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
                  its adjacent faces' surfaces (D2 adjacency coherence)"
             ),
             Self::StaleKey { key } => {
-                write!(f, "euler op requires {key}, which does not resolve")
+                format!("euler op requires {key}, which does not resolve")
             }
             Self::StaleGeometry { key } => {
-                write!(f, "euler op requires {key}, which does not resolve")
+                format!("euler op requires {key}, which does not resolve")
             }
-            Self::FanStartMismatch { he1, he2 } => write!(
-                f,
+            Self::FanStartMismatch { he1, he2 } => format!(
                 "mev fan: half-edges {he1:?} and {he2:?} start at different \
                  vertices"
             ),
-            Self::FanOrbitBroken { he1, he2 } => write!(
-                f,
+            Self::FanOrbitBroken { he1, he2 } => format!(
                 "mev fan: the clockwise vertex orbit from {he1:?} never \
                  reaches {he2:?} (malformed body)"
             ),
-            Self::NotSameLoop { he1, he2 } => write!(
-                f,
+            Self::NotSameLoop { he1, he2 } => format!(
                 "half-edges {he1:?} and {he2:?} belong to different loops \
                  (one loop required)"
             ),
-            Self::LoopCycleBroken { r#loop } => write!(
-                f,
+            Self::LoopCycleBroken { r#loop } => format!(
                 "loop {loop:?}'s cycle walk never reaches the second \
                  half-edge (malformed body)",
                 loop = r#loop
             ),
-            Self::LoopNotEmpty { r#loop } => write!(
-                f,
+            Self::LoopNotEmpty { r#loop } => format!(
                 "empty-loop site: loop {loop:?} is not an empty loop",
                 loop = r#loop
             ),
-            Self::LoopNotCycle { r#loop } => write!(
-                f,
+            Self::LoopNotCycle { r#loop } => format!(
                 "a half-edge argument claims parent loop {loop:?}, which is \
                  an empty loop (malformed body)",
                 loop = r#loop
             ),
-            Self::NotSameEdge { he1, he2 } => write!(
-                f,
+            Self::NotSameEdge { he1, he2 } => format!(
                 "kemr: half-edges {he1:?} and {he2:?} are not the two halves \
                  of one edge"
             ),
-            Self::UnclaimedHalfEdge { he, edge } => write!(
-                f,
+            Self::UnclaimedHalfEdge { he, edge } => format!(
                 "half-edge {he:?}'s edge {edge:?} does not claim it in either \
                  slot, so its mate cannot be resolved (malformed body)"
             ),
-            Self::SelfLoopEdge { edge, vertex } => write!(
-                f,
+            Self::SelfLoopEdge { edge, vertex } => format!(
                 "kev: edge {edge:?} is a self-loop at vertex {vertex:?} — kev \
                  needs distinct end vertices (kill a self-loop edge with kef \
                  or kemr)"
             ),
-            Self::OrbitBroken { he } => write!(
-                f,
+            Self::OrbitBroken { he } => format!(
                 "the clockwise vertex orbit from {he:?} fails to close \
                  (malformed body)"
             ),
-            Self::EmptyAnchorsCollide { vertex } => write!(
-                f,
+            Self::EmptyAnchorsCollide { vertex } => format!(
                 "the operation would leave two empty loops holding the same \
                  lone vertex {vertex:?} (tier 1 allows exactly one)"
             ),
-            Self::SameLoop { r#loop } => write!(
-                f,
+            Self::SameLoop { r#loop } => format!(
                 "two distinct loops required, but both sides name loop \
                  {loop:?} (mekr joins two loops of a face; kef on an edge \
                  occurring twice in one loop is kemr's job)",
                 loop = r#loop
             ),
-            Self::NotSameFace { target, ring } => write!(
-                f,
+            Self::NotSameFace { target, ring } => format!(
                 "mekr: loops {target:?} and {ring:?} belong to different \
                  faces"
             ),
-            Self::RingIsOuter { r#loop } => write!(
-                f,
+            Self::RingIsOuter { r#loop } => format!(
                 "loop {loop:?} is its face's outer loop, not a ring",
                 loop = r#loop
             ),
-            Self::SameFace { face } => write!(
-                f,
+            Self::SameFace { face } => format!(
                 "two distinct faces required, but both sides name face \
                  {face:?} (kfmrh sums two faces; kef on an edge interior to \
                  one face has no face to kill — see kev)"
             ),
-            Self::CrossShell { f1, f2 } => write!(
-                f,
+            Self::CrossShell { f1, f2 } => format!(
                 "faces {f1:?} and {f2:?} lie in different shells \
                  (ring_move reparents a ring within one shell only; \
                  cross-shell face merging is kfmrh's shell-fusion form)"
             ),
-            Self::FaceHasRings { face } => write!(
-                f,
+            Self::FaceHasRings { face } => format!(
                 "face {face:?} still has rings and must be ring-free here \
                  (move them off with ring_move first)"
             ),
-            Self::SolidNotSingleShell { solid, shells } => write!(
-                f,
+            Self::SolidNotSingleShell { solid, shells } => format!(
                 "kvfs: solid {solid:?} has {shells} shells, not the skeletal \
                  single shell"
             ),
-            Self::ShellNotSingleFace { shell, faces } => write!(
-                f,
+            Self::ShellNotSingleFace { shell, faces } => format!(
                 "kvfs: shell {shell:?} has {faces} faces, not the skeletal \
                  single face"
             ),
-            Self::NullScaffoldCurve { curve } => write!(
-                f,
+            Self::NullScaffoldCurve { curve } => format!(
                 "curve {curve:?} is null-edge scaffolding (no carrier by \
                  type); the operation requires a certified carrier"
             ),
@@ -1015,8 +999,7 @@ impl fmt::Display for EulerOpError {
             // interval fires this same arm), so the coincidence levers
             // are offered conditionally — the unconditional fix is a
             // strictly interior parameter (S6 review, MINOR-2).
-            Self::SplitParamNotInterior { edge } => write!(
-                f,
+            Self::SplitParamNotInterior { edge } => format!(
                 "split_edge: the parameter is definitely not interior to \
                  edge {edge:?}'s certified interval (it coincides with an \
                  endpoint, or lies outside) — pick a parameter strictly \
@@ -1024,8 +1007,7 @@ impl fmt::Display for EulerOpError {
                  an endpoint, {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::SplitParamEscalated { edge, diag } => write!(
-                f,
+            Self::SplitParamEscalated { edge, diag } => format!(
                 "split_edge: interiority test on edge {edge:?} escalated \
                  ({diag})"
             ),
@@ -1033,43 +1015,41 @@ impl fmt::Display for EulerOpError {
                 edge,
                 half_edge,
                 error,
-            } => write!(
-                f,
+            } => format!(
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {error}"
             ),
-            Self::PcurveMint { face, refusal } => write!(
-                f,
+            Self::PcurveMint { face, refusal } => format!(
                 "the operator would add a half-edge to face {face:?}, whose pcurve rows are \
                  complete, and cannot mint its row: {refusal}"
             ),
-            Self::CrossSolid { f1, f2 } => write!(
-                f,
+            Self::CrossSolid { f1, f2 } => format!(
                 "kfmrh: faces {f1:?} and {f2:?} lie in different solids \
                  (cross-solid fusion is the boolean combine step, not an \
                  Euler surgery)"
             ),
-            Self::NoShellsNamed => write!(
-                f,
-                "move_shells_to_new_solid: no shells named, and a solid with no \
-                 shells is not a solid"
-            ),
-            Self::ShellRepeated { shell } => write!(
-                f,
+            Self::NoShellsNamed => "move_shells_to_new_solid: no shells named, and a solid with \
+                                    no shells is not a solid"
+                .to_owned(),
+            Self::ShellRepeated { shell } => format!(
                 "move_shells_to_new_solid: shell {shell:?} is named more than once \
                  (caller desync)"
             ),
-            Self::ShellsAcrossSolids { shell, other } => write!(
-                f,
+            Self::ShellsAcrossSolids { shell, other } => format!(
                 "move_shells_to_new_solid: shells {shell:?} and {other:?} lie in \
                  different solids (the op re-partitions one solid's shells)"
             ),
-            Self::SolidWouldEmpty { solid } => write!(
-                f,
+            Self::SolidWouldEmpty { solid } => format!(
                 "move_shells_to_new_solid: moving every shell of solid {solid:?} \
                  would leave it with none"
             ),
         }
+    }
+}
+
+impl fmt::Display for EulerOpError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.render(Reading::Build))
     }
 }
 
@@ -1149,9 +1129,10 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::SplitParamEscalated {
             edge: ek,
             diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("split_edge_param_interior"),
+                terminal_sliver: false,
             },
         },
         EulerOpError::PcurveSplit {
@@ -1656,9 +1637,9 @@ impl<T: Decide> Body<T> {
     /// **Pcurve rows** ([`crate::pcurves`]): the moved run's stored
     /// rows are curves stated in the OLD face's chart. Where the new
     /// face is on the same chart — [`FaceSurface::Inherit`], a
-    /// [`FaceSurface::Shared`] naming the old key or one the body
-    /// records as the same description ([`Body::same_chart`]) — they
-    /// stand; under any other surface the run's rows are DROPPED, for
+    /// [`FaceSurface::Shared`] naming the old key or one sharing its
+    /// payload ([`Body::same_chart`]) — they stand; under any other
+    /// surface the run's rows are DROPPED, for
     /// the reasons and with the consequences [`Body::drop_rows`]
     /// states. The old face's remaining rows are untouched either way.
     /// The two halves this op mints get their rows at the site, as
@@ -3496,20 +3477,19 @@ mod tests {
     /// A digon pillow whose second face carries a plane: the smallest
     /// body that can hold a `Chart` or an `Intersection` description.
     fn described_pillow(tol: Tol) -> (Body<f64>, MevCreated, crate::MefCreated) {
-        let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(q(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                q(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
                 tol,
             )
             .unwrap();
         let plane = geom::Surface::Plane {
-            origin: q(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::unit_z(),
             u_ref: geom_core::Vec3::unit_x(),
         };
@@ -3519,7 +3499,10 @@ mod tests {
                     he1: seg.he_plus,
                     he2: seg.he_minus,
                 },
-                geom_brep::EdgeCurveSpec::line_between(q(0.0, 0.0, 0.0), q(1.0, 0.0, 0.0)),
+                geom_brep::EdgeCurveSpec::line_between(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                ),
                 FaceSurface::New(plane),
                 tol,
             )
@@ -3565,26 +3548,28 @@ mod tests {
     #[test]
     fn the_gate_carries_and_refuses_a_line_under_an_intersection_description() {
         let tol = Tol::witness();
-        let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let (mut body, _seg, split) = described_pillow(tol);
         let s_plus = body.get_face(split.face).unwrap().surface;
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
         let s_seed = body.get_face(seed_face).unwrap().surface;
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Plane {
-            origin: q(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::unit_z(),
             u_ref: geom_core::Vec3::unit_x(),
         };
         *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
-            origin: q(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::unit_y(),
             u_ref: geom_core::Vec3::unit_x(),
         };
-        let mut spec = geom_brep::EdgeCurveSpec::line_between(q(0.0, 0.0, 0.0), q(1.0, 0.0, 0.0));
+        let mut spec = geom_brep::EdgeCurveSpec::line_between(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+        );
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
             s1: s_seed,
             s2: s_plus,
-            witness: q(0.5, 0.0, 0.0),
+            witness: Point3::new(0.5, 0.0, 0.0),
         };
         body.set_edge_curve(split.edge, spec, tol).unwrap();
         let hp = body.get_edge(split.edge).unwrap().he_plus;
@@ -3594,10 +3579,12 @@ mod tests {
     #[test]
     fn the_gate_carries_and_refuses_a_line_under_a_chart_description() {
         let tol = Tol::witness();
-        let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let (mut body, _seg, split) = described_pillow(tol);
         let s_plus = body.get_face(split.face).unwrap().surface;
-        let mut spec = geom_brep::EdgeCurveSpec::line_between(q(0.0, 0.0, 0.0), q(1.0, 0.0, 0.0));
+        let mut spec = geom_brep::EdgeCurveSpec::line_between(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+        );
         spec.description = geom_brep::EdgeDescriptionSpec::chart(s_plus);
         body.set_edge_curve(split.edge, spec, tol).unwrap();
         let hp = body.get_edge(split.edge).unwrap().he_plus;
@@ -3951,7 +3938,6 @@ mod tests {
     /// Returns the body and that edge.
     fn m7_8_pillow(tol: Tol) -> (Body<f64>, EdgeKey) {
         use geom_core::spline::KnotVector;
-        let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let (mut body, _seg, split) = described_pillow(tol);
         let s_plus = body.get_face(split.face).unwrap().surface;
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
@@ -3960,28 +3946,31 @@ mod tests {
         let ticks = [-1.0, 0.5, 2.0];
         let control: Vec<_> = ticks
             .iter()
-            .flat_map(|&x| ticks.iter().map(move |&y| q(x, y, 0.0)))
+            .flat_map(|&x| ticks.iter().map(move |&y| Point3::new(x, y, 0.0)))
             .collect();
         let weights = vec![1.0; control.len()];
         let patch = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
         assert!(!patch.is_placeholder());
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Nurbs(std::sync::Arc::new(patch));
         *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
-            origin: q(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::unit_y(),
             u_ref: geom_core::Vec3::unit_x(),
         };
         // The lane's certificate is a hull statement about a control
         // net, so the declared carrier is the chord as a degree-1 spline.
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let chord =
-            geom::NurbsCurve3::new(kv, vec![q(0.0, 0.0, 0.0), q(1.0, 0.0, 0.0)], vec![1.0, 1.0])
-                .unwrap();
+        let chord = geom::NurbsCurve3::new(
+            kv,
+            vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 s1: s_seed,
                 s2: s_plus,
-                witness: q(0.5, 0.0, 0.0),
+                witness: Point3::new(0.5, 0.0, 0.0),
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(chord)),
             param_start: 0.0,
@@ -5059,9 +5048,10 @@ mod tests {
         let escalated = EulerOpError::SplitParamEscalated {
             edge,
             diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("split_edge_param_interior"),
+                terminal_sliver: false,
             },
         };
         let msg = escalated.to_string();

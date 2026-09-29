@@ -33,13 +33,9 @@ use geom_brep::{EdgeCurveSpec, SurfaceKind};
 use geom_core::{Point3, Tol, Vec3};
 use topo::{Body, MevSite};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
@@ -49,7 +45,7 @@ fn unit_sphere() -> Surface<f64> {
 /// The same great circle by latitude: `eval(t) = (cos t, 0, sin t)`.
 fn meridian_by_latitude() -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, -1.0, 0.0),
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
@@ -113,13 +109,13 @@ fn cap_with_a_spur(tip: f64) -> Body<f64> {
     let tol = Tol::witness();
     let z = 0.5_f64;
     let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, z),
+        center: Point3::new(0.0, 0.0, z),
         axis: Vec3::new(0.0, 0.0, 1.0),
         radius: (1.0 - z * z).sqrt(),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let disc = Surface::Plane {
-        origin: p3(0.0, 0.0, z),
+        origin: Point3::new(0.0, 0.0, z),
         normal: Vec3::new(0.0, 0.0, -1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };

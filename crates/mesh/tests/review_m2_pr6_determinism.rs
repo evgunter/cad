@@ -9,12 +9,12 @@
 use crate::common;
 
 use common::{
-    axis_y, ball, cone, donut, dump, eps, l_prism, p2, rounded_prism, validated, washer, wedge,
+    axis_y, ball, cone, donut, dump, eps, l_prism, rounded_prism, validated, washer, wedge,
 };
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use mesh::tessellate;
 use profile::ProfileLoop;
-use profile::RawLoop;
+use profile::{RawLoop, test_support::bulge_loop};
 use sweep::{Revolution, revolve};
 
 /// FNV-1a over a string (independent tiny hash, no deps).
@@ -149,9 +149,24 @@ fn survives_canonically_equal_profile_constructions() {
     // meshes must pass the full battery and agree on volume to within
     // the certified band, and each must rebuild bitwise.
     let variants = [
-        vec![p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)],
-        vec![p2(2.0, 1.0), p2(1.0, 1.0), p2(1.0, 0.0), p2(2.0, 0.0)],
-        vec![p2(1.0, 0.0), p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 0.0)], // CW
+        vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 1.0),
+        ],
+        vec![
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 0.0),
+        ],
+        vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(2.0, 0.0),
+        ], // CW
     ];
     let delta = 0.05;
     let mut vols = Vec::new();
@@ -184,9 +199,9 @@ fn survives_near_axis_vertex_arc_endpoint() {
     // row, the tessellation must either be refused typed upstream or
     // produce a watertight certified mesh — never a broken one.
     let d = 1e-7;
-    let lp = ProfileLoop::new(vec![
-        profile::ProfileVertex::new(p2(d, -1.0), 1.0),
-        profile::ProfileVertex::new(p2(d, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(d, -1.0), 1.0),
+        (Point2::new(d, 1.0), 0.0),
     ]);
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(geom_core::Tol::witness());

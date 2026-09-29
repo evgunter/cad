@@ -296,6 +296,12 @@ use crate::null::CurveGeom;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PcurveMintErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PcurveMintError {
     /// A key failed to resolve mid-pass — a structurally corrupt body
     /// (tier 1's job to report; this pass only refuses to guess).
@@ -575,8 +581,7 @@ fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Sur
     let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *curve.description() else {
         return None;
     };
-    let lp = body.get_loop(he.parent_loop)?;
-    let own = body.get_face(lp.face)?.surface;
+    let own = body.get_face(body.face_of_half_edge(half_edge)?)?.surface;
     let other = if own == s1 {
         s2
     } else if own == s2 {
@@ -592,14 +597,7 @@ fn half_edge_surface<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<Surface<T>, PcurveMintError> {
-    let he = body
-        .get_half_edge(half_edge)
-        .ok_or(PcurveMintError::Corrupt)?;
-    let lp = body
-        .get_loop(he.parent_loop)
-        .ok_or(PcurveMintError::Corrupt)?;
-    let face = body.get_face(lp.face).ok_or(PcurveMintError::Corrupt)?;
-    body.get_surface(face.surface)
+    body.get_surface(half_edge_surface_key(body, half_edge)?)
         .cloned()
         .ok_or(PcurveMintError::Corrupt)
 }
@@ -610,14 +608,10 @@ fn half_edge_surface_key<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<geom_brep::SurfaceKey, PcurveMintError> {
-    let he = body
-        .get_half_edge(half_edge)
+    let face = body
+        .face_of_half_edge(half_edge)
         .ok_or(PcurveMintError::Corrupt)?;
-    let lp = body
-        .get_loop(he.parent_loop)
-        .ok_or(PcurveMintError::Corrupt)?;
-    let face = body.get_face(lp.face).ok_or(PcurveMintError::Corrupt)?;
-    Ok(face.surface)
+    Ok(body.get_face(face).ok_or(PcurveMintError::Corrupt)?.surface)
 }
 
 /// The certified description of `half_edge`'s edge.
@@ -3318,6 +3312,11 @@ pub(crate) mod staleness_posture {
                  reaches a pcurve",
             ),
             ("set_face_sense", Neither, "writes one `bool`"),
+            (
+                "set_face_surface_and_sense",
+                Transfers,
+                "`set_face_surface`, which it calls, plus one `bool`",
+            ),
             ("set_surface_source", Neither, "GeomSource metadata"),
             ("set_curve_source", Neither, "GeomSource metadata"),
             ("set_point_source", Neither, "GeomSource metadata"),
@@ -3331,6 +3330,11 @@ pub(crate) mod staleness_posture {
                 "set_surface_field_source",
                 Neither,
                 "ParamSource metadata: a per-field side record beside the surface",
+            ),
+            (
+                "set_surface_axis_source",
+                Neither,
+                "axis-channel metadata: a per-component side record beside the surface",
             ),
             (
                 "begin_surgery",
@@ -3357,6 +3361,22 @@ pub(crate) mod staleness_posture {
                 "cube_into",
                 Neither,
                 "`prism_ops` at the unit square then `describe_as_intersections`",
+            ),
+            (
+                "plant_ring_face",
+                Neither,
+                "`mev_line`, `kemr` and `mef_chord`, every one of them already sorted above",
+            ),
+            (
+                "drill_hole",
+                Neither,
+                "`plant_ring_face`, then `mev_line`, `mef_chord` and `kfmrh`, every one of \
+                 them already sorted above",
+            ),
+            (
+                "plane_every_face",
+                Neither,
+                "`set_face_surface` per face, on that entry's terms",
             ),
         ]
     };
@@ -3423,7 +3443,7 @@ pub(crate) mod staleness_posture {
 
         for door in crate::source_walk::mutation_doors() {
             let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
-            if door.code_contains("mint_pcurves(") || door.code_contains("mint_pcurves_of(") {
+            if door.names("mint_pcurves") || door.names("mint_pcurves_of") {
                 if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
                     mislabelled.push(format!("{} declared {posture:?}", door.name));
                 }
@@ -3768,9 +3788,10 @@ mod recourse_tests {
             "read", "repair", "re-mint", "ask", "hold", "describe", "report",
         ];
         let cause = Indeterminate {
-            margin: MarginDiag::Value(5e-9),
+            margin: MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("pcurve_recourse_probe"),
+            terminal_sliver: false,
         };
         let band_error = BandError::Empty {
             zero: 1e-8,

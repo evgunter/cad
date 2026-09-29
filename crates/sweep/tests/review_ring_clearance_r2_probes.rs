@@ -34,7 +34,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -51,10 +50,10 @@ fn tol() -> Tol {
 fn cylinder() -> Body<f64> {
     let mut b = revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
         tol(),
@@ -74,10 +73,7 @@ fn cylinder() -> Body<f64> {
 /// (`test_support::ball_poled_z`'s note, one axis over).
 fn pipped(dc: f64, pr: f64) -> Body<f64> {
     let ball = revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, -pr), 1.0),
-            ProfileVertex::new(Point2::new(0.0, pr), 0.0),
-        ],
+        vec![(Point2::new(0.0, -pr), 1.0), (Point2::new(0.0, pr), 0.0)],
         Revolution::Full,
         tol(),
     );
@@ -189,7 +185,11 @@ fn the_boolean_route_to_the_exact_containment_backstop_is_blocked() {
     };
     assert_eq!(margin.predicate, "fillet3_face_clearance");
     assert_eq!(margin.sign, Sign::Negative);
-    let read = margin.value().expect("a definite reading");
+    let read = margin
+        .reading
+        .diagnostic_f64_for_error_text()
+        .value()
+        .expect("a definite reading");
     assert!(
         (read - want).abs() <= 1e-15,
         "the screen reads the containment margin (read {read}, derived {want})"
@@ -243,7 +243,11 @@ fn a_non_coaxial_ladder_trim_circle_carves_inside_its_boundary_and_refuses_outsi
         panic!("the sampled screen answers first on this pair, got {err:?}");
     };
     assert_eq!(margin.sign, Sign::Negative);
-    let read = margin.value().expect("a definite reading");
+    let read = margin
+        .reading
+        .diagnostic_f64_for_error_text()
+        .value()
+        .expect("a definite reading");
     assert!(
         (read - want).abs() <= 1e-15,
         "the screen reads the containment margin (read {read}, derived {want})"

@@ -86,7 +86,6 @@ fn double_subtract_crossing_slots_succeeds() {
     assert_result_sound(&double_subtract_crossing_slots::<f64>());
 }
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
 

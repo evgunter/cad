@@ -84,3 +84,19 @@ made by reading the row against the tree on 2026-09-11, not a verdict on
 the finding, and a lane that finds it wrong says so in its PR. The id,
 the `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## The tree has moved under this row (2026-09-25, ATREST-10)
+
+Read against main at ATREST-10 (PR #3227), the body above describes a
+tree that is gone: `PropsQuadLane` was retired by H5 ruling 3's no-trait
+cut, and LANE-1 (PR 3010) took option 2 — the plain names
+`validate_pseudomanifold` and `contact_marks` are the CERTIFIED doors
+(bounded `CertifiedBounds`, holding the plane × NURBS lane) and the
+lane-free forms are their `_structural` twins.
+`topo/src/cert_m3r1_probes.rs`'s
+`m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else`
+pins the plain names re-deriving the class. What remains of the finding
+is the `_structural` doors' documented skip (`validate.rs`'s door roster
+states it), which is the twin's meaning rather than a defect. Whether
+the row closes is PIPE's call; ATREST-10 records the evidence here and
+does not close it.

@@ -346,7 +346,8 @@ fn tampered_declaration_is_stale() {
 /// A hand-built genuine self-intersection — two interpenetrating cube
 /// shells in ONE body, no declarations — is `UndeclaredContact`, hard:
 /// the census's proper-crossing lanes (edge-face pierce / edge-edge
-/// cross) have no backing path by design.
+/// cross) have no backing path by design. The instance arm finds each
+/// cube's corner inside the other.
 #[test]
 fn hand_built_self_intersection_is_undeclared() {
     let mut body = mapped_cube(
@@ -361,10 +362,17 @@ fn hand_built_self_intersection_is_undeclared() {
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(!errors.is_empty());
+    // Beside the findings, the instance arm's decided interference: each
+    // cube has a corner inside the other.
+    let rest: Vec<_> = errors
+        .iter()
+        .filter(|e| !matches!(e, ValidationError::UndeclaredContact { .. }))
+        .collect();
     assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+        !rest.is_empty()
+            && rest
+                .iter()
+                .all(|e| matches!(e, ValidationError::InstanceInterference { .. })),
         "{errors:?}"
     );
     assert!(
@@ -506,7 +514,6 @@ fn closure_consumed_base_stays_certified() {
 }
 
 // ---- Interval lane (the same generic scenarios at T = Interval). ----
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
 

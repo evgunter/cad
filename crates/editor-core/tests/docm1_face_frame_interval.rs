@@ -5,7 +5,6 @@
 //! frame's body reads recomputes the profile rather than serving the
 //! nominal memo entry.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;

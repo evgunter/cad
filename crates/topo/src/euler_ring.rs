@@ -732,7 +732,7 @@ impl<T: Decide> Body<T> {
     /// **Pcurve rows** ([`crate::pcurves`]): the demoted loop's stored
     /// rows are a curve stated in `f2`'s chart, so they survive this op
     /// only when `f1` is on the same CHART ([`Body::same_chart`]: one
-    /// key, or two keys the body records as one description). When it
+    /// key, or two keys sharing one payload). When it
     /// is not, they are DROPPED — [`Body::drop_rows_on_chart_change`]
     /// carries why this door cannot re-state them and what the drop
     /// leaves behind (a target face that carries rows of its own is
@@ -1160,41 +1160,22 @@ impl<T: Decide> Body<T> {
         self.drop_rows(loops.into_iter().flatten().flatten());
     }
 
-    /// Do these two surface keys name one CHART — the thing a pcurve
-    /// row is stated in?
+    /// Do these two surface keys hold one DESCRIPTION, so a pcurve
+    /// row certified on one is certified on the other?
     ///
-    /// The rungs are the merge door's two hard ones
-    /// (`Body::planes_declared_equal`), for the same reason they are
-    /// the merge door's: one surface key is one description, and two
-    /// keys carrying one [`crate::GeomSource`] are one description by
-    /// the source theorem (N6 — recipe provenance replaced the
-    /// retired bit compare as this tree's identity channel). A shared
-    /// payload is the third spelling of the second: two keys holding
-    /// the same `Arc` hold the same described chart, which needs no
-    /// record to see.
+    /// Answered from identity evidence only: one surface key, or two
+    /// keys sharing one NURBS / `Approx` payload `Arc`. A
+    /// [`crate::GeomSource`] stamp is not read: it declares what the
+    /// recipe intended, and does not prove the two keys hold one value.
+    /// Whether the recipe has declared two keys one surface is the merge
+    /// door's question (`Body::planes_declared_equal`), not this one's.
     ///
-    /// **Never the face's `sense`**, unlike the merge door's rungs. A
-    /// merge asks whether two faces are one REGION, which the outward
-    /// normal decides; a row asks only which chart it is stated in,
-    /// and the sense bit does not move the chart.
-    ///
-    /// **What it cannot see**, and the conservative direction it takes
-    /// when it cannot: two independently described keys holding an
-    /// equal surface with no provenance tying them. Deciding those
-    /// equal means reading the surfaces' scalars structurally, which
-    /// needs `geom_core::Bounds` — a bound these `Decide` doors do not
-    /// carry
-    /// (`work/origin/two-provenance-free-keys-holding-one-surface-read-as-two-charts`).
-    /// Answering `false` there costs a re-mint; answering `true`
-    /// wrongly would keep a row about another surface, so absent
-    /// evidence this is the safe way to be wrong.
+    /// Two keys holding equal values with no identity tie answer
+    /// `false`, and their rows drop and are re-minted: the price of
+    /// never carrying a row onto a surface it is not about. The face's
+    /// `sense` is not read — it does not move the chart.
     pub(crate) fn same_chart(&self, a: SurfaceKey, b: SurfaceKey) -> bool {
         if a == b {
-            return true;
-        }
-        if let (Some(ga), Some(gb)) = (self.surface_source(a), self.surface_source(b))
-            && ga == gb
-        {
             return true;
         }
         match (self.get_surface(a), self.get_surface(b)) {
@@ -2903,18 +2884,14 @@ mod tests {
     /// A same-solid two-shell body: the shape `kfmrh`'s fusion form
     /// exists for. It is not constructible through the public
     /// operators (`mvfs` mints one solid per shell), so the second
-    /// shell is re-homed by raw in-crate write — the same adversarial
+    /// shell is refiled by raw in-crate write
+    /// ([`crate::fixtures::refile_shells`]) — the same adversarial
     /// posture as the rest of this module's corruption rows.
     fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
         let (mut body, seed, _seg, _split) = ops_pillow();
         let other = body.mvfs(p(9.0)).unwrap();
         let first_solid = body.solid_of_face(seed.face).unwrap();
-        body.get_shell_mut(other.shell).unwrap().solid = first_solid;
-        body.get_solid_mut(first_solid)
-            .unwrap()
-            .shells
-            .push(other.shell);
-        body.get_solid_mut(other.solid).unwrap().shells.clear();
+        crate::fixtures::refile_shells(&mut body, other.solid, first_solid);
         (body, seed, other)
     }
 

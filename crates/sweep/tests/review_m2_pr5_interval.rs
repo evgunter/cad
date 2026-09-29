@@ -1,22 +1,18 @@
-//! Adversarial review suite for M2 PR 5, interval lane (feature
-//! `interval`): the reviewer's shapes that go beyond the shipped
+//! Adversarial review suite for M2 PR 5, interval lane: the
+//! reviewer's shapes that go beyond the shipped
 //! four-acceptance set — a multi-segment two-band wire (dome), the
 //! wrap-run donut, and a NEGATIVE-angle non-dyadic wedge. Refusals
 //! here are defects, not honesty (the lane is fully live post-B1).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::{p2, v2};
 use geom_core::Tol;
-use geom_core::{Interval, Point2, Real, Vec2};
+use geom_core::{Interval, Real};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{validate, validate_closed, validate_geometric};
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-}
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::xy(), loops)
@@ -27,7 +23,7 @@ fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
 fn axis_y() -> RevolveAxis<Interval> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
+        dir: v2(0.0, 1.0),
     }
 }
 
@@ -66,9 +62,9 @@ fn survives_interval_dome_two_band_wire() {
 fn survives_interval_donut_wrap_run() {
     // The 2-arc circle profile: cosurface wrap pair + kfmrh/zip at
     // Interval; ONE torus key, both meridians Seam.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 0.5), Interval::from_f64(1.0)),
-        ProfileVertex::new(p2(2.0, 0.5), Interval::from_f64(1.0)),
+    let lp = bulge_loop(vec![
+        (p2(1.0, 0.5), Interval::from_f64(1.0)),
+        (p2(2.0, 0.5), Interval::from_f64(1.0)),
     ]);
     let t = revolve(
         &validated(vec![lp]),

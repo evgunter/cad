@@ -6,8 +6,7 @@
 //! containment sweeps, decoration-chain probes, the tier-3 certified
 //! residual dry run.
 //!
-//! Runs in CI's interval lane (`--features interval`; the workspace's
-//! x86-64-v3 floor applies). Promotion adaptations (mechanical only):
+//! Promotion adaptations (mechanical only):
 //! the standard test-lint allows below. One later edit is NOT
 //! mechanical and is the one exception to "verbatim": the reviewer's
 //! hand-written `Surface<f64> → Surface<Interval>` ladder and its
@@ -16,7 +15,6 @@
 //! `Nurbs(_) => nurbs_placeholder()` substitution is retired while a
 //! battery's independent DERIVATION stays. Every derivation in this
 //! file is untouched. Placement rationale: see `review_m2_pr1.rs`.
-#![cfg(feature = "interval")]
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -283,11 +281,7 @@ fn basis_interval_contains_f64() {
         Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
     ] {
         let (b1, b2) = n.orthonormal_basis();
-        let ni = Vec3::new(
-            Interval::from_f64(n.x),
-            Interval::from_f64(n.y),
-            Interval::from_f64(n.z),
-        );
+        let ni = n.map(Interval::from_f64);
         let (i1, i2) = ni.orthonormal_basis();
         for (f, e) in [
             (b1.x, i1.x),

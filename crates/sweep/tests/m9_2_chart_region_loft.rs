@@ -19,7 +19,7 @@
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::test_support::stacked_at;
 use topo::{Body, ChartOverlap, FaceKey, Pcurve, chart_region_overlap};
 
@@ -72,9 +72,9 @@ fn wall_pcurve_kinds(body: &Body<f64>, face: FaceKey) -> Vec<&'static str> {
 
 #[test]
 fn an_iso_line_wall_extracts_and_certifies_positive_area() {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let square = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(-1.0, -1.0),
             v(1.0, -1.0),
             v(1.0, 1.0),
@@ -121,9 +121,9 @@ fn an_iso_line_wall_extracts_and_certifies_positive_area() {
 fn a_rational_iso_arc_wall_extracts_and_certifies_positive_area() {
     // A square with one bulged (arc) edge: the swept wall over the
     // arc is RATIONAL and its cap rims store `IsoArc` caches (M8-3).
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     let bulged = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(0.0, 0.0, 0.0),
             v(2.0, 0.0, 0.4),
             v(2.0, 2.0, 0.0),

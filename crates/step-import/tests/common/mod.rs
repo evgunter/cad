@@ -238,11 +238,9 @@ pub fn freecad_fixture(name: &str) -> String {
 /// because cross-crate constant deduplication is LIB-U6's territory
 /// and that module's routing rule says so out loud.
 pub fn arc_section(s: f64) -> sweep::Section {
-    use profile::RawLoop as _;
-    let v = |x: f64, y: f64, bulge: f64| {
-        profile::ProfileVertex::new(geom_core::Point2::new(x, y), bulge)
-    };
-    vec![profile::ProfileLoop::new(vec![
+    use profile::test_support::bulge_loop;
+    let v = |x: f64, y: f64, bulge: f64| (geom_core::Point2::new(x, y), bulge);
+    vec![bulge_loop(vec![
         v(-s, -s, 0.0),
         // tan(π/8): a quarter-circle bulge-out.
         v(s, -s, 0.4142135623730951),

@@ -192,12 +192,11 @@ fn the_records_survive_into_a_boolean_result() {
 /// split plane parallel to the extrusion through the square leaves
 /// that wall a surface only the dropped faces referenced.
 ///
-/// Two channels, two assertions: the field rows this unit added, and
-/// the description-level `GeomSource` row the same sweep now removes
-/// too — a change to the pre-existing channel folded in beside it, so
-/// it gets its own line rather than riding under the field rows'.
+/// One assertion per side table — the field rows, the description's
+/// `GeomSource` row, the axis row — so a sweep that dropped one and
+/// stranded another is named by the line that fails.
 #[test]
-fn the_split_orphan_sweep_drops_both_side_tables() {
+fn the_split_orphan_sweep_drops_every_side_table() {
     let tol = Tol::witness();
     let vp = Profile::new(SketchPlane::xy(), crate::common::chain(1.0))
         .validate(tol)
@@ -225,6 +224,8 @@ fn the_split_orphan_sweep_drops_both_side_tables() {
         .expect("a live cylinder key");
     body.set_surface_source(far_wall, topo::GeomSource::minted(7, 0))
         .expect("a live wall key");
+    body.set_surface_axis_source(far_wall, topo::AxisSource::from_lowered(b"the-arc's-axis"))
+        .expect("a cylinder stores an axis");
     let plane = topo::SplitPlane {
         origin: Point3::new(1.0, 0.0, 0.0),
         normal: Vec3::new(1.0, 0.0, 0.0),
@@ -243,5 +244,9 @@ fn the_split_orphan_sweep_drops_both_side_tables() {
     assert!(
         near.surface_source(far_wall).is_none(),
         "the GeomSource row outlived the surface the split swept out"
+    );
+    assert!(
+        near.surface_axis_record(far_wall).is_none(),
+        "the axis row outlived the surface the split swept out"
     );
 }

@@ -70,8 +70,6 @@
 //! correspondence is re-worded, the other when the word stops reaching
 //! the user.
 
-use std::sync::Arc;
-
 use geom_core::{Decide, Tol, Vec3};
 use topo::query::DatumValue;
 use topo::splitting::SplitNaming;
@@ -94,7 +92,7 @@ pub(crate) type SplitEmitter<T> = fn(
     &Body<T>,
     Vec3<T>,
     Tol,
-) -> Result<Arc<NameTable>, NamingError>;
+) -> Result<names::Emitted, NamingError>;
 
 /// **The split's correspondence**, as data — everything the split's
 /// lowering needs to turn a `Node::Split` into a [`verbs::Verb`] and its two

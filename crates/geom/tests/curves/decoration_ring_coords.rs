@@ -1,21 +1,21 @@
 //! **The control-net bracket seam follows the certified door.**
 //!
-//! `ring_coords` lifts a carrier's control net into the C9 ring, one
-//! `RingInterval` per coefficient. The lift reads each coefficient's
+//! `ring_coords` lifts a carrier's control net into certification arithmetic, one
+//! `Interval` per coefficient. The lift reads each coefficient's
 //! bracket, and at the `Interval` scalar a bracket can be *sound but
 //! inadmissible*: `sqrt([−1, 4])` clamps to `[0, 2]` and records the
-//! domain violation only in its decoration (`Trv`). Nothing downstream
-//! of the ring can see that — `RingInterval` has no decoration channel
-//! — so a coefficient that may not certify has to be refused **here**,
-//! at the crossing, or it certifies a composite bound for an expression
-//! nobody asked for.
+//! domain violation only in its decoration (`Trv`). The crossing
+//! (`Interval::from_certified`) caps a coefficient that may not certify
+//! at `Trv` rather than handing its sound endpoints on at `Com`, so the
+//! refusal is read **here**, at the crossing, and carried to every
+//! certification door downstream; handed on unrefused, it would certify
+//! a composite bound for an expression nobody asked for.
 //!
 //! The invariant these rows pin: a coefficient that fails
 //! [`CertifiedEnclosure`] crosses as poison, a coefficient that passes
 //! crosses with its stored endpoints, and the two verdicts are decided
 //! per coefficient rather than per carrier.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{NurbsCurve2, NurbsCurve3};
@@ -90,7 +90,7 @@ fn curve3_ring_coords_refuses_a_violated_coefficient_per_channel() {
     .unwrap();
     let coords = c.ring_coords();
     assert!(
-        coords[0][0].is_poison(),
+        !coords[0][0].is_certified(),
         "the violated coefficient crossed as {:?} — the lift read the \
          BRACKET door, so a clamped `sqrt` certifies a composite bound \
          for an expression that was never evaluated",
@@ -116,7 +116,7 @@ fn curve2_ring_coords_refuses_a_violated_coefficient_per_channel() {
     .unwrap();
     let coords = c.ring_coords();
     assert!(
-        coords[1][0].is_poison(),
+        !coords[1][0].is_certified(),
         "the violated coefficient crossed as {:?}",
         coords[1][0]
     );
@@ -144,7 +144,7 @@ fn a_certified_net_crosses_unchanged() {
     .unwrap();
     for ch in c.ring_coords() {
         for r in ch {
-            assert!(!r.is_poison(), "a certified net must cross whole");
+            assert!(r.is_certified(), "a certified net must cross whole");
         }
     }
 }

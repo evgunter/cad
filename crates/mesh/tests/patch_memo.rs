@@ -392,12 +392,12 @@ fn a_moved_vertex_misses_exactly_the_faces_whose_carriers_changed() {
     // lane throughout.
     let moved = {
         let lp = ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(2.0, 0.0),
-            p2(2.0, 1.0),
-            p2(1.0, 1.0),
-            p2(1.0, 2.125),
-            p2(0.0, 2.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(1.0, 2.125),
+            Point2::new(0.0, 2.0),
         ]);
         extrude(
             &validated(vec![lp]),

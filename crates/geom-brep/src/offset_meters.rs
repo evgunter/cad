@@ -2,7 +2,7 @@
 //! the collapse headroom (`crates/geom-brep/README.md` O3).
 //!
 //! Both are read off [`crate::patch_bound`]'s per-cell enclosures, and
-//! both are **f64-substrate**: the C9 ring produces an `f64` certified
+//! both are **f64-substrate**: certification arithmetic produces an `f64` certified
 //! enclosure, which is what a hull bound IS, so the numbers below are
 //! the same on every lane (the `SsiCertificate::hull_sup` posture).
 //!
@@ -140,11 +140,15 @@
 //! up: there, a blend radius against a spine's curvature; here, an
 //! offset distance against a patch's.
 
-use geom_core::ring_interval::RingInterval;
-use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
+use geom_core::Bounds;
+use geom_core::interval::Interval;
+use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
-use crate::dihedral::decide;
+use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
+use crate::recourse::{
+    AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+};
 
 /// The refinement ladder the door walks, coarsest first (D9: a fixed
 /// geometric sequence in a fixed order — no value branch chooses it).
@@ -165,41 +169,126 @@ use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
 /// the refusal names the numbers, so that consumer will know.
 pub const OFFSET_METER_LADDER: [usize; 2] = [16, 64];
 
+/// The two offset meters: each is one decision, a clearance that passes
+/// on a positive margin (D4 ¶1 (i)), and this is its closed type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Meter {
+    /// [`offset_normal_floor`]: is the chart normal bounded away from
+    /// degeneracy?
+    NormalFloor,
+    /// [`offset_curvature_headroom`]: does `|d|` stay inside the fold
+    /// radius on the side the face bends toward?
+    CurvatureHeadroom,
+}
+
+impl Meter {
+    /// The predicate name the meter's classification carries into its
+    /// escalation's payload.
+    #[must_use]
+    pub const fn predicate(self) -> &'static str {
+        match self {
+            Self::NormalFloor => "offset_normal_floor",
+            Self::CurvatureHeadroom => "offset_curvature_headroom",
+        }
+    }
+
+    /// The meter's decision: its lever, the size its margin measures,
+    /// and what it passes on. A definite refusal read over a body at
+    /// rest is still the lever's: the stored description's base and
+    /// distance are what it edits.
+    fn decision(self) -> SizedDecision {
+        match self {
+            // A floor of exactly zero on a face with no pole, cusp or
+            // pinch is the refinement ladder running out of rungs on a
+            // regular patch, not the geometry: worth a report.
+            Self::NormalFloor => SizedDecision {
+                lever: "split the face clear of any pole, cusp or pinch",
+                size: "thinness",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
+                at_zero: Some(AtZero::same(
+                    "if it has none, this may indicate a kernel bug worth reporting",
+                )),
+            },
+            Self::CurvatureHeadroom => SizedDecision {
+                lever: "use an offset distance of smaller magnitude, or offset to the other side",
+                size: "clearance",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
+                at_zero: None,
+            },
+        }
+    }
+
+    /// The one ending this meter's refusal carries on `arm`, read at
+    /// `reading` ([`SizedDecision::recourse`]).
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+        self.decision().recourse(arm, reading)
+    }
+}
+
 /// A typed refusal of one of the two offset meters (D4 ¶3). Scalar
 /// payloads echo the classified margin's ingredients — data, not a
 /// decision.
+///
+/// `Display` renders the payload alone: where a refusal is read decides
+/// its ending (D4 ¶1 (i)), so the door that reports it appends
+/// [`MeterError::ending`], or renders both through
+/// [`MeterError::render`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MeterError {
     /// `offset_normal_floor`: the patch's chart normal could not be
     /// bounded away from degeneracy, so the offset locus is not
     /// defined on it (or the bound is too weak to prove that it is).
+    ///
+    /// A `floor` of exactly zero is the loud answer of a cell the
+    /// normal turns too far inside, which splitting the face clear of
+    /// the degeneracy (a pole, cusp or pinch — a point the user can
+    /// see) answers. A regular patch refusing here means
+    /// [`OFFSET_METER_LADDER`] ran out of rungs on it, which is why the
+    /// ending of a zero floor says a face with none of those is worth
+    /// reporting; the payload renders the numbers that decide a further
+    /// rung.
     NormalFloor {
         /// The certified lower bound on `‖S_u × S_v‖` (m² per unit
         /// parameter area) — zero when no cell could be certified.
         floor: f64,
-        /// The classified margin: the chart parallelogram's certified
-        /// thinness in metres, `floor / max(sup‖S_u‖, sup‖S_v‖)`.
-        thinness: f64,
         /// The lever the margin divided by, in metres per unit
         /// parameter — the patch's faster chart speed.
         speed_lever: f64,
+        /// The verdict on the classified margin, the chart
+        /// parallelogram's certified thinness in metres,
+        /// `floor / max(sup‖S_u‖, sup‖S_v‖)`. The thinness is never
+        /// negative, so it is [`Refused::Zero`] on every input the meter
+        /// classifies.
+        verdict: Refused,
     },
     /// `offset_curvature_headroom`: `|d|` reaches the patch's
     /// smallest certified curvature radius on the folding side, so
     /// the offset self-intersects (or the bound is too weak to prove
-    /// that it does not).
+    /// that it does not). The message names `reach`, the distance a
+    /// request must stay strictly inside; the margin and `kappa` ride
+    /// in the payload.
     CurvatureHeadroom {
         /// The certified critical distance on the folding side, in
         /// metres (`+∞` when the patch does not curve that way).
         reach: f64,
-        /// The classified margin `reach − |d|`, in metres.
-        headroom: f64,
         /// The certified principal-curvature range, in 1/m.
         kappa: (f64, f64),
+        /// The verdict on the classified margin `reach − |d|`, in
+        /// metres.
+        verdict: Refused,
     },
     /// A meter escalated: the margin landed in the ambiguity band or
     /// was poisoned (escalate-never-guess, D4 ¶3).
+    ///
+    /// It renders the classifier's payload without `Indeterminate`'s
+    /// shared coincidence tail — a meter decides one face's own normal
+    /// or curvature, so "declare the coincidence" has no object.
     Escalated {
+        /// The meter that escalated.
+        meter: Meter,
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
@@ -210,36 +299,70 @@ impl core::fmt::Display for MeterError {
         match self {
             Self::NormalFloor {
                 floor,
-                thinness,
                 speed_lever,
+                verdict,
             } => write!(
                 f,
-                "offset_normal_floor: the patch's chart normal is not certifiably \
-                 non-degenerate — the certified floor on ‖S_u × S_v‖ is {floor} m² per \
-                 unit parameter area, which over the patch's faster chart speed \
-                 ({speed_lever} m) leaves a chart thinness of {thinness} m; the offset \
-                 locus is undefined where the normal degenerates, so nothing is fitted. \
-                 A floor of exactly zero is the loud answer of a cell the normal turns \
-                 too far inside: split the face clear of the degeneracy and offset the \
-                 pieces. If the patch is regular and these numbers say so, the ladder \
-                 (OFFSET_METER_LADDER) ran out of rungs on it — report them, which is \
-                 what decides a further rung"
+                "the face's normal cannot be proved non-zero (a chart {} m thin: normal \
+                 length {floor} m² per unit parameter area over speed {speed_lever} m), so it \
+                 has no offset",
+                verdict.margin()
             ),
             Self::CurvatureHeadroom {
                 reach,
-                headroom,
-                kappa,
+                verdict: Refused::Negative { .. },
+                ..
             } => write!(
                 f,
-                "offset_curvature_headroom: |d| reaches the patch's certified \
-                 curvature radius on the folding side (reach {reach} m, headroom \
-                 {headroom} m, principal curvature in [{}, {}] 1/m) — the offset \
-                 folds, so nothing is fitted: ask for |d| strictly inside the reach, \
-                 or offset to the other side, where this patch does not fold",
-                kappa.0, kappa.1
+                "the offset distance's magnitude passes the face's radius of curvature on the \
+                 side it bends toward ({reach} m), so the offset folds over itself"
             ),
-            Self::Escalated { source } => write!(f, "offset meter escalated: {source}"),
+            Self::CurvatureHeadroom {
+                reach,
+                verdict: Refused::Zero(_),
+                ..
+            } => write!(
+                f,
+                "the offset distance's magnitude is within tolerance of the face's radius of \
+                 curvature on the side it bends toward ({reach} m), so the offset may fold"
+            ),
+            Self::Escalated { source, .. } => write!(
+                f,
+                "the face's offset is too close to call: {}",
+                source.payload()
+            ),
         }
+    }
+}
+
+impl MeterError {
+    /// The meter that refused.
+    #[must_use]
+    pub fn meter(&self) -> Meter {
+        match self {
+            Self::NormalFloor { .. } => Meter::NormalFloor,
+            Self::CurvatureHeadroom { .. } => Meter::CurvatureHeadroom,
+            Self::Escalated { meter, .. } => *meter,
+        }
+    }
+
+    /// The ending this refusal's meter gives its verdict, read at
+    /// `reading` ([`Meter::recourse`]).
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> String {
+        let arm = match self {
+            Self::NormalFloor { verdict, .. } | Self::CurvatureHeadroom { verdict, .. } => {
+                verdict.arm()
+            }
+            Self::Escalated { source, .. } => RefusedArm::Undecided(source),
+        };
+        self.meter().recourse(arm, reading)
+    }
+
+    /// The payload and the ending read at `reading`.
+    #[must_use]
+    pub fn render(&self, reading: Reading) -> String {
+        format!("{self}. {}", self.ending(reading))
     }
 }
 
@@ -248,7 +371,7 @@ impl core::error::Error for MeterError {}
 /// The smallest `|x|` over the enclosure — zero when it straddles, and
 /// zero when it is poisoned, which is the conservative answer.
 ///
-/// **The poison arm is asked by name.** The ring's refusal is its
+/// **The poison arm is asked by name.** Interval arithmetic's refusal is its
 /// decoration, not a NaN pair, so a refused enclosure carries ordinary
 /// endpoints and `i.lo() > 0.0` can be TRUE of one — a quotient by a
 /// divisor not proven away from zero is the shape that reaches here.
@@ -261,8 +384,8 @@ impl core::error::Error for MeterError {}
 /// coefficient-hull *assembly* term and answers `0.0` for the same
 /// arithmetic reason. One spelling would have to pick one of the two
 /// docs, and the shared body is four comparisons.
-pub fn mig(i: RingInterval) -> f64 {
-    if i.is_poison() {
+pub fn mig(i: Interval) -> f64 {
+    if !i.is_certified() {
         return 0.0;
     }
     if i.lo() > 0.0 {
@@ -286,7 +409,7 @@ pub fn sqrt_up(x: f64) -> f64 {
 }
 
 /// Interval dot product, fixed ascending order (D9).
-fn dot(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> RingInterval {
+fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
@@ -298,7 +421,7 @@ fn dot(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> RingInterval {
 /// borrow-shaped triple; if a third consumer ever wants them, the
 /// pair collapses into one `geom_core` home — noted at both sites so
 /// the duplication is a decision rather than an accident.
-fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
+fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -309,7 +432,7 @@ fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
 /// The enclosure of `‖v‖²` — the DEPENDENT square per component, so
 /// a component straddling zero cannot drag the lower end negative
 /// (`x·x` treats its factors as independent; `x.sqr()` does not).
-pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
+pub(crate) fn norm_sq(v: &[Interval; 3]) -> Interval {
     v[0].sqr() + v[1].sqr() + v[2].sqr()
 }
 
@@ -323,12 +446,12 @@ pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
 /// a norm calls this rather than re-spelling the fold.
 /// A poisoned enclosure answers `NaN` — no bound at all, which is what
 /// every consumer of this value already treats as unbounded. The
-/// refusal is asked by name because a poisoned ring carries ordinary
+/// refusal is asked by name because a refused enclosure carries ordinary
 /// endpoints and `sqrt_up` of one would be a plausible bound with
 /// nothing behind it.
-pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
+pub(crate) fn norm_sup(v: &[Interval; 3]) -> f64 {
     let sq = norm_sq(v);
-    if sq.is_poison() {
+    if !sq.is_certified() {
         return f64::NAN;
     }
     sqrt_up(sq.hi())
@@ -339,7 +462,7 @@ pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
 #[derive(Clone, Copy, Debug)]
 pub struct CellNormal {
     /// Componentwise enclosure of `m = S_u × S_v` on the cell.
-    pub m: [RingInterval; 3],
+    pub m: [Interval; 3],
     /// Certified LOWER bound on `‖m‖` over the cell, in
     /// [`PatchRegularity::floor`]'s units (m² per unit parameter
     /// area) — the regularity floor. Exactly `0.0` when neither
@@ -361,13 +484,13 @@ pub struct CellNormal {
 pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     let m = cross(&cell.s_u, &cell.s_v);
     // Assembly A: componentwise mignitude.
-    let sq = RingInterval::point(mig(m[0])).sqr()
-        + RingInterval::point(mig(m[1])).sqr()
-        + RingInterval::point(mig(m[2])).sqr();
+    let sq = Interval::point(mig(m[0])).sqr()
+        + Interval::point(mig(m[1])).sqr()
+        + Interval::point(mig(m[2])).sqr();
     // A refused enclosure separates nothing from zero, and `0.0` is
     // the floor's conservative answer — asked by name, because a
     // refusal here carries real endpoints.
-    let a = if sq.is_poison() {
+    let a = if !sq.is_certified() {
         0.0
     } else {
         sqrt_down(sq.lo())
@@ -377,15 +500,15 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // why this midpoint needs no refusal of its own); the division by
     // a certified upper bound on `‖d̂‖` is what keeps the projection a
     // bound when `d̂` is unit only to rounding.
-    let mid = |i: RingInterval| (i.lo() + i.hi()) * 0.5;
+    let mid = |i: Interval| (i.lo() + i.hi()) * 0.5;
     let dv = [mid(m[0]), mid(m[1]), mid(m[2])];
     let dn = sqrt_up(dv[0].mul_add(dv[0], dv[1].mul_add(dv[1], dv[2] * dv[2])));
     let b = if dn > 0.0 && dn.is_finite() {
-        let proj = RingInterval::point(dv[0]) * m[0]
-            + RingInterval::point(dv[1]) * m[1]
-            + RingInterval::point(dv[2]) * m[2];
-        // The quotient stays IN THE RING and `.lo()` is read once, so
-        // the outward rounding of the division is the ring's rather
+        let proj = Interval::point(dv[0]) * m[0]
+            + Interval::point(dv[1]) * m[1]
+            + Interval::point(dv[2]) * m[2];
+        // The quotient stays IN INTERVAL ARITHMETIC and `.lo()` is read once, so
+        // the outward rounding of the division is interval arithmetic's rather
         // than this function's: a bare `lo / dn` would be a
         // correctly-rounded f64 quotient, which is not a lower bound
         // on the real one. `dn` is a certified UPPER bound on `‖d̂‖`,
@@ -394,8 +517,12 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         // The quotient's refusal is asked by name: `f64::max(NaN, 0.0)`
         // used to absorb a poisoned quotient, and a refused quotient
         // now carries real endpoints instead.
-        let q = proj / RingInterval::point(dn);
-        if q.is_poison() { 0.0 } else { q.lo().max(0.0) }
+        let q = proj / Interval::point(dn);
+        if !q.is_certified() {
+            0.0
+        } else {
+            q.lo().max(0.0)
+        }
     } else {
         0.0
     };
@@ -408,7 +535,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // the sphere-band fixture it is the assembly that moves the
     // certified curvature range from tens to fractions.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
-    let (c, gram_sup) = if gram.is_poison() {
+    let (c, gram_sup) = if !gram.is_certified() {
         (0.0, f64::NAN)
     } else {
         (sqrt_down(gram.lo()), sqrt_up(gram.hi()))
@@ -541,15 +668,16 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 /// below zero, [`MeterError::Escalated`] when it lands in the
 /// ambiguity band or is poisoned.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
+    let meter = Meter::NormalFloor;
     let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
-    match decide("offset_normal_floor", margin, band)
-        .map_err(|source| MeterError::Escalated { source })?
-    {
-        Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => Err(MeterError::NormalFloor {
+    let decided = decide_reported(meter.predicate(), margin, band)
+        .map_err(|source| MeterError::Escalated { meter, source })?;
+    match Refused::of(decided, band) {
+        None => Ok(()),
+        Some(verdict) => Err(MeterError::NormalFloor {
             floor: reg.floor,
-            thinness: margin.value(),
             speed_lever: reg.speed_lever().get(),
+            verdict,
         }),
     }
 }
@@ -618,8 +746,8 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     }
     // The normalized normal, componentwise: `n_c = m_c / ‖m‖` with
     // `‖m‖ ∈ [floor, sup]` — meter 1's floor is exactly what makes
-    // this division legal (the ring refuses a zero-touching divisor).
-    let mag = RingInterval::from_bounds(n.floor, n.sup);
+    // this division legal (interval arithmetic refuses a zero-touching divisor).
+    let mag = Interval::from_bounds(n.floor, n.sup);
     let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
     let (l, m, nn) = (
         dot(&unit, &cell.s_uu),
@@ -629,8 +757,8 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let e = norm_sq(&cell.s_u);
     let f = dot(&cell.s_u, &cell.s_v);
     let g = norm_sq(&cell.s_v);
-    let two = RingInterval::point(2.0);
-    let a = RingInterval::from_bounds(n.floor, n.sup).sqr();
+    let two = Interval::point(2.0);
+    let a = Interval::from_bounds(n.floor, n.sup).sqr();
     // Assembly A — the closed form `κ± = H ± √(H² − K)`.
     let b = l * g - two * m * f + nn * e;
     let c = l * nn - m.sqr();
@@ -643,7 +771,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     // would pass on one. Worse, the joins below are `f64::min`/`max`,
     // which DROP a NaN operand — so one assembly's refusal would be
     // covered by the other assembly's number.
-    if h.is_poison() || k.is_poison() {
+    if !h.is_certified() || !k.is_certified() {
         return None;
     }
     // `H² − K` is nonnegative at every real point (the principal
@@ -662,7 +790,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let w22 = (e * nn - f * m) / a;
     // The same refusal, for the same reason, over Gershgorin's four
     // entries.
-    if w11.is_poison() || w12.is_poison() || w21.is_poison() || w22.is_poison() {
+    if !w11.is_certified() || !w12.is_certified() || !w21.is_certified() || !w22.is_certified() {
         return None;
     }
     let b_hi = (w11.hi() + w12.mag()).max(w22.hi() + w21.mag());
@@ -735,26 +863,25 @@ pub fn meter_patch(
     d: f64,
     band: Band,
 ) -> Result<(PatchRegularity, PatchCollapse), MeterResult> {
-    let mut last: Option<MeterError> = None;
-    for splits in OFFSET_METER_LADDER {
+    // One rung: a patch-bound refusal ends the ladder (the outer
+    // `Result`); a meter's verdict is the rung's own (the inner one).
+    let rung = |splits| -> Result<Result<(PatchRegularity, PatchCollapse), MeterError>, _> {
         let cells = patch_cells_refined(base, splits).map_err(MeterResult::PatchBound)?;
         let reg = patch_regularity(&cells);
         let coll = patch_collapse(&cells, d);
-        match offset_normal_floor(&reg, band).and_then(|()| {
-            offset_curvature_headroom(&coll, band)?;
-            Ok(())
-        }) {
-            Ok(()) => return Ok((reg, coll)),
-            Err(e) => last = Some(e),
+        Ok(offset_normal_floor(&reg, band)
+            .and_then(|()| offset_curvature_headroom(&coll, band))
+            .map(|()| (reg, coll)))
+    };
+    // The ladder is a non-empty array, so this pattern is irrefutable
+    // and the finest rung's verdict is the answer by construction.
+    let [coarser @ .., finest] = OFFSET_METER_LADDER;
+    for splits in coarser {
+        if let Ok(readings) = rung(splits)? {
+            return Ok(readings);
         }
     }
-    Err(MeterResult::Meter(last.unwrap_or(
-        MeterError::NormalFloor {
-            floor: 0.0,
-            thinness: 0.0,
-            speed_lever: 0.0,
-        },
-    )))
+    rung(finest)?.map_err(MeterResult::Meter)
 }
 
 /// What [`meter_patch`] refuses with: a meter's own verdict, or the
@@ -778,94 +905,313 @@ pub enum MeterResult {
 /// at or below zero, [`MeterError::Escalated`] when it lands in the
 /// ambiguity band or is poisoned.
 pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(), MeterError> {
-    match decide("offset_curvature_headroom", Margin::of(coll.headroom), band)
-        .map_err(|source| MeterError::Escalated { source })?
-    {
-        Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => Err(MeterError::CurvatureHeadroom {
+    let meter = Meter::CurvatureHeadroom;
+    let decided = decide_reported(meter.predicate(), Margin::of(coll.headroom), band)
+        .map_err(|source| MeterError::Escalated { meter, source })?;
+    match Refused::of(decided, band) {
+        None => Ok(()),
+        Some(verdict) => Err(MeterError::CurvatureHeadroom {
             reach: coll.reach,
-            headroom: coll.headroom,
             kappa: (coll.kappa_lo, coll.kappa_hi),
+            verdict,
         }),
     }
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use geom_core::MarginDiag;
     use geom_core::predicate::COINCIDENCE_RECOURSE;
 
     use super::*;
+    use crate::recourse::Classified;
 
-    /// Every meter refusal names what the caller changes, not only the
-    /// number that refused.
-    ///
-    /// `Escalated` renders the classifier's [`Indeterminate`] whole and
-    /// contributes three words of its own, so it is asserted
-    /// TRANSITIVELY — at every `MarginDiag` arm, because that Display's
-    /// three arms are three different sentences and picking one would
-    /// prove the chain at one payload.
+    const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
+    const DISTANCE: &str =
+        "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+    const REPORT: &str = "; if it has none, this may indicate a kernel bug worth reporting";
+    const UNREAD: &str = "; an unreadable or collapsed margin may indicate a kernel bug worth \
+                          reporting";
+
+    /// `K = 10`: a margin `m` passes at every tolerance below `m/10`.
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    fn zero(margin: f64) -> Refused {
+        Refused::Zero(Classified {
+            margin: MarginDiag::value(margin),
+            band: band(),
+        })
+    }
+
+    fn negative(margin: f64) -> Refused {
+        Refused::Negative {
+            margin: MarginDiag::value(margin),
+        }
+    }
+
+    /// `floor` is twice the thinness `m` and the lever is 2, so a
+    /// payload that rendered one number for the other would read
+    /// differently.
+    fn floor_of(m: f64, verdict: Refused) -> MeterError {
+        MeterError::NormalFloor {
+            floor: 2.0 * m,
+            speed_lever: 2.0,
+            verdict,
+        }
+    }
+
+    fn floor_zero(m: f64) -> MeterError {
+        floor_of(m, zero(m))
+    }
+
+    fn headroom(verdict: Refused) -> MeterError {
+        MeterError::CurvatureHeadroom {
+            reach: 1e-3,
+            kappa: (-1e3, 0.0),
+            verdict,
+        }
+    }
+
+    fn escalated(meter: Meter, margin: MarginDiag) -> MeterError {
+        MeterError::Escalated {
+            meter,
+            source: Indeterminate {
+                margin,
+                band: band(),
+                predicate: Some(meter.predicate()),
+                terminal_sliver: false,
+            },
+        }
+    }
+
+    /// Every arm of both meters ends in its decision's one recourse,
+    /// pinned whole at a build and at rest (D4 ¶1 (i)/(iv)): the lever
+    /// on every arm; the conditional tighten, valued at `m/K`, only on
+    /// a band-decided arm whose margin is positive (a zero verdict
+    /// inside the band, or an undecided margin); the lever alone on the
+    /// sign-certain arm, on a margin on the refused side, and straddling
+    /// zero; the report clause on a zero floor, which no tolerance
+    /// resolves; and a poisoned margin keeps the lever and says what it
+    /// may mean.
     #[test]
-    fn every_meter_error_arm_names_a_recourse() {
-        // A vocabulary, not a part-of-speech test: an arm that names
-        // the lever the caller turns satisfies the claim the same way
-        // an imperative does.
-        const RECOURSE_WORDS: &[&str] = &["split", "ask", "report", "offset to"];
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let margins = [
-            MarginDiag::Value(5e-9),
-            MarginDiag::Enclosure {
-                lo: -1e-9,
-                hi: 1e-9,
-            },
-            MarginDiag::Invalid,
+    fn each_meter_arm_ends_in_its_decisions_recourse() {
+        let straddle = MarginDiag::enclosure(-2e-9, 4e-9);
+        let rows: [(MeterError, String); 16] = [
+            (
+                floor_zero(5e-10),
+                format!(
+                    "{SPLIT}, or, if this thinness is intended, tighten the tolerance below \
+                     5e-11 m"
+                ),
+            ),
+            (floor_zero(0.0), format!("{SPLIT}{REPORT}")),
+            (floor_of(-1e-3, negative(-1e-3)), SPLIT.to_owned()),
+            (
+                escalated(Meter::NormalFloor, MarginDiag::value(5e-9)),
+                format!(
+                    "{SPLIT}, or, if this thinness is intended, tighten the tolerance below \
+                     5e-10 m"
+                ),
+            ),
+            (escalated(Meter::NormalFloor, straddle), SPLIT.to_owned()),
+            (
+                escalated(Meter::NormalFloor, MarginDiag::value(-5e-9)),
+                SPLIT.to_owned(),
+            ),
+            (
+                escalated(Meter::NormalFloor, MarginDiag::INVALID),
+                format!("{SPLIT}{UNREAD}"),
+            ),
+            (
+                headroom(zero(5e-10)),
+                format!(
+                    "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
+                     5e-11 m"
+                ),
+            ),
+            (headroom(zero(-5e-10)), DISTANCE.to_owned()),
+            (headroom(zero(0.0)), DISTANCE.to_owned()),
+            (headroom(negative(-1e-4)), DISTANCE.to_owned()),
+            (
+                escalated(Meter::CurvatureHeadroom, MarginDiag::value(5e-9)),
+                format!(
+                    "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
+                     5e-10 m"
+                ),
+            ),
+            (
+                escalated(Meter::CurvatureHeadroom, MarginDiag::enclosure(2e-9, 4e-9)),
+                format!(
+                    "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
+                     2e-10 m"
+                ),
+            ),
+            (
+                escalated(Meter::CurvatureHeadroom, straddle),
+                DISTANCE.to_owned(),
+            ),
+            (
+                escalated(Meter::CurvatureHeadroom, MarginDiag::value(-5e-9)),
+                DISTANCE.to_owned(),
+            ),
+            (
+                escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
+                format!("{DISTANCE}{UNREAD}"),
+            ),
         ];
-        let arms = [
-            MeterError::NormalFloor {
-                floor: 0.0,
-                thinness: 0.0,
-                speed_lever: 1.0,
-            },
-            MeterError::CurvatureHeadroom {
-                reach: 1e-3,
-                headroom: -1e-4,
-                kappa: (-1e3, 0.0),
-            },
-            MeterError::Escalated {
-                source: Indeterminate {
-                    margin: MarginDiag::Value(5e-9),
-                    band,
-                    predicate: Some("offset_meter_recourse_probe"),
-                },
-            },
-        ];
-        assert_eq!(arms.len(), 3, "an arm was added without a row here");
-        for arm in &arms {
-            match arm {
-                MeterError::Escalated { .. } => {
-                    for margin in margins {
-                        let source = Indeterminate {
-                            margin,
-                            band,
-                            predicate: Some("offset_meter_recourse_probe"),
-                        };
-                        let msg = MeterError::Escalated { source }.to_string();
-                        assert!(
-                            msg.contains(&source.to_string()),
-                            "carrier not rendered whole: {msg}"
-                        );
-                        assert!(msg.contains(COINCIDENCE_RECOURSE), "no recourse in: {msg}");
-                    }
-                }
-                _ => {
-                    let msg = arm.to_string().to_lowercase();
-                    assert!(
-                        RECOURSE_WORDS.iter().any(|w| msg.contains(w)),
-                        "no recourse in: {msg}"
-                    );
-                }
+        for (error, want) in rows {
+            for reading in [Reading::Build, Reading::AtRest] {
+                assert_eq!(error.ending(reading), want, "{error:?} at {reading:?}");
+                let text = error.render(reading);
+                assert_eq!(text, format!("{error}. {want}"), "{reading:?}");
+                assert_eq!(text.matches("Recourse:").count(), 1, "{text}");
+                assert!(!text.contains(COINCIDENCE_RECOURSE), "{text}");
             }
         }
+    }
+
+    /// Each definite payload pinned whole: the floor, the lever and the
+    /// thinness each render as themselves, and the fold's lead follows
+    /// its verdict.
+    #[test]
+    fn each_meter_payload_renders_its_own_numbers() {
+        let rows = [
+            (
+                floor_zero(5e-10),
+                "the face's normal cannot be proved non-zero (a chart 0.0000000005 m thin: \
+                 normal length 0.000000001 m² per unit parameter area over speed 2 m), so it \
+                 has no offset",
+            ),
+            (
+                headroom(zero(5e-10)),
+                "the offset distance's magnitude is within tolerance of the face's radius of \
+                 curvature on the side it bends toward (0.001 m), so the offset may fold",
+            ),
+            (
+                headroom(negative(-1e-4)),
+                "the offset distance's magnitude passes the face's radius of curvature on the \
+                 side it bends toward (0.001 m), so the offset folds over itself",
+            ),
+        ];
+        for (error, want) in rows {
+            assert_eq!(error.to_string(), want);
+        }
+    }
+
+    /// **The ruling's prohibitions, over every arm and reading.** No
+    /// ending advises lowering or loosening the tolerance; every ending
+    /// names its meter's lever first; and the tighten appears exactly on
+    /// a band-decided arm whose margin a smaller tolerance passes (a
+    /// zero verdict or an undecided margin, positive), never on a
+    /// sign-certain arm, a margin on the refused side, at zero,
+    /// straddling zero, or poisoned — and never at adoption.
+    #[test]
+    fn no_meter_ending_lowers_or_tightens_where_the_ruling_forbids() {
+        let mut rows = Vec::new();
+        for meter in [Meter::NormalFloor, Meter::CurvatureHeadroom] {
+            let lever = meter.decision().lever;
+            let build = |m, verdict| match meter {
+                Meter::NormalFloor => floor_of(m, verdict),
+                Meter::CurvatureHeadroom => headroom(verdict),
+            };
+            for margin in [5e-10, 1e-10, 0.0, -0.0, -5e-10, -1e-3] {
+                rows.push((build(margin, zero(margin)), lever, margin > 0.0));
+                rows.push((build(margin, negative(margin)), lever, false));
+            }
+            let escalations = [
+                (MarginDiag::value(5e-9), true),
+                (MarginDiag::enclosure(2e-9, 4e-9), true),
+                (MarginDiag::enclosure(-2e-9, 4e-9), false),
+                (MarginDiag::value(-5e-9), false),
+                (MarginDiag::value(0.0), false),
+                (MarginDiag::INVALID, false),
+            ];
+            for (margin, tightens) in escalations {
+                rows.push((escalated(meter, margin), lever, tightens));
+            }
+        }
+        for (error, lever, tightens) in rows {
+            for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+                let ending = error.ending(reading);
+                assert!(
+                    ending.starts_with(&format!("Recourse: {lever}")),
+                    "{error:?} at {reading:?} lacks its lever: {ending}"
+                );
+                for word in ["lower", "loosen"] {
+                    assert!(!ending.contains(word), "{error:?}: {ending}");
+                }
+                assert_eq!(
+                    ending.contains("tighten"),
+                    tightens && reading != Reading::Adopt,
+                    "{error:?} at {reading:?}: {ending}"
+                );
+            }
+        }
+    }
+
+    /// Each meter carries its classified verdict, margin and band
+    /// together: a margin inside the zero band refuses as
+    /// [`Refused::Zero`], a definitely negative one as
+    /// [`Refused::Negative`], and a positive one passes.
+    #[test]
+    fn each_meter_carries_its_verdict() {
+        let band = band();
+        // A lever of 2 makes the thinness half the floor, so a door that
+        // put one where the other belongs reads differently.
+        let reg = |floor| PatchRegularity {
+            floor,
+            sup: 4.0,
+            speed_u: SupSpeed::new(2.0),
+            speed_v: SupSpeed::new(1.0),
+            sine_floor: floor / 2.0,
+            cells: 1,
+        };
+        let coll = |headroom| PatchCollapse {
+            kappa_lo: -1e3,
+            kappa_hi: 0.0,
+            reach: 1e-3,
+            headroom,
+        };
+        let verdict = |e: MeterError| match e {
+            MeterError::NormalFloor { verdict, .. }
+            | MeterError::CurvatureHeadroom { verdict, .. } => Some(verdict),
+            MeterError::Escalated { .. } => None,
+        };
+        for floor in [0.0, 1e-9] {
+            let got = offset_normal_floor(&reg(floor), band).unwrap_err();
+            assert_eq!(
+                got,
+                MeterError::NormalFloor {
+                    floor,
+                    speed_lever: 2.0,
+                    verdict: zero(floor / 2.0),
+                },
+                "{floor}"
+            );
+        }
+        assert!(offset_normal_floor(&reg(1.0), band).is_ok());
+        for (margin, want) in [
+            (5e-10, zero(5e-10)),
+            (-5e-10, zero(-5e-10)),
+            (-1e-3, negative(-1e-3)),
+        ] {
+            let got = offset_curvature_headroom(&coll(margin), band).unwrap_err();
+            assert_eq!(verdict(got), Some(want), "{margin}");
+        }
+        assert!(offset_curvature_headroom(&coll(1e-3), band).is_ok());
+        let escalation = offset_curvature_headroom(&coll(5e-9), band).unwrap_err();
+        assert!(
+            matches!(
+                escalation,
+                MeterError::Escalated {
+                    meter: Meter::CurvatureHeadroom,
+                    ..
+                }
+            ),
+            "{escalation:?}"
+        );
     }
 }

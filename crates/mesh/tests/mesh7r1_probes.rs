@@ -31,13 +31,6 @@ use geom_core::{Point3, Vec3};
 use mesh::TessellateError;
 use topo::{Body, FaceKey, FaceSurface, MefSite, MevSite};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 // R1-DOOR-ONLY-BEGIN
 fn door_verdict(body: &Body<f64>, fk: FaceKey) -> Result<(), geom_brep::props::PropsError> {
     let face = body.get_face(fk).unwrap();
@@ -129,23 +122,23 @@ fn pole_crossing_three_faces() -> (Body<f64>, [FaceKey; 3]) {
     let tol = Tol::witness();
     let z = 0.5_f64;
     let r = (1.0 - z * z).sqrt();
-    let a = p3(r, 0.0, z);
-    let b = p3(-r, 0.0, z);
+    let a = Point3::new(r, 0.0, z);
+    let b = Point3::new(-r, 0.0, z);
     let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis,
         radius: 1.0,
-        u_ref: v3(-r, 0.0, z),
+        u_ref: Vec3::new(-r, 0.0, z),
     };
-    let mut g = great(v3(0.0, 1.0, 0.0));
+    let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < z {
-        g = great(v3(0.0, -1.0, 0.0));
+        g = great(Vec3::new(0.0, -1.0, 0.0));
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
@@ -153,10 +146,10 @@ fn pole_crossing_three_faces() -> (Body<f64>, [FaceKey; 3]) {
     body.set_face_surface(
         seed.face,
         FaceSurface::New(Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
+            center: Point3::new(0.0, 0.0, 0.0),
             radius: 1.0,
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }),
     )
     .unwrap();
@@ -242,31 +235,31 @@ fn pole_crossing_three_faces_with_seam() -> (Body<f64>, [FaceKey; 3]) {
     let tol = Tol::witness();
     let z = 0.5_f64;
     let r = (1.0 - z * z).sqrt();
-    let a = p3(r, 0.0, z);
-    let b = p3(-r, 0.0, z);
-    let s_pole = p3(0.0, 0.0, -1.0);
+    let a = Point3::new(r, 0.0, z);
+    let b = Point3::new(-r, 0.0, z);
+    let s_pole = Point3::new(0.0, 0.0, -1.0);
     let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let great = |axis: Vec3<f64>, u_ref: Vec3<f64>| Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis,
         radius: 1.0,
         u_ref,
     };
     // b -> a over the north pole.
-    let mut g = great(v3(0.0, 1.0, 0.0), v3(-r, 0.0, z));
+    let mut g = great(Vec3::new(0.0, 1.0, 0.0), Vec3::new(-r, 0.0, z));
     if g.eval(core::f64::consts::FRAC_PI_2).z < z {
-        g = great(v3(0.0, -1.0, 0.0), v3(-r, 0.0, z));
+        g = great(Vec3::new(0.0, -1.0, 0.0), Vec3::new(-r, 0.0, z));
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     // a -> south pole, descending.
-    let mut gd = great(v3(0.0, 1.0, 0.0), v3(r, 0.0, z));
+    let mut gd = great(Vec3::new(0.0, 1.0, 0.0), Vec3::new(r, 0.0, z));
     if gd.eval(core::f64::consts::FRAC_PI_2).z > z {
-        gd = great(v3(0.0, -1.0, 0.0), v3(r, 0.0, z));
+        gd = great(Vec3::new(0.0, -1.0, 0.0), Vec3::new(r, 0.0, z));
     }
     let t_pole = gd.param_near(s_pole, 0.0).unwrap();
     assert!(t_pole > 0.0 && (gd.eval(t_pole) - s_pole).norm() < 1e-9);
@@ -275,10 +268,10 @@ fn pole_crossing_three_faces_with_seam() -> (Body<f64>, [FaceKey; 3]) {
     body.set_face_surface(
         seed.face,
         FaceSurface::New(Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
+            center: Point3::new(0.0, 0.0, 0.0),
             radius: 1.0,
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }),
     )
     .unwrap();

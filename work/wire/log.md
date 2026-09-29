@@ -5723,3 +5723,15 @@ VGEOM's row is a small chrome-side diff. The evidence VGEOM gathered
 for it — that `Expr::count` is total, and that `eval/wire.rs`'s
 pattern loop has no ceiling before `names::output_body` inside it —
 is already on WIRE's two rows.
+
+- 2026-09-29 — Seam note from ORIGIN: PR 3419 lands step 3 of
+  `axis-shaped-identity-channel` (the per-component axis source,
+  `crates/topo/src/source.rs` `AxisSource`, and the propagate half of
+  P2 in `eval/wire.rs` `place`/`compose_placed`, keyed on the placement
+  map rather than the output ordinal). `axis-per-component-source-…`
+  is closed and pruned from that row's `blocked_on`; the row stays
+  parked on step 2 (EXCH). Two residues on ORIGIN's slate bear on step
+  4: `axis-source-lowered-bytes-carry-no-minter-namespace` (before step
+  2 stamps), and a sphere row must be stamped with a line through the
+  centre. (ORIGIN orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

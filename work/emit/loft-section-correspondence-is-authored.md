@@ -2,12 +2,14 @@
 id: loft-section-correspondence-is-authored
 kind: unit
 title: A loft's section correspondence is authored: each loop's orientation canonicalized, its start vertex and the hole order as authored
-status: dispatched
+status: closed
 opened: 2026-09-23
 priority: P0
 cost: H
 branch: emit/loft-correspondence
 refs: [loft-anchors-every-section-with-section-zeros-map, loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body, 3102]
+closed: 2026-09-24
+pr: 3147
 ---
 
 

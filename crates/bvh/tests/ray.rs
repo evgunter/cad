@@ -8,29 +8,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/linalg/"];
+test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/linalg/",];
 
+use bvh::test_support::{boxed, ray};
 use bvh::{Aabb, Bvh, Ray, RayCandidate};
-use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
-
-fn boxed(min: [f64; 3], max: [f64; 3]) -> Aabb {
-    Aabb {
-        min_x: min[0],
-        min_y: min[1],
-        min_z: min[2],
-        max_x: max[0],
-        max_y: max[1],
-        max_z: max[2],
-    }
-}
-
-fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
-    Ray {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(dir[0], dir[1], dir[2]),
-    }
-}
 
 fn items(cands: &[RayCandidate]) -> Vec<usize> {
     cands.iter().map(|c| c.item).collect()
@@ -233,7 +215,7 @@ fn brute(boxes: &[Aabb], r: &Ray) -> Vec<RayCandidate> {
 }
 
 /// Randomized sweep (shape: counterexample search — varying seed,
-/// counts on the effort dial, per `memories/test-suite-cost.md`).
+/// counts on the effort dial, per implementer-discipline §8).
 /// Three properties per draw:
 ///
 /// 1. realized == idealized (set AND order) — [`brute`];
@@ -350,7 +332,7 @@ fn sweep_matches_brute_force_and_never_misses_true_hits() {
         }
     }
     exposure.report();
-    // Anti-vacuity floors (memories/test-suite-cost + test_utils::vacuity):
+    // Anti-vacuity floors (implementer-discipline §8 + test_utils::vacuity):
     // stated against the effort-1 floor of the dial (60 cases; a target
     // is poison — skipping the true-hit assertion — with probability
     // 1/(4n) ≤ 1/4 per case), so a run below these floors did not
@@ -528,7 +510,7 @@ impl EntryCase {
 /// on the ray and an origin a million lengths from the box
 /// (cancellation in `bound − o`) — as a static product over fixed
 /// operands with non-terminating binary expansions, so each arm is
-/// reached on every run (memories/test-suite-cost: a witness you can
+/// reached on every run (implementer-discipline §8: a witness you can
 /// write down is a fixture, not a search).
 #[test]
 fn entry_bound_never_exceeds_a_true_hits_t_at_the_witnesses() {

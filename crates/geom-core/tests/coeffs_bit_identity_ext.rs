@@ -12,24 +12,19 @@
 //! against the merge-base rlib (`ea11576b4`) through the RETIRED free
 //! spellings (`hull::span_hull`, `hull::domain_hull`,
 //! `hull::derivative_coeffs`, …) and its digest captured; `DIGEST`
-//! below is that capture. It runs on both lanes (no feature gate) and
+//! below is that capture. It runs on both lanes and
 //! reuses the shipped suite's digest fold.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
-use geom_core::{CertifiedEnclosure, RingInterval};
+use geom_core::{CertifiedBounds, Interval};
 
 use crate::coeffs_bit_identity::{Rows, digest};
 
 /// Every door, with the labels the retired free spellings produced.
-fn drive<E: CertifiedEnclosure>(
-    o: &mut Rows,
-    name: &str,
-    kv: &KnotVector,
-    coeffs: &[E],
-    w: &[f64],
-) {
+fn drive<E: CertifiedBounds>(o: &mut Rows, name: &str, kv: &KnotVector, coeffs: &[E], w: &[f64]) {
     let pair = kv.with_coeffs(coeffs).expect("its own vector");
     let rational = kv.with_rational_coeffs(coeffs, w).expect("its own vector");
     for index in kv.first_span()..=kv.last_span() {
@@ -139,7 +134,7 @@ fn weights(n: usize, lane: usize) -> Vec<f64> {
     w
 }
 
-fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
+fn ri(o: &mut Rows, tag: &str, r: Interval) {
     o.push((format!("{tag}.lo"), r.lo().to_bits()));
     o.push((format!("{tag}.hi"), r.hi().to_bits()));
 }
@@ -154,15 +149,15 @@ fn rows() -> Rows {
             let w = weights(n, lane);
             drive(&mut o, &format!("{vname}.f64.w{lane}"), &kv, &vals, &w);
         }
-        // RingInterval brackets of NONZERO width
+        // Interval brackets of NONZERO width
         #[allow(clippy::cast_precision_loss)]
-        let wide: Vec<RingInterval> = vals
+        let wide: Vec<Interval> = vals
             .iter()
             .enumerate()
             .map(|(i, x)| {
-                RingInterval::hull(
-                    RingInterval::point(*x - 0.01 * (i as f64 + 1.0)),
-                    RingInterval::point(*x + 0.02),
+                Interval::hull(
+                    Interval::point(*x - 0.01 * (i as f64 + 1.0)),
+                    Interval::point(*x + 0.02),
                 )
             })
             .collect();
@@ -178,9 +173,9 @@ fn rows() -> Rows {
 const ROW_COUNT: usize = 3403;
 /// FNV-1a 64 over `"{name} {bits:#018x}\n"`, the shipped suite's digest shape.
 ///
-/// **Re-captured when the C9 ring became a newtype over the backend**
+/// **Re-captured when certification arithmetic became a newtype over the backend**
 /// (`0x9897_c316_665d_3ab0` before), for the reason the default
-/// corpus's digest gives: the ring's unconditional one-step outward
+/// corpus's digest gives: interval arithmetic's unconditional one-step outward
 /// pad per operation is gone and the backend's exactness witnesses
 /// stand in its place. 1 590 of these 3 403 rows moved TIGHTER and
 /// none moved looser.

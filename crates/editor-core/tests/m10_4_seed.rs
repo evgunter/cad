@@ -180,6 +180,7 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![chain],
+        ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p,
@@ -188,8 +189,8 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall (chain
     // order: bottom, right, top, left).
     let refs = vec![
-        SitedRef::new(slab, fname(slab, wall(3))),
-        SitedRef::new(slab, fname(slab, wall(1))),
+        SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
+        SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
     let width = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let m = r.insert(Node::measure(width, refs).expect("both indices address a reference"));
@@ -531,7 +532,6 @@ fn the_truncated_normal_sigma_is_finite_and_the_variance_floor_is_measured() {
 /// the tangent channel the seed. `Interval` plus a seed refuses on
 /// every node; `Dual64` plus a widened box keeps the degenerate-only
 /// rule and refuses through the box door.
-#[cfg(feature = "interval")]
 #[test]
 fn seed_and_box_compose_exactly_at_dual_interval() {
     use std::sync::Arc;

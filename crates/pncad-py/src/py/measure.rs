@@ -53,7 +53,7 @@
 //! a typed ABSENCE and not a failure, which is why an assertion over
 //! such a measure reports `Unevaluated` rather than being poisoned.
 //!
-//! The engine's own refusal (`MinClearanceRefusal`) is therefore not
+//! The engine's own refusal (`ClearanceRefusal`) is therefore not
 //! reachable from Python at all: the only lane that computes a bracket
 //! is the interval one, and the binding does not evaluate there. It
 //! would arrive as `EvaluationError` with

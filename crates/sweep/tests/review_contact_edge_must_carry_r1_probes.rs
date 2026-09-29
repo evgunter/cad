@@ -17,10 +17,9 @@
 //!   body first (the flat's belly graze in band), so "a definite
 //!   negative whatever the scale" is a claim about the screen at
 //!   ordinary scale, and the family is unreachable either way;
-//! - the filed D-bore residue reproduced through the extrude door, with
-//!   the CAUSE asserted beside the refusal: the crease's end vertices
-//!   sit on a RING of each cap, which is the loop `chord_site` never
-//!   walks;
+//! - the D-bore's concave crease through the extrude door, requested
+//!   alone: its end vertices sit on a RING of each cap (asserted), and
+//!   the ruled band carves it there;
 //! - the corner ball's own arcs on a SLIM WEDGE (the skewed cavity of
 //!   `blend4_r1_probes`): the arc's extent `r·θ` is the folded lever
 //!   arm, so its margin `θ²·r/2` reaches the in-band verdict at an
@@ -35,8 +34,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{EdgeDescription, SurfaceKind};
-use geom_core::{Band, MarginDiag, Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Band, ErrorTextReading, Point2, Tol};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
@@ -46,26 +45,15 @@ use sweep::{Extrusion, extrude};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
+use crate::common::cavity::skewed_cavity_edges;
+use crate::common::contact_edges::intrinsic_edges;
+
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn band() -> Band {
     Band::linear(tol()).expect("the run's linear band")
-}
-
-/// How many edges of a body store the intrinsic tangency.
-fn intrinsic_edges(body: &Body<f64>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(|c| c.description()),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count()
 }
 
 /// The typed in-band refusal of the must-carry rule, or a panic naming
@@ -85,7 +73,7 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
                 panic!("{what}: refused, but not as the rule's in-band escalation: {error}");
             };
             assert_eq!(source.predicate, Some("tangent_second_order"), "{what}");
-            let MarginDiag::Value(m) = source.margin else {
+            let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
                 panic!("{what}: the deciding station's margin is a value, got {source:?}");
             };
             let b = band();
@@ -119,10 +107,10 @@ fn sphere_zone_on_base(big_r: f64) -> Body<f64> {
     let bulge = (60f64.to_radians() / 4.0).tan();
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.2 * big_r, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(big_r, 0.0), bulge),
-            ProfileVertex::new(Point2::new(big_r * c, big_r * s), 0.0),
-            ProfileVertex::new(Point2::new(0.2 * big_r, big_r * s), 0.0),
+            (Point2::new(0.2 * big_r, 0.0), 0.0),
+            (Point2::new(big_r, 0.0), bulge),
+            (Point2::new(big_r * c, big_r * s), 0.0),
+            (Point2::new(0.2 * big_r, big_r * s), 0.0),
         ],
         Revolution::Full,
         tol(),
@@ -246,24 +234,24 @@ fn r1_the_screened_ratio_scaled_into_the_band_is_refused_at_the_mill() {
 }
 
 // ---------------------------------------------------------------
-// The filed residue: a D-bore's crease at the ruled door.
+// A D-bore's crease at the ruled door.
 // ---------------------------------------------------------------
 
 /// A block `[−1, 1]² × [0, len]` with a D-shaped through-hole of
 /// radius `big_r` and flat at `x = flat`, as one profile with a ring.
 fn block_with_d_bore(big_r: f64, flat: f64, len: f64) -> Body<f64> {
-    let block = ProfileLoop::new(
+    let block = bulge_loop(
         [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
     let y = (big_r * big_r - flat * flat).sqrt();
     let theta = 2.0 * (core::f64::consts::PI - y.atan2(flat));
     let bulge = (theta / 4.0).tan();
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(flat, y), bulge),
-        ProfileVertex::new(Point2::new(flat, -y), 0.0),
+    let hole = bulge_loop(vec![
+        (Point2::new(flat, y), bulge),
+        (Point2::new(flat, -y), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![block, hole])
         .validate(tol())
@@ -273,14 +261,15 @@ fn block_with_d_bore(big_r: f64, flat: f64, len: f64) -> Body<f64> {
         .body
 }
 
-/// **The D-bore's concave crease refuses `BodyNotIntact` at the ruled
-/// door, and the cause is the cap's RING.** The crease's two end
-/// vertices each lie on a loop that is a ring of a face that is not
-/// one of the crease's supports — the cap — which is the loop
-/// `chord_site` (keyed on the cap's `outer`) never walks. The body
-/// itself is tier-3 valid.
+/// **The D-bore's concave crease carves in its caps' RINGS**, requested
+/// alone, at `R/r = 2`. The crease's two end vertices each lie on a
+/// loop that is a ring of a face that is not one of the crease's
+/// supports — the cap — and `chord_site` hangs the cut-off arc in
+/// whichever of the cap's cycles carries the old vertex, so the one
+/// band carves: one band face, the census delta of one cut-off band,
+/// tier 3.
 #[test]
-fn r1_the_d_bore_crease_refuses_body_not_intact_because_its_rim_is_a_ring_of_the_cap() {
+fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
     let body = block_with_d_bore(0.2, 0.1, 1.0);
     topo::validate(&body).expect("the D-bored block holds together");
     let crease = rod_upper_crease(&body);
@@ -309,16 +298,41 @@ fn r1_the_d_bore_crease_refuses_body_not_intact_because_its_rim_is_a_ring_of_the
             "the crease's end {v:?} sits on a ring of its cap"
         );
     }
-    match fillet_edges(&body, &[crease], 0.1, tol()) {
-        Err(BlendRefusal {
-            error: BlendError::BodyNotIntact { detail, .. },
-            ..
-        }) => assert!(
-            detail.contains("outer cycle"),
-            "the refusal names the outer-cycle walk: {detail}"
-        ),
-        other => panic!("expected the residue's BodyNotIntact, got {other:?}"),
-    }
+    let out = fillet_edges(&body, &[crease], 0.1, tol())
+        .unwrap_or_else(|e| panic!("the D-bore's crease carves, got {e}"));
+    assert_eq!(out.blend_faces.len(), 1, "one band");
+    let census = |b: &Body<f64>| (b.vertices().count(), b.edges().count(), b.faces().count());
+    let (v0, e0, f0) = census(&body);
+    assert_eq!(
+        census(&out.body),
+        (v0 + 2, e0 + 3, f0 + 1),
+        "the census delta of one cut-off band"
+    );
+    topo::validate_geometric(&out.body, tol()).expect("the carved D-bore is tier-3 valid");
+    // Cut off IN each cap's ring: the chord's and the arc's surviving
+    // pieces plus the one cut-off arc, three edges per ring.
+    let ring_edges: Vec<usize> = out
+        .body
+        .faces()
+        .flat_map(|(_, f)| f.rings.clone())
+        .map(|lp| {
+            out.body
+                .half_edges()
+                .filter(|(_, h)| h.parent_loop == lp)
+                .count()
+        })
+        .collect();
+    assert_eq!(ring_edges, [3, 3], "each cap's ring gains the cut-off arc");
+    // The concave band adds back what the same ball rolling inside the
+    // D-rod removes: `ΔV = +A·L` for the one crease.
+    let vol = |b: &Body<f64>| {
+        topo::mass_properties(b, tol())
+            .expect("closed-form props")
+            .volume
+    };
+    let dv = vol(&out.body) - vol(&body);
+    let a = sweep::test_support::rod_section_cut(0.2, 0.1, 0.1);
+    assert!((dv - a).abs() < 1e-12, "ΔV = +A·L: measured {dv} vs {a}");
 }
 
 // ---------------------------------------------------------------
@@ -336,8 +350,8 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
     use geom_core::k_stats::{self, Probe};
     let interior = usize::try_from(CERT_SAMPLES - 2).expect("a small count");
     // The unit die through the extrude door at the `Probe` scalar.
-    let p = |x: f64, y: f64| ProfileVertex::new(Point2::new(Probe(x), Probe(y)), Probe(0.0));
-    let square = ProfileLoop::new(vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)]);
+    let p = |x: f64, y: f64| (Point2::new(Probe(x), Probe(y)), Probe(0.0));
+    let square = bulge_loop(vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)]);
     let profile = Profile::new(SketchPlane::<Probe>::xy(), vec![square])
         .validate(tol())
         .expect("the die's profile validates");
@@ -352,19 +366,7 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")
         .count();
-    let contact = out
-        .body
-        .edges()
-        .filter(|(_, e)| {
-            matches!(
-                out.body
-                    .get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(|c| c.description()),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count();
+    let contact = intrinsic_edges(&out.body);
     assert_eq!(contact, 48, "the die's 24 trimlines and 24 corner arcs");
     assert_eq!(spent, contact * 2 * interior);
 }
@@ -373,62 +375,10 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
 // The corner ball's own arcs on a slim wedge: the EXTENT lever.
 // ---------------------------------------------------------------
 
-/// The skewed vented cavity of `blend4_r1_probes` — block `[0,4]³`, a
-/// parallelogram cavity prism of side `1.2` and skew `theta` over
-/// `z ∈ [1, 3]`, a round vent from its centroid — with its twelve
-/// concave edges, the whole body scaled by `scale`. Re-posed here
-/// because the pose is the point: at a slim skew the corner ball's
-/// arc against the band subtends the wedge angle, so the arc's EXTENT
-/// `r·θ` — not `r_band` — is the folded lever arm, and the
-/// second-order margin is `θ²·r/2`.
-pub(crate) fn skewed_cavity_edges(theta: f64, scale: f64) -> (Body<f64>, Vec<EdgeKey>) {
-    use crate::common::cavity::{cut, edges_with_corners, prism, rod};
-    let p = |x: f64, y: f64| Point2::new(x * scale, y * scale);
-    let s = 1.2;
-    let (ax, ay) = (1.0, 1.0);
-    let (dx, dy) = (s * theta.cos(), s * theta.sin());
-    let quad = [
-        p(ax, ay),
-        p(ax + s, ay),
-        p(ax + s + dx, ay + dy),
-        p(ax + dx, ay + dy),
-    ];
-    let block = prism(
-        &[p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)],
-        0.0,
-        4.0 * scale,
-    );
-    let centroid = Point2::new(
-        (quad[0].x + quad[1].x + quad[2].x + quad[3].x) / 4.0,
-        (quad[0].y + quad[1].y + quad[2].y + quad[3].y) / 4.0,
-    );
-    // A narrower vent than `blend4_r1_probes`' (`0.12·sin θ`, not
-    // `0.45·sin θ`): the slimmer poses below leave the cavity's own
-    // walls `0.48·sin θ` clear of it, so the clearance screen answers
-    // for the corner arcs and not for the vent.
-    let vent = rod(
-        centroid,
-        (theta.sin() * 0.12).min(0.25) * scale,
-        2.5 * scale,
-        5.0 * scale,
-    );
-    let cavity = prism(&quad, 1.0 * scale, 3.0 * scale);
-    let vented = cut("vent", &block, &vent);
-    let body = cut("cavity", &vented, &cavity);
-    let near = 1e-9 * scale;
-    let edges = edges_with_corners(&body, |q: geom_core::Point3<f64>| {
-        ((q.z - 1.0 * scale).abs() < near || (q.z - 3.0 * scale).abs() < near)
-            && quad
-                .iter()
-                .any(|c| (q.x - c.x).abs() < near && (q.y - c.y).abs() < near)
-    });
-    assert_eq!(edges.len(), 12, "the cavity's twelve concave edges");
-    (body, edges)
-}
-
-/// Contact edges of a carved body stored as a non-seam chart image —
-/// the rule's UNDER-DETERMINED description.
-pub(crate) fn chart_contact_edges(body: &Body<f64>) -> usize {
+/// Edges of a carved body stored as a non-seam chart image — the rule's
+/// UNDER-DETERMINED description, and any other chart-described edge
+/// the body carries (a boolean's rims among them): a whole-body count.
+fn chart_contact_edges(body: &Body<f64>) -> usize {
     body.edges()
         .filter(|(_, e)| {
             matches!(

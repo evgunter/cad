@@ -29,10 +29,6 @@ use geom_core::{Point2, Tol};
 use profile::{Bulge, ClosedLoop, Open, PathError, Profile, ProfileLoop, SketchPlane, Start};
 use std::f64::consts::FRAC_PI_2;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validate_ok(l: &ProfileLoop<f64>) {
     Profile::new(SketchPlane::xy(), vec![l.clone()])
         .validate(Tol::witness())
@@ -59,20 +55,20 @@ fn band() -> (f64, f64) {
 fn d_shape_forward(closer: Closer) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
     let p = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .arc_to(
             Bulge {
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
                 b: 1.0,
             },
             t,
         )
         .unwrap()
-        .line_to(p2(0.0, -1.0), t)
+        .line_to(Point2::new(0.0, -1.0), t)
         .unwrap();
     match closer {
         Closer::Declared => p.continue_to(Start.arrives_tangent(), t),
@@ -90,16 +86,16 @@ fn d_shape_forward(closer: Closer) -> Result<ClosedLoop<f64>, PathError<f64>> {
 fn d_shape_reverse(closer: Closer) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
     let p = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(-FRAC_PI_2, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(0.0, -2.0), t)
+        .continue_to(Point2::new(0.0, -2.0), t)
         .unwrap()
         .arc_to(
             Bulge {
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
                 b: 1.0,
             },
             t,
@@ -193,13 +189,13 @@ fn the_undeclared_d_shape_seams_keep_refusing() {
 fn stadium(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
     let p = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), t)
+        .tangent_arc_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .tangent()
         .line(2.0, t)
@@ -249,13 +245,13 @@ fn the_undeclared_stadium_seam_keeps_refusing() {
 fn the_stadium_closes_in_the_other_direction_too() {
     let t = Tol::witness();
     let closed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, -2.0), t)
+        .tangent_arc_to(Point2::new(2.0, -2.0), t)
         .unwrap()
         .tangent()
         .line(2.0, t)
@@ -277,7 +273,7 @@ fn the_stadium_closes_in_the_other_direction_too() {
 fn a_both_ends_tangent_seam_no_arc_can_serve_names_the_fillet() {
     let t = Tol::witness();
     let refused = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
@@ -310,7 +306,7 @@ fn a_both_ends_tangent_seam_no_arc_can_serve_names_the_fillet() {
 /// say.
 fn tilted_close(off: f64, arm: f64) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
@@ -434,7 +430,7 @@ fn the_levered_threshold_does_not_drift_with_leg_length() {
 fn a_reversed_declared_arrival_is_a_cusp() {
     let t = Tol::witness();
     let refused = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
@@ -487,7 +483,7 @@ fn the_declaration_is_what_separates_the_two_seam_spellings() {
 fn a_sharp_arc_seam_that_arrives_tangent_refuses_as_a_seam() {
     let t = Tol::witness();
     let close = |b: f64| {
-        Open.at(p2(0.0, 0.0))
+        Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, t)
             .unwrap()
             .line(2.0, t)
@@ -540,7 +536,7 @@ fn every_zero_turn_joint_is_a_declared_tangent_joint() {
 
     // The sharp arc closer takes the same token.
     let sharp = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
@@ -570,14 +566,14 @@ fn every_zero_turn_joint_is_a_declared_tangent_joint() {
     // A STRAIGHT leg declares it exactly as an arc does: what the token
     // classifies is the joint, not the leg.
     let by_line = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .arc_to(
             Bulge {
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
                 b: 1.0,
             },
             t,

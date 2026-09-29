@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# bounds-allowlist.sh — the compound `Bounds`/`Enclosure` bound gate.
-# ONE home for the FILE LIST; ci.yml's "Bounds compound-bound allowlist
-# (ratified 2026-07-29)" step and local-scripts/ci-local.sh's discipline
-# row both call this file.
+# bounds-allowlist.sh — the compound `…Bounds`/`…Enclosure` bound gate.
+# ONE home for the FILE LIST; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE REASONS ARE NOT HERE, AND ARE NOT RESTATED HERE. The scope rule,
 # the "brackets never decide" clause that is weighed BEFORE any necessity
@@ -41,15 +39,15 @@
 # WHAT THIS FILE IS THE ONE HOME FOR — three properties of the
 # INSTRUMENT, which no ledger entry states:
 #
-# 1. THE LIST IS PER FILE, AND `Enclosure` RIDES IT. WHY `Enclosure` is
-#    grepped exactly as `Bounds` is DUAL-DESIGN DL4's argument and is
-#    stated at the blanket `impl<T: Bounds> Enclosure for T` in
-#    `real.rs`; not restated here. What has no other home is the
-#    RIDE-ALONG CONSEQUENCE of putting both names against this one list:
-#    a file ratified for its `Bounds` compounds is thereby exempt for
-#    `Enclosure` compounds too — a new `Decide + Enclosure` inside an
-#    allowlisted file rides that file's ratification and never fires
-#    here, up to the count its entry pins. The granularity is per FILE
+# 1. THE LIST IS PER FILE, AND `…Enclosure` NAMES RIDE IT. WHY a name
+#    ending in `Enclosure` is read exactly as one ending in `Bounds` is
+#    DUAL-DESIGN DL4's argument; not restated here. What has no other
+#    home is the RIDE-ALONG CONSEQUENCE of putting both suffixes against
+#    this one list: a file ratified for its `Bounds` compounds is thereby
+#    exempt for `CertifiedEnclosure` compounds too — a new
+#    `Decide + CertifiedEnclosure` inside an allowlisted file rides that
+#    file's ratification and never fires here, up to the count its
+#    entry pins. The granularity is per FILE
 #    and stays there: separating one ratified bound from another needs
 #    each hit's ENCLOSING ITEM, which is a parser and not a grep, so
 #    what a per-file entry can hold is a COUNT. That is the settled
@@ -333,7 +331,7 @@
 #
 # What the count cannot see is the SUBSTITUTION — one ratified bound
 # replaced by an unrelated one at the same count — and item 1's
-# `Enclosure` ride-along arriving in PLACE of a `Bounds` compound rather
+# `CertifiedEnclosure` ride-along arriving in PLACE of a `Bounds` compound rather
 # than beside it. Separating those needs a per-SYMBOL entry, which needs
 # each hit's enclosing item, which is a parser and not a grep. The same
 # class on the sibling list is `interval-square-allowlist.sh`'s KNOWN
@@ -459,7 +457,19 @@ BOUNDS_ALLOWLIST=(
   # evaluation-service seams, and `separation` under the same entry.
   'crates/topo/src/boolean/boxes.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/ops.rs 11 2026-07-29 (M5 PR 8), the driver amendment'
+  # ops.rs's no-crossings extent checks and its crossings-path guard
+  # are one driver seam: each reads the certified face boxes the sweep
+  # built and decides on them, the amendment's funnel shape. The
+  # section certificate (the section-certificate unit) carries it in
+  # four: `section_pairs`, the scan over box-overlapping pairs; its two
+  # callers, `interior_loop_verdict` (crossings) and
+  # `section_extent_pass` (no crossings), which replaced the torus and
+  # cylinder extent gates; and `section_report`, the test door over the
+  # same scan. With `sphere_extent_scan` and the rest of the file's
+  # pre-existing seams the count is 14. `section_cert.rs` itself, the
+  # classifier and the per-pair rule, reads no box and carries no
+  # compound bound.
+  'crates/topo/src/boolean/ops.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
@@ -513,7 +523,28 @@ BOUNDS_ALLOWLIST=(
   # stands for, so the type cannot be written at a scalar without
   # it, and no bracket is read here — the door holds a function
   # pointer and hands its arguments on.
-  'crates/topo/src/props.rs 28 M5 PR 11, the certified-quadrature plumbing'
+  # The count includes `wiring_rows::holds_the_certified_shell_door`,
+  # the shell door's pointer-identity helper (`CertifiedBounds +
+  # AtRestPolicy`), for the reason `holds_the_certified_quadrature`'s
+  # header a few lines up is under it: it forms
+  # `ShellDoor::<T>::certified()` at each certifying scalar, so it
+  # restates that constructor's bound (its `Decide` implied by
+  # `AtRestPolicy`) and nothing wider, in a `#[cfg(test)]` module that
+  # reads no bracket.
+  # 29 -> 23 (ATREST-3): the sign-level walk stopped being a
+  # certified-only door. It takes the caller's lane as an argument, as
+  # the reporting walk always has, so its header (`sign_walk`, was
+  # `sign_certified`) and `SignCertificate`'s two impl headers (`Debug`
+  # and the inherent block) are plain `Decide`: a `_structural`
+  # certificate is continued with the closed form it was derived
+  # through, and no bracket is read on either path. `certified_hook`
+  # went with it — `QuadLane` now holds the windowed entry itself — and
+  # so did `quad_lane::cut_face` (`Decide + Bounds + CertifiedEnclosure`,
+  # two occurrences), whose body is `QuadLane::cut_face`'s reading of
+  # that one pointer over the whole schedule. The seam itself is
+  # unmoved: `QuadLane::certified` and the `quad_lane` module still
+  # carry the certification right, at the same headers.
+  'crates/topo/src/props.rs 23 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
@@ -535,10 +566,24 @@ BOUNDS_ALLOWLIST=(
   # 2026-08-29, the advisory-check registry.
   'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's nine and, since the
-  # census took the C10 tree as its pre-filter, the three doors that
-  # reach `census::census_and_certify` — the driver amendment's seam,
-  # argued in the ledger under 2026-07-29 beside `separation`.
+  # `validate.rs` carries the at-rest validator's bounds, 21 of them:
+  # the 10 public doors of the module doc's door roster (5 at
+  # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
+  # `AtRestBody` methods beside the roster (`validate`, which is
+  # `validate_geometric` keeping its verdict, and
+  # `validate_pseudomanifold`, the tier-3′ door reading it), each at its
+  # door's own `CertifiedBounds` bound; the 7 private passes they share
+  # (`structural_via`, `validate_geometric_certified`,
+  # `tier3_local_checks`, `tier3_local_checks_marked`,
+  # `contact_marks_via`, `pseudomanifold_certificate_via`, and
+  # `census_verdict`, the census tail both tier-3′ paths end in, at the
+  # census's own `Bounds`); `CertifiedLanes::held`, the one spelling of
+  # the certified lanes those doors hold, at `CertifiedBounds`; and one
+  # test helper (`check1`).
+  # The tier-3′ ones among them reach `census::census_and_certify`, which
+  # is why the census took the C10 tree as its pre-filter — the driver
+  # amendment's seam, argued in the ledger under 2026-07-29 beside
+  # `separation`.
   'crates/topo/src/validate.rs 21 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
@@ -1269,19 +1314,21 @@ plant_unknown_alias() {
   printf 'pub fn f<T: Decide + RingBounds>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
-# The `Enclosure` rows (DUAL-DESIGN DL4): a `T: Enclosure` bound outside
-# the allowlist must fire, in both operand orders — planted one at a
-# time for the same blindness reason as the `Bounds` pair — and the
-# name-shaped matcher covers an `…Enclosure` alias that does not exist
-# in the tree today, exactly as it covers `RingBounds`.
+# The `…Enclosure` rows (DUAL-DESIGN DL4): a compound naming the
+# certified door, `CertifiedEnclosure`, outside the allowlist must fire,
+# in both operand orders — planted one at a time for the same blindness
+# reason as the `Bounds` pair — and the name-shaped matcher covers an
+# `…Enclosure` alias that does not exist in the tree today, exactly as
+# it covers `RingBounds`. The suffix is what reads the
+# `CertifiedEnclosure` compounds the ratified entries below pin.
 plant_enclosure_decide_first() {
   mkdir -p "$1/crates/planted/src"
-  printf 'pub fn f<T: Decide + Enclosure>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+  printf 'pub fn f<T: Decide + CertifiedEnclosure>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
 plant_enclosure_bounds_side_first() {
   mkdir -p "$1/crates/planted/src"
-  printf 'pub fn f<T: geom_core::Enclosure + Decide>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+  printf 'pub fn f<T: geom_core::CertifiedEnclosure + Decide>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
 plant_unknown_enclosure_alias() {
@@ -1731,7 +1778,7 @@ gate_selftest() {
     plant_ratified_file_swaps_a_bound
   gate_selftest_passes "a SOLE bracket bound in a file whose path carries a colon and ends in a bracket door's name, where a text half cut at the first colon hands the path itself to the walk" \
     plant_colon_path_sole_bound
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through gate_exact_skip_subject), and on the equivalent spelling of dual.rs Bounds impl (GAP 2), on a compound bound in a file whose PATH carries a colon beside a ratified entry (boxes.rs:x.rs), which is a different file from the entry whose path it begins with, and on one in a colon-carrying path that ends in a bracket door name (a:Bounds.rs), named whole in both diagnoses; fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), a SOLE bracket bound in a colon-carrying path that ends in a bracket door name, where the file column ending at the first `:LINE:` is what keeps the path out of the text the walk reads, and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+CertifiedEnclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through gate_exact_skip_subject), and on the equivalent spelling of dual.rs Bounds impl (GAP 2), on a compound bound in a file whose PATH carries a colon beside a ratified entry (boxes.rs:x.rs), which is a different file from the entry whose path it begins with, and on one in a colon-carrying path that ends in a bracket door name (a:Bounds.rs), named whole in both diagnoses; fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), a SOLE bracket bound in a colon-carrying path that ends in a bracket door name, where the file column ending at the first `:LINE:` is what keeps the path out of the text the walk reads, and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

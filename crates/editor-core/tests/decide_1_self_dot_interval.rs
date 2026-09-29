@@ -23,7 +23,7 @@
 //! not a row here. Run these:
 //!
 //! ```sh
-//! cargo test -p editor-core --features interval --test all -- \
+//! cargo test -p editor-core --test all -- \
 //!   decide_1_self_dot_interval:: --ignored --nocapture --test-threads 1
 //! ```
 //!
@@ -35,7 +35,6 @@
 //! document it does not fit in the memory of a box the size of this
 //! lane's. Its bracket is measured; its `Invalid` count is not taken,
 //! and the row says so.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ProfileDoc;

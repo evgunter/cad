@@ -111,6 +111,58 @@ pub enum Entry {
     Tied(Vec<EntityRef>),
 }
 
+impl Entry {
+    /// The entities this entry names: one, or the tie's candidates.
+    fn entities(&self) -> &[EntityRef] {
+        match self {
+            Self::Unique(e) => core::slice::from_ref(e),
+            Self::Tied(es) => es,
+        }
+    }
+}
+
+/// **Which of its name's candidates an entity is** (N4, "A tie's
+/// candidates keep their identity").
+///
+/// The node that mints a tie numbers its candidates, and `Of(k)` is
+/// candidate `k` of that numbering. The pass-through edges of N1 carry
+/// it with the name, so it survives [`NameTable::project`]'s re-keying
+/// and the product gather's: it is never recomputed from an
+/// [`EntityRef`]. A strict name is its own only candidate.
+///
+/// It is not part of the name: [`NameTable::lookup`], [`NameTable::iter`]
+/// and [`Entry`] never show it, so no name digest reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Candidate {
+    /// The one entity of a strict name.
+    Only,
+    /// Candidate `k` of the tie its name's minter recorded.
+    Of(u32),
+}
+
+/// A forward row: the entry, and the candidate of each of its
+/// entities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Row {
+    entry: Entry,
+    /// `None` for a strict row. Otherwise one number per entity of
+    /// `entry`, in `entry`'s order: several for a tie, one for a row a
+    /// tie narrowed to.
+    tie: Option<Box<[u32]>>,
+}
+
+impl Row {
+    /// Each entity of the row with its candidate, in the entry's order.
+    pub(super) fn pairs(&self) -> impl Iterator<Item = (Candidate, EntityRef)> + '_ {
+        let ents = self.entry.entities().iter().copied();
+        let ks = self.tie.as_deref();
+        ents.enumerate().map(move |(i, e)| {
+            let k = ks.and_then(|ks| ks.get(i)).copied();
+            (k.map_or(Candidate::Only, Candidate::Of), e)
+        })
+    }
+}
+
 /// The per-node name table (N4). Part of the node's value: memo reuse
 /// transfers it with the geometry (the content key is the proof).
 ///
@@ -121,12 +173,12 @@ pub enum Entry {
 /// reader of that name.
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct NameTable {
-    forward: BTreeMap<NameRef, Entry>,
+    forward: BTreeMap<NameRef, Row>,
     reverse: BTreeMap<EntityRef, NameRef>,
     sealed: Sealed,
 }
 
-// The two maps and nothing else. Whether a table has been sealed is a
+// The rows, and nothing else. Whether a table has been sealed is a
 // SCHEDULE-dependent bit — which reader reached it first — so it must
 // not be printable into a message, a digest or a golden, and this impl
 // is what keeps it off every one of them.
@@ -273,6 +325,13 @@ impl NameTable {
     /// twin for an emitter that is about to EMBED each name in a
     /// downstream one.
     pub(super) fn iter_refs(&self) -> impl Iterator<Item = (&NameRef, &Entry)> {
+        self.forward.iter().map(|(n, row)| (n, &row.entry))
+    }
+
+    /// Rows in key order with their candidates — the walk a VERBATIM
+    /// carry reads ([`NameTable::project`], the product gather's
+    /// `defer::CarriedRows`), since it keeps each entity's candidate.
+    pub(super) fn rows(&self) -> impl Iterator<Item = (&NameRef, &Row)> {
         self.forward.iter()
     }
 
@@ -287,7 +346,16 @@ impl NameTable {
     /// [`NameTable::lookup`] by handle: the same answer, reached
     /// through [`NameRef`]'s order cache instead of a structural walk.
     pub(super) fn entry_of(&self, name: &NameRef) -> Option<&Entry> {
-        self.forward.get(name)
+        self.forward.get(name).map(|row| &row.entry)
+    }
+
+    /// `ent`'s candidate under `name`, or `None` when `name`'s row does
+    /// not name `ent`.
+    pub(super) fn candidate_of(&self, name: &NameRef, ent: &EntityRef) -> Option<Candidate> {
+        self.forward
+            .get(name)?
+            .pairs()
+            .find_map(|(c, e)| (e == *ent).then_some(c))
     }
 
     /// [`NameTable::insert`] by handle — the door that preserves
@@ -321,13 +389,17 @@ impl NameTable {
             }),
             Slot::Vacant(slot) => {
                 rev.insert(slot.key().clone());
-                slot.insert(Entry::Unique(ent));
+                slot.insert(Row {
+                    entry: Entry::Unique(ent),
+                    tie: None,
+                });
                 Ok(())
             }
         }
     }
 
-    /// [`NameTable::insert_tied`] by handle.
+    /// [`NameTable::insert_tied`] by handle: the MINTING door, which
+    /// numbers the candidates in the order it stores them.
     ///
     /// # Errors
     ///
@@ -337,18 +409,89 @@ impl NameTable {
         name: NameRef,
         mut ents: Vec<EntityRef>,
     ) -> Result<(), DuplicateName> {
-        use std::collections::btree_map::Entry as Slot;
-        let dup = || DuplicateName {
-            name: Box::new((*name).clone()),
-        };
         ents.sort_unstable();
         ents.dedup();
         if ents.len() < 2 {
-            return Err(dup());
+            return Err(DuplicateName {
+                name: Box::new((*name).clone()),
+            });
         }
+        // Each candidate is a distinct live entity, so a tie of more
+        // than `u32::MAX` of them needs that many entities in memory at
+        // once, which no evaluation can hold.
+        let ks = (0..ents.len())
+            .map(|k| {
+                u32::try_from(k)
+                    .unwrap_or_else(|_| unreachable!("a tie of more than u32::MAX live candidates"))
+            })
+            .collect();
+        self.write_candidates(name, ents, ks)
+    }
+
+    /// **The CARRYING door**: a row whose entities keep the candidates
+    /// an upstream tie's minter gave them (N4, "A tie's candidates keep
+    /// their identity"). One pair writes a `Unique` row — strict for
+    /// [`Candidate::Only`], keeping its candidate for [`Candidate::Of`]
+    /// — and several write the tie over exactly those candidates.
+    ///
+    /// # Errors
+    ///
+    /// [`DuplicateName`] under [`NameTable::insert`]'s collisions, and
+    /// for a list that repeats a candidate or an entity, is empty, or
+    /// holds a strict name's [`Candidate::Only`] beside anything: a
+    /// (name, candidate) pair names one entity.
+    pub(super) fn insert_candidates_ref(
+        &mut self,
+        name: NameRef,
+        mut pairs: Vec<(Candidate, EntityRef)>,
+    ) -> Result<(), DuplicateName> {
+        let dup = |name: &NameRef| DuplicateName {
+            name: Box::new((**name).clone()),
+        };
+        pairs.sort_unstable_by_key(|&(_, e)| e);
+        let mut ks = Vec::with_capacity(pairs.len());
+        let mut ents = Vec::with_capacity(pairs.len());
+        for (c, e) in pairs {
+            match (c, ents.as_slice()) {
+                (Candidate::Only, []) => ents.push(e),
+                (Candidate::Of(k), _) if ks.len() == ents.len() => {
+                    ks.push(k);
+                    ents.push(e);
+                }
+                _ => return Err(dup(&name)),
+            }
+        }
+        match ents.as_slice() {
+            [] => Err(dup(&name)),
+            [one] if ks.is_empty() => self.insert_ref(name, *one),
+            _ => {
+                let mut seen = ks.clone();
+                seen.sort_unstable();
+                seen.dedup();
+                if seen.len() != ks.len() || ents.windows(2).any(|w| w[0] == w[1]) {
+                    return Err(dup(&name));
+                }
+                self.write_candidates(name, ents, ks.into_boxed_slice())
+            }
+        }
+    }
+
+    /// Writes a candidate-numbered row: `ents` sorted and distinct,
+    /// `ks` one number per entity. One entity is a `Unique` row that
+    /// keeps its candidate; several are the tie.
+    fn write_candidates(
+        &mut self,
+        name: NameRef,
+        ents: Vec<EntityRef>,
+        ks: Box<[u32]>,
+    ) -> Result<(), DuplicateName> {
+        use std::collections::btree_map::Entry as Slot;
+        debug_assert_eq!(ents.len(), ks.len(), "one candidate per entity");
         for e in &ents {
             if name.kind != e.key.kind() || self.reverse.contains_key(e) {
-                return Err(dup());
+                return Err(DuplicateName {
+                    name: Box::new((*name).clone()),
+                });
             }
         }
         // The forward direction is searched once, as `insert_ref`'s is.
@@ -363,7 +506,14 @@ impl NameTable {
                 for e in &ents {
                     self.reverse.insert(*e, slot.key().clone());
                 }
-                slot.insert(Entry::Tied(ents));
+                let entry = match ents.as_slice() {
+                    [one] => Entry::Unique(*one),
+                    _ => Entry::Tied(ents),
+                };
+                slot.insert(Row {
+                    entry,
+                    tie: Some(ks),
+                });
                 Ok(())
             }
         }
@@ -405,7 +555,7 @@ impl NameTable {
     /// can be written as the other without minting a handle to throw
     /// away.
     pub fn lookup(&self, name: &StableName) -> Option<&Entry> {
-        self.forward.get(name)
+        self.forward.get(name).map(|row| &row.entry)
     }
 
     /// The name of an entity (hit-testing reads this direction).
@@ -415,7 +565,7 @@ impl NameTable {
 
     /// Whether `name` is tie-marked.
     pub fn is_tied(&self, name: &StableName) -> bool {
-        matches!(self.forward.get(name), Some(Entry::Tied(_)))
+        matches!(self.lookup(name), Some(Entry::Tied(_)))
     }
 
     /// Number of names (ties count once).
@@ -442,14 +592,14 @@ impl NameTable {
     /// than a congruent one.
     ///
     /// A tie keeps the candidates in the selected body and is dropped
-    /// when none is; the survivors narrow exactly as an op's do — one
-    /// survivor is `Unique`, several stay `Tied` — through the ONE
-    /// narrowing rule the emitter's flush also writes by
-    /// (`defer::narrow_into`). A tie CAN straddle two output bodies:
-    /// a pass-through entity keeps its upstream name with no side
-    /// tag, so a split that separates two tied candidates without
-    /// cutting either holds one in each half. The projection is what
-    /// separates them, and the split's own table stays `Tied`.
+    /// when none is; the survivors narrow through the ONE narrowing
+    /// rule (`defer::narrow_into`) — one survivor is `Unique`, several
+    /// stay `Tied` — and each keeps its [`Candidate`]. A tie CAN
+    /// straddle two output bodies: a pass-through entity keeps its
+    /// upstream name with no side tag, so a split that separates two
+    /// tied candidates without cutting either holds one in each half.
+    /// The projection is what separates them, and the split's own
+    /// table stays `Tied`.
     ///
     /// # Errors
     ///
@@ -464,20 +614,14 @@ impl NameTable {
             key: e.key,
         };
         let mut out = NameTable::new();
-        for (name, entry) in &self.forward {
-            match entry {
-                Entry::Unique(e) => {
-                    if e.body == body {
-                        out.insert_ref(name.clone(), rekey(e))?;
-                    }
-                }
-                Entry::Tied(es) => {
-                    let kept: Vec<EntityRef> =
-                        es.iter().filter(|e| e.body == body).map(rekey).collect();
-                    if !kept.is_empty() {
-                        super::defer::narrow_into(&mut out, name.clone(), kept)?;
-                    }
-                }
+        for (name, row) in &self.forward {
+            let kept: Vec<(Candidate, EntityRef)> = row
+                .pairs()
+                .filter(|(_, e)| e.body == body)
+                .map(|(c, e)| (c, rekey(&e)))
+                .collect();
+            if !kept.is_empty() {
+                super::defer::narrow_into(&mut out, name.clone(), kept)?;
             }
         }
         Ok(out)
@@ -690,5 +834,94 @@ mod tests {
             "a clone re-seals, so a row it gained is stamped"
         );
         every_pair_agrees(&handles(&grown));
+    }
+}
+
+#[cfg(test)]
+mod carrying_door {
+    //! **The carrying door's own invariant**: a (name, candidate) pair
+    //! names one entity, whichever writer hands the list in. The
+    //! product gather refuses a repeat before it reaches here (and names
+    //! the root that carried it); this door is what holds the invariant
+    //! for every other writer — a split's flush, `project`.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{Candidate, EntityKey, EntityRef, Entry, NameTable};
+    use crate::names::role::{EntityKind, NameRef, RoleSeg, StableName};
+    use crate::node::RecipeNodeId;
+    use Candidate::{Of, Only};
+
+    fn name() -> NameRef {
+        NameRef::new(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(3),
+            path: vec![RoleSeg::OutputBody],
+        })
+    }
+
+    fn face(i: u64) -> EntityRef {
+        EntityRef {
+            body: 0,
+            key: EntityKey::Face(topo::FaceKey::from(slotmap::KeyData::from_ffi(i))),
+        }
+    }
+
+    fn write(pairs: Vec<(Candidate, EntityRef)>) -> Option<NameTable> {
+        let mut t = NameTable::new();
+        t.insert_candidates_ref(name(), pairs).ok().map(|()| t)
+    }
+
+    #[test]
+    fn the_carrying_door_refuses_what_would_name_one_pair_twice() {
+        let refused = [
+            ("no candidate at all", vec![]),
+            (
+                "one candidate twice",
+                vec![(Of(1), face(1)), (Of(1), face(2))],
+            ),
+            ("one entity twice", vec![(Of(0), face(1)), (Of(1), face(1))]),
+            (
+                "a strict name twice",
+                vec![(Only, face(1)), (Only, face(2))],
+            ),
+            (
+                "strict, then a candidate",
+                vec![(Only, face(1)), (Of(0), face(2))],
+            ),
+            (
+                "a candidate, then strict",
+                vec![(Of(0), face(1)), (Only, face(2))],
+            ),
+            (
+                "an edge under a face name",
+                vec![(
+                    Of(0),
+                    EntityRef {
+                        body: 0,
+                        key: EntityKey::Edge(topo::EdgeKey::from(slotmap::KeyData::from_ffi(1))),
+                    },
+                )],
+            ),
+        ];
+        for (what, pairs) in refused {
+            assert!(write(pairs).is_none(), "{what} must refuse");
+        }
+    }
+
+    #[test]
+    fn the_carrying_door_keeps_each_number() {
+        let one = write(vec![(Of(4), face(1))]).expect("one carried candidate");
+        assert!(matches!(one.entry_of(&name()), Some(Entry::Unique(_))));
+        assert_eq!(one.candidate_of(&name(), &face(1)), Some(Of(4)));
+
+        let strict = write(vec![(Only, face(1))]).expect("a strict row");
+        assert_eq!(strict.candidate_of(&name(), &face(1)), Some(Only));
+
+        // Handed in out of entity order: the numbers follow their
+        // entities, not the stored order.
+        let tie = write(vec![(Of(0), face(9)), (Of(1), face(2))]).expect("two candidates");
+        assert!(matches!(tie.entry_of(&name()), Some(Entry::Tied(es)) if es.len() == 2));
+        assert_eq!(tie.candidate_of(&name(), &face(9)), Some(Of(0)));
+        assert_eq!(tie.candidate_of(&name(), &face(2)), Some(Of(1)));
     }
 }

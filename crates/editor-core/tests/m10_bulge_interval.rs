@@ -23,7 +23,6 @@
 //! one table at every row of the matrix. Cost: three nominal replays,
 //! about a second each for the boss and the literal D-tab and three
 //! for the parameter D-tab in a dev build.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{SymRules, Tol};

@@ -83,6 +83,13 @@ impl<T: Decide> Body<T> {
     /// skips such a face — so what the drop removes is a wrong row no
     /// reader could be warned about.
     ///
+    /// **The face's [`crate::Face::sense`] is kept**, whatever the new
+    /// surface: the bit states the material side against a chart
+    /// normal, and this door does not know which way the new chart's
+    /// normal points. A caller that moves a face onto a chart whose
+    /// orientation it decides states the bit with the surface, through
+    /// [`Body::set_face_surface_and_sense`].
+    ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] if `face` does not resolve;
@@ -127,6 +134,31 @@ impl<T: Decide> Body<T> {
         Ok(new)
     }
 
+    /// [`Body::set_face_surface`], with the face's
+    /// [`crate::Face::sense`] stated in the same call: the door for a
+    /// re-chart whose caller knows the material side against the NEW
+    /// chart's normal. The bit the face carried belongs to its old
+    /// chart (an Euler mint inherits a parent's), so a re-chart that
+    /// left it would state the material side against a normal it was
+    /// never read from.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::set_face_surface`]. The body is untouched on `Err`.
+    pub fn set_face_surface_and_sense(
+        &mut self,
+        face: FaceKey,
+        surface: FaceSurface<T>,
+        sense: bool,
+    ) -> Result<SurfaceKey, EulerOpError> {
+        let key = self.set_face_surface(face, surface)?;
+        let Some(f) = self.get_face_mut(face) else {
+            unreachable!("set_face_surface_and_sense: `face` resolved in `set_face_surface`")
+        };
+        f.sense = sense;
+        Ok(key)
+    }
+
     /// Sets `face`'s orientation sense ([`crate::Face::sense`]) — the
     /// constructor-facing writer of the S10 orientation bit, opened in
     /// M5 S11.
@@ -144,13 +176,12 @@ impl<T: Decide> Body<T> {
     /// know. Callers must keep the two encodings of orientation
     /// coherent — the bit and the loop winding — and the obligation is
     /// the CALLER'S, because at rest it is only partly checkable:
-    /// tier 3's check 6 falsifies a planar disagreement whose loop is
-    /// LINE-bounded, and passes over one whose loop carries a conic.
-    /// That skip is deliberate and banner-documented at the arm (an
-    /// arc's vertex chord is not the boundary), and it is a recorded
-    /// residual, so a planar face bounded by an arc can carry an
-    /// inverted bit through this door and certify. The test-only
-    /// hand-flip door [`Body::flipped_face_sense_for_tests`] is the
+    /// tier 3's check 6 falsifies a planar disagreement whose loop
+    /// rides `Line`, `Circle` and `Ellipse` carriers, and passes over
+    /// one whose loop rides a spiric or NURBS carrier (the residue
+    /// named at the arm's banner), so a planar face bounded so can
+    /// carry an inverted bit through this door and certify. The
+    /// test-only hand-flip door [`Body::flipped_face_sense_for_tests`] is the
     /// deliberate exception to the coherence rule; it is not the only
     /// way to break it.
     ///
@@ -168,9 +199,11 @@ impl<T: Decide> Body<T> {
     /// honest bit is this door's to attach.
     /// `Body::mint_face_surface_and_sense`
     /// owns that rule; the boolean's chord re-mints (`chord_join.rs`)
-    /// pass `FaceSurface::Inherit` and so inherit, while
-    /// `splitting/finish.rs`'s section promotion is the live case of
-    /// the mint. Guard: sweep's `m5_s12_curved_ops.rs`, the row named
+    /// pass `FaceSurface::Inherit` and so inherit. A face moved onto
+    /// a chart after the mint takes its bit with the chart, through
+    /// [`Body::set_face_surface_and_sense`]: `splitting/finish.rs`'s
+    /// section faces read theirs off their loops' winding. Guard:
+    /// sweep's `m5_s12_curved_ops.rs`, the row named
     /// `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
     ///
     /// # Errors

@@ -34,9 +34,10 @@ fn rendered(name: &'static str) -> String {
     BlendError::Escalated {
         site: BlendSite::Chain,
         source: Indeterminate {
-            margin: MarginDiag::Value((band.zero() + band.escalate()) / 2.0),
+            margin: MarginDiag::value((band.zero() + band.escalate()) / 2.0),
             band,
             predicate: Some(name),
+            terminal_sliver: false,
         },
     }
     .to_string()

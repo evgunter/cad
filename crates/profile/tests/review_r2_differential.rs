@@ -20,21 +20,17 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn record(out: &mut String, key: &str, lp: &Result<ProfileLoop<f64>, PathError<f64>>) {
     match lp {
         Ok(lp) => {
             let _ = write!(out, "{key} BUILT joints={:?}", lp.tangent_joints());
-            for v in lp.vertices() {
+            for (v, b) in lp.vertices().iter().zip(lp.bulges()) {
                 let _ = write!(
                     out,
                     " [{:016x},{:016x},{:016x}]",
-                    v.pos().x.to_bits(),
-                    v.pos().y.to_bits(),
-                    v.bulge().to_bits()
+                    v.x.to_bits(),
+                    v.y.to_bits(),
+                    b.to_bits()
                 );
             }
             let verdict = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol()) {
@@ -50,13 +46,13 @@ fn record(out: &mut String, key: &str, lp: &Result<ProfileLoop<f64>, PathError<f
 }
 
 fn line_arc(radius: f64, carrier: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    Open.at(p2(0.0, carrier))
-        .line_to(p2(0.0, 0.0), tol())?
+    Open.at(Point2::new(0.0, carrier))
+        .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(carrier, 0.0, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -69,13 +65,13 @@ fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathEr
     let h = (r_carrier * r_carrier - 0.25 * d * d).sqrt();
     Open.arc_fillet_arc(
         Center {
-            c: p2(-0.5 * d, 0.0),
+            c: Point2::new(-0.5 * d, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.0, -h),
+            p: Point2::new(0.0, -h),
         },
         radius,
         Center {
-            c: p2(0.5 * d, 0.0),
+            c: Point2::new(0.5 * d, 0.0),
             winding: ArcSweep::Ccw,
             p: Start,
         },
@@ -87,15 +83,15 @@ fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathEr
 fn mixed(r_carrier: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-0.5 * r_carrier, 0.0),
+            c: Point2::new(-0.5 * r_carrier, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.5 * r_carrier, 0.0),
+            p: Point2::new(0.5 * r_carrier, 0.0),
         },
         radius,
         Center {
-            c: p2(0.5 * r_carrier, 0.0),
+            c: Point2::new(0.5 * r_carrier, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(1.5 * r_carrier, 0.0),
+            p: Point2::new(1.5 * r_carrier, 0.0),
         },
         tol(),
     )?
@@ -104,8 +100,8 @@ fn mixed(r_carrier: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
 }
 
 fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-    Open.at(p2(start_x, 0.0))
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    Open.at(Point2::new(start_x, 0.0))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?
@@ -121,17 +117,17 @@ fn corner_out(
     arm: f64,
     radius: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let corner = p2(r_carrier, 0.0);
-    let dir = p2(sin_turn, (1.0 - sin_turn * sin_turn).sqrt());
-    let start = p2(corner.x - arm * dir.x, corner.y - arm * dir.y);
+    let corner = Point2::new(r_carrier, 0.0);
+    let dir = Point2::new(sin_turn, (1.0 - sin_turn * sin_turn).sqrt());
+    let start = Point2::new(corner.x - arm * dir.x, corner.y - arm * dir.y);
     Open.at(start)
         .toward(dir.x, dir.y, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, r_carrier),
+                p: Point2::new(0.0, r_carrier),
             },
             tol(),
         )?

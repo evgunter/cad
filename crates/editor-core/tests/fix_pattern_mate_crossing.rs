@@ -131,10 +131,7 @@ fn four_legs(
     RecipeNodeId,
 ) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, _kept) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, _kept) = insert(doc, fixture::xy_frame());
     let (doc, leg) = insert(doc, Node::instantiate_part(block_ref("fix-xs-leg")));
     let (doc, pattern) = insert(
         doc,
@@ -161,7 +158,10 @@ fn cut(ids: impl IntoIterator<Item = RecipeNodeId>) -> BTreeSet<RecipeNodeId> {
     ids.into_iter().collect()
 }
 
-fn crossings(doc: &ProfileDoc, instance: RecipeNodeId) -> &editor_core::InterfaceRecord {
+fn crossings(
+    doc: &editor_core::ProfileDoc,
+    instance: RecipeNodeId,
+) -> &editor_core::InterfaceRecord {
     let Some(Node::InstantiatePart { interface, .. }) = doc.node(instance) else {
         panic!("the split minted an instance");
     };
@@ -414,10 +414,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 #[test]
 fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
-    let (doc, _datum) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, _datum) = insert(doc, fixture::xy_frame());
     // A live instance that consumes nothing: it neither places nor
     // projects `leg`, so no walk from it reaches `leg`.
     let (doc, stranger) = insert(doc, Node::instantiate_part(block_ref("fix-xs-st-other")));
