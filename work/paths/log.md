@@ -409,3 +409,21 @@ New PATHS issues from other programs (queued behind unit 5):
 - `a-short-run-outs-stored-chord-reads-a-declared-fillet-joint-transversal`
   (EMIT, design);
 - `paths-refusals-short-of-the-shape-guard` (CHROME).
+
+## 2026-09-29 — #3453 rounds 2–4
+
+- **Round 2:** q2 reuses the existing types (both). q5 settles on one
+  shared `geom-core` arc type, keeping `radius` (both). q3 split.
+- **Round 3:** the orchestrator read `sym.rs` (the alias is transitive;
+  nodes are hash-consed per leaf). That settled q3 on construction
+  registration.
+- **Round 4:** Ev clarified that the symbolic tier should operate on the
+  authored shape. Both designers answer the same way:
+  - A2 is kept, and the shape lives in the program.
+  - The lowering doors spell the radius as authored and Δθ as one
+    `4·atan(X)` with X algebraic (never `atan2`), so rule D folds every
+    mode.
+  - Registrations cover only what the algebra doesn't close.
+  - D1 text updated; awaiting Ev's confirmation.
+- **Carried into 5b's spec:** a census row over the modes' minted
+  forms, and re-opening DECIDE's rule-D row for measurement.
