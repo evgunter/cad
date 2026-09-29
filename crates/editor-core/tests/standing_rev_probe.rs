@@ -174,3 +174,50 @@ fn standing_rev_runstatus_key_on_this_tree() {
         .collect();
     println!("PROBE|runstatus_key|{}|{words:?}", key.0);
 }
+
+/// **RED probe: the checks registry's root refusal drops the standing.**
+/// `checks.rs`'s `connectedness`/`chart_coherence` read each root with
+/// `Evaluation::value` and refuse `ChecksError::Root { node }`, whose
+/// sentence tells the author to "fix or remove the failing root" — for
+/// a POISONED root, whose repair is upstream at `through`. The door is
+/// in neither the spec's survey nor the PR's census (it spells no
+/// `NodeResult::`), so no row sees it. Red while the refusal cannot
+/// name the node the repair is at.
+#[test]
+fn standing_rev_checks_root_refusal_names_the_repair_node() {
+    use editor_core::{ChecksConfig, run_checks};
+    let (doc, profile) = on_frame(
+        ProfileDoc::empty_derived("standing_rev_checks", Tol::witness()),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, failed) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(0.0),
+        },
+    );
+    let (doc, poisoned) = insert(
+        doc,
+        fixture::xform(failed, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetRoots {
+            roots: vec![poisoned],
+        },
+    );
+    let ev = run(&doc, &CancelToken::new());
+    let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
+        .expect_err("a root with no value refuses the registry");
+    let text = refusal.to_string();
+    println!("PROBE|checks|poisoned|{refusal:?}|{text}");
+    assert!(
+        text.contains(&format!("node {}", failed.0)),
+        "the refusal names the node the repair is at ({}): {text}",
+        failed.0
+    );
+}
