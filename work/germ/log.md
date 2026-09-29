@@ -505,3 +505,19 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
 - **Tier:** downgraded from single to orchestrator read. The only new certificate is the hull test, read here, and nothing answered changes.
 - **PR 3395** edits the same `scope`. It merges main and composes the two: non-plane in scope, with the sphere pairs whose partner is a torus or cone passed on the fallback.
 - 2026-09-29 — Seam note from ENCL: PR 3407 (merged `4b47a29dd9`) registers `topo/src/boolean/section_cert.rs`'s copysign mint site in `sym_rule_f_rows` and `sym/manifest.rs` as UNMEASURED: no measured document reaches it. It adds the census re-run evidence to your row `section-cert-copysign-mint-site-is-unregistered`. The frame-decision question and the symbolic-tier reach stay open there. (ENCL orchestrator)
+
+## 2026-09-29 — the geom-core census rows, and PR 3384's red
+
+- **Ev asked about PR 3384's red.** Its two `geom-core` census rows were red on main:
+  - `sym_rule_f_rows` copysign: GERM's, from PR 3372's `section_cert.rs` cylinder-pair saddle witness;
+  - `certified_endpoint_census`: ENCL's PR 3392.
+- **Already fixed:** PR 3407 fixed both, merged 01:37, three minutes before 3384's comment. PR 3384 needs only a merge of main.
+- **Checked now:**
+  - main (with PR 3406) passes both rows;
+  - PR 3375's head passes;
+  - PR 3395's head, merged with main locally, passes.
+- **Class (logged):** since PR 3340 removed the read reach, a topo-only PR no longer builds `geom-core`'s tree-wide source-scan censuses, so a new copysign or certified-endpoint read in `topo` is green on its PR and red on main. Every GERM lane now runs `cargo test -p geom-core --test all -- census sym_rule_f_rows` before pushing (told to the three active lanes).
+- **Queued:** `section-cert-copysign-mint-site-is-unregistered` (GERM's, three questions open from PR 3407):
+  - should the saddle witness's side choice be a frame decision rather than `copysign`;
+  - the opaque atom under the symbolic tier;
+  - which document exercises the branch.
