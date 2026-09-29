@@ -29,7 +29,13 @@ full question and both reports are in PR 3385.
 - `common/mod.rs`'s routing list: the `revolve_common` bullet becomes
   one rule. `tests/common` is the binary's only shared tree, and a
   module in it is named for what it holds. A row, or the existing
-  suite/helper instrument, reds if a second shared tree appears.
+  suite/helper instrument, reds if a second shared tree appears. PR
+  3371's two instruments exclude the family homes by hand. That
+  exclusion is deleted, and both instruments must then come back empty.
+- `all.rs`'s comment naming three helper trees (~:40–43) goes.
+- A fixture bound to its measurement stays one module, as
+  `common::sphere_recut` did. MATE-2's collar/peg scene with
+  `assert_additive` is one such group.
 
 **Sequencing.** Several of these items are owned by open rows: the
 per-suite `revolved` helpers (`work/fixture/sweep-revolve-about-y-helper-and-its-fixtures-spelled-per-suite.md`),
