@@ -18,7 +18,7 @@
 #     `eq_bits`) AND the debug-only witnesses built on it —
 #     `plane_bits_witness`, `vec3_bits_witness`, `surface_bits_witness`
 #     with its helpers `nurbs_surface_bits_witness` and
-#     `analytic_scalars`, and `bits_witness` — whose own gated `fn`
+#     `joined`, and `bits_witness` — whose own gated `fn`
 #     heads name the channel nowhere. A ROW HOLDS THE
 #     ATTRIBUTES ON THE STATEMENTS THAT NAME ITS SPELLINGS AND NO
 #     OTHERS, so a mechanism's every spelling belongs on its row.
@@ -246,7 +246,7 @@ set -euo pipefail
 # to a file with no row — reds with the row named rather than lowering
 # the total in silence.
 SUBJECTS=(
-  'crates/topo/src/source.rs bit_identity::|eq_bits|plane_bits_witness|vec3_bits_witness|surface_bits_witness|nurbs_surface_bits_witness|analytic_scalars|bits_witness 18 the bit channel'
+  'crates/topo/src/source.rs bit_identity::|eq_bits|plane_bits_witness|vec3_bits_witness|surface_bits_witness|nurbs_surface_bits_witness|joined|bits_witness 23 the bit channel'
   'crates/topo/src/boolean/plane_eq.rs plane_bits_witness 1 the same-source plane witness on the bit channel'
   'crates/topo/src/merge_faces.rs plane_bits_witness|vec3_bits_witness 2 the plane and u_ref witnesses on the bit channel'
   'crates/topo/src/body.rs surface_bits_witness 1 the stamp door witness on the bit channel'

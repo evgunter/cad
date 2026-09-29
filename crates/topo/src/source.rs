@@ -183,9 +183,10 @@ impl std::error::Error for SourceAttachError {}
 /// answers `None` there: no evidence, nothing to assert. The
 /// assertion sites assert only on `Some`.
 ///
-/// This is the ONE remaining bit-identity call site in this crate:
-/// `cfg(debug_assertions)`-gated, never a production consumer (the
-/// CI tripwire allowlists this file on exactly that justification).
+/// This file's witnesses are this crate's only bit-identity call
+/// sites: `cfg(debug_assertions)`-gated, never a production consumer
+/// (the CI tripwire allowlists this file on exactly that
+/// justification).
 #[cfg(debug_assertions)]
 pub(crate) fn plane_bits_witness<T: geom_core::Real>(
     o1: geom_core::Point3<T>,

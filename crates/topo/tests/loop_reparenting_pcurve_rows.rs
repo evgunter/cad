@@ -1616,9 +1616,28 @@ fn stamp_both<T: geom_core::Decide>(a: Surface<T>, b: Surface<T>, seed: Point3<T
     body.set_surface_source(kb, one_recipe()).unwrap();
 }
 
-/// Whether stamping one recipe on `a` and `b` trips the assertion.
+/// Whether stamping one recipe on `a` and `b` trips the stamp door's
+/// assertion; any other panic propagates.
 fn stamp_panics<T: geom_core::Decide>(a: Surface<T>, b: Surface<T>, seed: Point3<T>) -> bool {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| stamp_both(a, b, seed))).is_err()
+    refused_by_the_stamp_door(|| stamp_both(a, b, seed))
+}
+
+/// Runs `stamp`, answering whether the N6 assertion refused it; any
+/// other panic is re-raised, so a fixture failure cannot read as a
+/// refusal.
+fn refused_by_the_stamp_door(stamp: impl FnOnce()) -> bool {
+    let Err(payload) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(stamp)) else {
+        return false;
+    };
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or_default();
+    if !message.contains("one recipe evaluates to one description") {
+        std::panic::resume_unwind(payload);
+    }
+    true
 }
 
 /// [`patch`] generic over the scalar, lifted by `dz`, with its second
@@ -1699,12 +1718,19 @@ fn the_stamp_door_refuses_one_recipe_over_two_descriptions_on_every_kind() {
         ("sphere", sphere(1.0), sphere(1.5)),
         ("torus", torus(1.0), torus(1.5)),
         ("nurbs net", patch_at(id, 0.0, 1.0), patch_at(id, 0.5, 1.0)),
-        ("nurbs weight", patch_at(id, 0.0, 1.0), patch_at(id, 0.0, 2.0)),
+        (
+            "nurbs weight",
+            patch_at(id, 0.0, 1.0),
+            patch_at(id, 0.0, 2.0),
+        ),
         ("kind", flat(), cylinder()),
         ("signed zero", plane_at_x(0.0), plane_at_x(-0.0)),
     ];
     for (what, a, b) in differing {
-        assert!(stamp_panics(a, b, o), "{what}: a differing pair was accepted");
+        assert!(
+            stamp_panics(a, b, o),
+            "{what}: a differing pair was accepted"
+        );
     }
 }
 
@@ -1760,9 +1786,8 @@ fn the_stamp_door_reads_every_holder_not_the_first() {
         .set_face_surface(s.up, FaceSurface::New(cylinder()))
         .unwrap();
     assert!(third != cyl && third != forged);
-    let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let refused = refused_by_the_stamp_door(|| {
         s.body.set_surface_source(third, one_recipe()).unwrap();
-    }))
-    .is_err();
+    });
     assert!(refused, "the forged holder went unread");
 }
