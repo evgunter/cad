@@ -4,6 +4,7 @@ kind: issue
 title: A tilted rod entering a half donut's cap and poking an oval out of the inner equator reaches the volume backstop on a tier-valid planar body: the pipeline's upstream result is suspect
 status: closed
 branch: germ/tilted-rod-remeasure
+pr: 3428
 opened: 2026-09-28
 priority: P1
 cost: M
