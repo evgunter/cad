@@ -431,7 +431,7 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
                 self.assertEqual(verdict.status, "indeterminate")
                 # The arm says which node to look at: this one's own.
                 self.assertEqual(verdict.variant, "target_failed")
-                self.assertIn("failed this evaluation", verdict.detail)
+                self.assertIn("failed, so it has no value", verdict.detail)
                 # Not a rebind candidate: there is nothing to rebind to
                 # and nothing to suggest.
                 self.assertIsNone(verdict.offers)
