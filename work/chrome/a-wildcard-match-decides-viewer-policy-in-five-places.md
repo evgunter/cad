@@ -2,10 +2,13 @@
 id: a-wildcard-match-decides-viewer-policy-in-five-places
 kind: issue
 title: A wildcard match arm decides viewer policy over a crate-owned enum in five places, and none of them can red when the enum grows
-status: open
+status: closed
 opened: 2026-09-22
 priority: P2
 cost: E
+closed: 2026-09-24
+branch: chrome/subset-policy
+pr: 3140
 ---
 
 
@@ -104,3 +107,37 @@ The first hit, `pane/features.rs`'s `feature_row` link decision, is
 fixed: an exhaustive `match` with an arm per status. Four hits remain;
 the class was not swept on that branch (its ground is live this
 wave).
+
+## Closed 2026-09-24 (`chrome/subset-policy`)
+
+The four remaining hits are exhaustive: `tree::frame_pose`,
+`tree::node_note` (whose inner `other =>` over `ClassAdmission` was a
+fifth wildcard spelled as a binding), `sketch::fresh_step_at`, and
+`frame::creation_offer`, both its `ParseError` arm and the outer
+`Option<&Refusal>` wildcard the hit list did not name.
+
+`widgets.rs`'s test `kind(op)` is left as it is. It is the test's own
+vocabulary, not chrome policy.
+
+**Gap (d), the helper predicate.** It was swept by its shape rather
+than by reading every `fn … -> bool`. A viewer predicate whose body is
+a subset appears at its definition in the `matches!`, `_ =>`, `==` and
+binding passes, so those passes are that sitting. The second pass found
+one more: `MateTool::proposal`'s `admission ==
+ClassAdmission::NotAdmitted`, now a match. It also found one fenced out
+of this lane, filed as `create-pane-words-mate-admission-through-a-binding-catch-all`.
+The full 40-line census, the second pass and what it still cannot see
+are in the PR body.
+
+**At review, the "guard-forced catch-all" exemption was found to let
+policy through**, and it is tightened in the README: a guard's `_` may
+stand only for the guard's `false` case. Where the arms name variants,
+the fallback names them again. Converted under it: `frame::frame_status`
+(`StatusUpdate`), `Standing::unresolved` (`Standing`) and `pickcache`'s
+attempt step (`Attempt`). `Withdrawal`'s `fused` test over
+`AdmissionFault` was also reclassified from identity to policy and
+converted. The two `Refusal` lists in `frame.rs` became one home,
+`Refusal::parse_error`. Two more are filed rather than fixed because
+they sit on other lanes' ground:
+`create-pane-hides-one-face-frame-fault-through-a-not-equal` and
+`assembly-shaped-reads-a-document-as-an-assembly-off-one-node-kind`.

@@ -945,9 +945,6 @@ pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> Node<ProfileProgra
 /// among the bodies it collects, because collecting several is what it
 /// does. This answers the narrower question a single-body operand seat
 /// asks.
-///
-/// The match is exhaustive on purpose: a new node variant does not
-/// compile until someone decides which side of this line it is on.
 pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
     match node {
         Node::Extrude { .. }
