@@ -2,14 +2,14 @@
 id: the-re-basing-gate-refuses-m7-8-where-nothing-moves
 kind: issue
 title: the re-basing gate refuses the plane x NURBS class even where the new vertex takes the old one's point
-status: open
+status: closed
 opened: 2026-09-14
 parent: S93
 refs: [S93]
 priority: P0
 cost: H
-pr: 3148
-needs_ev: true
+pr: 3156
+closed: 2026-09-29
 ---
 
 ## What
@@ -210,3 +210,23 @@ caller needs it: atomicity for a no-move `mev`. TOPO recommends
 and recommends settling reading A or B on the tquery row
 independently, since `query.rs`'s compare is live in production
 either way.
+
+## Ruled (2026-09-24, PR 3156)
+
+Ev: "1. no, i.e. 3" — **no bit-identity door for the re-basing gate.**
+The over-refusal stays as PR 3148 left it and documented it: a fan
+`mev` that moves nothing on the plane × NURBS class, or that moves one
+end of a null edge onto its own point, refuses typed, and the no-move
+spelling is the two-call split (`mev_null`, then `set_edge_curve`),
+documented as a split — neither atomic nor certified at rest. No
+caller needs more; a one-door atomic form, if one ever does, plans
+both steps before mutating and compares nothing. Nothing is built
+here, so the row closes on the ruling.
+
+Ev's second answer ("(b)") rules `query.rs`'s compare a violation of
+the retirement, not a precedent — so nothing in the gate's docs cites
+it as a door, and the repair is carried on
+`work/tquery/rim-of-compares-point-bits-in-production-where-no-gate-looks.md`
+(the site) and
+`work/guard/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`
+(the gate).
