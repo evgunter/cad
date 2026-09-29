@@ -2540,3 +2540,18 @@ five NOTE, nine style notes.
 The fix pass is dispatched on `topo/mev-fan-orbit-proof` with the
 reviewer's probes to adopt. After it: close, log, merge (single tier,
 no DR row).
+
+## Check-in 16:30: two CHROME rows arrive; the slate is re-cut (2026-09-29)
+
+CHROME filed two TOPO rows, both P2, E, from its escalation triage:
+- `topo-escalations-offer-a-declaration-the-door-cannot-take`:
+  `split_edge`'s in-band interiority forwards the declare menu to
+  doors that take no declaration.
+- `declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu`:
+  the text is wrong for `recl.rs`'s non-planar pairs.
+
+Both are refusal text, not topology. They join the P2 queue behind
+the two rows PR 3472 filed, and they could share one unit because they
+touch one error family's rendering.
+
+Lanes: PR 3467's re-aim implementer and PR 3472's fix pass are live.
