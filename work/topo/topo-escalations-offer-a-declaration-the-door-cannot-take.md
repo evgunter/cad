@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-29
 priority: P2
 cost: E
+pr: 3493
+branch: topo/route-refusal-subjects
 ---
 
 

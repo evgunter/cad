@@ -245,6 +245,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
 /// at a crossing (`EulerOpError::SplitParamEscalated`).
 pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside its edge";
 
+pub(crate) use refusal_routes::CROSSING_RECOURSE;
+
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
 ///

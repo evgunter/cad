@@ -384,7 +384,9 @@ fn the_split_param_escalation_reads_whole_through_the_blend_door() {
     assert!(stage_prefixes(&text, &[]).is_empty(), "{text}");
     assert!(
         text.contains("whether a crossing lands strictly inside its edge is undecided: margin ")
-            && text.ends_with("Recourse: move the geometry, or lower the tolerance")
+            && text.ends_with(
+                "Recourse: move the geometry so the crossing lands clearly away from the edge's ends",
+            )
             && !text.contains("declare"),
         "{text}"
     );

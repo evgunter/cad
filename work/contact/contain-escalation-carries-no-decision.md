@@ -41,3 +41,17 @@ PR 3390 adds as `SizedPass::NonZero`) to quote the tolerance below
 Carry the decision as a closed type on the escalation (and through
 `Undecided`), end it through `geom_brep::recourse::SizedDecision` at
 `Reading::AtRest` in `classify_contain`, and pin the valued ending.
+
+## At the Boolean's door (TOPO, the §5 second pass of PR 3493)
+
+`PointInSolidError`'s own `Display`
+(`crates/topo/src/boolean/solid_contain.rs`, `impl Display for
+PointInSolidError`) ends its `Escalated`, `RayExhausted` and
+`Loop(RayExhausted)` arms in `COINCIDENCE_RECOURSE`. The Boolean shows
+them through `BooleanError::Containment`. "Declare the coincidence" is
+advice a face-pair declaration cannot follow there: a ray cast's
+graze, or a point near a face of the other solid, is not a pair of
+faces. PR 3493 gives the Boolean's face-containment escalations
+(`ContainError::Escalated`, through `BooleanError::Escalated`) their
+own subject and a geometry-only lever in `boolean::refusal_routes`.
+These three arms want the same change when the decision is carried.

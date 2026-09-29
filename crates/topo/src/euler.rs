@@ -1072,7 +1072,7 @@ impl EulerOpError {
                 "{} is undecided: {}. Recourse: {}",
                 crate::boolean::CROSSING_INTERIOR,
                 diag.payload(),
-                geom_core::NO_DECLARATION_RECOURSE
+                crate::boolean::CROSSING_RECOURSE
             ),
             Self::PcurveSplit {
                 edge,
@@ -5457,7 +5457,10 @@ mod tests {
         let msg = escalated.to_string();
         assert!(
             msg.starts_with("whether a crossing lands strictly inside its edge is undecided: ")
-                && msg.ends_with("Recourse: move the geometry, or lower the tolerance")
+                && msg.ends_with(
+                    "Recourse: move the geometry so the crossing lands clearly away from the \
+                     edge's ends",
+                )
                 && !msg.contains("declare"),
             "{msg}"
         );

@@ -21,7 +21,7 @@
 //! enumerates the names that reach `BooleanError::Escalated` and reds
 //! on one this table does not route.
 
-use geom_core::{Indeterminate, NO_DECLARATION_RECOURSE};
+use geom_core::Indeterminate;
 
 /// The one lever a contradicted declaration leaves: the declaration
 /// is wrong, or the geometry is.
@@ -111,31 +111,37 @@ enum Lever {
 
 /// A corner's own shape (`sector_shape`'s rungs).
 const CORNER: Lever = Lever::Own(
-    "reshape that corner so its edges are clearly longer than the tolerance and clearly not \
-     in line, or lower the tolerance",
+    "reshape that corner so its edges are clearly longer than the tolerance and clearly not in line",
 );
 
 /// Whether a pierce point lies on the curved face it pierces.
-const PIERCE_POINT: Lever = Lever::Own(
-    "move the parts so that point lands clearly on or clearly off the curved face, or lower \
-     the tolerance",
-);
+const PIERCE_POINT: Lever =
+    Lever::Own("move the parts so that point lands clearly on or clearly off the curved face");
 
 /// A pierced torus face's own shape.
 const TORUS_SHAPE: Lever = Lever::Own(
-    "reshape the torus so its tube is clearly thicker than the tolerance and stays clearly \
-     off its axis, or lower the tolerance",
+    "reshape the torus so its tube is clearly thicker than the tolerance and stays clearly off \
+     its axis",
 );
 
 /// Whether a point lies inside a face.
 const CONTAINMENT: Lever = Lever::Own(
-    "move the parts so they meet clearly inside or clearly outside that face's boundary, or \
-     lower the tolerance",
+    "move the parts so they meet clearly inside or clearly outside that face's boundary",
 );
 
-/// Where a crossing lands along its edge, or an arc's own span: the
-/// levers a split, a blend and a Boolean all have.
-const EDGE: Lever = Lever::Own(NO_DECLARATION_RECOURSE);
+/// Where a crossing lands along its edge.
+const EDGE: Lever = Lever::Own(CROSSING_RECOURSE);
+
+/// An arc's own span.
+const ARC: Lever = Lever::Own("reshape the arc so it clearly stays short of a full turn");
+
+/// The lever for where a crossing lands along its edge: the geometry,
+/// which a split, a blend and a Boolean all have (`split_edge`'s
+/// escalation reaches all three whole). No lowering of the tolerance:
+/// the margin rides as data, and an unvalued lowering is not a lever
+/// D4 ¶1 (i) offers.
+pub(crate) const CROSSING_RECOURSE: &str =
+    "move the geometry so the crossing lands clearly away from the edge's ends";
 
 /// How `BooleanError::Escalated` reads for the decision `predicate`
 /// names; `None` for a name this table does not carry.
@@ -342,8 +348,8 @@ fn lever(name: &str) -> Option<Lever> {
         // lanes), and an arc's own span: a face pair names neither.
         "split_conic_crossing_root"
         | "split_conic_root_order"
-        | "bool_wall_root_in_span"
-        | "bool_split_span_period" => EDGE,
+        | "bool_wall_root_in_span" => EDGE,
+        "bool_split_span_period" => ARC,
         // The invariant lane and the quartic ladders' count
         // cross-check: reached only with a poisoned or impossible
         // reading.
@@ -414,7 +420,8 @@ mod tests {
         out
     }
 
-    const NO_DECLARATION_ENDING: &str = "Recourse: move the geometry, or lower the tolerance";
+    const CROSSING_ENDING: &str =
+        "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
 
     /// The split door's own clause, a stage for a subject, filed with
     /// its owner: `work/reach/reach-refusals-short-of-the-shape-guard.md`.
@@ -469,7 +476,7 @@ mod tests {
             assert!(
                 text.contains(
                     "whether a crossing lands strictly inside its edge is undecided: margin "
-                ) && text.ends_with(NO_DECLARATION_ENDING)
+                ) && text.ends_with(CROSSING_ENDING)
                     && !text.contains("declare"),
                 "{door} states the decision and the lever it has, and no declaration: {text}"
             );
@@ -489,43 +496,43 @@ mod tests {
             "sector_arm",
             "whether a corner's edges are long enough to measure its angle over is undecided: ",
             "Recourse: reshape that corner so its edges are clearly longer than the tolerance \
-             and clearly not in line, or lower the tolerance",
+             and clearly not in line",
         ),
         (
             "sector_straight",
             "whether a corner is straight or folds back on itself is undecided: ",
             "Recourse: reshape that corner so its edges are clearly longer than the tolerance \
-             and clearly not in line, or lower the tolerance",
+             and clearly not in line",
         ),
         (
             "bool_pierce_normal_on_chart",
             "whether a point lies on a curved face, so the face's normal can be read there is \
              undecided: ",
             "Recourse: move the parts so that point lands clearly on or clearly off the curved \
-             face, or lower the tolerance",
+             face",
         ),
         (
             "ring_torus_convention",
             "whether a torus's tube stays clear of its axis is undecided: ",
             "Recourse: reshape the torus so its tube is clearly thicker than the tolerance and \
-             stays clearly off its axis, or lower the tolerance",
+             stays clearly off its axis",
         ),
         (
             "point_in_loop_side",
             "whether a point lies inside a face, on its boundary, or outside it is undecided: ",
             "Recourse: move the parts so they meet clearly inside or clearly outside that \
-             face's boundary, or lower the tolerance",
+             face's boundary",
         ),
         (
             "bool_wall_trim",
             "whether a point lies inside a face, on its boundary, or outside it is undecided: ",
             "Recourse: move the parts so they meet clearly inside or clearly outside that \
-             face's boundary, or lower the tolerance",
+             face's boundary",
         ),
         (
             "split_conic_crossing_root",
             "whether a crossing lands strictly inside its edge is undecided: ",
-            NO_DECLARATION_ENDING,
+            CROSSING_ENDING,
         ),
         (
             "volume_backstop",
