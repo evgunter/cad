@@ -27,7 +27,7 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
-use pncad::select::{ContactClass, HitTestError, NodePickError};
+use pncad::select::{ContactClass, HitTestError, NodePickError, UnnamedEntity};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
@@ -1193,7 +1193,7 @@ fn the_readme_counts_its_two_populations_correctly() {
 /// was right.
 #[test]
 fn a_badge_that_has_nothing_to_say_says_nothing() {
-    assert_eq!(frame::at_rest_badge(None), None, "no assembly, no verdict");
+    assert_eq!(frame::at_rest_badge(None), None, "no verdict, no badge");
     assert_eq!(
         frame::checks_badge(None),
         None,
@@ -1891,10 +1891,11 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 /// bug arm, so the state is built directly: the id side of a
 /// disagreement, holding the refusal the index would have stored.
 /// The sentence is fixed here, and the refusal rides through its own
-/// `Display` once, unaltered.
+/// `Display` once, unaltered — and that `Display` names the lookup
+/// that built the index, not a hit test, because none ran.
 #[test]
 fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
-    let error = HitTestError::Unnamed {
+    let error = UnnamedEntity {
         node: RecipeNodeId(2),
         entity: editor_core::names::EntityRef {
             body: 0,
@@ -1902,18 +1903,17 @@ fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
         },
     };
     let report = idpass::Disagreement {
-        from_gpu: idpass::IdAnswer::Unnamed {
-            id: 9,
-            error: error.clone(),
-        },
+        from_gpu: idpass::IdAnswer::Unnamed { id: 9, error },
         from_ray: Vec::new(),
     };
+    let sentence = report.to_string();
     assert_eq!(
-        report.to_string(),
+        sentence,
         format!(
             "picking paths disagree at the cursor: id buffer id 9, a drawn patch: {error}, ray nothing"
         )
     );
+    assert!(!sentence.contains("hit test"), "{sentence}");
 }
 
 /// **The diagnostic's subject is the PATCH under the cursor, and the
@@ -2814,10 +2814,11 @@ fn opening_a_document_drops_the_previous_ones_landed_run() {
 
 #[test]
 fn a_well_formed_product_reports_no_fault_and_the_verdict_is_computed_once() {
-    // The gather-level verdict no per-node badge can carry. Nothing in
-    // the gallery refuses, so the row asserts the honest half: the
-    // verdict exists, is `None` for a good document, and is `None`
-    // before anything lands (which is not the same as "well formed").
+    // The gather's verdict (which channel reports which class is
+    // `frame::badge_site`'s). Nothing in the gallery refuses, so the
+    // row asserts the honest half: the verdict exists, is `None` for a
+    // good document, and is `None` before anything lands (which is not
+    // the same as "well formed").
     let tol = Tol::witness();
     let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let mut session = DocSession::inline(doc, tol);
@@ -2908,7 +2909,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     }
     assert_eq!(
         frame::creation_offer(refusal.as_ref()),
-        Some(ParamName::new("margin")),
+        Some(ParamName::from_static("margin")),
         "the offer is the undeclared name"
     );
     assert_eq!(

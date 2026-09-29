@@ -15,7 +15,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Bounds;
-use geom_core::{CertifiedEnclosure, Interval, Real};
+use geom_core::interval::certification::Certification;
+use geom_core::{CertifiedEnclosure, Interval};
 use test_utils::fuzz;
 
 fn ri(lo: f64, hi: f64) -> Interval {
@@ -28,7 +29,7 @@ fn ri(lo: f64, hi: f64) -> Interval {
 fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
     // `sqrt([-1, 4])` clamps to `[0, 2]` at Trv: a sound bracket the
     // computation is not entitled to.
-    let x = Interval::from_bounds(-1.0, 4.0).sqrt();
+    let x = geom_core::Real::sqrt(Interval::from_bounds(-1.0, 4.0));
     assert!(x.certified_bracket().is_none(), "the fixture is a refusal");
     assert_eq!((x.lo(), x.hi()), (0.0, 2.0));
     let r = Interval::from_certified(x);

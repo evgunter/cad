@@ -1982,10 +1982,10 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Seed { source } => write!(f, "{source}"),
             Self::SeedPinnedSection { section, param } => write!(
                 f,
-                "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
+                "the seed on parameter {param} reaches section profile node {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
-                param.0, section.0
+                section.0
             ),
             Self::WrongOperand {
                 input,
@@ -2338,10 +2338,10 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which carries the fitted-pcurve lane trait as its supertrait and
-/// answers the two injected doors, the offset fit's and the shell
-/// verb's — the part seam gathers a referenced document's product, so
-/// evaluation owns a gate policy per scalar), the two per-scalar
+/// which answers the three injected doors — the offset fit's, the
+/// fitted pcurves' and the shell verb's — and names the scalar; the
+/// part seam gathers a referenced document's product, so evaluation
+/// owns a gate policy per scalar), the two per-scalar
 /// analysis capabilities
 /// (`crate::analysis::AxisScalar` for the parameter box,
 /// `crate::analysis::SeedScalar` for the E4 seed — both scalar-free
@@ -5115,7 +5115,7 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
             e.param_refs(&mut params);
             h.write_u64(params.len() as u64);
             for (name, dim) in params {
-                h.write_str(&name.0);
+                h.write_str(name.as_str());
                 h.write_tag(dimension_tag(dim));
             }
         }

@@ -1128,6 +1128,48 @@ fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
     ))
 }
 
+/// **The carrier poison read reads every scalar**: each scalar of each
+/// analytic kind ([`geom::test_support::analytic_curves`]), made NaN
+/// alone, is named by [`crate::validate::poisoned_curve_datums`] as the
+/// datum the walk ([`geom::Curve3::data`]) says owns it. The walk's
+/// scalars must be exactly the builder's, so a walk that drops a field
+/// reds on the count, and a fold that skips a datum reds on that
+/// datum's rows.
+#[test]
+fn the_carrier_poison_read_reads_every_scalar() {
+    use crate::validate::poisoned_curve_datums;
+    let base = geom::test_support::scalar_base();
+    for kind in geom::test_support::analytic_curves() {
+        let at_rest = (kind.build)(&base);
+        assert!(
+            poisoned_curve_datums(&at_rest).is_empty(),
+            "{at_rest:?}: a finite carrier has no poisoned datum"
+        );
+        let geom::CurveData::Analytic(data) = at_rest.data() else {
+            panic!("{at_rest:?}: an analytic kind reads as analytic data")
+        };
+        let walked: Vec<(geom::CurveDatum, f64)> = data
+            .into_iter()
+            .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+            .collect();
+        assert_eq!(
+            walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+            base[..kind.scalars],
+            "{at_rest:?}: the walk yields the builder's scalars, in its order"
+        );
+        for (i, &(datum, _)) in walked.iter().enumerate() {
+            let mut poisoned = base.clone();
+            poisoned[i] = f64::NAN;
+            assert_eq!(
+                poisoned_curve_datums(&(kind.build)(&poisoned)),
+                vec![datum],
+                "{at_rest:?}: check 1 missed a NaN in {} (scalar {i})",
+                datum.name()
+            );
+        }
+    }
+}
+
 /// **The frame margins' lever is the kind's radius — not 1, not its
 /// square, and for an ellipse the LARGER semi-axis magnitude,
 /// whichever field stores it.** Every row sits a frame deviation `δ`

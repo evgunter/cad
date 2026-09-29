@@ -87,12 +87,8 @@ impl MintingEdit<'_> {
     fn preimage(&self) -> Preimage<'_> {
         let unit_blind = |loops: &[LoopProgram]| {
             let mut loops = loops.to_vec();
-            for lp in &mut loops {
-                for (step, arg) in lp.step_args() {
-                    if let Some(expr) = lp.expr_mut(step, arg) {
-                        expr.erase_display_units();
-                    }
-                }
+            for expr in loops.iter_mut().flat_map(LoopProgram::exprs_mut) {
+                expr.erase_display_units();
             }
             loops
         };

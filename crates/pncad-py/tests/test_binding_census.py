@@ -778,6 +778,16 @@ BOUND_AS = {
     # report is assembled from numbers, and the payload's type is not
     # raisable, so this door is the only crossing they get.
     "MeshPickError": "NodePickError.index_variant",
+    # `UnnamedEntity` is the kernel's per-slot refusal at
+    # `NodePick.patch_names` / `boundary_names` — a name lookup's, and
+    # its own type because that lane holds nothing else — and the
+    # payload of `HitTestError::Unnamed`. It crosses by the carrier
+    # rule at ONE spelling: the slot value is the `unnamed` arm of
+    # `HitTestError`, built through the kernel's own `From`, so a
+    # caller reads the same class, tag, `node`, `kind` and `body` in a
+    # slot as at a raise. Whether the slot deserves a class of its own
+    # is `work/lib/the-unnamed-slot-crosses-as-a-hit-test-error.md`.
+    "UnnamedEntity": "HitTestError",
     # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
     # analytic kind's stage-1 estimator declined on a face that could
     # not import without promotion. It crosses by the carrier rule at
@@ -2833,6 +2843,14 @@ NOT_BOUND = {
     # rule.
     "FaceName": SHAPE,
     "NotAFaceName": SHAPE,
+    # `ParamNameFault` is what `ParamName::new` refuses with, and
+    # `ParamNameReason` the lexer's finding inside it. A Python caller
+    # holds a name as text until `ParamName(text)`, which is where the
+    # binding calls the constructor and publishes the refusal as
+    # `EditError.variant == "param_name_not_an_identifier"`; neither
+    # type crosses, for `NotAFaceName`'s reason.
+    "ParamNameFault": SHAPE,
+    "ParamNameReason": SHAPE,
     # **The clearance engine's refusal, flattened to a tag — and
     # unreachable at the lane Python evaluates on.** It reaches Python
     # as `EvaluationError.kind == "measure_clearance_refused"`

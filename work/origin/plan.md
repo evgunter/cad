@@ -4,35 +4,23 @@ the D5/N6 identity channel: what a description's source says, and what the Live 
 
 ## The slate
 
-| pri | item | cost | design | state |
-|---|---|---|---|---|
-| P0 | `a-chart-spans-solids-after-move-shells-to-new-solid` | M | — | ruled (A) by Ev, PR 2527; a unit, brief = the row's scope paragraph |
-| P0 | `graft-copies-provenance-keys-verbatim` | H | — | measure first: the corrected fix shape (a dead-ancestor bridge on `GraftMap`) is a 2026-09-02 reading |
-| P0 | `two-provenance-free-keys-holding-one-surface-read-as-two-charts` | H | yes | weighed with the P3 row below as one question |
-| P1 | `axis-per-component-source-beside-geom-source` | H | — | ratified design, `docs/AXIS-DECLARATION-DESIGN.md` |
-| P2 | `three-spellings-of-one-chart-answer-the-same-question-differently` | M | yes | claimed from TOPO; the same question |
-| P3 | `set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree` | M | yes | weighed with the P0 row above |
-| P3 | `live-guard-proves-ordering-not-identity` | M | yes | the scan question first |
+The live-wrong-answer rows the track was opened for are closed. What
+remains is the channel's second tier:
 
-## The chart-identity question
-
-`two-provenance-free-keys-…` and `set-surface-source-…` are the two
-directions of one question: what decides that two surface keys are one
-chart. One is the decision missing a true "same" (equal descriptions
-no `GeomSource` ties), the other is it trusting a false one (a stamp
-nothing checks). `Body::same_chart` (`euler_ring.rs`), `chart_region.rs`'s own
-`same_chart` and `merge_faces::planes_declared_equal` each answer it
-(`three-spellings-…`, claimed from TOPO). They go to the
-designer pair together (`memories/orchestration-model.md`), and to Ev
-only if what comes back is a fork that is Ev's.
+| pri | item | state |
+|---|---|---|
+| P2 | `axis-source-lowered-bytes-carry-no-minter-namespace` | parked on EXCH's step 2 (the second minter) |
+| P3 | `a-live-spliced-into-another-body-is-caught-by-nothing` | design: whether a `Live` carries its body's identity |
+| P3 | `set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree` | the graft and `revert` writers unchecked; merge door trusts the stamp in release |
+| P3 | `axis-channel-serves-only-the-line-reading` | no consumer yet |
+| P4 | `live-tuple-constructor-point-free-is-unseen` | design: value- vs type-position, or a private tuple constructor |
 
 ## Order
 
-The ruled P0 first: it has a brief and no open question. The graft in
-parallel, measure-first, because its fix shape is a month old and
-crosses into editor-core's names lane. The chart-identity question
-goes to the designers at the same time. The axis channel follows the
-first of those to land; the guard row last.
+The two P3 design rows (`a-live-spliced-…`,
+`set-surface-source-…`) are the next sitting's: each changes a token's
+or a door's contract, so each is weighed before it is built. The line
+reading waits for a consumer.
 
 ## Review posture
 

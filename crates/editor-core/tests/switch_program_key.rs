@@ -16,8 +16,8 @@
 use crate::fixture::{ang, len, len2, scl, xy_frame};
 use editor_core::{
     CancelToken, ContentKey, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    ParamName, ProfileDoc, ProfilePayload as _, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, StepArg, evaluate, parse_expr,
+    ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, SlotId, StepArg, evaluate, parse_expr,
 };
 use geom_core::Tol;
 
@@ -76,13 +76,12 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
 /// ids — and so their keys — differ; a display unit alone is not a
 /// different spelling, D6.)
 fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Expr) -> ProfileDoc {
-    let Some(Node::Profile(p)) = doc.node(PROFILE) else {
-        panic!("the profile at node 1");
-    };
-    let slots: Vec<SlotId> = p
+    let slots: Vec<SlotId> = doc
+        .node(PROFILE)
+        .expect("the profile at node 1")
         .slots()
         .into_iter()
-        .filter(|s| matches!(s, SlotId::Profile { arg: a, .. } if *a == arg))
+        .filter(|s| matches!(*s, SlotId::Profile { arg: a, .. } if a == arg))
         .collect();
     let [slot] = slots.as_slice() else {
         panic!("one {arg:?} slot, got {slots:?}");
@@ -155,7 +154,7 @@ fn resolved_values_feed_the_key() {
         let doc = doc
             .apply(
                 &DocEdit::SetDocParam {
-                    name: ParamName::new("r"),
+                    name: ParamName::from_static("r"),
                     value: DocParam::continuous(Dimension::Length, value),
                 },
                 Tol::witness(),
@@ -170,7 +169,7 @@ fn resolved_values_feed_the_key() {
                         plane: PLANE,
                         loops: vec![LoopProgram::Circle {
                             centre: [len(0.0), len(0.0)],
-                            radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                            radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                         }],
                         ids: Vec::new(),
                     }),
@@ -207,7 +206,7 @@ fn a_carrier_centre_respelled_keys_identically() {
     let doc = doc
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("cx"),
+                name: ParamName::from_static("cx"),
                 value: DocParam::continuous(Dimension::Length, 1.0),
             },
             Tol::witness(),
@@ -222,7 +221,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                     plane: PLANE,
                     loops: vec![LoopProgram::Circle {
                         centre: [
-                            Expr::param(ParamName::new("cx"), Dimension::Length),
+                            Expr::param(ParamName::from_static("cx"), Dimension::Length),
                             len(0.0),
                         ],
                         radius: len(0.5),
@@ -270,7 +269,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
+                name: ParamName::from_static("r"),
                 value: DocParam::continuous(Dimension::Length, value),
             },
             Tol::witness(),
@@ -310,7 +309,7 @@ fn a_chain_arcs_radius_feeds_the_key() {
     let parameterized = doc_with_r(
         0.5,
         vec![one_arc_chain(Expr::param(
-            ParamName::new("r"),
+            ParamName::from_static("r"),
             Dimension::Length,
         ))],
     );
@@ -348,7 +347,7 @@ fn a_straight_chain_respelled_keys_identically() {
     let parameterized = doc_with_r(
         4.0,
         vec![straight(Expr::param(
-            ParamName::new("r"),
+            ParamName::from_static("r"),
             Dimension::Length,
         ))],
     );

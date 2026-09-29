@@ -169,7 +169,7 @@ fn exprs() -> Exprs {
             Expr::div(len(8.0), scl(4.0)).unwrap(),
         )
         .unwrap(),
-        Expr::param(ParamName::new("width"), Dimension::Length),
+        Expr::param(ParamName::from_static("width"), Dimension::Length),
     )
     .unwrap();
     let angle = Expr::atan2(len(1.0), len(2.0)).unwrap();

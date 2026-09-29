@@ -2477,14 +2477,14 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     use pncad::document::{BooleanOp, DocParam, ParamName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
-        radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+        radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
     };
 
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("hole_r"),
+            name: ParamName::from_static("hole_r"),
             value: DocParam::continuous(Dimension::Length, 0.25),
         },
         Tol::witness(),
@@ -2830,7 +2830,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
     let edited = pncad::document::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::from_static("depth"),
             value: DocParam::continuous(Dimension::Length, 0.75),
         },
         Tol::witness(),
@@ -2910,7 +2910,7 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     let dir = WsDir::new("log");
     let (origin, _) = ws_doc("ws-logged");
     let edit = DocEdit::SetDocParam {
-        name: ParamName::new("depth"),
+        name: ParamName::from_static("depth"),
         value: DocParam::continuous(Dimension::Length, 0.9),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
@@ -3036,7 +3036,7 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
     let edited = pncad::document::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::from_static("depth"),
             value: DocParam::continuous(Dimension::Length, 0.9),
         },
         Tol::witness(),
@@ -5924,11 +5924,11 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
         Dimension, Distribution, DocEdit, DocParam, ParamName, ProfileDoc, apply, load, save,
     };
 
-    let declare = |doc: &ProfileDoc, name: &str, value: DocParam| {
+    let declare = |doc: &ProfileDoc, name: &'static str, value: DocParam| {
         apply(
             doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new(name),
+                name: ParamName::from_static(name),
                 value,
             },
             Tol::witness(),
@@ -5967,10 +5967,10 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let policy = AnalysisPolicy::default();
     let boxed = analyzed_box(&back, &policy);
     let bore = boxed
-        .get(&ParamName::new("bore_r"))
+        .get(&ParamName::from_static("bore_r"))
         .expect("the annotated parameter is an axis");
     let plate = boxed
-        .get(&ParamName::new("plate_t"))
+        .get(&ParamName::from_static("plate_t"))
         .expect("so is the banded one");
 
     // The normal's box is the ±3σ quantile box; the band's IS its
@@ -5991,7 +5991,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     // The tail column: the normal leaves a little outside its box, the
     // band leaves nothing outside its own support.
     let bore_tail = tail_mass(
-        &ParamName::new("bore_r"),
+        &ParamName::from_static("bore_r"),
         &bore.distribution.expect("annotated"),
         &bore.offsets,
     )
@@ -6002,7 +6002,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     );
     assert_eq!(
         tail_mass(
-            &ParamName::new("plate_t"),
+            &ParamName::from_static("plate_t"),
             &plate.distribution.expect("annotated"),
             &plate.offsets
         ),
@@ -6011,19 +6011,19 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 
     // Pricing a sub-box: the normal answers, the band refuses BY NAME.
     let half = box_mass(
-        &ParamName::new("bore_r"),
+        &ParamName::from_static("bore_r"),
         &bore.distribution.expect("annotated"),
         (0.0, bore.offsets.hi),
     )
     .expect("a normal prices a leaf");
     assert!((half - 0.5 * (1.0 - bore_tail)).abs() < 1e-9, "{half}");
     match box_mass(
-        &ParamName::new("plate_t"),
+        &ParamName::from_static("plate_t"),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            assert_eq!(param, ParamName::new("plate_t"));
+            assert_eq!(param, ParamName::from_static("plate_t"));
         }
         other => panic!("a band must refuse to price a leaf, got {other:?}"),
     }
