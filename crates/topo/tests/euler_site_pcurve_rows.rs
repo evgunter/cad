@@ -369,3 +369,79 @@ fn a_mev_whose_carrier_leaves_the_chart_leaves_the_face_unminted() {
     assert_eq!(validate_pcurves(&body, band()), vec![]);
     assert!(topo::mint_pcurves(&mut body, tol()).is_err());
 }
+
+/// A lone vertex inside the minted wall: a strut up the ruling cut free
+/// of the boundary with `kemr` leaves its far end `p` as an EMPTY ring.
+/// The face is re-minted so the map holds no row of a killed half, and
+/// is complete: a ring with no half-edge holds no row to miss.
+fn lone_ring(body: &mut Body<f64>, face: FaceKey, m: VertexKey) -> (topo::LoopKey, VertexKey) {
+    let s = strut(body, face, m);
+    let ring = body.kemr(s.he_plus, s.he_minus).unwrap().ring;
+    assert!(matches!(
+        body.get_loop(ring).unwrap().boundary,
+        topo::LoopBoundary::Empty { .. }
+    ));
+    topo::mint_pcurves(body, tol()).unwrap();
+    assert_eq!(validate_pcurves(body, band()), vec![]);
+    assert_eq!(rows_of(body, face), (5, 0));
+    (ring, s.vertex)
+}
+
+/// **`mev` at a `Lone` site mints its halves' rows.** A strut grown from
+/// the wall's lone-vertex ring up the ruling turns the ring into the
+/// two-half cycle `p → q → p`; the face stays complete, and its rows are
+/// the pass's.
+#[test]
+fn a_mev_at_a_lone_vertex_ring_of_a_minted_wall_leaves_the_face_complete() {
+    let (mut body, face, m) = wall();
+    let (ring, _) = lone_ring(&mut body, face, m);
+    let made = body
+        .mev_line(MevSite::Lone { r#loop: ring }, at(UM, 0.8), tol())
+        .unwrap();
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert!(body.pcurve(made.he_plus).is_some());
+    assert!(body.pcurve(made.he_minus).is_some());
+    assert_eq!(rows_of(&body, face), (7, 0));
+    let minted = rows_deep(&body);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(rows_deep(&body), minted);
+}
+
+/// **`mef` at a `Lone` site mints both pieces' rows.** The rim circle
+/// through the wall's lone vertex closes on itself there, and `mef`
+/// splits the ring along it: the wall keeps the plus half as a one-half
+/// ring, the new face — on the wall's own chart — gets the minus half as
+/// its outer loop. Each one-half loop closes by one whole period of the
+/// chart, and both faces are complete with the pass's rows. (The circle
+/// runs off the sheet's `u` span; the rows read only the chart, so the
+/// fixture is a pcurve fixture and asks nothing else of the body.)
+#[test]
+fn a_mef_closing_a_rim_circle_at_a_lone_vertex_mints_both_pieces() {
+    let (mut body, face, m) = wall();
+    let (ring, _) = lone_ring(&mut body, face, m);
+    let frame = CylFrame::canonical(1.0);
+    let carrier = geom::Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.5),
+        axis: frame.axis,
+        radius: 1.0,
+        u_ref: frame.radial(UM),
+    };
+    let spec =
+        geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, core::f64::consts::TAU).unwrap();
+    let made = body
+        .mef(
+            topo::MefSite::Lone { r#loop: ring },
+            spec,
+            topo::FaceSurface::Inherit,
+            tol(),
+        )
+        .unwrap();
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert!(body.pcurve(made.he_plus).is_some());
+    assert!(body.pcurve(made.he_minus).is_some());
+    assert_eq!(rows_of(&body, face), (6, 0));
+    assert_eq!(rows_of(&body, made.face), (1, 0));
+    let minted = rows_deep(&body);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(rows_deep(&body), minted);
+}
