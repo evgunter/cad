@@ -98,10 +98,13 @@
 //!   `next(he2)` (the first survivor of its side in `next` order), the
 //!   ring at `next(he1)` — whether or not the previous `first` was
 //!   killed or migrated.
-//! - **`emanating`**, unconditionally: `u` gets `Some(next(he2))`
-//!   (which starts at `u`) or `None` if its side is empty; `w` gets
-//!   `Some(next(he1))` or `None`. When `u == w` (self-loop edge with
-//!   non-empty sides) the `w`-write is last and wins — deterministic.
+//! - **`emanating`**, unconditionally: `u` gets `Some(next(he2))` or
+//!   `None` if its side is empty; `w` gets `Some(next(he1))` or `None`.
+//!   When `u == w` (self-loop edge with non-empty sides) the `w`-write
+//!   is last and wins — deterministic. The plan proves each write
+//!   before mutating (the crate-internal `Body::require_kill_anchors`):
+//!   a `Some` starts at its vertex, and a `None` leaves its vertex no
+//!   half-edge but the killed two.
 //!
 //! # `mekr` — the inverse (site-typed, like `mev`/`mef`)
 //!
@@ -395,9 +398,15 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::LoopNotCycle`]); the loop's face resolves
     /// (`StaleKey`); the cycle walk from `he1` reaches `he2`
     /// ([`EulerOpError::LoopCycleBroken`]); both start vertices resolve
-    /// (`StaleKey`); the two empty components (if both sides are empty)
-    /// anchor at distinct vertices
-    /// ([`EulerOpError::EmptyAnchorsCollide`]).
+    /// (`StaleKey`); each side's new `emanating` holds, `start(he1)`'s
+    /// (`he2`'s side) and then `start(he2)`'s (`he1`'s side): a
+    /// non-empty side's first member starts at the vertex, and an empty
+    /// side, which anchors `None`, leaves it no half-edge but `he1` and
+    /// `he2` ([`EulerOpError::OrbitBroken`] naming `he1`, then `he2` —
+    /// tier-1-invalid input: a torn `next` can put a first member on
+    /// another vertex, or empty a side whose vertex keeps edges); the
+    /// two empty components (if both sides are empty) anchor at
+    /// distinct vertices ([`EulerOpError::EmptyAnchorsCollide`]).
     ///
     /// # Errors
     ///
@@ -458,6 +467,13 @@ impl<T: Decide> Body<T> {
         for vertex in [u, w] {
             require_key(&self.vertices, vertex, EntityId::Vertex)?;
         }
+        // Emanating (unconditional rule, module docs): `u` takes
+        // `next(he2)`, its orbit step from `he1`, and `w` takes
+        // `next(he1)`, its step from `he2`, each `None` where its side is
+        // empty. The plan proves both writes.
+        let u_anchor = old_side.first().map(|&member| member.key());
+        let w_anchor = ring_side.first().map(|&member| member.key());
+        self.require_kill_anchors(&[(u, u_anchor, he1), (w, w_anchor, he2)], &[he1, he2])?;
         if ring_side.is_empty() && old_side.is_empty() && u == w {
             return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
         }
@@ -523,10 +539,8 @@ impl<T: Decide> Body<T> {
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
-        // Emanating (unconditional rule, module docs). When u == w the
-        // second write wins — deterministic.
-        let u_anchor = old_side.first().map(|&member| member.key());
-        let w_anchor = ring_side.first().map(|&member| member.key());
+        // Emanating, as the plan phase proved it. When u == w the second
+        // write wins — deterministic.
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("kemr: `u` resolved in the plan phase")
         };
@@ -3075,5 +3089,146 @@ mod tests {
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.ring_move(kill.ring, other.face).unwrap_err()
         });
+    }
+
+    #[test]
+    fn kemr_refuses_a_ring_anchor_that_leaves_its_vertex() {
+        // The first counterexample of a seeded search of one `next`
+        // tear on the ring bridge: the tear shortcuts the ring side,
+        // whose first member anchors `start(he2)` and now starts at
+        // another vertex. Unchecked, the kill writes that anchor and
+        // returns `Ok`.
+        let mut body = crate::fixtures::ops_ring_bridge(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[48]).unwrap().next = halves[27];
+        let (he1, he2) = (halves[48], body.mate(halves[48]).unwrap());
+        assert_ne!(
+            body.get_half_edge(halves[27]).unwrap().start,
+            body.get_half_edge(he2).unwrap().start,
+            "the ring side's first member starts off the vertex it would anchor"
+        );
+        let torn = EulerOpError::OrbitBroken { he: he2 };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
+    }
+
+    /// Whether a half-edge other than `he1`/`he2` starts at `v`: the
+    /// vertex keeps an edge through the kill.
+    fn keeps_incidence(body: &Body<f64>, v: VertexKey, he1: HalfEdgeKey, he2: HalfEdgeKey) -> bool {
+        body.half_edges()
+            .any(|(x, data)| data.start == v && x != he1 && x != he2)
+    }
+
+    #[test]
+    fn kemr_refuses_a_none_anchor_on_a_vertex_that_keeps_its_edges() {
+        // The kill-anchor review's `None`-arm constructions on the ring
+        // bridge: a killed half's `next` torn onto its mate empties one
+        // side, which reads as "that side's vertex is stranded", while
+        // the vertex keeps the box's edges. Unchecked, the kill anchors
+        // it at `None` and returns `Ok`. Emptying the ring side strands
+        // `start(he2)`, and emptying the old side strands `start(he1)`.
+        let bridge = crate::fixtures::ops_ring_bridge(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = bridge.half_edges().map(|(k, _)| k).collect();
+        let (he1, he2) = (halves[48], bridge.mate(halves[48]).unwrap());
+        for (torn_half, onto, stranded) in [(he1, he2, he2), (he2, he1, he1)] {
+            let mut body = bridge.clone();
+            body.get_half_edge_mut(torn_half).unwrap().next = onto;
+            let v = body.get_half_edge(stranded).unwrap().start;
+            assert!(
+                keeps_incidence(&body, v, he1, he2),
+                "next({torn_half:?}) = {onto:?}: the stranded vertex keeps edges"
+            );
+            let torn = EulerOpError::OrbitBroken { he: stranded };
+            assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
+        }
+    }
+
+    #[test]
+    fn kemr_refuses_an_old_side_anchor_that_leaves_its_vertex() {
+        // `next(he2)` shortcut past its successor inside the old side:
+        // the cycle still closes and the ring side's anchor stands, but
+        // the old side's first member, `start(he1)`'s anchor, now starts
+        // elsewhere.
+        let mut body = crate::fixtures::ops_ring_bridge(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        let (he1, he2) = (halves[48], body.mate(halves[48]).unwrap());
+        let successor = body.get_half_edge(he2).unwrap().next;
+        let skip = body.get_half_edge(successor).unwrap().next;
+        assert_ne!(skip, he1, "the old side has a member past its first");
+        body.get_half_edge_mut(he2).unwrap().next = skip;
+        let start = |b: &Body<f64>, x: HalfEdgeKey| b.get_half_edge(x).unwrap().start;
+        let ring_first = body.get_half_edge(he1).unwrap().next;
+        assert_eq!(
+            start(&body, ring_first),
+            start(&body, he2),
+            "the ring side's anchor stands"
+        );
+        assert_ne!(
+            start(&body, skip),
+            start(&body, he1),
+            "the old side's anchor starts off `start(he1)`"
+        );
+        let torn = EulerOpError::OrbitBroken { he: he1 };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
+    }
+
+    #[test]
+    fn kemr_proves_the_anchor_that_wins_where_both_ends_are_one_vertex() {
+        // A circular edge at one vertex `x` whose inside is made a ring of
+        // its outside and then joined back to it by a second circular
+        // edge at `x`: both halves of the first edge lie in the one loop
+        // `[he1, j+, he2, j-]`, every half-edge starts at `x`, and each
+        // side anchors `x`. The `start(he2)`-side write, the ring side's
+        // first member, is last and wins.
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let circle = body
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        body.kfmrh(seed.face, circle.face).unwrap();
+        let in_outer =
+            |b: &Body<f64>, x: HalfEdgeKey| b.get_half_edge(x).unwrap().parent_loop == seed.r#loop;
+        let (he1, he2) = if in_outer(&body, circle.he_plus) {
+            (circle.he_plus, circle.he_minus)
+        } else {
+            (circle.he_minus, circle.he_plus)
+        };
+        let joined = body
+            .mekr_chord(
+                MekrSite::Cycles {
+                    target: he1,
+                    ring: he2,
+                },
+                tol,
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let x = seed.vertex;
+        let next = |b: &Body<f64>, h: HalfEdgeKey| b.get_half_edge(h).unwrap().next;
+        assert_eq!(
+            (next(&body, he1), next(&body, he2)),
+            (joined.he_plus, joined.he_minus),
+            "one loop, a live anchor on each side"
+        );
+        assert!(body.half_edges().all(|(_, data)| data.start == x));
+
+        let mut killed = body.clone();
+        killed.kemr(he1, he2).unwrap();
+        assert_eq!(validate(&killed), Ok(()));
+        assert_eq!(
+            killed.get_vertex(x).unwrap().emanating,
+            Some(joined.he_plus)
+        );
+
+        // `next(he1)` torn onto the mate empties the ring side, so the
+        // winning write is `None` while `x` keeps the joining edge.
+        body.get_half_edge_mut(he1).unwrap().next = he2;
+        let torn = EulerOpError::OrbitBroken { he: he2 };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
     }
 }
