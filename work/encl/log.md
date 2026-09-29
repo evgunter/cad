@@ -1226,3 +1226,14 @@ class of 65 sites is PRED's row.
   - **Correction:** "a zero span is always a defect" (`e1600790f9`) is co-authored fix-pass text, not Ev's ruling, contrary to my brief and to the 3392 row's attribution. The PR says so.
   - Void-side fixture PR 3401 is open and read; it merges on green.
 - 2026-09-29 — PR 3401 merged (`c7c44c49ab`): a live void-side shell escalation fixture (`dsc_checks::in_band_void_shell_escalates_with_its_valued_ending`) pins the valued ending at every eps. The direct thin-tool subtract refuses at the Boolean's own orientation read, which is correct fail-loud. Row closed.
+- 2026-09-29 — Ev answered `[ev]` PR 3402. Ev took the recommendation and chose A (every outcome of the seam carries its margin), on the condition that the number is structurally usable only for error reporting.
+  - Clause 2 was reworded to carry the condition. Fork-log row 10 is complete (DUP took rows 8–9).
+  - Filed `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M). The adoption follow-through reads its structured verdict.
+  - Closed `certify-zero-arms-quote-no-margin-without-a-seam`.
+  - 3402's merge waits for the main-wide census fix (`encl/fix-main-census-tables`).
+- 2026-09-29 — Main red: two geom-core census tests.
+  - `certified_endpoint_census`: ssi/certify.rs has 15 reads against the table's 16, from 3392's refactor. This one is ENCL's.
+  - `sym_rule_f_rows` copysign: a new site at `topo/src/boolean/section_cert.rs:827`, from GERM.
+  - Fix lane dispatched. Both break the `test` job for 3398 and 3402.
+- 2026-09-29 — PR 3407 merged (`4b47a29dd9`): main's two red geom-core census rows are fixed. `ssi/certify.rs` endpoint reads go 16→15 (3392 spelled one as a path; blind spot 7 is documented). The `section_cert.rs` copysign site is registered as UNMEASURED, with evidence added to GERM's P1 row. Ported into 3402 before the merge.
+- 2026-09-29 — `[ev]` PR 3402 merged (`f20c3276e1`) on Ev's answer: Bounds clause 2 now carries the reporting-only margin, and fork-log row 10 is complete. `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M) is held until 3398 lands.
