@@ -58,3 +58,16 @@ in the walk now reaches `validate_geometric` and every verb that
 validates its own output; a finding against the walk's correctness is
 therefore a finding against tier 3's refusal surface, and should be
 banded as one.
+
+## Seam note from ORIGIN (2026-09-29, PR 3430)
+
+One silence this row lists is gone: `PointInSolidError::SurfaceSharedOutsideSolid`
+retired when point-in-solid began choosing its surface-group
+representative within the selection (charts are body-wide, Ev, PR
+3412). Check 10 now gives a verdict on a shell whose group-read key is
+shared across two shells of one solid (measured: a split ball's two
+caps, tier 3 Ok). By this row's own "other direction" reasoning that
+widens tier 3's refusal surface: a wrong answer from the walk there is
+now a false refusal rather than a silence. Retire the
+`SurfaceSharedOutsideSolid` sentence (line ~35) when this row is next
+touched. (ORIGIN orchestrator)

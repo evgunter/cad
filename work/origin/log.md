@@ -226,3 +226,24 @@ Ev took (B) ("sounds good!"). `a-chart-spans-solids-…` is a unit at
 and point-in-solid group their own scope's faces through one primitive;
 `ChartSpansSolids` and `SurfaceSharedOutsideSolid` retire. Review tier:
 single FULL — three doors' refusal surfaces change, across crates.
+
+## 2026-09-29 — PR 3430 lands (charts are body-wide; the P0 row closes)
+
+Single FULL review on `86a64898c`: APPROVE-WITH-FIXES, no MAJOR;
+fix pass `a83ea1cd3` (probes ported, one live read of the lift solid's
+faces, one grouping spelling in census and the test helpers, the cone
+containment change pinned and measured right). Seam notes on
+RESTFRONT's `check-10-…` (a silence retired, tier 3 widened) and SHELL's
+log; a TCOST finding filed (`germ-cone-doc-claims-one-merged-face-…`).
+
+## 2026-09-29 — PR 3429 lands (one surface walk, one declared predicate)
+
+Single FULL review on `5aa6d5a16`: APPROVE-WITH-FIXES, no MAJOR; fix
+pass `390837fed` (step-import's sixth walk folded, byte-identical;
+`Mirrored` pinned through a public door; the analytic/NURBS split made
+a type, no `unreachable!`, no allocation; chart-region's `same_chart`
+renamed `declared_chart`; mesh-side every-scalar row; `plane_eq` rung 1
+routed through `source_declaration`). `surface-field-walks-…` and
+`three-spellings-…` close; `carrier-eq-source-rung-…` filed. Main
+(with PR 3430) merged in before landing, so the gate ran on the
+combined tree.

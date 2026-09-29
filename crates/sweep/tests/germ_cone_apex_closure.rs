@@ -292,3 +292,132 @@ fn apex_closed_faces_describe() {
         }
     }
 }
+
+/// **A cone face that wraps the azimuth ALONE answers face
+/// containment by its slant window, whatever other face wears its
+/// chart.** The full cone's two half-bands joined into one face
+/// (`kef` on their non-seam join, leaving the seam traversed twice and
+/// one strut vertex on the base circle), and a frustum further down the
+/// same cone grafted beside it and re-charted onto its key, every edge
+/// naming the frustum's old key restated on the shared one. The face's
+/// own question is scoped to the face, so the frustum's wearers do not
+/// enter it: the tip's carrier is `In` at every azimuth, the frustum's
+/// part of the carrier and the mirror nappe `Out`.
+#[test]
+fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
+    let tol = Tol::witness();
+    let mut body = cone(None);
+    let halves = cone_faces(&body);
+    assert_eq!(halves.len(), 2, "the full cone's two half-bands");
+    let join = body
+        .edges()
+        .find_map(|(_, e)| {
+            let (a, b) = (
+                body.face_of_half_edge(e.he_plus).unwrap(),
+                body.face_of_half_edge(e.he_minus).unwrap(),
+            );
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
+                return None;
+            };
+            (a != b && halves.contains(&a) && halves.contains(&b) && !chart.seam)
+                .then_some(e.he_plus)
+        })
+        .expect("the half-bands' non-seam join");
+    body.kef(join).expect("the join dies");
+    let [tip] = cone_faces(&body)[..] else {
+        panic!("one cone face after the join dies");
+    };
+    let key = body.get_face(tip).unwrap().surface;
+
+    let frustum = ProfileLoop::polygon([
+        Point2::new(0.0, -1.0),
+        Point2::new(2.0, -1.0),
+        Point2::new(1.5, -0.5),
+        Point2::new(0.0, -0.5),
+    ]);
+    let frustum = revolve(&validated(vec![frustum]), axis_y(), Revolution::Full, tol)
+        .unwrap()
+        .body;
+    topo::graft_disjoint(&mut body, &frustum, tol).expect("the frustum is disjoint");
+    let bands: Vec<FaceKey> = cone_faces(&body)
+        .into_iter()
+        .filter(|&f| f != tip)
+        .collect();
+    let old = body.get_face(bands[0]).unwrap().surface;
+    assert_eq!(
+        format!("{:?}", body.get_surface(old)),
+        format!("{:?}", body.get_surface(key)),
+        "the frustum lies on the tip's cone, bit for bit"
+    );
+    for &f in &bands {
+        let sense = body.get_face(f).unwrap().sense;
+        body.set_face_surface_and_sense(f, topo::FaceSurface::Shared(key), sense)
+            .expect("the attach door shares a live key");
+    }
+    let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    for edge in edges {
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(|g| g.certified())
+            .unwrap()
+            .clone();
+        let swap = |k: topo::SurfaceKey| if k == old { key } else { k };
+        let description = match curve.description() {
+            geom_brep::EdgeDescription::Chart(c) if c.surface == old => {
+                geom_brep::EdgeDescriptionSpec::Chart {
+                    surface: key,
+                    image: None,
+                    seam: c.seam,
+                    declared: None,
+                }
+            }
+            geom_brep::EdgeDescription::Intersection { s1, s2, witness }
+                if *s1 == old || *s2 == old =>
+            {
+                geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: swap(*s1),
+                    s2: swap(*s2),
+                    witness: *witness,
+                }
+            }
+            _ => continue,
+        };
+        let spec = geom_brep::EdgeCurveSpec {
+            description,
+            carrier: curve.carrier().clone(),
+            param_start: curve.params().0,
+            param_end: curve.params().1,
+        };
+        body.set_edge_curve(edge, spec, tol)
+            .expect("the edge restates on the shared chart");
+    }
+    assert!(body.get_surface(old).is_none(), "nothing wears the old key");
+    let errors = topo::validate_geometric(&body, tol).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::ScaffoldingStrutVertex { .. })),
+        "the join's strut is the fixture's only tier-3 finding: {errors:?}"
+    );
+
+    let contain = |y: f64, phi: f64| {
+        topo::curved_face_containment(&body, tip, at((1.0 - y).abs(), y, phi), band()).unwrap()
+    };
+    for y in [0.2, 0.5, 0.8] {
+        for phi in [0.3, -2.0, 3.0] {
+            assert_eq!(
+                contain(y, phi),
+                Some(FaceContainment::In),
+                "the tip's carrier at y {y}, phi {phi}"
+            );
+        }
+    }
+    for (y, phi) in [(-0.7, 0.3), (-0.7, -2.0), (1.5, 1.0)] {
+        assert_eq!(
+            contain(y, phi),
+            Some(FaceContainment::Out),
+            "off the tip's slant window at y {y}, phi {phi}"
+        );
+    }
+}
