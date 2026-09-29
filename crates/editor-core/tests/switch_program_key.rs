@@ -71,9 +71,10 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
 /// `doc` with the one expression of its profile at argument `arg`
 /// re-spelled as `expr`, through the value door: the steps keep the ids
 /// the insert minted, so two documents compared here differ in that one
-/// spelling and nothing else. (Two documents authored apart mint their
-/// steps from different edits, so their ids — and so their keys —
-/// differ whatever the spelling.)
+/// spelling and nothing else. (Two documents authored apart with
+/// different spellings mint their steps from different edits, so their
+/// ids — and so their keys — differ; a display unit alone is not a
+/// different spelling, D6.)
 fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Expr) -> ProfileDoc {
     let Some(Node::Profile(p)) = doc.node(PROFILE) else {
         panic!("the profile at node 1");
@@ -367,13 +368,15 @@ fn display_units_never_enter_the_key() {
     let mm = parse_expr("500 mm", &params).unwrap();
     let m = parse_expr("0.5 m", &params).unwrap();
     let canonical = len(0.5);
-    let in_mm = doc_with(vec![LoopProgram::Circle {
-        centre: [len(0.0), len(0.0)],
-        radius: mm,
-    }]);
-    let k_mm = key_of(&in_mm);
-    assert_eq!(k_mm, key_of(&respelled(&in_mm, StepArg::Radius, m)));
-    assert_eq!(k_mm, key_of(&respelled(&in_mm, StepArg::Radius, canonical)));
+    let make = |r: Expr| {
+        doc_with(vec![LoopProgram::Circle {
+            centre: [len(0.0), len(0.0)],
+            radius: r,
+        }])
+    };
+    let k_mm = key_of(&make(mm));
+    assert_eq!(k_mm, key_of(&make(m)));
+    assert_eq!(k_mm, key_of(&make(canonical)));
 }
 
 /// A structural program edit is a key change even when many floats

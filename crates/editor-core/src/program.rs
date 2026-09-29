@@ -1416,7 +1416,7 @@ impl LoopProgram {
     }
 
     /// Mutable twin of [`LoopProgram::expr`].
-    fn expr_mut(&mut self, step: u32, arg: StepArg) -> Option<&mut Expr> {
+    pub(crate) fn expr_mut(&mut self, step: u32, arg: StepArg) -> Option<&mut Expr> {
         let (_, expr) = self
             .roles_mut(step)
             .into_iter()

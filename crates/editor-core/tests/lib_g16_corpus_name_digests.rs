@@ -159,7 +159,7 @@ const PINNED: &[(&str, u64)] = &[
     ("part_select", 0x2363_22b8_8f2e_5594),
     ("loft_prism", 0xbc10_7d29_7f51_e5df),
     ("die_composed", 0x1af5_b0dd_8809_70ec),
-    ("die_composed_tour", 0xee96_fc51_60ee_7427),
+    ("die_composed_tour", 0x46fc_1982_1eb4_308f),
     ("plate_param", 0xe7ef_8c7f_ab14_0aa2),
     ("kiss_carry", 0x6863_3b0e_1061_152e),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the

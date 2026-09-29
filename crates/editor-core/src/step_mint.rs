@@ -37,12 +37,16 @@ pub struct StepMint {
     log: BTreeSet<StepId>,
 }
 
-/// **A minting edit's canonical bytes**: the serde form of what the edit
-/// states about the steps it authors. `InsertNode` states the node it
-/// becomes and the profile's plane and loops (a program entering the
-/// document carries no ids); `SetProgram` states its node, the new loops
-/// and, per step, the id it keeps or `None` for one to mint.
-#[derive(Serialize)]
+/// **A minting edit**, as the mint reads it: what the edit states about
+/// the steps it authors. `InsertNode` states the node it becomes and the
+/// profile's plane and loops (a program entering the document carries no
+/// ids); `SetProgram` states its node, the new loops and, per step, the
+/// id it keeps or `None` for one to mint.
+///
+/// Its canonical bytes are the serde form of that statement with every
+/// literal's display unit read as its dimension's canonical one: the
+/// display unit is never part of an expression's identity (DESIGN.md
+/// D6), so two edits `bit_eq` cannot tell apart mint the same ids.
 pub(crate) enum MintingEdit<'a> {
     /// A profile inserted as `node`.
     InsertNode {
@@ -62,6 +66,49 @@ pub(crate) enum MintingEdit<'a> {
         /// The kept ids.
         ids: &'a [Vec<Option<StepId>>],
     },
+}
+
+/// [`MintingEdit`]'s canonical form, the one the chain hashes.
+#[derive(Serialize)]
+enum Preimage<'a> {
+    InsertNode {
+        node: RecipeNodeId,
+        plane: RecipeNodeId,
+        loops: Vec<LoopProgram>,
+    },
+    SetProgram {
+        node: RecipeNodeId,
+        loops: Vec<LoopProgram>,
+        ids: &'a [Vec<Option<StepId>>],
+    },
+}
+
+impl MintingEdit<'_> {
+    fn preimage(&self) -> Preimage<'_> {
+        let unit_blind = |loops: &[LoopProgram]| {
+            let mut loops = loops.to_vec();
+            for lp in &mut loops {
+                for (step, arg) in lp.step_args() {
+                    if let Some(expr) = lp.expr_mut(step, arg) {
+                        expr.erase_display_units();
+                    }
+                }
+            }
+            loops
+        };
+        match *self {
+            Self::InsertNode { node, plane, loops } => Preimage::InsertNode {
+                node,
+                plane,
+                loops: unit_blind(loops),
+            },
+            Self::SetProgram { node, loops, ids } => Preimage::SetProgram {
+                node,
+                loops: unit_blind(loops),
+                ids,
+            },
+        }
+    }
 }
 
 const EDIT_TAG: &[u8] = b"step-mint/edit\0";
@@ -113,7 +160,7 @@ impl StepMint {
         if count == 0 {
             return Ok(Vec::new());
         }
-        let bytes = serde_json::to_vec(edit).map_err(|_| StepIdFault::Unencodable)?;
+        let bytes = serde_json::to_vec(&edit.preimage()).map_err(|_| StepIdFault::Unencodable)?;
         let mut chain: [u8; 32] = Sha256::new()
             .chain_update(EDIT_TAG)
             .chain_update(self.chain)
