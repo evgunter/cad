@@ -16,10 +16,10 @@
 //! their own**, so nothing is fused, no seam is implied, and the result
 //! is the disjoint union of two bodies' contents in one arena. The
 //! transplant itself is `combine`'s, called verbatim — same fresh keys
-//! in deterministic slot order (D9), same verbatim provenance, same
+//! in deterministic slot order (D9), same forwarded provenance, same
 //! `GeomSource` and pcurve-cache carry, same description surface-key
 //! remap. Two differences, both forced by what a DISJOINT graft is:
-//! the destination is an empty solid minted here instead of one
+//! the destination is an empty solid the graft mints instead of one
 //! already holding shells, and the description bridge carries the
 //! source's certificate with the handles rewritten rather than
 //! re-running the schedule (`combine::Bridge::RemapKeys`). Nothing was
@@ -74,7 +74,7 @@
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
-use crate::entity::{Solid, SolidKey};
+use crate::entity::SolidKey;
 use geom_core::Tol;
 
 /// Grafts `src`'s single solid into `dst` as a NEW solid, returning its
@@ -85,8 +85,8 @@ use geom_core::Tol;
 /// one of them; [`graft_disjoint_all`] is the N-solid door. Its shells
 /// arrive whole, in source order, under the minted solid. The minted
 /// solid's provenance
-/// is `src`'s own solid provenance, transplanted verbatim like every
-/// other record the graft carries (a graft is not a re-birth).
+/// is `src`'s own solid provenance, forwarded into `dst`'s keys like
+/// every other record the graft carries (a graft is not a re-birth).
 ///
 /// # Errors
 ///
@@ -115,12 +115,16 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 ///
 /// The N-solid door. A source holding N solids arrives as N solids of
 /// `dst`, each carrying its own source solid's provenance and its own
-/// shells in source order — entity for entity, and key for key, what N
-/// sequential [`graft_disjoint`] calls over the source's solids in slot
-/// order (D9) would have built. Which source solid a grafted face came
+/// shells in source order — entity for entity what N sequential
+/// [`graft_disjoint`] calls over the source's solids in slot order (D9)
+/// would have built. Entity for entity, not key for key: the keys
+/// differ in slot version, because each graft mints its own
+/// dead-on-arrival keys for the dead ancestors its records name
+/// (`combine`'s module docs), and N calls mint where this one call
+/// shares. Which source solid a grafted face came
 /// from stays derivable exactly as it was before the graft: from the
 /// solid it now sits under, and from the `GeomSource`/provenance
-/// records the transplant carries verbatim.
+/// records the transplant carries.
 ///
 /// Sharing is impossible here for the same reason it is at the single
 /// door: every transplanted entity is re-created under a FRESH key, so
@@ -246,28 +250,13 @@ pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
     src: &Body<T>,
     tol: Tol,
 ) -> Result<GraftKeys, BooleanError> {
-    let desync = || BooleanError::JoinDesync {
-        what: "graft source is not a well-formed body: a solid without provenance",
-    };
-    let provenances = src
-        .solids()
-        .map(|(k, _)| src.solid_provenance.get(k).cloned().ok_or_else(desync))
-        .collect::<Result<Vec<_>, _>>()?;
-    if provenances.is_empty() {
+    if src.solids().next().is_none() {
         return Err(BooleanError::JoinDesync {
             what: "graft source holds no solid to graft",
         });
     }
-    // Mint the destinations first, in source order, so the graft's
-    // per-solid attachment is positional (nothing is written before
-    // the source is known to be graftable at all).
-    let targets: Vec<SolidKey> = provenances
-        .into_iter()
-        .map(|p| dst.add_solid(Solid { shells: Vec::new() }, p))
-        .collect();
-    let map = crate::boolean::combine::graft_solids_with(
+    let (map, targets) = crate::boolean::combine::graft_solids_minted(
         dst,
-        &targets,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
         tol,
@@ -353,7 +342,8 @@ mod tests {
     use geom_core::Tol;
 
     use crate::body::Body;
-    use crate::instance::graft_disjoint;
+    use crate::entity::EdgeKey;
+    use crate::instance::{graft_disjoint, graft_disjoint_all_keyed};
     use crate::test_support_fixtures::declined_cube;
 
     fn cube() -> Body<f64> {
@@ -466,8 +456,8 @@ mod tests {
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
     }
 
-    /// The minted solid's provenance is the SOURCE's, verbatim — a
-    /// graft is not a re-birth (module docs).
+    /// The minted solid's provenance is the SOURCE's — a graft is not
+    /// a re-birth (module docs).
     #[test]
     fn the_minted_solid_carries_the_source_solids_provenance() {
         let src = cube();
@@ -480,6 +470,162 @@ mod tests {
         assert_eq!(
             format!("{:?}", dst.solid_provenance.get(key).unwrap()),
             want
+        );
+    }
+
+    /// Splits `e0` three times (its first child `e1` twice) and kills
+    /// the kept-key first child, so the three new pieces name a DEAD
+    /// parent (`e0`'s key) or a live one: returns them.
+    fn split_thrice_and_kill_the_parent(src: &mut Body<f64>, e0: EdgeKey) -> [EdgeKey; 3] {
+        let tol = Tol::witness();
+        let param = |b: &Body<f64>, e, f: f64| {
+            let c = b.get_edge(e).unwrap().curve;
+            let (t0, t1) = b.get_curve_geom(c).unwrap().certified().unwrap().params();
+            t0 + f * (t1 - t0)
+        };
+        let e1 = src
+            .split_edge(e0, param(src, e0, 0.5), tol)
+            .unwrap()
+            .new_edge;
+        let e2 = src
+            .split_edge(e1, param(src, e1, 0.5), tol)
+            .unwrap()
+            .new_edge;
+        let e3 = src
+            .split_edge(e0, param(src, e0, 0.5), tol)
+            .unwrap()
+            .new_edge;
+        let he0 = src.get_edge(e0).unwrap().he_plus;
+        src.kev(he0).expect("the first child dies");
+        [e1, e2, e3]
+    }
+
+    /// **A grafted split lineage chases inside the destination, to the
+    /// image of the root it reached in the source.** Three splits of
+    /// one cube edge, then the kept-key first child killed: two children
+    /// name a DEAD parent, one names a live one. Grafted into a
+    /// destination that already holds a cube (so no source key can
+    /// coincide with its image), every edge's root in `dst` is the image
+    /// of its root in `src` — the one dead root a key that resolves
+    /// nowhere in `dst`, shared by every piece that reached it.
+    #[test]
+    fn a_grafted_split_lineage_chases_inside_the_destination() {
+        let tol = Tol::witness();
+        let mut src = cube();
+        let e0 = src.edges().next().unwrap().0;
+        let [e1, e2, e3] = split_thrice_and_kill_the_parent(&mut src, e0);
+        let mut dst = cube();
+        let keys = graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a graft");
+        let dead_root = *keys
+            .map
+            .dead_edges
+            .get(&e0)
+            .expect("the dead parent has a row");
+        assert!(
+            dst.get_edge(dead_root).is_none(),
+            "the dead root resolves nowhere"
+        );
+        for e in [e1, e2, e3] {
+            assert_eq!(
+                dst.split_root(keys.edge(e).unwrap(), |_| false),
+                Ok(dead_root),
+                "{e:?} chases to the dead parent's key in dst"
+            );
+        }
+        for (e, _) in src.edges() {
+            let root = src.split_root(e, |_| false).unwrap();
+            let want = keys.edge(root).unwrap_or(dead_root);
+            assert_eq!(
+                dst.split_root(keys.edge(e).unwrap(), |_| false),
+                Ok(want),
+                "{e:?}'s root in dst is the image of its root in src"
+            );
+        }
+    }
+
+    /// **Distinct dead ancestors keep distinct dead keys, per lineage
+    /// and per copy.** Two vertex-disjoint cube edges each split and
+    /// their parent killed: two lineages rooted at two different dead
+    /// keys. Grafted twice into one destination, the four lineages
+    /// (two parents, two copies) root at four distinct keys, none of
+    /// which resolves, each shared by exactly its own three pieces.
+    #[test]
+    fn distinct_dead_parents_keep_distinct_dead_roots_per_copy() {
+        let tol = Tol::witness();
+        let mut src = cube();
+        let ends = |b: &Body<f64>, e: EdgeKey| {
+            let he = b.get_edge(e).unwrap().he_plus;
+            [
+                b.get_half_edge(he).unwrap().start,
+                b.half_edge_end(he).unwrap(),
+            ]
+        };
+        let a0 = src.edges().next().unwrap().0;
+        let a_ends = ends(&src, a0);
+        let b0 = src
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| ends(&src, e).iter().all(|v| !a_ends.contains(v)))
+            .expect("a cube edge sharing no vertex with the first");
+        let lineages = [
+            split_thrice_and_kill_the_parent(&mut src, a0),
+            split_thrice_and_kill_the_parent(&mut src, b0),
+        ];
+        let mut dst = cube();
+        let copies = [
+            graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a first graft"),
+            graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a second graft"),
+        ];
+        let mut roots = Vec::new();
+        for (c, keys) in copies.iter().enumerate() {
+            for (l, pieces) in lineages.iter().enumerate() {
+                let root = dst
+                    .split_root(keys.edge(pieces[0]).unwrap(), |_| false)
+                    .unwrap();
+                for &e in pieces {
+                    assert_eq!(
+                        dst.split_root(keys.edge(e).unwrap(), |_| false),
+                        Ok(root),
+                        "copy {c}, lineage {l}: {e:?} shares its lineage's root"
+                    );
+                }
+                assert!(
+                    dst.get_edge(root).is_none(),
+                    "copy {c}, lineage {l}: the root is dead on arrival"
+                );
+                roots.push(root);
+            }
+        }
+        let distinct: std::collections::BTreeSet<_> = roots.iter().collect();
+        assert_eq!(
+            distinct.len(),
+            4,
+            "one dead root per lineage per copy: {roots:?}"
+        );
+    }
+
+    /// **A minted solid's record names destination solids.** A source
+    /// whose second solid was moved out of its first carries
+    /// `MoveShells { solid: first }`; grafted into a non-empty
+    /// destination, that record names the first solid's target.
+    #[test]
+    fn a_minted_solids_record_names_the_destination_solid() {
+        let tol = Tol::witness();
+        let mut src = cube();
+        let first = src.solids().next().unwrap().0;
+        crate::instance::graft_disjoint_all_onto_keyed(&mut src, &[first], &cube(), tol)
+            .expect("a second shell under the first solid");
+        let moved = src.shells_of_solid(first).unwrap()[1];
+        src.move_shells_to_new_solid(&[moved])
+            .expect("a second solid");
+        let mut dst = cube();
+        let keys = graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a graft");
+        assert_eq!(keys.solids.len(), 2);
+        assert_eq!(
+            dst.solid_provenance.get(keys.solids[1]),
+            Some(&crate::Provenance::MoveShells {
+                solid: keys.solids[0]
+            })
         );
     }
 

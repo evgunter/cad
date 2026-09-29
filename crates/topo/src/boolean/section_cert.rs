@@ -858,9 +858,16 @@ fn cylinder_cylinder<T: Decide>(
             Err(tan) => tan,
         },
         // The single null saddle loop, witnessed on the arc's middle
-        // ruling of cylinder 2, `cos(θ − φ) = −sign(δ₀)`.
+        // ruling of cylinder 2: the one on cylinder 1's side of it,
+        // `cos(θ − φ) = −sign(δ₀)`. `nest` puts `δ₀` off zero, so its
+        // sign decides; a `Zero` or undecided one refuses R-tan all
+        // the same.
         (true, true) => {
-            let q = o2 - m * (r2 * T::one().copysign(delta));
+            let q = match signs([("section_cylinder_pair_side", delta)], band) {
+                Ok([true]) => o2 - m * r2,
+                Ok([false]) => o2 + m * r2,
+                Err(tan) => return tan,
+            };
             let (av, bv) = (d2.cross(d1), (q - o1).cross(d1));
             let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1.powi(2));
             let t = (-qb + (qb.powi(2) - qa * qc).sqrt()) / qa;

@@ -2,12 +2,12 @@
 id: two-provenance-free-keys-holding-one-surface-read-as-two-charts
 kind: issue
 title: the loop-re-parenting doors read two keys holding one surface as two charts when no GeomSource ties them, and drop rows that were correct
-status: open
+status: closed
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart]
 priority: P0
 cost: H
-design: true
+closed: 2026-09-29
 ---
 
 Found by both reviewers of PR 2549 (R1 by execution as a MAJOR, R2 as
@@ -90,3 +90,24 @@ where an equal surface means equal scalars and nothing else. And the
 same caller shape is what a structural compare would make free: it
 holds two keys whose surfaces are equal field for field, with no
 recipe on either.
+
+## Scope after PR 3414 (2026-09-29)
+
+The row doors now read identity only, so two keys holding equal
+surfaces drop their rows whether or not a `GeomSource` ties them: the
+row's scope is wider than its title (stamped keys drop too), and the
+drop is the documented price. The lane measured every production path
+that moves rows re-minting afterwards, and no corpus row moved. Whether
+a production comparator should close this direction is PR 3410.
+
+## Ruled (2026-09-29, PR 3410)
+
+Ev: "if nothing needs this then it should not be done" — no production
+bit comparator decides pcurve-row validity. The row doors answer from
+identity only (same key or shared `Arc` payload; PR 3414), so two keys
+holding equal surfaces with no identity tie drop their rows, and the
+re-mint is the accepted, documented price. Every production path that
+moves rows re-mints afterwards, so the price is paid only in tests.
+A caller that means "same surface" says `FaceSurface::Shared(key)`.
+Reopen only on a production caller that holds rows across a re-key
+and cannot say `Shared`.

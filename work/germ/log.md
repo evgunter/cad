@@ -354,3 +354,37 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
   - recentering, to recover large circles (P3);
   - `line-torus-roots-may-certify-noise-when-the-line-origin-is-far` (P1, M): the same coefficient growth may reach the line and ray torus quartics. Measure first.
 - **Unblocked:** VERBS-CONE U1 (line × cone) and U2 (circle × cone).
+
+## 2026-09-29 — cone U3+U6 land (PR 3395)
+
+**U3, the apex closure:**
+- `J = −ΣΔθ` at a single apex visit;
+- `point_in_solid` and `curved_face_containment` now answer apex-closed sectors of any width;
+- `describes` holds for apex-closed faces.
+
+**U6:** sphere × {cone, torus} moved from the extent scan to the section certificate's no-crossings pass. Three sphere × torus unions newly answer.
+
+**Single review:** APPROVE-WITH-FIXES, no MAJOR. The fix pass took all of it:
+- the cone trim refuses a non-rectangular chart outline (an area test), which fixes a pre-existing wrong `In` in an L-shaped face's notch;
+- precondition rows;
+- the partition row pins which band holds each point;
+- one home for the cycle extraction and the window fold.
+
+**Filed on CONTACT:** the torus box check passes an L-shaped face.
+
+**Merge of main:** composed `SectionPath::scope` with PR 3406. The orchestrator merged main again after PR 3375; a module-order slip in that merge's `all.rs` resolution turned lint red, fixed in `d777dd2c7`.
+
+## 2026-09-29 — the saddle witness picks its side by a frame decision (PR 3421)
+
+- **The change:** `copysign(1, δ)` is replaced by `section_cylinder_pair_side`. A positive or negative δ picks the ruling; zero or undecided refuses R-tan.
+- **Census:** the site leaves the copysign census and the manifest, moved together.
+- **Rows:** the saddle rows reach the branch at δ₀ = +1.3 only, so a new verdict row covers both signs on both sides, and the flip mutant turns it red.
+- **Tier:** orchestrator read. Merged on hosted green.
+
+## 2026-09-29 — the torus joins ∖ and ∩ (PR 3416, DR-19)
+
+- **Measured before admitting:** no wrong body under either order of ∖ or under ∩.
+  - Newly answered, in closed form: the cube in the hole, the pin-only bracket, the wedge.
+  - Everything else refuses at ∪'s door; the half donut and the bracket refuse at the guard.
+- **Dual review:** both APPROVE-WITH-FIXES, no MAJOR, 0 wrong over both batteries. R2 also ran the merge preview carrying PR 3395's sphere × torus move. The tally is unchanged, and the pair does not advance the count.
+- **Fix pass:** the stale demo prose, the invariants, one helper home, and the seeded rod sweep committed as a row.

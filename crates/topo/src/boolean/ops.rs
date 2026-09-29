@@ -195,11 +195,16 @@ pub struct BooleanNaming {
     /// B-side graft lineage, `(B key, result key)` in arena slot
     /// order (empty unless `b_keys` is `Grafted`). Source keys are
     /// B-CLONE keys: operand keys for surviving operand entities plus
-    /// reduction-minted keys (whose provenance rows, transplanted
-    /// verbatim, also speak B-clone keys).
+    /// reduction-minted keys.
     pub graft_vertices: Vec<(VertexKey, VertexKey)>,
     /// B-side edge graft lineage (see `graft_vertices`).
     pub graft_edges: Vec<(EdgeKey, EdgeKey)>,
+    /// B-side edges the grafted body's records name but that died in
+    /// B before the graft, `(B key, result key)` in B-key order: the
+    /// result key is dead on arrival and stands for the B key in every
+    /// forwarded record (a split's parent), so a lineage chased in the
+    /// result reads back to the B ancestor through this row.
+    pub graft_dead_edges: Vec<(EdgeKey, EdgeKey)>,
     /// B-side face graft lineage (see `graft_vertices`).
     pub graft_faces: Vec<(FaceKey, FaceKey)>,
     /// Seam edges surviving the zips, in zip/cycle order, result keys.
@@ -405,29 +410,21 @@ pub fn boolean_op_with<
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    // The curved ∖/∩ front door, NARROWED FROM WHOLESALE TO PER-CLASS
-    // (M5 S12; C12.1 — retire per class, never wholesale; M5 S13
-    // retires the SPHERE row).
-    //
-    // It used to refuse on ANY non-plane face, because both ops route
-    // regions through `revert` (A∖B ≡ A∩revert(B), the §15.9 posture)
-    // and `revert` was planar-only. That premise is gone: S10 ratified
-    // `Face::sense`, S11 made the incoming bits honest, S12 wired the
-    // flip — so `Cylinder` operands go all the way through, and since
-    // M5 S13 `Sphere` operands do too: the (Plane, Sphere) germ arm is
-    // wired (the exact C5 Circle) and the no-crossings fallback is
-    // extent-certified with a re-cut, so the sphere class's failure
-    // mode is typed, not silent.
-    //
-    // What is NOT retired is the classes with no seam lane behind them.
-    // `Cone`/`Torus` germ pairs have no join arm for ∖ or ∩ (PR 9c
-    // deviation 1 lineage) and NURBS faces have no crossing layer
-    // (deviation 5). Behind this door the no-crossings fallback is
-    // guarded per class: the sphere is extent-certified, and every
-    // torus, cylinder and cone pair is section-certified or refused
-    // typed there (`section_extent_pass`) — so a union, which the torus
-    // does reach, is never answered by the vertex probe across a face
-    // pair it could not see into.
+    // The curved ∖/∩ front door, per class (C12.1 — retire per class,
+    // never wholesale). Both ops route regions through `revert`
+    // (A∖B ≡ A∩revert(B), the §15.9 posture), which is kind-generic:
+    // `Face::sense` carries the flip on every carrier. The roster
+    // (`reduce::revert_arm_exists`) is ∪'s (`boolean_arm_exists`) minus
+    // `Nurbs`. A kind on it has a crossing layer whose every door is
+    // certified or typed, and a no-crossings path that certifies its
+    // reach or refuses — the sphere's extent by `sphere_extent_scan`
+    // and its re-cut, then every pair with a curved face by
+    // `section_extent_pass` — with `interior_loop_verdict` guarding the crossings path, so no
+    // face pair of the kind is answered by a vertex probe that could
+    // not see into it. `Nurbs` is on ∪'s roster for its plane×NURBS
+    // germ arm, but has no edge×NURBS-face crossing layer (deviation 5),
+    // so ∖ and ∩ have no seam lane for it; `Cone` has no arm under any
+    // op.
     //
     // Up front and PAIR-SCOPED: the kinds are read exactly, and the
     // question of whether a kind can matter to this operation is
@@ -440,7 +437,7 @@ pub fn boolean_op_with<
     // supplies the VERDICT a germ arm would have supplied. This roster
     // is not about verdicts: it names the kinds that have a seam lane
     // to revert through, and no declaration can supply one. A declared
-    // torus pair under ∖ or ∩ is therefore exactly as refused as an
+    // pair of a kind off this roster is exactly as refused as an
     // undeclared one, and says so at the same site.
     if !matches!(op, BooleanOp::Union) {
         let band = Band::linear(tol)?;
@@ -635,12 +632,13 @@ fn boolean_op_recut<
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
-    let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
+    let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
         b_keys: OperandKeys::Grafted,
         graft_vertices,
         graft_edges,
+        graft_dead_edges,
         graft_faces,
         seam_edges,
         vertex_merges,
@@ -729,8 +727,20 @@ pub(crate) fn declares_pair(decls: &BooleanDeclarations, fa: FaceKey, fb: FaceKe
 pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), bool>);
 
 impl ChartCache {
-    /// Does `operand`'s `face` of `body` describe
-    /// ([`crate::pcurves::chart_boundary`] answers `Ok`)?
+    /// Does `operand`'s `face` of `body` describe — does every closed
+    /// curve in its interior lift to a closed curve with zero winding
+    /// (W2's premise)? Yes when [`crate::pcurves::chart_boundary`]
+    /// answers `Ok`, and on a cone face also when the apex closure
+    /// closes ([`crate::chord_join::cone_apex_closure`]: one apex
+    /// visit, no ring) on a window at most a period wide.
+    ///
+    /// The cone clause is sound although `chart_boundary` refuses the
+    /// apex as a singular joint. The apex lies on `∂F`, so `int F`
+    /// excludes it, and `int F` maps homeomorphically onto the interior
+    /// of the lifted region: a bounded region of one sheet of the
+    /// punctured nappe's universal cover, at most a period wide. Every
+    /// closed curve in `int F` therefore lifts to a closed curve with
+    /// zero winding, and no essential component lies in `int F`.
     pub(crate) fn describes<T: geom_brep::PcurveFittedLane>(
         &mut self,
         operand: Operand,
@@ -742,8 +752,38 @@ impl ChartCache {
         *self
             .0
             .entry((operand == Operand::B, face))
-            .or_insert_with(|| crate::pcurves::chart_boundary(body, face, surface, band).is_ok())
+            .or_insert_with(|| {
+                crate::pcurves::chart_boundary(body, face, surface, band).is_ok()
+                    || apex_closure_describes(body, face, surface, band)
+            })
     }
+}
+
+/// The cone clause of [`ChartCache::describes`]: the apex closure
+/// closes, on a window not definitely wider than a period.
+fn apex_closure_describes<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    use crate::chord_join::ApexClosure;
+    if !matches!(surface, geom::Surface::Cone { .. }) {
+        return false;
+    }
+    let Ok(ApexClosure::Closed { window, reach, .. }) =
+        crate::chord_join::cone_apex_closure(body, surface, face, band)
+    else {
+        return false;
+    };
+    matches!(
+        crate::validate::decide(
+            "bool_cone_closure_period",
+            Margin::levered(T::tau() - (window.1 - window.0), reach),
+            band,
+        ),
+        Ok(Sign::Positive | Sign::Zero)
+    )
 }
 
 /// Which path a section scan serves; the two differ in which pairs
@@ -753,9 +793,12 @@ pub(crate) enum SectionPath {
     /// The crossings path: every pair with a face that is not a plane.
     Crossings,
     /// The no-crossings fallback: every pair with a face that is not a
-    /// plane, and no sphere face — a sphere's pairs are the extent
-    /// scan's ([`sphere_extent_scan`]), which runs first and keeps its
-    /// re-cut.
+    /// plane, except a sphere against a plane, a sphere, a cylinder or a
+    /// spline — those are the extent scan's ([`sphere_extent_scan`]),
+    /// which runs first and keeps its re-cut. A sphere against a torus
+    /// or a cone is certified here: neither is ever an escape face, so
+    /// the scan's only question of the pair is disjointness, and with no
+    /// event anywhere "every component cleared" is disjointness.
     Fallback,
 }
 
@@ -764,7 +807,9 @@ impl SectionPath {
         use geom::Surface as S;
         let curved = |s: &geom::Surface<T>| !matches!(s, S::Plane { .. });
         let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
-        (curved(x) || curved(y)) && !(self == Self::Fallback && (sphere(x) || sphere(y)))
+        let passed = |s: &geom::Surface<T>| matches!(s, S::Torus { .. } | S::Cone { .. });
+        let scanned = (sphere(x) && !passed(y)) || (sphere(y) && !passed(x));
+        (curved(x) || curved(y)) && !(self == Self::Fallback && scanned)
     }
 
     /// Is `s` a face this path's refusal names?
@@ -1030,6 +1075,28 @@ pub(crate) fn section_report<
     )
 }
 
+/// **The no-crossings path's two certificates**, run as the path runs
+/// them before the vertex probe: the sphere extent scan, then — when
+/// it asks for no re-cut — the section pass. `Ok` with the number of
+/// re-cuts the scan asked for.
+///
+/// # Errors
+///
+/// Either certificate's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn no_crossings_certificates(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<usize, BooleanError> {
+    let band = Band::linear(tol)?;
+    let recuts = sphere_extent_scan(a, b, band)?;
+    if recuts.is_empty() {
+        section_extent_pass(a, b, band)?;
+    }
+    Ok(recuts.len())
+}
+
 /// **A ball against a plane's CARRIER: the one home of that gap.**
 /// Decides `r − |s|` under `bool_sphere_extent_gap`, where `s` is the
 /// centre's signed distance to the plane along its stored normal, which
@@ -1121,6 +1188,7 @@ fn faces_by_vertex<T: Real>(
 type GraftRows = (
     Vec<(VertexKey, VertexKey)>,
     Vec<(EdgeKey, EdgeKey)>,
+    Vec<(EdgeKey, EdgeKey)>,
     Vec<(FaceKey, FaceKey)>,
 );
 
@@ -1128,6 +1196,7 @@ pub(super) fn graft_rows(g: &GraftMap) -> GraftRows {
     (
         g.vertices.iter().map(|(k, &v)| (k, v)).collect(),
         g.edges.iter().map(|(k, &v)| (k, v)).collect(),
+        g.dead_edges.iter().map(|(&k, &v)| (k, v)).collect(),
         g.faces.iter().map(|(k, &v)| (k, v)).collect(),
     )
 }
@@ -1970,7 +2039,9 @@ struct SphereRecut<T: Real> {
 ///   plane face is repairable by a re-chart.
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
-///   ([`section_extent_pass`]), which runs after this scan.
+///   ([`section_extent_pass`]), which runs after this scan. A sphere's
+///   pairs with a torus or cone face are the pass's too: neither is an
+///   escape face, so disjointness is all the scan would ask of them.
 ///
 /// Determinism (D9): face-arena order throughout; the first escape's
 /// normal is the alignment target.
@@ -2259,14 +2330,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             face: yf,
                         });
                     }
+                    // A cone or torus face is never an escape plane, so
+                    // the pair's one question is disjointness, which the
+                    // section pass certifies (`SectionPath::Fallback`).
+                    Some(geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {}
                     // `Approx` joins the no-wired-arm refusal, not the
                     // NURBS lane: the pair-scoped operand gate refuses
                     // it by kind before this scan runs.
-                    Some(
-                        geom::Surface::Cone { .. }
-                        | geom::Surface::Torus { .. }
-                        | geom::Surface::Approx(_),
-                    ) => {
+                    Some(geom::Surface::Approx(_)) => {
                         // REACH FIRST, kind second. This arm asks
                         // whether the ball can escape past THIS face;
                         // a face whose box cannot meet the ball's
@@ -2663,12 +2734,13 @@ fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
                 &desc,
             );
             gate(&body)?;
-            let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
+            let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
                 a_keys: OperandKeys::Direct,
                 b_keys: OperandKeys::Grafted,
                 graft_vertices,
                 graft_edges,
+                graft_dead_edges,
                 graft_faces,
                 merge_groups: merge_rows(&merged),
                 merge_skipped: merged.skipped.clone(),

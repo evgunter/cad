@@ -110,13 +110,12 @@
 //!    refuses `CurvedPairUnsupported { kind: Cone, other_kind: Plane }`
 //!    — the flare against a planar face of the loop, the first pair
 //!    in arena order whose boxes may meet, and NOT the coincident
-//!    annular mate the model cares about. `subtract` refuses
-//!    `{ op: Some(Subtract), kind: Torus, other_kind: Torus }` — the
-//!    bulb's own tube wall against the descending neck's, which IS
-//!    the crossing the model is asking to trim. Box overlap is a MAY,
-//!    not a DOES: the
-//!    kernel cannot rule the meeting out, which is a weaker claim
-//!    than that they meet. So the bottle still cannot be one body,
+//!    annular mate the model cares about. `subtract` refuses at the
+//!    revert roster with `{ op: Some(Subtract), kind: Cone,
+//!    other_kind: Plane }` — the flare against a planar face of the
+//!    descending neck; the tube walls are on that roster too. Box
+//!    overlap is a MAY, not a DOES: the kernel cannot rule the
+//!    meeting out, which is a weaker claim than that they meet. So the bottle still cannot be one body,
 //!    and the self-intersection — the neck piercing the bulb, the one
 //!    place a Klein bottle MUST cross itself in 3-space — still
 //!    cannot be trimmed; what changed is that the reason is a pair
@@ -688,7 +687,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  annular faces and none of them can be joined: the operand gate is \
                  PAIR-scoped, and here the cone and torus faces really do reach the \
                  other operand, so each join refuses on a named germ pair (union on \
-                 Cone x Plane, subtract on Torus x Torus). The neck passes through the \
+                 Cone x Plane, subtract on Cone x Plane). The neck passes through the \
                  flare uncut for the same reason";
     vec![Stop {
         name: "klein",
@@ -850,14 +849,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             // that changed kind reds here.
             //
             // The pair is (Cone, Plane) — the flare against a planar
-            // face of the descending neck — and not the two tube walls
-            // it used to be. Nothing about the flare moved: the bulb's
-            // torus wall is now boxed by the chart window its own
-            // boundary states rather than as its whole ring, so the
-            // wall no longer reaches the neck at all and the first
-            // overlapping pair in arena order is an earlier one. The
-            // refusal is still the operand gate's, and a SUBTRACT's
-            // revert roster has no covered rung whatever the pair.
+            // face of the descending neck. The refusal is the ∖/∩
+            // revert roster's: the cone has no arm under any op, and
+            // the roster has no covered rung whatever the pair. The
+            // tube walls are on the roster, so they are not what
+            // refuses.
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
@@ -1115,10 +1111,12 @@ mod verbs_gate_r1_probes {
     //!
     //! Wall 4 is doubly out of reach and the second reason is the more
     //! durable one: it is a SUBTRACT, and the revert roster it refuses
-    //! at has no covered rung at all. A declaration supplies the verdict
-    //! a germ arm would have; it cannot supply a seam lane to revert
-    //! through. So even a fully declared torus pair refuses there
-    //! unchanged, which is a claim `mate7a_torus_rest` pins directly.
+    //! at, on the flare's cone, has no covered rung at all. A
+    //! declaration supplies the verdict a germ arm would have; it
+    //! cannot supply a seam lane to revert through, so declaring the
+    //! cone's pairs would not move wall 4. (The torus is on that roster:
+    //! a declared torus pair passes it, and `mate7a_torus_rest` pins
+    //! where it stops.)
 
     use super::*;
 

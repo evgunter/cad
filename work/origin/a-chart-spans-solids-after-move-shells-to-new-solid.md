@@ -2,13 +2,10 @@
 id: a-chart-spans-solids-after-move-shells-to-new-solid
 kind: unit
 title: move_shells_to_new_solid re-homes a shell without re-minting its surfaces, so a chart can span two solids
-status: open
+status: spec
 opened: 2026-09-08
 priority: P0
 cost: M
-design: true
-branch: origin/chart-spans-solids-remint
-needs_ev: true
 ---
 
 
@@ -196,3 +193,22 @@ shrinks to "same `GeomSource`", which `sweep` and `step-import` bodies
 do not carry. Once a key is re-minted, the fact that the two were one
 chart is gone, so (A) is hard to reverse; (B) can gain (A)'s invariant
 later.
+
+## Re-ruled (2026-09-29, PR 3412)
+
+Ev: "sounds good!" to (B). A chart is body-wide: `move_shells_to_new_solid`
+re-partitions ownership and keeps every key; tier 1 gains no chart
+pass; each door with a face scope groups its OWN scope's faces by key.
+This supersedes the 2026-09-14 ruling (A), whose premise measured
+false. The unit: the shell door (`chart_groups`; `ChartSpansSolids`
+retires; `ChartSenseMixed` narrows to one solid), `replace_faces_offset`'s
+whole-group check (scoped to the group's solid — no edge between a
+re-keyed wearer and a left-behind one), and `boolean/solid_contain.rs`
+(`SurfaceSharedOutsideSolid` retires), through one grouping primitive
+the scoped doors share. Red-first on SHELL-8's subtract-then-move slab
+(`crates/sweep/tests/shell8_r2_probes.rs`), which should then thicken
+as two solids; the reshaped probe on `origin/chart-spans-solids-remint`
+(`r2_move_shells_to_new_solid_remints_the_charts_it_splits`) is kept
+under the opposite claim (no re-mint, surface count unchanged by the
+move). The disconnecting subtract's one-solid filing stays ZIP's
+(`work/zip/subtract-of-a-hollow-operand-…`).

@@ -1,7 +1,7 @@
 ---
 id: set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree
 kind: issue
-title: set_surface_source stamps a GeomSource on any live key without checking the description agrees with the recipe's other holders, while GeomSource equality now licenses a row carry at five doors
+title: set_surface_source stamps a GeomSource without refusing a description that disagrees with the recipe's other holders; the merge door's declared rung still trusts the stamp in release
 status: open
 opened: 2026-09-24
 priority: P3
@@ -57,3 +57,25 @@ callers that stamp two unequal descriptions with one recipe are
 audited. ORIGIN's file (`source.rs` owns `GeomSource`, and this door
 is its post-op attachment), so filed here; the doors that trust the
 stamp are TOPO's.
+
+## Narrowed by PR 3414 (2026-09-29)
+
+The row doors no longer read `GeomSource` (`Body::same_chart` is key or
+shared-`Arc` identity only), so a stamp that lies can no longer move a
+pcurve row: the measured symptom (cylinder rows carried onto a planar
+face) is gone at all six doors. `set_surface_source` now asserts, for
+every surface kind and against every other holder of the recipe, that
+the descriptions agree — a debug assertion, which this workspace's
+release profile compiles in and a consumer's default release strips.
+What remains open: (1) the other two writers of surface origins, the
+graft (`boolean/combine.rs`, copies origins verbatim) and `revert.rs`,
+are unchecked; (2) the merge door's declared rung and `chart_region`
+still trust the stamp in a build without debug assertions. Whether the
+stamp door should REFUSE typed instead is Ev's question on PR 3410.
+
+## After PR 3410's ruling (2026-09-29)
+
+No production comparator, so the stamp door stays an assertion (in
+every build this repo makes; a consumer's default release strips it),
+not a typed refusal. What remains open is only the unchecked writers
+(the graft and `revert.rs`) and the merge door's release-mode trust.

@@ -23,7 +23,7 @@
 //! doors, one evidence discipline. It reverses the cavity body (outward
 //! normals flip inward — [`crate::Body::revert`]) and transplants its
 //! shells into the destination solid as interior shells (the
-//! [`super::combine`] graft: fresh keys, provenance verbatim,
+//! [`super::combine`] graft: fresh keys, provenance forwarded,
 //! descriptions re-certified against the transplanted surfaces).
 //!
 //! **The door never derives containment itself.** Callers supply the

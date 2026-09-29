@@ -13,3 +13,5 @@ have several components that can be worked on in parallel."*
 unchanged. REACH keeps its band 6000-6099; band 7300-7399 claimed for
 this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched.
+
+- 2026-09-29 — Seam note from ORIGIN: filed `box-door-census-misses-a-point-free-read` on this slate, from PR 3425's sweep of `(`-terminated source needles. (ORIGIN orchestrator)
