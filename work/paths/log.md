@@ -380,3 +380,13 @@ problem statement, with no candidate solutions. The statement's sha256
 is 42ef1359…612c. The labels were drawn by /dev/urandom byte 55; the
 mapping is held for `analysis/design-fork/`. The unit waits for the
 `[ev]` PR that follows. Units 3 and 4 stay blocked behind it.
+
+## 2026-09-29 — the unit 5 fork goes to Ev as #3453
+
+Both designers converged after one reconciliation round. #3453 puts
+q1–q5 to Ev, with each designer's first "For Ev" section verbatim,
+labelled A and B only. The DESIGN-FORK-LOG row is 16 (recommendation
+half). Unit 5 stays `needs_ev` until Ev answers. If Ev agrees, it lands
+as 5a (tables carry carriers: the bulge retires, the checks and the
+exactness witness land, carriers still derived) and then 5b
+(constructions store their own carriers).
