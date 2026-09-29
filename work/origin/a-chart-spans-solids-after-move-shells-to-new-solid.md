@@ -8,6 +8,7 @@ priority: P0
 cost: M
 design: true
 branch: origin/chart-spans-solids-remint
+needs_ev: true
 ---
 
 
@@ -157,3 +158,41 @@ in opposed contact unless both carry a recipe source. Also measured:
 (`Intersection`/`TangentIntersection` s1/s2, `Chart.surface`), so
 moved edges must be re-pointed. Back to open with `design: true`; a
 designer pair weighs it before it returns to Ev.
+
+## The question back to Ev (2026-09-29)
+
+Re-rule to (B): a chart is body-wide. A `SurfaceKey` is one
+description object; solids partition shells, not descriptions; two
+faces wearing one key lie on one locus by construction, whichever
+solid each is filed under. So:
+
+- `move_shells_to_new_solid` re-partitions ownership only and keeps
+  every key (its present doc is right); no re-mint, no curve re-point.
+- Tier 1 gains no chart pass; `Body` carries no chart-per-solid
+  invariant.
+- Every door with a face scope groups THAT scope's faces by key, never
+  the body's: the shell door (`chart_groups`, `ChartSpansSolids`
+  retires; `ChartSenseMixed` narrows to one solid),
+  `replace_faces_offset`'s whole-group check (`SharedSurfaceKey`
+  scoped to the group's solid, i.e. no edge between a re-keyed wearer
+  and a left-behind one), and `boolean/solid_contain.rs`
+  (`SurfaceSharedOutsideSolid` retires). Each guards a coherence that
+  is per-solid by construction — no edge crosses solids.
+- The contact census and `crates/topo/README.md` C1–C8 stand as
+  written: the shared-key structural rung keeps firing across solids,
+  which is the only class it exists for.
+- The disconnecting subtract's one-solid filing stays ZIP's defect
+  (`work/zip/subtract-of-a-hollow-operand-…`); fixed, it files two
+  solids wearing the operand's charts, with nothing to re-mint.
+- A door that changes a chart's geometry for part of its wearers
+  re-keys the ones in its scope at that door, where geometry changes
+  (as `offset_axial` already does).
+
+The alternative is (A) as ruled, extended to what it turned out to
+need: `mef`/`mfkrh`/`set_face_surface` refuse a `Shared` key another
+solid wears, the mover mints surface and curve copies and re-points
+edge descriptions, and the structural contact rung across solids
+shrinks to "same `GeomSource`", which `sweep` and `step-import` bodies
+do not carry. Once a key is re-minted, the fact that the two were one
+chart is gone, so (A) is hard to reverse; (B) can gain (A)'s invariant
+later.
