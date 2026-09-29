@@ -2,8 +2,13 @@
 id: certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending
 kind: issue
 title: geom-brep: IntervalNotForward and WindingExceeded end in no routed recourse, and the zero arms quote no margin, because their variants carry no verdict or value
-status: open
+status: closed
+branch: encl/certify-span-zero-arms
+pr: 3392
 opened: 2026-09-28
+priority: P3
+cost: M
+closed: 2026-09-28
 ---
 
 
@@ -100,3 +105,26 @@ A decided margin is spelled three ways: `recourse::Classified`
 `Classified`), and `sweep::blend::ClassifiedMargin`
 (`crates/sweep/src/blend/mod.rs` ~:241: predicate, reading, band,
 sign). The payload types should converge on one of them.
+
+## What this branch does, and what it leaves
+
+- `IntervalNotForward { verdict: recourse::Definite }` carries the
+  span's `decide` verdict. Negative (reversed) routes through
+  `certify::recourse` as sign-certain; Zero keeps Ev's ruling (a zero
+  span is a defect, not data) and ends in the defect ending at every
+  reading. `WindingExceeded` is `ParamWinding`'s Negative arm alone and
+  routes as sign-certain.
+- The tangent tube is its own variant, `TubeNotSeparated { band,
+  verdict }`, routed as `CertCheck::TangentTube` with
+  `StoredDefinite::Lever`: its margin is a lower bound, so a Negative is
+  the certificate's limit and ends in the lever alone everywhere.
+  `NotSecondOrderSeparated` (per sample, a magnitude) keeps its shape.
+- The plane × NURBS tube carries `recourse::Refused` (moved to
+  `recourse` from the offset meters' module) from `ssi/certify.rs`, a
+  ratified `Bounds` seam, so its Zero arm quotes `m/K`;
+  `RefusedArm::ZeroOrNegative` has no producer left and is gone.
+- Left: the generic-scalar Zero arms cannot carry `Classified` without a
+  seam ruling (`certify-zero-arms-quote-no-margin-without-a-seam`, which
+  also holds the zero-span question and the convergence pointer), and
+  the collapsed-arm gates
+  (`certify-collapsed-arm-gates-route-as-the-decision-they-guard`).

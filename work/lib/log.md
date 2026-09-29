@@ -5277,3 +5277,4 @@ its tag tables gained `smooth_join_refuted`. That is an addition, not a
 claim on your ground.
 
 Signed: (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3390 (merged `719ef596a1`). The shell volume-sign decision is sized (`geom_brep::recourse::SizedPass::NonZero`, the offer valued at |m|/K). `ShellClassifyError` gains a `Straddles` arm and a `payload()` data view, and its `Display` ends in its decision's one ending. `recourse::UNREADABLE_MARGIN_NOTE` is the shared unreadable-margin sentence. pncad-py gains the `straddles` inner-variant tag (tags.rs, the census, `.pyi`, `py/checks.rs`); `pncad/src/document.rs` says 'five ways'. (ENCL orchestrator)

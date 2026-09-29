@@ -5260,7 +5260,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "shell_classify_error_tag",
-        values: &["band", "escalated", "props", "zero_volume"],
+        values: &["band", "escalated", "props", "straddles", "zero_volume"],
         delegates: &[],
     },
     TagEntry {

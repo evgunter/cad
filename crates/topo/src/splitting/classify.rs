@@ -144,8 +144,24 @@ fn conic_crossing_roots<T: Decide>(
     t1: T,
     plane: &SplitPlane<T>,
     band: Band,
-) -> Result<Option<Result<Vec<T>, geom_core::Indeterminate>>, ()> {
+) -> Result<ConicPlaneMeet<T>, ()> {
     conic_plane_crossing_roots(carrier, t0, t1, plane.origin, plane.normal, band)
+}
+
+/// What a conic carrier's span meets of a plane
+/// ([`conic_plane_crossing_roots`]).
+#[derive(Debug)]
+pub(crate) enum ConicPlaneMeet<T> {
+    /// The conic's plane is parallel to the query plane: the carrier
+    /// lies wholly at `offset`, its centre's signed distance, so it is
+    /// either IN the plane or never meets it. Which is the caller's
+    /// decision.
+    Parallel { offset: T },
+    /// The carrier definitely never meets the plane.
+    Miss,
+    /// The roots interior to the span, ascending (possibly none), or
+    /// the margin no verdict was reached on.
+    Roots(Result<Vec<T>, geom_core::Indeterminate>),
 }
 
 /// The plane-form core of [`conic_crossing_roots`], shared with the
@@ -159,7 +175,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     plane_origin: geom_core::Point3<T>,
     plane_normal: geom_core::Vec3<T>,
     band: Band,
-) -> Result<Option<Result<Vec<T>, geom_core::Indeterminate>>, ()> {
+) -> Result<ConicPlaneMeet<T>, ()> {
     let (center, axis, u_ref, s_u, s_v) = match *carrier {
         geom::Curve3::Circle {
             center,
@@ -192,28 +208,25 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     // path escalated: a strategy divergence, the exact thing the
     // differential suite exists to catch).
     let r = (a.powi(2) + b.powi(2)).sqrt();
-    // 0. The PARALLEL-frame gate (M5 S13 fix pass): a conic whose
-    // plane is parallel to the query plane (both amplitudes zero)
-    // either never meets it or lies wholly IN it, and both take
-    // ENDPOINT treatment only — the M3 coplanar rule (interior events
-    // surface via neighbor faces). Routed structurally here; the
-    // coplanar sub-case previously fell through to the graze arm with
-    // a 0/0 phase and escalated on an Invalid margin — loud, but
-    // shapeless. The in-band twin escalates (F6).
+    // 0. The PARALLEL-frame gate: a conic whose plane is parallel to
+    // the query plane (both amplitudes zero) either never meets it or
+    // lies wholly IN it, and has no roots to find; `offset` tells the
+    // two apart. Without the gate the in-plane case reaches the graze
+    // arm with a 0/0 phase. The in-band twin escalates (F6).
     match decide("split_conic_plane_parallel", Margin::of(r), band) {
-        Ok(Sign::Zero) => return Ok(None),
+        Ok(Sign::Zero) => return Ok(ConicPlaneMeet::Parallel { offset: d0 }),
         Ok(Sign::Positive | Sign::Negative) => {}
-        Err(diag) => return Ok(Some(Err(diag))),
+        Err(diag) => return Ok(ConicPlaneMeet::Roots(Err(diag))),
     }
     // 1. Does the sinusoid reach zero at all — and how many roots?
     let both_roots = match decide("split_conic_belly_graze", Margin::of(r - d0.abs()), band) {
-        Ok(Sign::Negative) => return Ok(None),
+        Ok(Sign::Negative) => return Ok(ConicPlaneMeet::Miss),
         Ok(Sign::Positive) => true,
         // Graze: the double root, processed once (processing both
         // would split twice at coincident parameters and escalate on
         // the second interiority check — same refusal, worse site).
         Ok(Sign::Zero) => false,
-        Err(diag) => return Ok(Some(Err(diag))),
+        Err(diag) => return Ok(ConicPlaneMeet::Roots(Err(diag))),
     };
     // The sinusoid's phase, branch-stabilized (M5 S13): `atan2`'s cut
     // sits on the negative-`a` axis, and an interval `b` that touches
@@ -299,7 +312,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
                 let anchored = t0 + (c - t0).reduce_periodic(tau);
                 match verdict_at(anchored) {
                     Ok(v) => v,
-                    Err(_) => return Ok(Some(Err(first))),
+                    Err(_) => return Ok(ConicPlaneMeet::Roots(Err(first))),
                 }
             }
         };
@@ -322,10 +335,10 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
             Ok(Sign::Zero) => {
                 roots.truncate(1);
             }
-            Err(diag) => return Ok(Some(Err(diag))),
+            Err(diag) => return Ok(ConicPlaneMeet::Roots(Err(diag))),
         }
     }
-    Ok(Some(Ok(roots)))
+    Ok(ConicPlaneMeet::Roots(Ok(roots)))
 }
 
 /// Crossing insertion (M1 fix — even-crossing completeness):
@@ -384,9 +397,11 @@ pub(super) fn insert_crossings<T: Decide>(
         };
         let (t0, t1) = curve.params();
         let roots: Vec<T> = match conic_crossing_roots(curve.carrier(), t0, t1, plane, band) {
-            Ok(None) => continue,
-            Ok(Some(Ok(roots))) => roots,
-            Ok(Some(Err(diag))) => {
+            // Parallel either way: no root to insert, and a conic in
+            // the plane has its endpoints ON through the vertex sides.
+            Ok(ConicPlaneMeet::Parallel { .. } | ConicPlaneMeet::Miss) => continue,
+            Ok(ConicPlaneMeet::Roots(Ok(roots))) => roots,
+            Ok(ConicPlaneMeet::Roots(Err(diag))) => {
                 return Err(SplitReduceError::CrossingEscalated {
                     edge: edge_key,
                     diag,
@@ -447,8 +462,18 @@ mod tests {
     use geom::Curve3;
     use geom_core::{Band, Point3, Vec3};
 
-    use super::conic_crossing_roots;
+    use super::{ConicPlaneMeet, conic_crossing_roots};
     use crate::splitting::SplitPlane;
+
+    /// The roots arm's payload; any other arm fails the row.
+    fn roots_of<T: core::fmt::Debug>(
+        m: Result<ConicPlaneMeet<T>, ()>,
+    ) -> Result<Vec<T>, geom_core::Indeterminate> {
+        match m {
+            Ok(ConicPlaneMeet::Roots(r)) => r,
+            other => panic!("expected the roots arm, got {other:?}"),
+        }
+    }
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
@@ -480,31 +505,28 @@ mod tests {
         let c = circle();
         // Secant (margin R − |D| = 1, definite): the two roots of
         // sin θ = 0.5 land in the span, ascending.
-        let roots = conic_crossing_roots(&c, 0.1, 6.0, &plane_y(0.5), band())
-            .unwrap()
-            .unwrap()
-            .unwrap();
+        let roots = roots_of(conic_crossing_roots(&c, 0.1, 6.0, &plane_y(0.5), band())).unwrap();
         assert_eq!(roots.len(), 2);
         assert!((roots[0] - core::f64::consts::FRAC_PI_6).abs() < 1e-12);
         assert!((roots[1] - (core::f64::consts::PI - core::f64::consts::FRAC_PI_6)).abs() < 1e-12);
         // Missing (margin −1, definite): no crossing at all.
-        assert!(
-            conic_crossing_roots(&c, 0.1, 6.0, &plane_y(2.0), band())
-                .unwrap()
-                .is_none()
-        );
+        assert!(matches!(
+            conic_crossing_roots(&c, 0.1, 6.0, &plane_y(2.0), band()),
+            Ok(ConicPlaneMeet::Miss)
+        ));
         // Exactly tangent (margin 0): ONE graze root at π/2.
-        let roots = conic_crossing_roots(&c, 0.1, 6.0, &plane_y(1.0), band())
-            .unwrap()
-            .unwrap()
-            .unwrap();
+        let roots = roots_of(conic_crossing_roots(&c, 0.1, 6.0, &plane_y(1.0), band())).unwrap();
         assert_eq!(roots.len(), 1);
         assert!((roots[0] - core::f64::consts::FRAC_PI_2).abs() < 1e-4);
         // In-band (margin −3ε): typed escalation, named.
-        let diag = conic_crossing_roots(&c, 0.1, 6.0, &plane_y(1.0 + 3e-9), band())
-            .unwrap()
-            .unwrap()
-            .unwrap_err();
+        let diag = roots_of(conic_crossing_roots(
+            &c,
+            0.1,
+            6.0,
+            &plane_y(1.0 + 3e-9),
+            band(),
+        ))
+        .unwrap_err();
         assert_eq!(diag.predicate, Some("split_conic_belly_graze"));
     }
 
@@ -518,26 +540,45 @@ mod tests {
         // Roots of sin θ = 0 are θ ∈ {0, π}: with span [0, 2] the θ = 0
         // root sits EXACTLY at the endpoint (skipped, Zero arm) and the
         // θ = π root is definitely interior (returned).
-        let roots = conic_crossing_roots(&c, 0.0, 2.0 + 2.0, &plane_y(0.0), band())
-            .unwrap()
-            .unwrap()
-            .unwrap();
+        let roots = roots_of(conic_crossing_roots(
+            &c,
+            0.0,
+            2.0 + 2.0,
+            &plane_y(0.0),
+            band(),
+        ))
+        .unwrap();
         assert_eq!(roots.len(), 1);
         assert!((roots[0] - core::f64::consts::PI).abs() < 1e-12);
         // Both roots definitely interior: span (−1, 4).
-        let roots = conic_crossing_roots(&c, -1.0, 4.0, &plane_y(0.0), band())
-            .unwrap()
-            .unwrap()
-            .unwrap();
+        let roots = roots_of(conic_crossing_roots(&c, -1.0, 4.0, &plane_y(0.0), band())).unwrap();
         assert_eq!(roots.len(), 2);
         assert!(roots[0].abs() < 1e-12 || (roots[0] - core::f64::consts::PI).abs() < 1e-12);
         // In-band: a root 5e-9 (meters, meter = r = 1) inside the
         // span end — typed escalation, named.
-        let diag = conic_crossing_roots(&c, -5e-9, 2.0, &plane_y(0.0), band())
-            .unwrap()
-            .unwrap()
-            .unwrap_err();
+        let diag =
+            roots_of(conic_crossing_roots(&c, -5e-9, 2.0, &plane_y(0.0), band())).unwrap_err();
         assert_eq!(diag.predicate, Some("split_conic_crossing_root"));
+    }
+
+    /// `split_conic_plane_parallel`'s `Zero` arm hands back the conic's
+    /// offset, so a caller can tell a circle IN the plane from one in a
+    /// parallel plane; a non-parallel miss is `Miss`, never this arm.
+    #[test]
+    fn a_parallel_frame_reports_its_offset() {
+        let c = circle();
+        let plane_z = |z: f64| SplitPlane {
+            origin: Point3::new(0.3, -0.2, z),
+            normal: Vec3::unit_z(),
+        };
+        for (z, want) in [(0.0, 0.0), (2.0, -2.0)] {
+            match conic_crossing_roots(&c, 0.1, 6.0, &plane_z(z), band()) {
+                Ok(ConicPlaneMeet::Parallel { offset }) => {
+                    assert!((offset - want).abs() < 1e-12, "offset at z = {z}: {offset}");
+                }
+                other => panic!("z = {z}: expected the parallel arm, got {other:?}"),
+            }
+        }
     }
 
     /// Line carriers refuse the conic lane (the `Err(())` sentinel the
@@ -586,9 +627,7 @@ mod tests {
         // The span is the upper semicircle; the plane's two crossings
         // are its own endpoints.
         let (t0, t1) = (ex(0.0), ex(core::f64::consts::PI));
-        let roots = conic_crossing_roots(&c, t0, t1, &plane, band())
-            .expect("the lane runs")
-            .expect("the plane cuts the circle")
+        let roots = roots_of(conic_crossing_roots(&c, t0, t1, &plane, band()))
             .expect("the endpoint roots classify — no anchor straddles them");
         assert!(
             roots.is_empty(),
