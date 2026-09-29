@@ -189,30 +189,29 @@ impl core::fmt::Display for TransformError {
         match self {
             Self::Pcurve { source } => write!(f, "{source}"),
             Self::Band(e) => write!(f, "{e}"),
-            Self::Certify { edge, source } => {
-                write!(
-                    f,
-                    "mapped edge {edge:?} failed re-certification: {}",
-                    source.render(geom_brep::recourse::Reading::Build)
-                )
-            }
-            Self::NotRigid { check } => write!(
+            Self::Certify { source, .. } => write!(
                 f,
-                "the map is not rigid at tolerance (check {check}). Recourse: use only a \
-                 rotation and a translation"
+                "an edge the map moved failed re-certification: {}",
+                source.render(geom_brep::recourse::Reading::Build)
             ),
-            Self::NonFiniteMap { check } => {
-                write!(f, "the map has a non-finite component (check {check})")
-            }
+            Self::NotRigid { .. } => f.write_str(
+                "the map is not rigid at tolerance. Recourse: use only a rotation and a \
+                 translation",
+            ),
+            Self::NonFiniteMap { .. } => f.write_str(
+                "the map has a component that is not a finite number. Recourse: give the map \
+                 finite values",
+            ),
             Self::NullScaffold { edge } => write!(
                 f,
                 "edge {edge:?} carries a transient null-scaffold curve, which a body at rest \
-                 never does"
+                 never does. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::ApproxLaneUnsupported { lane } => write!(
                 f,
                 "an approximating surface cannot be moved on the {lane} lane, which has no \
-                 fit to re-certify it with"
+                 fit to re-certify it with. There is no way through yet"
             ),
             Self::ApproxRecertify { source } => write!(
                 f,
@@ -223,9 +222,11 @@ impl core::fmt::Display for TransformError {
                 "a spline (NURBS) surface or carrier cannot be transformed yet; there is no \
                  way through yet",
             ),
-            Self::Corrupt { what } => {
-                write!(f, "the body references a missing {what} (a corrupt body)")
-            }
+            Self::Corrupt { what } => write!(
+                f,
+                "the body references a missing {what} (a corrupt body). {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
         }
     }
 }

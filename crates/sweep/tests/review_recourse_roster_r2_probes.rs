@@ -119,10 +119,9 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
         }
         .to_string();
         assert!(
-            text.starts_with(&format!(
-                "validation escalated between loop 0 segment 0 and loop 0 segment 1: \
-                 predicate '{name}' indeterminate:"
-            )),
+            text.starts_with(
+                "validation escalated between loop 0 segment 0 and loop 0 segment 1: margin "
+            ),
             "{text}"
         );
         assert!(text.contains(COINCIDENCE_RECOURSE), "{text}");
@@ -163,9 +162,7 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
         }
         .to_string();
         assert!(
-            text.starts_with(&format!(
-                "{door} escalated: predicate '{name}' indeterminate:"
-            )),
+            text.starts_with(&format!("{door} escalated: margin ")),
             "{text}"
         );
         assert!(
@@ -177,8 +174,5 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
         source: escalation(None),
     }
     .to_string();
-    assert!(
-        text.starts_with("the tube escalated: sign indeterminate:"),
-        "{text}"
-    );
+    assert!(text.starts_with("the tube escalated: margin "), "{text}");
 }

@@ -1105,10 +1105,9 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
         if route == "transversality" {
             assert_eq!(
                 text,
-                "node 5 failed: the transform op refused: mapped edge EdgeKey(null) failed \
-                 re-certification: the transversality margin at sample 4 escalated: predicate \
-                 'dihedral_wedge' indeterminate: margin 5e-9 lies inside the ambiguity band \
-                 (1e-9, 1e-8). Recourse: move the geometry so the faces cross at a clearer \
+                "node 5 failed: the transform op refused: an edge the map moved failed \
+                 re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
+                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the faces cross at a clearer \
                  angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
             );
         }
@@ -3065,12 +3064,8 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         .to_string()
     };
     let head = "check connectedness: root 4 output 0: the component count is unknowable: ";
-    let in_band = |m: &str| {
-        format!(
-            "{head}predicate 'chk_shell_volume_sign' indeterminate: margin {m} lies inside the \
-             ambiguity band (1e-9, 1e-8). "
-        )
-    };
+    let in_band =
+        |m: &str| format!("{head}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
     let pinned = [
         (
             "in band, outer side",
@@ -3092,16 +3087,14 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             "in band, bracket across zero",
             escalated(MarginDiag::enclosure(-2e-9, 3e-9)),
             format!(
-                "{head}predicate 'chk_shell_volume_sign' indeterminate: enclosure [-2e-9, 3e-9] \
-                 cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
+                "{head}enclosure [-2e-9, 3e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
             ),
         ),
         (
             "invalid margin",
             escalated(MarginDiag::INVALID),
             format!(
-                "{head}predicate 'chk_shell_volume_sign' indeterminate: margin is invalid (NaN \
-                 or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
+                "{head}margin is invalid (NaN or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
                  unreadable or collapsed margin may indicate a kernel bug worth reporting"
             ),
         ),

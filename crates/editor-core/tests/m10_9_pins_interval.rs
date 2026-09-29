@@ -194,7 +194,9 @@ fn replay_counts(
         let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
             evaluate(doc, None, &CancelToken::new(), &opts, tol);
         ev.order.iter().find_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            Some(NodeResult::Failed(e)) => {
+                Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+            }
             _ => None,
         })
     })

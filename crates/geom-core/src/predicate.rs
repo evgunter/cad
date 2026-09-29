@@ -1453,9 +1453,8 @@ macro_rules! kernel_or_file_defect_ending {
 /// that has DECIDED a predicate needs nothing further says so itself
 /// rather than reaching this sentence.
 ///
-/// The predicate is spelled the way [`IndeterminatePayload`] spells it
-/// in the same refusal — `'name'`, and a nameless decision named as
-/// one — so one refusal does not carry two spellings of one field.
+/// The predicate is spelled `'name'`, and a nameless decision is named
+/// as one.
 #[derive(Debug, Clone, Copy)]
 pub struct MissingRecourse<'a>(pub Option<&'a str>);
 
@@ -1468,9 +1467,11 @@ impl fmt::Display for MissingRecourse<'_> {
     }
 }
 
-/// Borrowed margin-payload view of an [`Indeterminate`]: the predicate
-/// name, the margin/enclosure data, and the band — WITHOUT the shared
-/// recourse tail. For per-site Display impls that compose the
+/// Borrowed margin-payload view of an [`Indeterminate`]: the
+/// margin/enclosure data and the band — WITHOUT the shared recourse
+/// tail, and without the predicate's name, which is routing a developer
+/// reads in `Debug` rather than anything the person holding the mouse
+/// can act on. For per-site Display impls that compose the
 /// two-tolerance message themselves (site context + this payload +
 /// [`COINCIDENCE_RECOURSE`]) and must not double the recourse; the
 /// bare [`Indeterminate`] Display is this payload plus the shared
@@ -1480,10 +1481,6 @@ pub struct IndeterminatePayload<'a>(&'a Indeterminate);
 
 impl fmt::Display for IndeterminatePayload<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.predicate {
-            Some(name) => write!(f, "predicate '{name}' indeterminate: ")?,
-            None => f.write_str("sign indeterminate: ")?,
-        }
         let (zero, escalate) = (self.0.band.zero, self.0.band.escalate);
         let margin = self.0.margin;
         match margin.0 {
@@ -2248,8 +2245,8 @@ mod tests {
         assert_eq!(
             bare.to_string(),
             format!(
-                "sign indeterminate: margin 5e-9 lies inside the ambiguity band \
-                 (1e-9, 1e-8) — a near-coincidence; {COINCIDENCE_RECOURSE}"
+                "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
+                 near-coincidence; {COINCIDENCE_RECOURSE}"
             )
         );
 
@@ -2260,17 +2257,15 @@ mod tests {
         assert_eq!(
             named.to_string(),
             format!(
-                "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-                 the ambiguity band (1e-9, 1e-8) — a near-coincidence; \
-                 {COINCIDENCE_RECOURSE}"
+                "margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
+                 near-coincidence; {COINCIDENCE_RECOURSE}"
             )
         );
         // The payload view is the same message minus the shared tail —
         // what a composing site embeds next to its own recourse.
         assert_eq!(
             named.payload().to_string(),
-            "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-             the ambiguity band (1e-9, 1e-8)"
+            "margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8)"
         );
 
         let invalid = f64::NAN
@@ -2280,9 +2275,8 @@ mod tests {
         assert_eq!(
             invalid.to_string(),
             format!(
-                "predicate 'transversality' indeterminate: margin is invalid (NaN \
-                 or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8) — \
-                 check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
+                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
+                 band (1e-9, 1e-8) — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
             )
         );
 
@@ -2298,9 +2292,8 @@ mod tests {
         assert_eq!(
             enclosure.to_string(),
             format!(
-                "predicate 'side_of_plane' indeterminate: enclosure [-2e-9, 5e-9] \
-                 cannot be classified against the ambiguity band (1e-9, 1e-8) — \
-                 subdivide the parameter box for a tighter enclosure, or \
+                "enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity \
+                 band (1e-9, 1e-8) — subdivide the parameter box for a tighter enclosure, or \
                  {COINCIDENCE_RECOURSE}"
             )
         );

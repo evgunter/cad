@@ -194,22 +194,19 @@ fn hairline_band_admits_no_f64_indeterminate() {
 #[test]
 fn display_messages_and_error_objects() {
     let b = band();
-    // Bare escalation names no predicate.
     let bare = 5e-9f64.sign_within(b).unwrap_err();
     let msg = bare.to_string();
-    assert!(msg.starts_with("sign indeterminate: "), "got: {msg}");
+    assert!(msg.starts_with("margin 5e-9 lies inside "), "got: {msg}");
     assert!(msg.contains("ambiguity band"), "got: {msg}");
-    // A named predicate leads the message.
+    // A named predicate is carried on the error object and in `Debug`;
+    // the sentence a person reads leaves the routing name out.
     let named = 5e-9f64
         .sign_within(b)
         .unwrap_err()
         .with_predicate("side_of_plane");
     assert_eq!(named.predicate, Some("side_of_plane"));
-    let msg = named.to_string();
-    assert!(
-        msg.starts_with("predicate 'side_of_plane' indeterminate: "),
-        "got: {msg}"
-    );
+    assert_eq!(named.to_string(), msg);
+    assert!(format!("{named:?}").contains("side_of_plane"));
     // The invalid-margin message is the poison one.
     let nan = f64::NAN
         .sign_within(b)
@@ -223,7 +220,7 @@ fn display_messages_and_error_objects() {
     assert!(sub.to_string().contains("ambiguity band"));
     // Both error types are std errors usable as trait objects.
     let boxed: Box<dyn std::error::Error> = Box::new(named);
-    assert!(boxed.to_string().contains("side_of_plane"));
+    assert!(boxed.to_string().contains("ambiguity band"));
     let boxed_band: Box<dyn std::error::Error> = Box::new(BandError::Empty {
         zero: 1.0,
         escalate: 0.5,

@@ -225,33 +225,27 @@ pub enum MassPropsError {
 impl fmt::Display for MassPropsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { error } => write!(f, "mass properties: {error}"),
-            Self::Face { face, source } => {
-                write!(f, "mass properties: face {face:?}: {source}")
+            Self::Band { error } => {
+                write!(f, "the volume and surface area cannot be computed: {error}")
             }
-            Self::RingOnCurvedFace { face } => {
-                write!(
-                    f,
-                    "mass properties: curved face {face:?} carries interior rings — curved \
-                     patches are swept UV rectangles and no construction produces one, so \
-                     report this rather than repairing a body"
-                )
-            }
-            Self::Corrupt { what } => {
-                write!(
-                    f,
-                    "mass properties: corrupt body ({what}) — the structural validators own \
-                     this diagnosis: read the tier-1/tier-2 report and repair what it names"
-                )
-            }
-            Self::NullScaffoldEdge { edge } => {
-                write!(
-                    f,
-                    "mass properties: edge {edge:?} is null-edge scaffolding \
-                     (mid-surgery body; tier 2 refuses null entities at rest) — finish or \
-                     revert the surgery and ask again at rest"
-                )
-            }
+            Self::Face { source, .. } => write!(
+                f,
+                "a face's share of the volume and surface area cannot be computed: {source}"
+            ),
+            Self::RingOnCurvedFace { .. } => f.write_str(
+                "the kernel cannot yet measure the volume of a curved face with a hole. There \
+                 is no way through yet",
+            ),
+            Self::Corrupt { what } => write!(
+                f,
+                "the body's structure is incomplete ({what}). {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::NullScaffoldEdge { .. } => f.write_str(
+                "an edge is a placeholder a construction leaves while it is under way, and a \
+                 volume is measured only once it finishes. Recourse: finish or revert the \
+                 construction, then measure again",
+            ),
         }
     }
 }
@@ -2022,15 +2016,15 @@ impl ShellClassifyError {
 impl fmt::Display for ShellClassifyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { .. } => write!(f, "shell classification: {}", self.payload()),
-            Self::Props { shell, .. }
-            | Self::Escalated { shell, .. }
-            | Self::ZeroVolume { shell, .. }
-            | Self::Straddles { shell } => write!(
+            Self::Band { .. } => write!(f, "the shells cannot be classified: {}", self.payload()),
+            Self::Escalated { .. } => write!(
                 f,
-                "shell classification: shell {shell:?}: {}",
+                "the sign of a shell's volume is too close to call: {}",
                 self.payload()
             ),
+            Self::Props { .. } | Self::ZeroVolume { .. } | Self::Straddles { .. } => {
+                write!(f, "{}", self.payload())
+            }
         }?;
         match self.ending() {
             Some(ending) => write!(f, ". {ending}"),

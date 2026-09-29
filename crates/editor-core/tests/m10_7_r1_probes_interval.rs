@@ -46,7 +46,9 @@ fn failures(
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -72,7 +74,9 @@ fn failures(
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect()
