@@ -2310,7 +2310,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
 
 /// The stable tag for an inline refusal.
 ///
-/// `Unresolved` delegates to [`part_fault_tag`]'s sibling vocabulary
+/// `Unresolved` delegates to the seam vocabulary [`node_error_tag`] reads
 /// through [`resolve_fault_tag`]: inline crosses the SAME document
 /// seam evaluation does, and a stale pin refused here is the stale
 /// pin refused there. One vocabulary, so a caller who learned to read
