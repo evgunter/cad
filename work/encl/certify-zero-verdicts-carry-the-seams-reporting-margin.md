@@ -4,6 +4,7 @@ kind: issue
 title: geom-core/geom-brep: every outcome of the classify seam carries its margin for error reporting only, and certify's Zero arms quote it (Ev, [ev] PR 3402)
 status: dispatched
 branch: encl/zero-verdicts-reporting-margin
+pr: 3418
 priority: P2
 cost: M
 opened: 2026-09-29
