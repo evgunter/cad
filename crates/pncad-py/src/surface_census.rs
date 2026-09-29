@@ -57,7 +57,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use pncad::document::EvalOptions;
-use pncad::profile::{ArcMode, TargetKind, Verb};
+use pncad::profile::{ArcMode, PieceRole, TargetKind, TipState, Verb};
 use pncad::step_export::StepOptions;
 use pncad::step_import::ImportOptions;
 use pncad::stl::{AsciiOptions, BinaryOptions};
@@ -475,6 +475,47 @@ fn target_class(kind: TargetKind) -> Option<&'static str> {
     }
 }
 
+/// **The role roster.** How a Python caller spells each piece role:
+/// a `Role` value, and the handle accessor that reads it off an
+/// authored step. A role `PieceRole` gains stops this function
+/// compiling; the accessors themselves are generated from the kernel's
+/// role lists at lookup (`crate::py::step`), so what this checks is
+/// the `Role` spelling and the carrier accessor the stub declares.
+fn role_spelling(role: PieceRole) -> Spelling {
+    use Spelling::Bound;
+    match role {
+        PieceRole::Leg => Bound(&["Role.Leg"]),
+        PieceRole::RunIn => Bound(&["Role.RunIn"]),
+        PieceRole::Arc => Bound(&["Role.Arc"]),
+        PieceRole::RunOut => Bound(&["Role.RunOut"]),
+        PieceRole::Piece(_) => Bound(&["Role.piece", "CarrierPieces"]),
+    }
+}
+
+/// **The step-handle roster.** The Python class each lattice state
+/// is, which answers the handle of the step that produced it as
+/// `.step`; a state `TipState` gains stops this function compiling.
+fn state_step_spelling(state: TipState) -> Spelling {
+    use Spelling::Bound;
+    match state {
+        TipState::Entry => Spelling::NotBound {
+            would_be: &["Open.step"],
+            reason: "the entry token has recorded no step",
+        },
+        TipState::Open => Bound(&["PathOpen.step"]),
+        TipState::Angle => Bound(&["PathAngle.step"]),
+        TipState::PlainPoint => Bound(&["PathPoint.step"]),
+        TipState::DirectedPoint => Bound(&["PathDirectedPoint.step"]),
+        TipState::DirectedPlain | TipState::DirectedIncoming => Bound(&["PathDirected.step"]),
+        TipState::RadiusArrival => Bound(&["PathRadiusArrival.step"]),
+        TipState::RadiusArrivalAt => Bound(&["PathRadiusArrivalAt.step"]),
+        TipState::RadiusArrivalDir => Bound(&["PathRadiusArrivalDir.step"]),
+        TipState::ViaArrival => Bound(&["PathViaArrival.step"]),
+        TipState::ViaArrivalStart => Bound(&["PathViaArrivalStart.step"]),
+        TipState::Closed => Bound(&["ClosedLoop.step"]),
+    }
+}
+
 /// **Where one roster's spellings are looked for in the stub.**
 ///
 /// A verb is bound by being a DECLARED name; an options field is bound
@@ -797,12 +838,68 @@ fn verb_roster() -> Roster {
     }
 }
 
+/// The role and step-handle rosters. Neither kernel type enumerates
+/// itself, so the members are listed here; the spelling functions'
+/// matches are what a new member breaks.
+fn handle_rosters() -> [Roster; 2] {
+    use PieceRole as R;
+    use TipState as S;
+    [
+        Roster {
+            subject: "PieceRole",
+            alphabet: Alphabet::Declared,
+            entries: [R::Leg, R::RunIn, R::Arc, R::RunOut, R::Piece(0)]
+                .iter()
+                .map(|role| (format!("{role:?}"), role_spelling(*role)))
+                .collect(),
+        },
+        Roster {
+            subject: "TipState",
+            alphabet: Alphabet::Declared,
+            entries: [
+                S::Entry,
+                S::Open,
+                S::Angle,
+                S::PlainPoint,
+                S::DirectedPoint,
+                S::DirectedPlain,
+                S::DirectedIncoming,
+                S::RadiusArrival,
+                S::RadiusArrivalAt,
+                S::RadiusArrivalDir,
+                S::ViaArrival,
+                S::ViaArrivalStart,
+                S::Closed,
+            ]
+            .iter()
+            .map(|state| (format!("{state:?}"), state_step_spelling(*state)))
+            .collect(),
+        },
+    ]
+}
+
 /// Every roster in the file, each carrying its own alphabet — read
 /// together so a check cannot cover one and quietly skip another.
 fn every_roster() -> Vec<Roster> {
     std::iter::once(verb_roster())
+        .chain(handle_rosters())
         .chain(options_doors())
         .collect()
+}
+
+/// **The handle census.** Every piece role has a Python spelling, and
+/// every lattice state that has recorded a step answers its handle.
+#[test]
+fn every_role_and_state_handle_has_a_python_spelling() {
+    let stub = stub();
+    let missing: Vec<String> = handle_rosters()
+        .iter()
+        .flat_map(|roster| roster.missing(&stub))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "the roster claims Python spellings pncad.pyi does not declare: {missing:?}"
+    );
 }
 
 /// **The rosters decay.** A member listed as deliberately unbound

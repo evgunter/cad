@@ -2758,10 +2758,12 @@ impl<T: Real> Core<T> {
         let radii = core::mem::take(&mut self.radii);
         let pieces = self.segment_pieces();
         let structure = self.take_structure();
+        let structure = structure.into_record(spans, radii, pieces);
+        structure.check_role_lists(&self.program);
         ClosedLoop {
             loop_: ProfileLoop::lower(&self.verts, self.tangent),
             program: self.program,
-            structure: structure.into_record(spans, radii, pieces),
+            structure,
         }
     }
 

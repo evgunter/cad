@@ -1669,3 +1669,49 @@ fn a_carrier_form_draws_piece_k_for_its_segment_k() {
     pinned(circle);
     pinned(split);
 }
+
+/// **The role lists admit what their verbs draw and nothing else**: a
+/// fillet's three roles, a leg's one, a carrier's `Piece(k)` below its
+/// count, and nothing on a binder.
+#[test]
+fn a_role_list_admits_its_verbs_roles_only() {
+    use profile::PieceRole::{Arc, Leg, Piece, RunIn, RunOut};
+    use profile::{RoleList, Verb};
+    assert_eq!(RoleList::of(Verb::At).named(), &[] as &[profile::PieceRole]);
+    assert_eq!(RoleList::of(Verb::LineTo).named(), &[Leg]);
+    assert_eq!(
+        RoleList::of(Verb::ArcFilletArc).named(),
+        &[RunIn, Arc, RunOut]
+    );
+    assert!(
+        !RoleList::of(Verb::Line).admits(Arc, 0),
+        "a leg verb draws no arc"
+    );
+    assert!(
+        !RoleList::of(Verb::Fillet).admits(Leg, 0),
+        "a fillet draws no leg"
+    );
+    assert!(
+        RoleList::of(Verb::CircleSplit).admits(Piece(2), 3),
+        "piece 2 of 3"
+    );
+    assert!(
+        !RoleList::of(Verb::CircleSplit).admits(Piece(3), 3),
+        "piece 3 of 3"
+    );
+    assert!(
+        !RoleList::of(Verb::Circle).admits(Leg, 2),
+        "a carrier draws no leg"
+    );
+}
+
+/// **A record naming a role its verb's list lacks is a kernel bug**,
+/// and the check every closing verb runs says so.
+#[test]
+#[should_panic(expected = "does not hold")]
+fn a_record_off_its_role_list_fails_loud() {
+    let t = Tol::witness();
+    let mut circle = profile::circle(Point2::new(0.0, 0.0), 1.0, t).unwrap();
+    circle.structure.pieces[1].role = profile::PieceRole::Piece(2);
+    circle.structure.check_role_lists(&circle.program);
+}

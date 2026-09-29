@@ -524,6 +524,8 @@ mod seat7_sweep_lowering;
 mod seat8_split_lowering;
 #[path = "seatfw_curved_flush.rs"]
 mod seatfw_curved_flush;
+#[path = "step_handle_binding.rs"]
+mod step_handle_binding;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]

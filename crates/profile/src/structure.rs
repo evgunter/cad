@@ -333,6 +333,78 @@ impl core::fmt::Display for PieceRole {
     }
 }
 
+/// How many pieces a `circle` draws: it is drawn as the `circle_split`
+/// with `n = 2`, two semicircles split at the circle's `±x` points.
+pub const CIRCLE_PIECES: u32 = 2;
+
+/// **The roles a verb's steps may draw** — one list per verb
+/// ([`RoleList::of`]), the lists [`PieceRole`] describes.
+///
+/// It is what the replay draws, stated per verb: every closed chain
+/// and complete-loop form checks its per-segment pieces against it
+/// ([`ReplayStructure::check_role_lists`]), so a verb whose emission
+/// claims a role its list lacks fails at its first replay. The doors
+/// that spell a piece from an authored step check it, and an authoring
+/// surface's per-role accessors are generated from it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RoleList {
+    /// A verb that only binds a point, a direction or a junction draws
+    /// nothing.
+    Bind,
+    /// A verb that draws one segment draws its [`PieceRole::Leg`].
+    Leg,
+    /// A fillet, and every fused fillet verb, draws
+    /// [`PieceRole::RunIn`], [`PieceRole::Arc`] and [`PieceRole::RunOut`].
+    Fillet,
+    /// A complete-loop carrier form draws [`PieceRole::Piece`] `k` for
+    /// each `k` below its piece count ([`CIRCLE_PIECES`] for `circle`,
+    /// `n` for `circle_split`).
+    Carrier,
+}
+
+impl RoleList {
+    /// The list `verb`'s steps draw from.
+    #[must_use]
+    pub const fn of(verb: crate::Verb) -> Self {
+        use crate::Verb as V;
+        match verb {
+            V::At | V::Angle | V::Toward | V::Tangent | V::Cusp | V::Turn => Self::Bind,
+            V::Line
+            | V::LineTo
+            | V::ContinueTo
+            | V::ArcTo
+            | V::TangentArcTo
+            | V::FarEndTo
+            | V::CloseTo => Self::Leg,
+            V::Fillet | V::FilletArc | V::ArcFillet | V::ArcFilletArc => Self::Fillet,
+            V::Circle | V::CircleSplit => Self::Carrier,
+        }
+    }
+
+    /// The list's roles that are not indexed, in drawing order: empty
+    /// for [`RoleList::Bind`], and for [`RoleList::Carrier`], whose
+    /// roles are [`PieceRole::Piece`] `k`.
+    #[must_use]
+    pub const fn named(self) -> &'static [PieceRole] {
+        match self {
+            Self::Bind | Self::Carrier => &[],
+            Self::Leg => &[PieceRole::Leg],
+            Self::Fillet => &[PieceRole::RunIn, PieceRole::Arc, PieceRole::RunOut],
+        }
+    }
+
+    /// Whether a step on this list may draw `role`, where `pieces` is
+    /// the step's piece count if it is a carrier form (read by
+    /// [`RoleList::Carrier`] alone).
+    #[must_use]
+    pub fn admits(self, role: PieceRole, pieces: u32) -> bool {
+        match (self, role) {
+            (Self::Carrier, PieceRole::Piece(k)) => k < pieces,
+            _ => self.named().contains(&role),
+        }
+    }
+}
+
 /// **The piece one segment is**: the authored step that drew it, in
 /// program order, and which of that step's roles it plays.
 ///
@@ -409,6 +481,36 @@ pub struct ReplayStructure {
 }
 
 impl ReplayStructure {
+    /// **Every piece this record names is on its step's role list**
+    /// ([`RoleList`]) in `program`, the steps it was recorded from.
+    ///
+    /// # Panics
+    ///
+    /// When one is not: the emission claimed a role its verb's list
+    /// lacks, or named a step past the program. Both are kernel bugs
+    /// in the emission, not refusals of an author's program.
+    pub fn check_role_lists<T: Real>(&self, program: &[crate::Step<T>]) {
+        for piece in &self.pieces {
+            let Some(step) = program.get(piece.step) else {
+                unreachable!(
+                    "the replay named {piece}, but the program has {} steps",
+                    program.len()
+                )
+            };
+            let pieces = match step {
+                crate::Step::Circle { .. } => CIRCLE_PIECES,
+                crate::Step::CircleSplit { n, .. } => u32::try_from(*n).unwrap_or(u32::MAX),
+                _ => 0,
+            };
+            let verb = step.verb();
+            assert!(
+                RoleList::of(verb).admits(piece.role, pieces),
+                "the replay drew {piece}, a role `{verb}`'s list ({:?}) does not hold",
+                RoleList::of(verb)
+            );
+        }
+    }
+
     /// The record of a COMPLETE-LOOP CARRIER form (`circle`,
     /// `circle_split`): one authored step that produced every segment
     /// of the loop, and no fillet resolution anywhere in the form.
