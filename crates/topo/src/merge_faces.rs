@@ -938,6 +938,7 @@ impl OpPlacement {
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
             | E::PcurveSplit { .. }
+            | E::PcurveMint { .. }
             | E::CrossSolid { .. }
             | E::NoShellsNamed
             | E::ShellRepeated { .. }

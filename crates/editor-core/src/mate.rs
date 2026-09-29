@@ -883,10 +883,23 @@ pub enum MateFault {
     /// that is not an axis datum — so it is carried here UNALTERED
     /// rather than relabelled as a dangling head.
     ///
-    /// Carrying it is what makes the refusal readable at all. A mate
-    /// fault POISONS the document, so the placer node never evaluates
-    /// and never gets to state its own cause: this fault is the only
-    /// place that cause appears.
+    /// The sentence names the placer and never renders `error`, which
+    /// is the placer's refusal with its own recourse. Whether the fault
+    /// CARRIES it, as a line of its own under the mate's
+    /// ([`crate::NodeErrorKind::carried_chain`]), is `placer_row`'s:
+    ///
+    /// - **Raised while a cluster's fold derives an offset**, at a
+    ///   placer on the reference's chain: the fault reaches the
+    ///   instance under that placer, so the placer is POISONED, never
+    ///   evaluates and never states its own cause. This fault is the
+    ///   only place that cause appears, and it carries it
+    ///   ([`PlacerRow::Silent`]).
+    /// - **Raised where the solve reads one mate's references**, or at
+    ///   a node read off the chain (an axis datum, a transform on the
+    ///   way to it): the fault reaches the mate alone, and the placer
+    ///   evaluates and fails in its own right with the same refusal.
+    ///   Its own row states it, and the mate's sentence points there
+    ///   ([`PlacerRow::States`]).
     PlacerRefused {
         /// The mate.
         mate: RecipeNodeId,
@@ -904,6 +917,8 @@ pub enum MateFault {
         placer: RecipeNodeId,
         /// The evaluation layer's own typed refusal for it, unchanged.
         error: NodeRefusal,
+        /// Whether the placer's own row states `error`.
+        placer_row: PlacerRow,
     },
     /// **A `Node::Part` selects a copy the reference's NAME does not
     /// name.** The name is the authority on which copy a mate speaks
@@ -970,6 +985,67 @@ impl From<crate::ident::Mispaired> for MateFault {
             found: m.found,
         }
     }
+}
+
+impl MateFault {
+    /// **The refusal this fault carries, when it carries one**: the
+    /// node that raised it and the refusal, which the sentence points
+    /// at and never renders ([`crate::NodeErrorKind::carried_chain`]).
+    /// A placer whose own row states its refusal is pointed at and not
+    /// carried ([`PlacerRow`]).
+    ///
+    /// Exhaustive, so an arm that comes to carry another node's
+    /// refusal says so here rather than being drawn as though it did
+    /// not.
+    #[must_use]
+    pub fn carried(&self) -> Option<(RecipeNodeId, &NodeRefusal)> {
+        match self {
+            Self::PlacerRefused {
+                placer,
+                error,
+                placer_row: PlacerRow::Silent,
+                ..
+            } => Some((*placer, error)),
+            Self::PlacerRefused {
+                placer_row: PlacerRow::States,
+                ..
+            }
+            | Self::PosesOfAnotherDocument { .. }
+            | Self::Frame { .. }
+            | Self::ClassNotAdmitted { .. }
+            | Self::TableLacks { .. }
+            | Self::Indeterminate { .. }
+            | Self::Band { .. }
+            | Self::Contradictory { .. }
+            | Self::Under { .. }
+            | Self::DanglingHead { .. }
+            | Self::PartSelectsAnotherCopy { .. }
+            | Self::SelfMate { .. }
+            | Self::Unleverable { .. } => None,
+        }
+    }
+
+    /// **Every refusal this fault carries, outermost first**, each with
+    /// the document its node is in — the mate's own at the first level
+    /// ([`crate::NodeErrorKind::carried_chain`]).
+    pub fn carried_chain(&self) -> crate::CarriedChain<'_> {
+        crate::CarriedChain::from_first(self.carried(), crate::CarriedIn::ThisDocument)
+    }
+}
+
+/// **Whether a [`MateFault::PlacerRefused`]'s placer states the
+/// refusal on its own row**, which decides whether the fault carries
+/// it. Read at the site that raises the fault, which is the one place
+/// that knows whether the placer is poisoned by it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlacerRow {
+    /// The placer evaluates and fails with this refusal in its own
+    /// right: its row states it, and the mate points there.
+    States,
+    /// The placer's row cannot state it — the placer is poisoned
+    /// through the instance this fault reached, or is no node of the
+    /// document — so the mate carries it.
+    Silent,
 }
 
 /// The predicate that decides the EMPTY intersection. It is the one
@@ -1092,17 +1168,18 @@ impl core::fmt::Display for MateFault {
                 side.name(),
                 head.0
             ),
+            // `error` is the placer's own refusal, drawn on a line of its
+            // own — the placer's row, or the mate's carried line — so
+            // this sentence names the placer and points.
             Self::PlacerRefused {
-                mate,
-                side,
-                placer,
-                error,
+                mate, side, placer, ..
             } => write!(
                 f,
-                "mate {}'s {} reference has no derived pose: node {} refuses — {error}",
+                "mate {}'s {} reference has no derived pose: node {p}, which places it, refuses — \
+                 repair node {p}",
                 mate.0,
                 side.name(),
-                placer.0
+                p = placer.0
             ),
             Self::PartSelectsAnotherCopy {
                 mate,

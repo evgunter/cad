@@ -1741,6 +1741,7 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
         F::NoResolver => "part_no_resolver",
         F::Unresolved { fault, .. } => resolve_fault_tag(fault),
         F::PartRootFailed { .. } => "part_root_failed",
+        F::RootFailureUnrecorded { .. } => "part_root_failure_unrecorded",
         F::PartProduct { .. } => "part_product",
         F::ReferenceCycle { .. } => "part_reference_cycle",
         F::DepthExceeded => "part_depth_exceeded",

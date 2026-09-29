@@ -691,11 +691,14 @@ BOUND_AS = {
     # `PartFault`'s arms and the `ResolveFault` classification inside
     # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
-    # `part_root_failed`, `part_product`, `part_reference_cycle`,
-    # `part_depth_exceeded` — the same flattening `NodeErrorKind` gets
-    # above. They left the `gap` roster at LIB-G18a, when the resolver
-    # parameter made them reachable: the tags existed before it, and
-    # `part_no_resolver` was the only one an evaluation could produce.
+    # `part_root_failed`, `part_root_failure_unrecorded`,
+    # `part_product`, `part_reference_cycle`, `part_depth_exceeded` —
+    # the same flattening `NodeErrorKind` gets above. They left the
+    # `gap` roster at LIB-G18a, when the resolver parameter made them
+    # reachable: the tags existed before it, and `part_no_resolver` was
+    # the only one an evaluation could produce. The refusal a failed
+    # part root CARRIES crosses as the exception's `__cause__`, an
+    # `EvaluationError` of its own.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
     # The read-back doors, which hang off the evaluation because a
@@ -2634,6 +2637,19 @@ NOT_BOUND = {
     # the fault's own `str()`. Nothing in Python hands one out and no
     # bound door takes one.
     "NodeRefusal": INTERIOR,
+    # The kernel's reading of the refusals a failure carries, level by
+    # level, with the document each level's node is in. Python reads the
+    # same chain in its own shape: each level is an `EvaluationError`
+    # that is the `__cause__` of the level above, and its `document` is
+    # the part's `DocRef`, or `None` for the evaluated document's own.
+    "CarriedChain": SHAPE,
+    "CarriedLevel": SHAPE,
+    "CarriedIn": SHAPE,
+    # Whether a `PlacerRefused` placer states its own refusal, which
+    # decides whether the fault carries it. Python never holds one: it
+    # reads the answer as `MateFault.cause` being the placer's refusal
+    # or `None`.
+    "PlacerRow": INTERIOR,
     # The entity door's answer: what a name turned out to denote, on the
     # four refusals that test an `EntityKey`'s kind
     # (`shell_open_kind`, `face_frame_kind`, the two blend selection

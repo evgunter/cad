@@ -930,13 +930,14 @@ pub struct NodeError {
 }
 
 /// **An evaluation refusal, carried into a document-layer
-/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault) and
-/// [`EditError::PlacementAxis`](crate::EditError) hold one.
+/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault),
+/// [`EditError::PlacementAxis`](crate::EditError) and
+/// [`PartFault::PartRootFailed`](crate::PartFault) hold one.
 ///
 /// It exists because [`NodeErrorKind`] carries kernel refusals
 /// UNALTERED (D2) and those kernel types have neither `Clone` nor
-/// equality of their own, while the two document-layer error enums
-/// have both. Sharing the refusal rather than copying it is what makes
+/// equality of their own, while the document-layer error enums have
+/// both. Sharing the refusal rather than copying it is what makes
 /// the carriage possible without stringifying anything: the payload
 /// reaching a reader is the very value the evaluation raised.
 #[derive(Debug, Clone)]
@@ -948,6 +949,22 @@ impl NodeRefusal {
     pub fn kind(&self) -> &NodeErrorKind {
         &self.0
     }
+
+    /// The refusal as `node`'s own [`NodeError`] renders it: the line a
+    /// surface draws for a carried refusal
+    /// ([`NodeErrorKind::carried_chain`]), the same words that node's own
+    /// tree draws.
+    #[must_use]
+    pub fn line_at(&self, node: RecipeNodeId) -> String {
+        failed_line(node, &self.0)
+    }
+}
+
+/// A node's failure as one line: the node, then its kind's prose. The
+/// one spelling [`NodeError`]'s `Display` and [`NodeRefusal::line_at`]
+/// share.
+fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind) -> String {
+    format!("node {} failed: {kind}", node.0)
 }
 
 impl From<NodeErrorKind> for NodeRefusal {
@@ -968,12 +985,18 @@ impl From<NodeErrorKind> for NodeRefusal {
 /// comparing renderings rather than values, and both are the ones a
 /// diagnostic wants: `NaN` payloads compare EQUAL to themselves, and
 /// `0.0` and `-0.0` compare DIFFERENT.
+///
+/// It is an equivalence, so the refusal is `Eq`: the relation is
+/// equality of two strings, and the pointer test short-cuts only pairs
+/// whose strings are the same.
 impl PartialEq for NodeRefusal {
     fn eq(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.0, &other.0)
             || format!("{:?}", self.0) == format!("{:?}", other.0)
     }
 }
+
+impl Eq for NodeRefusal {}
 
 impl core::fmt::Display for NodeRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -2017,13 +2040,20 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // the right to drop the payload: `UndeclaredContact` states its
 // two-armed menu (F6) AND renders its diagnostic.
 //
-// Every payload-holding arm forwards its payload's own `Display`;
-// the exception list is EMPTY — `EvalError`, `resolve::ResolveError`,
-// `WitnessBifurcation` and `PlacementRuleFault` (D54's four) all
-// carry one, and `PlacementRuleFault`'s is that fault set's ONE prose
-// vocabulary (the edit door's rule arms forward the same impl).
-// `UndeclaredContact` composes through the document layer's finding
-// sink ([`crate::finding`]): subject, story, its two-armed recourse.
+// Every payload-holding arm forwards its payload's own `Display` —
+// `EvalError`, `resolve::ResolveError`, `WitnessBifurcation` and
+// `PlacementRuleFault` (D54's four) all carry one, and
+// `PlacementRuleFault`'s is that fault set's ONE prose vocabulary (the
+// edit door's rule arms forward the same impl). `UndeclaredContact`
+// composes through the document layer's finding sink
+// ([`crate::finding`]): subject, story, its two-armed recourse.
+//
+// The one exception is a CARRIED refusal: another node's refusal, with
+// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`,
+// `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
+// never rendered inside this sentence, which names that node and points
+// at it; it is drawn as its own line, read off
+// [`NodeErrorKind::carried_chain`].
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2405,17 +2435,130 @@ impl core::fmt::Display for NodeErrorKind {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
-            Self::Part { doc_ref, fault } => {
-                write!(f, "instantiating {doc_ref}: {fault}")
-            }
+            // The reference is data, not prose: the typed arm keeps it,
+            // and a surface names the part by what it knows it as.
+            Self::Part { fault, .. } => write!(f, "instantiating the part: {fault}"),
         }
+    }
+}
+
+impl NodeErrorKind {
+    /// **The refusal this one carries, when it carries one**: the node
+    /// that raised it and the refusal itself — the exception written
+    /// over this type's `Display`, as a value.
+    ///
+    /// Two arms carry one. A part whose root failed carries that root's
+    /// refusal, in the REFERENCED document's id space; a mate whose
+    /// placer's own row cannot state its refusal carries the placer's,
+    /// in the mate's document. One step only: a surface reads the whole
+    /// chain through [`NodeErrorKind::carried_chain`].
+    ///
+    /// Every other arm holds no [`NodeRefusal`]; the two that forward a
+    /// fault enum ask that enum, whose own reading is exhaustive.
+    #[must_use]
+    pub fn carried(&self) -> Option<(RecipeNodeId, &NodeRefusal)> {
+        match self {
+            Self::Part { fault, .. } => fault.carried(),
+            Self::Mate(fault) => fault.carried(),
+            _ => None,
+        }
+    }
+
+    /// **Every refusal this one carries, outermost first**, each with
+    /// the document its node is in: the one reading every surface draws
+    /// a traceback from. A part inside a part yields one level per
+    /// document, and the last level is the node that refused.
+    pub fn carried_chain(&self) -> CarriedChain<'_> {
+        CarriedChain {
+            next: CarriedChain::step(self, CarriedIn::ThisDocument),
+        }
+    }
+}
+
+/// **Which document a carried refusal's node is in.** A node number
+/// means nothing without it: a part's root is numbered in the part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarriedIn<'a> {
+    /// The document whose evaluation raised the outermost refusal.
+    ThisDocument,
+    /// The part this reference names.
+    Part(&'a crate::ident::DocRef),
+}
+
+/// **One level of a carried chain**: the node that refused, the
+/// document it is in, and its refusal.
+#[derive(Clone, Copy, Debug)]
+pub struct CarriedLevel<'a> {
+    /// The document [`CarriedLevel::node`] is numbered in.
+    pub document: CarriedIn<'a>,
+    /// The node that raised the refusal.
+    pub node: RecipeNodeId,
+    /// Its refusal.
+    pub refusal: &'a NodeRefusal,
+}
+
+impl CarriedLevel<'_> {
+    /// The level as its node's own tree draws it
+    /// ([`NodeRefusal::line_at`]).
+    #[must_use]
+    pub fn line(&self) -> String {
+        self.refusal.line_at(self.node)
+    }
+}
+
+/// The iterator [`NodeErrorKind::carried_chain`] and
+/// [`crate::MateFault::carried_chain`] answer.
+#[derive(Clone, Debug)]
+pub struct CarriedChain<'a> {
+    next: Option<CarriedLevel<'a>>,
+}
+
+impl<'a> CarriedChain<'a> {
+    /// The chain whose first level is `first`, in `document`.
+    pub(crate) fn from_first(
+        first: Option<(RecipeNodeId, &'a NodeRefusal)>,
+        document: CarriedIn<'a>,
+    ) -> Self {
+        Self {
+            next: first.map(|(node, refusal)| CarriedLevel {
+                document,
+                node,
+                refusal,
+            }),
+        }
+    }
+
+    /// The level `kind` carries, when it carries one. A part's level is
+    /// in the part; a mate's is in `outer`, the document `kind` itself
+    /// was raised in.
+    fn step(kind: &'a NodeErrorKind, outer: CarriedIn<'a>) -> Option<CarriedLevel<'a>> {
+        let (node, refusal) = kind.carried()?;
+        let document = match kind {
+            NodeErrorKind::Part { doc_ref, .. } => CarriedIn::Part(doc_ref),
+            _ => outer,
+        };
+        Some(CarriedLevel {
+            document,
+            node,
+            refusal,
+        })
+    }
+}
+
+impl<'a> Iterator for CarriedChain<'a> {
+    type Item = CarriedLevel<'a>;
+
+    fn next(&mut self) -> Option<CarriedLevel<'a>> {
+        let level = self.next.take()?;
+        self.next = Self::step(level.refusal.kind(), level.document);
+        Some(level)
     }
 }
 
 /// The [`NodeError`] rendering: the node, then its kind's prose.
 impl core::fmt::Display for NodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "node {} failed: {}", self.node.0, self.kind)
+        f.write_str(&failed_line(self.node, &self.kind))
     }
 }
 

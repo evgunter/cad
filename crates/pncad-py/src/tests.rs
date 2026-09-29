@@ -1079,6 +1079,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             side: MateSide::A,
             placer: id(2),
             error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
+            placer_row: pncad::document::PlacerRow::Silent,
         },
         &["mate", "side", "placer", "error"],
     );
@@ -1120,6 +1121,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         side: MateSide::A,
         placer: id(2),
         error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
+        placer_row: pncad::document::PlacerRow::Silent,
     };
     assert_eq!(mate_payload(&placer).error, Some("non_finite_direction"));
 
@@ -5028,6 +5030,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_product",
             "part_reference_cycle",
             "part_root_failed",
+            "part_root_failure_unrecorded",
         ],
         delegates: &["resolve_fault_tag"],
     },

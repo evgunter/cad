@@ -234,6 +234,9 @@ pub use editor_core::DocParamField;
 // what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
 // an evaluation refusal in, so a consumer can match either variant but
 // not read the cause out of it without naming the wrapper.
+// `CarriedChain`, `CarriedLevel` and `CarriedIn` ride with it: they are
+// `NodeErrorKind::carried_chain`'s answer, the one reading of which
+// refusal a failure carries and which document its node is in.
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
@@ -252,9 +255,10 @@ pub use editor_core::DocParamField;
 // which is the point of it: its field is private to the door that
 // mints it.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
-    Evaluation, Found, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeStanding, NodeValue, ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
+    DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
+    NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, ProfileLift,
+    SplitSide, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -347,9 +351,9 @@ pub use editor_core::{
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal,
-    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach,
-    member_of, reading_edges, relative_freedom_components, solve_document,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, PlacerRow,
+    ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of,
+    mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
