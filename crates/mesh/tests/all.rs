@@ -107,6 +107,7 @@ mod mesh10r1_probes;
 mod mesh10r2_digest;
 #[path = "mesh10r2_probes.rs"]
 mod mesh10r2_probes;
+mod graft_r2_probes;
 #[path = "mesh11_arc_branch.rs"]
 mod mesh11_arc_branch;
 #[path = "mesh11r1_probes.rs"]
