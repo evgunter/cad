@@ -133,6 +133,7 @@
 use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
+use crate::chart_groups::ChartGroups;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
 use crate::splitting::containment::{
@@ -327,27 +328,6 @@ pub enum PointInSolidError {
         /// The key that did not resolve.
         solid: SolidKey,
     },
-    /// [`point_in_solid_of`] found a face of the named solid whose
-    /// surface KEY is also carried by a face of another solid, on a
-    /// kind the door reads through a surface GROUP (cone, sphere,
-    /// torus).
-    ///
-    /// The group's representative is chosen over the whole body by
-    /// key, and every non-representative member is skipped at the
-    /// pre-pass and the ray sweep; with the group split across the
-    /// selection boundary the representative may lie outside the
-    /// selection, and the solid's own members would then drop out of
-    /// the sweep silently. Refused instead. Tier 1 does not forbid the
-    /// state; the assembly door cannot produce it, because instance
-    /// placement mints a fresh surface key per placed face
-    /// (`instance.rs`: distinct keys, equal values), so a body reaching
-    /// the census through it never carries one. A hand-built body can.
-    SurfaceSharedOutsideSolid {
-        /// The selected face.
-        face: FaceKey,
-        /// A face of another solid on the same surface key.
-        other: FaceKey,
-    },
 }
 
 impl PointInSolidError {
@@ -397,10 +377,6 @@ impl PointInSolidError {
                  placed on it exactly"
             }
             Self::NoSuchSolid { .. } => "the instance's solid key does not resolve",
-            Self::SurfaceSharedOutsideSolid { .. } => {
-                "a surface group of the instance spans another instance, so its faces \
-                 could not be walked as one solid's"
-            }
         }
     }
 }
@@ -502,12 +478,6 @@ impl core::fmt::Display for PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: the body holds no such solid"
             ),
-            Self::SurfaceSharedOutsideSolid { .. } => write!(
-                f,
-                "cannot test this solid on its own: one of its faces shares its surface \
-                 with a face of another solid in the same body. Recourse: give each \
-                 solid its own surface keys (placing an instance already does)"
-            ),
         }
     }
 }
@@ -590,9 +560,9 @@ enum FaceGeo<T: geom_core::Real> {
         center: Point3<T>,
         /// Its radius (positive by convention).
         radius: T,
-        /// The group's representative — the lowest face key in
-        /// face-arena order carrying this surface. Arms no-op on every
-        /// other member.
+        /// The group's representative — the first face of the
+        /// selection, in the selection's order, carrying this surface.
+        /// Arms no-op on every other member.
         representative: FaceKey,
         /// The REPRESENTATIVE's orientation sense (S10). The group is
         /// closed and bounds one material region, so its members share
@@ -627,9 +597,9 @@ enum FaceGeo<T: geom_core::Real> {
         /// surface group WRAPS the azimuth and the slant window alone
         /// is the exact trim (see [`cone_chart_trim`]).
         az: Option<(T, T)>,
-        /// The face the arms act for: the wrapped group's lowest face
-        /// key in arena order, or the face itself when the azimuth
-        /// trims it. Arms no-op on every other member, so one cone
+        /// The face the arms act for: the wrapped group's first face
+        /// in the selection's order, or the face itself when the
+        /// azimuth trims it. Arms no-op on every other member, so one cone
         /// contributes one crossing per root.
         representative: FaceKey,
         /// The slant window, metres along the generator — the
@@ -697,9 +667,9 @@ enum FaceGeo<T: geom_core::Real> {
         /// The MINOR angle window (around the tube, zero on the outer
         /// equator), or `None` when the face covers every minor angle.
         v: Option<(T, T)>,
-        /// The face the arms act for: the closed group's lowest face key
-        /// in arena order, or the face itself when either window trims
-        /// it. Arms no-op on every other member of a closed group, so
+        /// The face the arms act for: the closed group's first face in
+        /// the selection's order, or the face itself when either window
+        /// trims it. Arms no-op on every other member of a closed group, so
         /// one torus contributes one crossing per root.
         representative: FaceKey,
         /// The face's orientation sense (S10), applied to the sign
@@ -727,8 +697,12 @@ enum FaceGeo<T: geom_core::Real> {
 /// does a body this walk cannot complete — a sphere face whose arena is
 /// broken is not a CLOSED sphere face, and the trimmed class it falls
 /// through to raises the corruption itself.
-pub(super) fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<FaceKey> {
-    surface_group(body, face, RimExemption::None)
+pub(super) fn closed_sphere_group<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    charts: &ChartGroups,
+) -> Option<FaceKey> {
+    surface_group(body, face, charts, RimExemption::None)
         .ok()
         .flatten()
         .map(|g| g.representative)
@@ -744,6 +718,7 @@ pub(super) fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> O
 fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
+    charts: &ChartGroups,
     band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body
@@ -771,8 +746,8 @@ fn face_geo<T: Decide>(
                 sense: f.sense,
             })
         }
-        // A group-read kind (`reads_surface_group`): the arm carries a
-        // representative chosen over the whole body by surface key.
+        // A group-read kind: the arm carries a representative chosen
+        // within the selection by surface key.
         Some(&Surface::Cone {
             apex,
             axis,
@@ -780,7 +755,7 @@ fn face_geo<T: Decide>(
             u_ref,
         }) => {
             let (az, representative, v, nappe) =
-                cone_chart_trim(body, face, apex, axis, half_angle, band)?;
+                cone_chart_trim(body, face, charts, apex, axis, half_angle, band)?;
             Ok(FaceGeo::Cone {
                 apex,
                 axis,
@@ -801,7 +776,7 @@ fn face_geo<T: Decide>(
             radius,
             axis,
             u_ref,
-        }) => match closed_sphere_group(body, face) {
+        }) => match closed_sphere_group(body, face, charts) {
             Some(representative) => Ok(FaceGeo::Sphere {
                 center,
                 radius,
@@ -835,7 +810,7 @@ fn face_geo<T: Decide>(
             u_ref,
         }) => {
             let (u, v, representative) =
-                torus_chart_trim(body, face, major_radius, minor_radius, band)?;
+                torus_chart_trim(body, face, charts, major_radius, minor_radius, band)?;
             Ok(FaceGeo::Torus {
                 center,
                 axis,
@@ -1420,13 +1395,14 @@ fn rim_levels<T: Decide>(pieces: &[WallPiece<T>], band: Band) -> Result<usize, I
 pub(super) fn cone_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
+    charts: &ChartGroups,
     apex: Point3<T>,
     axis: Vec3<T>,
     half_angle: T,
     band: Band,
 ) -> Result<(Option<(T, T)>, FaceKey, (T, T), bool), PointInSolidError> {
     let cos_a = half_angle.cos();
-    if let Some(representative) = wrapped_cone_group(body, face, apex, axis, cos_a, band)? {
+    if let Some(representative) = wrapped_cone_group(body, face, charts, apex, axis, cos_a, band)? {
         let v = cone_slant_window(body, representative, apex, axis, cos_a)?;
         let nappe = cone_nappe(face, v, band)?;
         return Ok((None, representative, v, nappe));
@@ -1470,9 +1446,14 @@ pub(super) fn cone_face_trim<T: Decide>(
 ) -> Result<(Option<(T, T)>, (T, T), bool), PointInSolidError> {
     let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
     let nappe = cone_nappe(face, v, band)?;
-    let alone = surface_group(body, face, RimExemption::Circles)
+    // The question is whether THIS face alone wraps the azimuth, so its
+    // scope is the face itself: a closed group over that scope is the
+    // face alone.
+    let alone_scope = ChartGroups::within(body, [face])
+        .map_err(|face| PointInSolidError::CorruptFace { face })?;
+    let alone = surface_group(body, face, &alone_scope, RimExemption::Circles)
         .map_err(|face| PointInSolidError::CorruptFace { face })?
-        .is_some_and(|group| group.members == [face]);
+        .is_some();
     if alone {
         return Ok((None, v, nappe));
     }
@@ -1673,12 +1654,13 @@ fn cone_nappe<T: Decide>(face: FaceKey, v: (T, T), band: Band) -> Result<bool, P
 fn wrapped_cone_group<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
+    charts: &ChartGroups,
     apex: Point3<T>,
     axis: Vec3<T>,
     cos_a: T,
     band: Band,
 ) -> Result<Option<FaceKey>, PointInSolidError> {
-    let Some(group) = surface_group(body, face, RimExemption::Circles)
+    let Some(group) = surface_group(body, face, charts, RimExemption::Circles)
         .map_err(|face| PointInSolidError::CorruptFace { face })?
     else {
         return Ok(None);
@@ -1752,11 +1734,12 @@ fn wrapped_cone_group<T: Decide>(
 pub(super) fn torus_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
+    charts: &ChartGroups,
     major_radius: T,
     minor_radius: T,
     band: Band,
 ) -> Result<(Option<(T, T)>, Option<(T, T)>, FaceKey), PointInSolidError> {
-    if let Some(group) = surface_group(body, face, RimExemption::None)
+    if let Some(group) = surface_group(body, face, charts, RimExemption::None)
         .map_err(|face| PointInSolidError::CorruptFace { face })?
     {
         return Ok((None, None, group.representative));
@@ -2168,7 +2151,7 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// monotone on [0, π], so the equivalence is exact for every window
 /// narrower than a period — guarded). No `atan2`, no periodic
 /// reduction: under the Interval scalar an `atan2` enclosure near the
-/// chart seam is honest poison, and the pre-fix trim escalated
+/// chart seam is honestly refused, and the pre-fix trim escalated
 /// `Invalid` on probe points every f64 run decides cleanly — the
 /// whole Interval boolean lane died on it. The cone margin is metered
 /// `· radius` (its displacement scale at the window edge is
@@ -3218,9 +3201,10 @@ pub fn point_in_solid<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    // Deterministic face sweep order (arena order).
-    let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-    point_in_faces(body, &faces, q, band, tol)
+    // Deterministic face sweep order (arena order); the whole body is
+    // this entry's selection.
+    let sel = SolidFaces::select(body, body.faces().map(|(k, _)| k).collect())?;
+    point_in_faces(body, &sel, q, band, tol)
 }
 
 /// Trilean containment of `q` in the material of ONE solid of a
@@ -3234,11 +3218,8 @@ pub fn point_in_solid<T: Decide>(
 /// # Errors
 ///
 /// [`PointInSolidError`] — the core's, plus
-/// [`PointInSolidError::NoSuchSolid`] for a key the body does not hold,
-/// [`PointInSolidError::ZeroVolumeBody`] for a solid with no faces, and
-/// [`PointInSolidError::SurfaceSharedOutsideSolid`] where a
-/// group-read kind's surface key crosses the selection boundary (the
-/// variant's doc carries why that is refused rather than served).
+/// [`PointInSolidError::NoSuchSolid`] for a key the body does not hold
+/// and [`PointInSolidError::ZeroVolumeBody`] for a solid with no faces.
 pub fn point_in_solid_of<T: Decide>(
     body: &Body<T>,
     solid: SolidKey,
@@ -3252,37 +3233,40 @@ pub fn point_in_solid_of<T: Decide>(
 
 /// One solid's faces, selected once and probed many times — what the
 /// census's containment arm holds per ordering, so the selection and
-/// its shared-key guard are paid once per pair rather than once per
+/// its chart grouping are paid once per pair rather than once per
 /// vertex. [`point_in_solid_of`] is this selection followed by one
 /// [`point_in_solid_faces`].
+///
+/// **The selection is the probe's scope.** The arms that read a surface
+/// GROUP — the cone, the closed sphere, the torus — group the
+/// SELECTION's faces by key and act for a representative among them: a
+/// chart is body-wide, and a wearer outside the selection bounds
+/// material the query is not about.
 #[derive(Clone, Debug)]
 pub struct SolidFaces {
     faces: Vec<FaceKey>,
+    charts: ChartGroups,
 }
 
 impl SolidFaces {
-    /// One solid's faces in face-arena order, guarded — selected by
-    /// the faces' own back-pointers through [`Body::faces_of_solid`],
-    /// not by a walk of [`crate::Solid::shells`] (that door's doc
-    /// carries why the two orders differ).
+    /// One solid's faces in face-arena order — selected by the faces'
+    /// own back-pointers through [`Body::faces_of_solid`], not by a walk
+    /// of [`crate::Solid::shells`] (that door's doc carries why the two
+    /// orders differ).
     ///
     /// # Errors
     ///
     /// [`PointInSolidError::NoSuchSolid`] for a key the body does not
-    /// hold; [`PointInSolidError::SurfaceSharedOutsideSolid`] where a
-    /// group-read kind's surface key crosses the selection boundary
-    /// (the variant's doc carries why that is refused rather than
-    /// served). An empty selection is not refused here: the probe
-    /// answers [`PointInSolidError::ZeroVolumeBody`] for it.
+    /// hold. An empty selection is not refused here: the probe answers
+    /// [`PointInSolidError::ZeroVolumeBody`] for it.
     pub fn of<T: Decide>(body: &Body<T>, solid: SolidKey) -> Result<Self, PointInSolidError> {
         let faces = body
             .faces_of_solid(solid)
             .ok_or(PointInSolidError::NoSuchSolid { solid })?;
-        Self::guarded(body, faces)
+        Self::select(body, faces)
     }
 
-    /// One SHELL's faces in face-arena order, guarded as [`Self::of`]
-    /// guards a solid's — selected by the faces' own `shell`
+    /// One SHELL's faces in face-arena order — selected by the faces' own `shell`
     /// back-pointers, so the probe reads the material that shell ALONE
     /// bounds: for a cavity wall, whose faces point into the cavity,
     /// that is everything outside the cavity (the complement, read
@@ -3290,10 +3274,7 @@ impl SolidFaces {
     /// operand is).
     ///
     /// A key the body does not hold selects no face, which the probe
-    /// answers [`PointInSolidError::ZeroVolumeBody`]; a group-read
-    /// surface key shared with a face of ANOTHER SHELL — of this solid
-    /// or of another — refuses [`PointInSolidError::SurfaceSharedOutsideSolid`],
-    /// whose reason holds unchanged at shell grain.
+    /// answers [`PointInSolidError::ZeroVolumeBody`].
     pub(crate) fn of_shell<T: Decide>(
         body: &Body<T>,
         shell: crate::entity::ShellKey,
@@ -3303,55 +3284,20 @@ impl SolidFaces {
             .filter(|(_, d)| d.shell == shell)
             .map(|(k, _)| k)
             .collect();
-        Self::guarded(body, faces)
+        Self::select(body, faces)
     }
 
-    /// `faces` as a selection, behind the shared-group-key guard.
-    fn guarded<T: Decide>(body: &Body<T>, faces: Vec<FaceKey>) -> Result<Self, PointInSolidError> {
-        // A group-read kind whose surface key is carried on both sides
-        // of the selection boundary (the variant's doc). One pass over
-        // the arena: every key's first face outside the selection.
-        //
-        // OUTSIDE is the complement of `faces`, read off `faces`
-        // itself rather than re-asked of the back-pointers: the two
-        // passes then cannot disagree about where the boundary is,
-        // which a second spelling of the membership test could.
-        let selected: std::collections::BTreeSet<FaceKey> = faces.iter().copied().collect();
-        let mut foreign: std::collections::BTreeMap<crate::geometry::SurfaceKey, FaceKey> =
-            std::collections::BTreeMap::new();
-        for (k, d) in body.faces() {
-            if !selected.contains(&k) {
-                foreign.entry(d.surface).or_insert(k);
-            }
-        }
-        for &face in &faces {
-            let d = body
-                .get_face(face)
-                .ok_or(PointInSolidError::CorruptFace { face })?;
-            if body.get_surface(d.surface).is_some_and(reads_surface_group)
-                && let Some(&other) = foreign.get(&d.surface)
-            {
-                return Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other });
-            }
-        }
-        Ok(Self { faces })
+    /// `faces` as a selection, grouped by chart within itself.
+    fn select<T: Decide>(body: &Body<T>, faces: Vec<FaceKey>) -> Result<Self, PointInSolidError> {
+        let charts = ChartGroups::within(body, faces.iter().copied())
+            .map_err(|face| PointInSolidError::CorruptFace { face })?;
+        Ok(Self { faces, charts })
     }
 
     /// The selected faces, in face-arena order.
     pub fn faces(&self) -> &[FaceKey] {
         &self.faces
     }
-}
-
-/// The surface kinds [`face_geo`] reads through a surface GROUP — its
-/// arms that carry a `representative`: the cone, the closed sphere and
-/// the torus. The one list; [`SolidFaces::of`]'s guard and those arms
-/// cite it rather than restating it.
-pub(crate) fn reads_surface_group<T: geom_core::Real>(surface: &Surface<T>) -> bool {
-    matches!(
-        surface,
-        Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. }
-    )
 }
 
 /// Trilean containment of `q` in the material the selection's faces
@@ -3368,7 +3314,7 @@ pub fn point_in_solid_faces<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    point_in_faces(body, &sel.faces, q, band, tol)
+    point_in_faces(body, sel, q, band, tol)
 }
 
 /// The one closest-hit core behind both entries: the boundary
@@ -3380,11 +3326,12 @@ pub fn point_in_solid_faces<T: Decide>(
 /// side to classify against.
 fn point_in_faces<T: Decide>(
     body: &Body<T>,
-    faces: &[FaceKey],
+    sel: &SolidFaces,
     q: Point3<T>,
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
+    let faces = sel.faces();
     if faces.is_empty() {
         return Err(PointInSolidError::ZeroVolumeBody);
     }
@@ -3392,7 +3339,7 @@ fn point_in_faces<T: Decide>(
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
     for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        match face_geo(body, face, band)? {
+        match face_geo(body, face, &sel.charts, band)? {
             FaceGeo::Plane(origin, normal) => {
                 // Orientation-free: a residual compared against Zero
                 // answers the same whichever way the normal points,
@@ -3575,7 +3522,7 @@ fn point_in_faces<T: Decide>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
         let d = r.map(T::from_f64).normalize();
-        if let Some(verdict) = cast_ray(body, faces, q, d, band, tol)? {
+        if let Some(verdict) = cast_ray(body, sel, q, d, band, tol)? {
             return Ok(verdict);
         }
         // graze: next schedule member
@@ -4232,12 +4179,13 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
 /// One ray of the sweep: `Some(verdict)` or `None` for a graze.
 fn cast_ray<T: Decide>(
     body: &Body<T>,
-    faces: &[FaceKey],
+    sel: &SolidFaces,
     q: Point3<T>,
     d: Vec3<T>,
     band: Band,
     tol: Tol,
 ) -> Result<Option<SolidContainment>, PointInSolidError> {
+    let faces = sel.faces();
     let mut best: Option<(T, Sign)> = None; // (advance, sign of d·n)
     // A candidate crossing (advance, outward sign), or a graze.
     let fold = |best: &mut Option<(T, Sign)>,
@@ -4269,7 +4217,7 @@ fn cast_ray<T: Decide>(
     };
     for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        match face_geo(body, face, band)? {
+        match face_geo(body, face, &sel.charts, band)? {
             FaceGeo::Plane(origin, normal) => {
                 // `normal` is the face's OUTWARD normal (S10, folded in
                 // by `face_geo`), so this sign IS the material-side
@@ -4821,12 +4769,10 @@ mod wall_section_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod per_solid_entry_tests {
-    //! The per-solid entry's own refusals, on states only an in-crate
-    //! hand can build: a surface key shared across the selection
-    //! boundary on a group-read kind, and a solid with no faces.
+    //! The per-solid entry against its whole-body twin, and a key
+    //! shared across the selection boundary written by an in-crate hand.
 
     use super::*;
-    use crate::euler::FaceSurface;
     use crate::splitting::reassembly::quad_prism;
 
     fn two_cubes() -> Body<f64> {
@@ -4842,56 +4788,8 @@ mod per_solid_entry_tests {
         (v[0], v[1])
     }
 
-    /// A sphere key on one face of each solid — the SAME key, written
-    /// into the second solid's face arena by hand (no public door
-    /// produces this: instance placement mints a fresh key per placed
-    /// face) — refuses the per-solid query typed before any predicate
-    /// runs. The same key on PLANES is served: no group is read.
-    #[test]
-    fn a_group_read_key_shared_across_the_selection_refuses_typed() {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let mut body = two_cubes();
-        let (a, b) = solids(&body);
-        let fa = body.faces_of_solid(a).unwrap()[0];
-        let fb = body.faces_of_solid(b).unwrap()[0];
-        let sphere = Surface::Sphere {
-            center: Point3::new(0.5, 0.5, 0.5),
-            radius: 0.5,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let key = body.set_face_surface(fa, FaceSurface::New(sphere)).unwrap();
-        body.faces[fb].surface = key;
-        let q = Point3::new(0.5, 0.5, 0.5);
-        match point_in_solid_of(&body, a, q, band, tol) {
-            Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other }) => {
-                assert_eq!((face, other), (fa, fb));
-            }
-            other => panic!("the typed guard: {other:?}"),
-        }
-        // Asked of `b`, the same shared key names `fa` as the foreign face.
-        match point_in_solid_of(&body, b, q, band, tol) {
-            Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other }) => {
-                assert_eq!((face, other), (fb, fa));
-            }
-            other => panic!("the typed guard, other side: {other:?}"),
-        }
-        let text = PointInSolidError::SurfaceSharedOutsideSolid {
-            face: fa,
-            other: fb,
-        }
-        .to_string();
-        assert!(
-            text.contains("shares its surface with a face of another solid")
-                && text.contains("Recourse: give each solid its own surface keys"),
-            "{text}"
-        );
-        assert!(!text.contains("SurfaceSharedOutsideSolid {"), "{text}");
-    }
-
-    /// A PLANE key shared across the boundary is not a group read and
-    /// is served: the query decides on the selection's own faces.
+    /// A key shared across the selection boundary is served: the query
+    /// decides on the selection's own faces.
     #[test]
     fn a_shared_plane_key_is_served() {
         let tol = Tol::witness();

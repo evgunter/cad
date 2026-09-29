@@ -46,3 +46,17 @@ red there by exactly the drift above.
 whether each moved decision is right; then re-take the tables. Also
 give the two rows a schedule: `#[ignore]` plus "re-taken at each SYM
 unit's close" let the drift land with no one seeing it.
+
+**Measured on the run-out carrier's merge of main** (PR 3266),
+identical at ε = 1e-6, 1e-9 and
+1e-12 — pad past the ceiling `[885, 128, 1066, 2722]`, rule F off/on
+`(889, 104, 1086, 2722)` / `(885, 128, 1066, 2722)`, link
+`[214, 76, 179, 556]`, bracket `[429, 141, 344, 1096]`. That PR's own
+share is +3 `symbolic_zero` and +3 `numeric` on the pad and +1 / +1 on
+the bracket; the drift in the table above (`numeric` +8 and `frozen`
+2750 → 2722 on the pad, `numeric` +4 link, +2 bracket) is carried in
+those values and still unattributed, so the bisect's target is
+unchanged.
+
+The rows store main's values plus only that PR's own delta, not main's
+drift, so they stay red by exactly the drift above.

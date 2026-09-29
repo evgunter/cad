@@ -1,7 +1,7 @@
 //! **The control-net bracket seam follows the certified door** — the
-//! surface half of `tests/curves/decoration_ring_coords.rs`.
+//! surface half of `tests/curves/decoration_certified_coords.rs`.
 //!
-//! `NurbsSurface::ring_coords` lifts the control net into certification arithmetic,
+//! `NurbsSurface::certified_coords` lifts the control net into certification arithmetic,
 //! one `Interval` per coefficient, by reading each coefficient's
 //! bracket. At the `Interval` scalar a bracket can be sound and still
 //! inadmissible: `sqrt([−1, 4])` clamps to `[0, 2]` and records the
@@ -57,8 +57,8 @@ fn the_fixture_is_a_finite_bracket_that_cannot_certify() {
 }
 
 #[test]
-fn surface_ring_coords_refuses_a_violated_coefficient_per_channel() {
-    let coords = patch(trv()).ring_coords();
+fn surface_certified_coords_refuses_a_violated_coefficient_per_channel() {
+    let coords = patch(trv()).certified_coords();
     assert!(
         !coords[0][0].is_certified(),
         "the violated coefficient crossed as {:?} — the lift read the \
@@ -75,11 +75,11 @@ fn surface_ring_coords_refuses_a_violated_coefficient_per_channel() {
 /// Non-vacuity from the other side.
 #[test]
 fn a_certified_net_crosses_unchanged() {
-    for ch in patch(healthy()).ring_coords() {
+    for ch in patch(healthy()).certified_coords() {
         for r in ch {
             assert!(r.is_certified(), "a certified net must cross whole");
         }
     }
-    let coords = patch(healthy()).ring_coords();
+    let coords = patch(healthy()).certified_coords();
     assert_eq!((coords[0][0].lo(), coords[0][0].hi()), (1.0, 2.0));
 }

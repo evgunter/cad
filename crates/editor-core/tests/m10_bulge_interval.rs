@@ -193,12 +193,13 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
 /// literal against 126/0/38/16 here, so four of the six the rule takes
 /// on the literal it does not take when the bulge is a parameter. The
 /// sign
-/// enters where the dyadic control shows it once the ring is out of
-/// the way: the carrier's span `4·atan|b|` (`sweep`'s `arc_span`)
-/// mints `abs(b)` and `sqrt(1 + abs(b)²)` where the pushforward's
-/// `4·atan b` mints `sqrt(1 + b²)` — two atoms for one quantity,
-/// related only through the sign of `b` — and the radius
-/// `abs(L(1+b²)/(4b))` carries it too.
+/// entered, where the dyadic control showed it, through the carrier's
+/// span while that was spelled `4·atan|b|`: `abs(b)` and
+/// `sqrt(1 + abs(b)²)` against the pushforward's `sqrt(1 + b²)`. The
+/// span is now the stored sweep signed by the decided turn
+/// (`sweep`'s `arc_span`), one `atan b` atom on both sides, and this
+/// row's split did not move with it: the ring blocks first. The sign
+/// still rides in the radius `abs(L(1+b²)/(4b))`.
 #[test]
 fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     let tol = Tol::witness();

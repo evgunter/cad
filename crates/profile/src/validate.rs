@@ -743,6 +743,12 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "an authored fillet radius metered against zero",
     ),
     (
+        "path_run_out_carrier",
+        "an emitted segment told apart from a fillet's arrival carrier: its end's lateral \
+         miss from the arrival ray and its advance along it, or its end's and arc midpoint's \
+         radial misses from the arrival circle",
+    ),
+    (
         "path_seam_arrival_lever",
         "the lever arm the seam arrival's own turn and side gates are metered through",
     ),
@@ -1104,10 +1110,11 @@ pub struct ValidatedSegment<T: Real> {
     /// canonical form. **Consumers select carriers by
     /// [`ValidatedSegment::kind`], never by the bulge** — a
     /// sub-tolerance bulge classifies as `Line` while retaining its
-    /// value. The one boundary that still reads the bulge itself is the
-    /// `geom-brep` sketch segment, whose form is the bulge: the sweep's
-    /// arc span (`4·atan|b|`) and apex are spelled on it there, beside
-    /// the segment they build.
+    /// value. Nothing downstream of validation reads it: the sweep's
+    /// arc span and apex and the `geom-brep` sketch segment read the
+    /// kind's carrier and sweep. What still reads it is this crate's
+    /// lift (the carrier at a certified scalar is rebuilt from it) and
+    /// the readers `store-constructed-carriers` retires.
     pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).

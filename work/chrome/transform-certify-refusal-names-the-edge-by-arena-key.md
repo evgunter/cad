@@ -4,6 +4,8 @@ kind: issue
 title: topo: TransformError::Certify's Display names the mapped edge by arena key in the feature tree
 status: open
 opened: 2026-09-28
+priority: P2
+cost: E
 ---
 
 

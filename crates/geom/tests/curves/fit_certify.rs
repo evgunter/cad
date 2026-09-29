@@ -14,7 +14,7 @@
 
 use geom::NurbsCurve3;
 use geom_core::Point3;
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
 
 const R: f64 = 2.5;
 
@@ -48,8 +48,8 @@ fn sphere_residual(p: Point3<f64>) -> f64 {
 /// residual (meters²) — the one-call certification story.
 fn hull_bound(curve: &NurbsCurve3<f64>) -> f64 {
     let c = center();
-    let coords = curve.ring_coords();
-    let data = CurveRingData::new(curve.knots(), curve.weights(), &coords).unwrap();
+    let coords = curve.certified_coords();
+    let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
     let form = compose::implicit_composite(
         &data,
         &ImplicitSurface::Sphere {

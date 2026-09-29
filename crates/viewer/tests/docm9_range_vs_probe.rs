@@ -25,8 +25,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// A unit square extruded by a document parameter — the same branch

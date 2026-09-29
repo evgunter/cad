@@ -45,7 +45,7 @@ the reason is structural:
 
 - `transform_rigid` has a generic caller chain —
   `boolean::ops::apply_recuts` → `boolean_op_recut` → `boolean_op_with`
-  → `verbs::Verb`'s `impl<T: Decide + Bounds + PcurveFittedLane>` →
+  → `verbs::Verb`'s `impl<T: Decide + Bounds + topo::AtRestPolicy>` →
   `editor_core::evaluate::<Dual64>`.
 - `CertifiedBounds` is blanket over `Bounds + CertifiedEnclosure`, and
   `CertifiedEnclosure` is implemented for `Interval`, `RingInterval`,

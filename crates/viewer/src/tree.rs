@@ -80,12 +80,12 @@
 //! **So a `PlacerRefused` mate's row LINKS to the placer**
 //! ([`TreeRow::repair_at`]), on either path: blame decides which row
 //! is loud and carries the words, and the link is how a reader gets
-//! from those words to the node the kernel says to fix. No other arm
-//! links, for the reason above; `repaired_at` is where an arm answers
-//! this. On the fold's path the link lands on a poisoned placer whose
-//! own line points back at the mate — the words are on the mate's row,
-//! so the link's job is to put the placer under the selection, not to
-//! show a second copy of them.
+//! from those words to the node the kernel says to fix. No other mate
+//! arm links, for the reason above; `repaired_at` is where an arm
+//! answers this. On the fold's path the link lands on a poisoned
+//! placer whose own line points back at the mate — the words are on
+//! the mate's row, so the link's job is to put the placer under the
+//! selection, not to show a second copy of them.
 //!
 //! **One seat the link inherits is wrong, and it is the kernel's.**
 //! `check_reference` evaluates a `Part`'s index expression under the
@@ -110,6 +110,14 @@
 //! it wants a status saying "the run, not this row" rather than a
 //! culprit invented here
 //! (`work/chrome/band-refusal-still-badges-every-row.md`).
+//!
+//! # A failed row outside the solve links where its own error says
+//!
+//! Every other `NodeErrorKind` is asked the same question
+//! (`repair_named`). One links: a profile refused with
+//! `FrameDirection` links to the frame, whose own direction slot is
+//! what refused — and whose row may read `Ok`, because the frame
+//! lands at the lane while its nominal does not.
 //!
 //! # Order and depth
 //!
@@ -281,9 +289,8 @@ pub struct TreeRow {
     pub note: Option<String>,
     /// **The node a [`RowStatus::Failed`] row's words name as the one
     /// to repair, when that is not this node** — the row a click on
-    /// [`repair_wording`] selects. Today: a mate refused with
-    /// [`MateFault::PlacerRefused`], linking to its `placer` (the
-    /// module header's second section).
+    /// [`repair_wording`] selects: whatever `repair_named` answers for
+    /// the row's own error.
     ///
     /// `None` on every row that is not `Failed`: a `Poisoned` row's
     /// link is its own `through`, and an `Ok` or `Unevaluated` row has
@@ -292,8 +299,7 @@ pub struct TreeRow {
 }
 
 /// The kind name of a recipe node — the node vocabulary's own
-/// spelling, one arm per variant so a new node type cannot fall into a
-/// wildcard and draw as something it is not.
+/// spelling.
 ///
 /// **The datum FLAVOURS are named apart** (`Datum plane`, not
 /// `Datum`), which is the same rule one level down: a plane and a
@@ -392,7 +398,34 @@ pub fn frame_pose(node: &Node<ProfileProgram>) -> Option<String> {
             })
         }
         Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", node_number(*at))),
-        _ => None,
+        Node::Datum(
+            Datum::Plane { .. }
+            | Datum::Axis { .. }
+            | Datum::Point { .. }
+            | Datum::AxisInPlane { .. },
+        )
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
     }
 }
 
@@ -542,9 +575,33 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
     match node {
         Node::Mate { class, .. } => match pncad::document::class_admission(*class) {
             pncad::document::ClassAdmission::Mints => None,
-            other => Some(format!("{}: {}", class.name(), other.no_record_reason())),
+            caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
+            | pncad::document::ClassAdmission::NotAdmitted) => {
+                Some(format!("{}: {}", class.name(), caveat.no_record_reason()))
+            }
         },
-        _ => None,
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
     }
 }
 
@@ -621,21 +678,119 @@ pub fn repair_wording(at: RecipeNodeId) -> String {
     format!("see {}", node_number(at))
 }
 
-/// The node a `Failed` row's fault names as the one to repair, when
-/// the row is the mate the fault blames and the node is another one.
+/// The node a `Failed` row's error names as the one to repair, when
+/// that is another node.
 fn repair_of(id: RecipeNodeId, ev: &Evaluation<f64>) -> Option<RecipeNodeId> {
-    let NodeErrorKind::Mate(fault) = &ev.result(id)?.error()?.kind else {
-        return None;
-    };
-    repaired_at(fault).filter(|at| *at != id)
+    repair_named(&ev.result(id)?.error()?.kind).filter(|at| *at != id)
+}
+
+/// **Which node an evaluation error names as the one an author
+/// repairs**: the named node whose own authored input is what
+/// refused, as against a node the words mention as evidence or as
+/// the input the failing node misused. The kernel's doc for the arm
+/// says which: `PlacerRefused`'s calls it *"the node an author goes
+/// and fixes"*; `FrameDirection`'s refusal is the frame's own slot's,
+/// carried unaltered to the reader.
+fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
+    match kind {
+        NodeErrorKind::Mate(fault) => repaired_at(fault),
+        // The frame's own direction slot refused; the profile only
+        // read it, and the frame's row may well read `Ok`.
+        NodeErrorKind::FrameDirection { frame, .. } => Some(*frame),
+        // An input of the failing node whose value is a family the
+        // operand does not take (a split fed to a boolean): the input
+        // is a sound node, and choosing it is the failing node's.
+        NodeErrorKind::WrongOperand { .. } => None,
+        // Either of two nodes may be the repair — the empty input or
+        // the failing node's use of it, the pattern's count or the
+        // `Part`'s index, either frame — and one link would pick for
+        // the reader. Open:
+        // `work/chrome/failed-row-repair-links-for-arms-with-two-candidate-repairs`.
+        NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::EmptyHalf { .. }
+        | NodeErrorKind::InstanceOutOfRange { .. }
+        | NodeErrorKind::AxisInDifferentPlane { .. } => None,
+        // Names an id no live node holds, so there is no row to go to.
+        NodeErrorKind::MissingInput { .. } => None,
+        // The lane cannot carry what the named nodes hold; neither
+        // node is wrong, and the f64 lane builds them.
+        NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
+        // Names the site the declaration chose, and the choice is the
+        // `Declare`'s, which the error does not name.
+        NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
+        // Names the failing instance itself.
+        NodeErrorKind::CrossingUnverified { .. } => None,
+        // A payload that names a node does so as evidence: a name's
+        // minting node, where the repair is the referring node's own
+        // reference; an upstream table the naming pass found missing;
+        // or a node in ANOTHER document's id space (`PartFault`), which
+        // no row of this tree is.
+        NodeErrorKind::Part { .. }
+        | NodeErrorKind::DeclareResolve { .. }
+        | NodeErrorKind::UndeclaredContact { .. }
+        | NodeErrorKind::UndeclarableContact { .. }
+        | NodeErrorKind::BlendSelectionResolve { .. }
+        | NodeErrorKind::BlendSelectionKind { .. }
+        | NodeErrorKind::ShellOpenResolve { .. }
+        | NodeErrorKind::ShellOpenKind { .. }
+        | NodeErrorKind::FaceFrameResolve { .. }
+        | NodeErrorKind::FaceFrameKind { .. }
+        | NodeErrorKind::MeasureRefResolve { .. }
+        | NodeErrorKind::MeasureRefUnreadable { .. }
+        | NodeErrorKind::Naming(_) => None,
+        // Name no node beside the failing one.
+        NodeErrorKind::Expr { .. }
+        | NodeErrorKind::Profile(_)
+        | NodeErrorKind::ProfileReplay { .. }
+        | NodeErrorKind::ProfileLaneReplay { .. }
+        | NodeErrorKind::ProfileAnchor { .. }
+        | NodeErrorKind::ProfilePieces { .. }
+        | NodeErrorKind::Extrude(_)
+        | NodeErrorKind::Revolve(_)
+        | NodeErrorKind::Tube(_)
+        | NodeErrorKind::Split(_)
+        | NodeErrorKind::Blend { .. }
+        | NodeErrorKind::Boolean(_)
+        | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Skin(_)
+        | NodeErrorKind::Loft(_)
+        | NodeErrorKind::CurvedSolidFrontier { .. }
+        | NodeErrorKind::ToleranceConflict { .. }
+        | NodeErrorKind::ParamBox { .. }
+        | NodeErrorKind::Seed { .. }
+        | NodeErrorKind::DegenerateDirection { .. }
+        | NodeErrorKind::NonFiniteDirection { .. }
+        | NodeErrorKind::UnderflowedDirection { .. }
+        | NodeErrorKind::Band(_)
+        | NodeErrorKind::MissingSlot { .. }
+        | NodeErrorKind::VerbArity { .. }
+        | NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::NonPositiveCount { .. }
+        | NodeErrorKind::PlacementsUncertified { .. }
+        | NodeErrorKind::PlacementRule(_)
+        | NodeErrorKind::UnschedulableCycle
+        | NodeErrorKind::ParamSourceAttach(_)
+        | NodeErrorKind::DeclareUnsupportedPair { .. }
+        | NodeErrorKind::BlendSelectionEmpty { .. }
+        | NodeErrorKind::Shell(_)
+        | NodeErrorKind::ShellLaneUnsupported { .. }
+        | NodeErrorKind::FaceFrameNotPlanar { .. }
+        | NodeErrorKind::FaceFrameReadback { .. }
+        | NodeErrorKind::WitnessBifurcation(_)
+        | NodeErrorKind::MeasureNonFinite { .. }
+        | NodeErrorKind::MeasureNotParallel { .. }
+        | NodeErrorKind::MeasureUnsupported(_)
+        | NodeErrorKind::MeasureMalformed(_)
+        | NodeErrorKind::PayloadExpr { .. }
+        | NodeErrorKind::MeasureSelectionKind { .. }
+        | NodeErrorKind::MeasureClearanceRefused(_)
+        | NodeErrorKind::AssertionDimension { .. } => None,
+    }
 }
 
 /// **Which node a mate refusal names as the one an author repairs,
 /// where that is not the blamed mate** — the module header's second
 /// section, one arm per fault.
-///
-/// Exhaustive, as [`blamed_mates`] is: a fault arm the kernel grows
-/// decides here whether its words send the reader to another node.
 fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
     match fault {
         // The kernel's own doc: "the node an author goes and fixes".
@@ -686,10 +841,6 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 
 /// The mates a solve refusal BLAMES — the nodes the fault's own words
 /// point the user at.
-///
-/// Exhaustive on purpose: a fault arm the kernel grows must decide
-/// here whether it names a mate, rather than falling into a wildcard
-/// and silently drawing every reached row as downstream of nothing.
 ///
 /// Every arm that names a mate blames it, whatever else it names; why
 /// that holds for an arm naming a node an author may repair is stated
@@ -772,18 +923,6 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
 /// oracle silent about a state lets every one of those gates keep
 /// passing on documents broken in the new way.
 ///
-/// **An exhaustive `match` rather than a `matches!`, and that is the
-/// point.** A subset pattern answers `false` for everything it does
-/// not name, so a fifth [`RowStatus`] would be silently not-a-fault
-/// and those gates would stay green over it. It reds HERE — at the
-/// policy the new state has to answer — rather than a schedule away
-/// from it. (Not nowhere: `pane::features`'s badge draw and its link
-/// decision, `tree::rows`' decision of which rows carry a
-/// [`TreeRow::repair_at`], and `frame::badge_site`'s guard, are
-/// exhaustive too, so a fifth state is a compile error in five
-/// places. What none of them
-/// is, is this policy.)
-///
 /// **Every arm is this chrome's own policy, and none of it is read off
 /// the kernel.** A [`RowStatus`] is already a viewer reading of an
 /// evaluation, so there is no upstream rule to cite here the way
@@ -794,8 +933,7 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
 /// - [`RowStatus::Failed`] and [`RowStatus::Poisoned`] are faults. A
 ///   poisoned row's failure is someone else's, but the document it
 ///   belongs to is no more building for that.
-/// - [`RowStatus::Unevaluated`] is **not** a fault, and it is stated
-///   rather than left to the complement of a pattern: an absent
+/// - [`RowStatus::Unevaluated`] is **not** a fault: an absent
 ///   measurement is not a bad one, and a tree drawn before the first
 ///   result would otherwise report every document as broken. That is
 ///   the reading the tests pin, not recovered intent — the function

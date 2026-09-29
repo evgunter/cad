@@ -40,6 +40,7 @@ use geom_core::Bounds;
 use geom_core::KERNEL_LIMIT_LAST_RESORT;
 use geom_core::MarginDiag;
 use geom_core::Point3;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 
 use crate::shared::fixture::{bumpy_patch, kv1, kv2, quarter_cylinder, sphere_band};

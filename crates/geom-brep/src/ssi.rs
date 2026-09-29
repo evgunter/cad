@@ -89,7 +89,7 @@
 //! the origin** — an interior-knot (multi-cell) wall currently
 //! refuses at limb 1 (march/fit quality at the knot line), a span
 //! window straddling a knot line or leaving the domain hulls the
-//! neighbor cell's polynomial extension into the bound or poisons,
+//! neighbor cell's polynomial extension into the bound or refuses,
 //! and far-from-origin operands hit the projection and exhaustiveness
 //! machinery's own representation floors — every one of these is a
 //! loud, typed refusal, never a silent miscertification.
@@ -1014,7 +1014,7 @@ pub fn plane_nurbs_ssi(
     if !speed.is_finite() {
         return Err(SsiError::UnsupportedCertificate {
             what: "the NURBS wall's certified chart speed is not finite — its \
-                   derivative bound overflowed or is poison — so no floor in \
+                   derivative bound overflowed or is refused — so no floor in \
                    meters can be translated into its parameter domain",
         });
     }
@@ -1096,7 +1096,7 @@ pub fn plane_nurbs_ssi(
 /// per-span chain is also precisely the region limb 3's chart form
 /// proved a single arc over, so the two agree by construction.
 fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
-    let coords = p.ring_coords();
+    let coords = p.certified_coords();
     let kv = p.knots();
     let mut out = Vec::new();
     // One pair per coordinate channel, minted once outside the span
@@ -1349,17 +1349,18 @@ pub fn idealized_trace_r3(
 }
 
 /// `max` that PROPAGATES NaN — `f64::max` returns the non-NaN operand,
-/// so a lone poisoned fold input would be dropped before any guard
-/// with an `is_finite`/`is_nan` arm could see it.
+/// so a lone refused fold input (a refused box's `mag` reads NaN) would
+/// be dropped before any guard with an `is_finite`/`is_nan` arm could
+/// see it.
 ///
 /// At its one call site (the seeding guard's chart-speed fold) the
 /// difference from `f64::max` is defensive rather than reachable
-/// today: a poisoned derivative box needs a zero-touching weight hull
+/// today: a refused derivative box needs a zero-touching weight hull
 /// or a malformed net — both refused at construction — and an
 /// OVERFLOWED box saturates its `mag` to `+∞`, which both folds hand
 /// to the same not-finite refusal. The pin below is therefore on this
 /// helper by name; the reachability argument lives here so that a
-/// future producer of one-sided poison (a new box source, a widened
+/// future producer of a one-sided refusal (a new box source, a widened
 /// constructor) finds the fold already stated as load-bearing.
 fn nan_propagating_max(a: f64, b: f64) -> f64 {
     if a.is_nan() || b.is_nan() {

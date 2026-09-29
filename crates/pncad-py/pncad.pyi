@@ -2069,8 +2069,8 @@ class Node:
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
-        Every face on a chart is named together (a full revolve's cap
-        is two half-faces). An unresolvable name, a name that is not a
+        Every face of one solid on a chart is named together (a full
+        revolve's cap is two half-faces). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
         designated face refuses typed at `evaluate`. `thickness` mints
         a literal in the node's `shell_thickness` slot, moved by
@@ -2501,8 +2501,15 @@ class Expr:
     def __eq__(self, other: object) -> bool: ...
 
 class ParamName:
-    """A document-level parameter name (guide §3.2). NOT an arena
-    key: the same plain name the recipe's expressions reference."""
+    """A document-level parameter name (guide §3.2): one identifier,
+    the same name the recipe's expressions reference. NOT an arena
+    key.
+
+    A name must be one an expression can read back as this parameter,
+    and that IS refused here: text that is blank, padded with
+    whitespace, or not exactly one identifier raises `EditError` with
+    `variant == "param_name_not_an_identifier"` at this call rather
+    than reaching a document."""
 
     def __init__(self, name: str) -> None: ...
     @property

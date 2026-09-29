@@ -69,6 +69,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::convention::{ConventionEnd, RepresentabilityMargin};
+use crate::datum::{AnalyticData, DatumValue};
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
@@ -90,6 +91,14 @@ pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
+// The variant roster the analytic-kind fixtures read
+// ([`crate::test_support`]; this crate's `test-support` feature,
+// test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(SurfaceVariant), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
     /// `v_ref = normal × u_ref`.
@@ -558,6 +567,143 @@ impl SurfaceDatum {
             Self::Center => "center",
             Self::MajorRadius => "major_radius",
             Self::MinorRadius => "minor_radius",
+        }
+    }
+}
+
+/// A surface's stored data, by what kind of datum it stores
+/// ([`Surface::data`]).
+#[derive(Debug)]
+pub enum SurfaceData<'a, T: Real> {
+    /// An analytic kind's fields.
+    Analytic(AnalyticData<T, SurfaceDatum>),
+    /// A spline net, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>),
+    /// A fitted surface, unread.
+    Approx(&'a Arc<ApproxSurface<T>>),
+}
+
+/// Two surfaces read side by side ([`Surface::paired_with`]).
+#[derive(Debug)]
+pub enum SurfacePairing<'a, T: Real> {
+    /// The kinds differ, so no datum of one answers a datum of the
+    /// other.
+    KindsDiffer,
+    /// One analytic kind: each stored datum with its counterpart.
+    Analytic(AnalyticPairs<T>),
+    /// Two spline payloads, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>, &'a Arc<NurbsSurface<T>>),
+    /// Two fitted payloads, unread.
+    Approx(&'a Arc<ApproxSurface<T>>, &'a Arc<ApproxSurface<T>>),
+}
+
+/// Two surfaces of one analytic kind, datum against datum
+/// ([`SurfacePairing::Analytic`]).
+#[derive(Clone, Copy, Debug)]
+pub struct AnalyticPairs<T: Real>(AnalyticData<T, SurfaceDatum>, AnalyticData<T, SurfaceDatum>);
+
+impl<T: Real> AnalyticPairs<T> {
+    /// Each stored datum with its two values, in field order.
+    pub fn pairs(self) -> impl Iterator<Item = (SurfaceDatum, DatumValue<T>, DatumValue<T>)> {
+        self.0
+            .into_iter()
+            .zip(self.1)
+            .map(|((datum, x), (_, y))| (datum, x, y))
+    }
+}
+
+impl<T: Real> Surface<T> {
+    /// **The surface's stored data** — the one walk of the analytic
+    /// kinds' fields, which each reader that visits them field by
+    /// field folds with its own question (a poison read, a hash key, a
+    /// comparison through a comparator of its choosing), and the
+    /// payload of a spline kind.
+    ///
+    /// The variants are destructured without `..`, so a field a variant
+    /// gains is a compile error here rather than a datum every reader
+    /// silently skips; a kind that is not read as fields is a new
+    /// [`SurfaceData`] arm, which every reader matches exhaustively. A field
+    /// that takes a kind past the walk's width is caught later, by the
+    /// build that first instantiates the walk (`AnalyticData::new`'s
+    /// bound), which `cargo check` does not reach.
+    pub fn data(&self) -> SurfaceData<'_, T> {
+        use DatumValue::{Direction, Point, Scalar};
+        use SurfaceDatum as D;
+        SurfaceData::Analytic(match *self {
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Origin, Point(origin)),
+                (D::Normal, Direction(normal)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Origin, Point(origin)),
+                (D::Axis, Direction(axis)),
+                (D::Radius, Scalar(radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Apex, Point(apex)),
+                (D::Axis, Direction(axis)),
+                (D::HalfAngle, Scalar(half_angle)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Radius, Scalar(radius)),
+                (D::Axis, Direction(axis)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Nurbs(ref n) => return SurfaceData::Nurbs(n),
+            Surface::Approx(ref a) => return SurfaceData::Approx(a),
+        })
+    }
+
+    /// `self` and `other` read side by side: their [`Surface::data`]
+    /// paired when they are one kind, [`SurfacePairing::KindsDiffer`]
+    /// otherwise. Each comparator folds the pairs its own way; none
+    /// walks the fields again.
+    pub fn paired_with<'a>(&'a self, other: &'a Self) -> SurfacePairing<'a, T> {
+        use SurfaceData as S;
+        if core::mem::discriminant(self) != core::mem::discriminant(other) {
+            return SurfacePairing::KindsDiffer;
+        }
+        match (self.data(), other.data()) {
+            (S::Analytic(a), S::Analytic(b)) => SurfacePairing::Analytic(AnalyticPairs(a, b)),
+            (S::Nurbs(a), S::Nurbs(b)) => SurfacePairing::Nurbs(a, b),
+            (S::Approx(a), S::Approx(b)) => SurfacePairing::Approx(a, b),
+            (S::Analytic(_) | S::Nurbs(_) | S::Approx(_), _) => SurfacePairing::KindsDiffer,
         }
     }
 }

@@ -2,10 +2,13 @@
 id: at-rest-badge-reports-an-empty-document-as-a-refusal
 kind: issue
 title: DocSession's at_rest badge reports a body-less document as a Refused product, three lines below the landing that classifies it as not-a-fault
-status: open
+status: closed
+branch: chrome/empty-doc-badge
 opened: 2026-09-15
 priority: P1
 cost: E
+closed: 2026-09-24
+pr: 3135
 ---
 
 
@@ -89,3 +92,28 @@ review (the reviewer named the site; the reachability question was put to
 the implementer lane and answered above). `session.rs` is claimed by
 CHROME and VIEW jointly; filed on CHROME because the deliverable is a
 badge. Re-home to VIEW if that reading is wrong.
+
+## Closed
+
+Closed by PR 3135 (`chrome/empty-doc-badge`). The premise held
+against the tree: `DocSession::land`'s `Err(fault)` arm built
+`AtRestBadge::Refused` for every class, and the derivation above is
+constructible — `landing_gathers::a_body_less_assembly_takes_no_at_rest_badge`
+builds it (one `InstantiatePart` plus a `Measure` read at it), gathers
+`NoBodyRoots`, and read `Some(Refused { "assembly: product: no product
+root denotes a body …" })` before the fix.
+
+The guard sits at the landing, not in `assembly_shaped`: the arm now
+asks `fault.kind().means_no_body()` once and both the registry's subject
+and the A5 badge read that one answer, so the landing cannot say the
+two things at once. `frame::badge_site` was not the route — it is
+private to `frame`, it answers which channel reports a refusal rather
+than whether there is a product for the gate to judge, and `session`
+sits below `frame`. `assembly_shaped` keeps answering the node-kind
+question it names; `AtRestBadge`'s doc states the second condition.
+
+The class sweep found the neighbouring half — the at-rest badge also
+repeats the gather refusals `badge_site` sends to the feature tree or to
+`product_badge` — and filed it as
+`at-rest-badge-repeats-a-gather-refusal-another-channel-carries`
+rather than deciding it here.
