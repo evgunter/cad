@@ -144,6 +144,17 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
+    # decision types; the `CensusUnsupportedCause` shape, one argument
+    # for both, beside `Contradiction`'s declaration.
+    "BooleanDecision": ("argued", "non-carriage with its falsifier, beside `Contradiction` "
+                        "in crates/topo/src/boolean/refusal_routes.rs; the carry is "
+                        "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
+    "Contradiction": ("argued", "non-carriage with its falsifier, beside the declaration "
+                      "in crates/topo/src/boolean/refusal_routes.rs; the carry is "
+                      "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                      "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
                         "declaration under the alias `PlaneRelation` "
                         "(crates/topo/src/boolean/plane_eq.rs)"),

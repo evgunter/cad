@@ -29,6 +29,24 @@ pub(crate) const CONTRADICTION_RECOURSE: &str =
 
 /// Which fact contradicted a declared pair: the rung that found the
 /// two carriers definitely distinct.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung and [`BooleanDecision`] beside it; the disposition table cites
+/// this paragraph as the home of both). A Rust caller can already name
+/// and match both types, since `pncad` re-exports `topo` whole. What the
+/// prelude list would add is the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` extended
+/// to two new published payloads, and a Python word for each, so the
+/// binding's callers could branch on the decision instead of reading it
+/// out of the sentence. Both are the façade crate's to write
+/// (`work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error.md`).
+///
+/// **The falsifier is a caller who must act on which decision refused**:
+/// a viewer that highlights a corner for `Corner` and a face boundary
+/// for `Containment`, or a Python caller that retries at a smaller
+/// tolerance only where the ending offers one. When the façade carries
+/// them, delete this paragraph and the two disposition rows with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Contradiction {
     /// The declared planes' normals are not parallel.
