@@ -360,7 +360,7 @@ multi-anchor states are unrepresentable. A placement is parametric:
 its components are `Expr`s, the one placement type
 `Node::Transform` holds too, so a document parameter can drive where a
 cluster sits, and a frame the maintenance mints from a solved pose is
-written as literals; `reconcile` re-keys records
+written as literals (ruled by Ev on `[ev]` #3437, 2026-09-29); `reconcile` re-keys records
 when an edit joins or splits clusters
 (`ClusterMaintenance::{Join, Split, GaugeRewrite}`, gauge-exact in
 bits). When a gauge moves the maintenance solves the prior document
