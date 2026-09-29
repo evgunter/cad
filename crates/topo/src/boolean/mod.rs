@@ -68,6 +68,7 @@
 
 pub(crate) mod boxes;
 pub mod carrier_eq;
+mod circle_cone;
 mod circle_torus;
 pub(crate) mod combine;
 pub mod contact_verify;
@@ -78,6 +79,7 @@ pub(crate) use contain::ContainErrorKind;
 mod finish;
 pub(crate) mod insert;
 mod join;
+mod line_cone;
 mod ops;
 pub(crate) mod section_cert;
 #[cfg(any(test, feature = "test-support"))]

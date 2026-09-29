@@ -390,7 +390,7 @@ pub(super) struct HalfAngleFrame<T> {
 /// contract, not an enclosure: the `Interval` lane carries the
 /// enclosure itself through every coefficient and the ladder decides on
 /// it, so it needs no meter to be sound.
-const NOISE_ULPS: f64 = 16.0;
+pub(super) const NOISE_ULPS: f64 = 16.0;
 
 /// What [`half_angle_roots`] certifies.
 pub(super) enum HalfAngleRoots<T> {

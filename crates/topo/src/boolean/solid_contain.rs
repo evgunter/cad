@@ -1529,7 +1529,7 @@ fn cone_trimmed_window<T: Decide>(
 /// # Errors
 ///
 /// [`PointInSolidError::CorruptFace`] — an unwalkable face.
-fn cone_slant_window<T: Decide>(
+pub(super) fn cone_slant_window<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     apex: Point3<T>,
@@ -3656,6 +3656,97 @@ pub(super) fn line_wall_roots<T: Decide>(
     ]))
 }
 
+/// What [`line_cone_roots`] found — [`WallRoots`]'s keep-them-apart
+/// posture, with the cone's own degenerate case in place of the
+/// cylinder's axis-parallel one.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum ConeRoots<T> {
+    /// The line runs parallel to a generator (`A` in the zero band):
+    /// the quadratic degenerates to a line, the far root has left for
+    /// infinity, and no certified PAIR exists. Not a miss and not a
+    /// tangency.
+    GeneratorParallel,
+    /// The discriminant is in the zero band: the line grazes a
+    /// generator, or passes through the apex, where every line has a
+    /// double root and the surface has no tangent plane. Not a crossing
+    /// at any order this function can see.
+    Tangent,
+    /// A definitely negative discriminant: no real root.
+    Miss,
+    /// Two definite roots of the line's own parameter, unordered: `A`
+    /// may have either sign.
+    Two([T; 2]),
+}
+
+/// The certified roots of the LINE `q + d·t` (`d` unit) against the
+/// infinite DOUBLE cone `(apex, axis, half_angle)`.
+///
+/// The line meets the carrier at the roots of
+/// `G(t) = (w·â)² − |w|²cos²α`, `w = q − apex + d·t` — the implicit form
+/// whose zero set is both nappes — expanded to `A t² + 2B t + C` with
+/// `A = (d·â)² − cos²α` dimensionless, `B` metres and `C` m². `G` is
+/// `−f·(ρ cos α + |h| sin α)` for the elevation `f` of
+/// [`geom_brep::cone_elevation`], and the second factor is positive off
+/// the apex, so a root of `G` is a crossing of the carrier. Which nappe
+/// a root landed on, and whether it landed on a given face, are the
+/// chart trim's questions, not the quadratic's.
+///
+/// - **`A`, levered by `lever`** (`bool_ray_cone_lead`): `A` vanishes
+///   exactly when the line runs parallel to a generator, and the lever
+///   is the length over which a near-parallel line drifts off the
+///   generator.
+/// - **The discriminant `B² − AC`, over `lever`** (`bool_ray_cone_disc`,
+///   a length): `−disc/A` is `G` at the line's closest approach, which
+///   factors as the product of the distances to the two nappes'
+///   generators, so a zero discriminant is a line grazing a generator.
+///   Every line through the apex has a double root there
+///   (`G = A·(t − t*)²` about it), so it is `Tangent` too.
+///
+/// With `A < 0` (the line inside the aperture) the two roots are on
+/// opposite nappes; with `A > 0` both are on one nappe.
+///
+/// The two predicates keep the ray lane's names and metering, and the
+/// lever is the caller's: the ray lane and the edge lane both pass the
+/// face's slant extent.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] — an in-band lead or discriminant.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn line_cone_roots<T: Decide>(
+    q: Point3<T>,
+    d: Vec3<T>,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    lever: T,
+    band: Band,
+) -> Result<ConeRoots<T>, geom_core::Indeterminate> {
+    let (_, cos_a) = half_angle.sin_cos();
+    let cos2 = cos_a.powi(2);
+    let w0 = q - apex;
+    let da = d.dot(axis);
+    let wa = w0.dot(axis);
+    let a2 = da.powi(2) - cos2;
+    let b2 = da * wa - w0.dot(d) * cos2;
+    let c2 = wa.powi(2) - w0.norm_squared() * cos2;
+    match decide("bool_ray_cone_lead", Margin::levered(a2, lever), band)? {
+        Sign::Positive | Sign::Negative => {}
+        Sign::Zero => return Ok(ConeRoots::GeneratorParallel),
+    }
+    let disc = b2.powi(2) - a2 * c2;
+    match decide("bool_ray_cone_disc", Margin::over_lever(disc, lever), band)? {
+        Sign::Positive => {}
+        Sign::Zero => return Ok(ConeRoots::Tangent),
+        Sign::Negative => return Ok(ConeRoots::Miss),
+    }
+    let root = disc.max(T::zero()).sqrt();
+    Ok(ConeRoots::Two([
+        (T::zero() - b2 - root) / a2,
+        (T::zero() - b2 + root) / a2,
+    ]))
+}
+
 /// What [`line_torus_roots`] found — the same three-way keep-them-apart
 /// posture [`WallRoots`] takes, with the middle case widened: on a
 /// quartic the thing a ray must abandon on is not only a tangency but
@@ -4329,45 +4420,26 @@ fn cast_ray<T: Decide>(
                     }
                 }
             }
-            // The cone wall arm (issue 1011, the cone half): the ray
-            // meets the infinite DOUBLE cone at the roots of
-            // `G(t) = (w·â)² − |w|²cos²α`, `w = q − apex + d·t` — the
-            // implicit form whose zero set is both nappes, expanded to
-            // `A t² + 2B t + C` with `A` dimensionless, `B` metres and
-            // `C` m². Which nappe a root landed on, and whether it
-            // landed on THIS face, are the chart trim's questions, not
-            // the quadratic's.
+            // The cone wall arm (issue 1011, the cone half): the ray's
+            // roots on the DOUBLE cone are [`line_cone_roots`]'s, which
+            // carries the quadratic and both of its margins.
             //
-            // **The leading coefficient is a posture, not a
-            // convenience.** `A = (d·â)² − cos²α` vanishes exactly when
-            // the ray runs PARALLEL to a generator, where the quadratic
-            // degenerates to a line: the far root has left for infinity
-            // and the crossing count this arm can certify is no longer
-            // two. That is not a miss and not a tangency, so it is
-            // neither skipped nor answered — the ray abandons and the
+            // **Generator-parallel is a posture, not a convenience**: the
+            // quadratic degenerates and the crossing count this arm can
+            // certify is no longer two, so the ray abandons and the
             // schedule retries, and exhaustion is `RayExhausted` like
             // every other ill-conditioned direction. Reached, not
             // hypothetical: a cone whose axis is (1,1,0)/√2 at α = π/4
             // puts two schedule members along a generator, and
             // `bool2_r1_probes::probe_generator_parallel_schedule_rays_
-            // graze_and_the_door_recovers` is this branch's row — red
-            // if the degenerate quadratic is ever ANSWERED. The margin is
-            // `A` levered by the face's own slant extent (D4's θ·r
-            // form: `A` is a difference of squared cosines and the
-            // extent is the length over which the near-parallel ray
-            // drifts off the generator).
-            //
-            // **The discriminant** `B² − AC` is m² and is metered by
-            // that same extent, so `disc / v_ext` is a length. It is
-            // the tangency margin: `−disc/A` is `G` at the ray's
-            // closest approach, which factors as the product of the
-            // distances to the two nappes' generators, so a zero
-            // discriminant IS a ray grazing a generator — a graze,
-            // retried, never a parity guess. The metering is
+            // graze_and_the_door_recovers` is this branch's row — red if
+            // the degenerate quadratic is ever ANSWERED. A tangent
+            // discriminant is a graze, retried, never a parity guess.
+            // The lever is the face's own slant extent; the metering is
             // conservative wherever the near-tangency is near the face
             // (both `|A| ≤ 1` and the mirror-nappe distance at a hit on
-            // the face are bounded by the extent), and its exact zero
-            // is the true tangency either way.
+            // the face are bounded by the extent), and its exact zero is
+            // the true tangency either way.
             FaceGeo::Cone {
                 apex,
                 axis,
@@ -4383,36 +4455,20 @@ fn cast_ray<T: Decide>(
                     continue;
                 }
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let cos2 = cos_a.powi(2);
-                let w0 = q - apex;
-                let da = d.dot(axis);
-                let wa = w0.dot(axis);
-                let a2 = da.powi(2) - cos2;
-                let b2 = da * wa - w0.dot(d) * cos2;
-                let c2 = wa.powi(2) - w0.norm_squared() * cos2;
                 // The face's own slant extent — the lever both margins
-                // below are metered by. Single-nappe by construction
+                // are metered by. Single-nappe by construction
                 // ([`cone_chart_trim`]), so this is the far bound.
                 let v_ext = v.0.abs().max(v.1.abs());
-                match decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
+                let ts = match line_cone_roots(q, d, apex, axis, half_angle, v_ext, band)
                     .map_err(escalate)?
                 {
-                    Sign::Positive | Sign::Negative => {}
-                    // Generator-parallel: a certified pair is gone.
-                    Sign::Zero => return Ok(None),
-                }
-                let disc = b2.powi(2) - a2 * c2;
-                match decide("bool_ray_cone_disc", Margin::over_lever(disc, v_ext), band)
-                    .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    Sign::Zero => return Ok(None), // tangent ray: graze
-                    Sign::Negative => continue,    // definite miss
-                }
-                let root = disc.max(T::zero()).sqrt();
+                    ConeRoots::Two(ts) => ts,
+                    ConeRoots::GeneratorParallel | ConeRoots::Tangent => return Ok(None),
+                    ConeRoots::Miss => continue,
+                };
                 // Unordered: `A` may be negative, and the closest-hit
                 // fold orders by advance anyway.
-                for t in [(T::zero() - b2 - root) / a2, (T::zero() - b2 + root) / a2] {
+                for t in ts {
                     let p = q + d * t;
                     match point_on_cone_in_face(
                         face, apex, axis, half_angle, u_ref, az, v, nappe, p, band,
