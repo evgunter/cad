@@ -953,6 +953,9 @@ pub(crate) fn value_field_ops(
                     egui::Event::Text(_)
                         | egui::Event::Paste(_)
                         | egui::Event::Cut
+                        | egui::Event::Ime(
+                            egui::ImeEvent::Commit(_) | egui::ImeEvent::DeleteSurrounding { .. }
+                        )
                         | egui::Event::Key {
                             key: egui::Key::Backspace | egui::Key::Delete,
                             pressed: true,
@@ -4576,6 +4579,33 @@ mod value_field_tests {
         assert!(
             matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
             "typing `{opening}` back is one edit: {landed:?}"
+        );
+        assert_eq!(row.showing().0, 10.0, "and the value is 10 mm again");
+    }
+
+    /// **An IME commit of the opening text is an edit too** — composed
+    /// input is typing, so it reverts an outside change as `Text` does.
+    #[test]
+    fn an_ime_commit_of_the_opening_text_is_an_edit() {
+        let mut row = Row::millimetres("chrome-ime-revert", 0.01);
+        let Subject::Param(name) = row.subject.clone() else {
+            panic!("the fixture is a parameter row");
+        };
+        let (_, opening) = row.showing();
+        row.click_in();
+        let outcome = row.session.perform(SessionOp::SetParam {
+            name,
+            value: props::SlotValue::Continuous(0.02),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        row.frame(vec![egui::Event::Ime(egui::ImeEvent::Commit(
+            opening.clone(),
+        ))]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            "composing `{opening}` back is one edit: {landed:?}"
         );
         assert_eq!(row.showing().0, 10.0, "and the value is 10 mm again");
     }
