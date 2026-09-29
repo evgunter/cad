@@ -7,6 +7,8 @@ opened: 2026-09-29
 refs: [kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
 priority: P2
 cost: E
+pr: 3495
+branch: topo/kill-loop-anchor-proof
 ---
 
 ## What
