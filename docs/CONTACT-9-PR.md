@@ -304,4 +304,27 @@ updated.
 
 ## Local results
 
-Filled at hand-back.
+Code at `5cdea1eb2`; this file is committed after it.
+
+| Check | Result |
+|---|---|
+| `topo` + `sweep`, ε = default | 3347 passed |
+| `topo` + `sweep`, ε = 1e-6 | 3347 passed |
+| `topo` + `sweep`, ε = 1e-12 | 3347 passed |
+| `contact9` rows, ε = 3e-10 and 1e-10 | 7 passed |
+| `editor-core` (all) | 2272 passed |
+| `test-utils` | 79 passed |
+| Python suite | 857 tests, OK |
+| clippy | clean |
+| `cargo fmt --all --check` | clean |
+| `scripts/gates/*.sh` | clean |
+| `work.py lint` | clean |
+
+Notes:
+- The Python suite ran from a maturin wheel installed into a fresh venv,
+  with `unittest discover` under `crates/pncad-py/tests`.
+- Clippy covered `--workspace --all-targets --all-features`,
+  `demos/tour`, `demos/wild` and `pncad-py --features python`.
+- The ε = 1e-12 run, `editor-core`, `test-utils` and the wheel were built
+  after `5cdea1eb2`'s one change (a type alias). The ε = default and
+  1e-6 runs were repeated on `5cdea1eb2` itself.
