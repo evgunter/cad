@@ -70,7 +70,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use pncad::document::{Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
@@ -331,9 +331,10 @@ pub enum IdMapError {
 /// Why a pick index could not be built (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
 pub enum PickIndexError {
-    /// A root's bodies could not be tessellated or indexed. The node
-    /// rides along because the payload names the body and not the
-    /// root that owns it.
+    /// A root's bodies could not be built into a part: it has no
+    /// value ([`NodePickError::Standing`]), or its value could not be
+    /// tessellated or indexed. The node rides along because the payload
+    /// names the body and not the root that owns it.
     Node {
         /// The root that refused.
         node: RecipeNodeId,
@@ -390,20 +391,49 @@ impl core::fmt::Display for IdMapError {
 
 impl core::error::Error for IdMapError {}
 
+impl PickIndexError {
+    /// **The root this refusal found with no value**, and its
+    /// standing — `None` for every other refusal.
+    ///
+    /// Only [`NodePickError::Standing`] is that: nothing of the root
+    /// was tessellated or indexed, because there is no value to take
+    /// a body from. A tessellation or indexing refusal is of a root
+    /// that DID evaluate.
+    pub fn valueless_root(&self) -> Option<(RecipeNodeId, NodeStanding)> {
+        match self {
+            Self::Node { node, error } => match error {
+                NodePickError::Standing(standing) => Some((*node, *standing)),
+                NodePickError::NotABody { .. }
+                | NodePickError::NoSuchBody { .. }
+                | NodePickError::Tessellate(_)
+                | NodePickError::Index(_) => None,
+            },
+            Self::Ids(_) | Self::DrawnTwice { .. } | Self::Names(_) => None,
+        }
+    }
+}
+
 impl core::fmt::Display for PickIndexError {
     /// The arms that carry somebody else's refusal forward to its own
     /// `Display`: the layer that raised a failure names it, and this
     /// one does not restate it. The root the [`PickIndexError::Node`]
     /// arm reports is this layer's own contribution — the payload
-    /// names the body, not the root that owns it. The layout arm is
-    /// this layer's own finding and says so itself.
+    /// names the body, not the root that owns it; for a root with no
+    /// value ([`PickIndexError::valueless_root`]) it forwards the
+    /// standing's sentence, since nothing was tessellated. The layout
+    /// arm is this layer's own finding and says so itself.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Node { node, error } => write!(
-                f,
-                "root {}'s bodies could not be tessellated or indexed: {error}",
-                node.0
-            ),
+            Self::Node { node, error } => match self.valueless_root() {
+                Some((_, standing)) => {
+                    write!(f, "root {} has nothing to index: {standing}", node.0)
+                }
+                None => write!(
+                    f,
+                    "root {}'s bodies could not be tessellated or indexed: {error}",
+                    node.0
+                ),
+            },
             Self::Ids(error) => write!(f, "{error}"),
             Self::DrawnTwice { node, body } => write!(
                 f,

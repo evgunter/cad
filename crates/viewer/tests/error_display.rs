@@ -271,6 +271,20 @@ fn pick_index_error_forwards_its_node_arm() {
     prose(&outer, "NotABody");
 }
 
+/// A root with no value had nothing tessellated or indexed, so its arm
+/// says the root has no value and gives the standing's own sentence.
+#[test]
+fn pick_index_error_says_a_root_with_no_value_has_nothing_to_index() {
+    let node = RecipeNodeId(4);
+    let standing = NodeStanding::Failed { node };
+    let outer = PickIndexError::Node {
+        node,
+        error: NodePickError::Standing(standing),
+    }
+    .to_string();
+    assert_eq!(outer, format!("root 4 has nothing to index: {standing}"));
+}
+
 /// The layout arm is this layer's OWN finding — no payload to forward
 /// — so it names the address it refused, which is the only thing a
 /// reader can act on.

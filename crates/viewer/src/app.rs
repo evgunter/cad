@@ -897,6 +897,21 @@ impl ViewerApp {
         }
     }
 
+    /// **The one wait the toolbar names**, read from the session and
+    /// the two seams behind the picture.
+    ///
+    /// **The spinner follows the work, never the name**
+    /// (`frame::Progress::Canceled`). A fit in flight is the index
+    /// build's first step from a user's seat — nothing is on screen for
+    /// it, the build follows it with no gap, and the one progress state
+    /// is what says a picture is coming.
+    fn progress(&self) -> Option<frame::Progress> {
+        frame::progress(
+            self.session.outstanding(),
+            self.picks.indexing() || self.fit.busy(),
+        )
+    }
+
     /// Take whatever the seam finished and, if the picture is behind
     /// the document, rebuild it.
     ///
@@ -1612,15 +1627,7 @@ impl ViewerApp {
             // the session owes against what the index seam is
             // doing, so the toolbar never lights two spinners for
             // the same moment.
-            // **The spinner follows the work, never the name**
-            // (`frame::Progress::Canceled`). A fit in flight is the
-            // index build's first step from a user's seat — nothing is
-            // on screen for it, the build follows it with no gap, and
-            // the one progress state is what says a picture is coming.
-            match frame::progress(
-                self.session.outstanding(),
-                self.picks.indexing() || self.fit.busy(),
-            ) {
+            match self.progress() {
                 Some(frame::Progress::Evaluating) => {
                     ui.separator();
                     ui.spinner();
@@ -3674,11 +3681,58 @@ mod properties_pane_tests {
                 .collect()
         }
 
-        /// Two frames with the pointer parked away from everything:
-        /// the second is what the app draws when nothing is hovered.
+        /// **Nothing the toolbar's progress read names can change
+        /// before the next op**: no wait is outstanding, and the index
+        /// attempt for the picture on screen is answered.
+        ///
+        /// Every input to it moves only inside a frame (the session's
+        /// and the two seams' `pump`/`poll`, then the cache's `sync`),
+        /// so read after one it holds until something submits, and
+        /// only an op or a new δ does. An index that is neither held
+        /// nor refused is one `sync` forgot or has not asked for yet.
+        fn settled(&self) -> bool {
+            let picks = &self.app.picks;
+            self.app.progress().is_none() && (picks.index().is_some() || picks.error().is_some())
+        }
+
+        /// Quiet frames until [`Self::settled`].
+        fn settle(&mut self) {
+            for _ in 0..3000 {
+                self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+                if self.settled() {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            panic!("the startup document's evaluation, fit and index build finish");
+        }
+
+        /// The app once [`Self::settled`], in two frames with the
+        /// pointer parked away from everything: the second is what the
+        /// app draws when nothing is hovered.
         fn quiet(&mut self) -> Vec<(String, egui::Rect)> {
+            self.settle();
             self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
             self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)])
+        }
+
+        /// Two frames with the pointer resting on `at`: egui decides
+        /// hover against the rect the previous frame left behind.
+        fn hovered(&mut self, at: egui::Pos2) -> Vec<(String, egui::Rect)> {
+            self.frame(vec![egui::Event::PointerMoved(at)]);
+            self.frame(vec![egui::Event::PointerMoved(at)])
+        }
+
+        /// The runs `hovered` painted that `quiet` did not.
+        fn gained(
+            quiet: &[(String, egui::Rect)],
+            hovered: Vec<(String, egui::Rect)>,
+        ) -> Vec<String> {
+            hovered
+                .into_iter()
+                .map(|(run, _)| run)
+                .filter(|run| !quiet.iter().any(|(before, _)| before == run))
+                .collect()
         }
 
         /// Where the ONE text run reading exactly `text` was painted.
@@ -3702,15 +3756,8 @@ mod properties_pane_tests {
         fn gained_hovering(&mut self, text: &str) -> Vec<String> {
             let quiet = self.quiet();
             let at = Self::only(&quiet, text);
-            // Two frames on it: egui decides hover against the rect
-            // the previous frame left behind.
-            self.frame(vec![egui::Event::PointerMoved(at)]);
-            let hovered = self.frame(vec![egui::Event::PointerMoved(at)]);
-            hovered
-                .into_iter()
-                .map(|(run, _)| run)
-                .filter(|run| !quiet.iter().any(|(before, _)| before == run))
-                .collect()
+            let hovered = self.hovered(at);
+            Self::gained(&quiet, hovered)
         }
 
         /// Click the one run reading `text`, then draw a frame with
@@ -3826,6 +3873,63 @@ mod properties_pane_tests {
             "a refused picker does not open: {after:?}"
         );
         assert_eq!(pane.row(EXTRUDE, SlotId::Distance), before);
+    }
+
+    /// An index seam whose answers wait behind a gate the row opens.
+    struct Gated {
+        inner: crate::evalseam::InlineIndexer,
+        open: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl crate::evalseam::IndexService for Gated {
+        fn submit(&mut self, request: crate::evalseam::IndexRequest) {
+            self.inner.submit(request);
+        }
+
+        fn poll(&mut self) -> Option<crate::evalseam::IndexDone> {
+            if self.open.load(std::sync::atomic::Ordering::Relaxed) {
+                self.inner.poll()
+            } else {
+                None
+            }
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// **The hover diff settles the index seam first.** The diff is of
+    /// the whole app, so a build that starts between its quiet frame
+    /// and its hovered one paints the toolbar's `indexing…` into it as
+    /// the hover's; forced here by handing the app a cache that has
+    /// asked for nothing and a seam that holds the answer.
+    #[test]
+    fn a_hover_diff_waits_for_the_index_build_it_would_count() {
+        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(EXTRUDE))]);
+        let quiet = pane.quiet();
+        let at = Driven::only(&quiet, "m");
+        let open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        pane.app.picks = crate::pickcache::PickCache::new(Box::new(Gated {
+            inner: crate::evalseam::InlineIndexer::new(),
+            open: std::sync::Arc::clone(&open),
+        }));
+        assert!(
+            !pane.settled(),
+            "a picture nothing has asked to index is not settled, though no wait is outstanding"
+        );
+        let hovered = pane.hovered(at);
+        assert_eq!(
+            Driven::gained(&quiet, hovered),
+            vec!["indexing…".to_owned()],
+            "a build that starts between the two frames reads as the hover's"
+        );
+        assert!(!pane.settled(), "a build with no answer is not settled");
+        open.store(true, std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            pane.gained_hovering("m").is_empty(),
+            "once the build answers the harness settles, and the diff is the hover's"
+        );
     }
 
     /// **The same drive on a literal slot opens the picker and the

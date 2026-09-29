@@ -877,6 +877,14 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         format!("pick index: waits on feature 5, which failed — {consequence}")
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
+    assert_eq!(
+        badge.detail(),
+        Some(
+            "pick index: root 5 has nothing to index: node 5 failed, so it has no value — \
+             fix the node's own failure"
+        ),
+        "the tooltip says the root has no value, not that its bodies failed to tessellate"
+    );
 
     // The refusals that are the index's own keep their tone and their
     // words — and so does a standing refusal with no evaluation to
@@ -912,9 +920,9 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),
-        "pick index: root 99's bodies could not be tessellated or indexed: pick: node 99 has \
-         no result in this evaluation: the run was canceled before it reached the node — \
-         re-evaluate the document to completion"
+        "pick index: root 99 has nothing to index: node 99 has no result in this \
+         evaluation: the run was canceled before it reached the node — re-evaluate the \
+         document to completion"
     );
 }
 

@@ -2458,28 +2458,13 @@ fn index_refusal_as_drawn(error: &PickIndexError, evaluation: &Evaluation<f64>) 
 }
 
 /// **The root a pick-index refusal is a consequence of**, when the
-/// refusal is the one a root with no value produces — `None` for a
-/// refusal that is the index's own.
-///
-/// Only [`NodePickError::Standing`] is that: it is how the index says
-/// the root has no `Ok` value in the evaluation. Whether that is
-/// because the root failed, was poisoned, or never ran is the tree's
-/// to read, and [`index_badge`] asks it rather than reading the
-/// standing arm here. A tessellation or indexing refusal of a root
-/// that DID evaluate is news no other surface carries.
+/// refusal is the one a root with no value produces
+/// ([`PickIndexError::valueless_root`]) — `None` for a refusal that is
+/// the index's own. Whether the root failed, was poisoned, or never ran
+/// is the tree's to read, and [`index_badge`] asks it rather than
+/// reading the standing here.
 fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
-    match error {
-        PickIndexError::Node { node, error } => match error {
-            NodePickError::Standing(_) => Some(*node),
-            NodePickError::NotABody { .. }
-            | NodePickError::NoSuchBody { .. }
-            | NodePickError::Tessellate(_)
-            | NodePickError::Index(_) => None,
-        },
-        PickIndexError::Ids(_) | PickIndexError::DrawnTwice { .. } | PickIndexError::Names(_) => {
-            None
-        }
-    }
+    error.valueless_root().map(|(root, _)| root)
 }
 
 /// **What the chrome badges about a camera that cannot be
