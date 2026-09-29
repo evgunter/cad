@@ -690,7 +690,7 @@ pub enum BooleanError {
     /// containment, and the fitted-chord join lane — even where
     /// `geom_brep::intersect::route` already implements the pair at the
     /// INTERSECTION layer (plane×NURBS). One raising site is the
-    /// germ-pair JOIN dispatch's catch-all (`join::join_germ_pair`), so
+    /// germ-pair JOIN dispatch's catch-all (`join::bool_connect`), so
     /// a `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ reaches it too,
     /// not only a cone or torus one; the pairs that dispatch does wire
     /// are stated once, at `meeting_recourse`. The pair-general
@@ -1016,16 +1016,20 @@ pub enum BooleanError {
     /// **What refuses, per class, and why it refuses HERE.** The
     /// blocker left is a JOIN lane, not `revert`:
     ///
-    /// - **Sphere**: LIVE since M5 S13 — the `(Plane, Sphere)` germ
-    ///   arm (exact C5 Circle) plus the extent-certified fallback
-    ///   re-cut; no longer gated here.
-    /// - **Cone / torus**: the germ-pair JOIN dispatch —
-    ///   `join::join_germ_pair`'s match on the two germ faces'
+    /// - **Sphere**: not gated here — the `(Plane, Sphere)` germ arm
+    ///   (exact C5 Circle) plus the extent-certified fallback re-cut.
+    /// - **Torus**: not gated up front — its pairs meet the same typed
+    ///   doors under ∖ and ∩ as under ∪: the crossing layer's, the
+    ///   no-crossings section pass, the join catch-all below, and this
+    ///   variant at [`PairRefusalSite::InteriorLoopGuard`] for a torus
+    ///   pair the section certificate cannot clear.
+    /// - **Cone**: the germ-pair JOIN dispatch —
+    ///   `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names, and
     ///   no cone or torus pair. Its catch-all raises
     ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
-    ///   and a `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ lands
-    ///   there too.
+    ///   and a torus, `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ
+    ///   lands there too.
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general
@@ -1519,7 +1523,7 @@ fn kind_word(kind: geom_brep::SurfaceKind) -> &'static str {
 /// The recourse every "these faces cannot meet yet" refusal ends on.
 ///
 /// **This is the one statement of the pairs the Boolean can join**: the
-/// germ-pair JOIN dispatch (`join::join_germ_pair`) wires a plane face
+/// germ-pair JOIN dispatch (`join::bool_connect`) wires a plane face
 /// against a plane, cylinder or sphere face, mirrors included, and
 /// nothing else. The rustdoc that needs the set points here. The
 /// operand gate's box test is conservative (a box overlap is a MAY),

@@ -438,6 +438,37 @@ fn the_p0_saddle_loop_is_one_null_component() {
     on_both(witness(&classify(&a, &b)), &a, &b);
 }
 
+/// **The saddle witness's side is decided, per sign of `δ₀`.** Cylinder
+/// 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x` or
+/// `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
+/// of each sign on each side of the axis, taken with either wall the
+/// thinner. The witness is on the arc's middle ruling on cylinder 1's
+/// side of cylinder 2: on both carriers, at `y` of the offset's sign,
+/// `|y| = |offset| − r₂`. The far ruling never meets cylinder 1
+/// (`|δ₀| + r₂ > r₁` wherever the loop is a saddle), so a side chosen
+/// against `δ₀`'s sign reds every pose.
+#[test]
+fn the_saddle_witness_lies_on_cylinder_1s_side_for_either_sign() {
+    for (r1, r2) in [(1.0, 0.5), (0.5, 1.0)] {
+        let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r1);
+        for oy in [1.3, -1.3] {
+            for run in [1.0, -1.0] {
+                let (o2, d2) = (p(-3.0 * run, oy, 0.0), v(run, 0.0, 0.0));
+                let b = cylinder(o2, d2, r2);
+                let delta = (o2 - p(0.0, 0.0, 0.0)).dot(Vec3::unit_z().cross(d2));
+                let pose = format!("r₁ = {r1}, r₂ = {r2}, offset y = {oy}, δ₀ = {delta}");
+                let w = witness(&classify(&a, &b));
+                on_both(w, &a, &b);
+                let near = oy.signum() * (oy.abs() - r2);
+                assert!(
+                    (w.y - near).abs() < 1e-12 && w.z.abs() < 1e-12,
+                    "{pose}: the witness {w:?} is not on the near ruling y = {near}"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn cylinder_pairs_every_class() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);

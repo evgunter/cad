@@ -53,6 +53,42 @@ the slate against the tree:
   The third row reached the designers as an identical addendum after
   dispatch.
 
+## 2026-09-29 — chart identity to Ev; chart-in-one-solid back to design
+
+- The chart-identity pair converged on two questions: row carry asks
+  description identity, the merge door and chart-region declared
+  intent. The floor both agree on — the row doors read key or `Arc`
+  identity only, the `GeomSource` rung removed — is dispatched without
+  waiting (`origin/row-doors-read-identity`, single FULL review): it is
+  right under either answer to the one remaining question, which is
+  Ev's on PR 3410 (scope the bit-identity retirement to admit one
+  cache-validity comparator, or keep it verbatim). Fork row 11.
+- `a-chart-spans-solids-…`'s lane stopped at a fork, correctly: ruling
+  (A)'s premise ("no other producer builds a chart on two solids")
+  measured false against the contact design's shared-key structural
+  rung. The row's own section has the measurement. A second designer
+  pair is weighing what a shared key across solids means before it
+  goes back to Ev; its blinding byte is on the same analysis branch.
+
+## 2026-09-29 — two implementer PRs in review; chart-in-one-solid to Ev
+
+- `graft-copies-provenance-keys-verbatim` → PR 3413. Measured live on
+  main (order-dependent `union` on the split donut), built as the
+  row's corrected shape: every key-carrying record forwarded at the
+  graft, a dead source key bridged by a dead-on-arrival destination
+  key, `chase_b`'s hand forwarding deleted; goldens moved in slot
+  versions only. The names-lane bridge landed, so the tier logged at
+  dispatch applies: DUAL review on frozen head `034006190`
+  (`docs/DUAL-REVIEW-PROTOCOL.md` at `cb47d67c4`).
+- The identity-only row doors → PR 3414, single FULL review on
+  `ad81a9039`. The lane measured every production row-moving path
+  re-minting afterwards and no corpus row moving; it removed two
+  ordering witnesses that only an `Arc` tie can now exercise, which
+  the review is asked to weigh as a possible blocker.
+- `a-chart-spans-solids-…`: the second designer pair both recommend
+  reversing ruling (A) to (B), charts body-wide and each door grouping
+  its own scope; no reconciliation needed. On Ev as PR 3412 (fork row
+  12), beside PR 3410.
 ## 2026-09-29 — PR 3414 lands (row doors read identity)
 
 Single FULL review on `ad81a9039`: APPROVE-WITH-FIXES, one MAJOR — the
@@ -71,6 +107,16 @@ checks of one theorem) filed as
 `two-provenance-free-keys-…`, `three-spellings-…` and TOPO's
 `mint-face-surface-and-sense-…` (seam).
 
+## 2026-09-29 — axis channel dispatched
+
+`axis-per-component-source-beside-geom-source` → implementer on
+`origin/axis-component-source` (step 3 of WIRE's ratified cut, P1
+only unless the design doc places more in it); stops and reports if
+the representation is a hard-to-reverse fork the doc leaves open.
+Review tier: single FULL — a new identity record that every
+transplanting door must carry is more than reading can believe; raised
+to dual if the diff shows a representation decision the doc did not
+make.
 ## 2026-09-29 — PR 3413 lands (graft forwards provenance)
 
 `graft-copies-provenance-keys-verbatim` closed. Dual review DR-18 on
@@ -82,3 +128,68 @@ mutant each red exactly one new row), collapsed five copies of the
 forwarding body into one, and removed the verbatim-then-overwrite solid
 step. Main merged in before landing, so the gate ran on the combined
 tree.
+
+## 2026-09-29 — PR 3419 lands (the axis per-component source)
+
+Single FULL review on `0834a2fd0`: NOT-MERGEABLE-AS-IS on the red gate
+alone (a hand-written `Debug` failed the exhaustive-destructure census;
+fixed by a CI lane), no MAJOR in the design. Adjudicated fixes
+(`ed7d5cb5a`): the axis token now keys on the placement MAP, not the
+output-body ordinal (one map at two ordinals gave unequal tokens,
+breaking the ratified staleness row 2 — two rows through the real
+stamping path went red on the old keying); false "0 for a plain
+Transform" docs; the sphere token's meaning stated; one home for the
+three per-surface side tables. Residues filed at adjudication (PR
+3420). Seam note on WIRE's log; the WIRE row's fired trigger pruned.
+
+## 2026-09-29 — Live guard dispatched; the rest waits on Ev
+
+`live-guard-proves-ordering-not-identity` → implementer on
+`origin/live-guard-nested-items`. The scan question decided here (it
+binds no ratified text): the item scan recurses into nested items, each
+nested fn a row under its own name, and the two mutation-door guards
+take the larger population, every new member dispositioned; the
+receiver-identity gap is the validator's, stated at the guard. Tier:
+single STYLE review — a scan change a reader can believe, with its
+population diff in the body.
+
+Everything else on the slate hangs on Ev's two open PRs: PR 3412
+(re-rule "a chart lives in one solid" → the scoped-grouping unit) and
+PR 3410 (a production comparator or not → `surface-field-walks-…`,
+the rest of `three-spellings-…`, `set-surface-source-…`). The axis
+residues are P2/P3 design rows with no consumer yet.
+## 2026-09-29 — PR 3424 lands (the Live guard reads nested items)
+
+Single STYLE review on `2ac6b113`: APPROVE conditional on green, with
+findings adjudicated into a fix pass (`b35a0fc42`): one reading of a
+host's text in `source_walk` (the mutation-door guard had credited a
+host with a never-called nested fn's pcurve mint — planted, now red);
+rows that go red on each mechanism's revert; a nested `pub fn` is not a
+door; point-free `Live::new` now reds. The row closes. Filed from it:
+`a-live-spliced-into-another-body-is-caught-by-nothing` (the "validator's
+business" claim had no validator row behind it) and
+`point-free-surgery-openers-read-as-no-scope` (a disclosed blind spot,
+scheduled). The lane's `window-site-scan-reads-items-by-line` moved to
+CONTACT with a seam note.
+
+## 2026-09-29 — PR 3425 lands (point-free needles)
+
+Orchestrator's read (mechanical: one whole-token matcher, `use`
+blanking; zero doors reclassified on the tree; both plants red).
+`point-free-surgery-openers-…` closed. The sweep's four other silent
+needles filed where they land: `live-tuple-constructor-point-free-is-unseen`
+(here), `census-touch-guard-needles-miss-a-point-free-call` and evidence
+on `window-site-scan-…` (CONTACT), `box-door-census-misses-a-point-free-read`
+(BOXES), with seam notes.
+
+## 2026-09-29 — dispatchable work exhausted short of Ev
+
+`axis-source-lowered-bytes-…` parked on EXCH's step 2 (a one-minter tag
+is building for an imagined case). What remains is design: the two
+`needs_ev` rows (PRs 3410, 3412), the rows whose answer follows 3410
+(`surface-field-walks-…`, `three-spellings-…`, `set-surface-source-…`),
+and three design rows with no consumer pressing
+(`a-live-spliced-…`, `axis-channel-serves-only-the-line-reading`,
+`live-tuple-constructor-…`). The track stays `active` while Ev's
+answers are hours away; if they are not, the blocked rows are cut into a
+program of their own per `work/README.md` rather than held here.

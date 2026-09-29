@@ -2,10 +2,12 @@
 id: a-chart-spans-solids-after-move-shells-to-new-solid
 kind: unit
 title: move_shells_to_new_solid re-homes a shell without re-minting its surfaces, so a chart can span two solids
-status: spec
+status: open
 opened: 2026-09-08
 priority: P0
 cost: M
+design: true
+branch: origin/chart-spans-solids-remint
 ---
 
 
@@ -133,3 +135,25 @@ pinning the re-mint, the mover's doc loses "every key kept". The
 disconnecting subtract's one-solid filing stays S-BOOL's. Kernel
 answer: draws a block slot (TOPO-B6 or the next cut); the row is now
 a unit with the scope paragraph above as its brief's spine.
+
+## The ruling's premise measured false (2026-09-29, ORIGIN)
+
+Building the unit (branch `origin/chart-spans-solids-remint`, head
+`fb0725b9b`, not for merge) confirmed the originating shape on main
+(subtract files both fragments under one solid; after the move the
+shell door refuses `ChartSpansSolids`), then put the tier-1 pass in
+and reddened 13 D1 postconditions across `census`, `chart_region` and
+`rim_of` rows. The proposal's "a state no other producer builds" is
+false: `mvfs` sheets are solids of their own, and `mef(.., Shared)` /
+`set_face_surface(.., Shared)` give a face a key another solid's face
+wears, through public doors. The contact design relies on exactly
+that: `crates/topo/README.md`'s coincidence ladder names a shared key
+as the structural contact rung, and `census.rs`'s conformal arm is
+"curved faces sharing one `SurfaceKey` with OPPOSED senses". Ruling
+(A)'s invariant therefore contradicts a ratified section, and a
+re-mint severs the structural tie between a moved shell and a stayer
+in opposed contact unless both carry a recipe source. Also measured:
+"curves need none" is false — curve descriptions name surface keys
+(`Intersection`/`TangentIntersection` s1/s2, `Chart.surface`), so
+moved edges must be re-pointed. Back to open with `design: true`; a
+designer pair weighs it before it returns to Ev.
