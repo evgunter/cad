@@ -2,7 +2,9 @@
 id: certification-contains-admits-an-infinite-probe
 kind: issue
 title: Certification::contains answers true for ±inf on an unbounded enclosure, where the enclosure is a set of reals and the retired inari backend answers false
-status: open
+status: review
+branch: scalar/cert-diff
+pr: 3451
 opened: 2026-09-29
 priority: P2
 cost: E

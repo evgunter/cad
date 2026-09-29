@@ -2,7 +2,9 @@
 id: certification-doors-have-no-differential
 kind: issue
 title: no differential stands over the certification doors that are more than a delegate (hull, clamped_to, contains, width, mag)
-status: open
+status: review
+branch: scalar/cert-diff
+pr: 3451
 opened: 2026-09-24
 priority: P3
 cost: D
