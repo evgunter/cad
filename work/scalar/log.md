@@ -1917,3 +1917,24 @@ scheduled.
   problem-only statement. The byte is drawn and committed to
   `analysis/design-fork/scalar-fitted-door-pair`. If the answer is not
   Ev's fork, it is not a log row.
+
+**2026-09-29 — the fitted-door pair, decided (not Ev's fork).**
+- **What the designers said:** the Opus and Fable designers, working
+  independently on a problem-only statement, converged. The scalar's
+  name is a fact about the type, so it becomes `Real::NAME` with no
+  default. Both existing name homes are deleted: the policy's
+  `scalar_name()` and editor-core's `Lane::NAME`, whose spellings
+  disagree ("dual" vs "Dual") in user-facing refusals. The entry
+  points drop their name parameter, and the door stays an `Option`
+  parameter (ruling 3). Both kept one `recertify` and the prose
+  spelling, and re-worded the refusal to be true when a caller
+  withholds its door. Both rejected the row's own bundle proposal:
+  its public constructor moves the convention rather than removing it.
+- **Why it is not Ev's fork:** no ratified text names either home. Both
+  came from agent PRs (the LANE-4 spec and #2271), and the designers
+  and a grep of DESIGN.md and the READMEs confirm it. So there is no
+  `[ev]` PR and no DESIGN-FORK-LOG row. The byte stays drawn on
+  `analysis/design-fork/scalar-fitted-door-pair` unused.
+- **Dispatched:** SCALAR-NAME (`scalar/scalar-name`), Opus, M, single
+  review. It also folds in the offset-fit refusals' three shapes and
+  the unfiled two-rosters question from the LANE-4 spec.
