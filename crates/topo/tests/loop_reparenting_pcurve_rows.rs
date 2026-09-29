@@ -898,7 +898,10 @@ fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
     let base = sheet();
     let cyl = base.body.get_face(base.low).unwrap().surface;
 
-    for surface in [FaceSurface::Inherit, FaceSurface::Shared(cyl)] {
+    for (label, surface) in [
+        ("Inherit", FaceSurface::Inherit),
+        ("Shared(own key)", FaceSurface::Shared(cyl)),
+    ] {
         let mut s = sheet();
         let (he1, he2, chord) = ruling_site(&mut s);
         let before = rows_deep(&s.body, s.low);
@@ -915,9 +918,13 @@ fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
         let mut expected = before.clone();
         expected.sort();
         assert_eq!(after, expected, "a same-chart mef lost or restated a row");
+        assert_eq!(
+            validate_pcurves(&s.body, band()),
+            vec![],
+            "the minted halves' rows, onto {label}"
+        );
         assert_eq!(rows_of(&s.body, made.face), (4, 0));
         assert_eq!(rows_of(&s.body, s.low), (4, 0));
-        assert_eq!(validate_pcurves(&s.body, band()), vec![]);
     }
 }
 
