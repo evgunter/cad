@@ -819,9 +819,7 @@ impl core::fmt::Display for FlipSubject<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let words = match self.0 {
             "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
-            other => {
-                crate::names::decision_words(other).unwrap_or(geom_core::UNNAMED_DECISION)
-            }
+            other => crate::names::decision_words(other).unwrap_or(geom_core::UNNAMED_DECISION),
         };
         f.write_str(words)
     }
