@@ -247,3 +247,14 @@ routed through `source_declaration`). `surface-field-walks-…` and
 `three-spellings-…` close; `carrier-eq-source-rung-…` filed. Main
 (with PR 3430) merged in before landing, so the gate ran on the
 combined tree.
+
+## 2026-09-29 — the P0 spine closed; track re-banded P3
+
+PR 3429 (one surface walk, one declared predicate) landed after a
+single FULL review and fix pass. With it, every row the track was
+opened for is closed. `program.md` re-banded P3 (the band of what
+remains) and its charter restated; `plan.md` rewritten to the present
+slate. `curve-field-walks-…`, `surface-field-census-…` and
+`carrier-eq-source-rung-…` dispatched as one unit on
+`origin/curve-walk` (single STYLE review: the pattern is PR 3429's,
+repeated).
