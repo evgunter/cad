@@ -193,3 +193,29 @@ a hypothesis: verify it against the tree and report any correction.
   - `work/chrome/kernel-refusals-say-node-where-the-tree-says-feature.md`.
   - The hex rows the new detector found: `work/edit/part-refusals-name-documents-by-hex-id.md` and `work/msolve/mate-refusals-name-documents-by-hex-id.md`.
   - A poisoned part root still crosses with no carried refusal: `work/edit/a-parts-poisoned-root-drops-the-failure-that-poisoned-it.md`.
+
+## Fix pass (2026-09-29, after the review)
+
+- **One kernel iterator.** `NodeErrorKind::carried_chain` (and
+  `MateFault::carried_chain`) yields each carried level with the
+  document its node is in (`CarriedIn::Part(&DocRef)`, or
+  `ThisDocument`). The viewer, Python and the tests all read it; a
+  mate's level inside a part is in that part.
+- **The document is a label, not words.** `RowStatus::Failed` carries
+  `CarriedLine { document, line }`; `line` is the node's own
+  `NodeError` rendering byte for byte, and the pane draws `document`
+  as a label heading each level.
+- **A placer that states its refusal is not carried.**
+  `MateFault::PlacerRefused` gains `placer_row: PlacerRow`, set where
+  the fault is raised: `Silent` at a placer on the chain the fold
+  derives (poisoned), `States` where the placer fails in its own
+  right.
+- **Admissions** are exact spans on exact rows
+  (`test_utils::refusal::Admission`), and one whose span is gone is
+  red. `hex_ids` also reads an all-digit id of an id's length.
+- **Python** exposes each level's `document` on the `EvaluationError`.
+- **`PartFiles`** says which of three things it knows: not scanned,
+  scan refused, no file for this id.
+- Filed: `work/edit/part-product-refusal-draws-the-gathers-stage-prefix.md`;
+  `Workspace::create`'s hex file names added to
+  `work/edit/part-refusals-name-documents-by-hex-id.md`.
