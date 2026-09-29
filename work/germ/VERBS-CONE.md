@@ -2,7 +2,7 @@
 id: VERBS-CONE
 kind: issue
 title: cone and torus operand lanes
-status: open
+status: dispatched
 opened: 2026-08-21
 refs: [1604, VERBS-C5ARMS]
 priority: P0
@@ -62,3 +62,35 @@ cone only because `boolean_arm_exists` keeps it off the roster:
 `boolean_arm_exists` and `revert_arm_exists` themselves, the curved
 clearance's second-derivative match (`f2`, a `_ => frontier()` door),
 and `wall_crossing`'s root lane (`_ => Unsettled`).
+
+**2026-09-28, the preview is superseded.** The interior-loop preview
+this item carried was measured on `378f66744`, before the section
+certificate (PR 3372) merged. The spec's §0 re-ran every fixture on
+`e6f3eaaf9` (`docs/GERM-VERBS-CONE-SPEC.md`, deleted when the last unit
+merges): with `Cone` on both rosters, every fixture now refuses typed
+and none answers wrong. The preview's two wrong answers — the
+no-crossings path with no cone gate, the crossings path with no
+interior-loop guard — are closed by the certificate's per-pair pass,
+which scopes cone faces on both paths and answers R-reach for every
+cone pair until its cone rows land. The extent gates the preview named
+(`cylinder_extent_gate`, `torus_extent_gate`) no longer exist; the
+no-crossings path runs `sphere_extent_scan`, then the section pass.
+
+**What a cone admission must carry** is the spec's §3, in order:
+
+- **the root lanes first** (U1, U2). The one silent arm is
+  `curved_face_arm`'s `(Negative, Negative) => None`, which clears on a
+  convexity the double cone lacks (§0's P3: four crossings near the
+  apex cleared silently, masked today only by R-reach). Every W1 or W2
+  clearance rests on premise S, which that arm breaks.
+- **the apex closure** (U3) and **the certificate's cone rows** (U4),
+  then the sphere pairs on the no-crossings pass (U6), then the roster
+  flip (U7).
+
+U3 and U6 land together in the PR titled "germ: the cone apex closure,
+and sphere pairs certified on the no-crossings path".
+
+**2026-09-28, from the section-certificate lane's premise-S audit.** Two more arms must learn the cone before `boolean_arm_exists` admits it:
+
+- **`reduce.rs` `curved_face_arm`, the "both endpoints inside" arm (about `:1519` on `2ba90bced`).** It rests on the carrier's convexity, which holds for a cylinder or a sphere. A cone's is not the same: a nappe pair is not convex, and the apex breaks it. Unreachable today only through the roster.
+- **The section certificate's cone arms (its spec's Q3):** the crossings-path half, AND the no-crossings arm that replaces the extent gates. These land with this item.

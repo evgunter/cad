@@ -20,7 +20,7 @@ unresolved. Found by LANE-1's post-merge marker grep
 the branch (it is on the spec commit `141e4a128e`'s parent too).
 
 It is an instance of the class
-`work/ciw/committed-conflict-markers-reach-main.md`, which Ev closed
+`committed-conflict-markers-reach-main` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`), which Ev closed
 as not worth a tree-wide gate. This row is the instance, not the
 class: the log is append-only narrative, so which side to keep (or
 both, deduplicated) is the owning program's call, and a lane outside
@@ -42,7 +42,7 @@ side had deleted anything, so two sessions appending at one place is a
 union.
 
 This row's reading of the class was right and mine was not: it cites
-`work/ciw/committed-conflict-markers-reach-main` as **closed on Ev's
+`committed-conflict-markers-reach-main` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) as **closed on Ev's
 call**, and correctly files the instance without reopening the
 argument. I appended a note to that closed row arguing for the gate,
 having read neither its status nor its closing section; the retraction

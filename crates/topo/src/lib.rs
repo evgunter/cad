@@ -323,6 +323,45 @@ pub mod test_support {
             .collect())
     }
 
+    /// The no-crossings path's certificates on `a` × `b` — the sphere
+    /// extent scan, then the section pass — as that path runs them
+    /// before its vertex probe, whatever the crossing layer would find.
+    /// `Ok` with the number of sphere re-cuts the scan asked for.
+    ///
+    /// # Errors
+    ///
+    /// Either certificate's refusal.
+    pub fn no_crossings_certificates(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<usize, crate::BooleanError> {
+        crate::boolean::no_crossings_certificates(a, b, tol)
+    }
+
+    /// Does `face` describe for the section certificate's W2 — its
+    /// `chart_boundary` answers, or, on a cone face, its apex closure
+    /// closes? The verdict the certificate reads per face.
+    pub fn face_describes<T: geom_brep::PcurveFittedLane>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        band: geom_core::Band,
+    ) -> bool {
+        let Some(surface) = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+        else {
+            return false;
+        };
+        crate::boolean::ChartCache::default().describes(
+            crate::Operand::A,
+            body,
+            face,
+            &surface.clone(),
+            band,
+        )
+    }
+
     /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
     /// planar in-face test, which the ray sweep reaches only through a
     /// hit it decides to take — named here so a row can ask it about a
@@ -454,8 +493,8 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
-    StaleDeclaration, ValidationError, contact_marks, contact_marks_structural, validate,
-    validate_closed, validate_geometric, validate_geometric_certificate,
+    StaleDeclaration, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
+    validate, validate_closed, validate_geometric, validate_geometric_certificate,
     validate_geometric_certificate_structural, validate_geometric_structural,
     validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,

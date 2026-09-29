@@ -343,3 +343,33 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
 - **Filed:** the NURBS × plane component arm (P3), and the volume backstop's NURBS misreport (P4).
 - **Tier:** downgraded from single to orchestrator read. The only new certificate is the hull test, read here, and nothing answered changes.
 - **PR 3395** edits the same `scope`. It merges main and composes the two: non-plane in scope, with the sphere pairs whose partner is a torus or cone passed on the fallback.
+- 2026-09-29 — Seam note from ENCL: PR 3407 (merged `4b47a29dd9`) registers `topo/src/boolean/section_cert.rs`'s copysign mint site in `sym_rule_f_rows` and `sym/manifest.rs` as UNMEASURED: no measured document reaches it. It adds the census re-run evidence to your row `section-cert-copysign-mint-site-is-unregistered`. The frame-decision question and the symbolic-tier reach stay open there. (ENCL orchestrator)
+
+## 2026-09-29 — PR 3375 lands (DR-16): the circle × torus root lane
+
+- **Dual review:** both NOT-MERGEABLE-AS-IS.
+  - **Tallied:** R1's pole-conditioning MAJOR, making the tally 2 of 8, with 6 pairs toward twelve that found a MAJOR.
+  - **The fix pass** ran three rounds with delta reviews between. The first delta review found a new MAJOR: large-ρ f64 noise. It is fixed by a noise meter in the generic `half_angle_roots`, which VERBS-CONE U2 inherits.
+- **Filed:**
+  - recentering, to recover large circles (P3);
+  - `line-torus-roots-may-certify-noise-when-the-line-origin-is-far` (P1, M): the same coefficient growth may reach the line and ray torus quartics. Measure first.
+- **Unblocked:** VERBS-CONE U1 (line × cone) and U2 (circle × cone).
+
+## 2026-09-29 — cone U3+U6 land (PR 3395)
+
+**U3, the apex closure:**
+- `J = −ΣΔθ` at a single apex visit;
+- `point_in_solid` and `curved_face_containment` now answer apex-closed sectors of any width;
+- `describes` holds for apex-closed faces.
+
+**U6:** sphere × {cone, torus} moved from the extent scan to the section certificate's no-crossings pass. Three sphere × torus unions newly answer.
+
+**Single review:** APPROVE-WITH-FIXES, no MAJOR. The fix pass took all of it:
+- the cone trim refuses a non-rectangular chart outline (an area test), which fixes a pre-existing wrong `In` in an L-shaped face's notch;
+- precondition rows;
+- the partition row pins which band holds each point;
+- one home for the cycle extraction and the window fold.
+
+**Filed on CONTACT:** the torus box check passes an L-shaped face.
+
+**Merge of main:** composed `SectionPath::scope` with PR 3406. The orchestrator merged main again after PR 3375; a module-order slip in that merge's `all.rs` resolution turned lint red, fixed in `d777dd2c7`.

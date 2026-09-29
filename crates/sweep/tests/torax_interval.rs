@@ -140,7 +140,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
     let hollow = match topo::shell(&body, iv(T), tol) {
         Ok(hollow) => hollow.body,
         Err(ShellError::NotValid { errors }) if tol.eps() < DEFAULT_EPS => {
-            let [ValidationError::SliverDihedral { edge, cause }] = errors.as_slice() else {
+            let [ValidationError::SliverDihedral { edge, check, cause }] = errors.as_slice() else {
                 panic!(
                     "at ε = {:e} the hollow refused with something other than ONE sliver \
                      dihedral: {errors:?}",
@@ -151,6 +151,11 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
                 cause.predicate,
                 Some("tangent_second_order"),
                 "the escalation at {edge:?} is not the dihedral classifier's own"
+            );
+            assert_eq!(
+                *check,
+                topo::WedgeCheck::SecondOrder,
+                "the escalation at {edge:?} names another decision"
             );
             assert_eq!(
                 cause.band.zero(),
