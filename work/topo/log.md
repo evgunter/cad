@@ -2753,3 +2753,49 @@ single-tier review, so there is no DR row. Its three filed rows are
 queued: `kill-ops-loop-anchor-on-an-unproven-next-step` (P2, E), and
 `revert-anchors-trust-a-torn-next-or-prev` and
 `kef-and-kev-take-a-mate-whose-own-edge-is-another` (P3, E).
+
+## PR 3467's dual review: both APPROVE-WITH-FIXES, no MAJOR; the union fix pass is out (2026-09-29)
+
+| | verdict | findings | effort (harness) |
+| --- | --- | --- | --- |
+| R1 | APPROVE-WITH-FIXES | 0/2/7 | 452,785 tokens, 1 h 55 m |
+| R2 | APPROVE-WITH-FIXES | 0/3/7 | 424,980 tokens, 2 h 43 m |
+
+Both reports are archived privately.
+
+**What both confirmed by execution:**
+- every production stated bit traces to a source that knows the
+  material side, with a guard mutant for each;
+- no transient bit reaches a deciding reader or escapes a door;
+- goldens are byte-identical at base and head on the curved boolean
+  and split corpus;
+- inward and outward sweeps per family, including NURBS lofts, are
+  checked by an independent outward-normal probe;
+- the gate ran sweep's 1e-6/1e-12 rows too, which corrects the brief.
+
+**The shared hole:** the mutant `Against => false` survives every
+row, because every `mfkrh` parent is `true`, so the negation is
+unpinned for a `false` parent. R2's probe pins it.
+
+**Coding:** no unilateral MAJOR, so the tally stays 4 of 8. The pair
+found no MAJOR, so pairs toward twelve stay 9. Fair: identical briefs,
+targets differ in warmth only. Coding is recorded privately. The DR
+row rides as the PR's last commit.
+
+**The union fix pass:**
+- rows for the `false`-parent negation and for shared-payload `mfkrh`
+  validity, both from the reviewers' probes;
+- a pinned `ring_rows` and a non-vacuous ring-nesting assert;
+- the stale prose from both reports;
+- the rule's restatements cut to pointers;
+- the unread disc bits said plainly, and a row or a filing for the
+  unexercised band-run;
+- one bit source per `full.rs` wall;
+- the item's title;
+- the PR body and seam-note corrections.
+
+`mvfs`/`mfkrh_plug`'s unvaried `sense` argument is kept: it is the
+ruling's shape, with every bit at the call site.
+
+Disk dropped to 2.6 GB during coding. The idle R2 target was deleted,
+bringing it back to 13 GB, and the fix pass runs on R1's warm one.
