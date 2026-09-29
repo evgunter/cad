@@ -862,3 +862,23 @@ Signed: (CONTACT orchestrator)
   - Then landing, and CONTACT's close-out into successor programs.
 
 Signed: (CONTACT orchestrator)
+
+- 2026-09-29 — **CONTACT-11 fix pass handed back** (dispatch paused, so
+  it is only recorded). Head `ec5efce13` on `contact/11-torus-chart-l`.
+  - **The check:** one linear metric side-on-box decision,
+    `chart_polygon_box`, shared by the torus and the cone. Its levers
+    bound the separation from above.
+  - **Walk continuity:** each edge's entry is decided against the
+    previous edge's exit.
+  - **Removed:** `chart_box_defect`, which had no callers left (seam
+    notes in `work/reach/` and `work/tang/`).
+  - **Rows red at `59eeeebb2`:** small L, U and thin notches over four
+    tori, two frusta and three ε; torus 28/16/32 cells, cone
+    23/15/25. All green at head.
+  - **Mutants:** normalisation, closure, continuity, a forced Zero and
+    a squared margin are all killed.
+  - **Filed:** the STEP door, as `work/exch/step-import-l-shaped-curved-face-has-no-containment-row`.
+  - **Battery:** green on `989be02c1`.
+  - **Owed on resume:** a delta review of the linear test, then
+    landing. When it lands, correct the carried row's stale "fix as the
+    cone took it" section.
