@@ -2583,3 +2583,22 @@ The orchestrator read the diff:
 
 The item closes on the branch. Merge once CI on the closing head is
 green.
+
+## PR 3472 merged; the kill-ops anchor unit out (2026-09-29)
+
+PR 3472 merged (`54963e3bd5`), closing
+`mev-fan-plan-trusts-the-orbits-start-vertices`. It is single tier, so
+there is no DR row. Its filed row `deep-snapshot-is-written-three-times`
+gets P3, E.
+
+Dispatched: **`kill-ops-anchor-emanating-on-an-unproven-next-mate-step`**
+(P2, E; tier SINGLE, full once it delivers).
+- `kef`, `kemr` and `kev` prove the half-edge they re-point
+  `emanating` at, through the one start-vertex helper that
+  `kev_plan`/`mev_fan_plan` use.
+- The item's three counterexamples become rows.
+- The measurement is re-run after the fix, and the class gets a
+  receipt.
+- It builds on the target the merged unit left warm.
+
+Two lanes are live: this one and PR 3467's re-aim.
