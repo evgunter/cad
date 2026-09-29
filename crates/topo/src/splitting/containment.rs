@@ -264,7 +264,7 @@ fn loop_points<T: Decide>(
 ///
 /// One thing is NOT identical, and saying so is what keeps the
 /// sentence above true: an escalation carries the **signed** margin it
-/// refused on, so the two signs refuse with `MarginDiag::Value(−m)`
+/// refused on, so the two signs refuse with `MarginKind::Value(−m)`
 /// against `Value(m)`. That is diagnostic payload —
 /// [`geom_core::Indeterminate`]'s own docs call its fields *"honest
 /// diagnostic data … for actionable error messages and later margin

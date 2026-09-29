@@ -2239,9 +2239,10 @@ fn vertex_on_curved_face<T: Decide>(
             Ok(Sign::Negative) => {
                 return Err(BooleanError::Escalated {
                     diag: geom_core::Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("bool_contact_vertex"),
+                        terminal_sliver: false,
                     },
                 });
             }

@@ -920,8 +920,9 @@ class FrameError(PncadError):
     classifier saw an enclosure rather than a value, `zero` and
     `escalate` the band it was classified against, and `predicate`
     the decision's name where the kernel attached one. A poisoned
-    margin carries the band and no number. This is diagnostic data:
-    the escalation contract is that no sound branch exists here, so
+    margin carries the band and no number. This is diagnostic data,
+    for error text only and not a decision input: the escalation
+    contract is that no sound branch exists here, so
     the recourse is the message's own three levers — declare the
     coincidence, move the geometry, or lower the tolerance.
 
@@ -5266,18 +5267,20 @@ class MateFault:
     @property
     def margin(self) -> Optional[Length]:
         """The in-band margin the classifier saw, when it saw a
-        value. Reading it is not branching on it: what the escalation
-        contract forbids is recovering the margin to make the sign
-        decision the classifier refused."""
+        value. For error text only, not a decision input: what the
+        escalation contract forbids is recovering the margin to make
+        the sign decision the classifier refused."""
 
     @property
     def margin_low(self) -> Optional[Length]:
         """The classified enclosure's lower bound, where the
-        classifier saw an enclosure rather than a value."""
+        classifier saw an enclosure rather than a value. For error
+        text only, not a decision input."""
 
     @property
     def margin_high(self) -> Optional[Length]:
-        """Its upper bound."""
+        """Its upper bound. For error text only, not a decision
+        input."""
 
     @property
     def zero(self) -> Optional[float]:

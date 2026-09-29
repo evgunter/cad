@@ -45,7 +45,7 @@
 
 use geom::Surface;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Bounds, Interval, MarginDiag, Real, Tol};
+use geom_core::{Bounds, ErrorTextReading, Interval, Real, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::vacuity::stood_down;
@@ -162,7 +162,9 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
                 tol.eps(),
                 "the band is the run's own ε, not a number the fixture carries"
             );
-            let MarginDiag::Enclosure { lo, hi } = cause.margin else {
+            let ErrorTextReading::Enclosure { lo, hi } =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!(
                     "the sliver margin at {edge:?} is not an enclosure: {:?}",
                     cause.margin

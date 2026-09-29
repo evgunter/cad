@@ -43,3 +43,11 @@ comparator (the shape is open: a visitor over `Surface`'s scalars, or
 `Surface` exposing its scalars once), and where the theorem is
 enforced once rather than re-checked per reader. The second half
 depends on Ev's answer on PR 3410 (a production comparator, or not).
+
+## After PR 3410's ruling (2026-09-29)
+
+No production comparator: the "theorem enforced once" half is answered
+as assertion-side only — the four checks become one assertion home
+plus the readers that need a verdict (chart-region's bracketed read).
+The field-walk half is unchanged: one walk parameterised by its
+comparator.

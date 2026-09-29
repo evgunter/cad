@@ -2167,7 +2167,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(&e.error, BlendError::TangentialEdge { margin, .. }
                 if margin.predicate == "fillet3_convexity_sign"
-                    && margin.value() == Some(0.0))
+                    && margin.reading.diagnostic_f64_for_error_text().value() == Some(0.0))
         },
         "soften the tepal-tip rim",
     );

@@ -380,7 +380,7 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, Sign::Zero);
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a co-surface seam is tangential exactly"
             );

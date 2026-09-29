@@ -2330,6 +2330,10 @@ NOT_BOUND = {
     # word beside them would publish one fact twice, the
     # `frame_error_tag` rule at the arm one rung up.
     "MarginDiag": SHAPE,
+    # The same three arms, named as the margin's kind with no number
+    # (`MarginDiag::kind`): the attribute set above IS that kind in
+    # Python, so it crosses the same way and is not a second word.
+    "MarginKind": SHAPE,
     # WHAT A LEVERED CLASH MEASURED, curated at `pncad::document`
     # beside the `MateFault` arm that carries it (`mate_contradictory`)
     # — and, like `MarginDiag`, a discriminant that crosses as WHICH

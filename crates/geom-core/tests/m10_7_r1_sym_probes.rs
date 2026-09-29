@@ -194,7 +194,7 @@ fn r1_reciprocal_of_the_zero_form_freezes_and_never_certifies() {
 ///
 /// `atan(1/(x−x))` at `f64` is `atan(+inf) = π/2`, a finite value with
 /// no real behind it, and the difference of two of them is numerically
-/// `0.0` rather than NaN. So `MarginDiag::Invalid` never fires: clause
+/// `0.0` rather than NaN. So `MarginKind::Invalid` never fires: clause
 /// 1's VALUE side is structurally blind here, and at an earlier head the
 /// reciprocal of the zero form FROZE, the two `atan` atoms shared the
 /// frozen key, and the tier answered `Zero` as a theorem.

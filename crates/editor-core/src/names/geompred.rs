@@ -574,9 +574,10 @@ mod census {
 
     fn in_band() -> geom_core::Indeterminate {
         geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Value(3e-11),
+            margin: geom_core::MarginDiag::value(3e-11),
             band: Band::new(1e-12, 1e-9).expect("zero < escalate"),
             predicate: Some(SEL_DATUM_DISTANCE),
+            terminal_sliver: false,
         }
     }
 
