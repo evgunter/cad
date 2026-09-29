@@ -38,7 +38,11 @@ C6 landed: `eval/parts.rs`'s `product_fault` destructures
 badge placement (`crates/viewer/src/frame.rs`) and the binding's tags
 (`crates/pncad-py/src/tags.rs`, `product_error_tag`:
 `unknown_node`/`root_failed`/`root_poisoned`) read. C6's spec said not
-to re-spell `product.rs`'s arms around that lane.
+to re-spell `product.rs`'s arms around that lane. That lane merged
+(PR 3459) before C6's fix pass, so the row is unblocked; the fix pass
+left it here because the review did not rule on it. `product_fault`
+now also reads `eval/parts.rs`'s `NodeResult` (the census's line for
+that file), and a `Root(NodeStanding)` arm would not change that read.
 
 ## What a fix would be
 
