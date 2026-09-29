@@ -32,11 +32,9 @@ Families: `Edit/AppearanceNamesMissingNode`, `Edit/AppearanceNotSet`, `Edit/Appe
 
 ## A part's wrapper
 
-Every `Part/*` row opens with `instantiating <document id>@<version>:`,
-which the guard reads as a label; `FILED_NAMESPACES` admits it on the
-`Part/` namespace. How the tree draws a part's failure is open with Ev
-on #3444, so this row does not propose wording; it records that the
-document id is on screen.
+The `instantiating <document id>:` label this row first recorded is
+gone: EDIT's carried-refusal unit reworded the part wrapper, and the
+hex ids it still prints are admitted span by span (`ADMISSIONS`).
 
 ## Repair shape
 

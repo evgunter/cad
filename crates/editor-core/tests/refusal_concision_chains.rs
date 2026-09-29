@@ -179,15 +179,6 @@ pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[
     // work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
     ("Shell/Face/Fit/", "replace_face_offset", true),
     ("Shell/Face/Fit/", "offsetting a face inward refused", false),
-    // A part's wrapper names the referenced document by its id
-    // (`instantiating <id>@<version>: …`); how the tree draws a part's
-    // failure is open with Ev on EDIT's #3444:
-    // work/edit/edit-refusals-short-of-the-shape-guard.md
-    (
-        "Part/",
-        "instantiating 11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        false,
-    ),
 ];
 
 /// The split rows that may still offer "declare", which a split has no
@@ -437,7 +428,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Part/DepthExceeded",
     "Part/NoResolver",
     "Part/PartProduct",
-    "Part/PartRootFailed(cause)",
     "Part/ReferenceCycle",
     "Part/Unresolved(EpsilonSeam)",
     "Part/Unresolved(PinMismatch)",
@@ -829,7 +819,19 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         }
         rows.push((longest.clone(), last.clone()));
     }
-    let problems = over_budget(&rows);
+    // The mate's carrying line points at its placer ("repair node 4")
+    // without a recourse marker; filed with the mate faults on
+    // work/msolve/msolve-refusals-short-of-the-shape-guard.md, and red
+    // once it no longer needs admitting.
+    const PLACER_NO_RECOURSE: &str = "Carried/PlacerRefused/level-0 states no recourse";
+    let mut problems = over_budget(&rows);
+    let before = problems.len();
+    problems.retain(|p| !p.starts_with(PLACER_NO_RECOURSE));
+    assert_eq!(
+        before - problems.len(),
+        1,
+        "the admission of {PLACER_NO_RECOURSE:?} admits nothing"
+    );
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 
     // A placer whose own row states its refusal is pointed at and not

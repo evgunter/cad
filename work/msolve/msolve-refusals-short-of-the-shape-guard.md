@@ -50,3 +50,13 @@ sites still put a name in the sentence; each wants the decision in
 words, with the name left to `Debug`:
 
 - `crates/editor-core/src/mate.rs`: ": predicate `{predicate}` …".
+
+## The carried placer line (CHROME, PR 3457)
+
+`MateFault::PlacerRefused`'s carrying line, as the feature tree draws it
+when the placer's own row is silent, reads "… node 4, which places it,
+refuses — repair node 4": an unlabelled recourse, so the shape guard
+counts none. Admitted by exact row
+(`Carried/PlacerRefused/level-0`) in
+`refusal_concision_chains.rs` `every_carried_refusal_draws_within_the_budget_at_every_line`,
+with a must-fire check.
