@@ -733,41 +733,7 @@ fn census_with<T: Decide + Bounds>(
     let geo = snapshot(body);
     let declared = Declared::index(contacts);
     let cands = Candidates::build(body, &geo, band, strategy, plant);
-    sweep_vertex_vertex(
-        &geo,
-        &declared,
-        band,
-        &cands,
-        trace.as_deref_mut(),
-        &mut errors,
-    );
-    sweep_vertex_edge(
-        &geo,
-        &declared,
-        band,
-        &cands,
-        trace.as_deref_mut(),
-        &mut errors,
-    );
-    sweep_vertex_face(
-        body,
-        &geo,
-        &declared,
-        band,
-        &cands,
-        trace.as_deref_mut(),
-        &mut errors,
-    );
-    sweep_edge_face(
-        body,
-        &geo,
-        &declared,
-        band,
-        &cands,
-        trace.as_deref_mut(),
-        &mut errors,
-    );
-    sweep_edge_edge(
+    let ledger = meetings(
         body,
         &geo,
         &declared,
@@ -778,9 +744,42 @@ fn census_with<T: Decide + Bounds>(
         &mut errors,
     );
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
-    sweep_cross_solid_backstop(body, &geo, &declared, band, tol, &cands, trace, &mut errors);
+    sweep_cross_solid_backstop(
+        body,
+        &geo,
+        &declared,
+        &ledger,
+        band,
+        tol,
+        &cands,
+        trace,
+        &mut errors,
+    );
     confirm_declarations(body, &geo, contacts, band, region, &mut errors);
     errors
+}
+
+/// The five vertex-granular sweeps, each entering every coincidence it
+/// decides in the ledger and raising the unbacked ones.
+#[allow(clippy::too_many_arguments)] // the sweeps' shared state, the region door and the trace
+fn meetings<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    region: Option<RegionLane<T>>,
+    cands: &Candidates,
+    mut trace: Option<&mut CensusTrace>,
+    errors: &mut Vec<ValidationError>,
+) -> Ledger<T> {
+    let mut ledger = Vec::new();
+    let l = &mut ledger;
+    sweep_vertex_vertex(geo, declared, band, cands, trace.as_deref_mut(), l, errors);
+    sweep_vertex_edge(geo, declared, band, cands, trace.as_deref_mut(), l, errors);
+    sweep_vertex_face(body, geo, declared, band, cands, trace.as_deref_mut(), l, errors);
+    sweep_edge_face(body, geo, declared, band, cands, trace.as_deref_mut(), l, errors);
+    sweep_edge_edge(body, geo, declared, band, region, cands, trace, l, errors);
+    ledger
 }
 
 /// The declaration index: v-v pairs normalized to arena order is NOT
@@ -800,6 +799,12 @@ struct Declared {
     /// event; the record's own geometric confirmation is the confirm
     /// pass's (two-directional, as ever).
     faces: BTreeSet<(FaceKey, FaceKey)>,
+    /// The face pairs curve records name, both orientations: a
+    /// tangency certified along one witness edge, and nowhere else.
+    curves: BTreeSet<(FaceKey, FaceKey)>,
+    /// The face pairs patch records name, both orientations: one
+    /// carrier, opposed senses, over the whole of both faces.
+    patches: BTreeSet<(FaceKey, FaceKey)>,
 }
 
 impl Declared {
@@ -813,17 +818,21 @@ impl Declared {
         for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
             vf.insert((c.vertex, c.face));
         }
-        let mut faces = BTreeSet::new();
-        for (a, b) in contacts
-            .curves
-            .iter()
-            .map(|c| (c.face_a, c.face_b))
-            .chain(contacts.patches.iter().map(|c| (c.face_a, c.face_b)))
-        {
-            faces.insert((a, b));
-            faces.insert((b, a));
+        let both = |pairs: &mut dyn Iterator<Item = (FaceKey, FaceKey)>| {
+            pairs
+                .flat_map(|(a, b)| [(a, b), (b, a)])
+                .collect::<BTreeSet<_>>()
+        };
+        let curves = both(&mut contacts.curves.iter().map(|c| (c.face_a, c.face_b)));
+        let patches = both(&mut contacts.patches.iter().map(|c| (c.face_a, c.face_b)));
+        let faces = curves.union(&patches).copied().collect();
+        Self {
+            vv,
+            vf,
+            faces,
+            curves,
+            patches,
         }
-        Self { vv, vf, faces }
     }
 
     /// The face rung for a v-v event: some declared face pair holds
@@ -866,6 +875,60 @@ impl Declared {
     fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
+}
+
+/// What answers for a meeting a sweep decided.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Backing {
+    /// Nothing: the meeting stands as an
+    /// [`ValidationError::UndeclaredContact`].
+    Undeclared,
+    /// A v-v or v-on-f record names it, or each bound of an overlap is
+    /// named or shared.
+    Record,
+    /// A declared face pair backs it, or one bound of an overlap.
+    FacePair,
+}
+
+impl Backing {
+    /// An overlap's backing from its two bounds' (`None`: unbacked).
+    fn of_bounds(a: Option<Self>, b: Option<Self>) -> Self {
+        match (a, b) {
+            (Some(Self::FacePair), Some(_)) | (Some(_), Some(Self::FacePair)) => Self::FacePair,
+            (Some(_), Some(_)) => Self::Record,
+            _ => Self::Undeclared,
+        }
+    }
+}
+
+/// **A coincidence of two boundaries a sweep decided**, with what
+/// answers for it. A backing licenses the coincidence, never a side:
+/// arm 2 of [`sweep_cross_solid_backstop`] reads every meeting between
+/// two solids through the touch analysis, whatever backs it.
+struct Meeting<T: Real> {
+    site: TouchSite<T>,
+    backing: Backing,
+}
+
+/// Every meeting the sweeps decided, in sweep order.
+type Ledger<T> = Vec<Meeting<T>>;
+
+/// Enters a meeting in the ledger, and raises its finding when nothing
+/// answers for it.
+fn meet<T: Real>(
+    ledger: &mut Ledger<T>,
+    errors: &mut Vec<ValidationError>,
+    site: TouchSite<T>,
+    backing: Backing,
+    witness: impl FnOnce() -> String,
+) {
+    if backing == Backing::Undeclared {
+        errors.push(ValidationError::UndeclaredContact {
+            contact: site.contact(),
+            witness: witness(),
+        });
+    }
+    ledger.push(Meeting { site, backing });
 }
 
 /// The planar snapshot entry for a face, or `None` for a curved one.
@@ -1257,13 +1320,14 @@ fn sweep_vertex_vertex<T: Decide>(
     band: Band,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(ka, pa)) in geo.verts.iter().enumerate() {
         for j in cands.trees.verts.later(i) {
             let &(kb, pb) = candidate(&geo.verts, j);
             let before = errors.len();
-            pair_vertex_vertex(geo, declared, band, (ka, pa), (kb, pb), errors);
+            pair_vertex_vertex(geo, declared, band, (ka, pa), (kb, pb), ledger, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.vv.note(
                     (EntityId::Vertex(ka), EntityId::Vertex(kb)),
@@ -1281,16 +1345,22 @@ fn pair_vertex_vertex<T: Decide>(
     band: Band,
     (ka, pa): (VertexKey, Point3<T>),
     (kb, pb): (VertexKey, Point3<T>),
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     let Some(zero) = gap_is_zero("pm_census_vv_gap", Margin::norm3(pa - pb), band, errors) else {
         return;
     };
-    if zero && !declared.vv.contains(&(ka, kb)) && !declared.vv_face_backed(geo, ka, kb) {
-        errors.push(ValidationError::UndeclaredContact {
-            contact: CensusContact::VertexVertex { a: ka, b: kb },
-            witness: witness(pa),
-        });
+    if zero {
+        let backing = if declared.vv.contains(&(ka, kb)) {
+            Backing::Record
+        } else if declared.vv_face_backed(geo, ka, kb) {
+            Backing::FacePair
+        } else {
+            Backing::Undeclared
+        };
+        let site = TouchSite::VertexVertex(ka, kb);
+        meet(ledger, errors, site, backing, || witness(pa));
     }
 }
 
@@ -1304,6 +1374,7 @@ fn sweep_vertex_edge<T: Decide>(
     band: Band,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
@@ -1313,7 +1384,7 @@ fn sweep_vertex_edge<T: Decide>(
                 continue; // structural adjacency
             }
             let before = errors.len();
-            pair_vertex_edge(geo, declared, band, (vk, q), e, errors);
+            pair_vertex_edge(geo, declared, band, (vk, q), e, ledger, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ve.note(
                     (EntityId::Vertex(vk), EntityId::Edge(e.key)),
@@ -1331,6 +1402,7 @@ fn pair_vertex_edge<T: Decide>(
     band: Band,
     (vk, q): (VertexKey, Point3<T>),
     e: &EdgeGeo<T>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     let off = Margin::norm3((q - e.p0).cross(e.dir));
@@ -1354,14 +1426,14 @@ fn pair_vertex_edge<T: Decide>(
             }
         }
     }
-    if interior && !declared.ve_face_backed(geo, vk, e) {
-        errors.push(ValidationError::UndeclaredContact {
-            contact: CensusContact::VertexOnEdge {
-                vertex: vk,
-                edge: e.key,
-            },
-            witness: witness(q),
-        });
+    if interior {
+        let backing = if declared.ve_face_backed(geo, vk, e) {
+            Backing::FacePair
+        } else {
+            Backing::Undeclared
+        };
+        let site = TouchSite::VertexOnEdge(vk, e.key);
+        meet(ledger, errors, site, backing, || witness(q));
     }
 }
 
@@ -1434,6 +1506,7 @@ fn contain<T: Decide>(
 
 /// Census pass 3: vertex on a face's **interior** (strictly inside the
 /// region — boundary coincidences are pass-1/2 findings).
+#[allow(clippy::too_many_arguments)] // a sweep's shared state and the ledger it enters
 fn sweep_vertex_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1441,6 +1514,7 @@ fn sweep_vertex_face<T: Decide>(
     band: Band,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
@@ -1450,7 +1524,7 @@ fn sweep_vertex_face<T: Decide>(
                 continue; // structural adjacency
             }
             let before = errors.len();
-            pair_vertex_face(body, geo, declared, band, (vk, q), f, errors);
+            pair_vertex_face(body, geo, declared, band, (vk, q), f, ledger, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.vf.note(
                     (EntityId::Vertex(vk), EntityId::Face(f.key)),
@@ -1462,6 +1536,7 @@ fn sweep_vertex_face<T: Decide>(
 }
 
 /// One vertex–face pair of pass 3, the vertex off the face's boundary.
+#[allow(clippy::too_many_arguments)] // one pair of pass 3 and the ledger it enters
 fn pair_vertex_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1469,6 +1544,7 @@ fn pair_vertex_face<T: Decide>(
     band: Band,
     (vk, q): (VertexKey, Point3<T>),
     f: &FaceGeo<T>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     let residual = (q - f.origin).dot(f.normal);
@@ -1478,17 +1554,16 @@ fn pair_vertex_face<T: Decide>(
     }
     // Boundary coincidences are pass-1/2 findings; Out and
     // escalations (pushed) need nothing more here.
-    if contain(body, f, q, band, errors) == Some(FaceContainment::In)
-        && !declared.vf.contains(&(vk, f.key))
-        && !declared.vf_face_backed(geo, vk, f.key)
-    {
-        errors.push(ValidationError::UndeclaredContact {
-            contact: CensusContact::VertexOnFace {
-                vertex: vk,
-                face: f.key,
-            },
-            witness: witness(q),
-        });
+    if contain(body, f, q, band, errors) == Some(FaceContainment::In) {
+        let backing = if declared.vf.contains(&(vk, f.key)) {
+            Backing::Record
+        } else if declared.vf_face_backed(geo, vk, f.key) {
+            Backing::FacePair
+        } else {
+            Backing::Undeclared
+        };
+        let site = TouchSite::VertexOnFace(vk, f.key);
+        meet(ledger, errors, site, backing, || witness(q));
     }
 }
 
@@ -1616,24 +1691,27 @@ fn ef_bound_backed<T: Decide>(
     declared: &Declared,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> bool {
+) -> Option<Backing> {
     let q = e.p0 + e.dir * s;
     let Some(ve) = edge_vertex_at(e, s, band, errors) else {
         return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
             declared.ve_face_backed(geo, w, e)
-        });
+        })
+        .then_some(Backing::FacePair);
     };
-    if declared.vf.contains(&(ve, f.key))
-        || f.boundary.contains(&ve)
-        || declared.vf_face_backed(geo, ve, f.key)
-    {
-        return true;
+    if declared.vf.contains(&(ve, f.key)) || f.boundary.contains(&ve) {
+        return Some(Backing::Record);
+    }
+    if declared.vf_face_backed(geo, ve, f.key) {
+        return Some(Backing::FacePair);
     }
     any_boundary_vertex_at(f, geo, q, band, errors, |w| declared.vv.contains(&(ve, w)))
+        .then_some(Backing::Record)
 }
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
 /// in-plane overlap segments (D3-certified).
+#[allow(clippy::too_many_arguments)] // a sweep's shared state and the ledger it enters
 fn sweep_edge_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1641,6 +1719,7 @@ fn sweep_edge_face<T: Decide>(
     band: Band,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, e) in geo.edges.iter().enumerate() {
@@ -1650,7 +1729,7 @@ fn sweep_edge_face<T: Decide>(
                 continue; // structural adjacency
             }
             let before = errors.len();
-            pair_edge_face(body, geo, declared, band, e, f, errors);
+            pair_edge_face(body, geo, declared, band, e, f, ledger, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ef.note(
                     (EntityId::Edge(e.key), EntityId::Face(f.key)),
@@ -1662,6 +1741,7 @@ fn sweep_edge_face<T: Decide>(
 }
 
 /// One edge–face pair of pass 4, the edge not bounding the face.
+#[allow(clippy::too_many_arguments)] // one pair of pass 4 and the ledger it enters
 fn pair_edge_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1669,6 +1749,7 @@ fn pair_edge_face<T: Decide>(
     band: Band,
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     let p1 = e.p0 + e.dir * e.len;
@@ -1717,7 +1798,7 @@ fn pair_edge_face<T: Decide>(
             }
         }
         (Sign::Zero, Sign::Zero) => {
-            ef_overlap_lane(body, e, f, geo, declared, band, errors);
+            ef_overlap_lane(body, e, f, geo, declared, band, ledger, errors);
         }
         // One endpoint on the plane: pass-1/2/3 territory.
         _ => {}
@@ -1726,7 +1807,9 @@ fn pair_edge_face<T: Decide>(
 
 /// The in-plane overlap lane of pass 4: cut the edge's span at the
 /// face's coincident boundary vertices, probe each cell midpoint, and
-/// D3-certify every `In` cell.
+/// D3-certify every `In` cell. Each cell is its own meeting, read at
+/// its midpoint.
+#[allow(clippy::too_many_arguments)] // the lane's pair, the sweep's state and the ledger
 fn ef_overlap_lane<T: Decide>(
     body: &Body<T>,
     e: &EdgeGeo<T>,
@@ -1734,20 +1817,17 @@ fn ef_overlap_lane<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     for (a, b, mid) in ef_overlap_cells(body, e, f, geo, band, errors) {
-        let backed = ef_bound_backed(e, f, a, geo, declared, band, errors)
-            && ef_bound_backed(e, f, b, geo, declared, band, errors);
-        if !backed {
-            errors.push(ValidationError::UndeclaredContact {
-                contact: CensusContact::EdgeFaceOverlap {
-                    edge: e.key,
-                    face: f.key,
-                },
-                witness: witness(mid),
-            });
-        }
+        let lo = ef_bound_backed(e, f, a, geo, declared, band, errors);
+        // The upper bound is read only where the lower one is backed.
+        let hi = lo.and_then(|_| ef_bound_backed(e, f, b, geo, declared, band, errors));
+        let site = TouchSite::EdgeInFace(e.key, f.key, mid);
+        meet(ledger, errors, site, Backing::of_bounds(lo, hi), || {
+            witness(mid)
+        });
     }
 }
 
@@ -1833,13 +1913,14 @@ fn sweep_edge_edge<T: Decide>(
     region: Option<RegionLane<T>>,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, ea) in geo.edges.iter().enumerate() {
         for j in cands.trees.edges.later(i) {
             let eb = candidate(&geo.edges, j);
             let before = errors.len();
-            pair_edge_edge(body, geo, declared, band, region, ea, eb, errors);
+            pair_edge_edge(body, geo, declared, band, region, (ea, eb), ledger, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ee.note(
                     (EntityId::Edge(ea.key), EntityId::Edge(eb.key)),
@@ -1858,8 +1939,8 @@ fn pair_edge_edge<T: Decide>(
     declared: &Declared,
     band: Band,
     region: Option<RegionLane<T>>,
-    ea: &EdgeGeo<T>,
-    eb: &EdgeGeo<T>,
+    (ea, eb): (&EdgeGeo<T>, &EdgeGeo<T>),
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     let ncross = ea.dir.cross(eb.dir);
@@ -1875,9 +1956,10 @@ fn pair_edge_edge<T: Decide>(
         errors,
     ) {
         Some(false) => {
-            ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, region, errors);
+            let lane = (ea, eb, ncross);
+            ee_crossing_lane(body, geo, declared, lane, band, region, ledger, errors);
         }
-        Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, errors),
+        Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, ledger, errors),
         None => {}
     }
 }
@@ -2131,11 +2213,10 @@ fn ee_crossing_lane<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
-    ea: &EdgeGeo<T>,
-    eb: &EdgeGeo<T>,
-    ncross: Vec3<T>,
+    (ea, eb, ncross): (&EdgeGeo<T>, &EdgeGeo<T>, Vec3<T>),
     band: Band,
     region: Option<RegionLane<T>>,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     let d = eb.p0 - ea.p0;
@@ -2159,16 +2240,11 @@ fn ee_crossing_lane<T: Decide>(
         return;
     }
     let q = ee_cross_point(ea, eb);
+    let site = TouchSite::EdgeCross(ea.key, eb.key);
     match ee_cross_backed(body, geo, declared, ea, eb, q, band, region, errors) {
-        CrossingBacking::Backed => {}
+        CrossingBacking::Backed => meet(ledger, errors, site, Backing::FacePair, || witness(q)),
         CrossingBacking::Unanswered => {
-            errors.push(ValidationError::UndeclaredContact {
-                contact: CensusContact::EdgeEdgeCross {
-                    a: ea.key,
-                    b: eb.key,
-                },
-                witness: witness(q),
-            });
+            meet(ledger, errors, site, Backing::Undeclared, || witness(q));
         }
         CrossingBacking::Refused(verdict) => {
             // The witness is the POSITION; the side verdict rides after
@@ -2182,12 +2258,8 @@ fn ee_crossing_lane<T: Decide>(
                 CrossingSideVerdict::SameSide => "side verdict: same-side",
                 CrossingSideVerdict::Undecided => "side verdict: undecided",
             };
-            errors.push(ValidationError::UndeclaredContact {
-                contact: CensusContact::EdgeEdgeCross {
-                    a: ea.key,
-                    b: eb.key,
-                },
-                witness: format!("{} — {verdict}", witness(q)),
+            meet(ledger, errors, site, Backing::Undeclared, || {
+                format!("{} — {verdict}", witness(q))
             });
         }
     }
@@ -2203,6 +2275,7 @@ fn ee_collinear_lane<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    ledger: &mut Ledger<T>,
     errors: &mut Vec<ValidationError>,
 ) {
     let off = Margin::norm3((eb.p0 - ea.p0).cross(ea.dir));
@@ -2234,18 +2307,14 @@ fn ee_collinear_lane<T: Decide>(
             return;
         }
     }
-    let backed = ee_bound_backed(ea, eb, lo, geo, declared, band, errors)
-        && ee_bound_backed(ea, eb, hi, geo, declared, band, errors);
-    if !backed {
-        let half = T::from_f64(0.5);
-        errors.push(ValidationError::UndeclaredContact {
-            contact: CensusContact::EdgeEdgeOverlap {
-                a: ea.key,
-                b: eb.key,
-            },
-            witness: witness(ea.p0 + ea.dir * ((lo + hi) * half)),
-        });
-    }
+    let at_lo = ee_bound_backed(ea, eb, lo, geo, declared, band, errors);
+    // The upper bound is read only where the lower one is backed.
+    let at_hi = at_lo.and_then(|_| ee_bound_backed(ea, eb, hi, geo, declared, band, errors));
+    let half = T::from_f64(0.5);
+    let site = TouchSite::EdgeEdge(ea.key, eb.key);
+    meet(ledger, errors, site, Backing::of_bounds(at_lo, at_hi), || {
+        witness(ea.p0 + ea.dir * ((lo + hi) * half))
+    });
 }
 
 /// D3 backing for one bound of a collinear overlap: both edges hold a
@@ -2270,20 +2339,22 @@ fn ee_bound_backed<T: Decide>(
     declared: &Declared,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> bool {
+) -> Option<Backing> {
     let va = edge_vertex_at(ea, s, band, errors);
     let q = ea.p0 + ea.dir * s;
     let sb = (q - eb.p0).dot(eb.dir);
     let vb = edge_vertex_at(eb, sb, band, errors);
+    let face_pair = |backed: bool| backed.then_some(Backing::FacePair);
     match (va, vb) {
-        (Some(va), Some(vb)) => {
-            va == vb || declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+        (Some(va), Some(vb)) if va == vb || declared.vv.contains(&(va, vb)) => {
+            Some(Backing::Record)
         }
-        (Some(va), None) => declared.ve_face_backed(geo, va, eb),
-        (None, Some(vb)) => declared.ve_face_backed(geo, vb, ea),
+        (Some(va), Some(vb)) => face_pair(declared.vv_face_backed(geo, va, vb)),
+        (Some(va), None) => face_pair(declared.ve_face_backed(geo, va, eb)),
+        (None, Some(vb)) => face_pair(declared.ve_face_backed(geo, vb, ea)),
         // Neither edge resolves a vertex at the bound: an escalated
         // span (already pushed), never a backing.
-        (None, None) => false,
+        (None, None) => None,
     }
 }
 
@@ -2893,8 +2964,6 @@ pub(crate) enum Undecided {
     TouchDegenerate,
     /// Arm 2: a touch at a corner whose edge length is not a number.
     TouchChordScale,
-    /// Arm 2: a declared face-pair record backing sideless events.
-    DeclaredFacePair,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -3015,10 +3084,6 @@ impl Undecided {
                  Recourse: rescale the model so every edge length is an ordinary number, \
                  or move them until their bounding boxes no longer overlap"
             }
-            Self::DeclaredFacePair => {
-                "a declared contact between their faces touches only at corners the check \
-                 cannot yet place. There is no way through yet for this declared contact"
-            }
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
                  place it. There is no way through yet for a designed resting fit; \
@@ -3081,8 +3146,9 @@ impl Undecided {
 /// What a standing finding says, read by arm 2 against one solid pair.
 #[derive(Clone, Copy, Debug)]
 enum Said {
-    /// A planar touch, read through [`TouchSite::verdict`].
-    Touch(TouchSite),
+    /// An undeclared meeting, which arm 2 reads from the ledger; `cross`
+    /// for two edges crossing at a point interior to both.
+    Met { cross: bool },
     /// An edge through a face's interior: a crossing.
     Pierce,
     /// A conformal patch: the conformal arm finds same-carrier CURVED
@@ -3107,24 +3173,26 @@ enum Named {
 
 impl Named {
     fn of(e: &ValidationError) -> Self {
+        use EntityId::{Edge, Face, Vertex};
+        let met = |x, y| Self::Two(x, y, Said::Met { cross: false });
         match e {
-            ValidationError::UndeclaredContact { contact, .. } => match TouchSite::of(contact) {
-                Some(site) => {
-                    let (x, y) = site.entities();
-                    Self::Two(x, y, Said::Touch(site))
+            ValidationError::UndeclaredContact { contact, .. } => match *contact {
+                CensusContact::VertexVertex { a, b } => met(Vertex(a), Vertex(b)),
+                CensusContact::VertexOnEdge { vertex, edge } => met(Vertex(vertex), Edge(edge)),
+                CensusContact::EdgeEdgeOverlap { a, b } => met(Edge(a), Edge(b)),
+                CensusContact::VertexOnFace { vertex, face } => met(Vertex(vertex), Face(face)),
+                CensusContact::EdgeFaceOverlap { edge, face } => met(Edge(edge), Face(face)),
+                CensusContact::EdgeEdgeCross { a, b } => {
+                    Self::Two(Edge(a), Edge(b), Said::Met { cross: true })
                 }
-                None => match *contact {
-                    CensusContact::EdgeFacePierce { edge, face } => {
-                        Self::Two(EntityId::Edge(edge), EntityId::Face(face), Said::Pierce)
-                    }
-                    CensusContact::ConformalPatch { ref finding } => Self::Two(
-                        EntityId::Face(finding.pair.a),
-                        EntityId::Face(finding.pair.b),
-                        Said::CurvedTouch,
-                    ),
-                    // `TouchSite::of` maps every other kind.
-                    _ => Self::Nothing,
-                },
+                CensusContact::EdgeFacePierce { edge, face } => {
+                    Self::Two(Edge(edge), Face(face), Said::Pierce)
+                }
+                CensusContact::ConformalPatch { ref finding } => Self::Two(
+                    Face(finding.pair.a),
+                    Face(finding.pair.b),
+                    Said::CurvedTouch,
+                ),
             },
             ValidationError::CensusUnsupported { subject, .. }
             | ValidationError::CensusLaneUnsupported { subject } => match *subject {
@@ -3137,16 +3205,6 @@ impl Named {
             _ => Self::Nothing,
         }
     }
-}
-
-/// A declared record naming one entity of each of a solid pair, as
-/// arm 2 reads it.
-#[derive(Clone, Copy, Debug)]
-enum Recorded {
-    /// A v-on-f or v-v record: a touch site the analysis reads.
-    Site(TouchSite),
-    /// A curve or patch face-pair record: it backs events without a side.
-    FacePair,
 }
 
 // ---- The touch analysis: arm 2's clear, condition 3.
@@ -3173,6 +3231,7 @@ enum Recorded {
 /// K name: a star piece vertex's signed distance `n·(q − p)` from a
 /// candidate plane through the touch point `p`, in metres.
 const TOUCH_SIDE: &str = "census_touch_side";
+
 /// K name: a star face's piece vertex's signed distance from the plane
 /// of the other face of an edge at the touch point, in metres — the
 /// edge's convexity, read in both orders.
@@ -3259,7 +3318,10 @@ enum TouchVerdict {
     /// it was in band, or its readings contradicted each other within
     /// ε. The smallest piece of all, which refuses.
     PieceInBand,
-    /// A curved face or edge takes part.
+    /// A face the analysis cannot trace took part and no candidate
+    /// certified: a coarse face's reach box crossed every candidate
+    /// plane (never a crossing), or the face has no reach box, or the
+    /// touch lies on a curved edge.
     Unreadable,
     /// A corner whose shape no test reads (neither convex nor concave),
     /// or a face whose piece at the point does not build on decided
@@ -3299,16 +3361,17 @@ impl TouchVerdict {
     }
 }
 
-/// Where a touch between two solids is, as the analysis reads it: the
-/// one mapping from a touch kind to the two stars it compares, shared
-/// by undeclared findings and declared records.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TouchSite {
+/// Where a meeting of two boundaries is, as the analysis reads it: the
+/// one mapping from a meeting's kind to the two stars it compares.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum TouchSite<T: Real> {
     VertexVertex(VertexKey, VertexKey),
     VertexOnEdge(VertexKey, EdgeKey),
     EdgeEdge(EdgeKey, EdgeKey),
     VertexOnFace(VertexKey, FaceKey),
-    EdgeInFace(EdgeKey, FaceKey),
+    /// One cell of an edge lying in a face's interior, read at the
+    /// cell's midpoint.
+    EdgeInFace(EdgeKey, FaceKey, Point3<T>),
     /// Two edges crossing at one point interior to both
     /// ([`CensusContact::EdgeEdgeCross`]). The finding exists only
     /// where the pass-5 sweep decided the two lines meet
@@ -3322,21 +3385,17 @@ enum TouchSite {
     EdgeCross(EdgeKey, EdgeKey),
 }
 
-impl TouchSite {
-    /// The site a touch finding names; `None` for a finding that is not
-    /// a planar touch (a pierce, a conformal patch).
-    fn of(contact: &CensusContact) -> Option<Self> {
-        Some(match *contact {
-            CensusContact::VertexVertex { a, b } => Self::VertexVertex(a, b),
-            CensusContact::VertexOnEdge { vertex, edge } => Self::VertexOnEdge(vertex, edge),
-            CensusContact::EdgeEdgeOverlap { a, b } => Self::EdgeEdge(a, b),
-            CensusContact::VertexOnFace { vertex, face } => Self::VertexOnFace(vertex, face),
-            CensusContact::EdgeFaceOverlap { edge, face } => Self::EdgeInFace(edge, face),
-            CensusContact::EdgeEdgeCross { a, b } => Self::EdgeCross(a, b),
-            CensusContact::EdgeFacePierce { .. } | CensusContact::ConformalPatch { .. } => {
-                return None;
-            }
-        })
+impl<T: Real> TouchSite<T> {
+    /// The finding an unbacked meeting at the site stands as.
+    fn contact(self) -> CensusContact {
+        match self {
+            Self::VertexVertex(a, b) => CensusContact::VertexVertex { a, b },
+            Self::VertexOnEdge(vertex, edge) => CensusContact::VertexOnEdge { vertex, edge },
+            Self::EdgeEdge(a, b) => CensusContact::EdgeEdgeOverlap { a, b },
+            Self::VertexOnFace(vertex, face) => CensusContact::VertexOnFace { vertex, face },
+            Self::EdgeInFace(edge, face, _) => CensusContact::EdgeFaceOverlap { edge, face },
+            Self::EdgeCross(a, b) => CensusContact::EdgeEdgeCross { a, b },
+        }
     }
 
     /// The two entities the site pairs, one per solid.
@@ -3346,13 +3405,15 @@ impl TouchSite {
             Self::VertexOnEdge(v, e) => (EntityId::Vertex(v), EntityId::Edge(e)),
             Self::EdgeEdge(a, b) => (EntityId::Edge(a), EntityId::Edge(b)),
             Self::VertexOnFace(v, f) => (EntityId::Vertex(v), EntityId::Face(f)),
-            Self::EdgeInFace(e, f) => (EntityId::Edge(e), EntityId::Face(f)),
+            Self::EdgeInFace(e, f, _) => (EntityId::Edge(e), EntityId::Face(f)),
             Self::EdgeCross(a, b) => (EntityId::Edge(a), EntityId::Edge(b)),
         }
     }
+}
 
+impl<T: Decide> TouchSite<T> {
     /// The analysis's verdict on the site ([`touch_verdict`]).
-    fn verdict<T: Decide>(self, body: &Body<T>, geo: &Geo<T>, band: Band) -> TouchVerdict {
+    fn verdict(self, body: &Body<T>, geo: &Geo<T>, band: Band) -> TouchVerdict {
         match self.stars(body, geo, band) {
             Ok((a, b)) => touch_verdict(a, b, band),
             Err(v) => v,
@@ -3363,7 +3424,7 @@ impl TouchSite {
     /// its build refused with; `Err` where the touch point itself does
     /// not read.
     #[allow(clippy::type_complexity)]
-    fn stars<T: Decide>(
+    fn stars(
         self,
         body: &Body<T>,
         geo: &Geo<T>,
@@ -3387,19 +3448,7 @@ impl TouchSite {
                 (on_edge(a, m), on_edge(b, m))
             }
             Self::VertexOnFace(v, f) => (vertex(v), in_face(f, at_vertex(v)?)),
-            Self::EdgeInFace(e, f) => {
-                // A point of the edge inside the face: the first cell of
-                // the overlap the finding reports, re-derived by the same
-                // walk. A refusal on the way is this touch's own.
-                let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
-                let mut refused = Vec::new();
-                let cells = ef_overlap_cells(body, edge(e)?, fg, geo, band, &mut refused);
-                if !refused.is_empty() {
-                    return Err(TouchVerdict::InBand);
-                }
-                let &(_, _, p) = cells.first().ok_or(TouchVerdict::InBand)?;
-                (on_edge(e, p), in_face(f, p))
-            }
+            Self::EdgeInFace(e, f, p) => (on_edge(e, p), in_face(f, p)),
             Self::EdgeCross(a, b) => {
                 let q = ee_cross_point(edge(a)?, edge(b)?);
                 (on_edge(a, q), on_edge(b, q))
@@ -3419,19 +3468,28 @@ enum At {
     Face,
 }
 
-/// One face of a star: a planar polygon bounded by line edges.
+/// One face of a star: a planar polygon bounded by line edges, read
+/// through its piece at the touch point, or a COARSE face read through
+/// its reach box.
 struct StarFace<T: Real> {
     surface: geom::Surface<T>,
     /// `Face::sense`, the bit [`geom_brep::classify_material_pairing_as`]
     /// takes.
     sense: bool,
-    /// The outward unit normal.
-    outward: Vec3<T>,
-    /// The vertices of the face's piece at the touch point
-    /// ([`face_piece`]), as star vertex indices. The piece is
-    /// star-shaped from the point, so these vertices' distances from a
-    /// plane through it bound every point of the piece.
+    /// The outward unit normal; `None` on a curved carrier.
+    outward: Option<Vec3<T>>,
+    /// The points the face is read at, as star vertex indices: its
+    /// piece's vertices ([`face_piece`]), or a coarse face's reach box's
+    /// eight corners. The piece is star-shaped from the point and the box
+    /// holds the whole face, so these points' distances from a plane
+    /// bound every point of what they stand for.
     piece: Vec<usize>,
+    /// A face the analysis cannot trace — a curved carrier, or a plane
+    /// with a curved edge — entered as the corners of its certified reach
+    /// box ([`face_reach`]). A box on its side of a candidate plane
+    /// certifies the face; one across it fails the candidate and never
+    /// decides a crossing.
+    coarse: bool,
 }
 
 /// A line edge through the touch point, read once for its convexity.
@@ -3872,7 +3930,13 @@ impl<T: Decide> Star<T> {
         for e in &mut edges {
             e.dihedral = Self::dihedral(p, &verts, &faces, e.faces, reach, band)?;
         }
-        let shape = Self::shape(at, &edges);
+        // An edge a coarse face bounds reads unread, and a curved edge is
+        // no star edge at all, so a star with a coarse face has no class.
+        let shape = if faces.iter().any(|f| f.coarse) {
+            Shape::Saddle { in_band: false }
+        } else {
+            Self::shape(at, &edges)
+        };
         Ok(Self {
             p,
             at,
@@ -3900,17 +3964,17 @@ impl<T: Decide> Star<T> {
         reach: T,
         band: Band,
     ) -> Result<Dihedral, TouchVerdict> {
-        let read = |near: &StarFace<T>, far: &StarFace<T>| {
+        let (fi, fj) = (&faces[i], &faces[j]);
+        let traced = |f: &StarFace<T>| f.outward.filter(|_| !f.coarse);
+        let (Some(ni), Some(nj)) = (traced(fi), traced(fj)) else {
+            return Ok(Dihedral::Unread);
+        };
+        let read = |near: Vec3<T>, far: &StarFace<T>| {
             FaceSide::of(far.piece.iter().map(|&k| {
-                metric::sign(
-                    TOUCH_DIHEDRAL,
-                    Distance::of(verts[k], p, near.outward),
-                    band,
-                )
+                metric::sign(TOUCH_DIHEDRAL, Distance::of(verts[k], p, near), band)
             }))
         };
-        let (fi, fj) = (&faces[i], &faces[j]);
-        let orders = [read(fi, fj), read(fj, fi)];
+        let orders = [read(ni, fj), read(nj, fi)];
         let convex = orders.iter().any(|s| s.strictly() == Some(Sign::Negative));
         let reflex = orders.iter().any(|s| s.strictly() == Some(Sign::Positive));
         Ok(match (convex, reflex) {
@@ -3984,10 +4048,11 @@ impl<T: Decide> Star<T> {
         }
     }
 
-    /// One planar, line-bounded face of the snapshot as a star face at
-    /// `p`, its piece's vertices entered in `verts`. `at` names `p` on
-    /// the face: a boundary vertex, a boundary edge (by its two end
-    /// vertices), or neither.
+    /// One face as a star face at `p`, its piece's vertices entered in
+    /// `verts` — or, where the face is not a planar polygon, its reach
+    /// box's corners, as a coarse face. `at` names `p` on the face: a
+    /// boundary vertex, a boundary edge (by its two end vertices), or
+    /// neither.
     #[allow(clippy::too_many_arguments)] // the snapshot, the face, where `p` is, and the star's growing vertex list
     fn star_face(
         body: &Body<T>,
@@ -3998,18 +4063,29 @@ impl<T: Decide> Star<T> {
         verts: &mut Vec<Point3<T>>,
         band: Band,
     ) -> Result<StarFace<T>, TouchVerdict> {
-        let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
-        if !fg.polygon {
-            return Err(TouchVerdict::Unreadable);
-        }
         let face = body.get_face(f).ok_or(TouchVerdict::Corrupt)?;
         let surface = body
             .get_surface(face.surface)
             .cloned()
             .ok_or(TouchVerdict::Corrupt)?;
-        let outward = crate::face_normal::face_outward_normal(body, f)
-            .ok_or(TouchVerdict::Unreadable)?
-            .vec();
+        let normal = crate::face_normal::face_outward_normal(body, f).map(|n| n.vec());
+        let Some(fg) = planar_face(geo, f).filter(|fg| fg.polygon) else {
+            let (lo, hi) = face_reach(body, f).ok_or(TouchVerdict::Unreadable)?;
+            let start = verts.len();
+            for x in [lo.x, hi.x] {
+                for y in [lo.y, hi.y] {
+                    verts.extend([lo.z, hi.z].map(|z| Point3::new(x, y, z)));
+                }
+            }
+            return Ok(StarFace {
+                surface,
+                sense: face.sense,
+                outward: normal,
+                piece: (start..verts.len()).collect(),
+                coarse: true,
+            });
+        };
+        let outward = normal.ok_or(TouchVerdict::Unreadable)?;
         let rings = fg
             .loops
             .iter()
@@ -4054,8 +4130,9 @@ impl<T: Decide> Star<T> {
         Ok(StarFace {
             surface,
             sense: face.sense,
-            outward,
+            outward: Some(outward),
             piece: (start..verts.len()).collect(),
+            coarse: false,
         })
     }
 
@@ -4140,7 +4217,7 @@ impl<T: Decide> Star<T> {
         }];
         let d = edge.dir;
         let mut rays = vec![d, -d];
-        rays.extend(faces.iter().map(|f| f.outward.cross(d)));
+        rays.extend(faces.iter().filter_map(|f| f.outward).map(|m| m.cross(d)));
         Self::assemble(p, At::Edge, verts, faces, edges, rays, band)
     }
 
@@ -4365,11 +4442,12 @@ mod rest {
             // test is also complete, since the closure of a convex
             // complement is exactly that intersection. No shape class is
             // asked for, so none can be misread here.
+            // `outer` with a curved face has no half-spaces to read.
             Candidate::Complement { inner, outer } => {
-                let ws: Vec<Within> = outer
-                    .faces
-                    .iter()
-                    .map(|f| inner.within(f.outward, band))
+                let normals: Option<Vec<Vec3<T>>> = outer.faces.iter().map(|f| f.outward).collect();
+                let ws: Vec<Within> = normals?
+                    .into_iter()
+                    .map(|m| inner.within(m, band))
                     .collect();
                 if ws.iter().all(|&w| w == Within::Yes) {
                     return Some(Rest { _sealed: () });
@@ -4450,7 +4528,12 @@ fn touch_verdict<T: Decide>(
     };
     let mut notes = Notes::default();
     // Face planes first: every rest a planar stack makes is found here.
-    let normals: Vec<Vec3<T>> = a.faces.iter().chain(&b.faces).map(|f| f.outward).collect();
+    let normals: Vec<Vec3<T>> = a
+        .faces
+        .iter()
+        .chain(&b.faces)
+        .filter_map(|f| f.outward)
+        .collect();
     for n in normals {
         if let Some(rest) = certify(&a, &b, Candidate::Plane(n), band, &mut notes) {
             return TouchVerdict::Rest(rest);
@@ -4473,7 +4556,9 @@ fn touch_verdict<T: Decide>(
         }
     }
     let saddle_in_band = |s: Shape| s == Shape::Saddle { in_band: true };
-    if notes.in_band || saddle_in_band(a.shape) || saddle_in_band(b.shape) {
+    if a.faces.iter().chain(&b.faces).any(|f| f.coarse) {
+        TouchVerdict::Unreadable
+    } else if notes.in_band || saddle_in_band(a.shape) || saddle_in_band(b.shape) {
         TouchVerdict::InBand
     } else if notes.degenerate {
         TouchVerdict::Degenerate
@@ -4626,11 +4711,12 @@ fn touch_verdict<T: Decide>(
 /// a recorded interference fit is, and what it may skip, is C6's
 /// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
 /// gate-skips are not implemented.
-#[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
+#[allow(clippy::too_many_arguments)] // the census's fixed sweep signature, the ledger, and `tol` for one consumer
 fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
+    ledger: &Ledger<T>,
     band: Band,
     tol: Tol,
     cands: &Candidates,
@@ -4846,6 +4932,34 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             .iter()
             .any(|&(v, vf)| vf == f_planar && other.contains(&v))
     };
+    /// K name: a reach box corner's signed distance from a named planar
+    /// face's plane, in metres.
+    const BACKSTOP_SIDE: &str = "census_backstop_side";
+    // Whether `face`'s reach box lies on the outer side of `plane`'s
+    // plane, every corner's signed distance from it Positive or Zero:
+    // the touch analysis's reading of a coarse face, against one plane.
+    // Then no point of `face` passes into the material behind `plane`
+    // across it, whatever the two share on it.
+    let beside = |plane: &Reach<T>, face: &Reach<T>| -> bool {
+        let (Some(fg), Some(n), Some((lo, hi))) = (
+            planar_face(geo, plane.face).filter(|_| plane.planar),
+            crate::face_normal::face_outward_normal(body, plane.face),
+            face.boxed,
+        ) else {
+            return false;
+        };
+        [lo.x, hi.x].into_iter().all(|x| {
+            [lo.y, hi.y].into_iter().all(|y| {
+                [lo.z, hi.z].into_iter().all(|z| {
+                    let d = Distance::of(Point3::new(x, y, z), fg.origin, n.vec());
+                    matches!(
+                        metric::sign(BACKSTOP_SIDE, d, band),
+                        Some(Sign::Positive | Sign::Zero)
+                    )
+                })
+            })
+        })
+    };
     // The pre-filter over the reach boxes themselves (`Trees` docs): a
     // pair whose padded reach boxes are disjoint on an axis is one the
     // gap test below clears, so pruning it loses nothing; a face with
@@ -4907,13 +5021,17 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     .get_face(a.face)
                     .zip(body.get_face(b.face))
                     .is_some_and(|(da, db)| da.sense != db.sense);
-            if same_key_conformal || declared.faces.contains(&(a.face, b.face)) {
-                continue; // the conformal arm's / the certifier's pair
+            if same_key_conformal || declared.patches.contains(&(a.face, b.face)) {
+                continue; // the conformal arm's / the patch certifier's pair
             }
-            let vf_deferred = (a.planar && planar_face_bridged(a.face, &b.verts))
+            // A pair a v-on-f record bridges or a curve record names is
+            // READ, not deferred: each record's certificate checks one
+            // point or one witness edge, never the rest of either face.
+            let named = declared.curves.contains(&(a.face, b.face))
+                || (a.planar && planar_face_bridged(a.face, &b.verts))
                 || (b.planar && planar_face_bridged(b.face, &a.verts));
-            if vf_deferred {
-                continue; // the declared interface — confirm pass's pair
+            if named && (beside(a, b) || beside(b, a)) {
+                continue; // one face's box on its side of the other's plane
             }
             // A DESCRIPTION with no claim in it refuses without a
             // distance test (`face_reach` docs — the loud direction).
@@ -5082,9 +5200,6 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
         }
     };
     let vertex_solid = |v: VertexKey| solid_of_entity(EntityId::Vertex(v));
-    // ---- The clear's condition 3: every touch between the pair is a
-    // rest by the one local analysis ([`touch_verdict`]).
-    let touch = |site: TouchSite| site.verdict(body, geo, band).refusal();
     // One entity on each side of the pair `(sa, sb)`.
     let straddles = |sa: SolidKey, sb: SolidKey, x: EntityId, y: EntityId| {
         matches!(
@@ -5092,117 +5207,84 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             (Some(p), Some(q)) if (p == sa && q == sb) || (p == sb && q == sa)
         )
     };
-    // ---- Whether the two boundaries MEET on record: a standing
-    // finding naming one entity of each solid, or a declared record
-    // naming one of each (a declared event leaves no finding, so its
-    // record is the only trace of it).
-    let meets_found = |standing_errors: &[ValidationError], sa: SolidKey, sb: SolidKey| -> bool {
-        standing_errors.iter().any(|e| match Named::of(e) {
-            Named::Two(x, y, _) => straddles(sa, sb, x, y),
-            Named::One(_) | Named::Nothing => false,
-        })
+    // ---- The ledger's meetings between two solids, by the pair, in
+    // sweep order.
+    let solid_pair = |x: EntityId, y: EntityId| match (solid_of_entity(x), solid_of_entity(y)) {
+        (Some(p), Some(q)) if p != q => Some((p.min(q), p.max(q))),
+        _ => None,
     };
-    // The declared records naming one entity of each solid, as the one
-    // mapping every reader of them shares: a v-on-f or v-v record is a
-    // touch site the analysis reads; a curve or patch face pair backs
-    // events without a side.
-    let recorded = |sa: SolidKey, sb: SolidKey| -> Vec<Recorded> {
-        let sites = declared
-            .vf
-            .iter()
-            .map(|&(v, f)| TouchSite::VertexOnFace(v, f))
-            .chain(
-                declared
-                    .vv
-                    .iter()
-                    .filter(|(a, b)| a < b)
-                    .map(|&(a, b)| TouchSite::VertexVertex(a, b)),
-            )
-            .filter(|site| {
-                let (x, y) = site.entities();
-                straddles(sa, sb, x, y)
+    let mut met: std::collections::BTreeMap<(SolidKey, SolidKey), Vec<TouchSite<T>>> =
+        std::collections::BTreeMap::new();
+    for m in ledger {
+        let (x, y) = m.site.entities();
+        if let Some(pair) = solid_pair(x, y) {
+            met.entry(pair).or_default().push(m.site);
+        }
+    }
+    let meetings = |sa: SolidKey, sb: SolidKey| met.get(&(sa.min(sb), sa.max(sb)));
+    // ---- Whether the two boundaries MEET on record: a meeting in the
+    // ledger, whatever backs it, or a standing finding naming one entity
+    // of each solid.
+    let meets = |standing_errors: &[ValidationError], sa: SolidKey, sb: SolidKey| -> bool {
+        meetings(sa, sb).is_some()
+            || standing_errors.iter().any(|e| match Named::of(e) {
+                Named::Two(x, y, _) => straddles(sa, sb, x, y),
+                Named::One(_) | Named::Nothing => false,
             })
-            .map(Recorded::Site);
-        let pairs = declared
-            .faces
-            .iter()
-            .filter(|&&(a, b)| a < b && straddles(sa, sb, EntityId::Face(a), EntityId::Face(b)))
-            .map(|_| Recorded::FacePair);
-        sites.chain(pairs).collect()
     };
-    // ---- The clear's condition: every finding about the pair is a
-    // rest. A finding is ABOUT the pair when it names one entity of
-    // each solid; one naming a third solid is that other pair's, and
-    // is read there. Three kinds block beyond that, each because the
-    // clear's argument (at the loop) needs every meeting of the pair
-    // on record: an escalation names no entity, so the event that
-    // escalated may be this pair's meeting; an entity left unexamined
-    // against everything may meet either solid unseen; and a pierce or
-    // edge cross between two entities of ONE of the pair's solids is
-    // that solid's boundary crossing itself, whose material no
-    // placement can be read against.
+    // ---- The clear's condition: every meeting of the pair reads Rest,
+    // and no finding about it stands. A finding is ABOUT the pair when it
+    // names one entity of each solid; one naming a third solid is that
+    // other pair's, and is read there. Three kinds block beyond that,
+    // each because the clear's argument (at the loop) needs every
+    // meeting of the pair on record: an escalation names no entity, so
+    // the event that escalated may be this pair's meeting; an entity
+    // left unexamined against everything may meet either solid unseen;
+    // and a pierce or edge cross between two entities of ONE of the
+    // pair's solids is that solid's boundary crossing itself, whose
+    // material no placement can be read against.
     //
-    // `records_on_their_word` is the declared-only pair's reading (the
-    // loop's argument says why): its records are read only for a
-    // decided crossing, and a record the analysis cannot read or a face
-    // pair is taken on its word.
-    let blocks = |standing_errors: &[ValidationError],
-                  sa: SolidKey,
-                  sb: SolidKey,
-                  records_on_their_word: bool|
-     -> Option<Undecided> {
+    // A meeting's backing licenses its coincidence, never its side, so
+    // every meeting in the ledger is read alike: an undeclared one, one a
+    // record names, and one a declared face pair backs.
+    let blocks = |standing_errors: &[ValidationError], sa: SolidKey, sb: SolidKey| {
         let owns = |id: EntityId| solid_of_entity(id).is_some_and(|s| s == sa || s == sb);
         let between = |x: EntityId, y: EntityId| straddles(sa, sb, x, y);
         let mut undecided_touch = None;
-        for e in standing_errors {
-            let what = match Named::of(e) {
-                Named::Nothing => Some(Undecided::Unexamined),
-                Named::One(id) => owns(id).then_some(Undecided::Unexamined),
-                Named::Two(x, y, said) if between(x, y) => match said {
-                    Said::Touch(site) => touch(site),
-                    Said::Pierce => Some(Undecided::Crossing),
-                    Said::CurvedTouch => Some(Undecided::TouchUnreadable),
+        let found = standing_errors.iter().map(|e| match Named::of(e) {
+            Named::Nothing => Some(Undecided::Unexamined),
+            Named::One(id) => owns(id).then_some(Undecided::Unexamined),
+            Named::Two(x, y, said) if between(x, y) => match said {
+                // Read from the ledger, below.
+                Said::Met { .. } => None,
+                Said::Pierce => Some(Undecided::Crossing),
+                Said::CurvedTouch => Some(Undecided::TouchUnreadable),
+                Said::Unexamined => Some(Undecided::Unexamined),
+            },
+            Named::Two(x, y, said) if owns(x) && solid_of_entity(x) == solid_of_entity(y) => {
+                match said {
+                    Said::Met { cross: true } | Said::Pierce => Some(Undecided::Crossing),
                     Said::Unexamined => Some(Undecided::Unexamined),
-                },
-                Named::Two(x, y, said) if owns(x) && solid_of_entity(x) == solid_of_entity(y) => {
-                    match said {
-                        Said::Touch(TouchSite::EdgeCross(..)) | Said::Pierce => {
-                            Some(Undecided::Crossing)
-                        }
-                        Said::Unexamined => Some(Undecided::Unexamined),
-                        Said::Touch(_) | Said::CurvedTouch => None,
-                    }
+                    Said::Met { cross: false } | Said::CurvedTouch => None,
                 }
-                Named::Two(..) => None,
-            };
+            }
+            Named::Two(..) => None,
+        });
+        let read = meetings(sa, sb)
+            .into_iter()
+            .flatten()
+            .map(|&site| site.verdict(body, geo, band).refusal());
+        for what in found.chain(read) {
             match what {
                 // A touch the analysis could not decide waits: a
                 // decided crossing, or any other reason, standing
-                // later in the findings is the stronger refusal.
+                // later is the stronger refusal.
                 Some(why) if why.is_undecided_touch() => {
                     undecided_touch = undecided_touch.or(what);
                 }
                 Some(_) => return what,
                 None => {}
             }
-        }
-        // Declared touches leave no finding and are confirmed for their
-        // coincidence only, never for their side: the same analysis
-        // runs over the records that name this pair.
-        let records = recorded(sa, sb);
-        for record in &records {
-            if let Recorded::Site(site) = *record {
-                match touch(site) {
-                    Some(Undecided::MixedTouch) => return Some(Undecided::MixedTouch),
-                    what if !records_on_their_word => {
-                        undecided_touch = undecided_touch.or(what);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        if !records_on_their_word && records.iter().any(|r| matches!(r, Recorded::FacePair)) {
-            return Some(Undecided::DeclaredFacePair);
         }
         undecided_touch
     };
@@ -5282,9 +5364,8 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             // No deferral on records here, deliberately: every record in
             // `ContactRecords` states one coincidence, and this arm's
             // question is where one instance sits relative to another.
-            // A record is a meeting, so a pair carrying records is
-            // probed; what differs is only how its records are read
-            // (`blocks`' `records_on_their_word`).
+            // A meeting a record backs is a meeting, so the pair is
+            // probed and the meeting read like any other.
             //
             // The GATE, per ordering and per non-void SHELL of `inner`:
             // the shell's vertex hull against `outer`'s reach box; a
@@ -5321,8 +5402,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     reaches |= !separated;
                 }
             }
-            let found = meets_found(&errors[..standing], sa, sb);
-            let declared_only = !found && !recorded(sa, sb).is_empty();
+            let meet = meets(&errors[..standing], sa, sb);
             // **Why arm 2 decides the pair** — the one statement of the
             // argument; the module and arm docs point here.
             //
@@ -5344,9 +5424,9 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             // - nothing on record and every outer shell separated:
             //   nothing can overlap, and the pair clears at the gate;
             // - otherwise every vertex is probed both ways, and the
-            //   findings about the pair are read (`blocks`); a pair
-            //   whose meetings are all rests and whose vertices are all
-            //   outside or on clears.
+            //   meetings and findings about the pair are read (`blocks`);
+            //   a pair whose meetings are all rests and whose vertices
+            //   are all outside or on clears.
             //
             // The premises, and what checks them. (1) A shell is one
             // CONNECTED closed surface, so it has a bounded side: tier 2
@@ -5356,10 +5436,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             // sign of its own volume, and tier 3's check 10 has held
             // the shells' windings to 0 or 1; a shell whose role does
             // not read is gated as outer. (3) The census is COMPLETE for
-            // planar boundaries — every point where they meet stands as
-            // a finding or a record — which is why `blocks` refuses on
-            // an escalation or an unexamined entity, and why a curved
-            // meeting is arm 1's to refuse first. A pair with nothing on
+            // planar boundaries — every point where they meet stands in
+            // the ledger, whatever backs it — which is why `blocks`
+            // refuses on an escalation or an unexamined entity. A curved
+            // face's meetings are arm 1's: it refuses a cross-solid pair
+            // with a curved side within reach, except a pair a record
+            // names whose one face's reach box lies on its side of the
+            // other's plane, so the two faces meet only on that plane
+            // and neither passes behind it. A pair with nothing on
             // record clears at the gate even beside an escalation, which
             // stands as the body's refusal.
             //
@@ -5383,17 +5467,13 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             //   probes, or where the dip's boundary crosses the other
             //   solid's edges, which stands as a finding or an
             //   escalation that `blocks` reads.
+            // A coarse face (curved, or with a curved edge) is read
+            // through its whole reach box instead of a piece, so a rest
+            // holds the whole face within `zero` of its side and leaves
+            // no dip beyond a ball to find.
             // "No point of `U` is near a rest" above holds in exactly
             // that sense: `U` near a rest is confined to that slab.
-            //
-            // What it cannot see: a pair whose ONLY meetings are
-            // declared. It is probed, and a declared v-on-f or v-v touch
-            // that decidedly crosses refuses, but a declared touch the
-            // analysis cannot read and the events a declared face pair
-            // backs are taken on the records' word — reading them
-            // refuses ratified declared seats
-            // (`work/contact/declared-only-meetings-clear-at-the-census-gate-unread.md`).
-            if !unclaimable && (reaches || found || declared_only) {
+            if !unclaimable && (reaches || meet) {
                 // The material test, both orderings, every vertex. An
                 // `In` is the decided interference whatever else stands.
                 let mut interfered = false;
@@ -5427,7 +5507,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                 let why = if interfered {
                     None
                 } else {
-                    blocks(&errors[..standing], sa, sb, declared_only)
+                    blocks(&errors[..standing], sa, sb)
                 };
                 match why {
                     Some(why) => errors.push(ValidationError::CensusUndecidable {
@@ -8241,17 +8321,17 @@ mod tests {
         body
     }
 
-    fn sites(body: &Body<f64>) -> Vec<(TouchSite, TouchVerdict)> {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
+    /// Every meeting the sweeps find in `body`, none declared, with the
+    /// analysis's verdict on it.
+    fn sites(body: &Body<f64>) -> Vec<(TouchSite<f64>, TouchVerdict)> {
+        let band = Band::linear(Tol::witness()).unwrap();
         let geo = snapshot(body);
-        census_and_certify(body, &ContactRecords::default(), band, tol, None)
-            .iter()
-            .filter_map(|e| match e {
-                ValidationError::UndeclaredContact { contact, .. } => TouchSite::of(contact),
-                _ => None,
-            })
-            .map(|site| (site, site.verdict(body, &geo, band)))
+        let declared = Declared::index(&ContactRecords::default());
+        let cands = Candidates::build(body, &geo, band, CensusStrategy::Realized, None);
+        let mut errors = Vec::new();
+        meetings(body, &geo, &declared, band, None, &cands, None, &mut errors)
+            .into_iter()
+            .map(|m| (m.site, m.site.verdict(body, &geo, band)))
             .collect()
     }
 
