@@ -871,7 +871,12 @@ pub enum FaceFrameFault {
     /// that exists, and telling an author to project the one they mean
     /// would be advice about a feature that is gone.
     Unresolved {
-        /// The interrogation door's refusal.
+        /// The interrogation door's refusal, read as the feature tree
+        /// reads it ([`crate::tree::interrogation_as_drawn`]).
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         error: InterrogateError,
     },
     /// The face's carrier is not a plane, and a sketch frame wants
@@ -992,7 +997,9 @@ pub fn face_frame_seat(
     match face_carrier_kind(ev, at, &face.name) {
         Ok(SurfaceKind::Plane) => Ok((at, face.name.clone())),
         Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
-        Err(error) => Err(FaceFrameFault::Unresolved { error }),
+        Err(error) => Err(FaceFrameFault::Unresolved {
+            error: crate::tree::interrogation_as_drawn(error, ev),
+        }),
     }
 }
 
