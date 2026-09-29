@@ -2,12 +2,13 @@
 id: viewer-panels-disagree-on-a-poisoned-node
 kind: issue
 title: The tree re-attributes a cluster-refused node; the properties panel and appearance still do not
-status: dispatched
+status: closed
 opened: 2026-09-04
 refs: [1769, 1463]
 priority: P1
 cost: M
 branch: chrome/poisoned-panels
+closed: 2026-09-29
 ---
 
 Found by CHROME's style lane on PR 1769, as a class rather than an
@@ -55,3 +56,23 @@ lint` now REFUSES a `parked` row whose every blocker is closed, and a
 program cannot un-park another program's rows in the PR that closes
 their trigger — `work/README.md`'s one-file-one-item rule makes that a
 merge conflict by design.
+
+## Closed (2026-09-29)
+
+The tree's attribution lives in `viewer::tree` (`standing`, read by
+`status_of` and `cause_row`). `tree::standing_as_drawn` re-reads a
+kernel `NodeStanding` through `cause_row`, and three wrappers apply it
+to `Resolution`, `InterrogateError` and `ProductError`. Every viewer
+surface that says why a node has no value now reads one of these: the
+properties panel's picked-entity verdict (`DocSession::standing`), the
+mate tool's dropped pick, the mate tool's frame refusal, the
+sketch-on-face seat, `combine::DuplicateFault::NoValue`,
+`BlendEvent::TargetHasNoValue`, and the product gather that feeds
+`product_fault` and the at-rest badge. The pick-index badge already read
+`cause_row`. `display::DisplayFault` reads no evaluation, and the viewer
+does not surface `AppearanceLossCause`.
+`tree_badges::every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node`
+pins the agreement; it is red against the unchanged sources.
+
+Residue for the kernel's own vocabulary:
+`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`.
