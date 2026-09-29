@@ -269,14 +269,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     // by construction, so the arc's outgoing joint is declared exactly
     // when that run exists; on an exact fit the fillet arc ends the
     // side at the anchor itself and the outgoing direction stays free.
-    let circle = super::ArrivalCarrier::Circle {
-        arc: SegArc {
-            center: centre,
-            radius: (anchor - centre).norm_squared().sqrt(),
-        },
-        winding,
-    };
-    let follows = (trims.fit_out == Sign::Positive).then_some(circle);
+    let follows = (trims.fit_out == Sign::Positive).then_some(super::ArrivalCarrier::AuthoredArc);
     core.emit_fillet_arc(&trims, follows, meta.bound_at, tol)?;
     let tip = if trims.fit_out == Sign::Positive {
         let head = core.head()?;
@@ -296,6 +289,9 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         if arrival_radius {
             core.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier2)?;
         }
+        // The authored arrival arc is the fillet's run out, whichever
+        // step lowers it.
+        core.claim(meta.bound_at, crate::structure::PieceRole::RunOut);
         core.push_arc(anchor, bulge)?;
         let chord = (anchor - head).norm_squared().sqrt();
         leg_end_tip(anchor, dir, radius.min(chord), Some(carrier))
@@ -358,14 +354,12 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
         // interior segment and the run itself closes the loop.
-        let circle = super::ArrivalCarrier::Circle {
-            arc: SegArc {
-                center: centre,
-                radius,
-            },
-            winding,
-        };
-        core.emit_fillet_arc(&trims, Some(circle), meta.bound_at, tol)?;
+        core.emit_fillet_arc(
+            &trims,
+            Some(super::ArrivalCarrier::AuthoredArc),
+            meta.bound_at,
+            tol,
+        )?;
         let head = core.head()?;
         let bulge = crate::sugar::bulge_from_center(head, start_pos, centre, winding);
         // The arrival spec's own step is the fused verb's (see
@@ -373,6 +367,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         if arrival_radius {
             core.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier2)?;
         }
+        core.claim(meta.bound_at, crate::structure::PieceRole::RunOut);
         core.close_leaving(bulge, FirstSeg::Arc)?;
         let chord = (start_pos - head).norm_squared().sqrt();
         junction_check(

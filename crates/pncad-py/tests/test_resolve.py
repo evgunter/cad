@@ -302,9 +302,14 @@ class TestAFailedVerdict(unittest.TestCase):
         before = evaluate(doc)
         (s,) = doc.step_ids(profile)
         triangle = Open.at((0 * m, 0 * m))
+        steps = [triangle.step]
         for x, y in TRIANGLE[1:]:
             triangle = triangle.line_to((x * m, y * m))
-        doc.apply(DocEdit.set_program(profile, triangle.line_to(Start), [[s[0], s[1], s[2], s[4]]]))
+            steps.append(triangle.step)
+        closed = triangle.line_to(Start)
+        steps.append(closed.step)
+        keep = dict(zip(steps, [s[0], s[1], s[2], s[4]], strict=True))
+        doc.apply(DocEdit.set_program(profile, closed, [keep]))
         after = evaluate(doc)
         self.assertTrue(after.succeeded(extrude))
 

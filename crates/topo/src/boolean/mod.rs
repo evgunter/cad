@@ -145,6 +145,22 @@ pub use voids::{
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void, insert_voids,
 };
 
+/// What one of this crate's decisions decides, in the words a refusal
+/// or a flip report states in place of the predicate's name (which is
+/// routing, kept to `Debug`): a clause with no colon or dash of its
+/// own. `None` for a predicate this crate has no words for yet, or
+/// does not own.
+#[must_use]
+pub fn decision_words(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_plane_parallel" => "whether the two planes are parallel",
+        "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
+        crate::query::DATUM_UNIT_NORM => "whether a direction has any length",
+        _ => return None,
+    })
+}
+
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
 ///

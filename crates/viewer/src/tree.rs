@@ -13,14 +13,14 @@
 //! ([`repair_wording`]), and both say only WHERE to go.
 //!
 //! A failure that CARRIES another node's refusal — a part whose root
-//! failed, a mate whose placer refused — points at that node and never
-//! quotes it, so the carried refusal is drawn under the row as a line
-//! of its own, and so on down, one line per document level
-//! ([`carried_lines`]). Each line is the kernel's own rendering of that
-//! node's failure, byte for byte. What this module adds is a label
-//! beside it, never inside it: WHICH document the line's node number
-//! belongs to, by file name, since the kernel knows a part only by its
-//! id.
+//! failed or was poisoned, a mate whose placer refused — points at the
+//! node that failed and never quotes it, so the carried refusal is
+//! drawn under the row as a line of its own, and so on down, one line
+//! per document level ([`carried_lines`]). Each line is the kernel's
+//! own rendering of that node's failure, byte for byte. What this
+//! module adds is a label beside it, never inside it: WHICH document
+//! the line's node number belongs to, by file name, since the kernel
+//! knows a part only by its id.
 //!
 //! What it does write, and what the rule above does not reach, is what
 //! a node IS: [`node_kind`]'s vocabulary spelling, [`node_number`]'s
@@ -803,35 +803,26 @@ pub fn resolution_as_drawn(resolution: Resolution, evaluation: &Evaluation<f64>)
 }
 
 /// **The words a product-gather refusal is shown in**: the gather's
-/// own, except for a root this tree draws downstream of a row the
-/// refusal does not name. That root gets the tree's pointer
-/// ([`downstream_wording`]), because the gather's sentence would name
-/// the wrong row, or call a mate a failed ancestor.
+/// own, with a root's standing re-read by [`standing_as_drawn`], so a
+/// root this tree draws downstream of a row the refusal does not name
+/// is refused as downstream of that row, in the standing's one sentence.
 ///
 /// Words and not a re-attributed [`ProductError`]: the refusal's own
 /// value stays the gather's, and only what is drawn from it is the
 /// tree's.
 pub fn product_refusal_wording(fault: &ProductError, evaluation: &Evaluation<f64>) -> String {
-    let (root, named) = match fault {
-        ProductError::RootFailed { node } => (*node, *node),
-        ProductError::RootPoisoned { node, through } => (*node, *through),
+    match fault {
+        ProductError::Root(standing) => AssemblyError::product_refusal(&ProductError::Root(
+            standing_as_drawn(*standing, evaluation),
+        )),
         ProductError::EvaluationOfAnotherDocument { .. }
-        | ProductError::UnknownNode { .. }
         | ProductError::PlacedUnderTwoRoots { .. }
         | ProductError::Naming { .. }
         | ProductError::NoBodyRoots
         | ProductError::Graft { .. }
         | ProductError::RootInvalid { .. }
         | ProductError::ProductInvalid { .. }
-        | ProductError::ContactLineage { .. } => return AssemblyError::product_refusal(fault),
-    };
-    match cause_row(root, evaluation) {
-        Some(cause) if cause != named => format!(
-            "product: {} is a root with no value: {}",
-            node_number(root),
-            downstream_wording(cause)
-        ),
-        Some(_) | None => AssemblyError::product_refusal(fault),
+        | ProductError::ContactLineage { .. } => AssemblyError::product_refusal(fault),
     }
 }
 

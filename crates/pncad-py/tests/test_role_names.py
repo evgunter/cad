@@ -18,13 +18,14 @@ has.
 
 EVERY DOOR TAKES A PIECE. A profile's segments are named by the
 pieces that draw them — the step that authored the segment, by the id
-the document minted for it, and its role in that step — and
-`Doc.pieces(profile)[loop][k]` is the piece canonical segment `k` of
-canonical loop `loop` is (0 the outer one, then the holes in the order
-the profile describes them); a rim or meridian vertex is spelled by
-the piece that starts at it. No loop is privileged, which is why the
-third scene below has a hole and names its bands the same way the
-first scene names the outer ones.
+the document minted for it, and its role in that step — and a piece is
+spelled from the handle the step's verb returned:
+`doc.piece(profile, loop, h.leg)`, with `loop` the loop the author
+states (0 the outer one, then the holes in the order the profile
+describes them). A rim or meridian vertex is spelled by the piece that
+starts at it. No loop is privileged, which is why the third scene
+below has a hole and names its bands the same way the first scene
+names the outer ones.
 
 The first two scenes are the two shapes a full revolve takes. A
 profile that CLEARS the axis sweeps to one face per meridian segment,
@@ -93,15 +94,9 @@ def ring(doc):
     """A square-section ring: `band` 0 is the bottom annulus, 1 the
     outer cylinder, 2 the top annulus, 3 the inner one."""
     frame = doc.sketch_frame()
-    chain = (
-        Open.at((RI * m, 0 * m))
-        .line_to((RO * m, 0 * m))
-        .line_to((RO * m, H * m))
-        .line_to((RI * m, H * m))
-        .line_to(Start)
-    )
+    chain, legs = polygon([(RI, 0), (RO, 0), (RO, H), (RI, H)])
     profile = doc.insert(Node.profile(chain, plane=frame))
-    return profile, doc.insert(
+    return Scene(doc, profile, [legs]), doc.insert(
         Node.revolve(profile, axis_of(doc, frame), Expr.angle_in(2 * math.pi, rad))
     )
 
@@ -111,15 +106,9 @@ def frustum(doc):
     disc, 1 the cone wall, 2 the top disc, and segment 3 is the
     meridian ON the axis, which sweeps nothing."""
     frame = doc.sketch_frame()
-    chain = (
-        Open.at((0 * m, 0 * m))
-        .line_to((R_BASE * m, 0 * m))
-        .line_to((R_TOP * m, H_F * m))
-        .line_to((0 * m, H_F * m))
-        .line_to(Start)
-    )
+    chain, legs = polygon([(0, 0), (R_BASE, 0), (R_TOP, H_F), (0, H_F)])
     profile = doc.insert(Node.profile(chain, plane=frame))
-    return profile, doc.insert(
+    return Scene(doc, profile, [legs]), doc.insert(
         Node.revolve(profile, axis_of(doc, frame), Expr.angle_in(2 * math.pi, rad))
     )
 
@@ -129,22 +118,10 @@ def holed_ring(doc):
     is the outer boundary, loop 1 the hole, and the revolve of a
     lamina-with-hole is one body of two square-torus shells."""
     frame = doc.sketch_frame()
-    outer = (
-        Open.at((RI * m, 0 * m))
-        .line_to((RO * m, 0 * m))
-        .line_to((RO * m, H * m))
-        .line_to((RI * m, H * m))
-        .line_to(Start)
-    )
-    hole = (
-        Open.at((HI * m, HB * m))
-        .line_to((HO * m, HB * m))
-        .line_to((HO * m, HT * m))
-        .line_to((HI * m, HT * m))
-        .line_to(Start)
-    )
+    outer, outer_legs = polygon([(RI, 0), (RO, 0), (RO, H), (RI, H)])
+    hole, hole_legs = polygon([(HI, HB), (HO, HB), (HO, HT), (HI, HT)])
     profile = doc.insert(Node.profile([outer, hole], plane=frame))
-    return profile, doc.insert(
+    return Scene(doc, profile, [outer_legs, hole_legs]), doc.insert(
         Node.revolve(
             profile,
             axis_of(doc, frame),
@@ -153,15 +130,35 @@ def holed_ring(doc):
     )
 
 
-def piece(doc, profile, lp, k):
-    """The piece canonical segment `k` of loop `lp` is — and the one
-    starting at canonical vertex `k`."""
-    return doc.pieces(profile)[lp][k]
+def polygon(corners):
+    """A closed chain through `corners` (in metres), and the handle of
+    each leg in authored order: leg `k` runs from corner `k` to corner
+    `k + 1`, the last one back to the start."""
+    path = Open.at((corners[0][0] * m, corners[0][1] * m))
+    legs = []
+    for x, y in corners[1:]:
+        path = path.line_to((x * m, y * m))
+        legs.append(path.step)
+    closed = path.line_to(Start)
+    legs.append(closed.step)
+    return closed, legs
 
 
-def step_id(piece_text):
+class Scene:
+    """A profile in a document and the handles of its loops' legs."""
+
+    def __init__(self, doc, profile, legs):
+        self.doc, self.profile, self.legs = doc, profile, legs
+
+    def piece(self, lp, k):
+        """The piece leg `k` of loop `lp` draws — and the one starting
+        at the corner that leg leaves."""
+        return self.doc.piece(self.profile, lp, self.legs[lp][k].leg)
+
+
+def step_id(piece):
     """The minted id a piece spells — the key its names sort by."""
-    return json.loads(piece_text)["Piece"]["step"]
+    return json.loads(str(piece))["Piece"]["step"]
 
 
 def of_role(ev, node, kind, tag, side=None):
@@ -179,14 +176,14 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
 
     def test_band_and_its_rims_and_meridian_vertices_on_a_ring(self):
         doc = Doc()
-        profile, node = ring(doc)
+        scene, node = ring(doc)
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         self.assertEqual(len(bands), 4, "one band per meridian segment")
         # `select` answers in NAME order: for names that differ only in
         # the piece, that is the pieces' step ids ascending, not the
         # program's segment order.
-        by_id = sorted((piece(doc, profile, 0, k) for k in range(4)), key=step_id)
+        by_id = sorted((scene.piece(0, k) for k in range(4)), key=step_id)
         self.assertEqual(bands, [band(node, p) for p in by_id])
         # No pole, so no `[pi, 2pi)` half exists to name.
         self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
@@ -200,65 +197,65 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         # The names denote what the door says they denote: `band` 2 is
         # the top annulus, and rim 2 the circle standing on it.
         self.assertEqual(
-            ev.face_carrier_kind(node, band(node, piece(doc, profile, 0, 2))), SurfaceKind.Plane
+            ev.face_carrier_kind(node, band(node, scene.piece(0, 2))), SurfaceKind.Plane
         )
         self.assertEqual(
-            ev.face_frame(node, band(node, piece(doc, profile, 0, 2))).origin[1].meters, H
+            ev.face_frame(node, band(node, scene.piece(0, 2))).origin[1].meters, H
         )
-        self.assertEqual(ev.edge_frame(node, band_rim(node, piece(doc, profile, 0, 2))).origin[1].meters, H)
+        self.assertEqual(ev.edge_frame(node, band_rim(node, scene.piece(0, 2))).origin[1].meters, H)
 
     def test_band_pi_is_the_half_a_pole_splits_off(self):
         doc = Doc()
-        profile, node = frustum(doc)
+        scene, node = frustum(doc)
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         halves = of_role(ev, node, EntityKind.Face, SegTag.BandPi)
         self.assertEqual(len(bands), 3, "the fourth segment lies on the axis")
         self.assertEqual(len(halves), 3, "and each band has its pi half")
-        self.assertEqual(bands, [band(node, piece(doc, profile, 0, seg)) for seg in range(3)])
-        self.assertEqual(halves, [band_pi(node, piece(doc, profile, 0, seg)) for seg in range(3)])
+        self.assertEqual(bands, [band(node, scene.piece(0, seg)) for seg in range(3)])
+        self.assertEqual(halves, [band_pi(node, scene.piece(0, seg)) for seg in range(3)])
         # A door answering the other door's text would pass every
         # count above; these are two roles and two texts.
-        self.assertNotEqual(band(node, piece(doc, profile, 0, 0)), band_pi(node, piece(doc, profile, 0, 0)))
+        self.assertNotEqual(band(node, scene.piece(0, 0)), band_pi(node, scene.piece(0, 0)))
 
     def test_a_holes_bands_are_named_at_its_own_loop(self):
         """The claim the outer-loop signature could not make: the
         emitter mints a hole's band, rim and meridian vertex on the
         hole's own pieces, and the door answers those bytes for the
-        same pieces. Compared as SETS over the loop's four segments,
-        because which corner the canonical chain starts at is the
-        profile crate's business and not this file's."""
+        same pieces. Compared as SETS over the two loops' legs,
+        because `select` answers in name order, which is not authored
+        order."""
         doc = Doc()
-        profile, node = holed_ring(doc)
+        scene, node = holed_ring(doc)
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         self.assertEqual(len(bands), 8, "four meridian segments per loop")
         self.assertEqual(
-            set(bands), {band(node, piece(doc, profile, lp, s)) for lp in (0, 1) for s in range(4)}
+            set(bands), {band(node, scene.piece(lp, s)) for lp in (0, 1) for s in range(4)}
         )
         rims = of_role(ev, node, EntityKind.Edge, SegTag.BandRim)
         self.assertEqual(
-            set(rims), {band_rim(node, piece(doc, profile, lp, v)) for lp in (0, 1) for v in range(4)}
+            set(rims), {band_rim(node, scene.piece(lp, v)) for lp in (0, 1) for v in range(4)}
         )
         seam = of_role(
             ev, node, EntityKind.Vertex, SegTag.MeridianVertex, MeridianEnd.Seam
         )
         self.assertEqual(
             set(seam),
-            {meridian_vertex(MeridianEnd.Seam, node, piece(doc, profile, lp, v)) for lp in (0, 1) for v in range(4)},
+            {meridian_vertex(MeridianEnd.Seam, node, scene.piece(lp, v)) for lp in (0, 1) for v in range(4)},
         )
         # Neither loop clears into a pole, so nothing is split at pi
         # and no `band_pi` name exists on either loop.
         self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
         # The same position on the two loops is two pieces, and two
         # names.
-        self.assertNotEqual(band(node, piece(doc, profile, 0, 0)), band(node, piece(doc, profile, 1, 0)))
+        self.assertNotEqual(band(node, scene.piece(0, 0)), band(node, scene.piece(1, 0)))
         # And the names denote faces of the shape the section has:
         # two horizontal segments sweep to annuli and two vertical
         # ones to cylinders, on each loop.
         for lp in (0, 1):
             kinds = [
-                ev.face_carrier_kind(node, band(node, piece(doc, profile, lp, s))) for s in range(4)
+                ev.face_carrier_kind(node, band(node, scene.piece(lp, s))) for s in range(4)
             ]
             self.assertEqual(kinds.count(SurfaceKind.Plane), 2)
             self.assertEqual(kinds.count(SurfaceKind.Cylinder), 2)
@@ -278,10 +275,10 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
 
     def test_carried_is_the_name_a_survivor_of_the_next_op_wears(self):
         doc = Doc()
-        profile, node = ring(doc)
+        scene, node = ring(doc)
         # The top annulus opened: the other three bands survive the
         # hollowing, and each wears its own name under the shell.
-        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, piece(doc, profile, 0, 2))]))
+        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         survivors = ev.select(
             hollow,
@@ -291,15 +288,15 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         )
         self.assertEqual(
             sorted(survivors),
-            sorted(carried(hollow, band(node, piece(doc, profile, 0, seg))) for seg in (0, 1, 3)),
+            sorted(carried(hollow, band(node, scene.piece(0, seg))) for seg in (0, 1, 3)),
         )
         # The kind is the inner name's, never re-decided: a carried
         # face resolves as a face.
-        self.assertEqual(ev.resolve(carried(hollow, band(node, piece(doc, profile, 0, 0)))).status, "resolved")
+        self.assertEqual(ev.resolve(carried(hollow, band(node, scene.piece(0, 0)))).status, "resolved")
 
     def test_text_that_is_not_a_name_refuses_at_the_boundary(self):
         doc = Doc()
-        _profile, node = ring(doc)
+        _scene, node = ring(doc)
         with self.assertRaises(ValueError):
             carried(node, "the bottom face")
 
@@ -312,10 +309,10 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
 
     def test_a_shell_opened_at_a_band_named_before_the_revolve_ran(self):
         doc = Doc()
-        profile, node = ring(doc)
+        scene, node = ring(doc)
         # Authored against the recipe alone — nothing is evaluated
         # until the assertion below.
-        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, piece(doc, profile, 0, 2))]))
+        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         body = ev.value(hollow).body()
         body.validate()
@@ -336,16 +333,16 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         faces = NamePat.of_kind(EntityKind.Face)
         rim = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))
         self.assertEqual(len(rim), 1)
-        self.assertIn(band(node, piece(doc, profile, 0, 2)), rim[0], "the rim wears the opened face's name")
+        self.assertIn(band(node, scene.piece(0, 2)), rim[0], "the rim wears the opened face's name")
 
     def test_a_fillet_on_rims_named_before_the_revolve_ran(self):
         doc = Doc()
-        profile, node = ring(doc)
+        scene, node = ring(doc)
         rolled = doc.insert(
             Node.fillet(
                 node,
                 Expr.length_in(ROLL, m),
-                [band_rim(node, piece(doc, profile, 0, 2)), band_rim(node, piece(doc, profile, 0, 3))],
+                [band_rim(node, scene.piece(0, 2)), band_rim(node, scene.piece(0, 3))],
             )
         )
         ev = evaluate(doc)

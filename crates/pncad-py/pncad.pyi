@@ -222,13 +222,15 @@ class EvaluationError(PncadError):
     declare that finding, or move the geometry.
 
     A refusal that CARRIES another node's refusal — `part_root_failed`,
-    a part whose product root failed, and `mate_placer_refused`, a
-    mate whose poisoned placer could not derive its pose — names that
-    node and points at it, and never quotes it. The carried refusal is
-    `__cause__`: an `EvaluationError` raised for that node as its own
-    evaluation raises it, whose `node` is in the id space of its
-    `document`: the part's `DocRef` for a part's root, or `None` for a
-    node of the evaluated document itself. A part inside a part is a
+    a part whose product root failed, `part_root_poisoned`, a part
+    whose product root never ran because a node upstream of it failed,
+    and `mate_placer_refused`, a mate whose poisoned placer could not
+    derive its pose — names the node that failed and points at it, and
+    never quotes it. The carried refusal is `__cause__`: an
+    `EvaluationError` raised for that node as its own evaluation raises
+    it, whose `node` is in the id space of its `document`: the part's
+    `DocRef` for a part's node, or `None` for a node of the evaluated
+    document itself. A part inside a part is a
     chain of causes, one per document, ending at the node that refused.
     """
 
@@ -1145,6 +1147,29 @@ class AnalysisPolicyError(PncadError):
     variant: str
     mass: float
 
+class StepHandleError(PncadError):
+    """An authored step handle that does not bind in the profile it was
+    read against.
+
+    `variant` is the stable tag; `loop_` and `index` are the address
+    and `role` the role asked for, each `None` where the arm has none.
+
+    `handle_off_program`: the stated loop has no step with the
+    handle's index and shape — a handle is valid for the program it
+    was authored for, a value edit keeps it valid, and across
+    `set_program` a step is held by its `StepId`. `role_not_drawn`:
+    the step's verb never draws that role.
+
+    `unminted` and `step_ids` are the Rust door's refusals for a
+    program outside a document, or one whose ids are malformed; `Doc`
+    never raises them, because a profile it holds carries one minted id
+    per step."""
+
+    variant: str
+    loop_: Optional[int]
+    index: Optional[int]
+    role: Optional[Role]
+
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
@@ -1341,6 +1366,10 @@ class ClosedLoop:
     def vertex_count(self) -> int: ...
     @property
     def step_count(self) -> int: ...
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the loop's last step — the closing verb's, or
+        the one step of a `circle` or `circle_split`."""
 
 _T = TypeVar("_T")
 
@@ -1443,6 +1472,10 @@ class PathOpen:
     `Start` reachable because the entry is behind us. An ARC arrival is
     authored in the fillet verb itself, never here."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def at(self, p: tuple[Length, Length]) -> PathPoint: ...
     def angle(self, theta: Angle) -> PathAngle: ...
     def toward(self, dx: float, dy: float) -> PathAngle: ...
@@ -1451,12 +1484,20 @@ class PathOpen:
 class PathAngle:
     """Direction bound, position pending."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def at(self, p: tuple[Length, Length]) -> PathDirected: ...
     def to(self, anchor: tuple[Length, Length]) -> PathDirectedPoint: ...
 
 class PathRadiusArrival:
     """A `Radius` arrival awaiting both binders, in either order."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def at(self, p: tuple[Length, Length]) -> PathRadiusArrivalAt: ...
     def angle(self, theta: Angle) -> PathRadiusArrivalDir: ...
     def toward(self, dx: float, dy: float) -> PathRadiusArrivalDir: ...
@@ -1464,23 +1505,39 @@ class PathRadiusArrival:
 class PathRadiusArrivalAt:
     """A `Radius` arrival with its anchor bound, director pending."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> PathDirectedPoint: ...
     def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
 
 class PathRadiusArrivalDir:
     """A `Radius` arrival with its director bound, anchor pending."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def at(self, p: tuple[Length, Length]) -> PathDirectedPoint: ...
 
 class PathViaArrival:
     """A `Via` arrival: the anchor rides the spec, one director left."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> PathDirectedPoint: ...
     def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
 
 class PathViaArrivalStart:
     """A `Via` arrival that CLOSES: one director left, at the entry."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> ClosedLoop: ...
     def toward(self, dx: float, dy: float) -> ClosedLoop: ...
 
@@ -1488,6 +1545,10 @@ class PathPoint:
     """A plain point: position bound, no incoming carrier. There is
     nothing to inherit here, so `tangent` and `turn` are absent."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> PathDirected: ...
     def toward(self, dx: float, dy: float) -> PathDirected: ...
     @overload
@@ -1524,6 +1585,10 @@ class PathDirectedPoint:
     """A leg end: position bound, and the leg's incoming end tangent
     available as read-only intrinsic data."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> PathDirected: ...
     def toward(self, dx: float, dy: float) -> PathDirected: ...
     def tangent(self) -> PathDirected: ...
@@ -1576,6 +1641,10 @@ class PathDirected:
     """Both bits bound — the only state legs and `fillet` consume.
     The outgoing angle slot is full, so no second director exists."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def line(self, len: Length) -> PathDirectedPoint: ...
     def fillet(self, radius: Length) -> PathOpen: ...
     @overload
@@ -1626,6 +1695,91 @@ def circle_split(
     n: int,
     phase: Angle,
 ) -> ClosedLoop: ...
+
+# --- authored steps and pieces ----------------------------------------
+# A chain state's `.step` is the address of the step its verb recorded;
+# a profile binds it to the id that placement minted (`Doc.step`) and
+# spells a piece from one of its roles (`Doc.piece`).
+
+class StepId:
+    """A minted profile step id: what a piece's name spells. NOT a
+    position."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Role:
+    """Which of its step's pieces a piece is."""
+
+    Leg: Final[Role]
+    RunIn: Final[Role]
+    Arc: Final[Role]
+    RunOut: Final[Role]
+    @staticmethod
+    def piece(k: int) -> Role:
+        """Piece `k` of a carrier form (`circle`, `circle_split`)."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Piece:
+    """A profile piece: the step that drew it, by its minted id, and its
+    role in that step's list. `str()` is the kernel's text for it."""
+
+    def __init__(self, step: StepId, role: Role) -> None: ...
+    @property
+    def step(self) -> StepId: ...
+    @property
+    def role(self) -> Role: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class AuthoredStep:
+    """The address of an authored step: its index in its loop and the
+    loop's shape up to it, values erased.
+
+    Its role accessors are its verb's role list, generated from the
+    kernel's one list: `.leg` on a leg; `.run_in`, `.arc` and `.run_out`
+    on a fillet or a fused verb; `.piece(k)` on a carrier form, `k`
+    checked against its count; none on a binder. An accessor the step's
+    verb does not draw raises `AttributeError`.
+
+    A handle binds wherever the stated loop's program has its prefix:
+    a wrong loop of the same shape, or a handle from an earlier program
+    whose prefix the new one still has, binds without error. Equal
+    handles are equal, so they are one key in a `set_program` keep
+    dict."""
+
+    @property
+    def index(self) -> int: ...
+    @property
+    def verb(self) -> str: ...
+    @property
+    def leg(self) -> StepRole: ...
+    @property
+    def run_in(self) -> StepRole: ...
+    @property
+    def arc(self) -> StepRole: ...
+    @property
+    def run_out(self) -> StepRole: ...
+    def piece(self, k: int) -> StepRole: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class CarrierPieces:
+    """`h.piece` on a carrier form's handle: `h.piece(k)` is its piece
+    `k`, and a `k` at or past the form's count raises
+    `StepHandleError` `role_not_drawn`."""
+
+    def __call__(self, k: int) -> StepRole: ...
+
+class StepRole:
+    """One role of an authored step, as a handle's accessor answers it:
+    what `Doc.piece` binds to a `Piece`."""
+
+    @property
+    def step(self) -> AuthoredStep: ...
+    @property
+    def role(self) -> Role: ...
 
 # --- document ---------------------------------------------------------
 
@@ -3099,14 +3253,14 @@ class DocEdit:
     def set_program(
         node: NodeId,
         outline: ClosedLoop,
-        ids: list[list[Optional[int]]],
+        keep: list[dict[AuthoredStep, StepId]],
     ) -> DocEdit: ...
     @overload
     @staticmethod
     def set_program(
         node: NodeId,
         outline: list[ClosedLoop],
-        ids: list[list[Optional[int]]],
+        keep: list[dict[AuthoredStep, StepId]],
     ) -> DocEdit:
         """Replace a live profile's PROGRAM whole — its loops, their
         verbs, order and count, arc modes and targets — validated
@@ -3114,11 +3268,16 @@ class DocEdit:
 
         `outline` is the description `Node.profile` takes — one closed
         loop, or `[outer, hole, hole]` — read through the same door.
-        `ids` is one list per new loop in that order, one entry per
-        authored step: the minted id of the OLD step it keeps
-        (`Doc.step_ids` reads them), or `None` for a new step, which
-        the door mints. The editor that reshaped the program knows
-        which leg it inserted; the door is told, never guesses.
+        `keep` is one dict per new loop in that order, mapping the
+        handle of a step of that loop's NEW program (the `.step` its
+        verb returned) to the `StepId` of the old step it keeps
+        (`Doc.step` reads them). A step no entry names is new and the
+        door mints it; a loop that keeps nothing is `{}`. The editor that
+        reshaped the program knows which leg it inserted; the door is
+        told, never guesses. A handle that is not a step of its loop's
+        new program raises `StepHandleError` `handle_off_program`, and
+        an old id kept twice refuses `step_ids_refused` with
+        `inner_variant` `repeated`.
 
         A name on a profile piece spells its step's id, so a name on a
         kept step keeps denoting its piece and is not touched. A step
@@ -3253,25 +3412,46 @@ class Doc:
         insert (a stranded head, a re-pointed `Part`, a loaded
         snapshot), are the solve's at evaluation."""
 
-    def step_ids(self, profile: NodeId) -> list[list[int]]:
+    def step_ids(self, profile: NodeId) -> list[list[StepId]]:
         """The minted id of every step of the profile at `profile`, one
-        list per loop in program order — what `DocEdit.set_program`
-        keeps a step by. Raises `ValueError` for a node that is not a
-        profile."""
+        list per loop in program order — the positional reading, for a
+        caller that holds no handle. Raises `ValueError` for a node
+        that is not a profile."""
 
-    def pieces(self, profile: NodeId) -> list[list[str]]:
+    def step(self, profile: NodeId, loop: int, h: AuthoredStep) -> StepId:
+        """The id the profile at `profile` minted for the step `h`
+        addresses in its loop `loop`, which the author states. `h` is
+        the `.step` of the chain state (or closed loop) the step's verb
+        returned.
+
+        Raises `StepHandleError` `handle_off_program` where the loop's
+        program has no step at that index with that shape up to it — a
+        handle is valid for the program it was authored for, and a
+        value edit keeps it valid — and `ValueError` for a node that is
+        not a profile. The check is the prefix alone: a wrong loop of
+        the same shape, or a stale handle whose prefix still matches,
+        binds without error."""
+
+    def piece(self, profile: NodeId, loop: int, role: StepRole) -> Piece:
+        """The piece `role` of an authored step of the profile at
+        `profile`, in its loop `loop`: `role` is a handle's accessor
+        (`h.leg`, `h.run_out`, `h.piece(k)`). A role the step's verb
+        draws is a piece whether or not the current values draw it; a
+        name on one they do not resolves `Vanished` until they do.
+
+        Raises what `step` raises."""
+
+    def pieces(self, profile: NodeId) -> list[list[Piece]]:
         """The piece every canonical segment of the profile at
         `profile` is, one list per canonical loop (0 the outer loop,
         then the holes in description order), one piece per canonical
         segment in the loop's canonical traversal from its authored
         start — under the document's current parameter values.
 
-        A piece is opaque text, as a name is: the step that drew the
-        segment, by its minted id, and its role in that step's list.
-        It is what `band`, `band_pi`, `band_rim` and `meridian_vertex`
-        take, and it stays the name of that piece whatever later moves
-        the segment. The vertex a piece STARTS at is spelled by the
-        same text.
+        The positional reading, for a caller that holds no handle;
+        `piece` spells one from the handle its authoring call
+        returned. A piece stays the name of that piece whatever later
+        moves the segment.
 
         Raises `ValueError` for a node that is not a profile, or whose
         program does not replay and validate under the current
@@ -3914,28 +4094,28 @@ class GeomPred:
 # either side of the boundary. The text stays opaque — a caller
 # composes by naming a ROLE, never by assembling the serialization.
 
-def band(node: NodeId, piece: str) -> str:
+def band(node: NodeId, piece: Piece) -> str:
     """The `[0, pi)` band face swept from the profile piece `piece` on
     the revolve at `node`.
 
-    `piece` is a piece's text, from `Doc.pieces`: the step that drew a
+    `piece` is a `Piece`, from `Doc.piece`: the step that drew a
     segment, by its minted id, and its role in that step's list — so
     the name stays the name of that piece whatever later moves the
     segment. The kind is fixed at the role's own — a face — which is
     the field a hand-written name gets wrong silently until emission
     refuses it."""
 
-def band_pi(node: NodeId, piece: str) -> str:
+def band_pi(node: NodeId, piece: Piece) -> str:
     """The `[pi, 2pi)` band face swept from the profile piece `piece` —
     `band`'s twin, where a full revolve emits a segment as two faces.
     A face, as `band` is."""
 
-def band_rim(node: NodeId, piece: str) -> str:
+def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts
     at — the edge between the band of the piece ending there and the
     piece's own. An edge."""
 
-def meridian_vertex(end: MeridianEnd, node: NodeId, piece: str) -> str:
+def meridian_vertex(end: MeridianEnd, node: NodeId, piece: Piece) -> str:
     """The meridian vertex at `end`: the copy of the vertex the profile
     piece `piece` starts at, on a wedge cap plane (`MeridianEnd.Start`,
     `MeridianEnd.End`) on a partial revolve, or the surviving meridian
@@ -5798,7 +5978,7 @@ class SplitOutcome:
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Cut node -> its id in the part document."""
     @property
-    def step_map(self) -> list[tuple[int, int]]:
+    def step_map(self) -> dict[StepId, StepId]:
         """Cut profile step id -> the id the part minted for it."""
 
 def split(
@@ -5839,7 +6019,7 @@ class InlineOutcome:
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Part node -> its id in the spliced document."""
     @property
-    def step_map(self) -> list[tuple[int, int]]:
+    def step_map(self) -> dict[StepId, StepId]:
         """Part profile step id -> the id the host minted for it."""
 
 def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:

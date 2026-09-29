@@ -1112,8 +1112,8 @@ fn resolve_face<P, T: Decide>(
 /// and the gate never asks it: every live node sits under some root
 /// (A10 coverage), so an operand that failed or was poisoned has a
 /// failed or poisoned root above it, and the gather's first pass
-/// refuses the document (`ProductError::RootFailed` /
-/// `RootPoisoned`) before any mate is read — the mate itself may
+/// refuses the document (`ProductError::Root`, with the root's
+/// standing) before any mate is read — the mate itself may
 /// well be live and `Determining`. The ladder's other rungs are
 /// answered `Vanished` here rather than unwrapped.
 fn operand_answer<P, T: Decide>(

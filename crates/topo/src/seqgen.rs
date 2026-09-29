@@ -1038,8 +1038,7 @@ fn chord_redescriptions(
 
 /// [`chord_redescriptions`] over a body that need not be valid: `None`
 /// where [`Body::kev_merged_members`] refuses. Its caller is
-/// `review_d18`'s release-only hammer.
-#[cfg(not(debug_assertions))]
+/// `review_d18`'s kill through either door.
 pub(crate) fn try_chord_redescriptions(
     body: &Body<f64>,
     he: HalfEdgeKey,

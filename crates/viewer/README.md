@@ -2018,7 +2018,8 @@ answer, never why the arm is there.
 
 - *Identity* — the question is the variant itself, so a new variant
   correctly answers no: `bounds::Bound::is_edge`, the read doors on
-  `tools::Tools`, `app`'s "was this op an `Open`".
+  `tools::Tools`, `app`'s "was this op an `Open`",
+  `display::instance_check`'s "is this node an `InstantiatePart`".
 - *A downcast* — the pattern extracts the payload only one variant
   carries: `frame::retype_draft`'s search for the expression op,
   `drafts`' profile edit.

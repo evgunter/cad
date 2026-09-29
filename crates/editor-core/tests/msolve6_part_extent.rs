@@ -1814,6 +1814,19 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         Tol::witness(),
         None,
     );
+    // The sentence states the split's own recourse — the resolver the
+    // call was not given — once.
+    let text = none
+        .as_ref()
+        .err()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    assert!(
+        text.contains(
+            "Recourse: give the split a resolver that holds every part the document places"
+        ) && text.matches("Recourse:").count() == 1,
+        "the split's recourse: {text}"
+    );
     match none {
         Err(SplitError::RemainderEdit { error }) => assert!(
             matches!(

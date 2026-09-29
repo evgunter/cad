@@ -810,6 +810,23 @@ pub enum UpstreamCause {
     },
 }
 
+/// The subject of a flip report: the signed margin a predicate
+/// decides on, named by what it decides (`crate::decision::words`).
+/// What flips is that margin's sign, so "from negative to positive"
+/// reads as the margin's, not as the decision's. The predicate's name
+/// is routing and rides `Debug`; a predicate with no words reads as
+/// `geom_core::UNNAMED_DECISION`.
+struct FlipSubject<'a>(&'a str);
+
+impl core::fmt::Display for FlipSubject<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match crate::decision::words(self.0) {
+            Some(words) => write!(f, "the margin deciding {words}"),
+            None => write!(f, "the margin of {}", geom_core::UNNAMED_DECISION),
+        }
+    }
+}
+
 // The CAUSE clause of [`Diagnosis::Upstream`]'s sentence; the arm adds
 // where it sits relative to the name.
 impl core::fmt::Display for UpstreamCause {
@@ -822,7 +839,8 @@ impl core::fmt::Display for UpstreamCause {
                 to,
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from} to {to} at node {}",
+                "{} flipped from {from} to {to} at node {}",
+                FlipSubject(predicate),
                 at.0
             ),
             Self::StructuralParam { node, param } => write!(
@@ -874,8 +892,8 @@ impl core::fmt::Display for Diagnosis {
                 source: FlipSource::VerdictLog,
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from} to {to} on the name's \
-                 derivation path"
+                "{} flipped from {from} to {to} on the name's derivation path",
+                FlipSubject(predicate)
             ),
             // The recovered flip says so: it is a real flip of a real
             // predicate, and it is in no log a reader could go and
@@ -887,9 +905,10 @@ impl core::fmt::Display for Diagnosis {
                 source: FlipSource::ShadowExec { partner },
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from} to {to} against the {partner} \
+                "{} flipped from {from} to {to} against the {partner} \
                  — recovered by re-running the pair at diagnosis time, because one of the \
-                 two runs recorded no side verdict at the name's minting node"
+                 two runs recorded no side verdict at the name's minting node",
+                FlipSubject(predicate)
             ),
             Self::ShadowExecDeclined { node, reason } => write!(
                 f,

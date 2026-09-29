@@ -526,7 +526,16 @@ impl core::fmt::Display for RangeRefusal {
                 slot.label(),
                 node.0
             ),
-            Self::Derivation(e) => write!(f, "the derived document was refused: {e}"),
+            // Every derived edit re-writes a value the document already
+            // holds, or declares one over a validated seed, so the edit
+            // door's recourse — about an edit nobody made — is not this
+            // door's.
+            Self::Derivation(e) => write!(
+                f,
+                "the derived document was refused: {}. {}",
+                e.problem(),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
             Self::SeedIsNotTheAnalyzedAxis { analyzed, asked } => write!(
                 f,
                 "the analysis derived the axis [{}, {}] for this field, which is not the seed \
