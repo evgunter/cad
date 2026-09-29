@@ -134,9 +134,9 @@ pub trait Certification: sealed::Sealed + Copy {
     #[must_use]
     fn clamped_to(self, lo: f64, hi: f64) -> Self;
 
-    /// Whether `x` lies in the enclosure. False for a refusal and for a
-    /// NaN `x` (nothing is known to lie in a bracket that may not
-    /// certify).
+    /// Whether `x` lies in the enclosure. False for a refusal (nothing is
+    /// known to lie in a bracket that may not certify) and for a `x` that
+    /// is not a real number — NaN, or `±inf` even on an unbounded side.
     #[must_use]
     fn contains(self, x: f64) -> bool;
 

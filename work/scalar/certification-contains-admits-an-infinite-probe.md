@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-29
 priority: P2
 cost: E
-design: true
 ---
 
 
@@ -42,14 +41,20 @@ With the reference's `p.is_finite()` clause removed, the differential
 agrees with the door on every case, so this is the only
 disagreement across the five doors.
 
-## The choice
+## Ruling (orchestrator, 2026-09-29)
 
-- (a) the door (or `DInterval::contains`) refuses a non-finite probe, as
-  inari did; the differential lands as written.
-- (b) the contract admits `±inf` as a member of an unbounded side; the
-  door docs (and `DInterval::contains`'s "the real number `x`") say so,
-  the divergence goes into `semantics-diffs.md`, and the reference drops
-  its `p.is_finite()` clause.
+A defect against a documented contract, not a design choice, so it is
+fixed where it starts: `DInterval::contains` refuses a non-finite probe
+(`x.is_finite() && …`, inari's spelling), and the door inherits it.
+The backend's own doc says "the real number `x`" and `±inf` is not one;
+inari answered `false` and nothing lists the divergence as intended
+(`semantics-diffs.md`: "anything new the harness finds is a bug, not a
+difference"); and the kernel elsewhere gives `±inf` no enclosure
+(`point(±inf)`, `interval.rs` "Non-real inputs"). Fixing only the door
+would leave every other `DInterval::contains` caller admitting it.
 
-No caller was surveyed for a probe that can be infinite.
-
+Caller survey (on the fix's branch): `DInterval::contains` has one
+production caller, the `Certification::contains` door, and the door has
+no production caller in the workspace; every test caller probes a
+finite value (a constant, or an f64 result guarded by `is_finite()` or
+drawn from a bounded range). Nothing relied on admitting `±inf`.

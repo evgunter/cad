@@ -32,10 +32,3 @@ over the backend's endpoints and decoration (`DInterval` directly), over
 the corner corpus the backend differential already has, asserting the
 refusal verdict first and the endpoints bit for bit.
 
-## State (scalar/cert-diff)
-
-The differential is written (`crates/geom-core/tests/certification_door_differential.rs`)
-and every door but `contains` agrees with its reference; `contains`
-disagrees on `±inf` over an unbounded enclosure, which is
-`certification-contains-admits-an-infinite-probe`. Held there, unmerged,
-until that choice is made.
