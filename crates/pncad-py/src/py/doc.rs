@@ -143,13 +143,22 @@ fn edit_fields(
 /// where it holds none, and the rest is the arm's payload
 /// (`crate::edit_payload`). All of them are always present.
 pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
+    // `EditError` implements `Display`: the human message is real
+    // prose; the machine payload is the `variant` tag (see
+    // `crate::tags`) and the arm's fields.
+    edit_err_saying(py, err, err.to_string())
+}
+
+/// [`edit_err`] with a message of the raising door's own: a door that
+/// raises an `EditError` arm for a refusal that is not an edit states
+/// the arm's problem (`EditError::problem`) and its own recourse,
+/// since the edit door's recourse is about an edit nobody made. The
+/// tag and payload are the arm's, as at every other site.
+fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr {
     typed_err(
         py,
         ErrorClass::Edit,
-        // `EditError` implements `Display`: the human message is real
-        // prose; the machine payload is the `variant` tag (see
-        // `crate::tags`) and the arm's fields.
-        err.to_string(),
+        message,
         &edit_fields(
             py,
             edit_error_tag(err),
@@ -1247,7 +1256,14 @@ impl Doc {
         self.inner
             .node(node.0)
             .map(crate::node_kind::node_kind)
-            .ok_or_else(|| edit_err(py, &d::EditError::UnknownNode { id: node.0 }))
+            .ok_or_else(|| {
+                let err = d::EditError::UnknownNode { id: node.0 };
+                let message = format!(
+                    "{}. Recourse: ask for the kind of a node this document holds",
+                    err.problem()
+                );
+                edit_err_saying(py, &err, message)
+            })
     }
 
     /// Insert a node and return its minted id — the common case,

@@ -1184,7 +1184,7 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
-                "metadata {key:?} on the {name} does not carry the D7 integer \
+                "metadata {key:?} on the {name} does not carry an integer \
                  \"v\" version field: {error}"
             ),
         }

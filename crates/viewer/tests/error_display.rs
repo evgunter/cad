@@ -366,8 +366,11 @@ fn edge_name_fault_forwards_its_unnamed_arm() {
     assert!(!picked.contains("hit test"), "{picked}");
 }
 
+/// The replay forwards the refusal's problem and ends as a damaged
+/// file or a defect does: nobody is making the logged edit, so the edit
+/// door's recourse is not the reader's.
 #[test]
-fn replay_error_names_the_log_position_and_forwards_the_refusal() {
+fn replay_error_names_the_log_position_and_forwards_the_problem() {
     let inner = EditError::UnknownNode {
         id: RecipeNodeId(4),
     };
@@ -377,7 +380,11 @@ fn replay_error_names_the_log_position_and_forwards_the_refusal() {
     }
     .to_string();
     assert!(outer.contains('3'), "{outer}");
-    assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(outer.contains(&inner.problem().to_string()), "{outer}");
+    assert!(
+        outer.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING) && !outer.contains("Recourse:"),
+        "{outer}"
+    );
     prose(&outer, "Refused");
 }
 

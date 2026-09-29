@@ -5040,25 +5040,20 @@ fn the_root_readers_read_statements_not_lines() {
 }
 
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family. One family, one entry —
-/// **and the list is empty**, which is a stronger statement than the
-/// one entry it used to hold.
+/// `profile` module does not carry, by family. One family, one entry.
 ///
-/// It held `RawLoop`, the minting tier: a root export the façade
-/// deliberately declined to carry, so that `ProfileLoop::polygon(…)`
-/// failed to resolve through the façade while `ProfileLoop` itself
-/// stayed nameable. The trait is now gated behind that crate's
-/// `test-support` feature, exactly as its six `FILLET_*_RECOURSE`
-/// sentences are, so no consumer's build compiles it and there is
-/// nothing for the façade to decline. [`code_without_cfg_gated`] is
-/// what makes the scan agree, and this list emptying is what that
-/// demotion looks like from here: the name did not move from carried
-/// to uncarried, it left the layer's shipped root surface.
+/// - `decision_subject`, the words a refusal or a flip report states
+///   for one of the layer's predicates. It is exported for the
+///   document layer's one lookup over every owner's words
+///   (`editor-core`'s `decision::words`), which renders them into its
+///   own sentences; a modeller reads those sentences, never the table.
 ///
-/// The list stays, and stays checked in both directions — a future
-/// interior root export is still a finding, and a stale entry still
-/// fails.
-const PROFILE_NOT_CARRIED: [&str; 0] = [];
+/// The list is checked in both directions — a future interior root
+/// export is a finding, and a stale entry fails. It once held
+/// `RawLoop`, the minting tier, which left the shipped root surface
+/// behind that crate's `test-support` feature instead
+/// ([`code_without_cfg_gated`] is what makes the scan agree).
+const PROFILE_NOT_CARRIED: [&str; 1] = ["decision_subject"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**

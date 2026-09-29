@@ -29,6 +29,7 @@ pub use parts::PartFault;
 mod schedule;
 pub(crate) mod slots;
 mod wire;
+pub(crate) use wire::decision_words;
 
 pub(crate) use wire::{
     DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar,
@@ -2257,15 +2258,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Escalated { predicate, source } => {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
-                let what = match *predicate {
-                    wire::EVAL_DIRECTION_NORM | topo::DATUM_UNIT_NORM => {
-                        "whether a direction has any length"
-                    }
-                    "revolve_full_vs_partial" => "whether the revolve makes a full turn",
-                    "bool_plane_parallel" => "whether the two planes are parallel",
-                    "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-                    _ => geom_core::UNNAMED_DECISION,
-                };
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(f, "{what} is too close to call: {source}")
             }
             Self::AxisInDifferentPlane {

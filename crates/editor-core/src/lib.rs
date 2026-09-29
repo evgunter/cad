@@ -21,6 +21,7 @@ pub mod appearance;
 pub mod assembly;
 pub mod checks;
 pub mod clearance;
+mod decision;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
