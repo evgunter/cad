@@ -68,3 +68,20 @@ around the touch point that its pieces cover. Coverage beyond that ball
 rests on the vertex probe and on completeness (every meeting stands as
 a finding). That coverage is exactly what this path takes on the
 records' word.
+
+## A built wrong clear (2026-09-29, a designer lane on `contact/land-7`, now main)
+
+"No such pose has been built" is no longer true.
+
+The pose:
+- **The part:** an I-profile, `[(0,-1),(2,-1),(2,0),(1.5,0),(1.5,1),(2,1),(2,2),(0,2),(0,1),(0.5,1),(0.5,0),(0,0)]`, `prism_z(.., 0, 2)`.
+- **The slab:** un-holed, `prism_z([(-5,0),(5,0),(5,1),(-5,1)], -1, 3)`.
+- The waist `x∈[0.5,1.5], y∈[0,1]` passes through the slab. The head is seated on the slab's `y=1` face and the tail on `y=0`.
+- No vertex is strictly inside either solid.
+
+Results:
+- **Undeclared:** it refuses, with 32 `UndeclaredContact` and a decided crossing at an edge-in-face site.
+- **Declared as four `PatchContact`s** (the seat faces and the tail tops; each verifies): `validate_pseudomanifold` returns `Ok(())`.
+- **Declared as sixteen `VfContact`s:** `Ok(())`. The vertex stars are saddles, so they read `Unanalysed`, and the declared-only path refuses only on `MixedTouch`.
+
+This confirms CONTACT-7's designers' note: the Crossing verdict is incomplete, so "refuse only a decided crossing" is unsound even for vertex records. The repair lane commits the three poses as rows.
