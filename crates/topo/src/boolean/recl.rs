@@ -60,10 +60,12 @@ fn carrier_of<T: Decide>(
 /// The geometrically-ON sector pair's carrier identity check, with the
 /// M4 PR 5 evidence: the two faces' recipe sources (N6) plus the
 /// consuming op's declared face pairs (F5). The sources are the
-/// ORIENTED ones ([`super::reduce::face_plane_source`]): rung 1
-/// decides Same± from `orient`, and the descriptions it decides about
-/// are material sides, so the face senses must be composed in or a
-/// same-surface opposite-sense pair reads SameOriented.
+/// ORIENTED ones ([`super::reduce::face_oriented_source`]): the plane
+/// rung 1 decides Same± from `orient`, and the descriptions it decides
+/// about are material sides, so the face senses must be composed in or
+/// a same-surface opposite-sense pair reads SameOriented. A curved pair's
+/// rung reads the carriers' `outward` bits instead (that function's
+/// docs).
 ///
 /// C8: a CURVED sector pair descends the ladder only under a declared
 /// `Rest` pair — an undeclared on-carrier curved pair keeps the typed
@@ -121,8 +123,8 @@ fn require_same<T: Decide>(
         }
     }
     let (g1, g2) = (
-        super::reduce::face_plane_source(body1, s1.face),
-        super::reduce::face_plane_source(body2, s2.face),
+        super::reduce::face_oriented_source(body1, s1.face),
+        super::reduce::face_oriented_source(body2, s2.face),
     );
     let id = super::PlaneIdentity {
         s1: g1.as_ref(),

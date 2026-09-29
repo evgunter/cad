@@ -160,11 +160,11 @@ fn r1_the_plate_ceiling_bisected_both_ways() {
 /// radius Uniform (±), all scaled together, so a ceiling is a multiple
 /// of a study a user would ask for.
 pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let plen = |n: &str| Expr::param(ParamName::new(n), Dimension::Length);
+    let plen = |n: &'static str| Expr::param(ParamName::from_static(n), Dimension::Length);
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,

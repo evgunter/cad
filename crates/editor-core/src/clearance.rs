@@ -1019,7 +1019,12 @@ impl ClearanceReport {
                     pt(g.b_point)
                 );
                 for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "witness param {} {:016x}", name.0, offset.to_bits());
+                    let _ = writeln!(
+                        s,
+                        "witness param {} {:016x}",
+                        name.as_str(),
+                        offset.to_bits()
+                    );
                 }
             }
             ClearanceVerdict::Refused(r) => {
@@ -1074,7 +1079,7 @@ impl ClearanceReport {
                     g.distance, g.a, g.b
                 );
                 for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "    at {} = nominal {offset:+}", name.0);
+                    let _ = writeln!(s, "    at {} = nominal {offset:+}", name.as_str());
                 }
             }
             ClearanceVerdict::Refused(r) => {
