@@ -52,3 +52,20 @@ the slate against the tree:
   byte is on `analysis/design-fork/origin-chart-identity-2026-09-29`.
   The third row reached the designers as an identical addendum after
   dispatch.
+
+## 2026-09-29 — chart identity to Ev; chart-in-one-solid back to design
+
+- The chart-identity pair converged on two questions: row carry asks
+  description identity, the merge door and chart-region declared
+  intent. The floor both agree on — the row doors read key or `Arc`
+  identity only, the `GeomSource` rung removed — is dispatched without
+  waiting (`origin/row-doors-read-identity`, single FULL review): it is
+  right under either answer to the one remaining question, which is
+  Ev's on PR 3410 (scope the bit-identity retirement to admit one
+  cache-validity comparator, or keep it verbatim). Fork row 11.
+- `a-chart-spans-solids-…`'s lane stopped at a fork, correctly: ruling
+  (A)'s premise ("no other producer builds a chart on two solids")
+  measured false against the contact design's shared-key structural
+  rung. The row's own section has the measurement. A second designer
+  pair is weighing what a shared key across solids means before it
+  goes back to Ev; its blinding byte is on the same analysis branch.
