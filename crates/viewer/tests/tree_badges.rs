@@ -774,38 +774,21 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         ),
     ];
 
-    fn sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-        for entry in std::fs::read_dir(dir).expect("the source directory reads") {
-            let path = entry.expect("a directory entry").path();
-            if path.is_dir() {
-                sources(&path, out);
-            } else if path.extension().is_some_and(|ext| ext == "rs") {
-                out.push(path);
-            }
-        }
-    }
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    sources(&root, &mut files);
-    files.sort();
-
     let mut unread: Vec<(String, &str, String)> = Vec::new();
     let mut calls = 0;
-    for path in &files {
-        let text = std::fs::read_to_string(path).expect("a source file reads");
-        let lines: Vec<&str> = text.lines().collect();
+    for path in test_utils::source::rust_sources(&root) {
+        let text = std::fs::read_to_string(&path).expect("a source file reads");
+        let code = test_utils::source::code_only(&text);
+        let lines: Vec<&str> = code.lines().collect();
         let file = path
             .file_name()
             .expect("a file name")
             .to_string_lossy()
             .into_owned();
         for (at, line) in lines.iter().enumerate() {
-            let code = line.trim_start();
-            if code.starts_with("//") {
-                continue;
-            }
             for door in STANDING_DOORS {
-                if !code.contains(door) {
+                if !line.contains(door) {
                     continue;
                 }
                 calls += 1;
