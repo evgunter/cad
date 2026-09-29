@@ -28,15 +28,17 @@
 //! CLEARED to `IdMap::NOTHING` — so "the cursor is over nothing" is a
 //! value the pass produces rather than a case the reader infers.
 //!
-//! # Construction runs; drawing does not
+//! # What runs on a real device
 //!
-//! [`ViewportRenderer::new`] and everything it builds execute on a real
-//! device under `--features app`, so a pipeline this module cannot
-//! build is a red row. Nothing below that seam does: no surface, no
-//! frame, no readback, no pixel. The questions only a drawn frame
-//! answers — whether the depth attachment is really attached, and
-//! whether the id pass and the ray path agree on the same cursor —
-//! are open, and issue #1097 owns them.
+//! Under `--features app` two rows open the app's own device on the
+//! software adapter CI installs. One builds every pipeline
+//! [`ViewportRenderer::new`] builds, so a pipeline this module cannot
+//! build is a red row. The other renders one frame of a cube through
+//! [`ViewportCallback`]'s `prepare` and `paint` and reads back the id
+//! pass's answer and the shaded pass's depth at every face that faces
+//! the eye, so a pass that culls a face it should draw is a red row.
+//! Nothing compares colours: which pixels are which shade is not
+//! asserted anywhere.
 //!
 //! # Depth
 //!
@@ -60,7 +62,7 @@
 //! the callback, so it resets this pane's depth and nothing else. The
 //! id pass owns its own depth texture and clears it to 0 directly.
 //!
-//! # Culling is off, on purpose
+//! # Culling
 //!
 //! The triangles are outward-wound (`mesh::FacePatch`'s contract) and
 //! the shading uses that winding: the normal comes from the triangle's
@@ -654,7 +656,7 @@ impl ViewportRenderer {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                // See the module docs: both sides are drawn.
+                // See the module docs: back faces are culled.
                 cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
@@ -969,11 +971,8 @@ impl IdPass {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                // Both sides, for the same reason the shaded pass draws
-                // both: which screen winding is "front" is the question
-                // #1097 settles on hardware, and an id pass that culled
-                // the wrong way would answer NOTHING over a face that
-                // is plainly there.
+                // The shaded pass's cull, so a face that is drawn is a
+                // face that can be picked and one that is not cannot.
                 cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
