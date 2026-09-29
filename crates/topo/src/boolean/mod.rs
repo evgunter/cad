@@ -1056,7 +1056,7 @@ pub enum BooleanError {
     /// operand gate and the ∖/∩ revert roster refuse UP FRONT, on the
     /// operands' kinds and boxes. The crossings path's interior-loop
     /// guard (`ops::interior_loop_verdict`) refuses AFTER the pipeline
-    /// would have answered: a torus, sphere, cylinder or cone face pair
+    /// would have answered: a face pair, one of them not a plane, that
     /// the section certificate cannot clear of a loop no edge event
     /// marks (the reduction saw crossings elsewhere, and the join and
     /// face-region propagation cannot see the loop).

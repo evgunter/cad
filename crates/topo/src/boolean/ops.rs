@@ -663,8 +663,7 @@ fn boolean_op_recut<
 /// module docs carry the argument).
 ///
 /// Every undeclared cross-operand pair whose certified boxes overlap,
-/// where either face is a torus, a sphere, a cylinder or a cone, is
-/// classified and certified. A DECLARED pair is exempt: its contact is
+/// where either face is not a plane, is classified and certified. A DECLARED pair is exempt: its contact is
 /// the verified carrier the declared rungs walk along its edges. The
 /// first refusing pair, in arena order (A's faces, then B's), refuses
 /// the operation as the operand gate refuses a pair with no arm —
@@ -751,11 +750,10 @@ impl ChartCache {
 /// they examine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SectionPath {
-    /// The crossings path: every pair with a torus, sphere, cylinder or
-    /// cone face.
+    /// The crossings path: every pair with a face that is not a plane.
     Crossings,
-    /// The no-crossings fallback: every pair with a torus, cylinder or
-    /// cone face and no sphere face — a sphere's pairs are the extent
+    /// The no-crossings fallback: every pair with a face that is not a
+    /// plane, and no sphere face — a sphere's pairs are the extent
     /// scan's ([`sphere_extent_scan`]), which runs first and keeps its
     /// re-cut.
     Fallback,
@@ -764,13 +762,7 @@ pub(crate) enum SectionPath {
 impl SectionPath {
     fn scope<T: Real>(self, x: &geom::Surface<T>, y: &geom::Surface<T>) -> bool {
         use geom::Surface as S;
-        let curved = |s: &geom::Surface<T>| match self {
-            Self::Crossings => matches!(
-                s,
-                S::Torus { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. }
-            ),
-            Self::Fallback => matches!(s, S::Torus { .. } | S::Cylinder { .. } | S::Cone { .. }),
-        };
+        let curved = |s: &geom::Surface<T>| !matches!(s, S::Plane { .. });
         let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
         (curved(x) || curved(y)) && !(self == Self::Fallback && (sphere(x) || sphere(y)))
     }
