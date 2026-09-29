@@ -2,8 +2,8 @@
 id: edit-refusals-short-of-the-shape-guard
 kind: issue
 title: edit: refusals the viewer draws that state no recourse, by the shape guard's census
-status: spec
-pr: 3490
+status: open
+pr: 3492
 branch: edit/part-refusal-recourse
 opened: 2026-09-29
 priority: P2
@@ -149,3 +149,15 @@ this row, so it stays open, and the unit sets the `## Built` section.
 - Real-text `Part/Unresolved` rows are built through a real `Workspace` / `DirResolver`.
 - The three new status-line rows exist.
 - One planted mutant per class reds.
+
+## Built (2026-09-29, PR 3492) — the feature-tree half
+
+- **Every `PartFault` arm a resolution raises states a recourse, or says there is no way through, and each is worded per door.** `NoResolver` is raised only at an API door, and says to pass a resolver over the part's store (`PASS_A_RESOLVER`, shared with the split's own resolver). The viewer never raises it: a session with no file resolves through `docio::NoFile`, which says to save the document beside its parts, and `instance_authoring.rs` follows it. `EpsilonSeam` says to open the part at its own tolerance, record the tolerance edit, save it over its file and accept its updated version, which keeps the part's id however it was minted. `DepthExceeded` says to flatten the nesting. `ReferenceCycle` ends in the kernel-defect ending, because a store that checks pins cannot hold a loop.
+- **The resolver states what its store knows, by when it takes its scan.** `WorkspaceError::resolve_failure(Scan)` carries the store's sentence with no stage word, plus a recourse for the arms a resolution meets (`resolve_recourse`). A `Workspace` holds the scan it was opened with (`Scan::AtOpen`, Python's `resolver=` too), so an unknown id says to put the file back and open the store again; the viewer's `DirResolver` scans at every resolution (`Scan::PerResolution`) and says only the first. A part file missing since the scan says to put it back at that path; an unreadable one, to make it readable. `PinMismatch` states its own recourse, labelled. Each is followed word for word: `crates/pncad/tests/all.rs` (`workspace_resolve_door_refusals_meet_the_standard_and_their_recourses_get_through`), the Python row in `test_assembly_eval.py`, and the viewer rows.
+- **One rendering helper.** `editor_core::sentence` holds `Staged` (a refusal's stage word and its stripped sentence), used by `ProductError`, `PersistError` and `WorkspaceError`, and `Recourse`, the one spelling of the label.
+- **The split's recourse moved.** "Pass a resolver" now lives in the split's own resolver (`WithPart`). `ReplayTail` forwards a mate refusal whole, so no recourse is stated twice. `WithPart`'s pin arm is reached when a kept instance shares the split's part id, and says to split under an id the document does not reference.
+- **The chains roster's six `Part` entries are gone.** `Part/Unresolved(*)` is rendered from real text in `crates/viewer/tests/instance_authoring.rs` (`every_unresolved_part_badge_meets_the_refusal_standard`).
+
+**What remains on this row:** the seven placement arms held for `placement-is-spelled-three-ways-node-registry-and-rule`.
+
+**Filed:** `part-refusal-over-a-store-that-will-not-scan-or-load-states-no-recourse` (the scan and load arms of a real store that no row renders), `part-nesting-segfaults-before-the-depth-bound` (`DepthExceeded` is unreachable: the stack runs out first), and `no-file-part-recourse-names-a-save-the-browser-build-lacks` on CHROME.

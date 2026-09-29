@@ -108,6 +108,7 @@ use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeStanding, NodeValue, SplitSide, ValuePayload};
 use crate::names::{CarriedRows, EntityKey, NameTable, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
+use crate::sentence::{Labelled, Labels, Staged};
 use geom_core::Tol;
 
 /// Why [`product`] refused. Fail-loud and typed: a product is all of
@@ -305,46 +306,21 @@ impl crate::finding::Finding for SourceLine<'_> {
 // `render_lines`, a per-root list through `render_list`, each line
 // composed with its root and output as the subject. Node ids render
 // plain, names as kind + minting node.
-//
-// The stage word `product:` is written once, here, and so is the
-// `root N output M` label each listed finding opens with: both are the
-// gather's own labels, legitimate where the gather's refusal is drawn
-// under its own name. [`ProductError::sentence`] is the refusal a
-// carrier that names the stage itself renders, and it carries neither.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("product: ")?;
-        self.fmt_sentence(f, Labels::Kept)
+        write!(f, "{}", Labelled(self, Labels::Kept))
     }
 }
 
-/// Whether a rendering keeps the gather's own labels: its stage word
-/// and the `root N output M` subject of each listed finding.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Labels {
-    Kept,
-    Stripped,
-}
+// The gather's labels are its stage word and the `root N output M`
+// subject each listed finding opens with, legitimate where the gather's
+// refusal is drawn under its own name. The sentence a carrier that
+// names the stage renders ([`crate::PartFault::PartProduct`]'s
+// `message`) carries neither, and names the roots in its header.
+impl Staged for ProductError {
+    const STAGE: &'static str = "product";
 
-/// [`ProductError::sentence`]'s rendering.
-struct Sentence<'a>(&'a ProductError);
-
-impl core::fmt::Display for Sentence<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt_sentence(f, Labels::Stripped)
-    }
-}
-
-impl ProductError {
-    /// The refusal without the gather's labels — its stage word, and
-    /// the per-finding `root N output M` subjects, whose roots it names
-    /// in its header instead: what a carrier that names the stage
-    /// itself renders ([`crate::PartFault::PartProduct`]'s `message`).
-    pub fn sentence(&self) -> impl core::fmt::Display + '_ {
-        Sentence(self)
-    }
-
-    fn fmt_sentence(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
         let list = crate::finding::render_lines::<&ValidationError, _>;
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
@@ -1288,6 +1264,7 @@ mod tests {
     use crate::eval::NodeStanding;
     use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
+    use crate::sentence::Staged;
 
     /// One error per [`ProductError`] arm, and one per standing under
     /// [`ProductError::Root`] — a CENSUS, not a sample: every payload
