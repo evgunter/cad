@@ -699,6 +699,8 @@ mod shell7_common;
 
 #[path = "shell7_dump.rs"]
 mod shell7_dump;
+#[path = "origin_scope_rev_probes.rs"]
+mod origin_scope_rev_probes;
 #[path = "shell8_common.rs"]
 mod shell8_common;
 #[path = "shell8_dump.rs"]
