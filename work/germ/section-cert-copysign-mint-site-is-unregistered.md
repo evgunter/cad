@@ -4,6 +4,7 @@ kind: issue
 title: section_cert's null-saddle witness mints an unregistered copysign site, and the copysign census row is red on main
 status: closed
 branch: germ/section-cert-frame-side
+pr: 3421
 opened: 2026-09-28
 priority: P1
 cost: E
