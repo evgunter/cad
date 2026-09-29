@@ -32,7 +32,7 @@ whose ruling was that no refusal text moves.
 Re-word the text to the C9 vocabulary and derive or list the replay
 scalars from the certifying set; re-pin the substrings
 `crates/topo/tests/m6_2_fitted_at_rest.rs`'s
-`recertify_handed_the_duals_answer_refuses_naming_the_dual` asserts
+`the_dual_refuses_at_check_four_and_says_so` asserts
 ("dual", "may not certify", not "no bracket") and say in the PR what
 text moved.
 

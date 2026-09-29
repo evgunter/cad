@@ -150,8 +150,16 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 ///
 /// A door refused before check 1 would answer all three with the first
 /// one's refusal.
+///
+/// **Then the refusal's text, through `PcurveCache::recertify`** — the
+/// one door a fitted cache meets an absent door through. That half runs
+/// nothing at a dual (no dual can build the cache it would need): it
+/// hands the fixture's own `f64` cache what the dual's policy answers
+/// (`None`, and the dual's name), which passes checks 1–3 and refuses
+/// at check 4. The message must name the scalar and say it may not
+/// certify; it must not say it carries no bracket, which D1 made false.
 #[test]
-fn the_dual_runs_the_lane_free_checks_and_refuses_at_check_four() {
+fn the_dual_refuses_at_check_four_and_says_so() {
     use geom_brep::{ChartWindow, PcurveCache, PcurveCertifyError, PcurveCheck};
     use geom_core::{Dual64, Real};
     use topo::AtRestPolicy;
@@ -164,7 +172,7 @@ fn the_dual_runs_the_lane_free_checks_and_refuses_at_check_four() {
             "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about the \
              dual lane: neither that it runs checks 1–3 in dual arithmetic, nor that it \
-             refuses at check 4 naming the dual",
+             refuses at check 4, nor what the refusal's text says",
         );
         return;
     };
@@ -205,13 +213,13 @@ fn the_dual_runs_the_lane_free_checks_and_refuses_at_check_four() {
             at_four,
             Err(PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" })
         ),
-        "the fixture passes checks 1–3 at the dual and refuses where the door is \
+        "CHECK 4: the fixture passes checks 1–3 at the dual and refuses where the door is \
          asked for: {at_four:?}"
     );
     let at_two = offer(&built.image, f1, f0);
     assert!(
         matches!(at_two, Err(PcurveCertifyError::IntervalNotForward)),
-        "a reversed interval refuses at check 2 at the dual, before any door is \
+        "CHECK 2: a reversed interval refuses at check 2 at the dual, before any door is \
          asked for: {at_two:?}"
     );
     let foreign = fixture::foreign_cache(&built);
@@ -227,43 +235,11 @@ fn the_dual_runs_the_lane_free_checks_and_refuses_at_check_four() {
                 ..
             })
         ),
-        "another arc's image refuses at check 3 at the dual, before any door is \
+        "CHECK 3: another arc's image refuses at check 3 at the dual, before any door is \
          asked for: {at_three:?}"
     );
-}
 
-/// **`recertify` handed a scalar's absent door: the refusal's type and
-/// text.** This row executes nothing at a dual — a dual cannot build
-/// the fitted cache it would need, and the row above is the one that
-/// runs the dual. It takes the fixture's own `f64` cache and hands
-/// `PcurveCache::recertify` exactly what the dual's policy answers
-/// (`None`, and the dual's name), which is the one way a fitted cache
-/// meets an absent door: the fixture passes checks 1–3, and check 4
-/// refuses. What it pins is that refusal's variant and its Display.
-///
-/// **The asserted substring is the true reason.** The message must
-/// name the scalar and say that it may not certify; it must not say it
-/// carries no bracket, which D1 made false — `msg.contains("bracket")`
-/// passing again would mean someone reintroduced the stale claim.
-#[test]
-fn recertify_handed_the_duals_answer_refuses_naming_the_dual() {
-    use geom_core::Dual64;
-    use topo::AtRestPolicy;
-    let Some(built) = fixture::build::<f64>() else {
-        vacuity::stood_down(
-            &format!(
-                "M6-2 recertify handed the dual's answer, eps = {:e}",
-                Tol::witness().get().eps
-            ),
-            "the cylinder×sphere fixture stood down on the SSI door's typed \
-             FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about the \
-             absent-door refusal: neither its variant, nor that its text names the \
-             scalar and its post-D1 reason instead of re-asserting the premise D1 \
-             invalidated",
-        );
-        return;
-    };
-    let band = Band::linear(Tol::witness()).unwrap();
+    // The text, through `recertify` over the fixture's own cache.
     let cache = built
         .body
         .pcurve(built.he_plus)
@@ -274,26 +250,26 @@ fn recertify_handed_the_duals_answer_refuses_naming_the_dual() {
             &built.cylinder,
             Some(&built.sphere),
             built.window,
-            band,
+            Band::linear(Tol::witness()).unwrap(),
             None,
             <Dual64 as AtRestPolicy>::scalar_name(),
         )
-        .expect_err("a fitted cache with no door refuses");
+        .expect_err("RECERTIFY: a fitted cache with no door refuses");
     assert!(
         matches!(
             err,
-            geom_brep::PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" }
+            PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" }
         ),
-        "the absent door's refusal is the fitted-lane one, naming the dual: {err:?}"
+        "RECERTIFY: the absent door's refusal is the fitted-lane one, naming the dual: {err:?}"
     );
     let msg = format!("{err}");
     assert!(
         msg.contains("dual") && msg.contains("may not certify"),
-        "the refusal names the lane and the true reason it has none: {msg}"
+        "TEXT: the refusal names the scalar and the true reason it has none: {msg}"
     );
     assert!(
         !msg.contains("no bracket") && !msg.contains("carries no bracket"),
-        "the refusal must not re-assert the premise D1 invalidated: {msg}"
+        "TEXT: the refusal must not re-assert the premise D1 invalidated: {msg}"
     );
 }
 
