@@ -2,7 +2,8 @@
 id: an-unnamed-patch-is-reported-as-a-hit-test
 kind: issue
 title: patch_names reports a patch with no name through HitTestError, so the sentence names a hit test that did not happen
-status: open
+status: spec
+branch: edit/unnamed-patch-is-a-lookup
 opened: 2026-09-25
 priority: P4
 cost: D
@@ -43,3 +44,15 @@ unchanged.
 `crates/editor-core/src/resolve/pick.rs` and `resolve/hit.rs` (EDIT).
 The viewer readers are `crates/viewer/src/idpass.rs` (`IdAnswer`'s
 `Display`) and `pickindex.rs` (`EdgeNameFault`).
+
+## Ruled and spec'd (2026-09-29, EDIT orchestrator) — E-class (green CI and the orchestrator's read), branch `edit/unnamed-patch-is-a-lookup`
+
+The row's remedy is the ruling. The per-entity lane of
+`NodePick::patch_names` and `boundary_names` carries a naming error of
+its own. It holds the `Unnamed` fields, its `Display` names a table
+lookup, and it names no hit test. The lane's type is exactly the state
+it can hold, so no hit-test arm is admissible there. The viewer
+readers (`idpass.rs`'s `IdAnswer` and `pickindex.rs`'s
+`EdgeNameFault`) forward it unchanged: an announced crossing onto
+VGEOM's ground. One `Display` pin per new sentence goes in the F6
+census.

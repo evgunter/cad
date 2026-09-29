@@ -72,3 +72,12 @@ second question, asked after descent. The holder sweep can start.
 ## Home
 
 Viewer ground (`crates/viewer/src/*`): GAUTH's closing entry names this issue as its residue, and both GAUTH and GUI are closed programs, so it landed in `work/issues/` and was re-homed here by DOCM's 2026-09-04 hand-off.
+
+## Re-homed to VSEAM (2026-09-29, EDIT orchestrator)
+
+The work left here is a viewer-side walk. Every layer-3 holder of a
+`RecipeNodeId` in the session and history state has to be checked
+against `Doc::has_minted` (EDIT's door, built on PR #2905) after a
+rewind. VIEW, which owned that ground, has left the tracker, and VSEAM
+claims `crates/viewer/src/history.rs`. EDIT's side, the door the walk
+reads, is done. Id kept; priority unchanged.
