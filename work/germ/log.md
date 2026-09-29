@@ -632,3 +632,12 @@ Nothing new is dispatched. Lanes already running finish on their own and push th
   - the P2s (`cone-pairs-in-general-pose-have-no-section-arm`, `radial-hole-through-a-tube-has-no-section-arm`);
   - the P3/P4 queue.
 - **Review log on main:** tally 2 of 8; fair pairs that found a MAJOR, toward twelve: 7.
+
+**Paused-state update (P1):** the re-measure finished as PR 3428 (`8c1257762`, CI passed). Not merged; it waits for Ev.
+- **Not live:** no op returns a body.
+- **Wherever the backstop fired,** the section certificate had already decided R-reach. `boolean_op_recut` raised it only AFTER `volume_backstop`, so the suspect body was still built.
+- **The fix** raises `interior_loops?` before the backstop, and the rest door the same way.
+- **Rows:** 5 poses × 5 ops refuse at the guard.
+- **The backstop's own cause** (no ellipse arc in the closed-form mass lane) is REACH's existing P0 on a tilted-cylinder boss; a control box shows it without any torus.
+- **A classifier denial:** the lane's throwaway patch letting the body past the backstop was denied. It did not work around the denial, so the internal body on current main is unmeasured; the 09-28 measurement is the latest.
+- **On resume:** an orchestrator read or single review, then merge. Expect a trivial item-file conflict with this branch's 09-28 section.
