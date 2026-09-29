@@ -2,7 +2,8 @@
 id: certify-collapsed-arm-gates-route-as-the-decision-they-guard
 kind: issue
 title: geom-brep: dihedral_arm and nurbs_span_meter refuse under the decision they guard, with the poisoned-margin note, because the funnel folds the gate's verdict into MarginDiag::Invalid
-status: open
+status: dispatched
+branch: encl/collapsed-arm-gates
 opened: 2026-09-28
 priority: P3
 cost: M
@@ -55,4 +56,16 @@ angle is intended, tighten the tolerance below m/K" with `m` the arm, a
 length: the size noun is the wedge's. Once the gate hands its verdict
 back, give the arm its own `WedgeCheck` (or route it with this row's
 `CertCheck`) and its own size noun.
+
+## The span meter's domain question is NURBS's
+
+This row routes `nurbs_span_meter` as a decision of its own
+(`CertCheck::ParamSpanMeter`, `CertifyError::SpanMeterCollapsed`) and
+leaves what a negative verdict MEANS to
+`work/nurbs/nurbs-span-meter-cannot-tell-a-reversed-domain-from-a-collapsed-one.md`:
+a floor that turns negative (a spline turning back on itself) and a
+knot domain stored reversed both read `Refused::Negative` here, and
+both end in the meter's lever. Checking the domain's orientation
+before the meter, with its own arm, is that row's; once it lands the
+meter sees only the floor.
 

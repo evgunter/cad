@@ -40,3 +40,16 @@ where it can see one.
 
 Check the domain's orientation before metering it and refuse a reversed
 one with its own arm, so the gate sees only the question it is for.
+
+## The meter is now a decision of its own (ENCL)
+
+ENCL's `work/encl/certify-collapsed-arm-gates-route-as-the-decision-they-guard.md`
+routes the gate as its own decision: a definite non-positive verdict is
+`CertifyError::SpanMeterCollapsed { verdict }` under
+`CertCheck::ParamSpanMeter`, ending in the meter's lever ("move the
+geometry so this spline edge turns through less"), and no longer an
+`Invalid` escalation under `ParamSpan`. It does not split the domain
+question: a reversed domain still reads `Refused::Negative` there, beside
+a floor that turns negative. The split this row names is still this
+row's, and lands before the meter, in `certify.rs`'s NURBS span arm.
+
