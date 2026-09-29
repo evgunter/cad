@@ -380,3 +380,11 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
 - **Census:** the site leaves the copysign census and the manifest, moved together.
 - **Rows:** the saddle rows reach the branch at δ₀ = +1.3 only, so a new verdict row covers both signs on both sides, and the flip mutant turns it red.
 - **Tier:** orchestrator read. Merged on hosted green.
+
+## 2026-09-29 — the torus joins ∖ and ∩ (PR 3416, DR-19)
+
+- **Measured before admitting:** no wrong body under either order of ∖ or under ∩.
+  - Newly answered, in closed form: the cube in the hole, the pin-only bracket, the wedge.
+  - Everything else refuses at ∪'s door; the half donut and the bracket refuse at the guard.
+- **Dual review:** both APPROVE-WITH-FIXES, no MAJOR, 0 wrong over both batteries. R2 also ran the merge preview carrying PR 3395's sphere × torus move. The tally is unchanged, and the pair does not advance the count.
+- **Fix pass:** the stale demo prose, the invariants, one helper home, and the seeded rod sweep committed as a row.

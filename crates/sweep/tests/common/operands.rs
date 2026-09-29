@@ -1,6 +1,7 @@
 //! **The plain named operands** several suites build a boolean from:
-//! the axis-aligned boxes below, and the three-arc cylinder and the
-//! rounded plate the conic corpus cuts with. Body authoring, so it
+//! the axis-aligned boxes below, the three-arc cylinder and the
+//! rounded plate the conic corpus cuts with, and the framed bar the
+//! torus-door suites pierce the donut with. Body authoring, so it
 //! routes here beside [`super::cavity`] rather than into a suite.
 //!
 //! Nothing here derives anything — each item is one call to the box
@@ -35,8 +36,9 @@
 //! - [`super::shell_operands`]' vessel, tube and hollow boxes, which
 //!   stay beside the role readers the shell rows run over them.
 
-use geom_core::{Decide, Point2, Tol};
+use geom_core::{Decide, Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
+use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{block, brick, extruded, prism, sketch_at};
 use topo::Body;
 
@@ -181,4 +183,34 @@ pub fn rounded_plate() -> Body<f64> {
         0.8,
         Tol::witness(),
     )
+}
+
+/// A `w × w` square bar along the unit direction `d`, from `o + d·t0`
+/// to `o + d·t1`: the square lies in the plane normal to `d` at the
+/// start, in the frame `u = normalize(d × ŷ)`, `v = d × u` (`d` must
+/// not be parallel to `ŷ`). The torus-door suites pierce their donut
+/// with it.
+pub fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: f64) -> Body<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let d = d.normalize();
+    let u = d.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
+    let v = d.cross(u);
+    let h = w / 2.0;
+    let lp = ProfileLoop::polygon([
+        Point2::new(-h, -h),
+        Point2::new(h, -h),
+        Point2::new(h, h),
+        Point2::new(-h, h),
+    ]);
+    let start = o + d * t0;
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(u, v, d),
+        start - Point3::origin(),
+    ));
+    let vp = profile::Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .expect("the framed bar's profile validates");
+    sweep::extrude(&vp, sweep::Extrusion::Distance(t1 - t0), Tol::witness())
+        .expect("the framed bar extrudes")
+        .body
 }
