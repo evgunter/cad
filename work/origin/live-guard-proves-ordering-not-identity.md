@@ -8,7 +8,6 @@ refs: [D50]
 track: P
 priority: P3
 cost: M
-design: false
 branch: origin/live-guard-nested-items
 ---
 
