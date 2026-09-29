@@ -94,7 +94,7 @@ Added by the EDIT lane that built `work/edit/D366.md`. The row's
 blocking question is answered on the projection side: EDIT's D366 spec
 ruled a fieldless, phantom-guarded hand mirror, and
 `crates/editor-core/src/eval/class.rs` now carries `NodeErrorClass`
-and `NodeErrorKind::kind()` (pncad-py's `node_error_tag` reads it).
+and `NodeErrorKind::class()` (pncad-py's `node_error_tag` reads it).
 
 What that does NOT do is touch the doors this row names, and they are
 still rendering at the merge base of that branch — now four, not three:

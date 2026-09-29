@@ -607,7 +607,7 @@ fn revolve_refusal(angle: f64) -> Option<editor_core::NodeErrorClass> {
     let (doc, rev) = revolve_doc(angle);
     run(&doc, None, false)
         .node_error(rev)
-        .map(|e| e.kind.kind())
+        .map(|e| e.kind.class())
 }
 
 /// R6: the τ-coincidence door, swept at ulp and band scale. The

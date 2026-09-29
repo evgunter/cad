@@ -444,7 +444,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let ev = run(&doc);
     let k = failed_kind(&ev, u);
     assert_eq!(
-        ev.node_error(u).map(|e| e.kind.kind()),
+        ev.node_error(u).map(|e| e.kind.class()),
         Some(NodeErrorClass::DeclareUnsupportedPair),
         "{k}"
     );
@@ -588,7 +588,7 @@ fn declare_doors_node_gone_and_ambiguous() {
     let ev = run(&doc);
     let k = failed_kind(&ev, u);
     assert!(
-        ev.node_error(u).map(|e| e.kind.kind()) == Some(NodeErrorClass::DeclareResolve)
+        ev.node_error(u).map(|e| e.kind.class()) == Some(NodeErrorClass::DeclareResolve)
             && k.contains("NodeGone")
             && k.contains("NodeDeleted"),
         "{k}"

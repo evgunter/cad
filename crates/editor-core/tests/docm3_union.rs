@@ -969,7 +969,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     );
     let ev = run(&doc);
     let pf = failure(&ev, pair).expect("the pair spelling refuses the undeclared contact");
-    let class = |id| ev.node_error(id).map(|e| e.kind.kind());
+    let class = |id| ev.node_error(id).map(|e| e.kind.class());
     assert_eq!(
         class(pair),
         Some(editor_core::NodeErrorClass::UndeclaredContact),

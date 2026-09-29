@@ -825,7 +825,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     let failure = ev.node_error(instance).expect("the moved pin refuses");
     let err = failure.to_string();
     assert_eq!(
-        failure.kind.kind(),
+        failure.kind.class(),
         NodeErrorClass::CrossingUnverified,
         "the refusal is the crossing that no longer fits: {err}"
     );

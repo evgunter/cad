@@ -728,18 +728,13 @@ pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
 /// The stable tag for a placement-rule fault (GROUP-BOOLEAN-DESIGN) —
 /// ONE tag per fault, shared by every door that carries one.
 ///
-/// The tags are the EDIT door's own (`placement_rule_mismatch`,
-/// `empty_placement_list`, `non_finite_placement`,
-/// `improper_placement`), so the same broken rule reads the same
-/// whether it is refused at the node constructor, at the edit gate, or
-/// at the evaluation backstop — one fault, one spelling, three doors.
+/// The word is the fault's class's ([`node_error_tag`] over
+/// `NodeErrorClass::of_placement_rule`), so the same broken rule reads
+/// the same whether it is refused at the node constructor, at the edit
+/// gate, or at the evaluation backstop — one fault, one spelling,
+/// three doors.
 pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
-    match fault {
-        PlacementRuleFault::CountSpelling => "placement_rule_mismatch",
-        PlacementRuleFault::NoPlacements => "empty_placement_list",
-        PlacementRuleFault::NonFiniteFrame { .. } => "non_finite_placement",
-        PlacementRuleFault::ImproperFrame { .. } => "improper_placement",
-    }
+    node_error_tag(NodeErrorClass::of_placement_rule(fault))
 }
 
 /// The stable tag for a frame-construction refusal
@@ -832,12 +827,12 @@ pub fn root_fault_tag(fault: &RootFault) -> &'static str {
 /// projects to and never off its payload.
 ///
 /// Where a class splits an arm on a value its payload carries, the word
-/// is that value's own word at every other door that publishes it: the
-/// placement-rule faults answer [`placement_rule_fault_tag`]'s, the
-/// instantiation seam answers [`resolve_fault_tag`]'s, and the mate
-/// faults answer [`mate_fault_tag`]'s — the first and last pinned
-/// against their maps by `tests::node_error_tags_are_the_published_words`,
-/// the seam by delegation.
+/// is that value's own word at every other door that publishes it, by
+/// delegation: the instantiation seam's classes read
+/// [`resolve_fault_tag`], whose fieldless fault a class names; and
+/// [`placement_rule_fault_tag`] and [`mate_fault_tag`] read the words
+/// written here, through the class their fault projects to, because a
+/// class cannot name a fault that carries a payload.
 pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
     use NodeErrorClass as C;
     match class {
@@ -954,18 +949,14 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::FaceFrameReadback => "face_frame_readback",
         C::DerivedFrameSection => "derived_frame_section",
         // **No new word.** A carried frame refusal is the SAME fact
-        // as the one raised at the frame itself — zero length,
-        // non-finite length, underflow, escalation — and the arm
-        // exists to add the frame's id to the prose, not to split the
-        // fact in two. So each answers the word the frame's own raise
-        // answers, and a caller matching `degenerate_direction` keeps
-        // matching; `a_carried_frame_direction_refusal_keeps_the_frames_own_tag`
-        // holds each against `DirectionRefusal::node_error`, the one
-        // spelling of the raise.
-        C::FrameDirectionDegenerate => node_error_tag(C::DegenerateDirection),
-        C::FrameDirectionNonFiniteLength => node_error_tag(C::NonFiniteDirection),
-        C::FrameDirectionUnderflowedLength => node_error_tag(C::UnderflowedDirection),
-        C::FrameDirectionEscalated => node_error_tag(C::Escalated),
+        // as the one raised at the frame itself, and the arm exists to
+        // add the frame's id to the prose, not to split the fact in
+        // two. So each answers the word of the class the raise has,
+        // and a caller matching `degenerate_direction` keeps matching.
+        C::FrameDirectionDegenerate
+        | C::FrameDirectionNonFiniteLength
+        | C::FrameDirectionUnderflowedLength
+        | C::FrameDirectionEscalated => node_error_tag(class.raised()),
         // The projection node's two refusals (DOCM-2): a half with no
         // material, and an instance index outside the pattern's count.
         C::EmptyHalf => "empty_half",
@@ -1153,7 +1144,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::InvalidDistribution { fault, .. } => Some(distribution_fault_tag(fault)),
         // The direction door's refusal is a whole `NodeErrorKind`, so
         // its arm is the same vocabulary `EvaluationError.kind` speaks.
-        EditError::PlacementAxis { error } => Some(node_error_tag(error.kind().kind())),
+        EditError::PlacementAxis { error } => Some(node_error_tag(error.kind().class())),
         // The metadata arm's refusal is a SHAPE refusal, so its word
         // says which of the three ways the D7 producer convention was
         // broken rather than which door broke it.
@@ -1675,22 +1666,12 @@ pub fn seed_error_tag(err: &SeedError) -> &'static str {
 /// a different recourse: add the complementary mate, delete one of the
 /// clashing pair, rebind the stranded head, author the missing
 /// primitive, or move the geometry out of the band.
+///
+/// The word is the fault's class's ([`node_error_tag`] over
+/// `NodeErrorClass::of_mate`), so `MateFault.kind`, the edit door's
+/// mate refusals and `EvaluationError.kind` speak one word per fault.
 pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
-    match fault {
-        MateFault::PosesOfAnotherDocument { .. } => "mate_poses_of_another_document",
-        MateFault::Frame { .. } => "mate_frame_degenerate",
-        MateFault::ClassNotAdmitted { .. } => "mate_class_not_admitted",
-        MateFault::TableLacks { .. } => "mate_table_lacks",
-        MateFault::Indeterminate { .. } => "mate_indeterminate",
-        MateFault::Band { .. } => "mate_band",
-        MateFault::Contradictory { .. } => "mate_contradictory",
-        MateFault::Under { .. } => "mate_under",
-        MateFault::DanglingHead { .. } => "mate_dangling_head",
-        MateFault::PlacerRefused { .. } => "mate_placer_refused",
-        MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
-        MateFault::SelfMate { .. } => "mate_self",
-        MateFault::Unleverable { .. } => "mate_unleverable",
-    }
+    node_error_tag(NodeErrorClass::of_mate(fault))
 }
 
 /// The stable tag for a lever refusal — the inner arm of

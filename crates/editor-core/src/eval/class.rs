@@ -1,7 +1,6 @@
 //! [`NodeErrorClass`]: which arm of [`NodeErrorKind`] refused, without
 //! the payload.
 
-use geom_core::UnitVec3Error;
 use sweep::blend::BlendKind;
 
 use super::{NodeErrorKind, PartFault};
@@ -12,12 +11,12 @@ use crate::part::ResolveFault;
 /// Which arm of [`NodeErrorKind`] refused, without the payload.
 ///
 /// A [`NodeErrorKind`] is neither `Clone` nor `PartialEq` — it carries
-/// kernel refusals unaltered, and those have neither — so a consumer
-/// that must record, compare or hash the refusal has had only the
-/// rendered prose to substring-match. This projection drops exactly the
-/// part that cannot be cloned or compared, so the class rides where the
-/// error itself cannot: into a `Clone + PartialEq` record, a hash key,
-/// a test assertion, the Python binding's tag map.
+/// kernel refusals unaltered, and those have neither. A consumer that
+/// must keep the whole refusal holds a [`crate::NodeRefusal`], which is
+/// `Clone + Eq` by sharing it; one that must branch on WHICH refusal it
+/// is, hash it or name it in a test reads this class, which drops the
+/// payload and is `Copy + Eq + Hash`. It is what the Python binding's
+/// tag map reads.
 ///
 /// One variant per [`NodeErrorKind`] arm, except where the arm carries a
 /// value that decides which refusal it is to a caller: there, one
@@ -28,9 +27,12 @@ use crate::part::ResolveFault;
 /// instantiation's fault and a mate's fault each decide theirs. Nothing
 /// else in a payload is read.
 ///
-/// [`NodeErrorKind::kind`] matches exhaustively, and so does every
-/// split inside it — an arm added to the error, or a value added to a
-/// split, reds `kind` itself, here in this crate.
+/// [`NodeErrorKind::class`] matches exhaustively, and so does every
+/// split inside it but the carried frame direction's — an arm added to
+/// the error, or a value added to a split, reds `class` itself, here in
+/// this crate. The frame direction's split is read off the raise it
+/// carries ([`Self::raised`]), so a new direction fact reds at that
+/// raise's own map in `wire`.
 ///
 /// A variant HERE with no arm behind it is a phantom: nothing constructs
 /// it, so no test can reach it. This module's tests therefore carry the
@@ -174,16 +176,16 @@ pub enum NodeErrorClass {
     /// [`NodeErrorKind::DerivedFrameSection`].
     DerivedFrameSection,
     /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`UnitVec3Error::Degenerate`].
+    /// [`geom_core::UnitVec3Error::Degenerate`].
     FrameDirectionDegenerate,
     /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`UnitVec3Error::NonFiniteLength`].
+    /// [`geom_core::UnitVec3Error::NonFiniteLength`].
     FrameDirectionNonFiniteLength,
     /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`UnitVec3Error::UnderflowedLength`].
+    /// [`geom_core::UnitVec3Error::UnderflowedLength`].
     FrameDirectionUnderflowedLength,
     /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`UnitVec3Error::Escalated`].
+    /// [`geom_core::UnitVec3Error::Escalated`].
     FrameDirectionEscalated,
     /// [`NodeErrorKind::WitnessBifurcation`].
     WitnessBifurcation,
@@ -268,7 +270,7 @@ impl NodeErrorKind {
     /// Exhaustive over [`NodeErrorKind`] and over every value it splits
     /// on: adding an arm or a value is a compile error here.
     #[must_use]
-    pub fn kind(&self) -> NodeErrorClass {
+    pub fn class(&self) -> NodeErrorClass {
         use NodeErrorClass as C;
         match self {
             Self::Expr { .. } => C::Expr,
@@ -306,12 +308,7 @@ impl NodeErrorKind {
             Self::AxisInDifferentPlane { .. } => C::AxisInDifferentPlane,
             Self::NonPositiveCount { .. } => C::NonPositiveCount,
             Self::PlacementsUncertified { .. } => C::PlacementsUncertified,
-            Self::PlacementRule(fault) => match fault {
-                PlacementRuleFault::CountSpelling => C::PlacementRuleCountSpelling,
-                PlacementRuleFault::NoPlacements => C::PlacementRuleNoPlacements,
-                PlacementRuleFault::NonFiniteFrame { .. } => C::PlacementRuleNonFiniteFrame,
-                PlacementRuleFault::ImproperFrame { .. } => C::PlacementRuleImproperFrame,
-            },
+            Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
             Self::ParamSourceAttach(_) => C::ParamSourceAttach,
@@ -338,12 +335,17 @@ impl NodeErrorKind {
             Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
             Self::FaceFrameReadback { .. } => C::FaceFrameReadback,
             Self::DerivedFrameSection { .. } => C::DerivedFrameSection,
-            Self::FrameDirection { refusal, .. } => match refusal.error {
-                UnitVec3Error::Degenerate => C::FrameDirectionDegenerate,
-                UnitVec3Error::NonFiniteLength => C::FrameDirectionNonFiniteLength,
-                UnitVec3Error::UnderflowedLength => C::FrameDirectionUnderflowedLength,
-                UnitVec3Error::Escalated(_) => C::FrameDirectionEscalated,
-            },
+            Self::FrameDirection { refusal, .. } => {
+                let raised = refusal.node_error().class();
+                FRAME_DIRECTION
+                    .into_iter()
+                    .find(|carried| carried.raised() == raised)
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "a direction refusal raises one of four classes, not {raised:?}"
+                        )
+                    })
+            }
             Self::WitnessBifurcation(_) => C::WitnessBifurcation,
             Self::Part { fault, .. } => match fault {
                 PartFault::NoResolver => C::PartNoResolver,
@@ -358,21 +360,7 @@ impl NodeErrorKind {
                 PartFault::ReferenceCycle { .. } => C::PartReferenceCycle,
                 PartFault::DepthExceeded => C::PartDepthExceeded,
             },
-            Self::Mate(fault) => match fault.as_ref() {
-                MateFault::PosesOfAnotherDocument { .. } => C::MatePosesOfAnotherDocument,
-                MateFault::Frame { .. } => C::MateFrame,
-                MateFault::ClassNotAdmitted { .. } => C::MateClassNotAdmitted,
-                MateFault::TableLacks { .. } => C::MateTableLacks,
-                MateFault::Indeterminate { .. } => C::MateIndeterminate,
-                MateFault::Band { .. } => C::MateBand,
-                MateFault::Contradictory { .. } => C::MateContradictory,
-                MateFault::Under { .. } => C::MateUnder,
-                MateFault::DanglingHead { .. } => C::MateDanglingHead,
-                MateFault::PlacerRefused { .. } => C::MatePlacerRefused,
-                MateFault::PartSelectsAnotherCopy { .. } => C::MatePartSelectsAnotherCopy,
-                MateFault::SelfMate { .. } => C::MateSelf,
-                MateFault::Unleverable { .. } => C::MateUnleverable,
-            },
+            Self::Mate(fault) => C::of_mate(fault),
             Self::CrossingUnverified { .. } => C::CrossingUnverified,
             Self::MeasureRefResolve { .. } => C::MeasureRefResolve,
             Self::MeasureRefUnreadable { .. } => C::MeasureRefUnreadable,
@@ -384,6 +372,74 @@ impl NodeErrorKind {
             Self::MeasureSelectionKind { .. } => C::MeasureSelectionKind,
             Self::MeasureClearanceRefused(_) => C::MeasureClearanceRefused,
             Self::AssertionDimension { .. } => C::AssertionDimension,
+        }
+    }
+}
+
+/// The classes of [`NodeErrorKind::FrameDirection`], one per fact the
+/// carried refusal can report.
+const FRAME_DIRECTION: [NodeErrorClass; 4] = [
+    NodeErrorClass::FrameDirectionDegenerate,
+    NodeErrorClass::FrameDirectionNonFiniteLength,
+    NodeErrorClass::FrameDirectionUnderflowedLength,
+    NodeErrorClass::FrameDirectionEscalated,
+];
+
+impl NodeErrorClass {
+    /// The class of the node refusal that carries a placement-rule
+    /// fault. Every door that publishes the fault reads it through this
+    /// class, so the fault has one word wherever it is refused.
+    #[must_use]
+    pub fn of_placement_rule(fault: &PlacementRuleFault) -> Self {
+        match fault {
+            PlacementRuleFault::CountSpelling => Self::PlacementRuleCountSpelling,
+            PlacementRuleFault::NoPlacements => Self::PlacementRuleNoPlacements,
+            PlacementRuleFault::NonFiniteFrame { .. } => Self::PlacementRuleNonFiniteFrame,
+            PlacementRuleFault::ImproperFrame { .. } => Self::PlacementRuleImproperFrame,
+        }
+    }
+
+    /// The class of the node refusal that carries a mate fault. Every
+    /// door that publishes the fault reads it through this class, so
+    /// the fault has one word wherever it is refused.
+    #[must_use]
+    pub fn of_mate(fault: &MateFault) -> Self {
+        match fault {
+            MateFault::PosesOfAnotherDocument { .. } => Self::MatePosesOfAnotherDocument,
+            MateFault::Frame { .. } => Self::MateFrame,
+            MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
+            MateFault::TableLacks { .. } => Self::MateTableLacks,
+            MateFault::Indeterminate { .. } => Self::MateIndeterminate,
+            MateFault::Band { .. } => Self::MateBand,
+            MateFault::Contradictory { .. } => Self::MateContradictory,
+            MateFault::Under { .. } => Self::MateUnder,
+            MateFault::DanglingHead { .. } => Self::MateDanglingHead,
+            MateFault::PlacerRefused { .. } => Self::MatePlacerRefused,
+            MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
+            MateFault::SelfMate { .. } => Self::MateSelf,
+            MateFault::Unleverable { .. } => Self::MateUnleverable,
+        }
+    }
+
+    /// The class the same refusal has where the direction door raises
+    /// it. A frame direction refusal carried to a profile is the fact
+    /// the frame raised, so each of its classes answers the raise's
+    /// class; every other class answers itself.
+    ///
+    /// This is the one place the carried classes are paired with the
+    /// raised ones, and the question to ask of a direction: "any
+    /// zero-length direction, raised or carried" is
+    /// `class.raised() == NodeErrorClass::DegenerateDirection`, and
+    /// likewise [`Self::NonFiniteDirection`] and
+    /// [`Self::UnderflowedDirection`].
+    #[must_use]
+    pub fn raised(self) -> Self {
+        match self {
+            Self::FrameDirectionDegenerate => Self::DegenerateDirection,
+            Self::FrameDirectionNonFiniteLength => Self::NonFiniteDirection,
+            Self::FrameDirectionUnderflowedLength => Self::UnderflowedDirection,
+            Self::FrameDirectionEscalated => Self::Escalated,
+            other => other,
         }
     }
 }
@@ -405,112 +461,127 @@ mod tests {
     use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol, UnitVec3Error};
     use sweep::blend::BlendKind;
 
-    /// Every class, in declaration order — pinned to that order below,
-    /// so a class left out anywhere but at the end shifts every index
-    /// after it and reds.
-    const ALL: [C; 101] = [
-        C::Expr,
-        C::Profile,
-        C::ProfileReplay,
-        C::ProfileLaneReplay,
-        C::ProfileAnchor,
-        C::ProfilePieces,
-        C::Extrude,
-        C::Revolve,
-        C::Tube,
-        C::Split,
-        C::Fillet,
-        C::Chamfer,
-        C::Boolean,
-        C::Transform,
-        C::Skin,
-        C::Loft,
-        C::CurvedSolidFrontier,
-        C::MissingInput,
-        C::ToleranceConflict,
-        C::ParamBox,
-        C::Seed,
-        C::SeedPinnedSection,
-        C::WrongOperand,
-        C::EmptyOperand,
-        C::EmptyHalf,
-        C::InstanceOutOfRange,
-        C::DegenerateDirection,
-        C::NonFiniteDirection,
-        C::UnderflowedDirection,
-        C::Band,
-        C::MissingSlot,
-        C::VerbArity,
-        C::Escalated,
-        C::AxisInDifferentPlane,
-        C::NonPositiveCount,
-        C::PlacementsUncertified,
-        C::PlacementRuleCountSpelling,
-        C::PlacementRuleNoPlacements,
-        C::PlacementRuleNonFiniteFrame,
-        C::PlacementRuleImproperFrame,
-        C::UnschedulableCycle,
-        C::Naming,
-        C::ParamSourceAttach,
-        C::DeclareResolve,
-        C::DeclareSiteNotAnOperand,
-        C::DeclareUnsupportedPair,
-        C::UndeclaredContact,
-        C::UndeclarableContact,
-        C::FilletSelectionResolve,
-        C::ChamferSelectionResolve,
-        C::FilletSelectionKind,
-        C::ChamferSelectionKind,
-        C::FilletSelectionEmpty,
-        C::ChamferSelectionEmpty,
-        C::Shell,
-        C::ShellOpenResolve,
-        C::ShellOpenKind,
-        C::ShellLaneUnsupported,
-        C::FaceFrameResolve,
-        C::FaceFrameKind,
-        C::FaceFrameNotPlanar,
-        C::FaceFrameReadback,
-        C::DerivedFrameSection,
-        C::FrameDirectionDegenerate,
-        C::FrameDirectionNonFiniteLength,
-        C::FrameDirectionUnderflowedLength,
-        C::FrameDirectionEscalated,
-        C::WitnessBifurcation,
-        C::PartNoResolver,
-        C::PartPinMismatch,
-        C::PartEpsilonSeam,
-        C::PartUnresolved,
-        C::PartRootFailed,
-        C::PartRootFailureUnrecorded,
-        C::PartProduct,
-        C::PartReferenceCycle,
-        C::PartDepthExceeded,
-        C::MatePosesOfAnotherDocument,
-        C::MateFrame,
-        C::MateClassNotAdmitted,
-        C::MateTableLacks,
-        C::MateIndeterminate,
-        C::MateBand,
-        C::MateContradictory,
-        C::MateUnder,
-        C::MateDanglingHead,
-        C::MatePlacerRefused,
-        C::MatePartSelectsAnotherCopy,
-        C::MateSelf,
-        C::MateUnleverable,
-        C::CrossingUnverified,
-        C::MeasureRefResolve,
-        C::MeasureRefUnreadable,
-        C::MeasureNonFinite,
-        C::MeasureNotParallel,
-        C::MeasureUnsupported,
-        C::MeasureMalformed,
-        C::PayloadExpr,
-        C::MeasureSelectionKind,
-        C::MeasureClearanceRefused,
-        C::AssertionDimension,
-    ];
+    /// Every class, declared ONCE for two uses: [`ALL`], which the
+    /// census walks, and an exhaustive match over the class. A class
+    /// left out of the list is a non-exhaustive match (E0004) and one
+    /// listed twice an unreachable pattern, so `ALL` is every class
+    /// exactly once by construction.
+    macro_rules! all_classes {
+        ($($v:ident),* $(,)?) => {
+            const ALL: &[C] = &[$(C::$v),*];
+            #[deny(unreachable_patterns)]
+            #[allow(dead_code)]
+            fn all_is_exhaustive(c: C) {
+                match c {
+                    $(C::$v)|* => {}
+                }
+            }
+        };
+    }
+
+    all_classes! {
+        Expr,
+        Profile,
+        ProfileReplay,
+        ProfileLaneReplay,
+        ProfileAnchor,
+        ProfilePieces,
+        Extrude,
+        Revolve,
+        Tube,
+        Split,
+        Fillet,
+        Chamfer,
+        Boolean,
+        Transform,
+        Skin,
+        Loft,
+        CurvedSolidFrontier,
+        MissingInput,
+        ToleranceConflict,
+        ParamBox,
+        Seed,
+        SeedPinnedSection,
+        WrongOperand,
+        EmptyOperand,
+        EmptyHalf,
+        InstanceOutOfRange,
+        DegenerateDirection,
+        NonFiniteDirection,
+        UnderflowedDirection,
+        Band,
+        MissingSlot,
+        VerbArity,
+        Escalated,
+        AxisInDifferentPlane,
+        NonPositiveCount,
+        PlacementsUncertified,
+        PlacementRuleCountSpelling,
+        PlacementRuleNoPlacements,
+        PlacementRuleNonFiniteFrame,
+        PlacementRuleImproperFrame,
+        UnschedulableCycle,
+        Naming,
+        ParamSourceAttach,
+        DeclareResolve,
+        DeclareSiteNotAnOperand,
+        DeclareUnsupportedPair,
+        UndeclaredContact,
+        UndeclarableContact,
+        FilletSelectionResolve,
+        ChamferSelectionResolve,
+        FilletSelectionKind,
+        ChamferSelectionKind,
+        FilletSelectionEmpty,
+        ChamferSelectionEmpty,
+        Shell,
+        ShellOpenResolve,
+        ShellOpenKind,
+        ShellLaneUnsupported,
+        FaceFrameResolve,
+        FaceFrameKind,
+        FaceFrameNotPlanar,
+        FaceFrameReadback,
+        DerivedFrameSection,
+        FrameDirectionDegenerate,
+        FrameDirectionNonFiniteLength,
+        FrameDirectionUnderflowedLength,
+        FrameDirectionEscalated,
+        WitnessBifurcation,
+        PartNoResolver,
+        PartPinMismatch,
+        PartEpsilonSeam,
+        PartUnresolved,
+        PartRootFailed,
+        PartRootFailureUnrecorded,
+        PartProduct,
+        PartReferenceCycle,
+        PartDepthExceeded,
+        MatePosesOfAnotherDocument,
+        MateFrame,
+        MateClassNotAdmitted,
+        MateTableLacks,
+        MateIndeterminate,
+        MateBand,
+        MateContradictory,
+        MateUnder,
+        MateDanglingHead,
+        MatePlacerRefused,
+        MatePartSelectsAnotherCopy,
+        MateSelf,
+        MateUnleverable,
+        CrossingUnverified,
+        MeasureRefResolve,
+        MeasureRefUnreadable,
+        MeasureNonFinite,
+        MeasureNotParallel,
+        MeasureUnsupported,
+        MeasureMalformed,
+        PayloadExpr,
+        MeasureSelectionKind,
+        MeasureClearanceRefused,
+        AssertionDimension,
+    }
 
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("the witness band")
@@ -979,29 +1050,21 @@ mod tests {
     /// **Every class has an arm that projects onto it, and nothing
     /// else does.**
     ///
-    /// [`K::kind`] is exhaustive over the ERROR and over each value it
+    /// [`K::class`] is exhaustive over the ERROR and over each value it
     /// splits on, so an arm or a value added there reds this crate.
     /// [`witness`] is exhaustive over the CLASS, so a variant added to
-    /// [`C`] alone reds here at compile time; and this row asks each
-    /// witness to project onto the class it is filed under, which is
-    /// what reds a mis-projected arm or a split that reads the wrong
-    /// value. Two classes cannot share a witness's projection, so the
-    /// pairing is a bijection over [`ALL`].
-    ///
-    /// [`ALL`] is held to declaration order by discriminant, so a class
-    /// left out of it anywhere but after the last one reds too. That is
-    /// the one gap: a variant appended after [`C::AssertionDimension`]
-    /// and given a witness, but not added to [`ALL`], is never visited.
+    /// [`C`] alone reds here at compile time, and [`ALL`] is every
+    /// class by construction; this row asks each witness to project
+    /// onto the class it is filed under, which is what reds a
+    /// mis-projected arm or a split that reads the wrong value. Two
+    /// classes cannot share a witness's projection, so the pairing is a
+    /// bijection over [`ALL`].
     #[test]
     fn each_class_has_an_arm_and_each_arm_projects_to_its_own_class() {
-        for (index, class) in ALL.into_iter().enumerate() {
-            assert_eq!(
-                class as usize, index,
-                "ALL is in declaration order and misses nothing before {class:?}"
-            );
+        for &class in ALL {
             let err = witness(class);
             assert_eq!(
-                err.kind(),
+                err.class(),
                 class,
                 "the witness filed under {class:?} projects elsewhere: {err:?}"
             );

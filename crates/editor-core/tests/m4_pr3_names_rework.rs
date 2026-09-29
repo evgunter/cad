@@ -140,7 +140,7 @@ fn subtract_block_from_bar_never_fails_in_naming() {
     if ev.value(s).is_none() {
         let err = format!("{:?}", ev.nodes.get(&s));
         assert_ne!(
-            ev.node_error(s).map(|e| e.kind.kind()),
+            ev.node_error(s).map(|e| e.kind.class()),
             Some(NodeErrorClass::Naming),
             "bar-minus-block failed IN NAMING: {err}"
         );
@@ -242,7 +242,7 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
     let err = format!("{:?}", ev.nodes.get(&pat));
     assert!(
         matches!(
-            ev.node_error(pat).map(|e| e.kind.kind()),
+            ev.node_error(pat).map(|e| e.kind.class()),
             Some(NodeErrorClass::WrongOperand | NodeErrorClass::Naming)
         ),
         "expected a typed refusal, got: {err}"

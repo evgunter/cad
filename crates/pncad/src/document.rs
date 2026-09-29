@@ -243,7 +243,7 @@ pub use editor_core::DocParamField;
 // it is the one payload every pairing door carries (DI3; which doors
 // those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
 // spelled for the QUESTION rather than for any one door.
-// `NodeErrorClass` rides with `NodeErrorKind`: it is `NodeErrorKind::kind`'s
+// `NodeErrorClass` rides with `NodeErrorKind`: it is `NodeErrorKind::class`'s
 // answer, the refusal's class a consumer can clone, compare and hash where
 // the refusal itself cannot be.
 // `Found` rides with `NodeErrorKind` by the same rule: it is the

@@ -241,7 +241,7 @@ fn roll_once(
     let (doc, _, rolled) = rolled_lid(vs, roll, tol);
     let ev = eval(&doc, tol);
     match ev.node_error(rolled) {
-        Some(e) => Err((e.kind.kind(), format!("{:?}", e.kind))),
+        Some(e) => Err((e.kind.class(), format!("{:?}", e.kind))),
         None => Ok(census(&body_at(&ev, rolled))),
     }
 }

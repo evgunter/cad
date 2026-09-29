@@ -1236,8 +1236,8 @@ fn c4_poses_of_another_document_reaches_no_row() {
         let Some(e) = ev.node_error(id) else {
             continue;
         };
-        let classes: Vec<NodeErrorClass> = core::iter::once(e.kind.kind())
-            .chain(e.kind.carried_chain().map(|l| l.refusal.kind().kind()))
+        let classes: Vec<NodeErrorClass> = core::iter::once(e.kind.class())
+            .chain(e.kind.carried_chain().map(|l| l.refusal.kind().class()))
             .collect();
         assert!(
             !classes.contains(&NodeErrorClass::MatePosesOfAnotherDocument),

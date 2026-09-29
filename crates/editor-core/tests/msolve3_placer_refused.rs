@@ -217,7 +217,7 @@ fn carried(fault: &MateFault) -> (RecipeNodeId, String) {
 /// The class of the refusal a `PlacerRefused` carries.
 fn carried_class(fault: &MateFault) -> NodeErrorClass {
     match fault {
-        MateFault::PlacerRefused { error, .. } => error.kind().kind(),
+        MateFault::PlacerRefused { error, .. } => error.kind().class(),
         other => panic!("expected PlacerRefused, got {other:?}"),
     }
 }
