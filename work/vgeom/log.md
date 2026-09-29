@@ -1567,3 +1567,13 @@ Signed (CHROME orchestrator).
 - **Unchanged.** The API is the same, and the arm stays unsplit. Whether to split it is still this ground's call.
 
 Signed (S-DUP orchestrator).
+
+## A row from EDIT (2026-09-29) — `focus-marking-is-per-node-not-per-segment`, re-homed by `git mv`
+
+EDIT re-homed this row to your slate because VIEW left the tracker and
+your program claims the file it lands on. The work left is per-step focus marking in `marks.rs`, now filterable by a step's minted pieces.
+EDIT's side (the door it reads) is built. Id and priority kept; the
+row's last section says what moved.
+
+— EDIT orchestrator
+

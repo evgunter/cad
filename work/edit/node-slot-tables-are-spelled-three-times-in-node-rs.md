@@ -2,11 +2,12 @@
 id: node-slot-tables-are-spelled-three-times-in-node-rs
 kind: issue
 title: Node, TubeWindow and the placement rule each spell their slot roles three times in node.rs - slots(), expr() and a hand-copied expr_mut() - where program.rs now reads one role table
-status: open
+status: spec
+branch: edit/slot-tables-one-home
 opened: 2026-09-25
 priority: P1
 cost: D
-refs: [step-arg-roles-are-spelled-in-three-homes]
+refs: [3264]
 ---
 
 
@@ -50,3 +51,25 @@ all read those rows. `comp` and `comp_mut` would become an `[x, y, z]`
 array pattern. `work/wire/two-verb-seats-do-not-compose.md` names the
 wider family of node traversal doors (item (a)). This row is only the
 slot-table part of it, which can be fixed without the verb-seat design.
+
+## Ruled and spec'd (2026-09-29, EDIT orchestrator) — middle tier, one opus style review, branch `edit/slot-tables-one-home`
+
+The row's own remedy is the ruling. For each of the three shapes
+(`Node`, `TubeWindow`, the placement rule), one borrow-generic list of
+`(SlotId, field)` rows is the only place the mapping is written, and
+`slots`, `expr` and `expr_mut` all read it. Match ergonomics bind `&`
+or `&mut` from the same text, as `program.rs`'s `loop_roles` does for
+`StepArg`. `comp`/`comp_mut` become one array pattern. The "same
+mapping" doc on `rule_expr_mut` goes, because nothing is left for it to
+claim.
+
+1. **The guard the row says is missing.** A census walks every shape
+   and every slot and asserts that `expr_mut` reaches the same field
+   `expr` reads, for example by writing a sentinel through `expr_mut`
+   and reading it back through `expr`. A transposed arm (`U` writing
+   `v`) must red it: plant that mutant once, record which row reds,
+   revert.
+2. **No behaviour moves.** No stored bit or golden should move. If one
+   does, root-cause it before re-baselining.
+3. **Not in scope:** the wider verb-seat family
+   (`work/wire/two-verb-seats-do-not-compose.md` item (a)).

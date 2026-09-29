@@ -485,3 +485,7 @@ A second pass looked for any `pub fn` generic over `U`/`V`/`S`:
 **What neither pass could match:** about 250 non-lift `pub fn …<T: Real>`
 functions. Each needs its own compile to measure, so the sweep did not
 reach them, and no grep stands in for that instrument.
+
+## Re-homed
+
+Moved from `work/gather/` with GATHER's close (2026-09-29), id kept, still parked. It is blocked on `the-scalar-lift-convention-mints-doors-faster-than-consumers`, which VERDICT owns, so it waits beside its blocker.

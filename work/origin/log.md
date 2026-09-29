@@ -204,7 +204,25 @@ N6 and DESIGN.md edits reverted; `two-provenance-free-keys-…` closed as
 the accepted re-mint; `set-surface-source-…` and
 `surface-field-walks-…` carry the answer. Fork row 11 completed.
 
+## 2026-09-29 — the chart-identity cleanup dispatched
+
+`surface-field-walks-…` and the rest of `three-spellings-…` → one unit
+on `origin/one-surface-walk`: one field walk parameterised by its
+comparator (fixing `plane_bits_witness`'s missing `u_ref`), one
+declared-identity predicate shared by the merge door and chart-region
+(the merge door adding `sense`), one short doc naming the two
+questions. The design choices left open on both rows are code
+structure, decided here. Review tier: single FULL — a refactor across
+four comparison sites whose drift is exactly the defect.
 ## 2026-09-29 — PR 3412 ruled: charts are body-wide
 
 Ev took (B) ("sounds good!"). `a-chart-spans-solids-…` is a unit at
 `spec` again, now for the scoped-grouping change; fork row 12 completed.
+
+## 2026-09-29 — the scoped-grouping unit dispatched
+
+`a-chart-spans-solids-…` → implementer on
+`origin/scoped-chart-grouping`: the shell door, `replace_faces_offset`
+and point-in-solid group their own scope's faces through one primitive;
+`ChartSpansSolids` and `SurfaceSharedOutsideSolid` retire. Review tier:
+single FULL — three doors' refusal surfaces change, across crates.
