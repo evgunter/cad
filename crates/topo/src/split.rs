@@ -146,7 +146,8 @@ impl<T: Decide> Body<T> {
     ///
     /// Two frontiers, both stated at `split_cache`. A
     /// `Fitted`/`General` row is left exactly as found, because its
-    /// certification doors are the `PcurveFittedLane` ones. And on a
+    /// certification doors take the fitted door
+    /// ([`crate::AtRestPolicy::fitted_lane`]). And on a
     /// SPLINE chart the carry is exact — a described-NURBS wall's
     /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
     /// reads `Ok` — but the recovery step the caveat below names,
@@ -460,7 +461,7 @@ mod tests {
 
     /// A quarter-circle arc edge (circle carrier, placed-segment arc
     /// description): split at the 45° parameter; both children certify
-    /// (the bulge restriction is exercised) and the parent carrier is
+    /// (the arc restriction is exercised) and the parent carrier is
     /// shared unchanged.
     #[test]
     fn split_arc_edge() {
@@ -471,7 +472,9 @@ mod tests {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),
-                    bulge: (PI / 8.0).tan(),
+                    centre: Point2::new(0.0, 0.0),
+                    radius: 1.0,
+                    sweep: FRAC_PI_2,
                 },
                 place: Affine3::identity(),
             }),

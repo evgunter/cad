@@ -20,6 +20,7 @@ test_utils::gated_to![
     "crates/editor-core/src/measure.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/topo/src/props.rs",
+    "crates/topo/src/props/",
     "crates/editor-core/tests/corpus/",
 ];
 
@@ -34,8 +35,8 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-fn p(name: &str) -> ParamName {
-    ParamName::new(name)
+fn p(name: &'static str) -> ParamName {
+    ParamName::from_static(name)
 }
 
 /// An independent oracle for `P(lo <= X <= hi)`, X ~ N(0, sigma²):

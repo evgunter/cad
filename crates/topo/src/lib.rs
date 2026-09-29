@@ -136,6 +136,7 @@ pub mod boolean;
 pub(crate) mod census;
 pub mod chart;
 pub mod chart_bound;
+pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
@@ -342,7 +343,7 @@ pub mod test_support {
     /// Does `face` describe for the section certificate's W2 — its
     /// `chart_boundary` answers, or, on a cone face, its apex closure
     /// closes? The verdict the certificate reads per face.
-    pub fn face_describes<T: geom_brep::PcurveFittedLane>(
+    pub fn face_describes<T: crate::props::AtRestPolicy>(
         body: &Body<T>,
         face: crate::FaceKey,
         band: geom_core::Band,
@@ -445,7 +446,6 @@ pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError,
-    PcurveFittedLane,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{

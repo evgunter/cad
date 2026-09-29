@@ -118,7 +118,7 @@ use std::collections::BTreeSet;
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Expr, LoopProgram, ParamEnv, ParamName, ProfilePayload, ProfileProgram, ProgramArcData,
+    Expr, LoopProgram, Node, ParamEnv, ParamName, ProfilePayload, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, SlotId, StepArg,
 };
 use profile::{ArcMode, TargetKind, Verb};
@@ -1064,7 +1064,7 @@ fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String>
                 loops: vec![one],
                 ids: Vec::new(),
             };
-            let (slots, exprs) = (alone.slots().len(), literal_count(&alone));
+            let (slots, exprs) = (alone.rows().len(), literal_count(&alone));
             if slots != exprs {
                 out.push(format!(
                     "{label} has {exprs} expressions and enumerates {slots} slots"
@@ -1098,7 +1098,8 @@ fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String>
 #[test]
 fn every_enumerated_slot_addresses_a_distinct_expression() {
     let program = corpus();
-    let slots = program.slots();
+    let node = Node::Profile(program.clone());
+    let slots = node.slots();
     let expressions = literal_count(&program);
     // A bijection between two empty sets is a bijection. The corpus is
     // asserted non-empty on BOTH sides before the equality, so a
@@ -1120,7 +1121,7 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
     );
     let mut addresses: Vec<(*const Expr, SlotId)> = Vec::new();
     for slot in &slots {
-        let Some(expr) = program.expr(*slot) else {
+        let Some(expr) = node.expr(*slot) else {
             panic!("{slot:?} is enumerated but addresses nothing");
         };
         let addr: *const Expr = expr;
@@ -1158,17 +1159,20 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
 /// Blind spot, stated: the corpus's, as for the census above.
 #[test]
 fn every_enumerated_slot_is_where_its_refusal_reports() {
-    let program = corpus();
-    let slots = program.slots();
+    let node = Node::Profile(corpus());
+    let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
-    let unbound = ParamName::new("nothing binds this");
+    let unbound = ParamName::from_static("nothing_binds_this");
     let mut misplaced = Vec::new();
     for slot in &slots {
-        let mut broken = program.clone();
+        let mut broken = node.clone();
         let expr = broken
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
         *expr = Expr::param(unbound.clone(), expr.dim());
+        let Node::Profile(broken) = broken else {
+            unreachable!("a profile node written through `expr_mut` is a profile node")
+        };
         match broken.resolve(&ParamEnv::<f64>::default()) {
             Err((reported, _)) if reported == *slot => {}
             Err((reported, _)) => {
@@ -1272,8 +1276,8 @@ fn field_named(step: &profile::Step<f64>, arg: StepArg) -> Option<f64> {
 /// Blind spot, stated: the corpus's, as for the censuses above.
 #[test]
 fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
-    let program = corpus();
-    let slots = program.slots();
+    let node = Node::Profile(corpus());
+    let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
     // Finite and valid in every dimension; no corpus literal is this.
     let sentinel = 7.123_456_789;
@@ -1282,11 +1286,14 @@ fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
         let SlotId::Profile { loop_, step, arg } = *slot else {
             panic!("a profile payload enumerated a non-profile slot: {slot:?}");
         };
-        let mut probe = program.clone();
+        let mut probe = node.clone();
         let expr = probe
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
         *expr = Expr::literal(sentinel, expr.dim()).expect("a finite literal");
+        let Node::Profile(probe) = probe else {
+            unreachable!("a profile node written through `expr_mut` is a profile node")
+        };
         let loops = probe
             .resolve(&ParamEnv::<f64>::default())
             .unwrap_or_else(|(at, e)| {

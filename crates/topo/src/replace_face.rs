@@ -146,7 +146,8 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use crate::chart_groups::ChartGroups;
+use crate::entity::{EdgeKey, FaceKey, LoopBoundary, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::SurfaceKey;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
@@ -204,16 +205,17 @@ pub enum ReplaceFaceError<T: Real> {
         /// The face whose kind needs the (`f64`-only) fit door.
         face: FaceKey,
     },
-    /// **The operand's surface key is SHARED.** Another face carries
-    /// the same surface, so replacing this face would re-point the
-    /// boundary's descriptions at the fresh key while the sharer keeps
-    /// the old chart — the shared seam would name one face's surface
-    /// and lie on the other's. Replacing a shared chart is a
-    /// multi-face operation and this door is one face wide.
+    /// **The operand's surface key is SHARED within its solid.** Another
+    /// face of the same solid carries the same surface, so replacing the
+    /// named faces would re-point their boundary's descriptions at the
+    /// fresh key while the sharer keeps the old chart — a seam between
+    /// them would name one face's surface and lie on the other's.
+    /// Replacing a solid's wearers of a chart is a whole-group
+    /// operation: name every one.
     SharedSurfaceKey {
         /// The face the door was called on.
         face: FaceKey,
-        /// One other face carrying the same surface key.
+        /// A face of the same solid carrying the same surface key.
         other: FaceKey,
     },
     /// No face was named.
@@ -573,9 +575,10 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::SharedSurfaceKey { face, other } => write!(
                 f,
-                "replace_face_offset: {face:?}'s surface is shared with {other:?}, so replacing \
-                 it would leave the sharer on the old chart while the shared boundary names \
-                 the new one — replacing a shared chart is a multi-face operation"
+                "replace_face_offset: {face:?}'s surface is shared with {other:?} in the same \
+                 solid, so replacing it would leave the sharer on the old chart while a shared \
+                 boundary names the new one — replacing a solid's wearers of a chart is a \
+                 whole-group operation"
             ),
             Self::EmptyGroup => write!(
                 f,
@@ -1128,8 +1131,15 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
 /// capability the refusal points at: name the whole group, and the
 /// chart moves as one.
 ///
-/// `faces` must be exactly the set of faces carrying the chart — not a
-/// subset (the refusal above) and not a mixture of charts
+/// **The whole group is the solid's.** What the door protects is that
+/// no edge joins a re-keyed wearer to one left on the old key. Every
+/// edge lies in one shell and so in one solid, so a wearer on another
+/// solid shares no edge with the group and keeps the old chart: a
+/// chart is body-wide, and the group is its wearers within the solids
+/// `faces` lie on.
+///
+/// `faces` must be exactly those wearers — not a subset (the refusal
+/// above) and not a mixture of charts
 /// ([`ReplaceFaceError::GroupChartsDiffer`]).
 ///
 /// # Errors
@@ -1164,12 +1174,26 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
             });
         }
     }
-    // The group must be the WHOLE group: a chart with a face left
-    // behind is the incoherence this door exists to avoid.
-    if let Some((other, _)) = body
-        .faces()
-        .find(|(k, f)| !faces.contains(k) && f.surface == old_key)
-    {
+    // The group must be the WHOLE group within its solids: a wearer
+    // left behind there could share an edge with a re-keyed one.
+    let mut solids: Vec<SolidKey> = Vec::new();
+    for &member in faces {
+        let solid = body
+            .solid_of_face(member)
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        if !solids.contains(&solid) {
+            solids.push(solid);
+        }
+    }
+    let mut scope: Vec<FaceKey> = Vec::new();
+    for &solid in &solids {
+        scope.extend(
+            body.faces_of_solid(solid)
+                .ok_or(ReplaceFaceError::Corrupt)?,
+        );
+    }
+    let charts = ChartGroups::within(body, scope).map_err(|_| ReplaceFaceError::Corrupt)?;
+    if let Some(&other) = charts.of(old_key).iter().find(|k| !faces.contains(k)) {
         return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
     }
     let old_surface = body
@@ -2245,7 +2269,7 @@ fn plan_reanchors<T: Decide>(
             // what caught it.
             //
             // The refusal is mirrored onto the new home DELIBERATELY,
-            // not by omission: an arc's bulge and a trajectory's
+            // not by omission: an arc's carrier and a trajectory's
             // family are sketch data this door cannot author, and that
             // was a refusal before the collapse. Dropping the
             // declaration instead would silently flip
@@ -2257,7 +2281,7 @@ fn plan_reanchors<T: Decide>(
                     ReplaceFaceError::CarrierLaneUnsupported {
                         edge,
                         what: "a re-anchored mapped description that is not a placed line \
-                               segment (an arc's bulge and a trajectory's family are sketch \
+                               segment (an arc's carrier and a trajectory's family are sketch \
                                data this door does not author)",
                     },
                 )

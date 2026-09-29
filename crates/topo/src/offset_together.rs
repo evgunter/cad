@@ -150,7 +150,7 @@ struct MovedPlane<T: Real> {
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
 /// plan is decided before anything is written, and the writes go to a
 /// clone that replaces `body` only on success.
-pub fn offset_planes_together<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,
@@ -960,7 +960,7 @@ mod scope_walks {
 
     use super::{ChartMove, Scope, offset_planes_together, scope_of_moves};
     use crate::body::Body;
-    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
+    use crate::entity::{HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
     use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
     use crate::test_support_fixtures::UNIT_SQUARE;
@@ -990,16 +990,14 @@ mod scope_walks {
     /// before any meter runs — and it is what these rows use, so that
     /// what they measure is the BOOKKEEPING around the solve.
     fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<ChartMove<f64>> {
-        let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-        for face in body.faces_of_solid(solid).expect("a live solid") {
-            let key = body.get_face(face).unwrap().surface;
-            match out.iter_mut().find(|(k, _)| *k == key) {
-                Some((_, v)) => v.push(face),
-                None => out.push((key, vec![face])),
-            }
-        }
-        out.into_iter()
-            .map(|(_, faces)| ChartMove { faces, distance })
+        let faces = body.faces_of_solid(solid).expect("a live solid");
+        crate::chart_groups::ChartGroups::within(body, faces)
+            .expect("a live solid's faces resolve")
+            .iter()
+            .map(|(_, faces)| ChartMove {
+                faces: faces.to_vec(),
+                distance,
+            })
             .collect()
     }
 

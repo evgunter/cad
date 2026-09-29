@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Axis3, Dimension, Frame, Node, ParamName, RecipeNodeId};
+use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId};
 use pncad::quantity::{self, UnitDef};
 use pncad::select::Resolution;
 
@@ -13,7 +13,9 @@ use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::frame::Tone;
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
-use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName};
+use crate::session::{
+    BoundsTarget, NodeKindWanted, Refusal, Selection, SessionOp, Standing, ValueGestureName, admits,
+};
 use crate::theme::Theme;
 use crate::widgets::{
     FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker, delete_button,
@@ -95,7 +97,7 @@ impl ViewerBehavior<'_> {
                     // a label a person reads is prose.
                     crate::widgets::message(
                         ui,
-                        format!("parameter {} ({})", row.name.0, row.dimension),
+                        format!("parameter {} ({})", row.name.as_str(), row.dimension),
                     );
                     // Shown, scrubbed and authored in the unit the
                     // parameter was DECLARED in, through the same
@@ -168,7 +170,7 @@ impl ViewerBehavior<'_> {
         ui.label("document parameters");
         for row in crate::props::param_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
-            if crate::widgets::message_link(ui, row.name.0.clone()).clicked() {
+            if crate::widgets::message_link(ui, row.name.as_str().to_owned()).clicked() {
                 self.ops
                     .push(SessionOp::Select(Selection::Param(row.name.clone())));
             }
@@ -186,9 +188,9 @@ impl ViewerBehavior<'_> {
     /// probing its range. A profile the editor cannot hold (an argument
     /// already driven) shows its refusal and the rows open.
     fn feature_rows_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, groups: &[SlotGroup]) {
-        let profile = matches!(
+        let profile = admits(
             self.session.committed_doc().node(node),
-            Some(Node::Profile(_))
+            NodeKindWanted::Profile,
         );
         if profile && self.edit_profile_ui(ui, node) {
             egui::CollapsingHeader::new("arguments")
@@ -239,7 +241,7 @@ impl ViewerBehavior<'_> {
         // The offer from an unknown-parameter parse refusal, shown
         // while the name field still says the offered name.
         if let Some(offered) = self.drafts.new_param_offer.clone() {
-            if offered.0 == self.drafts.new_param_name.trim() {
+            if offered.as_str() == self.drafts.new_param_name.trim() {
                 crate::widgets::message_toned(
                     ui,
                     Refusal::offer_wording(&offered),
@@ -314,27 +316,26 @@ impl ViewerBehavior<'_> {
                 Some(Dimension::Scalar | Dimension::Count) | None => {}
             }
         });
-        let name = self.drafts.new_param_name.trim();
+        // The draft text is offered to the one door that decides what
+        // a parameter name is; a refused text leaves the control
+        // disabled, and the sentence the refusal carries is not yet
+        // shown beside it.
+        let name = ParamName::new(self.drafts.new_param_name.trim()).ok();
         // `create_param` asks `committed_doc()`, so the notice ahead of
         // the click asks it too: a notice drawn from the previewed
         // document would be answering about a document the door will
         // not see.
-        let existing = if name.is_empty() {
-            None
-        } else {
-            self.session
-                .committed_doc()
-                .params()
-                .get(&ParamName::new(name))
-        };
-        if let Some(existing) = existing {
-            let name = ParamName::new(name);
-            if exists_notice(ui, &self.theme, &name, existing.dim()) {
-                self.ops.push(SessionOp::Select(Selection::Param(name)));
+        let existing = name
+            .as_ref()
+            .and_then(|name| self.session.committed_doc().params().get(name));
+        if let (Some(name), Some(existing)) = (&name, existing) {
+            if exists_notice(ui, &self.theme, name, existing.dim()) {
+                self.ops
+                    .push(SessionOp::Select(Selection::Param(name.clone())));
             }
             return;
         }
-        let ready = !name.is_empty() && self.drafts.new_param_dimension.is_some();
+        let ready = name.is_some() && self.drafts.new_param_dimension.is_some();
         let create = ui.add_enabled(ready, egui::Button::new("Create"));
         let create = if self.drafts.new_param_dimension.is_none() {
             create.on_disabled_hover_text("pick a dimension first")
@@ -347,11 +348,12 @@ impl ViewerBehavior<'_> {
         // created holding zero, which is a value nobody authored.
         // `SlotValue::of` is the one door that decides this.
         if create.clicked()
+            && let Some(name) = name
             && let Some(dimension) = self.drafts.new_param_dimension
             && let Ok(value) = SlotValue::of(dimension, self.drafts.new_param_value)
         {
             self.ops.push(SessionOp::CreateParam {
-                name: ParamName::new(name),
+                name,
                 value: crate::props::doc_param(dimension, value, self.new_param_unit()),
             });
             self.drafts.new_param_name.clear();
@@ -750,7 +752,7 @@ impl ViewerBehavior<'_> {
         let Some(written) = props::rendering_unit(row.dimension, row.unit) else {
             return;
         };
-        if let Some(unit) = pick_unit(ui, "param_unit", &row.name.0, row.dimension, written)
+        if let Some(unit) = pick_unit(ui, "param_unit", row.name.as_str(), row.dimension, written)
             && unit != written
         {
             self.ops.push(SessionOp::SetParamUnit {
@@ -1009,9 +1011,8 @@ impl ViewerBehavior<'_> {
 /// failed name. Draws nothing for a selection that still denotes, or
 /// for none.
 ///
-/// Exhaustive over [`Standing`], so a new standing is a compile error
-/// here rather than a silent blank; and a picked entity's noun is read
-/// off its own arm, so no caller can hand this "face" for an edge.
+/// A picked entity's noun is read off its own arm, so no caller can
+/// hand this "face" for an edge.
 ///
 /// The words are composed per arm — for a picked entity, the
 /// resolution machinery's own payload, never a sentence composed here
@@ -1037,7 +1038,7 @@ pub(crate) fn standing_verdict(ui: &mut egui::Ui, theme: &Theme, standing: &Stan
         } => {
             crate::widgets::message_toned(
                 ui,
-                format!("parameter {} is no longer declared", name.0),
+                format!("parameter {} is no longer declared", name.as_str()),
                 theme,
                 tone,
             );
@@ -1088,7 +1089,7 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: 
         theme,
         Tone::Advisory,
     );
-    crate::widgets::message_link(ui, format!("edit {}", name.0)).clicked()
+    crate::widgets::message_link(ui, format!("edit {}", name.as_str())).clicked()
 }
 
 /// **What a slot has to SAY, under its row**: the fault a slot that
@@ -1141,7 +1142,8 @@ fn slot_notes(
         if !params.is_empty() {
             ui.horizontal_wrapped(|ui| {
                 for name in params {
-                    if crate::widgets::message_link(ui, format!("edit {}", name.0)).clicked() {
+                    if crate::widgets::message_link(ui, format!("edit {}", name.as_str())).clicked()
+                    {
                         clicked = Some(name.clone());
                     }
                 }
@@ -1239,8 +1241,8 @@ mod layout_tests {
     /// so these rows read the region and not the floor.
     const REGION: f32 = 260.0;
 
-    fn param(name: &str) -> ParamName {
-        ParamName(name.to_owned())
+    fn param(name: &'static str) -> ParamName {
+        ParamName::from_static(name)
     }
 
     /// An extrude distance row with `driver` and `value`.
@@ -1260,7 +1262,7 @@ mod layout_tests {
     fn a_declared_names_notice_and_its_door_each_take_a_line_inside_the_pane() {
         let name = param("outer_enclosure_wall_thickness");
         let wording = Refusal::exists_wording(&name, Dimension::Length);
-        let door = format!("edit {}", name.0);
+        let door = format!("edit {}", name.as_str());
         let (region, painted) = drawn_in(REGION, |ui| {
             exists_notice(ui, &Theme::DEFAULT, &name, Dimension::Length);
         });
@@ -1303,7 +1305,7 @@ mod layout_tests {
         );
         assert_own_lines(region, affordance);
         for name in &params {
-            let door = find(&painted, &format!("edit {}", name.0));
+            let door = find(&painted, &format!("edit {}", name.as_str()));
             assert_inside(region, door);
             assert_under(affordance, door);
         }
@@ -1355,7 +1357,7 @@ mod tests {
     const NODE: RecipeNodeId = RecipeNodeId(4);
 
     fn thickness() -> ParamName {
-        ParamName("thickness".to_owned())
+        ParamName::from_static("thickness")
     }
 
     /// One extrude distance row, driven or not, with the value the
@@ -1637,7 +1639,7 @@ mod verdict_tests {
     #[test]
     fn an_undeclared_parameters_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Param {
-            name: ParamName("width".to_owned()),
+            name: ParamName::from_static("width"),
             present: false,
         });
         assert_eq!(
@@ -1657,7 +1659,7 @@ mod verdict_tests {
                 present: true,
             },
             Standing::Param {
-                name: ParamName("width".to_owned()),
+                name: ParamName::from_static("width"),
                 present: true,
             },
         ] {

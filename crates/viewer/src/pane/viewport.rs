@@ -178,7 +178,11 @@ fn skips_the_ray(action: PickAction, step: IdStep) -> bool {
 fn ray_asked_at(actions: &[PickAction], step: IdStep, cursor: [f64; 2]) -> bool {
     actions.iter().any(|&action| {
         !skips_the_ray(action, step)
-            && matches!(action, PickAction::Hover(at) | PickAction::Select(at) if at == cursor)
+            && match action {
+                PickAction::Hover(at) | PickAction::Select(at) => at == cursor,
+                // Clearing the hover asks the ray nothing.
+                PickAction::ClearHover => false,
+            }
     })
 }
 
@@ -1146,11 +1150,9 @@ mod tests {
         // The fault is built by hand rather than provoked, and that is
         // the honest way round. A fault a document can REACH by an
         // ordinary edit — a root driven to a zero distance — is a
-        // failed root, which the feature tree badges at the node and
-        // `product_badge` therefore declines. The faults this channel
-        // is for are gather-level and emission-level: they are not
-        // authorable from the panels, which is exactly why nothing else
-        // reports them.
+        // failed root, which `frame::badge_site` sends to the feature
+        // tree. The ones it keeps for this channel are not authorable
+        // from the panels.
         let tol = Tol::witness();
         let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
         let mut session = DocSession::inline(doc, tol);

@@ -1125,8 +1125,9 @@ happens to be in. A whole sentence — a refusal, a fault, a check
 finding, the status line — is not what either of the layout's two
 answers is for: in an ordinary horizontal row it is laid out at
 infinite width and drawn past the region's right-hand edge, and in the
-toolbar's wrapping row every line after the first is placed at the
-panel's left edge, which for a top panel is the window's.
+toolbar's wrapping row (where the canceled line sits) every line after
+the first is placed at the panel's left edge, which for a top panel is
+the window's.
 `widgets::message` lays the sentence out at the region's own width and
 hands it over already laid out, which is the one path egui neither
 extends nor re-places; it asks for the wrap explicitly, so a future
@@ -1139,8 +1140,10 @@ The region is taken down to a floor and no further:
 `widgets::message_floor` is the widest number `readout::number`
 returns (`widgets::widest_number`, over `readout::widest_render`) and
 one space after it. Below the floor a message stops narrowing and the
-pane's `ScrollArea::both()` scrolls, and a line never breaks inside a
-number `readout` renders. `widgets::message`'s doc says why the space
+pane's `ScrollArea::both()` scrolls — the toolbar's status line, in a
+panel that does not scroll, has a row of its own under the controls
+that scrolls sideways (`app`'s `toolbar_ui`) — and a line never breaks
+inside a number `readout` renders. `widgets::message`'s doc says why the space
 is there and what the floor does not cover, and states the rule for
 which texts are bounded by characters and which by their region.
 
@@ -1158,7 +1161,9 @@ visible width rather than an infinite one, so a pane that scrolls both
 ways still wraps its sentences instead of answering with a scrollbar —
 and `app`'s `the_toolbars_status_line_wraps_under_itself_rather_than_at_the_windows_edge`
 measures the status line in the real toolbar, which is where the
-second symptom was reported.
+second symptom was reported, with
+`the_toolbars_status_line_is_drawn_inside_the_panel_at_every_width` and
+`below_the_floor_the_toolbars_status_line_scrolls_to_the_rest` beside it.
 
 **Startup is split by what it needs, and the two context-wide styles
 are on the deviceless side.** `ViewerApp::new` takes an
@@ -1410,12 +1415,11 @@ for KIND. That reading is what puts an arm in this list; a fact that
 merely feels like layer 3's is how the list acquires a member the door
 already refuses.
 
-`rank` stays a separate axis, and it is exhaustive over `Refusal`'s own
-arms, so a new arm is compiler-caught. It is exhaustive one level down
-too, on the one arm whose rank is a per-payload decision: `Display`
+`rank` stays a separate axis, and names every `Refusal` arm (*A
+policy over an enum names every variant*, below). It does so one level
+down too, on the one arm whose rank is a per-payload decision: `Display`
 walks `DisplayFault` arm by arm and walks the admission family inside
-it, so a new fault of either kind reds until its rank is chosen.
-`Edit` and `SlotUnit` forward whole vocabularies at one rank each and
+it. `Edit` and `SlotUnit` forward whole vocabularies at one rank each and
 that IS a default, argued at the arm. The remaining cost — an arm
 ranked wrongly — is accepted, because the alternative of deriving a
 rank from the arm's shape would make the ordering unstateable, and the
@@ -1492,12 +1496,12 @@ script through both.
 
 ### Gesture safety is data
 
-The mid-gesture policy is one exhaustive value,
+The mid-gesture policy is one value,
 `SessionOp::permitted_during_value_gesture`, checked once in `perform`
-before dispatch: 24 operations refuse while a value gesture is open and
-17 are permitted. A forty-second operation cannot be added without
-answering for it, and the whole policy is readable in one place rather
-than inferred from every dispatch target.
+before dispatch: 29 operations refuse while a value gesture is open and
+17 are permitted. It names every operation (*A policy over an enum
+names every variant*, below), and the whole policy is readable in one
+place rather than inferred from every dispatch target.
 
 **What the table does not decide is rule 1.** A begin that arrives
 under an open gesture is refused by that gesture's own door —
@@ -1530,7 +1534,7 @@ a commit that lands under a probe is pruned and reported, and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
 free-move table is checked against the property rather than against a
-second copy of 41 rows (`replaces_the_document`, in
+second copy of 46 rows (`replaces_the_document`, in
 `tests/gesture_table.rs`), and `perform` consults both tables in turn,
 value gesture first.
 
@@ -1716,8 +1720,8 @@ release and means something else.
 A drag has two ends and they mean opposite things, so the emitted
 operation is a parameter of the mapping beside the commit — and a
 `SessionOp` rather than an `Option`, because every gesture vocabulary
-has a cancel and `every_gesture_cancel_has_a_chrome_door` is the
-exhaustive match that keeps it so. Both drags the panel maps run
+has a cancel and `every_gesture_cancel_has_a_chrome_door`, which names
+every `SessionOp`, keeps it so. Both drags the panel maps run
 through that one function, so both ends are the same rule at the slot
 field, the parameter field and the free-move probe; the stake is
 largest at the first two, where a commit reaches the document and costs
@@ -1991,6 +1995,54 @@ find. That is why one row ratifying two same-named lists in one module
 is a red rather than a silent second ratification — and why two lists
 that a module and a name cannot tell apart need one of them moved or
 renamed, not a second row.
+
+### A policy over an enum names every variant
+
+This is the one statement of why the crate's decisions are spelled the
+way they are; the sites carry only their local reasons.
+
+**Where this crate decides something over an enum, the decision is a
+`match` with an arm for every variant and no `_`.** Which tool an
+operation closes, which refusal offers to create a parameter, which
+node a seat admits, whether a row is a fault. A subset pattern —
+`matches!(x, A | B)`, `!matches!(x, C)`, a `_ =>` arm, a bare binding
+standing for "the rest" — answers for every variant it does not name,
+including the ones nobody has written yet, and nothing goes red when
+the enum grows. Named arms turn that growth into `E0004` at the
+decision, so whoever adds a variant writes its answer where the policy
+lives. The variants whose answer is the common one are grouped into
+one arm, and the comment on an arm says why its variants get that
+answer, never why the arm is there.
+
+**Four shapes keep their wildcard, because none of them is a policy:**
+
+- *Identity* — the question is the variant itself, so a new variant
+  correctly answers no: `bounds::Bound::is_edge`, the read doors on
+  `tools::Tools`, `app`'s "was this op an `Open`".
+- *A downcast* — the pattern extracts the payload only one variant
+  carries: `frame::retype_draft`'s search for the expression op,
+  `drafts`' profile edit.
+- *A guard's fallback over a value that is not a variant question* —
+  a guard comparing whole values (`Refusal::preferred`'s rank, a path
+  that may be empty) needs a catch-all for its `false` case. That is
+  all such a `_` may cover: where the arms name variants, the fallback
+  names them again rather than standing for the rest
+  (`frame::frame_status`, `pickcache`'s attempt step).
+- *Not a closed enum* — tuples, slices, strings, numbers,
+  `Option`/`Result` shapes, and `egui::Shape`, whose variants are the
+  toolkit's to add.
+
+**A decision asked in several places has one home, and the places
+call it** — otherwise each copy is a separate subset waiting to
+disagree: `session::refuse::admits` (the commit door, the tool seats,
+and `sketch`'s frame list and frame placement), `session::select::resolves`
+(a live selection, an unresolved one, and a mate pick that survives a
+landing), `sketch::PreviewError::is_unfinished` (the preview's retry and
+`PreviewError::tone`, which the profile pane draws with), and `session::refuse::Refusal::parse_error`
+(`frame::creation_offer` and `frame::retype_draft`). A decision over
+TWO enums names both: `ToolKind::commits` matches every tool and reads
+`tools::committed_by`, which matches every operation, so a new tool
+and a new operation each red.
 
 ### What the boundary does not decide
 

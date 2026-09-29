@@ -108,7 +108,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
         origin: [
             common::len(0.0),
             common::len(0.0),
-            Expr::param(ParamName::new("height"), Dimension::Length),
+            Expr::param(ParamName::from_static("height"), Dimension::Length),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
@@ -185,7 +185,7 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("unused"),
+            name: ParamName::from_static("unused"),
             value: DocParam::continuous(Dimension::Length, 0.001),
         },
         tol,

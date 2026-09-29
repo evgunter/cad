@@ -1037,6 +1037,7 @@ impl<T: Real> Profile<T> {
 #[allow(clippy::panic)]
 mod lowering_tests {
     use super::*;
+    use geom_core::interval::certification::Certification;
     use geom_core::{Dual, Dual64, DualInterval, Interval};
 
     /// The kind `b` lowers to on a unit chord.

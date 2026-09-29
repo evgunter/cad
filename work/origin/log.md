@@ -204,7 +204,77 @@ N6 and DESIGN.md edits reverted; `two-provenance-free-keys-…` closed as
 the accepted re-mint; `set-surface-source-…` and
 `surface-field-walks-…` carry the answer. Fork row 11 completed.
 
+## 2026-09-29 — the chart-identity cleanup dispatched
+
+`surface-field-walks-…` and the rest of `three-spellings-…` → one unit
+on `origin/one-surface-walk`: one field walk parameterised by its
+comparator (fixing `plane_bits_witness`'s missing `u_ref`), one
+declared-identity predicate shared by the merge door and chart-region
+(the merge door adding `sense`), one short doc naming the two
+questions. The design choices left open on both rows are code
+structure, decided here. Review tier: single FULL — a refactor across
+four comparison sites whose drift is exactly the defect.
 ## 2026-09-29 — PR 3412 ruled: charts are body-wide
 
 Ev took (B) ("sounds good!"). `a-chart-spans-solids-…` is a unit at
 `spec` again, now for the scoped-grouping change; fork row 12 completed.
+
+## 2026-09-29 — the scoped-grouping unit dispatched
+
+`a-chart-spans-solids-…` → implementer on
+`origin/scoped-chart-grouping`: the shell door, `replace_faces_offset`
+and point-in-solid group their own scope's faces through one primitive;
+`ChartSpansSolids` and `SurfaceSharedOutsideSolid` retire. Review tier:
+single FULL — three doors' refusal surfaces change, across crates.
+
+## 2026-09-29 — PR 3430 lands (charts are body-wide; the P0 row closes)
+
+Single FULL review on `86a64898c`: APPROVE-WITH-FIXES, no MAJOR;
+fix pass `a83ea1cd3` (probes ported, one live read of the lift solid's
+faces, one grouping spelling in census and the test helpers, the cone
+containment change pinned and measured right). Seam notes on
+RESTFRONT's `check-10-…` (a silence retired, tier 3 widened) and SHELL's
+log; a TCOST finding filed (`germ-cone-doc-claims-one-merged-face-…`).
+
+## 2026-09-29 — PR 3429 lands (one surface walk, one declared predicate)
+
+Single FULL review on `5aa6d5a16`: APPROVE-WITH-FIXES, no MAJOR; fix
+pass `390837fed` (step-import's sixth walk folded, byte-identical;
+`Mirrored` pinned through a public door; the analytic/NURBS split made
+a type, no `unreachable!`, no allocation; chart-region's `same_chart`
+renamed `declared_chart`; mesh-side every-scalar row; `plane_eq` rung 1
+routed through `source_declaration`). `surface-field-walks-…` and
+`three-spellings-…` close; `carrier-eq-source-rung-…` filed. Main
+(with PR 3430) merged in before landing, so the gate ran on the
+combined tree.
+
+## 2026-09-29 — the P0 spine closed; track re-banded P3
+
+PR 3429 (one surface walk, one declared predicate) landed after a
+single FULL review and fix pass. With it, every row the track was
+opened for is closed. `program.md` re-banded P3 (the band of what
+remains) and its charter restated; `plan.md` rewritten to the present
+slate. `curve-field-walks-…`, `surface-field-census-…` and
+`carrier-eq-source-rung-…` dispatched as one unit on
+`origin/curve-walk` (single STYLE review: the pattern is PR 3429's,
+repeated).
+
+## 2026-09-29 — PR 3442 lands (curve walk, SurfaceField, curved rung)
+
+Single STYLE review: APPROVE; the fix pass took its findings anyway
+(the surface memo row's prefix-only check — a half-fix the curve side
+had closed; the shared core moved to `geom::datum`; exhaustive kind
+fixtures; the `face_plane_source` → `face_oriented_source` rename with
+its planes-only premise). Three rows close. The slate left is design
+only (see `plan.md`).
+
+## 2026-09-29 — track handed back (`ready`)
+
+PR 3442 merged on a green combined-tree gate. Nothing is in flight: no
+lane, no open PR, no unpushed branch. Every remaining row is a design
+row (`plan.md`), so the sitting ends here and the track goes back on
+the board as `ready`. A successor starts at `plan.md`'s Order: weigh
+`a-live-spliced-…` and `set-surface-source-…` with a designer pair
+each (`memories/orchestration-model.md`), then open the `[ev]` PRs.
+The fork log's rows 11 and 12 are closed; their blinding record is on
+`analysis/design-fork/origin-chart-identity-2026-09-29`.

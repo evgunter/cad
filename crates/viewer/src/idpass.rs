@@ -30,7 +30,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::prelude::StableName;
-use pncad::select::HitTestError;
+use pncad::select::UnnamedEntity;
 
 use crate::frame::{Message, Retold, Subject};
 use crate::generation::Generation;
@@ -168,12 +168,13 @@ pub enum IdAnswer {
     /// A drawn patch, by the name the index has for it.
     Named(StableName),
     /// A drawn patch the index has no name for: the naming layer's
-    /// loud bug arm ([`PickIndex::name_of`]), with its own refusal.
+    /// loud bug report ([`PickIndex::name_of`]), with its own refusal
+    /// — a lookup's, since the index was built by one.
     Unnamed {
         /// The patch id the id buffer read back.
         id: u32,
         /// Why the patch has no name.
-        error: HitTestError,
+        error: UnnamedEntity,
     },
     /// An id the index never assigned, so no patch of this picture is
     /// drawn under it. The picture is the one this index drew (the
@@ -217,10 +218,7 @@ impl IdAnswer {
         }
         match index.name_of(id) {
             Some(Ok(name)) => Self::Named(name.clone()),
-            Some(Err(error)) => Self::Unnamed {
-                id,
-                error: error.clone(),
-            },
+            Some(Err(error)) => Self::Unnamed { id, error: *error },
             None => Self::Unassigned { id },
         }
     }
