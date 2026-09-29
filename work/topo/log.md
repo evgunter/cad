@@ -2190,3 +2190,11 @@ than a reviewer's method. The brief is written.
 the per-PR gate. The interval eps rows now run in the nightly, and the
 nightly's reds are the orchestrator's. Both reviewer briefs ask for
 the interval rows the unit touches to be re-run locally.
+
+**Correction to the gate note above.** The interval LANE no longer
+exists. RING-4 deleted the feature, leaving one compile mode
+(`scripts/ci-filter.py`, "THE LANE AXIS IS GONE"), so a
+`CONFIG_SOURCE` with no `lane:` entry is complete. What the latency cut
+leaves to the nightly is sweep's eps 1e-6/1e-12 rows. PR 3161's
+first-run reds were the pre-RING-4 interval jobs. PR 3161's queued
+brief is re-worded to eps rather than lanes before it dispatches.
