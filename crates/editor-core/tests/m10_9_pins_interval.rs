@@ -130,15 +130,15 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 104 until SYM-8's rule F (`manifest_sign`), which moves
             // this same document and only this one again, and again
             // the second cause: `without_rule_f` reads
-            // `symbolic_zero: 889, registered: 104, numeric: 1086`
-            // here and the shipped set `885 / 128 / 1066` — the same
-            // 2079 decisions, 24 of them moving INTO the door, 20 out
+            // `symbolic_zero: 889, registered: 104, numeric: 1078`
+            // here and the shipped set `885 / 128 / 1058` — the same
+            // 2071 decisions, 24 of them moving INTO the door, 20 out
             // of `numeric` and FOUR out of `symbolic_zero`. Those four
             // are the unit's disclosed finding: opening an `abs` atom
             // the early walk was cancelling over can cost that walk a
             // theorem the registry then re-takes
             // (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`,
-            // the class). No decision is lost, `frozen` is the same at
+            // the class). No decision is lost, `frozen` is 2750 at
             // both dials, no per-predicate split at any document's
             // nominal moves, and no ceiling on any of the eight
             // measured documents moves by a digit.
@@ -478,11 +478,14 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// (`SymRules::manifest_sign`) did to it. At the scale the pad
 /// certifies whole at, over its analyzed box, rule F off → on:
 /// `symbolic_zero` 889 → 885, `registered` 104 → 128, `numeric`
-/// 1086 → 1066, `frozen` 2722 either way — the same 2079 decisions, 24
+/// 1078 → 1058, `frozen` 2750 either way — the same 2071 decisions, 24
 /// of them moving into the door, twenty out of `numeric` and FOUR out
-/// of `symbolic_zero`. The `numeric` +8 and `frozen` 2750 → 2722 these
-/// tuples took on while nothing re-took them are not yet attributed
-/// (`work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`).
+/// of `symbolic_zero`. Those are the STORED tuples; the replay
+/// currently measures `numeric` 8 higher and `frozen` 2722 at both
+/// dials, a drift that predates the stored values and is not yet
+/// attributed
+/// (`work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`),
+/// so this row is red until it is.
 ///
 /// No decision is lost and the document certifies whole at both dials,
 /// which is asserted here; what moved is the STRENGTH of four claims.
@@ -523,8 +526,11 @@ fn m10_9_the_pads_four_at_both_dials() {
         );
         got.push((c.symbolic_zero, c.registered, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (889, 104, 1086, 2722), "rule F off");
-    assert_eq!(got[1], (885, 128, 1066, 2722), "rule F on");
+    // Each side carries +28 `symbolic_zero` and +84 `numeric` from the
+    // must-carry rule's per-station dihedral gate, and +3 of each from
+    // the fillet run outs' carrier decision (`path_run_out_carrier`).
+    assert_eq!(got[0], (889, 104, 1078, 2750), "rule F off");
+    assert_eq!(got[1], (885, 128, 1058, 2750), "rule F on");
     assert_eq!(
         got[0].0 + got[0].1 + got[0].2,
         got[1].0 + got[1].1 + got[1].2,
