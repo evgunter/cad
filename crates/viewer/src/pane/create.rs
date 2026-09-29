@@ -239,23 +239,30 @@ fn part_window(opener: &egui::Ui) -> egui::Window<'static> {
         .max_width(width)
 }
 
-/// **One part the chooser offers**: its pick button, and the
-/// document's id on a line of its own under it. Answers whether the
-/// button was clicked.
+/// **One part the chooser offers**: its pick button and file name on
+/// one line, and the document's id on a line of its own under it.
+/// Answers whether the button was clicked.
 ///
-/// The id is a VALUE, not a sentence: 32 hex digits, bounded by its
-/// source and with no space to break at, so wrapping it at the region
-/// would split one id into two tokens. It is drawn whole or, in a
-/// window narrower than it, elided with the whole id on hover —
-/// egui's own truncation, which never breaks it. The file name above
-/// it is what a reader picks by (`crate::parts::catalogue` sorts on
-/// it); the id tells two same-named files apart.
+/// The file name and the id are NAMES, not sentences, so neither
+/// wraps: each is drawn whole or, in a window narrower than it, elided
+/// with the whole text on hover — egui's own truncation. The file name
+/// is the user's and nothing here bounds it, which is why it is not
+/// the button's label: a button lays its text out on one line at any
+/// width, and the window would take that width. The file name is what
+/// a reader picks by (`crate::parts::catalogue` sorts on it); the id
+/// tells two same-named files apart.
 ///
 /// An entry that cannot be picked stays VISIBLE and disabled, carrying
 /// the op's own refusal — read off the entry, not minted here.
 fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
     let refusal = entry.refusal();
-    let picked = crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref());
+    let picked = ui
+        .horizontal(|ui| {
+            let picked = crate::app::refusable_button(ui, PICK_PART, refusal.as_ref());
+            ui.add(egui::Label::new(entry.file_name()).truncate());
+            picked
+        })
+        .inner;
     ui.add(
         egui::Label::new(crate::app::toned(
             entry.id.to_string(),
@@ -266,6 +273,9 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
     );
     picked
 }
+
+/// What [`part_entry`]'s pick button says.
+const PICK_PART: &str = "add";
 
 /// **What the add-profile form calls the frame it offers to mint.**
 ///
@@ -574,7 +584,10 @@ impl ViewerBehavior<'_> {
                     "admission: {}",
                     match entry.admission {
                         pncad::document::ClassAdmission::Mints => "mints an at-rest record",
-                        other => other.no_record_reason(),
+                        caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
+                        | pncad::document::ClassAdmission::NotAdmitted) => {
+                            caveat.no_record_reason()
+                        }
                     }
                 ),
                 &self.theme,
@@ -2060,6 +2073,7 @@ mod layout_tests {
     use super::{NO_FRAMES, frame_picker, part_entry, part_window};
     use crate::pane::headless::{
         SLACK, assert_inside, assert_own_lines, assert_under, drawn_in, find, landed_after,
+        painted_while_hovering,
     };
     use crate::parts::PartEntry;
     use crate::theme::Theme;
@@ -2124,6 +2138,37 @@ mod layout_tests {
             id.rows
         );
         assert_inside(region, id);
+    }
+
+    /// **A part's file name is bounded by the pane, and whole on
+    /// hover**: one line inside the pane however long the name, and the
+    /// full name in the tooltip of a pointer resting on it.
+    #[test]
+    fn a_long_file_name_is_elided_inside_the_pane_and_whole_on_hover() {
+        let entry = PartEntry {
+            id: DocumentId(7),
+            path: PathBuf::from(
+                "outer-enclosure-lid-with-the-long-hinge-and-the-second-gasket-groove.pncad",
+            ),
+            open_document: false,
+        };
+        let (region, painted) = drawn_in(REGION, |ui| {
+            part_entry(ui, &Theme::DEFAULT, &entry);
+        });
+        let name = find(&painted, &entry.file_name());
+        assert_eq!(name.rows.len(), 1, "one line, not {:?}", name.rows);
+        assert_inside(region, name);
+
+        let hovered = painted_while_hovering(&entry.file_name(), 0, |ui| {
+            ui.allocate_ui(egui::vec2(REGION, 800.0), |ui| {
+                part_entry(ui, &Theme::DEFAULT, &entry);
+            });
+        });
+        assert_eq!(
+            hovered.matches(&entry.file_name()).count(),
+            2,
+            "the elided name and the whole one in its tooltip: {hovered}"
+        );
     }
 
     /// **The chooser's window takes the width of the pane that opens

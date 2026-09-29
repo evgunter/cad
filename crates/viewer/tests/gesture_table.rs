@@ -15,10 +15,9 @@
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
-//! agreeing with itself. Its match is exhaustive: a forty-third
-//! `SessionOp` does not compile until someone writes down whether a
-//! drag refuses it, which is the property the table exists to buy.
-//! Its index half, checked against `OP_COUNT`, is what makes a MISSING
+//! agreeing with itself. Its match names every `SessionOp`, so no
+//! operation joins the enum without an answer for a drag. Its index
+//! half, checked against `OP_COUNT`, is what makes a MISSING
 //! sample fail too — an unasserted variant is the same silence in a
 //! different place.
 //!
@@ -340,10 +339,6 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
 }
 
 /// The answers, restated by hand: `(index, permitted mid-drag)`.
-///
-/// **Exhaustive on purpose.** A new `SessionOp` fails to compile here
-/// until its row is written, which is the whole reason the policy is a
-/// table rather than a scattering of guards.
 fn expected(op: &SessionOp) -> (usize, bool) {
     match op {
         // Layer-3 moves: neither the document nor the history is
@@ -813,9 +808,8 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
 
 // --- the cancel doors -----------------------------------------------
 
-/// **Which operations cancel a GESTURE**, written down exhaustively so
-/// that a forty-third operation cannot join the enum without answering
-/// whether the chrome owes it a door.
+/// **Which operations cancel a GESTURE**, so that no operation joins
+/// the enum without answering whether the chrome owes it a door.
 ///
 /// The rule ranges over what an operation cancels, NOT over what it is
 /// called. [`SessionOp::CancelEvaluation`] is spelled `Cancel` and
@@ -1413,10 +1407,10 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// rather than as a second copy of its rows.**
 ///
 /// `expected` above is a hand-written copy of
-/// `permitted_during_value_gesture` because that table has 25 refusals
-/// with no shorter description than the list itself — 24 of them move
-/// the document, the history or the file a drag previews against, and
-/// `ProbeBounds` is the twenty-fifth and reads rather than moves. The
+/// `permitted_during_value_gesture` because that table's refusals have
+/// no shorter description than the list itself — all but one move the
+/// document, the history or the file a drag previews against, and
+/// `ProbeBounds` reads rather than moves. The
 /// free-move table has two, and they have a name: an operation that REPLACES the
 /// document the session is about — as against one that moves it, which
 /// a prune answers for by reporting. So this says the name, and
@@ -1424,10 +1418,6 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// the table against it. A row that disagrees is either a table entry
 /// that is wrong or a property that has stopped being the reason, and
 /// both are things to find out.
-///
-/// **Exhaustive on purpose**, like `expected`: a forty-third `SessionOp`
-/// does not compile until someone says whether it replaces the
-/// document.
 fn replaces_the_document(op: &SessionOp) -> bool {
     match op {
         // The two doors that put a different document under the
@@ -1482,8 +1472,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
 }
 
 /// The free-move table is exactly the replacement doors, on the same
-/// sample roster the value table is checked on — so a forty-third
-/// operation is answered for both drags or does not compile.
+/// sample roster the value table is checked on.
 #[test]
 fn the_free_move_table_refuses_exactly_the_replacement_doors() {
     let tol = Tol::witness();
