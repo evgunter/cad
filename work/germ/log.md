@@ -607,3 +607,28 @@ Ev's instruction: finish the in-flight work and the P1, then pause until the wee
   - 0 mismatches in 1920 random poses against the traced section.
 - **Ruled:** §2.5.1's cone × plane table read `m_A` (the apex offset) first and answered W0 when `m_A` was in band and the aperture was negative, which can clear a real ellipse of length ≈ `m_A·cos α/μ`. The lane decides on the aperture margin μ alone. That is sound and more conservative, and a row demonstrates the spec's error. It is a unit-spec correction, not a design fork; the spec is fixed on the branch.
 - **The PR opens** after PR 3423 merges.
+
+## 2026-09-29 ~07:00 — PAUSED (Ev: stop dispatching, the usage limit is near)
+
+Nothing new is dispatched. Lanes already running finish on their own and push their branches; no reviews or merges follow until Ev resumes.
+
+**State at pause:**
+- **PR 3423 (VERBS-CONE U1+U2, `germ/cone-roots`):** the dual review is done, with the pair excluded by 6(e) (R2 interrupted by a restart). The coding is in the scratchpad `dr3423/coding.md`: byte 16, A=R1; G1 is a bilateral MAJOR (R1 MAJOR / R2 MINOR), tally none.
+  - The fix pass was RUNNING at pause: an a-posteriori verification of the metered F in the shared `half_angle_roots`; the near-apex door; the in-band tangency door; the off-span slack row; NITs. It also measures circle × torus on MAIN for the same failure.
+  - **On resume:**
+    - read its report, circle × torus measurement FIRST. If main is wrong, that is a later escape under DR-16 (PR 3375) and a live defect.
+    - then a single delta review of the new certificate;
+    - the DR row (EXCLUDED pair; the tally line is unchanged; take the next DR number from main);
+    - merge on hosted green.
+- **U4 (the section certificate's cone rows, `germ/cone-section-rows`, head `11036d5d9`):** built and idle, no PR yet.
+  - After PR 3423 merges: tell its lane to merge main (the `VERBS-CONE.md` and `sweep/tests/all.rs` conflicts are known), add the op rows via `sweep_past_the_cone_roster`, and open its PR.
+  - Then a dual review.
+  - Ruled: the cone × plane rule decides on the aperture margin μ alone (spec §2.5.1 corrected on the branch).
+- **P1 re-measure (`germ/tilted-rod-remeasure`):** RUNNING at pause.
+  - It re-measures the tilted rod in the half donut against the section certificate, and opens a PR.
+  - On resume: read its report, then an orchestrator read or single review, then merge.
+- **Next after those:**
+  - U7 (the cone roster flip; dual);
+  - the P2s (`cone-pairs-in-general-pose-have-no-section-arm`, `radial-hole-through-a-tube-has-no-section-arm`);
+  - the P3/P4 queue.
+- **Review log on main:** tally 2 of 8; fair pairs that found a MAJOR, toward twelve: 7.
