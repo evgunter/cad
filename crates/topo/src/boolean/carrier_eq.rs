@@ -49,6 +49,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
+use super::refusal_routes::Contradiction;
 use crate::contact::ContactVerdict;
 use crate::validate::decide;
 
@@ -100,7 +101,14 @@ pub enum CarrierEqError {
     /// A declared pair whose carriers are DEFINITELY distinct — the
     /// recipe's declaration contradicts the geometry; refused loudly,
     /// never glued.
-    Contradicted(Indeterminate),
+    Contradicted {
+        /// The fact that contradicted the declaration, set by the rung
+        /// that decided it.
+        fact: Contradiction,
+        /// The deciding predicate, with an `INVALID` margin: the
+        /// verdict is definite, and the rung keeps no measure.
+        diag: Indeterminate,
+    },
 }
 
 /// One carrier's conventional oriented description.
@@ -251,8 +259,16 @@ pub fn carrier_eq_verdict<T: Decide>(
                 return Ok((v, ContactVerdict::Definite));
             }
             let margins = [
-                ("carrier_sphere_center", Margin::norm3(*p1 - *p2)),
-                ("carrier_sphere_radius", Margin::of(*r1 - *r2)),
+                (
+                    "carrier_sphere_center",
+                    Contradiction::SphereCentresDiffer,
+                    Margin::norm3(*p1 - *p2),
+                ),
+                (
+                    "carrier_sphere_radius",
+                    Contradiction::SphereRadiiDiffer,
+                    Margin::of(*r1 - *r2),
+                ),
             ];
             data_rungs(&margins, id.declared, *w1 == *w2, band)
         }
@@ -283,10 +299,19 @@ pub fn carrier_eq_verdict<T: Decide>(
             let margins = [
                 (
                     "carrier_cyl_axis_parallel",
+                    Contradiction::CylinderAxesNotParallel,
                     Margin::levered(a1.cross(*a2).norm(), arm),
                 ),
-                ("carrier_cyl_axis_offset", Margin::norm3(perp)),
-                ("carrier_cyl_radius", Margin::of(*r1 - *r2)),
+                (
+                    "carrier_cyl_axis_offset",
+                    Contradiction::CylinderAxesApart,
+                    Margin::norm3(perp),
+                ),
+                (
+                    "carrier_cyl_radius",
+                    Contradiction::CylinderRadiiDiffer,
+                    Margin::of(*r1 - *r2),
+                ),
             ];
             data_rungs(&margins, id.declared, *w1 == *w2, band)
         }
@@ -319,11 +344,24 @@ pub fn carrier_eq_verdict<T: Decide>(
             let margins = [
                 (
                     "carrier_torus_axis_parallel",
+                    Contradiction::TorusAxesNotParallel,
                     Margin::levered(a1.cross(*a2).norm(), arm),
                 ),
-                ("carrier_torus_center", Margin::norm3(*p1 - *p2)),
-                ("carrier_torus_major_radius", Margin::of(*r1 - *r2)),
-                ("carrier_torus_minor_radius", Margin::of(*t1 - *t2)),
+                (
+                    "carrier_torus_center",
+                    Contradiction::TorusCentresDiffer,
+                    Margin::norm3(*p1 - *p2),
+                ),
+                (
+                    "carrier_torus_major_radius",
+                    Contradiction::TorusMajorRadiiDiffer,
+                    Margin::of(*r1 - *r2),
+                ),
+                (
+                    "carrier_torus_minor_radius",
+                    Contradiction::TorusTubeRadiiDiffer,
+                    Margin::of(*t1 - *t2),
+                ),
             ];
             data_rungs(&margins, id.declared, *w1 == *w2, band)
         }
@@ -333,12 +371,15 @@ pub fn carrier_eq_verdict<T: Decide>(
         // the same structural fact.
         _ => {
             if id.declared {
-                Err(CarrierEqError::Contradicted(Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some("carrier_kind"),
-                    terminal_sliver: false,
-                }))
+                Err(CarrierEqError::Contradicted {
+                    fact: Contradiction::KindsDiffer,
+                    diag: Indeterminate {
+                        margin: geom_core::MarginDiag::INVALID,
+                        band,
+                        predicate: Some("carrier_kind"),
+                        terminal_sliver: false,
+                    },
+                })
             } else {
                 Ok((CarrierRelation::Distinct, ContactVerdict::Definite))
             }
@@ -380,7 +421,7 @@ fn source_rung(id: PlaneIdentity<'_>, opposed: bool) -> Option<CarrierRelation> 
 /// undeclared, and are the residue the declaration bridges when
 /// declared.
 fn data_rungs<T: Decide>(
-    margins: &[(&'static str, Margin<T>)],
+    margins: &[(&'static str, Contradiction, Margin<T>)],
     declared: bool,
     aligned: bool,
     band: Band,
@@ -391,7 +432,7 @@ fn data_rungs<T: Decide>(
         CarrierRelation::SameOpposite
     };
     let mut any_in_band: Option<Indeterminate> = None;
-    for &(name, margin) in margins {
+    for &(name, fact, margin) in margins {
         match decide(name, margin, band) {
             Ok(Sign::Positive | Sign::Negative) => {
                 let diag = Indeterminate {
@@ -401,7 +442,7 @@ fn data_rungs<T: Decide>(
                     terminal_sliver: false,
                 };
                 return if declared {
-                    Err(CarrierEqError::Contradicted(diag))
+                    Err(CarrierEqError::Contradicted { fact, diag })
                 } else {
                     Ok((CarrierRelation::Distinct, ContactVerdict::Definite))
                 };
@@ -527,7 +568,7 @@ mod tests {
         let b = sphere([0.0, 0.0, 0.0], 2.5, false);
         let err = carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err();
         match err {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_sphere_radius"));
             }
             other => panic!("expected Contradicted, got {other:?}"),
@@ -563,7 +604,7 @@ mod tests {
         assert!(
             matches!(
                 carrier_eq(&a, &definite, declared(), 1.0, band()),
-                Err(CarrierEqError::Contradicted(_))
+                Err(CarrierEqError::Contradicted { .. })
             ),
             "definite, declared: contradicted"
         );
@@ -593,7 +634,7 @@ mod tests {
             CarrierRelation::Distinct
         );
         match carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_cyl_axis_offset"));
             }
             other => panic!("expected Contradicted, got {other:?}"),
@@ -637,7 +678,7 @@ mod tests {
             false,
         );
         match carrier_eq(&a, &definite, declared(), 1.0, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_cyl_radius"));
             }
             other => panic!("expected Contradicted, got {other:?}"),
@@ -663,7 +704,7 @@ mod tests {
             "at a 1 m arm the tilt is below the band: the declaration stands"
         );
         match carrier_eq(&a, &tilted, declared(), 1e6, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
             }
             other => panic!("expected Contradicted at the long arm, got {other:?}"),
@@ -714,7 +755,7 @@ mod tests {
             CarrierRelation::Distinct
         );
         match carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_torus_center"));
             }
             other => panic!("expected Contradicted, got {other:?}"),
@@ -738,7 +779,9 @@ mod tests {
             ),
         ] {
             match carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err() {
-                CarrierEqError::Contradicted(d) => assert_eq!(d.predicate, Some(expected)),
+                CarrierEqError::Contradicted { diag: d, .. } => {
+                    assert_eq!(d.predicate, Some(expected))
+                }
                 other => panic!("expected Contradicted at {expected}, got {other:?}"),
             }
             assert_eq!(
@@ -783,7 +826,7 @@ mod tests {
             false,
         );
         match carrier_eq(&a, &definite, declared(), 1.0, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_torus_minor_radius"));
             }
             other => panic!("expected Contradicted, got {other:?}"),
@@ -805,7 +848,7 @@ mod tests {
             "at a 1 m arm the tilt is below the band: the declaration stands"
         );
         match carrier_eq(&a, &tilted, declared(), 1e6, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_torus_axis_parallel"));
             }
             other => panic!("expected Contradicted at the long arm, got {other:?}"),
@@ -838,7 +881,7 @@ mod tests {
         );
         assert!(matches!(
             carrier_eq(&c, &t, declared(), 1.0, band()),
-            Err(CarrierEqError::Contradicted(_))
+            Err(CarrierEqError::Contradicted { .. })
         ));
     }
 
@@ -857,7 +900,7 @@ mod tests {
         );
         assert!(matches!(
             carrier_eq(&p, &c, declared(), 1.0, band()),
-            Err(CarrierEqError::Contradicted(_))
+            Err(CarrierEqError::Contradicted { .. })
         ));
     }
 

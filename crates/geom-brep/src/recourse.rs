@@ -310,6 +310,7 @@ mod tests {
             let on = |v: f64| match passes {
                 SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
                 SizedPass::NonZero => v != 0.0,
+                SizedPass::Negative => v < 0.0,
             };
             match margin.diagnostic_f64_for_error_text() {
                 geom_core::ErrorTextReading::Value(m) => on(m).then(|| m.abs() / k),
@@ -334,6 +335,7 @@ mod tests {
             SizedPass::Positive,
             SizedPass::NonNegative,
             SizedPass::NonZero,
+            SizedPass::Negative,
         ] {
             for stored in [StoredDefinite::Contradiction, StoredDefinite::Lever] {
                 for at_zero in [None, Some(AtZero::same("a note"))] {

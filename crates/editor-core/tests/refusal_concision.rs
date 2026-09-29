@@ -137,7 +137,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     let diag = Indeterminate {
         margin: MarginDiag::value(3.0e-10),
         band,
-        predicate: Some("bool_vertex_face_side"),
+        predicate: Some("side_of_plane"),
         terminal_sliver: false,
     };
     let face = FaceKey::default();
@@ -276,7 +276,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 face,
             },
         ),
-        ("Escalated", BooleanError::Escalated { diag }),
+        (
+            "Escalated",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence,
+                diag,
+            },
+        ),
         (
             "UndeclaredCoincidence",
             BooleanError::UndeclaredCoincidence {

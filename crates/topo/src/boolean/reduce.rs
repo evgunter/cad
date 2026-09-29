@@ -50,6 +50,7 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
+use super::BooleanDecision;
 use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::PlaneDesc;
@@ -625,7 +626,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 });
             }
             Err(super::PlaneEqError::Escalated(diag)) => {
-                return Err(BooleanError::Escalated { diag });
+                return Err(BooleanError::coincidence(diag));
             }
             Err(super::PlaneEqError::Undeclared { diag, relation }) => {
                 // Same-operand pair (the F7 maximal-faces gate): both
@@ -637,8 +638,8 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 });
             }
             // Unreachable with `declared: false`; kept typed.
-            Err(super::PlaneEqError::Contradicted(diag)) => {
-                return Err(BooleanError::DeclarationContradicted { diag });
+            Err(super::PlaneEqError::Contradicted { fact, .. }) => {
+                return Err(BooleanError::DeclarationContradicted { fact });
             }
         }
     }
@@ -857,7 +858,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         match decide("bool_conic_face_plane_offset", Margin::of(offset), band) {
                             Ok(Sign::Positive | Sign::Negative) => continue,
                             Ok(Sign::Zero) => {}
-                            Err(diag) => return Err(BooleanError::Escalated { diag }),
+                            Err(diag) => return Err(BooleanError::coincidence(diag)),
                         }
                         let mut hit =
                             vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band, tol)?;
@@ -870,8 +871,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         }
                         continue;
                     }
-                    Ok(ConicPlaneMeet::Roots(Err(diag))) => {
-                        return Err(BooleanError::Escalated { diag });
+                    Ok(ConicPlaneMeet::Roots(Err(fault))) => {
+                        use crate::splitting::ConicRootFault as F;
+                        let (decision, diag) = match fault {
+                            F::PlaneParallel(diag) | F::BellyGraze(diag) => {
+                                (BooleanDecision::Coincidence, diag)
+                            }
+                            F::CrossingInterior(diag) => (BooleanDecision::CrossingOnEdge, diag),
+                            F::RootOrder(diag) => (BooleanDecision::CrossingOrder, diag),
+                        };
+                        return Err(BooleanError::Escalated { decision, diag });
                     }
                     Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
                         for &t in &roots {
@@ -916,8 +925,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 band,
                             )
                         };
-                        let s1 = side(pu).map_err(|diag| BooleanError::Escalated { diag })?;
-                        let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
+                        let s1 = side(pu).map_err(BooleanError::coincidence)?;
+                        let s2 = side(pv).map_err(BooleanError::coincidence)?;
                         let mut hit = false;
                         if s1 == Sign::Zero {
                             hit |=
@@ -941,8 +950,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     band,
                 )
             };
-            let s1 = side(pu).map_err(|diag| BooleanError::Escalated { diag })?;
-            let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
+            let s1 = side(pu).map_err(BooleanError::coincidence)?;
+            let s2 = side(pv).map_err(BooleanError::coincidence)?;
             match (s1, s2) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and
@@ -1350,7 +1359,7 @@ fn curved_face_arm<T: Decide>(
                     };
                     let mut ends = [None, None];
                     for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
-                        match side(pw).map_err(|diag| BooleanError::Escalated { diag })? {
+                        match side(pw).map_err(BooleanError::coincidence)? {
                             Sign::Zero => {
                                 ends[i] = Some(vertex_on_curved_face(
                                     x_is, y, w, pw, face, contacts, band, tol,
@@ -1391,7 +1400,7 @@ fn curved_face_arm<T: Decide>(
                 Ok(Sign::Zero | Sign::Negative) | Err(_)
                     if !covered && matches!(surface, geom::Surface::Torus { .. }) => {}
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
-                Err(diag) => return Err(BooleanError::Escalated { diag }),
+                Err(diag) => return Err(BooleanError::coincidence(diag)),
             }
         }
         _ => return Err(frontier()),
@@ -1406,8 +1415,8 @@ fn curved_face_arm<T: Decide>(
     // The declared-cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
-    let s1 = side(pu).map_err(|diag| BooleanError::Escalated { diag })?;
-    let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
+    let s1 = side(pu).map_err(BooleanError::coincidence)?;
+    let s2 = side(pv).map_err(BooleanError::coincidence)?;
     match (s1, s2) {
         // The declared-cover rung: a covered line with endpoint(s) ON
         // the carrier takes the planar sweep's endpoint posture — the
@@ -1729,7 +1738,7 @@ fn curved_face_arm<T: Decide>(
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
                 }
-                Err(diag) => Err(BooleanError::Escalated { diag }),
+                Err(diag) => Err(BooleanError::coincidence(diag)),
             }
         }
     }
@@ -1893,7 +1902,7 @@ fn wall_crossing<T: Decide>(
         } => match super::circle_torus::circle_torus_roots(
             center, axis, radius, u_ref, t0, t1, surface, band,
         )
-        .map_err(|diag| BooleanError::Escalated { diag })?
+        .map_err(BooleanError::coincidence)?
         {
             super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
                 roots = thetas;
@@ -1906,6 +1915,12 @@ fn wall_crossing<T: Decide>(
                 (Err(SpanVerdict::Unsettled), radius)
             }
             super::circle_torus::CircleTorusRoots::Miss => (Err(SpanVerdict::Miss), radius),
+            super::circle_torus::CircleTorusRoots::CountDisagrees => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "the constructed roots of a quartic disagree in number with its \
+                           certified count",
+                });
+            }
         },
         _ => return Ok(SpanVerdict::Unsettled),
     };
@@ -1936,7 +1951,12 @@ fn wall_crossing<T: Decide>(
                     at_end = true;
                 }
                 Ok(Sign::Negative) => interior = false,
-                Err(diag) => return Err(BooleanError::Escalated { diag }),
+                Err(diag) => {
+                    return Err(BooleanError::Escalated {
+                        decision: BooleanDecision::CrossingOnEdge,
+                        diag,
+                    });
+                }
             }
         }
         if !interior {
@@ -1965,7 +1985,10 @@ fn wall_crossing<T: Decide>(
             Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => crossed_elsewhere = true,
             Ok(CurvedPlacement::Trim(Some(at))) => return Ok(SpanVerdict::Pierce { t, p, at }),
             Err(super::contain::ContainError::Escalated(diag)) => {
-                return Err(BooleanError::Escalated { diag });
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::Containment,
+                    diag,
+                });
             }
             // Unwalkable topology under a query the crossing layer just
             // routed: the operand is corrupt, and saying "the roots did
@@ -2015,7 +2038,7 @@ fn line_wall_root_count<T: Decide>(
             radius,
             ..
         } => match super::solid_contain::line_wall_roots(origin, dir, c_origin, axis, radius, band)
-            .map_err(|diag| BooleanError::Escalated { diag })?
+            .map_err(BooleanError::coincidence)?
         {
             super::solid_contain::WallRoots::Two(ts) => {
                 roots[..2].copy_from_slice(&ts);
@@ -2050,7 +2073,7 @@ fn line_wall_root_count<T: Decide>(
             minor_radius,
             band,
         )
-        .map_err(|diag| BooleanError::Escalated { diag })?
+        .map_err(BooleanError::coincidence)?
         {
             super::solid_contain::TorusRoots::Certified { count, ts } => {
                 *roots = ts;
@@ -2058,6 +2081,12 @@ fn line_wall_root_count<T: Decide>(
             }
             super::solid_contain::TorusRoots::Uncertain => return Ok(Err(SpanVerdict::Unsettled)),
             super::solid_contain::TorusRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+            super::solid_contain::TorusRoots::CountDisagrees => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "the constructed roots of a quartic disagree in number with its \
+                           certified count",
+                });
+            }
         },
         // A sphere face: no root lane here, and inventing one is not
         // this function's business.
@@ -2250,6 +2279,7 @@ fn vertex_on_curved_face<T: Decide>(
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative) => {
                 return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::Coincidence,
                     diag: geom_core::Indeterminate {
                         margin: geom_core::MarginDiag::INVALID,
                         band,
@@ -2258,7 +2288,7 @@ fn vertex_on_curved_face<T: Decide>(
                     },
                 });
             }
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
+            Err(diag) => return Err(BooleanError::coincidence(diag)),
         }
     }
     // Only an ON-carrier `Out` is a certified absence. Every caller
@@ -2273,7 +2303,10 @@ fn vertex_on_curved_face<T: Decide>(
 
 fn esc(e: ContainError, operand: Operand) -> BooleanError {
     match e {
-        ContainError::Escalated(diag) => BooleanError::Escalated { diag },
+        ContainError::Escalated(diag) => BooleanError::Escalated {
+            decision: BooleanDecision::Containment,
+            diag,
+        },
         ContainError::RayExhausted => BooleanError::ClassificationInvariant {
             what: "contfp ray schedule exhausted",
         },
@@ -2419,7 +2452,12 @@ fn split_other_at_point<T: Decide>(
                     what: "split point definitely off the circle carrier it was placed on",
                 });
             }
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
+            Err(diag) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::SplitPointOnCircle,
+                    diag,
+                });
+            }
         }
         // A span of at most one period is what makes the MIDPOINT
         // anchor's branch the right one, and it is CHECKED rather than
@@ -2440,7 +2478,12 @@ fn split_other_at_point<T: Decide>(
                            would alias by a turn",
                 });
             }
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
+            Err(diag) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::ArcSpan,
+                    diag,
+                });
+            }
         }
     }
     let t = curve

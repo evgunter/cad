@@ -367,12 +367,6 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
-        path: "crates/topo/src/boolean/refusal_routes.rs",
-        disposition: Shared, // the escalation roster's spelled-in-its-file and
-                             // routed-names checks, code+literal view; its
-                             // decide-site walk is source::predicate_census
-    },
-    Entry {
         path: "crates/topo/src/boolean/wall_section_rows.rs",
         disposition: Shared, // the window-construction site list, code view
     },

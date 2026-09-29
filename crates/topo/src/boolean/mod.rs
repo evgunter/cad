@@ -90,6 +90,7 @@ mod r2_probes;
 pub(crate) mod recl;
 pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
+pub use refusal_routes::{BooleanDecision, Contradiction, SectorRung};
 mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
@@ -161,18 +162,16 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => "whether the two planes are parallel",
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
         crate::query::DATUM_UNIT_NORM => "whether a direction has any length",
-        "bool_pierce_normal_on_chart" => {
-            "whether a point lies on a curved face, so the face's normal can be read there"
-        }
+        "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
-        "torus_tube_positive" => "whether a torus's tube radius is positive",
-        "ring_torus_convention" => "whether a torus's tube stays clear of its axis",
+        "torus_tube_positive" => BooleanDecision::TorusTube.subject(),
+        "ring_torus_convention" => BooleanDecision::TorusRing.subject(),
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
-            CROSSING_INTERIOR
+            BooleanDecision::CrossingOnEdge.subject()
         }
-        "split_conic_root_order" => "which of two crossings on an edge comes first",
-        "bool_split_span_period" => "whether an arc stays short of a full turn",
+        "split_conic_root_order" => BooleanDecision::CrossingOrder.subject(),
+        "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_vertex"
         | "bool_contact_arc_end_vertex"
@@ -233,19 +232,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_window"
         | "point_in_arc_loop_conic_disc"
-        | "point_in_arc_loop_conic_advance" => {
-            "whether a point lies inside a face, on its boundary, or outside it"
-        }
+        | "point_in_arc_loop_conic_advance" => BooleanDecision::Containment.subject(),
         _ => return None,
     })
 }
-
-/// [`decision_words`] for the interiority of a crossing on its edge,
-/// which `Body::split_edge` decides for every door that splits an edge
-/// at a crossing (`EulerOpError::SplitParamEscalated`).
-pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside its edge";
-
-pub(crate) use refusal_routes::CROSSING_RECOURSE;
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
@@ -941,6 +931,9 @@ pub enum BooleanError {
     /// the operand pair is ill-conditioned at this ε — a genuine
     /// sliver (F6). Never a snap, never a guess.
     Escalated {
+        /// The decision that escalated, which the refusal's ending
+        /// follows from.
+        decision: BooleanDecision,
         /// The predicate's escalation diagnostics.
         diag: Indeterminate,
     },
@@ -971,9 +964,8 @@ pub enum BooleanError {
     /// pair's carriers are definitely distinct) — the recipe's intent
     /// cannot be realized; refused loudly, never glued (M4 PR 5).
     DeclarationContradicted {
-        /// The contradicting predicate, with an `INVALID` margin: the
-        /// verdict is definite, and the raise sites keep no measure.
-        diag: Indeterminate,
+        /// The fact that contradicted the declaration.
+        fact: Contradiction,
     },
     /// A declared CONTACT meets definite counter-evidence at the op
     /// (C4's verify-at-use): the pair, the class it claimed, and the
@@ -1520,6 +1512,15 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
+    /// An escalation of a coincidence between parts of the two solids
+    /// ([`BooleanDecision::Coincidence`]).
+    pub(crate) fn coincidence(diag: Indeterminate) -> Self {
+        Self::Escalated {
+            decision: BooleanDecision::Coincidence,
+            diag,
+        }
+    }
+
     /// Which arm refused, without the payload.
     ///
     /// Exhaustive over [`BooleanError`]: adding an arm there is a
@@ -1802,33 +1803,19 @@ impl core::fmt::Display for BooleanError {
                  tolerance reaches this. Recourse: {}",
                 geom_core::RANGE_RECOURSE
             ),
-            // Routed by the decision that escalated
-            // (`refusal_routes::escalation`): a coincidence keeps the
-            // declare lever; a decision no face pair names states its
-            // own; a name the table does not carry states the hole.
-            Self::Escalated { diag } => match refusal_routes::escalation(diag.predicate) {
-                Some(refusal_routes::Escalation::Coincidence) => write!(
+            Self::Escalated { decision, diag } => match decision.ending_of(diag) {
+                None => write!(
                     f,
                     "parts of the two solids are too close to call at this tolerance ({}), \
                      and the Boolean never snaps them together. Recourse: \
                      {COINCIDENCE_RECOURSE}",
                     diag.payload()
                 ),
-                Some(refusal_routes::Escalation::Own { subject, recourse }) => write!(
+                Some(ending) => write!(
                     f,
-                    "{subject} is undecided: {}. Recourse: {recourse}",
+                    "{} is undecided: {}. {ending}",
+                    decision.subject(),
                     diag.payload()
-                ),
-                Some(refusal_routes::Escalation::KernelCheck { subject }) => write!(
-                    f,
-                    "{subject} is undecided: {}. {KERNEL_DEFECT_ENDING}",
-                    diag.payload()
-                ),
-                None => write!(
-                    f,
-                    "{} is undecided: {diag}; {}",
-                    geom_core::UNNAMED_DECISION,
-                    geom_core::MissingRecourse(diag.predicate)
                 ),
             },
             Self::UndeclaredCoincidence { diag, pair, .. } => {
@@ -1872,14 +1859,11 @@ impl core::fmt::Display for BooleanError {
                 crate::contact::CONTRADICTION_RECOURSE,
                 crate::contact::steer_clause(*steer),
             ),
-            // The verdict is definite and its margin `INVALID`, so the
-            // payload would claim a poisoned reading: the sentence
-            // names the fact that contradicted instead.
-            Self::DeclarationContradicted { diag } => write!(
+            Self::DeclarationContradicted { fact } => write!(
                 f,
                 "a declared coincidence contradicts the geometry: {}, and the Boolean never \
                  glues a lie. {}",
-                refusal_routes::contradicted_fact(diag),
+                fact.fact(),
                 refusal_routes::CONTRADICTION_RECOURSE
             ),
             Self::UnsupportedDeclarationClass { class } => write!(
@@ -2374,18 +2358,18 @@ fn verify_rest_declaration<T: Decide>(
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
         ) => Ok(true),
         Ok(carrier_eq::CarrierRelation::Distinct) => Ok(false),
-        Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
+        Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => {
             Err(BooleanError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
                     a: fa,
                     b: fb,
                     class: ContactClass::Rest,
                 },
-                steer: contact_verify::fit_steer(&diag),
+                steer: contact_verify::fit_steer(fact),
                 margin: diag,
             })
         }
-        Err(carrier_eq::CarrierEqError::Escalated(diag)) => Err(BooleanError::Escalated { diag }),
+        Err(carrier_eq::CarrierEqError::Escalated(diag)) => Err(BooleanError::coincidence(diag)),
         // Unreachable with `declared: true`; refuse loudly anyway.
         Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
@@ -2461,11 +2445,14 @@ fn verify_tangent_declaration<T: Decide>(
                 });
             }
             Err(carrier_eq::CarrierEqError::Escalated(diag)) => {
-                return Err(BooleanError::Escalated { diag });
+                return Err(BooleanError::coincidence(diag));
             }
             // Unreachable with `declared: false`; refuse loudly anyway.
-            Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
-                return Err(BooleanError::Escalated { diag });
+            Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::Coincidence,
+                    diag,
+                });
             }
         }
     }
@@ -2496,7 +2483,7 @@ fn verify_tangent_declaration<T: Decide>(
     let (origin, dir) = match rest::tangent_locus(&sa, &sb, band) {
         Ok(rest::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(rest::TangentLocusError::Escalated(diag)) => {
-            return Err(BooleanError::Escalated { diag });
+            return Err(BooleanError::coincidence(diag));
         }
         Err(rest::TangentLocusError::NotTangent { .. }) => {
             return Err(BooleanError::ContactContradicted {
@@ -2524,8 +2511,8 @@ fn verify_tangent_declaration<T: Decide>(
             // reading as "no rim here": the two are different findings
             // and only one of them means the geometry was examined and
             // cleared.
-            let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
-                .map_err(|diag| BooleanError::Escalated { diag })?;
+            let rim =
+                rim_wedge::shared_rim(a, fa, b, fb, band).map_err(BooleanError::coincidence)?;
             if let Some(rim) = rim {
                 // The rim's own diameter is the extent every angular
                 // margin here is metered at — the screen's, the
@@ -2627,7 +2614,7 @@ fn verify_tangent_declaration<T: Decide>(
         }
         Err(crate::contact::ContactRefusal::Escalated { diag })
         | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
-            Err(BooleanError::Escalated { diag })
+            Err(BooleanError::coincidence(diag))
         }
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
             Err(BooleanError::UnsupportedDeclarationClass {
@@ -2826,7 +2813,7 @@ mod tests {
         // bool_plane_orient Zero path synthesizes one; S6 review,
         // MINOR-1).
         for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
-            let msg = BooleanError::Escalated { diag: diag(margin) }.to_string();
+            let msg = BooleanError::coincidence(diag(margin)).to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
         // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
@@ -3014,13 +3001,15 @@ mod tests {
                 operand: Operand::A,
                 edge,
             },
-            BooleanError::Escalated { diag },
+            BooleanError::coincidence(diag),
             BooleanError::UndeclaredCoincidence {
                 diag,
                 pair: [(Operand::A, face), (Operand::B, face)],
                 relation: PlaneRelation::SameOpposite,
             },
-            BooleanError::DeclarationContradicted { diag },
+            BooleanError::DeclarationContradicted {
+                fact: Contradiction::PlanesApart,
+            },
             BooleanError::ContactContradicted {
                 declaration,
                 margin: diag,

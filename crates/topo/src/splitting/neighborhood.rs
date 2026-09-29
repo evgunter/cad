@@ -316,7 +316,7 @@ pub fn classify_neighborhood<T: Decide>(
                 SectorFault::UnderflowedChord => {
                     SplitReduceError::UnderflowedSectorChord { vertex, face }
                 }
-                SectorFault::Rung(diag) => sliver(diag),
+                SectorFault::Rung { diag, .. } => sliver(diag),
             },
         )?;
         if let Some(bisector) = wide {

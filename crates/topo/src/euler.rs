@@ -1072,12 +1072,15 @@ impl EulerOpError {
             // Every door that splits an edge at a crossing forwards this
             // whole — the split, the blend and the Boolean — and none
             // has a declaration that names where on an edge a crossing
-            // lands, so the lever is the one all three have.
+            // lands, so the ending is the decision's own.
             Self::SplitParamEscalated { diag, .. } => format!(
-                "{} is undecided: {}. Recourse: {}",
-                crate::boolean::CROSSING_INTERIOR,
+                "{} is undecided: {}. {}",
+                crate::boolean::refusal_routes::CROSSING_INTERIOR,
                 diag.payload(),
-                crate::boolean::CROSSING_RECOURSE
+                crate::boolean::refusal_routes::SPLIT_PARAM_INTERIOR.recourse(
+                    geom_brep::recourse::RefusedArm::Undecided(diag),
+                    geom_brep::recourse::Reading::Build,
+                )
             ),
             Self::PcurveSplit {
                 edge,
@@ -5483,8 +5486,8 @@ mod tests {
 
     /// The definite `split_edge` interiority arm composes the shared
     /// recourse; the escalated arm, which every splitting door forwards
-    /// whole, states the decision and the lever those doors share, and
-    /// offers no declaration.
+    /// whole, states the decision, the lever those doors share and the
+    /// tolerance its margin gives, and offers no declaration.
     #[test]
     fn split_param_pair_carries_the_shared_recourse() {
         let edge = EdgeKey::default();
@@ -5510,7 +5513,8 @@ mod tests {
             msg.starts_with("whether a crossing lands strictly inside its edge is undecided: ")
                 && msg.ends_with(
                     "Recourse: move the geometry so the crossing lands clearly away from the \
-                     edge's ends",
+                     edge's ends, or, if this distance from the edge's end is intended, tighten \
+                     the tolerance below 5e-10 m",
                 )
                 && !msg.contains("declare"),
             "{msg}"

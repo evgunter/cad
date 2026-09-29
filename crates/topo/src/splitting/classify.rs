@@ -164,8 +164,34 @@ pub(crate) enum ConicPlaneMeet<T> {
     /// The carrier definitely never meets the plane.
     Miss,
     /// The roots interior to the span, ascending (possibly none), or
-    /// the margin no verdict was reached on.
-    Roots(Result<Vec<T>, geom_core::Indeterminate>),
+    /// the rung no verdict was reached on.
+    Roots(Result<Vec<T>, ConicRootFault>),
+}
+
+/// Which rung of [`conic_plane_crossing_roots`] escalated, with its
+/// diagnostics.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ConicRootFault {
+    /// Whether the conic's plane is parallel to the query plane.
+    PlaneParallel(geom_core::Indeterminate),
+    /// Whether the conic reaches the plane, grazes it, or misses it.
+    BellyGraze(geom_core::Indeterminate),
+    /// Whether a root lands inside the span, at an end, or outside it.
+    CrossingInterior(geom_core::Indeterminate),
+    /// Which of two interior roots comes first.
+    RootOrder(geom_core::Indeterminate),
+}
+
+impl ConicRootFault {
+    /// The escalation's diagnostics, whichever rung raised it.
+    pub(crate) fn diag(self) -> geom_core::Indeterminate {
+        match self {
+            Self::PlaneParallel(diag)
+            | Self::BellyGraze(diag)
+            | Self::CrossingInterior(diag)
+            | Self::RootOrder(diag) => diag,
+        }
+    }
 }
 
 /// The plane-form core of [`conic_crossing_roots`], shared with the
@@ -220,7 +246,11 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     match decide("split_conic_plane_parallel", Margin::of(r), band) {
         Ok(Sign::Zero) => return Ok(ConicPlaneMeet::Parallel { offset: d0 }),
         Ok(Sign::Positive | Sign::Negative) => {}
-        Err(diag) => return Ok(ConicPlaneMeet::Roots(Err(diag))),
+        Err(diag) => {
+            return Ok(ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(
+                diag,
+            ))));
+        }
     }
     // 1. Does the sinusoid reach zero at all — and how many roots?
     let both_roots = match decide("split_conic_belly_graze", Margin::of(r - d0.abs()), band) {
@@ -230,7 +260,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
         // would split twice at coincident parameters and escalate on
         // the second interiority check — same refusal, worse site).
         Ok(Sign::Zero) => false,
-        Err(diag) => return Ok(ConicPlaneMeet::Roots(Err(diag))),
+        Err(diag) => return Ok(ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)))),
     };
     // The sinusoid's phase, branch-stabilized (M5 S13): `atan2`'s cut
     // sits on the negative-`a` axis, and an interval `b` that touches
@@ -316,7 +346,11 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
                 let anchored = t0 + (c - t0).reduce_periodic(tau);
                 match verdict_at(anchored) {
                     Ok(v) => v,
-                    Err(_) => return Ok(ConicPlaneMeet::Roots(Err(first))),
+                    Err(_) => {
+                        return Ok(ConicPlaneMeet::Roots(Err(
+                            ConicRootFault::CrossingInterior(first),
+                        )));
+                    }
                 }
             }
         };
@@ -339,7 +373,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
             Ok(Sign::Zero) => {
                 roots.truncate(1);
             }
-            Err(diag) => return Ok(ConicPlaneMeet::Roots(Err(diag))),
+            Err(diag) => return Ok(ConicPlaneMeet::Roots(Err(ConicRootFault::RootOrder(diag)))),
         }
     }
     Ok(ConicPlaneMeet::Roots(Ok(roots)))
@@ -405,10 +439,10 @@ pub(super) fn insert_crossings<T: Decide>(
             // the plane has its endpoints ON through the vertex sides.
             Ok(ConicPlaneMeet::Parallel { .. } | ConicPlaneMeet::Miss) => continue,
             Ok(ConicPlaneMeet::Roots(Ok(roots))) => roots,
-            Ok(ConicPlaneMeet::Roots(Err(diag))) => {
+            Ok(ConicPlaneMeet::Roots(Err(fault))) => {
                 return Err(SplitReduceError::CrossingEscalated {
                     edge: edge_key,
-                    diag,
+                    diag: fault.diag(),
                 });
             }
             Err(()) => {
@@ -474,7 +508,7 @@ mod tests {
         m: Result<ConicPlaneMeet<T>, ()>,
     ) -> Result<Vec<T>, geom_core::Indeterminate> {
         match m {
-            Ok(ConicPlaneMeet::Roots(r)) => r,
+            Ok(ConicPlaneMeet::Roots(r)) => r.map_err(super::ConicRootFault::diag),
             other => panic!("expected the roots arm, got {other:?}"),
         }
     }

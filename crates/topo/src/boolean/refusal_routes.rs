@@ -1,369 +1,287 @@
-//! **What a Boolean refusal says for the decision that raised it**:
-//! the two tables its predicate-routed sentences read, each held once.
+//! **What a Boolean refusal says for the decision that raised it**
+//! (D4 ¶1 (i)): each decision is a closed type set where the refusal is
+//! raised or wrapped, so its sentence is an exhaustive match.
 //!
-//! - [`contradiction`]: which fact contradicted a declared face pair
+//! - [`Contradiction`]: which fact contradicted a declared face pair
 //!   (`BooleanError::DeclarationContradicted`,
-//!   `MergeCoplanarError::DeclarationContradicted`), and whether a
-//!   designed clearance could explain it
-//!   (`contact_verify::fit_steer`).
-//! - [`escalation`]: what `BooleanError::Escalated` renders for the
-//!   decision that escalated. A coincidence between the two solids
-//!   keeps the coincidence story and its declare lever; a decision no
-//!   face-pair declaration can name renders its own words
-//!   ([`super::decision_words`]) and its own lever; a kernel
-//!   self-check ends as a defect.
-//!
-//! Both match on the predicate's NAME, which is routing and never
-//! reaches the sentence. A name [`escalation`] does not carry renders
-//! the gap sentence (`geom_core::MissingRecourse`) under
-//! `geom_core::UNNAMED_DECISION`, which the refusal-shape guard reads
-//! as no subject; `tests::every_name_the_boolean_escalates_with_is_routed`
-//! enumerates the names that reach `BooleanError::Escalated` and reds
-//! on one this table does not route.
+//!   `MergeCoplanarError::DeclarationContradicted`), set by the rung
+//!   that decided it (`plane_eq`'s declared rung, `carrier_eq`'s kind
+//!   and data rungs). The verdict is definite, so its one lever is the
+//!   declaration or the geometry, with no tolerance arm.
+//! - [`BooleanDecision`]: which decision `BooleanError::Escalated`
+//!   escalated on, set at the site that wraps the escalation. The
+//!   ending follows from the decision and its verdict: a coincidence
+//!   between the two solids composes `COINCIDENCE_RECOURSE`; a decision
+//!   on a size the user may intend ends in its own lever, and on an
+//!   in-band margin the tolerance that decides it
+//!   (`geom_brep::recourse::SizedDecision`); a residual or a kernel
+//!   self-check ends as a defect (`geom_brep::recourse::Unsized`).
 
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
 use geom_core::Indeterminate;
+
+pub use crate::sector_shape::SectorRung;
 
 /// The one lever a contradicted declaration leaves: the declaration
 /// is wrong, or the geometry is.
 pub(crate) const CONTRADICTION_RECOURSE: &str =
     "Recourse: fix the declaration or move the geometry";
 
-/// The fact every contradiction states, for a name [`contradiction`]
-/// does not carry: a declared pair is contradicted only when its
-/// carriers are definitely not one surface.
-const ANY_CONTRADICTION: &str = "the declared faces do not lie on one surface";
-
-/// Which fact contradicted a declared pair.
+/// Which fact contradicted a declared pair: the rung that found the
+/// two carriers definitely distinct.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Contradiction {
+pub enum Contradiction {
+    /// The declared planes' normals are not parallel.
+    PlanesNotParallel,
+    /// The declared planes are parallel and offset.
+    PlanesApart,
+    /// The declared faces lie on different kinds of surface.
+    KindsDiffer,
+    /// The declared cylinders' axes are not parallel.
+    CylinderAxesNotParallel,
+    /// The declared cylinders' axes are parallel and offset.
+    CylinderAxesApart,
+    /// The declared cylinders' radii differ.
+    CylinderRadiiDiffer,
+    /// The declared spheres' centres differ.
+    SphereCentresDiffer,
+    /// The declared spheres' radii differ.
+    SphereRadiiDiffer,
+    /// The declared tori's axes are not parallel.
+    TorusAxesNotParallel,
+    /// The declared tori's centres differ.
+    TorusCentresDiffer,
+    /// The declared tori's major radii differ.
+    TorusMajorRadiiDiffer,
+    /// The declared tori's tube radii differ.
+    TorusTubeRadiiDiffer,
+}
+
+impl Contradiction {
     /// The fact, as a clause with no colon or dash of its own.
-    pub(crate) fact: &'static str,
-    /// Whether the fact is a SEPARATION a designed clearance could
-    /// explain (a radius difference, a centre offset, a parallel
-    /// offset) rather than an angle or a kind no gap reconciles.
-    pub(crate) fits_a_clearance: bool,
+    #[must_use]
+    pub fn fact(self) -> &'static str {
+        match self {
+            Self::PlanesNotParallel => "the declared planes are not parallel",
+            Self::PlanesApart => "the declared planes are parallel but apart",
+            Self::KindsDiffer => "the declared faces are different kinds of surface",
+            Self::CylinderAxesNotParallel => "the declared cylinders' axes are not parallel",
+            Self::CylinderAxesApart => "the declared cylinders' axes are parallel but apart",
+            Self::CylinderRadiiDiffer => "the declared cylinders' radii differ",
+            Self::SphereCentresDiffer => "the declared spheres' centres differ",
+            Self::SphereRadiiDiffer => "the declared spheres' radii differ",
+            Self::TorusAxesNotParallel => "the declared tori's axes are not parallel",
+            Self::TorusCentresDiffer => "the declared tori's centres differ",
+            Self::TorusMajorRadiiDiffer => "the declared tori's major radii differ",
+            Self::TorusTubeRadiiDiffer => "the declared tori's tube radii differ",
+        }
+    }
+
+    /// Whether the fact is a separation a designed clearance could
+    /// explain (a parallel offset, a centre offset, a radius
+    /// difference), which `contact_verify::fit_steer` points at `Fit`.
+    /// An angle or a kind no gap reconciles is not, and neither are the
+    /// torus separations, which the steer's inventory does not name.
+    #[must_use]
+    pub(crate) fn fits_a_clearance(self) -> bool {
+        match self {
+            Self::PlanesApart
+            | Self::CylinderAxesApart
+            | Self::CylinderRadiiDiffer
+            | Self::SphereCentresDiffer
+            | Self::SphereRadiiDiffer => true,
+            Self::PlanesNotParallel
+            | Self::KindsDiffer
+            | Self::CylinderAxesNotParallel
+            | Self::TorusAxesNotParallel
+            | Self::TorusCentresDiffer
+            | Self::TorusMajorRadiiDiffer
+            | Self::TorusTubeRadiiDiffer => false,
+        }
+    }
 }
 
-/// The fact behind a contradicted declaration, by the predicate that
-/// decided it (`plane_eq`'s declared rung and `carrier_eq`'s kind and
-/// data rungs). The torus separations carry no clearance steer: the
-/// steer's own inventory names the plane, sphere and cylinder
-/// separations.
-#[must_use]
-pub(crate) fn contradiction(predicate: Option<&str>) -> Option<Contradiction> {
-    let (fact, fits_a_clearance) = match predicate? {
-        "bool_plane_parallel" => ("the declared planes are not parallel", false),
-        "bool_plane_offset" => ("the declared planes are parallel but apart", true),
-        "carrier_kind" => ("the declared faces are different kinds of surface", false),
-        "carrier_cyl_axis_parallel" => ("the declared cylinders' axes are not parallel", false),
-        "carrier_cyl_axis_offset" => ("the declared cylinders' axes are parallel but apart", true),
-        "carrier_cyl_radius" => ("the declared cylinders' radii differ", true),
-        "carrier_sphere_center" => ("the declared spheres' centres differ", true),
-        "carrier_sphere_radius" => ("the declared spheres' radii differ", true),
-        "carrier_torus_axis_parallel" => ("the declared tori's axes are not parallel", false),
-        "carrier_torus_center" => ("the declared tori's centres differ", false),
-        "carrier_torus_major_radius" => ("the declared tori's major radii differ", false),
-        "carrier_torus_minor_radius" => ("the declared tori's tube radii differ", false),
-        _ => return None,
-    };
-    Some(Contradiction {
-        fact,
-        fits_a_clearance,
-    })
-}
-
-/// [`contradiction`]'s fact for `diag`, or the fact every
-/// contradiction shares.
-#[must_use]
-pub(crate) fn contradicted_fact(diag: &Indeterminate) -> &'static str {
-    contradiction(diag.predicate).map_or(ANY_CONTRADICTION, |c| c.fact)
-}
-
-/// What `BooleanError::Escalated` renders for one decision.
+/// Which decision a Boolean escalation came from, set at the site that
+/// wraps the escalation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Escalation {
-    /// Parts of the two solids too close to call: a coincidence a
-    /// face-pair declaration can settle.
+pub enum BooleanDecision {
+    /// Whether parts of the two solids coincide: the plane and carrier
+    /// identity rungs, the tangent locus and its verification, the
+    /// shared rim, the sections and joins, an edge or a vertex against a
+    /// face, the sector and edge-edge classification, and the sphere
+    /// lanes.
     Coincidence,
-    /// A decision no face-pair declaration names: its own words and
-    /// its own lever (the recourse, without its label).
-    Own {
-        /// What was being decided.
-        subject: &'static str,
-        /// The lever.
-        recourse: &'static str,
-    },
-    /// The kernel checking its own result: no lever in the model.
-    KernelCheck {
-        /// What the check decides.
-        subject: &'static str,
-    },
+    /// A corner's own shape (`sector_shape`'s rungs).
+    Corner(SectorRung),
+    /// Whether a pierce point lies on the curved face it pierces, so
+    /// the face's normal can be read there: a residual on a point the
+    /// kernel computed.
+    PierceOnFace,
+    /// Whether a pierced torus's tube radius is positive.
+    TorusTube,
+    /// Whether a pierced torus's tube stays clear of its axis.
+    TorusRing,
+    /// Whether a point lies inside a face, on its boundary, or outside
+    /// it (`ContainError::Escalated`).
+    Containment,
+    /// Whether a crossing the Boolean found on an edge lands inside it:
+    /// every definite answer passes (inside, at an end, outside).
+    CrossingOnEdge,
+    /// Which of two crossings on an edge comes first.
+    CrossingOrder,
+    /// Whether a split point lies on the circle it was placed on: a
+    /// residual on a point the kernel placed.
+    SplitPointOnCircle,
+    /// Whether an arc stays short of a full turn.
+    ArcSpan,
+    /// Whether the result's volume agrees with its operands': the
+    /// kernel checking its own result.
+    VolumeBackstop,
 }
 
-/// How a name routes: the coincidence story, its own lever (whose
-/// words are [`super::decision_words`]), or a kernel check.
-#[derive(Clone, Copy)]
-enum Lever {
+/// How one decision's escalation ends.
+enum Ending {
+    /// A coincidence between the two solids: the declaration, the
+    /// geometry and the tolerance (`COINCIDENCE_RECOURSE`).
     Coincidence,
-    Own(&'static str),
-    Kernel(&'static str),
+    /// A decision on a size the user may intend.
+    Sized(SizedDecision),
+    /// A decision with no size the user chose.
+    Unsized(Unsized),
 }
 
-/// A corner's own shape (`sector_shape`'s rungs).
-const CORNER: Lever = Lever::Own(
-    "reshape that corner so its edges are clearly longer than the tolerance and clearly not in line",
-);
+/// Where a crossing lands along its edge, in words.
+pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside its edge";
 
-/// Whether a pierce point lies on the curved face it pierces.
-const PIERCE_POINT: Lever =
-    Lever::Own("move the parts so that point lands clearly on or clearly off the curved face");
-
-/// A pierced torus face's own shape.
-const TORUS_SHAPE: Lever = Lever::Own(
-    "reshape the torus so its tube is clearly thicker than the tolerance and stays clearly off \
-     its axis",
-);
-
-/// Whether a point lies inside a face.
-const CONTAINMENT: Lever = Lever::Own(
-    "move the parts so they meet clearly inside or clearly outside that face's boundary",
-);
-
-/// Where a crossing lands along its edge.
-const EDGE: Lever = Lever::Own(CROSSING_RECOURSE);
-
-/// An arc's own span.
-const ARC: Lever = Lever::Own("reshape the arc so it clearly stays short of a full turn");
-
-/// The lever for where a crossing lands along its edge: the geometry,
-/// which a split, a blend and a Boolean all have (`split_edge`'s
-/// escalation reaches all three whole). No lowering of the tolerance:
-/// the margin rides as data, and an unvalued lowering is not a lever
-/// D4 ¶1 (i) offers.
-pub(crate) const CROSSING_RECOURSE: &str =
+/// The lever every door that splits an edge at a crossing has (the
+/// split, the blend, the Boolean): the geometry.
+const CROSSING_LEVER: &str =
     "move the geometry so the crossing lands clearly away from the edge's ends";
 
-/// How `BooleanError::Escalated` reads for the decision `predicate`
-/// names; `None` for a name this table does not carry.
-#[must_use]
-pub(crate) fn escalation(predicate: Option<&str>) -> Option<Escalation> {
-    let name = predicate?;
-    Some(match lever(name)? {
-        Lever::Coincidence => Escalation::Coincidence,
-        Lever::Kernel(subject) => Escalation::KernelCheck { subject },
-        Lever::Own(recourse) => Escalation::Own {
-            subject: super::decision_words(name)?,
-            recourse,
-        },
+/// What a crossing's interiority margin measures.
+const CROSSING_SIZE: &str = "distance from the edge's end";
+
+/// `Body::split_edge`'s interiority decision: it passes only on a
+/// crossing definitely inside its edge.
+pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
+    lever: CROSSING_LEVER,
+    size: CROSSING_SIZE,
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// A corner's own shape.
+const CORNER_LEVER: &str = "reshape that corner so its edges are clearly longer than the tolerance and clearly not in line";
+
+/// Whether a point lies inside a face.
+const CONTAINMENT_LEVER: &str =
+    "move the parts so they meet clearly inside or clearly outside that face's boundary";
+
+/// A sized decision's table row at a build, where the stored arm is
+/// never read.
+const fn sized(lever: &'static str, size: &'static str, passes: SizedPass) -> Ending {
+    Ending::Sized(SizedDecision {
+        lever,
+        size,
+        passes,
+        stored: StoredDefinite::Lever,
+        at_zero: None,
     })
 }
 
-/// The one table: every name that reaches `BooleanError::Escalated`,
-/// by the decision's lever. Grouped by the raise path each group
-/// arrives through.
-fn lever(name: &str) -> Option<Lever> {
-    // `SectorFault::Rung` (`sectors`): a corner's own shape. The names
-    // are spelled in `sector_shape` alone.
-    if crate::sector_shape::RUNG_NAMES.contains(&name) {
-        return Some(CORNER);
+impl BooleanDecision {
+    /// What the decision decides, as a clause with no colon or dash of
+    /// its own; the coincidence has its own sentence and no subject.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::Coincidence => "whether parts of the two solids coincide",
+            Self::Corner(rung) => rung.subject(),
+            Self::PierceOnFace => {
+                "whether a point lies on a curved face, so the face's normal can be read there"
+            }
+            Self::TorusTube => "whether a torus's tube radius is positive",
+            Self::TorusRing => "whether a torus's tube stays clear of its axis",
+            Self::Containment => {
+                "whether a point lies inside a face, on its boundary, or outside it"
+            }
+            Self::CrossingOnEdge => CROSSING_INTERIOR,
+            Self::CrossingOrder => "which of two crossings on an edge comes first",
+            Self::SplitPointOnCircle => "whether a split point lies on the circle it was placed on",
+            Self::ArcSpan => "whether an arc stays short of a full turn",
+            Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
+        }
     }
-    Some(match name {
-        // The plane and carrier identity rungs (`plane_eq`,
-        // `carrier_eq`), the tangent locus and the declared-tangent
-        // verification: the two solids' faces coincide, or nearly.
-        "bool_plane_parallel"
-        | "bool_plane_orient"
-        | "bool_plane_offset"
-        | "carrier_sphere_center"
-        | "carrier_sphere_radius"
-        | "carrier_cyl_axis_parallel"
-        | "carrier_cyl_axis_offset"
-        | "carrier_cyl_radius"
-        | "carrier_torus_axis_parallel"
-        | "carrier_torus_center"
-        | "carrier_torus_major_radius"
-        | "carrier_torus_minor_radius"
-        | "tangent_locus_axis_parallel"
-        | "tangent_locus_side"
-        | "tangent_locus_gap"
-        | "contact_tangent_on_1"
-        | "contact_tangent_on_2"
-        | "contact_tangent_opposed"
-        | "contact_tangent_second_order"
-        | "contact_tangent_parallel"
-        | "rim_circle_radius"
-        | "rim_circle_center"
-        | "rim_circle_axis_parallel"
-        | "dihedral_arm"
-        | "dihedral_wedge"
-        | "tangent_second_order"
-        | "material_wedge_side"
-        | "material_cusp_side"
-        // The section and join escalations (`join`, `rest`'s segment
-        // walk, and `geom_brep`'s pair sections).
-        | "bool_join_chord"
-        | "bool_join_nearest"
-        | "bool_join_facing"
-        | "bool_join_arc_facing"
-        | "bool_germ_frame_axes_parallel"
-        | "bool_germ_frame_axes_coplanar"
-        | "bool_ring_run_winding"
-        | "pc_axis_plane_parallel"
-        | "pc_parallel_gap"
-        | "pc_rim_alignment"
-        | "ps_center_gap"
-        | "ss_carrier_identity"
-        | "ss_carrier_external"
-        | "ss_carrier_internal"
-        | "cc_declared_radius_equality"
-        | "cc_axes_parallel"
-        | "cc_coaxial"
-        | "cc_axes_coplanar"
-        | "cc_parallel_gap"
-        | "cs_cylinder_radius"
-        | "cs_sphere_radius"
-        | "cs_declared_coaxial"
-        | "cs_wall_reach"
-        // An edge of one solid against a face of the other (`reduce`'s
-        // sweep, its curved-face arm and root lanes).
-        | "bool_conic_face_plane_offset"
-        | "bool_vertex_face_side"
-        | "bool_line_cylinder_clearance"
-        | "bool_circle_curved_clearance"
-        | "split_conic_plane_parallel"
-        | "split_conic_belly_graze"
-        | "bool_point_in_solid_denom"
-        | "bool_ray_cylinder_disc"
-        | "bool_ray_torus_disc"
-        | "bool_ray_torus_shape"
-        | "bool_ray_torus_depth"
-        | "bool_ray_torus_odd"
-        | "bool_ray_torus_split"
-        | "bool_ray_torus_split_lead"
-        | "bool_circle_torus_coaxial_tilt"
-        | "bool_circle_torus_coaxial_offset"
-        | "bool_circle_torus_plane_height"
-        | "bool_circle_torus_contour_residual"
-        | "bool_circle_torus_contour_side"
-        | "bool_circle_torus_root_slack"
-        | "bool_circle_torus_pole"
-        | "bool_circle_torus_pole_conditioning"
-        | "bool_circle_torus_noise"
-        | "bool_circle_torus_disc"
-        | "bool_circle_torus_shape"
-        | "bool_circle_torus_depth"
-        | "bool_circle_torus_odd"
-        | "bool_circle_torus_split"
-        | "bool_circle_torus_split_lead"
-        // The vertex, sector and edge-edge classification (`sectors`,
-        // `vtxfac`, `insert`, `recl`, and `geom_brep`'s
-        // `enters_material`).
-        | "bool_chord_side"
-        | "bool_pierce_sector_side_curved"
-        | "enters_material"
-        | "enters_material_arm"
-        | "tangent_sector_order2"
-        | "tangent_sector_order2_arm"
-        | "bool_sector_within"
-        | "bool_sector_bisector_side"
-        | "bool_sector_coplanar"
-        | "bool_dir_parallel"
-        | "bool_dir_same"
-        | "bool_faces_parallel"
-        | "bool_germ_line"
-        | "bool_strut_order"
-        | "bool_ee_collinear"
-        // The sphere extent and re-cut lanes (`ops`).
-        | "bool_sphere_extent_gap"
-        | "bool_sphere_sphere_gap"
-        | "bool_sphere_sphere_nested"
-        | "bool_sphere_escape_parallel"
-        | "bool_sphere_recut_align" => Lever::Coincidence,
-        // `NormalAtError::Escalated` (`vtxfac`): the pierced face's
-        // normal at the pierce point.
-        "bool_pierce_normal_on_chart" => PIERCE_POINT,
-        "torus_tube_positive" | "ring_torus_convention" => TORUS_SHAPE,
-        // `ContainError::Escalated` (`reduce`, `ops`): whether a point
-        // lies inside a face — the planar walk, the arc walk, and the
-        // curved faces' trims.
-        "bool_face_disc_carrier"
-        | "bool_contact_vertex"
-        | "bool_contact_arc_end_vertex"
-        | "bool_contact_arc"
-        | "bool_curved_contain_carrier"
-        | "bool_curved_contain_period"
-        | "bool_wall_trim"
-        | "bool_wall_junction"
-        | "bool_wall_outline_reach"
-        | "bool_wall_piece_span"
-        | "bool_wall_rim_level"
-        | "bool_wall_section_tilt"
-        | "bool_wall_trim_period"
-        | "bool_wall_iso_meridian"
-        | "bool_wall_iso_rim"
-        | "bool_wall_section_seat"
-        | "bool_sphere_iso_meridian"
-        | "bool_sphere_iso_rim"
-        | "bool_torus_trim_major_period"
-        | "bool_torus_trim_minor_period"
-        | "bool_sphere_trim"
-        | "bool_sphere_trim_antipode"
-        | "bool_sphere_trim_latitude"
-        | "bool_sphere_trim_meridian_span"
-        | "bool_sphere_trim_period"
-        | "bool_sphere_trim_pole"
-        | "bool_sphere_trim_pole_end"
-        | "bool_sphere_trim_pole_interior"
-        | "bool_torus_chart_affine"
-        | "bool_torus_chart_box"
-        | "bool_torus_chart_closure"
-        | "bool_torus_frame_radius"
-        | "bool_torus_trim"
-        | "bool_cone_chart_box"
-        | "bool_cone_group_slant"
-        | "bool_cone_trim"
-        | "bool_cone_trim_nappe"
-        | "bool_cone_trim_period"
-        | "bool_cone_trim_side"
-        | "bool_ray_cone_apex"
-        | "bool_ray_cone_nappe"
-        | "point_in_loop_segment"
-        | "point_in_loop_boundary"
-        | "point_in_loop_side"
-        | "point_in_loop_advance"
-        | "point_in_loop_arm"
-        | "point_in_arc_loop_segment"
-        | "point_in_arc_loop_boundary"
-        | "point_in_arc_loop_boundary_disagreement"
-        | "point_in_arc_loop_side"
-        | "point_in_arc_loop_advance"
-        | "point_in_arc_loop_arm"
-        | "point_in_arc_loop_reach"
-        | "point_in_arc_loop_conic_span"
-        | "point_in_arc_loop_conic_on"
-        | "point_in_arc_loop_conic_end"
-        | "point_in_arc_loop_conic_trim"
-        | "point_in_arc_loop_conic_straddle"
-        | "point_in_arc_loop_conic_window"
-        | "point_in_arc_loop_conic_disc"
-        | "point_in_arc_loop_conic_advance" => CONTAINMENT,
-        // Where a crossing lands along its edge (`reduce`'s root
-        // lanes), and an arc's own span: a face pair names neither.
-        "split_conic_crossing_root"
-        | "split_conic_root_order"
-        | "bool_wall_root_in_span" => EDGE,
-        "bool_split_span_period" => ARC,
-        // The invariant lane and the quartic ladders' count
-        // cross-check: reached only with a poisoned or impossible
-        // reading.
-        "volume_backstop" | "volume_backstop_operand" | "volume_backstop_violation" => {
-            Lever::Kernel("whether the result's volume agrees with its operands'")
+
+    /// How the decision's escalation ends: from what it passes on.
+    fn ending(self) -> Ending {
+        match self {
+            Self::Coincidence => Ending::Coincidence,
+            // The arm passes on a positive length.
+            Self::Corner(SectorRung::Arm) => {
+                sized(CORNER_LEVER, "edge length", SizedPass::Positive)
+            }
+            // A straight corner passes on a negative cosine; a sector
+            // bounded twice by one edge passes on any definite one.
+            Self::Corner(SectorRung::Straight { full_circle }) => sized(
+                CORNER_LEVER,
+                "angle",
+                if full_circle {
+                    SizedPass::NonZero
+                } else {
+                    SizedPass::Negative
+                },
+            ),
+            // It passes only at zero, and its definite sibling (a point
+            // definitely off the face) is a broken classification
+            // invariant.
+            Self::PierceOnFace | Self::SplitPointOnCircle => Ending::Unsized(Unsized::Defect),
+            Self::TorusTube => sized(
+                "reshape the torus so its tube is clearly thicker than the tolerance",
+                "tube radius",
+                SizedPass::Positive,
+            ),
+            Self::TorusRing => sized(
+                "reshape the torus so its tube stays clearly off its axis",
+                "clearance between the tube and the axis",
+                SizedPass::Positive,
+            ),
+            Self::Containment => sized(
+                CONTAINMENT_LEVER,
+                "distance from the face's boundary",
+                SizedPass::NonZero,
+            ),
+            Self::CrossingOnEdge => sized(CROSSING_LEVER, CROSSING_SIZE, SizedPass::NonZero),
+            Self::CrossingOrder => sized(
+                "move the geometry so the two crossings on that edge lie clearly apart",
+                "distance between the crossings",
+                SizedPass::NonZero,
+            ),
+            // A span of at most one turn passes; a longer one is a broken
+            // classification invariant.
+            Self::ArcSpan => sized(
+                "reshape the arc so it clearly stays short of a full turn",
+                "arc",
+                SizedPass::NonNegative,
+            ),
+            Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
         }
-        "bool_circle_torus_count" | "bool_ray_torus_count" => {
-            Lever::Kernel("whether two counts of a quartic's roots agree")
+    }
+
+    /// The one ending this decision's escalation `diag` carries, at the
+    /// Boolean that built the geometry, where the decision has no
+    /// sentence of its own; `None` for the coincidence, whose sentence
+    /// composes `COINCIDENCE_RECOURSE`.
+    #[must_use]
+    pub(crate) fn ending_of(self, diag: &Indeterminate) -> Option<String> {
+        let arm = RefusedArm::Undecided(diag);
+        match self.ending() {
+            Ending::Coincidence => None,
+            Ending::Sized(decision) => Some(decision.recourse(arm, Reading::Build)),
+            Ending::Unsized(decision) => Some(decision.recourse(arm, Reading::Build)),
         }
-        _ => return None,
-    })
+    }
 }
 
 #[cfg(test)]
@@ -375,32 +293,48 @@ mod tests {
     use crate::euler::EulerOpError;
     use crate::merge_faces::MergeCoplanarError;
     use crate::splitting::SplitReduceError;
-    use geom_core::{Band, MarginDiag, Point3, Tol, Vec3};
-    use std::collections::BTreeSet;
+    use geom_core::{
+        Band, COINCIDENCE_RECOURSE, KERNEL_DEFECT_ENDING, MarginDiag, Point3, Tol,
+        UNREADABLE_MARGIN_NOTE, Vec3,
+    };
     use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
-    use test_utils::source::{NameCarrier, code_and_literals, crate_dir, predicate_census};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("the witness band forms")
     }
 
-    fn diag_of(name: &'static str, margin: MarginDiag) -> Indeterminate {
+    fn diag_of(margin: MarginDiag) -> Indeterminate {
         Indeterminate {
             margin,
             band: band(),
-            predicate: Some(name),
+            predicate: Some("routing_probe"),
             terminal_sliver: false,
         }
     }
 
-    /// An escalation under `name`, its margin inside the run's band.
-    fn in_band(name: &'static str) -> Indeterminate {
-        let b = band();
-        diag_of(name, MarginDiag::value((b.zero() + b.escalate()) / 2.0))
+    /// The band's multiplier `K`, which turns a margin into the
+    /// tolerance a smaller one than which decides it.
+    fn k() -> f64 {
+        band().escalate() / band().zero()
     }
 
-    fn escalated(diag: Indeterminate) -> String {
-        BooleanError::Escalated { diag }.to_string()
+    /// The point margin `diag` carries, for this row's arithmetic.
+    fn point_margin(diag: &Indeterminate) -> f64 {
+        diag.margin
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("a point margin")
+    }
+
+    /// The tolerance an ending offers to tighten below, where it offers
+    /// one; `Some(None)` for an offer that names no value.
+    fn offered_below(text: &str) -> Option<Option<f64>> {
+        let (_, tail) = text.split_once("tighten the tolerance")?;
+        Some(
+            tail.strip_prefix(" below ")
+                .and_then(|v| v.strip_suffix(" m"))
+                .and_then(|v| v.parse::<f64>().ok()),
+        )
     }
 
     /// The refusal-shape guard's three checks on one rendered text:
@@ -423,7 +357,7 @@ mod tests {
         out
     }
 
-    const CROSSING_ENDING: &str =
+    const CROSSING_LEVER_ENDING: &str =
         "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
 
     /// The split door's own clause, a stage for a subject, filed with
@@ -433,8 +367,10 @@ mod tests {
     /// **`split_edge`'s in-band interiority reads whole at every door
     /// that forwards it**, on a real raise: the split and the Boolean
     /// here (the blend's door is `sweep`'s, and its row is there). The
-    /// subject is the decision, the one recourse is the lever every
-    /// splitting door has, and no door is offered a declaration.
+    /// subject is the decision; the one recourse is the lever every
+    /// splitting door has and, the decision passing on a positive
+    /// margin, the tolerance below which that margin is decided
+    /// passing. No door is offered a declaration.
     #[test]
     fn the_split_param_escalation_reads_whole_at_every_splitting_door() {
         let raise = || {
@@ -445,21 +381,22 @@ mod tests {
             let err = body
                 .split_edge(edge, (b.zero() + b.escalate()) * 0.5, Tol::witness())
                 .unwrap_err();
-            assert!(
-                matches!(err, EulerOpError::SplitParamEscalated { .. }),
-                "the band-midpoint split escalates: {err:?}"
-            );
-            err
+            let EulerOpError::SplitParamEscalated { diag, .. } = err else {
+                panic!("the band-midpoint split escalates: {err:?}");
+            };
+            (err, point_margin(&diag))
         };
         let edge = EdgeKey::default();
+        let (operator, margin) = raise();
+        assert!(margin > 0.0, "the midpoint margin is positive: {margin:e}");
         let rendered = [
-            ("the operator", raise().to_string()),
+            ("the operator", operator.to_string()),
             (
                 "the split",
                 SplitReduceError::CrossingInsertion {
                     edge,
                     endpoints: (VertexKey::default(), VertexKey::default()),
-                    source: raise(),
+                    source: raise().0,
                 }
                 .to_string(),
             ),
@@ -468,7 +405,7 @@ mod tests {
                 BooleanError::CrossingInsertion {
                     operand: Operand::A,
                     edge,
-                    source: raise(),
+                    source: raise().0,
                 }
                 .to_string(),
             ),
@@ -479,463 +416,221 @@ mod tests {
             assert!(
                 text.contains(
                     "whether a crossing lands strictly inside its edge is undecided: margin "
-                ) && text.ends_with(CROSSING_ENDING)
+                ) && text.contains(CROSSING_LEVER_ENDING)
                     && !text.contains("declare"),
                 "{door} states the decision and the lever it has, and no declaration: {text}"
             );
+            assert_eq!(
+                offered_below(&text),
+                Some(Some(margin / k())),
+                "{door} offers the tolerance the margin gives: {text}"
+            );
         }
     }
 
-    /// Each lever the escalation table routes to, by one name: the
-    /// subject it states and the recourse it ends on, independent of
-    /// the table.
-    const LEVERS: &[(&str, &str, &str)] = &[
-        (
-            "bool_plane_offset",
-            "parts of the two solids are too close to call at this tolerance (margin ",
-            "Recourse: declare the coincidence, move the geometry, or lower the tolerance",
-        ),
-        (
-            crate::sector_shape::RUNG_NAMES[0],
-            "whether a corner's edges are long enough to measure its angle over is undecided: ",
-            "Recourse: reshape that corner so its edges are clearly longer than the tolerance \
-             and clearly not in line",
-        ),
-        (
-            crate::sector_shape::RUNG_NAMES[2],
-            "whether a corner is straight or folds back on itself is undecided: ",
-            "Recourse: reshape that corner so its edges are clearly longer than the tolerance \
-             and clearly not in line",
-        ),
-        (
-            "bool_pierce_normal_on_chart",
-            "whether a point lies on a curved face, so the face's normal can be read there is \
-             undecided: ",
-            "Recourse: move the parts so that point lands clearly on or clearly off the curved \
-             face",
-        ),
-        (
-            "ring_torus_convention",
-            "whether a torus's tube stays clear of its axis is undecided: ",
-            "Recourse: reshape the torus so its tube is clearly thicker than the tolerance and \
-             stays clearly off its axis",
-        ),
-        (
-            "point_in_loop_side",
-            "whether a point lies inside a face, on its boundary, or outside it is undecided: ",
-            "Recourse: move the parts so they meet clearly inside or clearly outside that \
-             face's boundary",
-        ),
-        (
-            "bool_wall_trim",
-            "whether a point lies inside a face, on its boundary, or outside it is undecided: ",
-            "Recourse: move the parts so they meet clearly inside or clearly outside that \
-             face's boundary",
-        ),
-        (
-            "split_conic_crossing_root",
-            "whether a crossing lands strictly inside its edge is undecided: ",
-            CROSSING_ENDING,
-        ),
-        (
-            "volume_backstop",
-            "whether the result's volume agrees with its operands' is undecided: ",
-            geom_core::KERNEL_DEFECT_ENDING,
-        ),
+    /// Every decision, spelled once per variant: `Corner` once per rung
+    /// and pass set.
+    const DECISIONS: &[BooleanDecision] = &[
+        BooleanDecision::Coincidence,
+        BooleanDecision::Corner(SectorRung::Arm),
+        BooleanDecision::Corner(SectorRung::Straight { full_circle: false }),
+        BooleanDecision::Corner(SectorRung::Straight { full_circle: true }),
+        BooleanDecision::PierceOnFace,
+        BooleanDecision::TorusTube,
+        BooleanDecision::TorusRing,
+        BooleanDecision::Containment,
+        BooleanDecision::CrossingOnEdge,
+        BooleanDecision::CrossingOrder,
+        BooleanDecision::SplitPointOnCircle,
+        BooleanDecision::ArcSpan,
+        BooleanDecision::VolumeBackstop,
     ];
 
-    /// **`BooleanError::Escalated` states the decision that escalated
-    /// and that decision's lever**, at every lever the table routes to,
-    /// for an in-band and a poisoned margin alike. Only the coincidence
-    /// offers a declaration: the others' decisions are ones no face
-    /// pair names.
+    /// How a decision's escalation must end, written independently of
+    /// the table: the coincidence sentence; a lever and the sign of the
+    /// margins a smaller tolerance decides passing (`Some(true)` the
+    /// positive ones, `Some(false)` the negative, `None` either); or the
+    /// defect ending. The match is exhaustive, so a new decision is a
+    /// compile error here until its ending is written down.
+    enum Want {
+        Coincidence,
+        Sized(&'static str, Option<bool>),
+        Defect,
+    }
+
+    fn want(decision: BooleanDecision) -> Want {
+        const CORNER: &str = "Recourse: reshape that corner so its edges are clearly longer than \
+                              the tolerance and clearly not in line";
+        const CONTAIN: &str = "Recourse: move the parts so they meet clearly inside or clearly \
+                               outside that face's boundary";
+        match decision {
+            BooleanDecision::Coincidence => Want::Coincidence,
+            BooleanDecision::Corner(SectorRung::Arm) => Want::Sized(CORNER, Some(true)),
+            BooleanDecision::Corner(SectorRung::Straight { full_circle: false }) => {
+                Want::Sized(CORNER, Some(false))
+            }
+            BooleanDecision::Corner(SectorRung::Straight { full_circle: true }) => {
+                Want::Sized(CORNER, None)
+            }
+            BooleanDecision::PierceOnFace
+            | BooleanDecision::SplitPointOnCircle
+            | BooleanDecision::VolumeBackstop => Want::Defect,
+            BooleanDecision::TorusTube => Want::Sized(
+                "Recourse: reshape the torus so its tube is clearly thicker than the tolerance",
+                Some(true),
+            ),
+            BooleanDecision::TorusRing => Want::Sized(
+                "Recourse: reshape the torus so its tube stays clearly off its axis",
+                Some(true),
+            ),
+            BooleanDecision::Containment => Want::Sized(CONTAIN, None),
+            BooleanDecision::CrossingOnEdge => Want::Sized(CROSSING_LEVER_ENDING, None),
+            BooleanDecision::CrossingOrder => Want::Sized(
+                "Recourse: move the geometry so the two crossings on that edge lie clearly apart",
+                None,
+            ),
+            BooleanDecision::ArcSpan => Want::Sized(
+                "Recourse: reshape the arc so it clearly stays short of a full turn",
+                Some(true),
+            ),
+        }
+    }
+
+    /// **`BooleanError::Escalated` ends as its decision and verdict
+    /// give**, for every decision, on an in-band margin of each sign and
+    /// on an `INVALID` one:
+    ///
+    /// - a coincidence composes the coincidence sentence, and only it
+    ///   offers a declaration;
+    /// - a decision on a size names its lever and, on an in-band margin
+    ///   on a side it passes on, the tolerance `|m|/K` below which that
+    ///   margin is decided passing; on the other side, or on an
+    ///   `INVALID` margin, no tolerance, and an `INVALID` one adds the
+    ///   unreadable-margin note;
+    /// - a residual or a kernel self-check ends as a defect and never
+    ///   names the tolerance.
     #[test]
-    fn every_escalation_lever_renders_its_subject_and_its_recourse() {
-        for &(name, subject, ending) in LEVERS {
-            for diag in [in_band(name), diag_of(name, MarginDiag::INVALID)] {
-                let text = escalated(diag);
+    fn every_escalation_ends_as_its_decision_and_verdict_give() {
+        let b = band();
+        let mid = (b.zero() + b.escalate()) / 2.0;
+        for &decision in DECISIONS {
+            for margin in [
+                MarginDiag::value(mid),
+                MarginDiag::value(-mid),
+                MarginDiag::INVALID,
+            ] {
+                let diag = diag_of(margin);
+                let text = BooleanError::Escalated { decision, diag }.to_string();
                 let problems = short_of_the_guard(&text, &[]);
-                assert!(problems.is_empty(), "{name}: {problems:?}: {text}");
+                assert!(problems.is_empty(), "{decision:?}: {problems:?}: {text}");
                 assert!(
-                    text.starts_with(subject) && text.ends_with(ending),
-                    "{name} states its own subject and lever: {text}"
+                    !text.contains("routing_probe"),
+                    "{decision:?}: the routing name stays out: {text}"
                 );
                 assert_eq!(
                     text.contains("declare"),
-                    name == "bool_plane_offset",
-                    "{name}: only the coincidence offers a declaration: {text}"
+                    decision == BooleanDecision::Coincidence,
+                    "{decision:?}: only the coincidence offers a declaration: {text}"
                 );
-                assert!(
-                    !text.contains(name),
-                    "{name}'s routing name stays out: {text}"
-                );
+                let label = format!("{decision:?} at {margin}");
+                match want(decision) {
+                    Want::Coincidence => assert_eq!(
+                        text,
+                        format!(
+                            "parts of the two solids are too close to call at this tolerance \
+                             ({}), and the Boolean never snaps them together. Recourse: \
+                             {COINCIDENCE_RECOURSE}",
+                            diag.payload()
+                        ),
+                        "{label}"
+                    ),
+                    Want::Sized(lever, passing_sign) => {
+                        let head =
+                            format!("{} is undecided: {}. ", decision.subject(), diag.payload());
+                        assert!(
+                            text.starts_with(&head) && text[head.len()..].starts_with(lever),
+                            "{label}: its subject, then its lever: {text}"
+                        );
+                        let offer = if margin.is_invalid() {
+                            assert!(text.ends_with(UNREADABLE_MARGIN_NOTE), "{label}: {text}");
+                            None
+                        } else {
+                            let m = point_margin(&diag);
+                            passing_sign
+                                .is_none_or(|positive| (m > 0.0) == positive)
+                                .then(|| Some(m.abs() / k()))
+                        };
+                        assert_eq!(offered_below(&text), offer, "{label}: {text}");
+                    }
+                    Want::Defect => assert!(
+                        text.ends_with(KERNEL_DEFECT_ENDING) && offered_below(&text).is_none(),
+                        "{label}: the defect ending, and no tolerance: {text}"
+                    ),
+                }
             }
         }
     }
 
-    /// **A name the table does not carry states the hole**, under the
-    /// subject the shape guard reads as none, so a row rendering it is
-    /// red; it is never the coincidence story by default.
-    #[test]
-    fn an_unrouted_name_states_the_hole() {
-        for predicate in [Some("roster_unknown_probe"), None] {
-            let text = escalated(Indeterminate {
-                predicate,
-                ..in_band("roster_unknown_probe")
-            });
-            assert!(
-                text.starts_with(geom_core::UNNAMED_DECISION)
-                    && text.ends_with(&geom_core::MissingRecourse(predicate).to_string())
-                    && !text.contains("roster_unknown_probe")
-                    && !subjectless_escalations(&text).is_empty(),
-                "{text}"
-            );
-        }
-    }
-
-    /// The funnel calls under `src/boolean` whose name the census cannot
-    /// read at the call, and where the names they carry are listed.
-    const INDIRECT: &[(&str, &str)] = &[
+    /// Each contradiction's clause, and the predicate whose definite
+    /// verdict raises it, written independently of the enum.
+    const FACTS: &[(Contradiction, &str, &str)] = &[
         (
-            "carrier_eq.rs: name",
-            "`data_rungs`: the kind arms' names, in HAND",
-        ),
-        (
-            "circle_torus.rs: rows.conditioning",
-            "`HalfAngleRows`, a declared carrier",
-        ),
-        (
-            "circle_torus.rs: rows.noise",
-            "`HalfAngleRows`, a declared carrier",
-        ),
-        (
-            "circle_torus.rs: rows.pole",
-            "`HalfAngleRows`, a declared carrier",
-        ),
-        (
-            "circle_torus.rs: rows.root_slack",
-            "`HalfAngleRows`, a declared carrier",
-        ),
-        (
-            "contact_verify.rs: name",
-            "the tangent verification's on-surface pair, in HAND",
-        ),
-        ("contain.rs: END_VERTEX", "a declared const carrier"),
-        (
-            "rim_wedge.rs: name",
-            "the shared rim's identity rungs, in HAND",
-        ),
-        (
-            "section_cert.rs: name",
-            "`sign`, which keeps a verdict and drops an escalation",
-        ),
-        (
-            "solid_contain.rs: name",
-            "the trims' `zero` and `window` gates, in HAND",
-        ),
-        (
-            "solid_contain.rs: rows.depth",
-            "`QuarticRows`, a declared carrier",
-        ),
-        (
-            "solid_contain.rs: rows.disc",
-            "`QuarticRows`, a declared carrier",
-        ),
-        (
-            "solid_contain.rs: rows.odd",
-            "`QuarticRows`, a declared carrier",
-        ),
-        (
-            "solid_contain.rs: rows.shape",
-            "`QuarticRows`, a declared carrier",
-        ),
-        (
-            "solid_contain.rs: rows.split",
-            "`QuarticRows`, a declared carrier",
-        ),
-        (
-            "solid_contain.rs: rows.split_lead",
-            "`QuarticRows`, a declared carrier",
-        ),
-    ];
-
-    /// The names that reach `BooleanError::Escalated` which the census
-    /// of `src/boolean` cannot see — decided in another module or crate
-    /// on the escalation's path, carried where the census does not
-    /// read, or built as a payload rather than decided — each with the
-    /// file (from the crate root) that spells it.
-    const HAND: &[(&str, &str)] = &[
-        ("carrier_sphere_center", "src/boolean/carrier_eq.rs"),
-        ("carrier_sphere_radius", "src/boolean/carrier_eq.rs"),
-        ("carrier_cyl_axis_parallel", "src/boolean/carrier_eq.rs"),
-        ("carrier_cyl_axis_offset", "src/boolean/carrier_eq.rs"),
-        ("carrier_cyl_radius", "src/boolean/carrier_eq.rs"),
-        ("carrier_torus_axis_parallel", "src/boolean/carrier_eq.rs"),
-        ("carrier_torus_center", "src/boolean/carrier_eq.rs"),
-        ("carrier_torus_major_radius", "src/boolean/carrier_eq.rs"),
-        ("carrier_torus_minor_radius", "src/boolean/carrier_eq.rs"),
-        ("contact_tangent_on_1", "src/boolean/contact_verify.rs"),
-        ("contact_tangent_on_2", "src/boolean/contact_verify.rs"),
-        ("rim_circle_radius", "src/boolean/rim_wedge.rs"),
-        ("rim_circle_center", "src/boolean/rim_wedge.rs"),
-        ("rim_circle_axis_parallel", "src/boolean/rim_wedge.rs"),
-        ("bool_sector_bisector_side", "src/boolean/sectors.rs"),
-        ("bool_wall_iso_meridian", "src/boolean/solid_contain.rs"),
-        ("bool_wall_iso_rim", "src/boolean/solid_contain.rs"),
-        ("bool_wall_section_seat", "src/boolean/solid_contain.rs"),
-        ("bool_sphere_iso_meridian", "src/boolean/solid_contain.rs"),
-        ("bool_sphere_iso_rim", "src/boolean/solid_contain.rs"),
-        (
-            "bool_torus_trim_major_period",
-            "src/boolean/solid_contain.rs",
-        ),
-        (
-            "bool_torus_trim_minor_period",
-            "src/boolean/solid_contain.rs",
-        ),
-        (crate::sector_shape::RUNG_NAMES[0], "src/sector_shape.rs"),
-        (crate::sector_shape::RUNG_NAMES[1], "src/sector_shape.rs"),
-        (crate::sector_shape::RUNG_NAMES[2], "src/sector_shape.rs"),
-        ("bool_pierce_normal_on_chart", "src/face_normal.rs"),
-        ("split_conic_plane_parallel", "src/splitting/classify.rs"),
-        ("split_conic_belly_graze", "src/splitting/classify.rs"),
-        ("split_conic_crossing_root", "src/splitting/classify.rs"),
-        ("split_conic_root_order", "src/splitting/classify.rs"),
-        ("point_in_loop_segment", "src/splitting/containment.rs"),
-        ("point_in_loop_boundary", "src/splitting/containment.rs"),
-        ("point_in_loop_side", "src/splitting/containment.rs"),
-        ("point_in_loop_advance", "src/splitting/containment.rs"),
-        ("point_in_loop_arm", "src/splitting/containment.rs"),
-        ("point_in_arc_loop_segment", "src/splitting/containment.rs"),
-        ("point_in_arc_loop_boundary", "src/splitting/containment.rs"),
-        (
-            "point_in_arc_loop_boundary_disagreement",
-            "src/splitting/containment.rs",
-        ),
-        ("point_in_arc_loop_side", "src/splitting/containment.rs"),
-        ("point_in_arc_loop_advance", "src/splitting/containment.rs"),
-        ("point_in_arc_loop_arm", "src/splitting/containment.rs"),
-        ("point_in_arc_loop_reach", "src/splitting/containment.rs"),
-        (
-            "point_in_arc_loop_conic_span",
-            "src/splitting/containment.rs",
-        ),
-        ("point_in_arc_loop_conic_on", "src/splitting/containment.rs"),
-        (
-            "point_in_arc_loop_conic_end",
-            "src/splitting/containment.rs",
-        ),
-        (
-            "point_in_arc_loop_conic_trim",
-            "src/splitting/containment.rs",
-        ),
-        (
-            "point_in_arc_loop_conic_straddle",
-            "src/splitting/containment.rs",
-        ),
-        (
-            "point_in_arc_loop_conic_window",
-            "src/splitting/containment.rs",
-        ),
-        (
-            "point_in_arc_loop_conic_disc",
-            "src/splitting/containment.rs",
-        ),
-        (
-            "point_in_arc_loop_conic_advance",
-            "src/splitting/containment.rs",
-        ),
-        ("torus_tube_positive", "../geom/src/surfaces.rs"),
-        ("ring_torus_convention", "../geom/src/surfaces.rs"),
-        ("enters_material", "../geom-brep/src/enters.rs"),
-        ("enters_material_arm", "../geom-brep/src/enters.rs"),
-        ("tangent_sector_order2", "../geom-brep/src/enters.rs"),
-        ("tangent_sector_order2_arm", "../geom-brep/src/enters.rs"),
-        ("dihedral_arm", "../geom-brep/src/dihedral.rs"),
-        ("dihedral_wedge", "../geom-brep/src/dihedral.rs"),
-        ("material_wedge_side", "../geom-brep/src/dihedral.rs"),
-        ("pc_axis_plane_parallel", "../geom-brep/src/intersect.rs"),
-        ("pc_parallel_gap", "../geom-brep/src/intersect.rs"),
-        ("pc_rim_alignment", "../geom-brep/src/intersect.rs"),
-        ("ps_center_gap", "../geom-brep/src/intersect.rs"),
-        ("ss_carrier_identity", "../geom-brep/src/intersect.rs"),
-        ("ss_carrier_external", "../geom-brep/src/intersect.rs"),
-        ("ss_carrier_internal", "../geom-brep/src/intersect.rs"),
-        (
-            "cc_declared_radius_equality",
-            "../geom-brep/src/intersect.rs",
-        ),
-        ("cc_axes_parallel", "../geom-brep/src/intersect.rs"),
-        ("cc_coaxial", "../geom-brep/src/intersect.rs"),
-        ("cc_axes_coplanar", "../geom-brep/src/intersect.rs"),
-        ("cc_parallel_gap", "../geom-brep/src/intersect.rs"),
-        ("cs_cylinder_radius", "../geom-brep/src/intersect.rs"),
-        ("cs_sphere_radius", "../geom-brep/src/intersect.rs"),
-        ("cs_declared_coaxial", "../geom-brep/src/intersect.rs"),
-        ("cs_wall_reach", "../geom-brep/src/intersect.rs"),
-    ];
-
-    /// The names `src/boolean` decides that never reach
-    /// `BooleanError::Escalated`, and where they go instead.
-    const NOT_ESCALATED: &[(&str, &str)] = &[
-        ("bool_cone_closure_period", SWALLOWED),
-        ("bool_point_in_solid_advance", RAY_CAST),
-        ("bool_point_in_solid_infinity", RAY_CAST),
-        ("bool_point_in_solid_order", RAY_CAST),
-        ("bool_point_in_solid_plane", RAY_CAST),
-        ("bool_ray_cone_disc", RAY_CAST),
-        ("bool_ray_cone_incidence", RAY_CAST),
-        ("bool_ray_cone_lead", RAY_CAST),
-        ("bool_ray_sphere_disc", RAY_CAST),
-        ("bool_ray_torus_incidence", RAY_CAST),
-    ];
-
-    const SWALLOWED: &str = "`ops::apex_closure_describes` reads the verdict as a yes-or-no and \
-                             refuses nothing";
-    const RAY_CAST: &str = "the point-in-solid ray cast, typed on `PointInSolidError` and \
-                            rendered by `BooleanError::Containment`";
-
-    fn census() -> test_utils::source::PredicateCensus {
-        predicate_census(
-            &crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/boolean"),
-            &[
-                NameCarrier::Call("HalfAngleRows"),
-                NameCarrier::Call("QuarticRows"),
-                NameCarrier::Const("END_VERTEX"),
-            ],
-        )
-    }
-
-    /// Every name the Boolean escalates with: the census of
-    /// `src/boolean` less what never reaches `Escalated`, and the names
-    /// the census cannot see.
-    fn raised() -> BTreeSet<String> {
-        let not: BTreeSet<&str> = NOT_ESCALATED.iter().map(|(n, _)| *n).collect();
-        census()
-            .names
-            .into_iter()
-            .filter(|n| !not.contains(n.as_str()))
-            .chain(HAND.iter().map(|(n, _)| (*n).to_owned()))
-            .collect()
-    }
-
-    /// **Every name the Boolean escalates with is routed**, and renders
-    /// a refusal the shape guard passes.
-    ///
-    /// The names are read from the source, not from the table: the
-    /// literal `decide*` sites under `src/boolean`, less
-    /// [`NOT_ESCALATED`], plus [`HAND`], whose every entry is checked
-    /// to be spelled in its file. A new gate in `src/boolean` is
-    /// raised-and-unrouted or listed, never neither; a table entry the
-    /// enumeration does not hold is stale.
-    #[test]
-    fn every_name_the_boolean_escalates_with_is_routed() {
-        let root = crate_dir(env!("CARGO_MANIFEST_DIR"));
-        let census = census();
-        let declared: BTreeSet<String> = INDIRECT.iter().map(|(s, _)| (*s).to_owned()).collect();
-        assert_eq!(
-            census.indirect, declared,
-            "the unread funnel calls are not INDIRECT's"
-        );
-        assert!(census.unreadable.is_empty(), "{:?}", census.unreadable);
-        for site in &census.unwalked {
-            let (file, line) = site.rsplit_once(':').expect("<file>:<line>");
-            let text = std::fs::read_to_string(root.join("src/boolean").join(file)).unwrap();
-            let line: usize = line.parse().unwrap();
-            let target = text.lines().nth(line - 1).unwrap();
-            let path = target
-                .split('"')
-                .nth(1)
-                .expect("a path attribute naming a file");
-            assert!(
-                root.join("src/boolean").join(path).is_file() && !path.contains('/'),
-                "{site} pulls in {path}, which the census does not walk"
-            );
-        }
-        for (name, reason) in NOT_ESCALATED {
-            assert!(
-                census.names.contains(*name),
-                "{name} is stale in NOT_ESCALATED"
-            );
-            assert!(
-                escalation(Some(name)).is_none(),
-                "{name} is routed but listed as never escalating ({reason})"
-            );
-        }
-        for (name, file) in HAND {
-            let text = std::fs::read_to_string(root.join(file)).unwrap();
-            assert!(
-                code_and_literals(&text).contains(&format!("\"{name}\"")),
-                "{name} is not spelled in {file}"
-            );
-        }
-        let raised = raised();
-        let mut problems = Vec::new();
-        for name in &raised {
-            let name: &'static str = Box::leak(name.clone().into_boxed_str());
-            let text = escalated(in_band(name));
-            if escalation(Some(name)).is_none() {
-                problems.push(format!("{name} is raised and unrouted: {text}"));
-            }
-            for p in short_of_the_guard(&text, &[]) {
-                problems.push(format!("{name}: {p}: {text}"));
-            }
-        }
-        // The reverse: every name the table routes is one the
-        // enumeration raises.
-        let own = std::fs::read_to_string(root.join("src/boolean/refusal_routes.rs")).unwrap();
-        let own = code_and_literals(&own);
-        let body = &own[own.find("fn lever(").unwrap()..own.find("#[cfg(test)]").unwrap()];
-        for literal in body.split('"').skip(1).step_by(2) {
-            if !literal.contains(' ') && !raised.contains(literal) {
-                problems.push(format!("the table routes {literal}, which nothing raises"));
-            }
-        }
-        assert!(problems.is_empty(), "{}", problems.join("\n"));
-    }
-
-    /// Each contradiction predicate with the fact its refusal states,
-    /// independent of the table.
-    const FACTS: &[(&str, &str)] = &[
-        (
+            Contradiction::PlanesNotParallel,
             "bool_plane_parallel",
             "the declared planes are not parallel",
         ),
         (
+            Contradiction::PlanesApart,
             "bool_plane_offset",
             "the declared planes are parallel but apart",
         ),
         (
+            Contradiction::KindsDiffer,
             "carrier_kind",
             "the declared faces are different kinds of surface",
         ),
         (
+            Contradiction::SphereCentresDiffer,
             "carrier_sphere_center",
             "the declared spheres' centres differ",
         ),
         (
+            Contradiction::SphereRadiiDiffer,
             "carrier_sphere_radius",
             "the declared spheres' radii differ",
         ),
         (
+            Contradiction::CylinderAxesNotParallel,
             "carrier_cyl_axis_parallel",
             "the declared cylinders' axes are not parallel",
         ),
         (
+            Contradiction::CylinderAxesApart,
             "carrier_cyl_axis_offset",
             "the declared cylinders' axes are parallel but apart",
         ),
-        ("carrier_cyl_radius", "the declared cylinders' radii differ"),
         (
+            Contradiction::CylinderRadiiDiffer,
+            "carrier_cyl_radius",
+            "the declared cylinders' radii differ",
+        ),
+        (
+            Contradiction::TorusAxesNotParallel,
             "carrier_torus_axis_parallel",
             "the declared tori's axes are not parallel",
         ),
-        ("carrier_torus_center", "the declared tori's centres differ"),
         (
+            Contradiction::TorusCentresDiffer,
+            "carrier_torus_center",
+            "the declared tori's centres differ",
+        ),
+        (
+            Contradiction::TorusMajorRadiiDiffer,
             "carrier_torus_major_radius",
             "the declared tori's major radii differ",
         ),
         (
+            Contradiction::TorusTubeRadiiDiffer,
             "carrier_torus_minor_radius",
             "the declared tori's tube radii differ",
         ),
@@ -944,24 +639,24 @@ mod tests {
     /// A declared pair of `c1` and `c2`, verified by the real rung
     /// (`carrier_eq`, which `recl` and `vtxfac` call and `plane_eq`
     /// serves for planes): the contradiction it raises.
-    fn contradicted(c1: CarrierDesc<f64>, c2: CarrierDesc<f64>) -> Indeterminate {
+    fn contradicted(c1: CarrierDesc<f64>, c2: CarrierDesc<f64>) -> (Contradiction, Indeterminate) {
         let id = PlaneIdentity {
             s1: None,
             s2: None,
             declared: true,
         };
         match crate::boolean::carrier_eq(&c1, &c2, id, 1.0, band()) {
-            Err(CarrierEqError::Contradicted(diag)) => diag,
+            Err(CarrierEqError::Contradicted { fact, diag }) => (fact, diag),
             other => panic!("a declared pair this far apart contradicts: {other:?}"),
         }
     }
 
     /// **A contradicted declaration names the fact that contradicted
-    /// it**, one clause per predicate, on the verdict the real rung
-    /// raises for a pair built to trip that predicate alone — two
-    /// cylinders of different radii among them, the non-planar pair
-    /// `recl` raises. No payload (the margin is `INVALID` on a definite
-    /// verdict), no declare menu, one recourse.
+    /// it**, one clause per rung, on the verdict the real rung raises
+    /// for a pair built to trip that rung alone — two cylinders of
+    /// different radii among them, the non-planar pair `recl` raises.
+    /// The verdict is definite: no payload, no declaration offered, no
+    /// tolerance, one recourse.
     #[test]
     fn every_contradiction_names_the_fact_that_contradicted() {
         let p = Point3::new;
@@ -1001,36 +696,41 @@ mod tests {
             (torus(o, z, 2.0, 0.5), torus(o, z, 2.0, 0.25)),
         ];
         assert_eq!(pairs.len(), FACTS.len());
-        for ((c1, c2), &(name, fact)) in pairs.into_iter().zip(FACTS) {
-            let diag = contradicted(c1, c2);
-            assert_eq!(diag.predicate, Some(name), "the pair trips {name}");
-            let planar = name.starts_with("bool_plane");
+        for ((c1, c2), &(want, name, clause)) in pairs.into_iter().zip(FACTS) {
+            let (fact, diag) = contradicted(c1, c2);
+            assert_eq!(
+                (fact, diag.predicate),
+                (want, Some(name)),
+                "the pair trips {name}"
+            );
+            let planar = matches!(
+                fact,
+                Contradiction::PlanesNotParallel | Contradiction::PlanesApart
+            );
             let mut texts = vec![(
-                "the Boolean",
-                BooleanError::DeclarationContradicted { diag }.to_string(),
+                BooleanError::DeclarationContradicted { fact }.to_string(),
                 "the Boolean",
             )];
             if planar {
                 texts.push((
-                    "the merge",
-                    MergeCoplanarError::DeclarationContradicted { diag }.to_string(),
+                    MergeCoplanarError::DeclarationContradicted { fact }.to_string(),
                     "the merge",
                 ));
             }
-            for (door, text, who) in texts {
+            for (text, who) in texts {
                 assert_eq!(
                     text,
                     format!(
-                        "a declared coincidence contradicts the geometry: {fact}, and {who} \
+                        "a declared coincidence contradicts the geometry: {clause}, and {who} \
                          never glues a lie. Recourse: fix the declaration or move the geometry"
                     ),
-                    "{door}, {name}"
+                    "{who}, {name}"
                 );
                 let problems = short_of_the_guard(&text, &[]);
-                assert!(problems.is_empty(), "{door}, {name}: {problems:?}: {text}");
+                assert!(problems.is_empty(), "{who}, {name}: {problems:?}: {text}");
                 assert!(
-                    planar || !text.contains("planes"),
-                    "{door}: a {name} pair is not a pair of planes: {text}"
+                    !text.contains("tolerance"),
+                    "{who}, {name}: a definite verdict names no tolerance: {text}"
                 );
             }
         }
@@ -1056,10 +756,15 @@ mod tests {
         let err = body
             .merge_coplanar_faces_declared(&[(first, meeting)], tol)
             .expect_err("two meeting faces are not one plane");
-        let MergeCoplanarError::DeclarationContradicted { diag } = &err else {
-            panic!("the declared rung contradicts: {err:?}");
-        };
-        assert_eq!(diag.predicate, Some("bool_plane_parallel"));
+        assert!(
+            matches!(
+                err,
+                MergeCoplanarError::DeclarationContradicted {
+                    fact: Contradiction::PlanesNotParallel
+                }
+            ),
+            "the declared rung contradicts on parallelism: {err:?}"
+        );
         let text = err.to_string();
         assert_eq!(
             text,
