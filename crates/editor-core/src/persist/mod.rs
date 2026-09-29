@@ -434,6 +434,12 @@ impl core::fmt::Display for PersistError {
 /// [`PersistError::sentence`]'s rendering.
 struct Sentence<'a>(&'a PersistError);
 
+impl core::fmt::Display for Sentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt_sentence(f)
+    }
+}
+
 impl PersistError {
     /// The refusal without the load door's stage word: what a carrier
     /// that names the stage itself renders (a store's "refused to
@@ -441,19 +447,17 @@ impl PersistError {
     pub fn sentence(&self) -> impl core::fmt::Display + '_ {
         Sentence(self)
     }
-}
 
-impl core::fmt::Display for Sentence<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self.0 {
-            PersistError::NonFinite { site } => write!(f, "non-finite float at {site}"),
-            PersistError::ProfileProgram { node, fault } => {
+    fn fmt_sentence(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
+            Self::ProfileProgram { node, fault } => {
                 write!(f, "profile program fault at node {}: {fault}", node.0)
             }
-            PersistError::Distribution { name, fault } => {
+            Self::Distribution { name, fault } => {
                 write!(f, "document parameter {name}: {fault}")
             }
-            PersistError::DisplayUnit {
+            Self::DisplayUnit {
                 name,
                 unit,
                 declared,
@@ -462,25 +466,25 @@ impl core::fmt::Display for Sentence<'_> {
                 "document parameter {name} is declared {declared} but its display \
                  unit measures {unit}"
             ),
-            PersistError::Serialize { message } => write!(f, "serializer failed: {message}"),
-            PersistError::HeaderId { found } => {
+            Self::Serialize { message } => write!(f, "serializer failed: {message}"),
+            Self::HeaderId { found } => {
                 write!(
                     f,
                     "no `id: <32 lowercase hex>` header line (found: {found:?}) — \
                      {REGENERATE_RECOURSE}"
                 )
             }
-            PersistError::IdMismatch { header, snapshot } => write!(
+            Self::IdMismatch { header, snapshot } => write!(
                 f,
                 "header id {header} disagrees with the snapshot's id {snapshot} — \
                  tampered or hand-assembled file"
             ),
-            PersistError::Parse {
+            Self::Parse {
                 line,
                 column,
                 message,
             } => write!(f, "body line {line} column {column}: {message}"),
-            PersistError::Unreadable {
+            Self::Unreadable {
                 line,
                 column,
                 detail,
@@ -489,7 +493,7 @@ impl core::fmt::Display for Sentence<'_> {
                 "this build cannot read the document (body line {line} column \
                  {column}: {detail}) — {REGENERATE_RECOURSE}"
             ),
-            PersistError::Dimension {
+            Self::Dimension {
                 line,
                 column,
                 error,
@@ -498,23 +502,23 @@ impl core::fmt::Display for Sentence<'_> {
                 "body line {line} column {column}: refused by the document \
                  layer's dimension checker: {error}"
             ),
-            PersistError::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
-            PersistError::EditReplay { index, error } => {
+            Self::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
+            Self::EditReplay { index, error } => {
                 write!(f, "edit {index} refused on replay: {error}")
             }
             // The frame rule's ONE prose, forwarded into this door's
             // subject the way the snapshot's placement arms forward it.
-            PersistError::MaintenanceFrame { index, row, fault } => write!(
+            Self::MaintenanceFrame { index, row, fault } => write!(
                 f,
                 "edit {index}'s maintenance row {row} records a frame that {fault}, so \
                  it is not a placement"
             ),
-            PersistError::ToleranceConflict { process, document } => write!(
+            Self::ToleranceConflict { process, document } => write!(
                 f,
                 "document ε {document:e} conflicts with the process ε {process:e} \
                  (one process, one ε)"
             ),
-            PersistError::ToleranceInvalid { value } => {
+            Self::ToleranceInvalid { value } => {
                 write!(f, "recorded ε {value:e} is not a valid tolerance")
             }
         }
