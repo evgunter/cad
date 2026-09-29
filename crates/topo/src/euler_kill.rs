@@ -3483,7 +3483,7 @@ mod tests {
         // `x`. The `start(m)`-side write, `next(he)`, is last and wins.
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let lone = MevSite::Lone {
             r#loop: seed.r#loop,
         };

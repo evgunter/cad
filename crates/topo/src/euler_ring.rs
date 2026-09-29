@@ -3192,7 +3192,7 @@ mod tests {
         // first member, is last and wins.
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let circle = body
             .mef_chord(
                 MefSite::Lone {
