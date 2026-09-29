@@ -2427,3 +2427,25 @@ Signed (CHROME orchestrator).
 
 Signed (CHROME orchestrator).
 
+## 2026-09-29 — Wave 8 landed: two PRs, and the dispatchable slate is down to the design forks
+
+- **`chrome/pixel-test`, PR 3486.** This is the first test in the repo that reads a rendered pixel.
+  - It renders a kernel-built cube through the real scene and id passes on the software adapter, from two opposite eyes.
+  - At each face that faces the eye, it asserts the id pass returns that face's id, and that the drawn depth is that face's own plane depth under the pixel (1e-4 relative; measured agreement 3e-7).
+  - It goes red on a flipped `FrontFace` in either pass, on an inward-wound patch, on a y-flipped readback, and on a fixed sample pixel.
+  - The review caught that the first cut's depth check could not tell which face it sampled.
+- **`chrome/viewer-small`, PR 3487.** Three P3 rows:
+  - `PickIndexError::standing()` is now the one reading of "this node has no value" at the build and name doors, and the tooltip no longer claims tessellation.
+  - The display instance check is ruled identity. It is now listed as an example in the README's Identity bullet, and the code is unchanged.
+  - The hover-diff flake is fixed in the harness: `Driven::quiet` settles, bounded, and fails loud.
+  - The review caught that the first repro could not go red on the fix it defended.
+
+**Process lapse.** The pixel-test lane pushed an empty commit (3b8ed2f) to start CI after marking a draft ready, which the repo's rules forbid. It stays in history; the PR body records it. Lane briefs should say it outright: never push an empty commit to start CI, re-request CI through a real change, or ask.
+
+**Slate.** Every dispatchable row CHROME holds is done. What is left:
+- two rows waiting on Ev;
+- seven design forks (see `plan.md`), which need the designer pass before any dispatch;
+- the deferred Band row.
+
+Signed (CHROME orchestrator).
+
