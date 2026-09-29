@@ -5369,3 +5369,224 @@ mod place_tests {
         }
     }
 }
+
+/// Reviewer probes (origin-axis-rev, PR 3419): the axis rows through
+/// the recipe-layer placement door and the kernel's cutting doors.
+#[cfg(test)]
+mod axis_rev_probes {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::place;
+    use crate::node::RecipeNodeId;
+    use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+    use profile::{Profile, SketchPlane};
+    use sweep::{Extrusion, extrude};
+    use topo::{AxisAttachError, AxisRecord, AxisSource, Body, FaceSurface, SurfaceKey};
+
+    fn tol() -> Tol {
+        Tol::witness()
+    }
+
+    /// A z-axis cylinder of radius `r` centred on (cx, cy), z0..z0+h.
+    fn cyl(cx: f64, cy: f64, r: f64, z0: f64, h: f64) -> Body<f64> {
+        let lp = profile::circle(Point2::new(cx, cy), r, tol()).unwrap();
+        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+        let p = Profile::new(plane, vec![lp.into()]).validate(tol()).unwrap();
+        extrude(&p, Extrusion::Distance(h), tol()).unwrap().body
+    }
+
+    fn walls(b: &Body<f64>) -> Vec<SurfaceKey> {
+        b.surfaces()
+            .filter(|(_, s)| matches!(s, geom::Surface::Cylinder { .. }))
+            .map(|(k, _)| k)
+            .collect()
+    }
+
+    fn stamp(b: &mut Body<f64>, axis: &AxisSource) {
+        for k in walls(b) {
+            b.set_surface_axis_source(k, axis.clone()).unwrap();
+        }
+    }
+
+    fn rows(b: &Body<f64>) -> Vec<Option<AxisRecord>> {
+        walls(b)
+            .into_iter()
+            .map(|k| b.surface_axis_record(k).cloned())
+            .collect()
+    }
+
+    /// P-A: ONE placing node, ONE map, two bodies of its value: the
+    /// ordinals differ, so the tokens differ — the table's "both placed
+    /// by one node" row refuses though the relative pose is unchanged.
+    #[test]
+    fn one_map_two_ordinals_compare_stale() {
+        let d = AxisSource::from_lowered(b"D");
+        let mut b = cyl(0.0, 0.0, 1.0, 0.0, 1.0);
+        stamp(&mut b, &d);
+        let map = Affine3::translation(Vec3::new(0.0, 0.0, 5.0));
+        let p1 = place(&b, Some(&map), RecipeNodeId(9), 1, tol()).unwrap();
+        let p2 = place(&b, Some(&map), RecipeNodeId(9), 2, tol()).unwrap();
+        let (w1, w2) = (walls(&p1)[0], walls(&p2)[0]);
+        let (t1, t2) = (
+            p1.surface_axis_source(w1).unwrap(),
+            p2.surface_axis_source(w2).unwrap(),
+        );
+        eprintln!("P-A: {t1:?} vs {t2:?}");
+        assert_eq!(format!("{:?}", p1.get_surface(w1)), format!("{:?}", p2.get_surface(w2)), "bit-identical placement");
+        assert_ne!(t1, t2, "same map, different ordinal => unequal tokens");
+    }
+
+    /// P-B: the rows through a real boolean: a disjoint union of an
+    /// unplaced carrier and a placed one; a through-hole difference; an
+    /// overlapping coaxial union (stepped shaft).
+    #[test]
+    fn rows_ride_real_booleans() {
+        let d = AxisSource::from_lowered(b"D");
+        // (1) disjoint coaxial union: one placed, one not.
+        let mut a = cyl(0.0, 0.0, 1.0, 0.0, 1.0);
+        stamp(&mut a, &d);
+        let b = place(
+            &a,
+            Some(&Affine3::translation(Vec3::new(0.0, 0.0, 5.0))),
+            RecipeNodeId(50),
+            0,
+            tol(),
+        )
+        .unwrap();
+        let topo::BooleanResult::Body(u) = topo::union(&a, &b, tol()).unwrap() else {
+            panic!()
+        };
+        let r = rows(&u.body);
+        eprintln!("P-B1 disjoint union rows: {r:?}");
+        assert_eq!(r.len(), 2);
+        assert!(r.contains(&Some(AxisRecord::Source(d.clone()))));
+        assert!(r.contains(&Some(AxisRecord::Source(d.placed(50, 0)))));
+
+        // (2) through-hole difference: the tool is reverted inside.
+        let mut brick =
+            topo::test_support::brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol());
+        let mut tool = cyl(0.0, 0.0, 0.25, -1.0, 3.0);
+        stamp(&mut tool, &d);
+        let _ = &mut brick;
+        let topo::BooleanResult::Body(h) = topo::subtract(&brick, &tool, tol()).unwrap() else {
+            panic!()
+        };
+        let r = rows(&h.body);
+        eprintln!("P-B2 hole rows: {r:?}");
+        assert!(!r.is_empty());
+        assert!(r.iter().all(|x| x == &Some(AxisRecord::Source(d.clone()))));
+
+        // (3) overlapping coaxial union, two radii: trimmed walls.
+        let mut s1 = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+        let mut s2 = cyl(0.0, 0.0, 0.5, 1.0, 2.0);
+        stamp(&mut s1, &d);
+        stamp(&mut s2, &d);
+        let topo::BooleanResult::Body(s) = topo::union(&s1, &s2, tol()).unwrap() else {
+            panic!()
+        };
+        let r = rows(&s.body);
+        eprintln!("P-B3 stepped shaft rows: {r:?}");
+        assert!(!r.is_empty());
+        assert!(r.iter().all(|x| x == &Some(AxisRecord::Source(d.clone()))));
+    }
+
+    /// P-C: a split across the axis keeps the wall row on both halves.
+    #[test]
+    fn a_split_across_the_axis_keeps_rows_on_both_halves() {
+        let d = AxisSource::from_lowered(b"D");
+        let mut a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+        stamp(&mut a, &d);
+        let plane = topo::SplitPlane {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let halves = topo::split(&a, &plane, tol()).unwrap();
+        for half in [halves.above.body().unwrap(), halves.below.body().unwrap()] {
+            let r = rows(half);
+            eprintln!("P-C half rows: {r:?}");
+            assert!(!r.is_empty());
+            assert!(r.iter().all(|x| x == &Some(AxisRecord::Source(d.clone()))));
+        }
+    }
+
+    /// P-D: the attach door over every kind, the three reader answers,
+    /// the discharge of a Cleared row, and a reused slot.
+    #[test]
+    fn attach_door_and_readers() {
+        let d = AxisSource::from_lowered(b"D");
+        let mut b = topo::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+        let fs: Vec<_> = b.faces().map(|(k, _)| k).collect();
+        let sphere = b
+            .set_face_surface(fs[3], FaceSurface::New(geom::Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }))
+            .unwrap();
+        let torus = b
+            .set_face_surface(fs[4], FaceSurface::New(geom::Surface::Torus {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }))
+            .unwrap();
+        let nurbs = b
+            .set_face_surface(fs[5], FaceSurface::New(geom::Surface::nurbs_placeholder()))
+            .unwrap();
+        assert_eq!(b.set_surface_axis_source(sphere, d.clone()), Ok(()));
+        assert_eq!(b.set_surface_axis_source(torus, d.clone()), Ok(()));
+        assert_eq!(
+            b.set_surface_axis_source(nurbs, d.clone()),
+            Err(AxisAttachError::NoAxisOnKind)
+        );
+        assert_eq!(b.surface_axis_record(nurbs), None);
+        // Cleared then re-stamped.
+        let mut m = topo::transform_rigid(
+            &b,
+            &Affine3::translation(Vec3::new(1.0, 0.0, 0.0)),
+            tol(),
+        );
+        eprintln!("P-D transform of body with orphan surfaces: {:?}", m.as_ref().err());
+        if let Ok(m) = m.as_mut() {
+            assert_eq!(m.surface_axis_record(sphere), Some(&AxisRecord::Cleared));
+            assert_eq!(m.surface_axis_source(sphere), None);
+            m.set_surface_axis_source(sphere, d.placed(3, 0)).unwrap();
+            assert_eq!(m.surface_axis_record(sphere), Some(&AxisRecord::Source(d.placed(3, 0))));
+            assert_eq!(m.surface_axis_record(nurbs), None);
+        }
+        // A face re-surfaced: old slot orphaned, then a mint reuses it.
+        let face = fs[0];
+        let cyl = || {
+            FaceSurface::New(geom::Surface::Cylinder {
+                origin: Point3::new(0.5, 0.5, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 0.25,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            })
+        };
+        let first = b.set_face_surface(face, cyl()).unwrap();
+        b.set_surface_axis_source(first, d.clone()).unwrap();
+        let second = b.set_face_surface(face, cyl()).unwrap();
+        assert!(b.get_surface(first).is_none());
+        assert_eq!(b.surface_axis_record(first), None);
+        assert_eq!(b.surface_axis_record(second), None);
+        let face2 = b.faces().map(|(k, _)| k).nth(1).unwrap();
+        let reuse = b
+            .set_face_surface(face2, FaceSurface::New(geom::Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 3.0,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }))
+            .unwrap();
+        eprintln!("P-D keys first={first:?} second={second:?} reuse={reuse:?}");
+        assert_eq!(b.surface_axis_record(reuse), None, "a reused slot reads no stale row");
+        assert_eq!(
+            b.set_surface_axis_source(first, d.clone()),
+            Err(AxisAttachError::StaleKey)
+        );
+    }
+}
