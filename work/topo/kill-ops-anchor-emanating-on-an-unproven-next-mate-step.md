@@ -2,13 +2,14 @@
 id: kill-ops-anchor-emanating-on-an-unproven-next-mate-step
 kind: issue
 title: kef, kemr and kev re-anchor emanating on a next(mate(x)) step whose start vertex no plan proves: a torn next carries an off anchor through Ok
-status: review
+status: closed
 opened: 2026-09-29
 refs: [mev-fan-plan-trusts-the-orbits-start-vertices, kevs-fan-merge-needs-a-re-describing-kill-door, kill-ops-loop-anchor-on-an-unproven-next-step, revert-anchors-trust-a-torn-next-or-prev, kef-and-kev-take-a-mate-whose-own-edge-is-another]
 priority: P2
 cost: E
 pr: 3483
 branch: topo/kill-anchor-proof
+closed: 2026-09-29
 ---
 
 ## What
@@ -105,3 +106,28 @@ counterexample above as a deterministic row. If
 `vertex-orbit-reads-no-start-vertex` puts the check into the walk
 itself, these single steps still need their own proof, since they do
 not go through the walk.
+
+## Closed (2026-09-29, PR 3483)
+
+`kef`, `kemr` and `kev` (both doors, and `kev_merged_members`) prove
+every `emanating` write in their plans through
+`Body::require_kill_anchors`:
+- a `Some` anchor starts at its vertex, proved by
+  `require_orbit_starts_at`;
+- a `None` is written only where no half-edge outside the killed ones
+  starts at the vertex.
+
+A torn step refuses `OrbitBroken`, typed and before mutating.
+
+The single full review found that the first head still trusted the
+step in the `None` arms, and that its `kev` arm reorder rested on an
+unproven `mate(m) == he`. The fix pass closed both. On the widened
+probe (five fixtures, `NextForeign` and `EdgeBijection`), both vertex
+columns are 0 for all three operators, and there is no over-refusal on
+24k valid bodies.
+
+What remains is filed:
+- `kill-ops-loop-anchor-on-an-unproven-next-step` (the loop `first`
+  and `Empty` writes);
+- `revert-anchors-trust-a-torn-next-or-prev` (measured);
+- `kef-and-kev-take-a-mate-whose-own-edge-is-another`.
