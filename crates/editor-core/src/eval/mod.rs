@@ -2226,10 +2226,20 @@ impl core::fmt::Display for NodeErrorKind {
                 };
                 write!(f, "{refusal} (a kernel bug)")
             }
-            Self::Escalated { predicate, source } => write!(
-                f,
-                "predicate {predicate} escalated (in-band indeterminacy): {source}"
-            ),
+            Self::Escalated { predicate, source } => {
+                // What the decision was deciding, in words; the name is
+                // routing and rides `Debug`.
+                let what = match *predicate {
+                    wire::EVAL_DIRECTION_NORM | topo::DATUM_UNIT_NORM => {
+                        "whether a direction has any length"
+                    }
+                    "revolve_full_vs_partial" => "whether the revolve makes a full turn",
+                    "bool_plane_parallel" => "whether the two planes are parallel",
+                    "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
+                    _ => geom_core::UNNAMED_DECISION,
+                };
+                write!(f, "{what} is too close to call: {source}")
+            }
             Self::AxisInDifferentPlane {
                 axis,
                 axis_plane,

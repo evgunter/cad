@@ -15,7 +15,8 @@
 //! the word budget, no stage prefix, no `Debug` struct, no arena key
 //! (the tier-1/2 structure arms excepted: they report a damaged body,
 //! and the key is what the bug report needs), and exactly ONE recourse
-//! marker — plus one line per finding.
+//! — plus one line per finding. Every admission must admit something a
+//! sample renders, so one its owner's fix made stale goes red.
 //!
 //! **The wrappers rendered.** Each at its longest: a one-finding
 //! refusal naming no mate; the same finding attributed to a mate of
@@ -41,9 +42,26 @@ use editor_core::{
 use test_utils::refusal::Admission;
 use topo::{ContactClass, FaceKey, ValidationError};
 
-/// The labels a finding legitimately opens with: the two badges'
-/// names, as the viewer writes them.
-const LABELS: &[&str] = &["at rest", "product"];
+/// The labels a finding legitimately opens with, each on the routes
+/// (or the one sample) whose rendering writes it: the two badges' names
+/// as the viewer writes them, the product gate's root address, and the
+/// attribution header's relation (`mate 7's declared Rest contact,
+/// refuted (…): …`).
+const LABELS: &[(&str, &str)] = &[
+    ("unattributed", "at rest"),
+    ("refuted, carried", "at rest"),
+    ("declined, carried", "at rest"),
+    ("at rest, product", "at rest"),
+    ("product", "product"),
+    ("at rest, product", "product"),
+    ("product", "root 5 output 0"),
+    ("at rest, product", "root 5 output 0"),
+    ("refuted, carried", "refuted"),
+    ("declined, carried", "declined"),
+    // A sentence whose clause carries no word the shape check reads as
+    // a sentence's: a numeral subject and a bare verb.
+    ("InstanceInterference", "two instances overlap"),
+];
 
 /// The routes whose attribution names the carrying document by its hex
 /// id (`Route`'s `Display`).
@@ -176,11 +194,33 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
 #[test]
 fn every_at_rest_finding_renders_to_the_standard() {
     let mut problems = Vec::new();
+    let mut used = std::collections::BTreeSet::new();
     for (label, error) in topo::test_support::validation_error_samples() {
         let keyed = KERNEL_KEYED.contains(&label.as_str());
+        if keyed
+            && renderings(&error)
+                .iter()
+                .any(|(_, t)| test_utils::refusal::arena_key(t))
+        {
+            used.insert(format!("KERNEL_KEYED {label}"));
+        }
         for (route, text) in renderings(&error) {
             let name = format!("{label} ({route})");
             eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
+            let allowed: Vec<&str> = LABELS
+                .iter()
+                .filter(|(scope, _)| *scope == route || *scope == label)
+                .map(|(_, l)| *l)
+                .collect();
+            for prefix in test_utils::refusal::stage_prefixes(&text, &[]) {
+                let prefix = prefix.trim_end_matches(':');
+                if let Some((scope, l)) = LABELS
+                    .iter()
+                    .find(|(scope, l)| (*scope == route || *scope == label) && *l == prefix)
+                {
+                    used.insert(format!("LABELS {scope} {l}"));
+                }
+            }
             // A carried route's attribution names the part it was
             // carried from by the part's hex id: that span, on this row.
             let admitted = CARRIED_ROUTES.contains(&route).then(|| Admission {
@@ -191,13 +231,10 @@ fn every_at_rest_finding_renders_to_the_standard() {
             problems.extend(test_utils::refusal::problems_admitting(
                 &name,
                 &text,
-                LABELS,
+                &allowed,
                 keyed,
                 admitted.as_slice(),
             ));
-            if test_utils::refusal::recourse_markers(&text) == 0 {
-                problems.push(format!("{name} states no recourse: {text}"));
-            }
             // A header and ONE finding line: a line break inside a
             // finding (a `\` continuation left inside a literal) would
             // split it across the list.
@@ -207,6 +244,18 @@ fn every_at_rest_finding_renders_to_the_standard() {
                     text.lines().count()
                 ));
             }
+        }
+    }
+    // Every admission is used: an entry no sample needs is stale.
+    for entry in KERNEL_KEYED
+        .iter()
+        .map(|l| format!("KERNEL_KEYED {l}"))
+        .chain(LABELS.iter().map(|(s, l)| format!("LABELS {s} {l}")))
+    {
+        if !used.contains(&entry) {
+            problems.push(format!(
+                "the admission {entry} admits nothing a sample renders"
+            ));
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));

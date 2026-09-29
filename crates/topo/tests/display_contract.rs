@@ -84,7 +84,7 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
         ),
         (
             ContactRefusal::Escalated { diag: in_band() },
-            vec!["escalated", "side_of_plane", topo::CONTACT_RECOURSE],
+            vec!["escalated", topo::CONTACT_RECOURSE],
         ),
         (
             ContactRefusal::Undeclared { diag: in_band() },

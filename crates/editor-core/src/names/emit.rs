@@ -537,10 +537,22 @@ impl core::fmt::Display for NamingError {
                  threshold {escalate} is under twice its coincidence threshold {zero} (an \
                  ambiguity K below 2), so two coincidences in a row could be decided apart"
             ),
-            Self::Escalated { predicate, source } => write!(
-                f,
-                "the discriminator {predicate} escalated (in-band indeterminacy): {source}"
-            ),
+            Self::Escalated { predicate, source } => {
+                use super::discriminate::{CHORD_ON_RIM, ON_MEMBER_EDGE, ORDER_ALONG, SIDE_OF};
+                // What the naming decision was deciding, in words; the
+                // name is routing and rides `Debug`.
+                let what = match *predicate {
+                    SIDE_OF => "the side of a cut a face lies on",
+                    ORDER_ALONG => "the order of two pieces along an edge",
+                    ON_MEMBER_EDGE => "a point's place along an edge",
+                    CHORD_ON_RIM => "whether a chord lies on its rim",
+                    _ => geom_core::UNNAMED_DECISION,
+                };
+                write!(
+                    f,
+                    "no name can be decided because {what} is too close to call: {source}"
+                )
+            }
         }
     }
 }
@@ -1648,10 +1660,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: "side_of_plane",
+                    predicate: crate::names::discriminate::SIDE_OF,
                     source: escalation(),
                 },
-                vec!["side_of_plane"],
+                vec!["the side of a cut"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {
