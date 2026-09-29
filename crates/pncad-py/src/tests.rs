@@ -239,6 +239,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
             ErrorClass::Mc => "McRefusal",
+            ErrorClass::StepHandle => "StepHandleError",
         }
     }
     for class in [
@@ -280,6 +281,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::MeasureUnavailableAt,
         ErrorClass::AnalysisPolicy,
         ErrorClass::Mc,
+        ErrorClass::StepHandle,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
@@ -5689,6 +5691,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "step_handle_refusal_tag",
+        values: &[
+            "handle_off_program",
+            "role_not_drawn",
+            "step_ids",
+            "unminted",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "step_id_fault_tag",
         values: &[
             "collides",
@@ -6050,7 +6062,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("slot_unknown_doc_param", 2),
     ("smooth_join_refuted", 2),
     ("split", 2),
-    ("step_ids", 2),
+    ("step_ids", 3),
     ("step_map_diverged", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
@@ -6059,6 +6071,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("underflowed_direction", 2),
     ("unknown_node", 5),
     ("unknown_param", 4),
+    ("unminted", 2),
     ("unnamed", 2),
     ("unreadable", 2),
     ("validate", 2),
@@ -7410,10 +7423,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 35,
+        literals: 36,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
-            holds: "the 35 class names, against a SECOND exhaustive match, so a new \
+            holds: "the 36 class names, against a SECOND exhaustive match, so a new \
                     class stops the build",
         }],
     },

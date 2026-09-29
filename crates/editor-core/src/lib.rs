@@ -73,6 +73,7 @@ pub mod roots;
 /// leaf identity, and the gating `worst_case` is a certified interval
 /// enclosure.
 pub mod stackup;
+pub mod step_handle;
 pub mod step_mint;
 // Test fixtures (the literals and the pick door); see the module's
 // docs. The gate is this crate's `test-support` feature, on only
@@ -212,6 +213,9 @@ pub use resolve::{
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
+};
+pub use step_handle::{
+    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 pub use step_mint::StepMint;
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray

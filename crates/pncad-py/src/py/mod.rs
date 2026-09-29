@@ -17,6 +17,7 @@ mod readback;
 mod refactor;
 mod resolve;
 mod select;
+mod step;
 mod store;
 mod value;
 
@@ -609,6 +610,20 @@ pyo3::create_exception!(
      neither is a box."
 );
 
+pyo3::create_exception!(
+    pncad,
+    StepHandleError,
+    PncadError,
+    "An authored step handle that does not bind in the profile it was \
+     read against. Carries `variant` (the stable tag), `loop_` and \
+     `index` (the address, `None` where the arm has none) and `role` \
+     (the role asked for, `None` where the arm has none).\n\n\
+     `handle_off_program`: the stated loop has no step with the \
+     handle's index and shape — a handle is valid for the program it \
+     was authored for, and across `set_program` a step is held by its \
+     `StepId`. `role_not_drawn`: the step's verb never draws that role."
+);
+
 /// Raise the exception class [`ErrorClass`] names, with `fields`
 /// attached as instance attributes.
 ///
@@ -751,6 +766,7 @@ fn raise_typed(
         ErrorClass::MeasureUnavailableAt => MeasureUnavailableAt::new_err(message),
         ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
         ErrorClass::Mc => McRefusal::new_err(message),
+        ErrorClass::StepHandle => StepHandleError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -857,7 +873,8 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::MeasureNode
         | ErrorClass::MeasureUnavailableAt
         | ErrorClass::AnalysisPolicy
-        | ErrorClass::Mc => None,
+        | ErrorClass::Mc
+        | ErrorClass::StepHandle => None,
     }
 }
 
@@ -927,9 +944,11 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     m.add("AnalysisPolicyError", py.get_type::<AnalysisPolicyError>())?;
     m.add("McRefusal", py.get_type::<McRefusal>())?;
+    m.add("StepHandleError", py.get_type::<StepHandleError>())?;
 
     quantity::register(m)?;
     path::register(m)?;
+    step::register(m)?;
     place::register(m)?;
     doc::register(m)?;
     expr::register(m)?;

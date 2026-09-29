@@ -2218,11 +2218,16 @@ struct PosData<T: Real> {
     incoming: Option<Incoming<T>>,
 }
 
-/// **The carrier a fillet's run out rides** — its arrival side's: the
-/// arrival ray for a straight arrival, the arrival circle for a fused
-/// verb's authored arrival arc. A run out is a segment ON that carrier
-/// (N1's "two pieces on one carrier"), and [`PendingRunOut::rides`]
-/// decides that of each candidate emission from its geometry.
+/// **What follows a fillet arc on its arrival side.**
+///
+/// A straight arrival's run out is drawn by whichever later step
+/// continues along the arrival ray, so it waits as a
+/// [`PendingRunOut`] and [`PendingRunOut::rides`] decides each
+/// candidate emission from its geometry (N1's "two pieces on one
+/// carrier"). A fused verb's authored arrival arc IS its run out, and
+/// the site that emits it claims it so ([`Core::claim`]) — a later
+/// binder step can be the one lowering it, and a geometric reading
+/// would stand between the arc and its name.
 #[derive(Clone, Copy, Debug)]
 enum ArrivalCarrier<T: Real> {
     /// A straight arrival: the line through the arrival anchor along
@@ -2230,98 +2235,49 @@ enum ArrivalCarrier<T: Real> {
     /// straight continuation's miss is measured from the same point
     /// along the same direction here as where it was accepted.
     Ray { anchor: Point2<T>, dir: Dir<T> },
-    /// An authored arrival arc: its circle, and the sense the arrival
-    /// travels it in.
-    Circle { arc: ArcData<T>, winding: ArcSweep },
+    /// A fused verb's authored arrival arc, claimed at its emission.
+    AuthoredArc,
 }
 
 /// A fillet whose run out may be the next emission: the step that
-/// authored its radius, the carrier the run rides, and the tolerance
-/// witness the riding is decided under.
+/// authored its radius, the arrival ray the run rides, and the
+/// tolerance witness the riding is decided under.
 #[derive(Clone, Copy, Debug)]
 struct PendingRunOut<T: Real> {
     /// The step the fillet's pieces are credited to.
     step: usize,
-    /// The arrival carrier.
-    carrier: ArrivalCarrier<T>,
+    /// The arrival ray's anchor.
+    anchor: Point2<T>,
+    /// The arrival ray's direction.
+    dir: Dir<T>,
     /// The witness of the resolution that emitted the fillet arc.
     tol: Tol,
 }
 
 impl<T: Decide> PendingRunOut<T> {
-    /// Whether the segment of `kind` from `from` to `to` with `bulge`
-    /// lies on this run's carrier, continuing it from the chain head
-    /// `from`.
-    ///
-    /// A straight segment rides the ray when its end is on the ray's
-    /// line (the lateral miss `on_ray_extent` classifies, from the same
-    /// anchor) and its advance from the head is definitely positive.
-    /// An arc rides the circle when it leaves the head in the arrival's
-    /// sense and the largest of its end's, apex's and two quarter
-    /// points' radial misses is zero (the largest, not the sum: an
-    /// enclosure of a sum carries all four widths). With the head,
-    /// those are points at most a quarter turn apart on the arc's own
-    /// circle, so the test holds however long the arc; and each miss is
-    /// a point deviation, rounded at ε·R whatever the chord, where
-    /// rebuilding the arc's circle to compare as
-    /// [`carriers_are_identical`] does would round at ε·R²/chord.
+    /// Whether the segment of `kind` from `from` to `to` lies on this
+    /// run's arrival ray, continuing it from the chain head `from`: a
+    /// straight segment whose end is on the ray's line (the lateral
+    /// miss `on_ray_extent` classifies, from the same anchor) and whose
+    /// advance from the head is definitely positive. An arc never
+    /// rides a ray.
     ///
     /// Every margin is decided under `path_run_out_carrier` and an
     /// undecidable one escalates: a name is a durable locator, so a
     /// guess would silently move it to another step's segment.
-    fn rides(
-        &self,
-        kind: FirstSeg,
-        from: Point2<T>,
-        to: Point2<T>,
-        bulge: T,
-    ) -> Result<bool, PathError<T>> {
+    fn rides(&self, kind: FirstSeg, from: Point2<T>, to: Point2<T>) -> Result<bool, PathError<T>> {
+        if kind != FirstSeg::Line {
+            return Ok(false);
+        }
         let band = linear_band(self.tol)?;
         let on = |margin: Margin<T>| match decide("path_run_out_carrier", margin, band) {
             Ok(sign) => Ok(sign),
             Err(source) => Err(PathError::Escalated { source }),
         };
-        match (self.carrier, kind) {
-            (ArrivalCarrier::Ray { anchor, dir }, FirstSeg::Line) => {
-                if on(Margin::of(dir.unit.perp_dot(to - anchor)))? != Sign::Zero {
-                    return Ok(false);
-                }
-                Ok(on(Margin::of(dir.unit.dot(to - from)))? == Sign::Positive)
-            }
-            (ArrivalCarrier::Circle { arc, winding }, FirstSeg::Arc) => {
-                let frame = seg::ChordFrame::of(from, to);
-                // The arc leaves the head along its chord turned back by
-                // half its sweep θ = 4·atan(b); the carrier's tangent
-                // there, in the arrival's sense, must be that direction
-                // and not its reverse. A cosine of unit vectors, levered
-                // by the carrier's radius; a sagitta sign would read in
-                // the band for any short run.
-                let (sin, cos) = (T::from_f64(2.0) * bulge.atan()).sin_cos();
-                let u = frame.unit;
-                let leaves = Vec2::new(u.x * cos + u.y * sin, u.y * cos - u.x * sin);
-                let r = from - arc.center;
-                let ccw = seg::perp(r) / r.norm_squared().sqrt();
-                let ahead = match winding {
-                    ArcSweep::Ccw => ccw,
-                    ArcSweep::Cw => -ccw,
-                };
-                if on(Margin::levered(ahead.dot(leaves), arc.radius))? != Sign::Positive {
-                    return Ok(false);
-                }
-                let apex = frame.apex(bulge);
-                let quarter = seg::half_arc_bulge(bulge);
-                let q1 = seg::ChordFrame::of(from, apex).apex(quarter);
-                let q2 = seg::ChordFrame::of(apex, to).apex(quarter);
-                // A distance's square root inside the margin, as in
-                // `carriers_are_identical`: the miss is a length in
-                // meters, and the band is a length.
-                let miss =
-                    |p: Point2<T>| ((p - arc.center).norm_squared().sqrt() - arc.radius).abs();
-                let off = miss(to).max(miss(apex)).max(miss(q1).max(miss(q2)));
-                Ok(on(Margin::of(off))? == Sign::Zero)
-            }
-            _ => Ok(false),
+        if on(Margin::of(self.dir.unit.perp_dot(to - self.anchor)))? != Sign::Zero {
+            return Ok(false);
         }
+        Ok(on(Margin::of(self.dir.unit.dot(to - from)))? == Sign::Positive)
     }
 }
 
@@ -2423,15 +2379,15 @@ pub struct Core<T: Real> {
     /// beside the spans ([`Core::finish`]).
     pieces: Vec<Option<crate::structure::Piece>>,
     /// The role the NEXT emission draws, where a fillet names it: its
-    /// run in or its arc. `None` is the default, the current step's
-    /// leg.
+    /// run in, its arc, or a fused verb's authored arrival arc as its
+    /// run out. `None` is the default, the current step's leg.
     claim: Option<crate::structure::Piece>,
     /// **A fillet whose run out may be the next segment**: set when a
-    /// fillet arc is emitted with something tangent following it, and
+    /// fillet arc is emitted with a straight arrival following it, and
     /// taken by the next emission, which is that run exactly when it
-    /// lies on the fillet's arrival carrier ([`PendingRunOut::rides`]).
-    /// An emission off that carrier is not the run out, whatever its
-    /// kind, and is the piece of the step that draws it.
+    /// lies on the fillet's arrival ray ([`PendingRunOut::rides`]). An
+    /// emission off that ray is not the run out, whatever its kind, and
+    /// is the piece of the step that draws it.
     ///
     /// The lattice decides which emissions can follow; the naming reads
     /// each candidate's geometry, so a verb the lattice admits later
@@ -2574,7 +2530,7 @@ impl<T: Decide> Core<T> {
                 });
             }
         };
-        self.attribute(self.verts.len() - 1, kind, from, to, bulge)
+        self.attribute(self.verts.len() - 1, kind, from, to)
     }
 
     /// Sets the bulge of the CLOSING segment, the one leaving the last
@@ -2588,8 +2544,8 @@ impl<T: Decide> Core<T> {
     /// is (`crate::structure::Piece`): the fillet role a site claimed
     /// for it, or else the current step's leg — and a pending run out
     /// competes for it when the segment rides the fillet's arrival
-    /// carrier, since that segment is the fillet's run out whichever
-    /// step draws it. A segment named before (a closing segment re-set)
+    /// ray, since that segment is the fillet's run out whichever step
+    /// draws it. A segment named before (a closing segment re-set)
     /// keeps its earlier name where that one outranks.
     fn attribute(
         &mut self,
@@ -2597,7 +2553,6 @@ impl<T: Decide> Core<T> {
         kind: FirstSeg,
         from: Point2<T>,
         to: Point2<T>,
-        bulge: T,
     ) -> Result<(), PathError<T>> {
         use crate::structure::{Piece, PieceRole};
         let claimed = self.claim.take();
@@ -2611,7 +2566,7 @@ impl<T: Decide> Core<T> {
         let run_out = self.run_out.take();
         if best.role != PieceRole::Arc
             && let Some(run) = run_out
-            && run.rides(kind, from, to, bulge)?
+            && run.rides(kind, from, to)?
         {
             let candidate = Piece {
                 step: run.step,
@@ -2758,10 +2713,12 @@ impl<T: Real> Core<T> {
         let radii = core::mem::take(&mut self.radii);
         let pieces = self.segment_pieces();
         let structure = self.take_structure();
+        let structure = structure.into_record(spans, radii, pieces);
+        structure.check_role_lists(&self.program);
         ClosedLoop {
             loop_: ProfileLoop::lower(&self.verts, self.tangent),
             program: self.program,
-            structure: structure.into_record(spans, radii, pieces),
+            structure,
         }
     }
 
@@ -3531,10 +3488,8 @@ impl<T: Decide> Core<T> {
                 self.declare_last();
                 self.run_out = Some(PendingRunOut {
                     step: meta.bound_at,
-                    carrier: ArrivalCarrier::Ray {
-                        anchor: arr_pos,
-                        dir: arr_ang,
-                    },
+                    anchor: arr_pos,
+                    dir: arr_ang,
                     tol,
                 });
             }
@@ -3644,9 +3599,10 @@ impl<T: Decide> Core<T> {
 
     /// **G2**: emits the fillet arc itself as a chain segment, declaring
     /// its outgoing joint when something tangent actually follows it
-    /// (see [`ArrivalKind`]): `follows` is that something's carrier, the
-    /// arrival side's, and the next emission on it is the fillet's run
-    /// out ([`Core::run_out`]), decided under `tol`.
+    /// (see [`ArrivalKind`]): `follows` is that something. A ray's run
+    /// out is the next emission that rides it ([`Core::run_out`]),
+    /// decided under `tol`; an authored arrival arc is claimed by the
+    /// site that emits it.
     fn emit_fillet_arc(
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
@@ -3659,11 +3615,14 @@ impl<T: Decide> Core<T> {
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if let Some(carrier) = follows {
             self.declare_last();
-            self.run_out = Some(PendingRunOut {
-                step: bound_at,
-                carrier,
-                tol,
-            });
+            if let ArrivalCarrier::Ray { anchor, dir } = carrier {
+                self.run_out = Some(PendingRunOut {
+                    step: bound_at,
+                    anchor,
+                    dir,
+                    tol,
+                });
+            }
         }
         Ok(())
     }
@@ -3838,13 +3797,13 @@ fn circle_kernel<T: Decide>(
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    Ok(ProfileLoop::lower(
-        &[
-            (Point2::new(center.x + radius, center.y), T::one()),
-            (Point2::new(center.x - radius, center.y), T::one()),
-        ],
-        Vec::new(),
-    ))
+    // One vertex per piece the role list admits a `circle`: the table
+    // is typed at `CIRCLE_PIECES`, so the two cannot disagree.
+    let semicircles: [(Point2<T>, T); crate::structure::CIRCLE_PIECES as usize] = [
+        (Point2::new(center.x + radius, center.y), T::one()),
+        (Point2::new(center.x - radius, center.y), T::one()),
+    ];
+    Ok(ProfileLoop::lower(&semicircles, Vec::new()))
 }
 
 /// The kernel behind the table's split-circle row: the lowered loop
@@ -5546,31 +5505,32 @@ mod tests {
         assert!(rungs >= 30, "the magnitude ladder covered {rungs} rungs");
     }
 
-    /// **A pending run out claims only an emission on its carrier**, of
-    /// either kind. Step 0 is the fillet's, with its run out pending;
-    /// step 1 draws one segment from the fillet arc's end. On the
-    /// carrier that segment is step 0's run out, since the earlier step
-    /// outranks; off it — same kind, another line or another circle —
-    /// it is step 1's own leg.
+    /// **A pending run out claims only an emission on its ray.** Step 0
+    /// is the fillet's, with its run out pending; step 1 draws one
+    /// segment from the fillet arc's end. On the ray that segment is
+    /// step 0's run out, since the earlier step outranks; off it — a
+    /// line elsewhere, a line backward, or an arc — it is step 1's own
+    /// leg.
     ///
-    /// The lattice cannot reach the off-carrier rows: it refuses every
+    /// The lattice cannot reach the off-ray rows: it refuses every
     /// straight emission from a directed tip that leaves the arrival
-    /// ray, and a circle run out is emitted immediately after its arc.
-    /// So the state is built directly, which is the only way to show
-    /// the naming reads the geometry rather than the kind.
+    /// ray. So the state is built directly, which is the only way to
+    /// show the naming reads the geometry rather than the kind.
     #[test]
-    fn a_pending_run_out_claims_only_an_emission_on_its_carrier() {
+    fn a_pending_run_out_claims_only_an_emission_on_its_ray() {
         use crate::structure::{Piece, PieceRole};
         let tol = Tol::witness();
         let head = Point2::new(1.0, 0.0);
-        let named = |carrier: ArrivalCarrier<f64>, to: Point2<f64>, bulge: f64| -> Piece {
+        let named = |to: Point2<f64>, bulge: f64| -> Piece {
             let mut core = Core::<f64>::empty();
             core.seed(Point2::new(0.0, -1.0));
             core.record(Step::LineTo(Target::Point(head)));
             core.push_line(head).expect("step 0's segment");
+            // The arrival ray: along +x through (0.5, 0).
             core.run_out = Some(PendingRunOut {
                 step: 0,
-                carrier,
+                anchor: Point2::new(0.5, 0.0),
+                dir: Dir::from_unit(Vec2::new(1.0, 0.0)),
                 tol,
             });
             core.record(Step::LineTo(Target::Point(to)));
@@ -5589,97 +5549,13 @@ mod tests {
             step: 1,
             role: PieceRole::Leg,
         };
-
-        // The arrival ray: along +x through (0.5, 0).
-        let ray = ArrivalCarrier::Ray {
-            anchor: Point2::new(0.5, 0.0),
-            dir: Dir::from_unit(Vec2::new(1.0, 0.0)),
-        };
-        assert_eq!(named(ray, Point2::new(3.0, 0.0), 0.0), run_out);
-        assert_eq!(named(ray, Point2::new(3.0, 1.0), 0.0), own_leg);
+        assert_eq!(named(Point2::new(3.0, 0.0), 0.0), run_out);
+        assert_eq!(named(Point2::new(3.0, 1.0), 0.0), own_leg);
         // On the ray's line but behind the chain head: the ray is a
         // half-line, and a segment leaving backward along it is not on it.
-        assert_eq!(named(ray, Point2::new(0.0, 0.0), 0.0), own_leg);
-
-        // The arrival circle: the unit circle about the origin. The
-        // quarter from (1, 0) to (0, 1) rides it (bulge tan(π/8)); the
-        // half-disc arc between the same two points is on the circle of
-        // radius √2/2 about (0.5, 0.5).
-        let unit = ArcData {
-            center: Point2::new(0.0, 0.0),
-            radius: 1.0,
-        };
-        let circle = ArrivalCarrier::Circle {
-            arc: unit,
-            winding: ArcSweep::Ccw,
-        };
-        let quarter = (core::f64::consts::PI / 8.0).tan();
-        assert_eq!(named(circle, Point2::new(0.0, 1.0), quarter), run_out);
-        assert_eq!(named(circle, Point2::new(0.0, 1.0), 1.0), own_leg);
-        // A short arc on the circle rides it however short: the end and
-        // the arc's midpoint are each within rounding of the circle, a
-        // miss that does not grow as the chord shrinks.
-        for chord in [1e-7, 1e-8] {
-            let turn = 2.0 * (chord / 2.0f64).asin();
-            let to = Point2::new(turn.cos(), turn.sin());
-            assert_eq!(
-                named(circle, to, (turn / 4.0).tan()),
-                run_out,
-                "a {chord:e} m chord along the arrival circle"
-            );
-        }
-
-        // An arc on the circle running backward from the head does not
-        // ride it: the run continues the arrival's sense.
-        let back = -0.1f64;
-        assert_eq!(
-            named(
-                circle,
-                Point2::new(back.cos(), back.sin()),
-                (back / 4.0).tan()
-            ),
-            own_leg,
-            "an arc on the arrival circle, against its sense"
-        );
-
-        // A major arc off the circle: its end nearly on the head, 0.8ε
-        // outside the circle, and its midpoint on the circle. Those two
-        // points and the head fix a circle that leaves the carrier by
-        // ~R/chord · 0.8ε between them, which only a sample within a
-        // quarter turn of each sees.
-        let cw = ArrivalCarrier::Circle {
-            arc: unit,
-            winding: ArcSweep::Cw,
-        };
-        let phi = 2.0 * (0.5e-3f64).asin();
-        let out = 1.0 + 0.8 * tol.eps();
-        let to = Point2::new(out * phi.cos(), out * phi.sin());
-        let mid_miss = |b: f64| {
-            let (hx, hy) = ((to.x - head.x) / 2.0, (to.y - head.y) / 2.0);
-            (head.x + hx + hy * b).hypot(head.y + hy - hx * b) - 1.0
-        };
-        let (mut lo, mut hi) = (-8000.0f64, -2000.0f64);
-        assert!(
-            mid_miss(lo).signum() != mid_miss(hi).signum(),
-            "the bracket holds the bulge whose midpoint is on the circle"
-        );
-        for _ in 0..200 {
-            let m = 0.5 * (lo + hi);
-            if mid_miss(m).signum() == mid_miss(lo).signum() {
-                lo = m;
-            } else {
-                hi = m;
-            }
-        }
-        assert_ne!(
-            named(cw, to, 0.5 * (lo + hi)),
-            run_out,
-            "a major arc whose end and midpoint are on the circle but which is not"
-        );
-
-        // A segment of the other kind never rides, whatever its ends.
-        assert_eq!(named(ray, Point2::new(0.0, 1.0), quarter), own_leg);
-        assert_eq!(named(circle, Point2::new(3.0, 0.0), 0.0), own_leg);
+        assert_eq!(named(Point2::new(0.0, 0.0), 0.0), own_leg);
+        // An arc never rides a ray, whatever its ends.
+        assert_eq!(named(Point2::new(3.0, 0.0), 0.3), own_leg);
     }
 }
 

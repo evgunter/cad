@@ -210,10 +210,12 @@ class TestRefusals(unittest.TestCase):
         )
         self.assertEqual(len(walls), 4)
         (s,) = doc.step_ids(profile)
-        triangle = (
-            Open.at((0 * m, 0 * m)).line_to((L * m, 0 * m)).line_to((L * m, L * m)).line_to(Start)
-        )
-        doc.apply(DocEdit.set_program(profile, triangle, [[s[0], s[1], s[2], s[4]]]))
+        start = Open.at((0 * m, 0 * m))
+        base = start.line_to((L * m, 0 * m))
+        side = base.line_to((L * m, L * m))
+        triangle = side.line_to(Start)
+        keep = {start.step: s[0], base.step: s[1], side.step: s[2], triangle.step: s[4]}
+        doc.apply(DocEdit.set_program(profile, triangle, [keep]))
         gone = set(walls) - set(evaluate(doc).all_faces(box))
         self.assertEqual(len(gone), 1, "one wall the box lacks")
         (ghost,) = gone
