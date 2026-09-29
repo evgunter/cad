@@ -2,9 +2,11 @@
 id: sibling-branches-mint-one-step-id-for-different-steps
 kind: issue
 title: Two edits applied to one base mint the same step id for different steps
-status: open
+status: closed
 opened: 2026-09-25
 priority: P2
+branch: emit/step-id-digest-chain
+closed: 2026-09-29
 ---
 
 
@@ -136,3 +138,31 @@ Ev asked whether this was a defect in `UpdateReference` instead. It is
 not: a counter id cannot tell "step kept and edited" from "two steps
 sharing an id", so any check at the reference update needs the lineage
 the id should carry.
+
+## Closed — PR 3455
+
+Step ids are minted from a digest chain, and `Doc::next_step` is gone.
+
+**How ids are minted** (`StepMint`, `crates/editor-core/src/step_mint.rs`):
+- The mint carries a SHA-256 chain and a mint log.
+- A minting edit extends the chain once by its canonical bytes. Each
+  step it mints extends it once more, and the id is the first 64 bits.
+- Display units are erased from the bytes (D6), so the mint agrees
+  with `bit_eq`.
+
+**What is refused:**
+- A collision is refused with `StepIdFault::Collides`.
+- The doors and the load door check names and program ids against the
+  log (`NotMinted` / `NameStepNotMinted`).
+- The load door refuses a log that repeats an entry or steps down
+  (`SnapshotError::MintLogOrder`).
+
+**The headline row turned.** In
+`asm_parent_held_names::sibling_versions_mint_one_step_id_and_a_held_name_crosses_between_them`,
+the held name now reads `Vanished { candidates: [] }` in the sibling.
+
+**Visible to users:** `select` now answers in id order (hashed), not
+program order. `Doc.pieces` gives program order.
+
+Node ids remain on the counter, in
+`work/emit/sibling-branches-mint-one-node-id-for-different-nodes.md`.
