@@ -30,7 +30,7 @@ use viewer::tree;
 
 /// Depth by node id, for a document read without an evaluation.
 fn depths(doc: &Doc<ProfileProgram>) -> BTreeMap<RecipeNodeId, usize> {
-    tree::rows(doc, None)
+    tree::rows(doc, None, &viewer::parts::PartFiles::default())
         .into_iter()
         .map(|row| (row.id, row.depth))
         .collect()

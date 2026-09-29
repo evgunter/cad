@@ -1036,3 +1036,25 @@ following D6's "a display unit is never part of identity". N1 is
 unchanged beyond the re-wording the code forced.
 
 **Visible to users:** `select` now answers in id order.
+## 2026-09-29 — the run-out carrier, reviewed twice (PR 3266)
+
+A fillet's run out is now claimed only by an emission on its arrival
+carrier, decided geometrically under `path_run_out_carrier`.
+
+**First review.** It found that the circle test rebuilt the run's
+circle from its chord, which rounds at ~ε·R²/chord. Short legal runs
+escalated or were silently named `Leg`. The fix measures point
+deviations instead.
+
+**Second review.** It found two more gaps:
+- Major arcs, where the end nearly meets the head, could leave the
+  circle between samples. The fix adds quarter points.
+- Backward arcs rode. The circle carrier now carries its winding.
+
+**Evidence rows.** Main's merge brought SYM's deliberately red evidence
+rows. Stored values there are main's plus this PR's own delta (pad
++3/+3, bracket +1/+1), so the rows stay red by exactly SYM's
+unattributed drift. The gating row stores measured values.
+
+**Closed with it:** the loft-sections row. #3223 had already resolved
+it, and this PR pins it.
