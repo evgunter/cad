@@ -4,6 +4,7 @@ kind: issue
 title: A NURBS face meeting a plane face in a loop interior to both, while crossings exist elsewhere, is seen by nothing on the crossings path
 status: review
 branch: germ/nurbs-plane-interior-loop
+pr: 3406
 opened: 2026-09-28
 priority: P1
 cost: M
