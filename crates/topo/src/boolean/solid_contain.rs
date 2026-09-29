@@ -248,19 +248,16 @@ pub enum PointInSolidError {
     /// wrap the azimuth, and its own azimuth window is not definitely
     /// narrower than a period.
     ///
-    /// The cone chart's apex is a junction no azimuth walk crosses —
-    /// every azimuth maps to the tip — so a face bounded by two
-    /// meridians that MEET there has no closed-form window: the walk
-    /// continues in the direction it was going and reports the whole
-    /// period. Two classes answer around that. A face group with no
-    /// azimuth boundary of its own covers every azimuth of its slant
-    /// window, so the window alone trims it exactly; and a face whose
-    /// azimuth window IS definitely narrower than a period is the case
-    /// the walk gets right, trimmed per face. What reaches here is the
-    /// remainder — a ringed cone face, a group whose members disagree
+    /// The cone chart's apex is a junction every azimuth maps to. A
+    /// face group with no azimuth boundary of its own covers every
+    /// azimuth of its slant window, so the window alone trims it; a face
+    /// clear of the apex, or visiting it once with no ring, has a window
+    /// the walk pins, closed at the apex. What reaches here is the
+    /// remainder — a face whose outline passes through the apex twice,
+    /// an apex-closed face with a ring, a group whose members disagree
     /// on their slant window (two bands stacked on one cone, with
-    /// another surface's face between them), or a wrapped window on a
-    /// face whose group does not wrap.
+    /// another surface's face between them), or a window not definitely
+    /// under a period on a face whose group does not wrap.
     PartialConeFace {
         /// The cone face neither class expresses.
         face: FaceKey,
@@ -474,9 +471,10 @@ impl core::fmt::Display for PointInSolidError {
             Self::PartialConeFace { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: one of its cone faces has an \
-                 outline the inside/outside test cannot read (two edges meet at its \
-                 apex, say). The solid itself is fine. Recourse: bound the cone face \
-                 short of a full turn around the axis, or let its faces cover the turn"
+                 outline the inside/outside test cannot read (it passes through the \
+                 apex twice, say). The solid itself is fine. Recourse: split the cone \
+                 face so each piece reaches the apex at most once, or let its faces \
+                 cover the turn"
             ),
             Self::PartialTorusFace { .. } => write!(
                 f,
@@ -1369,16 +1367,11 @@ fn rim_levels<T: Decide>(pieces: &[WallPiece<T>], band: Band) -> Result<usize, I
 ///
 /// # The two classes, and why a cone needs both
 ///
-/// A cone's apex is a junction the azimuth walk cannot cross. The
-/// closed-form window ([`crate::chord_join::face_azimuth_window`])
-/// pins each boundary edge's branch by nearest-branch continuity, and
-/// at an apex-closed face's TIP the two bounding meridians meet at a
-/// point every azimuth maps to — so the walk continues in the
-/// direction it was going and reports a FULL PERIOD for a face that
-/// covers half of one. That is the same singular junction the sphere
-/// chart has at its poles, which is why the sphere arm carries a
-/// closed-GROUP class beside its per-face rectangle. The cone carries
-/// the same pair:
+/// A cone's apex is a junction no nearest-branch walk can cross: every
+/// azimuth maps to it. The per-face window therefore closes the lift
+/// there instead ([`crate::chord_join::cone_apex_closure`]), and the
+/// sphere arm's closed-GROUP class sits beside it for the faces whose
+/// union covers the turn. The cone carries the pair:
 ///
 /// - **the azimuth-WRAPPED group** ([`wrapped_cone_group`]): the faces
 ///   on this cone surface have no azimuth boundary between them and
@@ -1389,9 +1382,10 @@ fn rim_levels<T: Decide>(pieces: &[WallPiece<T>], band: Band) -> Result<usize, I
 ///   root once per member and tie itself into a permanent graze, the
 ///   defect [`FaceGeo::Sphere`] documents.
 /// - **the azimuth-TRIMMED face**: a face whose own window is
-///   definitely narrower than a period, which is exactly the case the
-///   walk gets right. It is served per face, like
-///   [`FaceGeo::SpherePatch`], and is its own representative.
+///   definitely narrower than a period — one clear of the apex, or one
+///   visiting it once with no ring, of any width. It is served per
+///   face, like [`FaceGeo::SpherePatch`], and is its own
+///   representative.
 ///
 /// A face in neither class is [`PointInSolidError::PartialConeFace`]:
 /// the honest remainder, never a window that misstates the face.
@@ -1484,23 +1478,33 @@ pub(super) fn cone_face_trim<T: Decide>(
     Ok((Some(cone_trimmed_window(body, face, v, band)?), v, nappe))
 }
 
-/// The azimuth window of a cone face in the TRIMMED class — the window
-/// the closed-form walk gets right, which is exactly one definitely
-/// narrower than a period. A window a period wide or wider is the apex
-/// junction's wrap, not a face that covers the chart, and the refusal
-/// says so rather than trimming by an angle that means nothing.
+/// The azimuth window of a cone face in the TRIMMED class: the
+/// nearest-branch walk on a face clear of the apex, the apex closure
+/// ([`crate::chord_join::cone_apex_closure`]) on a face that visits it
+/// once. A face through the apex twice, or once with a ring, has no
+/// single lift. The window trims only when it is definitely narrower
+/// than a period AND the face is the chart rectangle it reports
+/// (`bool_cone_chart_box`, [`crate::chord_join::chart_box_defect`]): a
+/// face with a notch has the rectangle's hull, and the window would
+/// cover the notch. That is the torus trim's box check, spelled by area
+/// because the apex jump is one of the cone polygon's sides.
 ///
 /// # Errors
 ///
 /// [`PointInSolidError::CorruptFace`] for a window the walk cannot
-/// take, [`PointInSolidError::PartialConeFace`] for one not definitely
-/// under a period, [`PointInSolidError::Escalated`] in-band.
+/// take, [`PointInSolidError::PartialConeFace`] for a face with no
+/// single lift, a window not definitely under a period, or a boundary
+/// that is not its window's rectangle, [`PointInSolidError::Escalated`]
+/// in-band.
 fn cone_trimmed_window<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     v: (T, T),
     band: Band,
 ) -> Result<(T, T), PointInSolidError> {
+    use crate::chord_join::{ApexClosure, SplitJoinError};
+    let partial = PointInSolidError::PartialConeFace { face };
+    let esc = |diag| PointInSolidError::Escalated { face, diag };
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
@@ -1508,20 +1512,46 @@ fn cone_trimmed_window<T: Decide>(
         .get_surface(f.surface)
         .cloned()
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
-        .ok()
-        .flatten()
+    let images = match crate::chord_join::cone_apex_closure(body, &surf, face, band) {
+        Ok(ApexClosure::Clear) => crate::chord_join::face_azimuth_images(body, &surf, face, band)
+            .ok()
+            .flatten()
+            .ok_or(PointInSolidError::CorruptFace { face })?,
+        Ok(ApexClosure::Closed { images, .. }) => images,
+        Ok(ApexClosure::Open) => return Err(partial),
+        Err(SplitJoinError::Escalated { diag, .. }) => return Err(esc(diag)),
+        Err(_) => return Err(PointInSolidError::CorruptFace { face }),
+    };
+    let crate::chord_join::ChartBox {
+        u: az,
+        v: chart_v,
+        defect,
+    } = crate::chord_join::chart_box_defect(&images)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    match decide(
+    let lever = v.0.abs().max(v.1.abs());
+    if decide(
         "bool_cone_trim_period",
-        Margin::levered(T::tau() - (az.1 - az.0), v.0.abs().max(v.1.abs())),
+        Margin::levered(T::tau() - (az.1 - az.0), lever),
         band,
     )
-    .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+    .map_err(esc)?
+        != Sign::Positive
     {
-        Sign::Positive => Ok(az),
-        Sign::Zero | Sign::Negative => Err(PointInSolidError::PartialConeFace { face }),
+        return Err(partial);
     }
+    // The defect is an area in (radian × metre); over the slant span it
+    // is the azimuth the notch removes, levered like the period.
+    if decide(
+        "bool_cone_chart_box",
+        Margin::levered(defect / (chart_v.1 - chart_v.0), lever),
+        band,
+    )
+    .map_err(esc)?
+        != Sign::Zero
+    {
+        return Err(partial);
+    }
+    Ok(az)
 }
 
 /// The face's slant window, folded over its outer cycle's vertices.
@@ -1838,14 +1868,13 @@ pub(super) fn torus_face_windows<T: Decide>(
 ///   `2·(hi − lo)` exactly when the polygon IS its bounding box. The
 ///   L-shape has strictly more.
 ///
-/// **This is a class, and the other two chart trims do not carry it.**
-/// [`sphere_chart_trim`] and [`cone_chart_trim`] build their windows the
-/// same way — a fold over boundary images — and neither checks that the
-/// boundary is the rectangle it reports. Their premise is stated
-/// (ISO-BOUNDED, and for the sphere a checked edge-class membership) but
-/// the box itself is not checked there. Whether an L-shaped face of
-/// either kind is mintable is unproven in both cases; it is unproven
-/// here too, and checked anyway because the check was three lines.
+/// **This is a class.** [`cone_chart_trim`] carries the same check
+/// (`bool_cone_chart_box`, by area, since its polygon has the apex jump
+/// for a side). [`sphere_chart_trim`] builds its window the same way — a
+/// fold over boundary images — and does not check that the boundary is
+/// the rectangle it reports; its premise is stated (ISO-BOUNDED, with a
+/// checked edge-class membership) but the box itself is not checked
+/// there.
 ///
 /// **The null-scaffolding skip is unchecked**, and stated so rather than
 /// premised silently: an edge with no certified curve geometry is
@@ -3981,7 +4010,6 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///
 /// [`geom_core::Indeterminate`] — an in-band classifying sign, or the
 /// `Invalid` of rung 5. The caller wraps it in its own error type.
-#[allow(clippy::too_many_lines)] // one closed form, its ladder and its cross-check
 pub(super) fn line_torus_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -3994,11 +4022,6 @@ pub(super) fn line_torus_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
-    let invalid = |predicate| Indeterminate {
-        margin: geom_core::MarginDiag::INVALID,
-        band,
-        predicate: Some(predicate),
-    };
     let w0 = q - center;
     let e = d.dot(axis);
     let b = w0.dot(d);
@@ -4013,26 +4036,93 @@ pub(super) fn line_torus_roots<T: Decide>(
     let p = two * big_m - four * rr * (T::one() - e.powi(2));
     let q_hat = T::from_f64(8.0) * rr * e * n;
     let s = big_m.powi(2) - four * rr * (m - n.powi(2));
+    match depressed_quartic_roots(p, q_hat, s, ext, &RAY_TORUS_ROWS, band)? {
+        TorusRoots::Certified { count, ts: ys } => {
+            let mut ts = [T::zero(); 4];
+            for (t, y) in ts.iter_mut().zip(ys).take(count) {
+                // Undo the depression: `t = y − b`.
+                *t = y - b;
+            }
+            Ok(TorusRoots::Certified { count, ts })
+        }
+        other => Ok(other),
+    }
+}
+
+/// The predicate names one caller of [`depressed_quartic_roots`] meters
+/// its ladder under, so each lane's rows stay its own in the verdict
+/// log.
+pub(super) struct QuarticRows {
+    pub(super) disc: &'static str,
+    pub(super) shape: &'static str,
+    pub(super) depth: &'static str,
+    pub(super) odd: &'static str,
+    pub(super) split: &'static str,
+    pub(super) split_lead: &'static str,
+    pub(super) count: &'static str,
+}
+
+/// The ray × torus lane's rows ([`line_torus_roots`]).
+const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
+    disc: "bool_ray_torus_disc",
+    shape: "bool_ray_torus_shape",
+    depth: "bool_ray_torus_depth",
+    odd: "bool_ray_torus_odd",
+    split: "bool_ray_torus_split",
+    split_lead: "bool_ray_torus_split_lead",
+    count: "bool_ray_torus_count",
+};
+
+/// **The certified real roots of the depressed monic quartic**
+/// `y⁴ + p y² + q̂ y + s`, the ladder [`line_torus_roots`] documents
+/// rung by rung: the count read off exact sign algebra (`Δ`, then `p`
+/// and `D = 64s − 16p²` on the positive branch), the biquadratic arm
+/// when `q̂` is in band, Ferrari's factorization otherwise, and the
+/// constructed count checked against the certified one.
+///
+/// `y` is a LENGTH and `lever` the length scale its roots spread over:
+/// every margin is metered as `coefficient / lever^k` so that it is a
+/// length (`Δ` over `lever¹¹`, `p` over `lever`, `D` over `lever³`,
+/// `q̂` over `lever²`, the factors' discriminants over `lever`), which
+/// is what makes the ladder's band a statement in metres. The roots
+/// come back unordered in `ts[..count]`, in the `y` variable.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] — an in-band classifying sign, or the
+/// `Invalid` of the count cross-check (`rows.count`).
+#[allow(clippy::too_many_lines)] // one closed form and its ladder
+pub(super) fn depressed_quartic_roots<T: Decide>(
+    p: T,
+    q_hat: T,
+    s: T,
+    lever: T,
+    rows: &QuarticRows,
+    band: Band,
+) -> Result<TorusRoots<T>, Indeterminate> {
+    let two = T::from_f64(2.0);
+    let four = T::from_f64(4.0);
+    let invalid = |predicate| Indeterminate {
+        margin: geom_core::MarginDiag::Invalid,
+        band,
+        predicate: Some(predicate),
+    };
     let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
         + T::from_f64(144.0) * p * q_hat.powi(2) * s
         - T::from_f64(27.0) * q_hat.powi(4)
         + T::from_f64(16.0) * p.powi(4) * s
         - four * p.powi(3) * q_hat.powi(2);
-    let disc_sign = decide(
-        "bool_ray_torus_disc",
-        Margin::over_lever(disc, ext.powi(11)),
-        band,
-    )?;
+    let disc_sign = decide(rows.disc, Margin::over_lever(disc, lever.powi(11)), band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
         Sign::Zero => return Ok(TorusRoots::Uncertain),
         Sign::Positive => {
-            let shape = decide("bool_ray_torus_shape", Margin::over_lever(p, ext), band)?;
+            let shape = decide(rows.shape, Margin::over_lever(p, lever), band)?;
             let depth = decide(
-                "bool_ray_torus_depth",
+                rows.depth,
                 Margin::over_lever(
                     T::from_f64(64.0) * s - T::from_f64(16.0) * p.powi(2),
-                    ext.powi(3),
+                    lever.powi(3),
                 ),
                 band,
             )?;
@@ -4051,64 +4141,52 @@ pub(super) fn line_torus_roots<T: Decide>(
     // The two quadratic factors of the depressed quartic, as
     // `(y² + α y + β)(y² − α y + γ)`. The biquadratic arm is the
     // `α = 0` one and is taken on its own closed form.
-    let (f0, f1) = if decide(
-        "bool_ray_torus_odd",
-        Margin::over_lever(q_hat, ext.powi(2)),
-        band,
-    )? == Sign::Zero
-    {
-        // `y⁴ + p y² + s`: with `α = 0` the factorization's own
-        // relations collapse to `β + γ = p` and `βγ = s`, so the two
-        // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
-        // `X² − pX + s`. Those are the NEGATIVES of the roots of the
-        // quadratic in `y²`, which is the sign this arm is easy to get
-        // backwards and which no in-band case would have caught.
-        let inner = p.powi(2) - four * s;
-        match decide(
-            "bool_ray_torus_split",
-            Margin::over_lever(inner, ext.powi(3)),
-            band,
-        )? {
-            Sign::Positive => {}
-            // A repeated `y²`, or none at all with a count that says
-            // otherwise: neither is a certified pair of factors.
-            Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
-        }
-        let root = inner.max(T::zero()).sqrt();
-        ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
-    } else {
-        // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
-        // whose constant term is negative, so its LARGEST real root is
-        // positive — the one root whose square root splits the quartic
-        // over the reals. On four real quartic roots the resolvent has
-        // three and the largest is at least a third of their sum; on two
-        // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
-        // (a ray all but perpendicular to the axis), which is where
-        // `cubic_largest_real_root`'s conditioning has to come from its
-        // own construction rather than from the choice. The resolvent
-        // shares the quartic's discriminant, so the branch is the sign
-        // already decided above rather than a second decision.
-        let z = cubic_largest_real_root(
-            two * p,
-            p.powi(2) - four * s,
-            T::zero() - q_hat.powi(2),
-            disc_sign == Sign::Positive,
-        );
-        match decide(
-            "bool_ray_torus_split_lead",
-            Margin::over_lever(z, ext),
-            band,
-        )? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
-        }
-        let alpha = z.max(T::zero()).sqrt();
-        let half_gap = q_hat / alpha;
-        (
-            (alpha, (p + z - half_gap) / two),
-            (T::zero() - alpha, (p + z + half_gap) / two),
-        )
-    };
+    let (f0, f1) =
+        if decide(rows.odd, Margin::over_lever(q_hat, lever.powi(2)), band)? == Sign::Zero {
+            // `y⁴ + p y² + s`: with `α = 0` the factorization's own
+            // relations collapse to `β + γ = p` and `βγ = s`, so the two
+            // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
+            // `X² − pX + s`. Those are the NEGATIVES of the roots of the
+            // quadratic in `y²`, which is the sign this arm is easy to get
+            // backwards and which no in-band case would have caught.
+            let inner = p.powi(2) - four * s;
+            match decide(rows.split, Margin::over_lever(inner, lever.powi(3)), band)? {
+                Sign::Positive => {}
+                // A repeated `y²`, or none at all with a count that says
+                // otherwise: neither is a certified pair of factors.
+                Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
+            }
+            let root = inner.max(T::zero()).sqrt();
+            ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
+        } else {
+            // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
+            // whose constant term is negative, so its LARGEST real root is
+            // positive — the one root whose square root splits the quartic
+            // over the reals. On four real quartic roots the resolvent has
+            // three and the largest is at least a third of their sum; on two
+            // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
+            // (a ray all but perpendicular to the axis), which is where
+            // `cubic_largest_real_root`'s conditioning has to come from its
+            // own construction rather than from the choice. The resolvent
+            // shares the quartic's discriminant, so the branch is the sign
+            // already decided above rather than a second decision.
+            let z = cubic_largest_real_root(
+                two * p,
+                p.powi(2) - four * s,
+                T::zero() - q_hat.powi(2),
+                disc_sign == Sign::Positive,
+            );
+            match decide(rows.split_lead, Margin::over_lever(z, lever), band)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
+            }
+            let alpha = z.max(T::zero()).sqrt();
+            let half_gap = q_hat / alpha;
+            (
+                (alpha, (p + z - half_gap) / two),
+                (T::zero() - alpha, (p + z + half_gap) / two),
+            )
+        };
     // Each factor `y² + a y + c` contributes its own two roots when its
     // discriminant is definitely positive, none when definitely
     // negative. A ZERO discriminant is a double root, which contradicts
@@ -4117,15 +4195,14 @@ pub(super) fn line_torus_roots<T: Decide>(
     let mut found = 0usize;
     for (a, c) in [f0, f1] {
         let inner = a.powi(2) - four * c;
-        match decide("bool_ray_torus_split", Margin::over_lever(inner, ext), band)? {
+        match decide(rows.split, Margin::over_lever(inner, lever), band)? {
             Sign::Negative => continue,
             Sign::Zero => return Ok(TorusRoots::Uncertain),
             Sign::Positive => {}
         }
         let root = inner.max(T::zero()).sqrt();
         for y in [(T::zero() - a - root) / two, (T::zero() - a + root) / two] {
-            // Undo the depression: `t = y − b`.
-            ts[found] = y - b;
+            ts[found] = y;
             found += 1;
         }
     }
@@ -4141,7 +4218,7 @@ pub(super) fn line_torus_roots<T: Decide>(
     // coefficients, and this is the one place they are made to agree.
     // Its cost is one comparison.
     if found != count {
-        return Err(invalid("bool_ray_torus_count"));
+        return Err(invalid(rows.count));
     }
     Ok(TorusRoots::Certified { count, ts })
 }
