@@ -173,13 +173,34 @@ fn contact_refusals() -> Vec<ContactRefusal> {
 }
 
 fn contain_errors() -> Vec<ContainError> {
-    let mut v: Vec<ContainError> =
-        <crate::boolean::ContainDecision as strum::IntoEnumIterator>::iter()
-            .map(|decision| ContainError::Escalated {
+    use crate::boolean::ContainDecision;
+    use crate::splitting::{Escalation, LoopDecision};
+    let [value, _, poisoned] = diags();
+    let decisions = core::iter::once(None).chain(ContainDecision::ALL.map(Some));
+    // Each ending form: the valued tighten (or the lever alone where the
+    // margin gives none), and the lever with the unreadable-margin note.
+    let mut v: Vec<ContainError> = decisions
+        .flat_map(|decision| {
+            [value, poisoned].map(|diag| ContainError::Escalated {
                 decision,
-                diag: diag(),
+                escalation: Escalation::Margin,
+                diag,
             })
-            .collect();
+        })
+        .collect();
+    // The readings a site knows without a margin: two bounds straddling
+    // the band, and a row decided and still refused.
+    for (decision, escalation) in [
+        (ContainDecision::Loop(LoopDecision::Boundary), Escalation::Straddle),
+        (ContainDecision::Loop(LoopDecision::ArcSpan), Escalation::Straddle),
+        (ContainDecision::ArcEnd, Escalation::Decided),
+    ] {
+        v.push(ContainError::Escalated {
+            decision: Some(decision),
+            escalation,
+            diag: poisoned,
+        });
+    }
     v.extend([
         ContainError::RayExhausted,
         ContainError::Corrupt,
@@ -620,7 +641,15 @@ fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
 /// too: each decision ends its own way.
 fn contain_label(arm: &str, e: &ContainError) -> String {
     match e {
-        ContainError::Escalated { decision, .. } => format!("{arm}/Escalated/{decision:?}"),
+        ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        } => {
+            let margin = format!("{:?}", diag.margin);
+            let kind: String = margin.chars().take_while(|c| c.is_alphanumeric()).collect();
+            format!("{arm}/Escalated/{decision:?}/{escalation:?}/{kind}")
+        }
         _ => label(arm, e),
     }
 }
@@ -1049,7 +1078,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Every `what` the backstop raises, on the pair kind its arm raises
     // it on (`Undecided` is their one source).
-    let carried = <crate::boolean::ContainDecision as strum::IntoEnumIterator>::iter()
+    let carried = crate::splitting::LoopDecision::ALL
         .map(|decision| Undecided::WitnessTooClose(Some(decision)));
     for why in Undecided::iter().chain(carried) {
         let (a, b) = if why.on_faces() {

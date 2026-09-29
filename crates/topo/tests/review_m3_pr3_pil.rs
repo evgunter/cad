@@ -212,6 +212,7 @@ fn the_verdict_is_blind_to_the_normals_sign() {
             Err(PointInLoopError::Escalated {
                 r#loop,
                 decision,
+                escalation,
                 diag,
             }) => {
                 let kind = match diag.margin {
@@ -220,7 +221,7 @@ fn the_verdict_is_blind_to_the_normals_sign() {
                     geom_core::MarginDiag::Invalid => "Invalid",
                 };
                 format!(
-                    "Escalated{loop:?}/{decision:?}/{:?}/{:?}/{kind}",
+                    "Escalated{loop:?}/{decision:?}/{escalation:?}/{:?}/{:?}/{kind}",
                     diag.predicate, diag.band
                 )
             }

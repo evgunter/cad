@@ -2900,10 +2900,12 @@ pub(crate) enum Undecided {
     /// Arm 2: the contained instance has no vertex.
     NoVertex,
     /// Arm 2: the point-in-solid door could not place a vertex near
-    /// the boundary: its planar loop walk escalated on the decision
-    /// carried, or (`None`) the door escalated on a row of its own, which
-    /// its refusal does not name, or every ray grazed.
-    WitnessTooClose(Option<crate::boolean::ContainDecision>),
+    /// the boundary: its planar loop walk refused on the decision
+    /// carried (an escalation, or every ray grazing, a zero on its
+    /// [`LoopDecision::Ray`](crate::splitting::LoopDecision::Ray)), or
+    /// (`None`) the door refused on rows of its own, which it does not
+    /// name.
+    WitnessTooClose(Option<crate::splitting::LoopDecision>),
     /// Arm 2: an instance of (near-)zero signed volume.
     ZeroVolume,
     /// Arm 2: an instance whose closed-form volume is uncertified.
@@ -2913,6 +2915,35 @@ pub(crate) enum Undecided {
     /// Arm 2: an instance whose topology the door could not walk.
     CorruptInstance,
 }
+
+/// [`Undecided::WitnessTooClose`]'s sentence: the lead, and the lever of
+/// the loop walk's decision the refusal carries, or of a refusal naming
+/// none — read from [`crate::boolean::placement_lever`], the one source.
+/// The margin that would value a tighter tolerance stops here: `what` is
+/// a `&'static str`, so each sentence is built once and kept.
+fn witness_too_close(decision: Option<crate::splitting::LoopDecision>) -> &'static str {
+    use crate::splitting::LoopDecision as D;
+    static SENTENCES: std::sync::LazyLock<[String; 4]> = std::sync::LazyLock::new(|| {
+        [None, Some(D::Boundary), Some(D::Ray), Some(D::ArcSpan)].map(|decision| {
+            format!(
+                "{WITNESS_LEAD}Recourse: {}",
+                crate::boolean::placement_lever(decision.map(Into::into))
+            )
+        })
+    });
+    let at = match decision {
+        None => 0,
+        Some(D::Boundary) => 1,
+        Some(D::Ray) => 2,
+        Some(D::ArcSpan) => 3,
+    };
+    &SENTENCES[at]
+}
+
+/// The lead of [`witness_too_close`]: the corner is the point the levers
+/// name.
+const WITNESS_LEAD: &str = "a corner of one, the point the check tests, lies too close to the \
+                            other's boundary to place at this tolerance. ";
 
 impl Undecided {
     /// Whether arm 1 raises it, on a face pair; arm 2 raises the rest,
@@ -3032,33 +3063,7 @@ impl Undecided {
                  yet for this shape; if they are not meant to meet, move them until their \
                  bounding boxes no longer overlap"
             }
-            Self::WitnessTooClose(None) => {
-                "a corner of one lies too close to the other's boundary to place at this \
-                 tolerance. Recourse: move the parts until their bounding boxes no longer \
-                 overlap"
-            }
-            // The decision's lever alone: `what` is a `&'static str`, so
-            // the margin that would value a tighter tolerance stops here.
-            Self::WitnessTooClose(Some(decision)) => {
-                use crate::boolean::{ContainDecision as D, contain_lever};
-                macro_rules! witness {
-                    ($lever:ident) => {
-                        concat!(
-                            "a corner of one lies too close to the other's boundary to place at \
-                             this tolerance. Recourse: ",
-                            contain_lever!($lever)
-                        )
-                    };
-                }
-                match decision {
-                    D::Boundary => witness!(Boundary),
-                    D::ArcSpan => witness!(ArcSpan),
-                    D::OneCircle => witness!(OneCircle),
-                    D::Carrier => witness!(Carrier),
-                    D::WindowPeriod => witness!(WindowPeriod),
-                    D::Ray | D::ArcEnd | D::SolidDoor => witness!(OffBoundary),
-                }
-            }
+            Self::WitnessTooClose(decision) => witness_too_close(decision),
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \
                  so it encloses a volume"
@@ -3085,16 +3090,11 @@ impl Undecided {
     /// undecided. Exhaustive, so a new refusal is placed here by hand.
     pub(crate) fn of_point_in_solid(e: &crate::boolean::PointInSolidError) -> Self {
         use crate::boolean::PointInSolidError as E;
+        use crate::splitting::{LoopDecision, PointInLoopError as L};
         match e {
-            E::Loop(crate::splitting::PointInLoopError::Escalated { decision, .. }) => {
-                Self::WitnessTooClose(Some(*decision))
-            }
-            E::Escalated { .. }
-            | E::RayExhausted
-            | E::Loop(
-                crate::splitting::PointInLoopError::RayExhausted { .. }
-                | crate::splitting::PointInLoopError::CorruptLoop { .. },
-            ) => Self::WitnessTooClose(None),
+            E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
+            E::Loop(L::RayExhausted { .. }) => Self::WitnessTooClose(Some(LoopDecision::Ray)),
+            E::Escalated { .. } | E::RayExhausted => Self::WitnessTooClose(None),
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
             E::KindUnsupported { .. }
@@ -3103,9 +3103,10 @@ impl Undecided {
             | E::PartialTorusFace { .. }
             | E::EdgeCarrierUnsupported { .. }
             | E::WallOutlineUnsupported { .. } => Self::FaceKindUnsupported,
-            E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::SurfaceSharedOutsideSolid { .. } => {
-                Self::CorruptInstance
-            }
+            E::CorruptFace { .. }
+            | E::Loop(L::CorruptLoop { .. })
+            | E::NoSuchSolid { .. }
+            | E::SurfaceSharedOutsideSolid { .. } => Self::CorruptInstance,
         }
     }
 }
@@ -5779,61 +5780,75 @@ mod tests {
     /// A witness the loop walk could not place carries the walk's
     /// decision into the reason, and ends in that decision's lever alone:
     /// `what` is a `&'static str`, so the margin that would value a
-    /// tighter tolerance does not reach it. The door's own escalation and
-    /// an exhausted schedule carry no decision and keep the pair's lever.
+    /// tighter tolerance does not reach it. Each tail is the lever the
+    /// refusal's own ending names on an arm that gives no value (a
+    /// straddle), read at rest — one source for both. The door's own
+    /// refusals name no decision and end in the unnamed lever; an
+    /// unwalkable loop is a damaged instance.
     #[test]
     fn a_witness_too_close_ends_in_its_decisions_lever() {
-        use crate::boolean::{ContainDecision, PointInSolidError as E};
-        use crate::splitting::PointInLoopError as L;
+        use crate::boolean::{ContainDecision, ContainError, PointInSolidError as E};
+        use crate::splitting::{Escalation, LoopDecision, PointInLoopError as L};
+        use geom_brep::recourse::Reading;
         use geom_core::{Indeterminate, MarginDiag};
         let diag = Indeterminate {
             margin: MarginDiag::Value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("a_margin"),
         };
-        let lead = "a corner of one lies too close to the other's boundary to place at this \
-                    tolerance. ";
-        let walk = |decision| {
-            E::Loop(L::Escalated {
-                r#loop: LoopKey::default(),
-                decision,
-                diag,
-            })
-        };
-        let rows = [
-            (
-                "boundary",
-                walk(ContainDecision::Boundary),
-                "Recourse: move the point exactly onto the boundary or clearly off it",
-            ),
-            (
-                "ray",
-                walk(ContainDecision::Ray),
-                "Recourse: move the geometry clear of the boundary",
-            ),
-            (
-                "arc span",
-                walk(ContainDecision::ArcSpan),
-                "Recourse: make this arc clearly shorter than a full turn",
-            ),
-            (
-                "the door's own escalation",
-                E::Escalated {
-                    face: FaceKey::default(),
+        let unnamed = ContainError::Escalated {
+            decision: None,
+            escalation: Escalation::Straddle,
+            diag,
+        }
+        .ending(Reading::AtRest);
+        let mut rows: Vec<(String, E, String)> = LoopDecision::ALL
+            .into_iter()
+            .map(|decision| {
+                let lever = ContainError::Escalated {
+                    decision: Some(ContainDecision::Loop(decision)),
+                    escalation: Escalation::Straddle,
                     diag,
-                },
-                "Recourse: move the parts until their bounding boxes no longer overlap",
-            ),
-            (
-                "an exhausted schedule",
-                E::RayExhausted,
-                "Recourse: move the parts until their bounding boxes no longer overlap",
-            ),
-        ];
+                }
+                .ending(Reading::AtRest);
+                (
+                    format!("{decision:?}"),
+                    E::Loop(L::Escalated {
+                        r#loop: LoopKey::default(),
+                        decision,
+                        escalation: Escalation::Margin,
+                        diag,
+                    }),
+                    lever,
+                )
+            })
+            .collect();
+        rows.push((
+            "the walk's exhausted schedule".to_owned(),
+            E::Loop(L::RayExhausted {
+                r#loop: LoopKey::default(),
+            }),
+            ContainError::RayExhausted.ending(Reading::AtRest),
+        ));
+        rows.push((
+            "the door's own escalation".to_owned(),
+            E::Escalated {
+                face: FaceKey::default(),
+                diag,
+            },
+            unnamed.clone(),
+        ));
+        rows.push(("the door's exhausted schedule".to_owned(), E::RayExhausted, unnamed));
         for (row, refusal, ending) in rows {
             let what = Undecided::of_point_in_solid(&refusal).what();
-            assert_eq!(what, format!("{lead}{ending}"), "{row}");
+            assert_eq!(what, format!("{WITNESS_LEAD}{ending}"), "{row}");
         }
+        assert_eq!(
+            Undecided::of_point_in_solid(&E::Loop(L::CorruptLoop {
+                r#loop: LoopKey::default()
+            })),
+            Undecided::CorruptInstance
+        );
     }
 
     /// **The backstop writes no sentence of its own**: every `what` it

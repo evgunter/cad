@@ -114,9 +114,9 @@ use crate::revert::RevertError;
 use crate::validate::ValidationError;
 
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
-pub(crate) use contain::contain_lever;
 pub use contain::{
     ContainDecision, ContainError, FaceContainment, contfp, curved_face_containment,
+    placement_lever,
 };
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop

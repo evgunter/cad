@@ -2665,7 +2665,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
 
 /// A containment refusal ends as its decision gives it at rest
 /// (`ContainError::ending`).
-fn classify_contain(e: &ContainError) -> (&'static str, Cow<'static, str>) {
+fn classify_contain(e: &ContainError) -> (&'static str, String) {
     let why = match e {
         ContainError::Escalated { .. } | ContainError::RayExhausted => {
             "a point of it lies too close to a boundary to place at this tolerance"
@@ -2676,7 +2676,7 @@ fn classify_contain(e: &ContainError) -> (&'static str, Cow<'static, str>) {
              which the check cannot yet read across"
         }
     };
-    (why, e.ending(Reading::AtRest).into())
+    (why, e.ending(Reading::AtRest))
 }
 
 fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
@@ -2761,7 +2761,10 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (&'static str, Cow<'
     let (why, recourse) = match cause {
         CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
         CensusUnsupportedCause::ContactLane(e) => classify_contact_lane(e),
-        CensusUnsupportedCause::Containment(e) => return classify_contain(e),
+        CensusUnsupportedCause::Containment(e) => {
+            let (why, recourse) = classify_contain(e);
+            return (why, recourse.into());
+        }
         CensusUnsupportedCause::FaceUnboundable => (
             "a face has no corner to bound it by (an empty or broken outer loop)",
             DEFECT,

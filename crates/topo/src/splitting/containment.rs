@@ -1873,7 +1873,11 @@ mod tests {
         };
         let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), WALK_ROWS.conic, band);
         assert!(
-            matches!(&got, Err(d) if d.predicate == Some("point_in_arc_loop_conic_straddle")),
+            matches!(
+                &got,
+                Err((Escalation::Straddle, d))
+                    if d.predicate == Some("point_in_arc_loop_conic_straddle")
+            ),
             "{got:?}"
         );
     }

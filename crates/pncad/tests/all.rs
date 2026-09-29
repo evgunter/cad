@@ -219,8 +219,17 @@ fn step_import_payload(e: &StepImportError) {
 // it is reachable only by module path, exactly the shape that made
 // the original leak invisible.
 fn contain_payload(e: &pncad::topo::boolean::ContainError) {
-    if let pncad::topo::boolean::ContainError::Escalated { decision, diag } = e {
-        named::<&pncad::topo::boolean::ContainDecision>(decision);
+    if let pncad::topo::boolean::ContainError::Escalated {
+        decision,
+        escalation,
+        diag,
+    } = e
+    {
+        if let Some(pncad::topo::boolean::ContainDecision::Loop(inner)) = decision {
+            named::<&pncad::topo::LoopDecision>(inner);
+        }
+        named::<&Option<pncad::topo::boolean::ContainDecision>>(decision);
+        named::<&pncad::topo::Escalation>(escalation);
         named::<&pncad::geom_core::Indeterminate>(diag);
     }
 }

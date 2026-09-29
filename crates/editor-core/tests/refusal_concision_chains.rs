@@ -3316,30 +3316,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 r#loop: topo::LoopKey::default(),
             }),
         ),
-        (
-            "Loop(Escalated/Boundary)",
-            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                r#loop: topo::LoopKey::default(),
-                decision: topo::ContainDecision::Boundary,
-                diag: diag(),
-            }),
-        ),
-        (
-            "Loop(Escalated/Ray)",
-            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                r#loop: topo::LoopKey::default(),
-                decision: topo::ContainDecision::Ray,
-                diag: diag(),
-            }),
-        ),
-        (
-            "Loop(Escalated/ArcSpan)",
-            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                r#loop: topo::LoopKey::default(),
-                decision: topo::ContainDecision::ArcSpan,
-                diag: diag(),
-            }),
-        ),
         ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
         ("CorruptFace", PointInSolidError::CorruptFace { face }),
         (
@@ -3381,6 +3357,29 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::SurfaceSharedOutsideSolid { face, other: face },
         ),
     ];
+    // The loop walk's escalation, once per decision: its valued ending
+    // and its lever with the unreadable-margin note.
+    let poisoned = geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::Invalid,
+        ..diag()
+    };
+    let walk = topo::LoopDecision::ALL.into_iter().flat_map(|decision| {
+        [("Value", diag()), ("Invalid", poisoned)].map(|(kind, diag)| {
+            (
+                format!("Loop(Escalated/{decision:?}/{kind})"),
+                PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                    r#loop: topo::LoopKey::default(),
+                    decision,
+                    escalation: topo::Escalation::Margin,
+                    diag,
+                }),
+            )
+        })
+    });
+    let separation_reasons = separation_reasons
+        .into_iter()
+        .map(|(n, e)| (n.to_owned(), e))
+        .chain(walk);
     for (n, e) in separation_reasons {
         let source = BooleanError::Containment(e);
         rows.push((
