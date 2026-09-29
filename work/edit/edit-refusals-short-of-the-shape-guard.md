@@ -2,7 +2,8 @@
 id: edit-refusals-short-of-the-shape-guard
 kind: issue
 title: edit: refusals the viewer draws that state no recourse, by the shape guard's census
-status: spec
+status: review
+pr: 3490
 branch: edit/edit-refusal-recourse
 opened: 2026-09-29
 priority: P2
@@ -103,3 +104,19 @@ record it.
 
 **When done:** the feature-tree half and the placement arms remain on
 this row, so it stays open, and the unit sets the `## Built` section.
+
+## Built (2026-09-29, PR 3490) — the status-line half
+
+- **56 `EditError` arms now state a recourse.** Each was read against its raise site first. 54 are labelled `Recourse:`. The two count arms (`DocParamCountHasNoUnit`, `DocParamCountHasNoDistribution`) end "There is no way through", because no edit gives a count a unit or a distribution.
+- **Forwarded faults keep their own sentence.** Where the fault is shared with the load door (`RootFault`, `DistributionFault`, `SlotDimensionFault`, `MeasureNodeFault`, `DimensionError`, `MetaVersionError`), the recourse sits in the `EditError` wrapper. `Roots` and `InvalidDistribution` match on the fault.
+- **Their 56 `FILED_NO_RECOURSE` entries are gone.** The roster gained five rows that render `Roots` and `InvalidDistribution` over their other fault arms.
+- **The three flip reports in `resolve/mod.rs`** say the decision in words (`FlipSubject`, over `names::discriminate::decision_words`) and leave the predicate's name to `Debug`.
+
+**What remains on this row:**
+- The eight feature-tree rows (`refusal_concision_chains.rs`), which wait for #3482.
+- The seven placement arms held for `placement-is-spelled-three-ways-node-registry-and-rule`: `MaintenanceUnrecorded`, `ImproperPlacement`, `NonFinitePlacement`, `PlacementOnNonInstance`, `PlacementAxis`, `PlacementRuleMismatch`, `EmptyPlacementList`.
+
+**Corrections to this row:**
+- Its status-line count was 65. The file held 63 under this row's comment, because the bare `MaintenanceRefused` and `MateRefused` sit under MSOLVE's comment.
+- The roster misses three `EditError` arms. They are filed as `edit-refusal-roster-renders-no-program-or-step-id-arm`.
+- The viewer's own `Refusal` arms are held to no shape guard. That gap is filed on CHROME as `viewer-own-refusals-are-held-to-no-shape-guard`.
