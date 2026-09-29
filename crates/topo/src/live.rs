@@ -152,7 +152,7 @@ mod tests {
     use crate::body::Body;
     use crate::entity::{EdgeKey, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
     use crate::fixtures::pillow;
-    use crate::source_walk::{CodeOnly, crate_sources, src_root};
+    use crate::source_walk::{CodeOnly, crate_sources, src_root, tokens};
     use geom_core::Tol;
     use test_utils::source::{ItemBody, balanced_end, item_body};
 
@@ -250,21 +250,6 @@ mod tests {
     /// The 1-based line of byte `at` in `src`.
     fn line_of(src: &str, at: usize) -> usize {
         src[..at].bytes().filter(|c| *c == b'\n').count() + 1
-    }
-
-    /// Every offset where `needle` stands in `text` as a whole token:
-    /// `Live` in `-> Option<Live>`, and not the tail of some `NotLive`;
-    /// `Live::new`, and not the head of some `Live::newer`.
-    fn tokens<'a>(text: &'a str, needle: &'a str) -> impl Iterator<Item = usize> + 'a {
-        let identish = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
-        let b = text.as_bytes();
-        let open_ended = !needle.ends_with(|c: char| c.is_alphanumeric() || c == '_');
-        text.match_indices(needle)
-            .map(|(at, _)| at)
-            .filter(move |&at| {
-                (at == 0 || !identish(b[at - 1]))
-                    && (open_ended || b.get(at + needle.len()).is_none_or(|c| !identish(*c)))
-            })
     }
 
     /// Whether `text` names `name` as a whole token.
