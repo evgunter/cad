@@ -3002,7 +3002,7 @@ mod recourse_tests {
             floor: 0.0,
             speed_lever: 1.0,
             verdict: Refused::Zero(Classified {
-                margin: 0.0,
+                margin: geom_core::MarginDiag::value(0.0),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
             }),
         };

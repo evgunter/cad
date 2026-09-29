@@ -390,7 +390,13 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     match err {
         sweep::blend::BlendError::RingClearance { margin, .. } => {
             assert_eq!(margin.predicate, "fillet3_ring_clearance");
-            assert!(margin.value().is_some_and(|m| (m - -0.05).abs() < 1e-15));
+            assert!(
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| (m - -0.05).abs() < 1e-15)
+            );
         }
         other => panic!("expected RingClearance, got {other}"),
     }

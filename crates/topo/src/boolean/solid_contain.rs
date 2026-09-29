@@ -1152,9 +1152,10 @@ pub(super) fn wall_outline<T: Decide>(
     }
     if !narrower_than_period(face, az.1 - az.0, radius, band)? {
         return Err(escalate(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("bool_wall_trim_period"),
+            terminal_sliver: false,
         }));
     }
     let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
@@ -1612,9 +1613,10 @@ fn cone_nappe<T: Decide>(face: FaceKey, v: (T, T), band: Band) -> Result<bool, P
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
     let invalid = |predicate| {
         escalate(geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
+            terminal_sliver: false,
         })
     };
     match decide(
@@ -2294,9 +2296,10 @@ fn point_on_chart_wall<T: Decide>(
     let invalid = |predicate| PointInSolidError::Escalated {
         face,
         diag: Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
+            terminal_sliver: false,
         },
     };
     let r_hat = radial / radial.norm();
@@ -2529,9 +2532,10 @@ fn chart_azimuth_margin<T: Decide>(
         return Err(PointInSolidError::Escalated {
             face,
             diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_wall_trim_period"),
+                terminal_sliver: false,
             },
         });
     }
@@ -3017,9 +3021,10 @@ fn latitude_extremes<T: Decide>(
 ) -> Result<Option<(Option<(T, T)>, Option<(T, T)>)>, Indeterminate> {
     let mut it = levels.iter().copied();
     let first = it.next().ok_or(Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
+        margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some("bool_sphere_trim_latitude"),
+        terminal_sliver: false,
     })?;
     let (mut lo, mut hi) = (first, first);
     for e in it {
@@ -4103,9 +4108,10 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let invalid = |predicate| Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
+        margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     };
     let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
         + T::from_f64(144.0) * p * q_hat.powi(2) * s

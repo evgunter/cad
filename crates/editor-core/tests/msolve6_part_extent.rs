@@ -290,7 +290,7 @@ enum Verdict {
 /// strictness moves this expectation with the solve rather than
 /// leaving the row testing a copied rule.
 fn verdict(band: Band, theta: f64, arm: f64) -> Verdict {
-    match (theta * arm).sign_within(band) {
+    match (theta * arm).sign_within(band).map(|d| d.sign) {
         Ok(Sign::Zero) => Verdict::Parallel,
         Ok(Sign::Positive | Sign::Negative) => Verdict::Refused,
         Err(_) => Verdict::Indeterminate,

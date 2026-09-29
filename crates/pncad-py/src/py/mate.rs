@@ -730,7 +730,7 @@ impl MateFault {
 
     /// The in-band margin the classifier saw, when it saw a value.
     ///
-    /// Reading it is not branching on it: what the escalation
+    /// For error text only, not a decision input: what the escalation
     /// contract forbids is recovering the margin to make the sign
     /// decision the classifier refused.
     #[getter]
@@ -739,13 +739,14 @@ impl MateFault {
     }
 
     /// The classified enclosure's lower bound, where the classifier
-    /// saw an enclosure rather than a value.
+    /// saw an enclosure rather than a value. For error text only, not
+    /// a decision input.
     #[getter]
     fn margin_low(&self) -> Option<Length> {
         self.payload().margin_low.map(length)
     }
 
-    /// Its upper bound.
+    /// Its upper bound. For error text only, not a decision input.
     #[getter]
     fn margin_high(&self) -> Option<Length> {
         self.payload().margin_high.map(length)

@@ -72,3 +72,10 @@ graft (`boolean/combine.rs`, copies origins verbatim) and `revert.rs`,
 are unchecked; (2) the merge door's declared rung and `chart_region`
 still trust the stamp in a build without debug assertions. Whether the
 stamp door should REFUSE typed instead is Ev's question on PR 3410.
+
+## After PR 3410's ruling (2026-09-29)
+
+No production comparator, so the stamp door stays an assertion (in
+every build this repo makes; a consumer's default release strips it),
+not a typed refusal. What remains open is only the unchecked writers
+(the graft and `revert.rs`) and the merge door's release-mode trust.

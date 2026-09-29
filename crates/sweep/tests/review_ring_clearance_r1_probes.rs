@@ -85,7 +85,11 @@ fn refusal(err: BlendError) -> (&'static str, Sign, f64) {
         | BlendError::FaceClearanceUncertified { margin, .. } => margin,
         other => panic!("expected a clearance refusal, got {other:?}"),
     };
-    let v = margin.value().expect("a definite reading");
+    let v = margin
+        .reading
+        .diagnostic_f64_for_error_text()
+        .value()
+        .expect("a definite reading");
     (margin.predicate, margin.sign, v)
 }
 

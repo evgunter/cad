@@ -209,7 +209,7 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, Sign::Zero);
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a smooth split has an exactly-zero wedge"
             );
@@ -370,7 +370,7 @@ fn trio_hostless_annulus_ring_containment() {
         matches!(&definite, BlendError::RingClearance { margin, .. }
             if margin.predicate == "fillet3_ring_clearance"
                 && margin.sign == Sign::Negative
-                && margin.value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
+                && margin.reading.diagnostic_f64_for_error_text().value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
         "the definite arm classifies at the exact containment margin: {definite}"
     );
     // Exactly on: the bore reaches the trim circle - a refusal, not a
@@ -420,7 +420,7 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
         matches!(&definite, BlendError::FaceClearanceUncertified { margin, .. }
             if margin.sign == Sign::Negative
                 && margin
-                    .value()
+                    .reading.diagnostic_f64_for_error_text().value()
                     .is_some_and(|m| m.to_bits() == ((1.0 - 0.1) - 0.92f64).to_bits())),
         "the screen answers first, at the derived containment double: {definite}"
     );
@@ -502,7 +502,10 @@ fn trio_convexity_sign() {
     assert_eq!(m.predicate, "fillet3_convexity_sign");
     assert_eq!(m.sign, Sign::Positive);
     assert!(
-        m.value().is_some_and(|v| (v - 1.0).abs() < 1e-12),
+        m.reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .is_some_and(|v| (v - 1.0).abs() < 1e-12),
         "the 90° box edge margin is the arm"
     );
     let (concave, _) = convexity_at(

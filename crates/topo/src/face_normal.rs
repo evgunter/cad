@@ -191,6 +191,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             != Sign::Positive
             || geom::ring_torus(*major_radius, *minor_radius, band)
                 .map_err(NormalAtError::Escalated)?
+                .sign
                 != Sign::Positive =>
         {
             Ok(None)

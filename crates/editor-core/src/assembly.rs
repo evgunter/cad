@@ -1693,9 +1693,10 @@ mod attribution {
 
     fn escalation() -> geom_core::Indeterminate {
         geom_core::Indeterminate {
-            margin: MarginDiag::Value(0.0),
+            margin: MarginDiag::value(0.0),
             band: Band::linear(Tol::witness()).expect("the ambient tolerance builds a band"),
             predicate: None,
+            terminal_sliver: false,
         }
     }
 

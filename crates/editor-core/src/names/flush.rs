@@ -92,7 +92,7 @@
 //! # Documented residuals
 //!
 //! - The verifier encodes its definite-zero coincidence verdict and a
-//!   NaN-poisoned margin with the same `MarginDiag::Invalid`
+//!   NaN-poisoned margin with the same `MarginKind::Invalid`
 //!   diagnostic; the detector takes the verifier's encoding as-is
 //!   (anti-twin: it interprets nothing the verifier doesn't), so a
 //!   NaN-poisoned pair — geometry that is broken well before

@@ -388,7 +388,7 @@ pub(super) struct Form {
     /// cannot be satisfied through it.
     ///
     /// This is the form-side half of clause 1. The value-side half
-    /// (`MarginDiag::Invalid` from the numeric channel) catches a
+    /// (`MarginKind::Invalid` from the numeric channel) catches a
     /// domain violation the SCALAR can see — an uncertified interval,
     /// a NaN. It cannot see this one: at `f64` the whole expression
     /// evaluates to a finite `0.0`, because `1/0` is `+inf`,

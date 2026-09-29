@@ -8,7 +8,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use geom_core::{MarginDiag, Tol};
+use geom_core::{ErrorTextReading, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -135,8 +135,14 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
         match fillet_edges(&body, &edges, r, Tol::witness()).map_err(|r| r.error) {
             Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
                 assert_eq!(margin.predicate, "fillet3_face_clearance");
-                assert!(margin.value().is_some_and(|m| m < 0.0));
-                let MarginDiag::Value(gap) = gap else {
+                assert!(
+                    margin
+                        .reading
+                        .diagnostic_f64_for_error_text()
+                        .value()
+                        .is_some_and(|m| m < 0.0)
+                );
+                let ErrorTextReading::Value(gap) = gap.diagnostic_f64_for_error_text() else {
                     panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
                 };
                 assert!(

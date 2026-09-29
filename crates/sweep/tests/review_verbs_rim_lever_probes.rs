@@ -389,7 +389,10 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
         );
         match fillet_edges(&ball, &[seam], r * 0.05, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
-                (margin.predicate, margin.value()),
+                (
+                    margin.predicate,
+                    margin.reading.diagnostic_f64_for_error_text().value()
+                ),
                 ("fillet3_convexity_sign", Some(0.0)),
                 "a co-surface seam's dihedral sine is structurally zero (r={r})"
             ),

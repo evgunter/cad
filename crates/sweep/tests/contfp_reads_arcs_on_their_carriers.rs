@@ -394,7 +394,7 @@ fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
     for e in &errors {
         if let ValidationError::CensusEscalated { cause } = e {
             assert!(
-                !matches!(cause.margin, geom_core::MarginDiag::Invalid),
+                !cause.margin.is_invalid(),
                 "a census escalation over a margin nothing metred: {e:?}"
             );
         }
