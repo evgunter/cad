@@ -176,18 +176,31 @@ fn contain_errors() -> Vec<ContainError> {
     use crate::boolean::ContainDecision;
     use crate::splitting::{Escalation, LoopDecision};
     let [value, _, poisoned] = diags();
-    let decisions = core::iter::once(None).chain(ContainDecision::ALL.map(Some));
-    // Each ending form: the valued tighten (or the lever alone where the
-    // margin gives none), and the lever with the unreadable-margin note.
-    let mut v: Vec<ContainError> = decisions
+    let over_wound = Indeterminate {
+        margin: MarginDiag::Value(-5e-9),
+        ..value
+    };
+    // Each ending form a site can raise: the valued tighten (or the lever
+    // alone where the margin gives none), and the lever with the
+    // unreadable-margin note. The span rule escalates only on an
+    // over-wound margin or a straddle, never on a poisoned one.
+    let arc_span = Some(ContainDecision::Loop(LoopDecision::ArcSpan));
+    let mut v: Vec<ContainError> = core::iter::once(None)
+        .chain(ContainDecision::ALL.map(Some))
         .flat_map(|decision| {
-            [value, poisoned].map(|diag| ContainError::Escalated {
+            let margins = if decision == arc_span {
+                [over_wound, over_wound]
+            } else {
+                [value, poisoned]
+            };
+            margins.map(|diag| ContainError::Escalated {
                 decision,
                 escalation: Escalation::Margin,
                 diag,
             })
         })
         .collect();
+    v.dedup();
     // The readings a site knows without a margin: two bounds straddling
     // the band, and a row decided and still refused.
     for (decision, escalation) in [

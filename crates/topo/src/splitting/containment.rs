@@ -161,9 +161,7 @@ impl LoopDecision {
     pub const fn lever(self) -> &'static str {
         match self {
             Self::Boundary => "move the point exactly onto the boundary or clearly off it",
-            Self::Ray => {
-                "move the point slightly, so that no corner of the boundary lines up with it"
-            }
+            Self::Ray => "nudge the point so no boundary corner lines up with it",
             Self::ArcSpan => "move the geometry so this arc stays clearly short of a full turn",
         }
     }
@@ -268,7 +266,7 @@ impl core::fmt::Display for PointInLoopError {
                 ..
             } => write!(
                 f,
-                "whether a point lies in a loop is too close to call: {}. {}",
+                "cannot place a point in a loop: {}. {}",
                 diag.payload(),
                 decision.ending(*escalation, diag, Reading::Build)
             ),

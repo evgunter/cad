@@ -57,7 +57,7 @@ pub enum ContainDecision {
     /// both vertices. Its margin is the end's offset from its vertex, not
     /// the point's distance, so no tolerance it gives places the point.
     ArcEnd,
-    /// Whether a loop's arcs are arcs of one circle: the gap between the
+    /// Whether a loop's arcs are arcs of one circle: the gap between
     /// circles, folding centres, radii and axes. One circle and clearly
     /// different circles are both read.
     OneCircle,
@@ -90,7 +90,7 @@ pub const fn placement_lever(decision: Option<ContainDecision>) -> &'static str 
         Some(ContainDecision::Loop(d)) => d.lever(),
         Some(ContainDecision::ArcEnd) => "move the point clear of the arc's end",
         Some(ContainDecision::OneCircle) => {
-            "move the geometry so the loop's arcs lie on one circle or on clearly different circles"
+            "put the loop's arcs on one circle or on clearly different ones"
         }
         Some(ContainDecision::Carrier) => {
             "move the point exactly onto the face's surface or clearly off it"
@@ -133,7 +133,7 @@ impl ContainDecision {
             }
             .recourse(arm),
             Self::OneCircle => {
-                sized("gap between the circles", SizedPass::Definite).recourse(arm, reading)
+                sized("gap between circles", SizedPass::Definite).recourse(arm, reading)
             }
             Self::Carrier => sized("distance", SizedPass::Definite).recourse(arm, reading),
             Self::WindowPeriod => sized("sweep", SizedPass::Positive).recourse(arm, reading),
@@ -1296,8 +1296,7 @@ mod tests {
             "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
         const BOUNDARY: &str =
             "Recourse: move the point exactly onto the boundary or clearly off it";
-        const RAY: &str =
-            "Recourse: move the point slightly, so that no corner of the boundary lines up with it";
+        const RAY: &str = "Recourse: nudge the point so no boundary corner lines up with it";
         const ARC: &str = "Recourse: move the geometry so this arc stays clearly short of a full \
                            turn";
         const END: &str = "Recourse: move the point clear of the arc's end";
@@ -1366,9 +1365,8 @@ mod tests {
                 Margin,
                 above,
                 tighten(
-                    "Recourse: move the geometry so the loop's arcs lie on one circle or on \
-                     clearly different circles",
-                    "gap between the circles",
+                    "Recourse: put the loop's arcs on one circle or on clearly different ones",
+                    "gap between circles",
                 ),
             ),
             (
@@ -1459,8 +1457,8 @@ mod tests {
             (
                 ContainError::RayExhausted,
                 "contfp: every direction of the parity schedule grazed the face's boundary, so \
-                 no ray read a definite crossing count at this tolerance. Recourse: move the \
-                 point slightly, so that no corner of the boundary lines up with it"
+                 no ray read a definite crossing count at this tolerance. Recourse: nudge the \
+                 point so no boundary corner lines up with it"
                     .to_owned(),
             ),
             (

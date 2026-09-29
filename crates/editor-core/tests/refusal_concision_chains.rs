@@ -3357,24 +3357,33 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::SurfaceSharedOutsideSolid { face, other: face },
         ),
     ];
-    // The loop walk's escalation, once per decision: its valued ending
-    // and its lever with the unreadable-margin note.
-    let poisoned = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
-        ..diag()
-    };
-    let walk = topo::LoopDecision::ALL.into_iter().flat_map(|decision| {
-        [("Value", diag()), ("Invalid", poisoned)].map(|(kind, diag)| {
-            (
-                format!("Loop(Escalated/{decision:?}/{kind})"),
-                PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                    r#loop: topo::LoopKey::default(),
-                    decision,
-                    escalation: topo::Escalation::Margin,
-                    diag,
-                }),
-            )
-        })
+    // The loop walk's escalation, in every form a site of it raises: the
+    // boundary's valued tighten, its lever with the unreadable-margin note
+    // and its straddle; the ray's lever, with the note on a poisoned
+    // margin; the span's over-wound margin and straddle.
+    let with = |margin| geom_core::Indeterminate { margin, ..diag() };
+    let poisoned = with(geom_core::MarginDiag::Invalid);
+    let over_wound = with(geom_core::MarginDiag::Value(-3.0e-10));
+    let (margin, straddle) = (topo::Escalation::Margin, topo::Escalation::Straddle);
+    let walk = [
+        (topo::LoopDecision::Boundary, margin, diag(), "Value"),
+        (topo::LoopDecision::Boundary, margin, poisoned, "Invalid"),
+        (topo::LoopDecision::Boundary, straddle, poisoned, "Straddle"),
+        (topo::LoopDecision::Ray, margin, diag(), "Value"),
+        (topo::LoopDecision::Ray, margin, poisoned, "Invalid"),
+        (topo::LoopDecision::ArcSpan, margin, over_wound, "OverWound"),
+        (topo::LoopDecision::ArcSpan, straddle, poisoned, "Straddle"),
+    ]
+    .map(|(decision, escalation, diag, kind)| {
+        (
+            format!("Loop(Escalated/{decision:?}/{kind})"),
+            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                r#loop: topo::LoopKey::default(),
+                decision,
+                escalation,
+                diag,
+            }),
+        )
     });
     let separation_reasons = separation_reasons
         .into_iter()
