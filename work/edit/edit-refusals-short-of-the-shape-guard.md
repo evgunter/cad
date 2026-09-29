@@ -2,8 +2,8 @@
 id: edit-refusals-short-of-the-shape-guard
 kind: issue
 title: edit: refusals the viewer draws that state no recourse, by the shape guard's census
-status: spec
-pr: 3490
+status: open
+pr: 3492
 branch: edit/part-refusal-recourse
 opened: 2026-09-29
 priority: P2
@@ -149,3 +149,14 @@ this row, so it stays open, and the unit sets the `## Built` section.
 - Real-text `Part/Unresolved` rows are built through a real `Workspace` / `DirResolver`.
 - The three new status-line rows exist.
 - One planted mutant per class reds.
+
+## Built (2026-09-29, PR 3492) — the feature-tree half
+
+- **Every `PartFault` arm a resolution raises states a recourse, or says there is no way through.** `NoResolver` says to give the evaluation a resolver over the part's store. The viewer honours this by saving the document beside its parts, and `instance_authoring.rs` follows it. `EpsilonSeam` says to author the part again at this process's tolerance. `DepthExceeded` says to flatten the nesting. `ReferenceCycle` ends in the kernel-defect ending, because a store that checks pins cannot hold a loop.
+- **The resolver states what its store knows.** `Workspace`'s `PartResolver` impl carries `WorkspaceError::sentence()`, which has no stage word, plus a recourse for the arms a resolution meets (`resolve_recourse`). `PinMismatch` states its own recourse, labelled.
+- **The split's recourse moved.** "Give the split a resolver" now lives in the split's own resolver (`WithPart`). `ReplayTail` forwards a mate refusal whole, so no recourse is stated twice.
+- **The chains roster's six `Part` entries are gone.** `Part/Unresolved(*)` is rendered from real text in `crates/viewer/tests/instance_authoring.rs` (`every_unresolved_part_badge_meets_the_refusal_standard`).
+
+**What remains on this row:** the seven placement arms held for `placement-is-spelled-three-ways-node-registry-and-rule`.
+
+**Filed:** `part-refusal-over-a-store-that-will-not-scan-or-load-states-no-recourse`. It covers the scan and load arms of a real store that no row renders.

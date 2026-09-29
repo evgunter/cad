@@ -2,7 +2,8 @@
 id: part-unresolved-refusal-draws-the-workspaces-stage-prefix
 kind: issue
 title: editor-core: a part whose reference does not resolve through a Workspace draws the store's own 'workspace:' stage prefix inside PartFault::Unresolved, which the concision roster's made-up messages hide
-status: spec
+status: review
+pr: 3492
 rides_with: edit-refusals-short-of-the-shape-guard
 branch: edit/part-refusal-recourse
 opened: 2026-09-29
@@ -48,3 +49,7 @@ the precedent. `ResolveFailure` and `WorkspaceError` are `pncad`'s
 ## Ruled (2026-09-29, EDIT orchestrator) — rides with `edit-refusals-short-of-the-shape-guard`
 
 One unit with the feature-tree half; the spec is in that row.
+
+## Built (2026-09-29, PR 3492)
+
+`WorkspaceError::sentence()` and `PersistError::sentence()` render without the stage word, following the `ProductError::sentence` shape. Both shipped resolvers carry the sentence: `Workspace`'s, and the viewer's `DirResolver`. The rows are real text through `DirResolver` (`crates/viewer/tests/instance_authoring.rs`). The details are in the carrier's `## Built`.
