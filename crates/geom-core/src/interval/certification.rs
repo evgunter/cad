@@ -29,6 +29,15 @@
 //! value typed `Interval` in an importing file has no `sqrt` and no
 //! `is_poison` to call.
 //!
+//! **When rustc suggests `use geom_core::Real`.** Its help for `sqrt`
+//! or `is_poison` on an `Interval` here (E0599) is the one import the
+//! gate forbids in an importing file. Write instead:
+//! [`Certification::mag`], [`Certification::width`] or
+//! [`Certification::sqr`] for a certification bound, which takes no
+//! root; the lane `T` the function already holds, for evaluation;
+//! [`Interval::from_certified`] to cross a lane value in; and
+//! `!is_certified()` for the refusal.
+//!
 //! What stays inherent on [`Interval`]: [`Interval::from_bounds`] (the
 //! driver's door in), [`Interval::repr_bits`] (the identity channel),
 //! [`Interval::is_certified`] (the refusal predicate, which evaluation's

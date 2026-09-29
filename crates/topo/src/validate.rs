@@ -4984,20 +4984,12 @@ fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 /// at interval type; filed as
 /// `work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo`.
 pub(crate) fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
-    use geom::DatumValue as V;
     let data = match surface.data() {
         geom::SurfaceData::Analytic(data) => data,
         geom::SurfaceData::Nurbs(_) | geom::SurfaceData::Approx(_) => return Vec::new(),
     };
     data.into_iter()
-        .filter_map(|(datum, value)| {
-            let is_number = match value {
-                V::Point(p) => is_finite_point(&p),
-                V::Direction(v) => is_direction(&v),
-                V::Scalar(x) => geom_core::is_finite_length(x),
-            };
-            (!is_number).then_some(datum)
-        })
+        .filter_map(|(datum, value)| (!datum_is_number(value)).then_some(datum))
         .collect()
 }
 
@@ -5013,60 +5005,32 @@ pub(crate) fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::Surfac
 /// is no placeholder state to tell apart here — no certified carrier
 /// can be one, because certification evaluates it.
 ///
-/// Fields destructured without `..`, as on the surface half.
+/// The fields are [`geom::Curve3::data`]'s, as the surface half's are
+/// [`geom::Surface::data`]'s.
 pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geom::CurveDatum> {
-    use geom::Curve3 as C;
-    use geom::CurveDatum as D;
-    use geom_core::is_finite_length as finite;
-    let point = is_finite_point::<T>;
-    let direction = is_direction::<T>;
-    let fields: Vec<(D, bool)> = match curve {
-        C::Line { origin, dir } => vec![(D::Origin, point(origin)), (D::Dir, direction(dir))],
-        C::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Axis, direction(axis)),
-            (D::Radius, finite(*radius)),
-            (D::URef, direction(u_ref)),
-        ],
-        C::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            u_ref,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Axis, direction(axis)),
-            (D::Major, finite(*major)),
-            (D::Minor, finite(*minor)),
-            (D::URef, direction(u_ref)),
-        ],
-        C::Spiric {
-            center,
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius,
-            offset,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Axis, direction(axis)),
-            (D::URef, direction(u_ref)),
-            (D::MajorRadius, finite(*major_radius)),
-            (D::MinorRadius, finite(*minor_radius)),
-            (D::Offset, finite(*offset)),
-        ],
-        C::Nurbs(net) => vec![(D::Control, net_is_finite(net.control()))],
+    let data = match curve.data() {
+        geom::CurveData::Analytic(data) => data,
+        geom::CurveData::Nurbs(net) => {
+            return if net_is_finite(net.control()) {
+                Vec::new()
+            } else {
+                vec![geom::CurveDatum::Control]
+            };
+        }
     };
-    fields
-        .into_iter()
-        .filter_map(|(datum, is_number)| (!is_number).then_some(datum))
+    data.into_iter()
+        .filter_map(|(datum, value)| (!datum_is_number(value)).then_some(datum))
         .collect()
+}
+
+/// Check 1's reading of one analytic datum, surface or carrier: a point
+/// finite, a direction a direction ([`is_direction`]), a number finite.
+fn datum_is_number<T: Real>(value: geom::DatumValue<T>) -> bool {
+    match value {
+        geom::DatumValue::Point(p) => is_finite_point(&p),
+        geom::DatumValue::Direction(v) => is_direction(&v),
+        geom::DatumValue::Scalar(x) => geom_core::is_finite_length(x),
+    }
 }
 
 /// **Is every control point of a net a finite number?** — check 1's
@@ -5372,8 +5336,9 @@ pub(crate) fn tier3_local_checks_marked<
         };
         // Re-certification takes the lane the CALLER handed in, not one
         // read off the scalar. The bound that admits a scalar to this
-        // battery says nothing about the C9 ring the plane × NURBS
-        // certificate lives in, which is a right of its own. So a
+        // battery says nothing about the certification arithmetic (C9)
+        // the plane × NURBS certificate lives in, which is a right of
+        // its own. So a
         // caller that can name the certified lane supplies it and this
         // check runs whole; a caller that cannot makes no claim about
         // an M7-8 edge at all.

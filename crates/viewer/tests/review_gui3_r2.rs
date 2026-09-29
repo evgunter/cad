@@ -51,7 +51,7 @@ use viewer::{docio, props, tree};
 // --- fixtures, authored here rather than borrowed -------------------
 
 fn width_param() -> ParamName {
-    ParamName::new("width")
+    ParamName::from_static("width")
 }
 
 /// A slab whose extrude distance is a LITERAL and whose transform's

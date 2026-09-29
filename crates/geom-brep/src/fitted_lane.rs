@@ -204,15 +204,8 @@ impl<T: Real> FittedLane<T> {
 /// free function each field of [`FittedLane::certified`] holds, rather
 /// than what that function answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// routine that agrees on the fixture in front of it; the helper
-/// compares the stored function pointers instead, so a re-point is a
-/// failure no matter what it computes. Function-pointer identity is
-/// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
-/// (identical function bodies may be merged), which costs nothing here:
-/// the three bodies differ, and a false PASS from a merge would need
-/// the re-pointed routine to be instruction-identical to the one it
-/// replaced.
+/// Why a wiring row compares pointers rather than outputs:
+/// `crates/topo/tests/certified_enclosure_impl_census.rs`'s module doc.
 ///
 /// The helper is instantiated once per certifying scalar.
 /// `topo`'s `certified_enclosure_impl_census` counts those

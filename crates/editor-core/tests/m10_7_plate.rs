@@ -33,8 +33,8 @@ pub(crate) const RADIUS: f64 = 1.25e-3;
 /// The nominal web: `SPACING − 2·RADIUS` = 0.6 mm.
 pub(crate) const WEB: f64 = SPACING - 2.0 * RADIUS;
 
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn param(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// The plate, its two holes, the web measure and its assertion.
@@ -48,9 +48,9 @@ pub(crate) fn plate(
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,
@@ -98,7 +98,7 @@ pub(crate) fn plate(
         distance: len(1.0e-3),
     });
 
-    let hole = |r: &mut Recorder, centre: Expr, radius: &str| {
+    let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
@@ -149,7 +149,7 @@ pub(crate) fn plate(
     };
 
     // web = distance(wall_a, wall_b) - r_a - r_b.
-    let radius_of = |n: &str| MeasureExpr::value(param(n));
+    let radius_of = |n: &'static str| MeasureExpr::value(param(n));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
