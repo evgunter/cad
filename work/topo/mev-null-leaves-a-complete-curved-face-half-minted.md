@@ -5,7 +5,8 @@ title: mev_null adds two rowless half-edges to a face whose pcurve rows are comp
 status: open
 opened: 2026-09-29
 priority: P2
-cost: D
+cost: M
+design: true
 ---
 
 
