@@ -783,3 +783,34 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from ORIGIN: `window-site-scan-reads-items-by-line` moved onto this slate (id unchanged) — the window-site guard in `boolean/wall_section_rows.rs` reads items line by line. ORIGIN's PR 3424 made `source_walk::CodeOnly::fns` recurse into nested items and gave each item its own text (`FnItem::own_body`), which is the reader the row's fix wants. (ORIGIN orchestrator)
+
+## 2026-09-29 — CONTACT-11 review: the chart-box area check is unsound for small notches, on main for the cone
+
+- **The single full review of `59eeeebb2` returned REQUEST-CHANGES,
+  with three MAJORs, all executed.**
+  - The area margin `defect/v_span·(R+r)` grows with the square of a
+    notch's size, while the notch's clearance grows only linearly. A
+    notch 1e-5 m on a side, thousands of ε from every boundary, reads
+    Zero ("the face is its box"), so its centre reads `In`.
+  - That makes small U notches worse than base; base's variation check
+    refused them.
+  - The cone's `bool_cone_chart_box`, which the unit mirrored, has
+    the same flaw **on main today**: a 1e-5 m corner notch on a frustum
+    reads `In` at ε 1e-9.
+  - Reachable doors: the face-containment door, and, argued, STEP
+    import. STEP import adopts torus, cone and sphere faces with
+    arbitrary loops into the public `point_in_solid`. No boolean
+    reaches it: 54 cutter poses all refuse earlier.
+- **The fix pass** replaces the area test with a linear, metric
+  one-decision test: every boundary segment's level must be on its box
+  side, and the lever must bound the metric separation from above. The
+  torus and the cone share it. It also adds rows at small notch sizes,
+  checks walk continuity between consecutive images, pins the closure
+  check, and names STEP in the PR body.
+- **The lesson for later briefs.** The spec told the lane to "share
+  the cone's check". The cone's check was itself unsound, with the same
+  lever class this track keeps finding. A precedent is not evidence:
+  a brief that points at one says so, and asks the review to attack
+  both.
+
+Signed: (CONTACT orchestrator)
