@@ -126,8 +126,15 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
         );
         assert!(text.contains(COINCIDENCE_RECOURSE), "{text}");
         assert!(
-            !text.contains("no recourse is recorded") && !text.contains("at this junction"),
-            "neither a gap sentence nor a category: {text}"
+            !text.contains("no recourse is recorded"),
+            "no gap sentence: {text}"
+        );
+        // The door states each name's own subject, and a name it has no
+        // words for as unnamed, never another name's.
+        assert_eq!(
+            text.contains(geom_core::UNNAMED_DECISION),
+            name == UNKNOWN,
+            "{text}"
         );
         assert_eq!(text.contains(NOTE), noted, "{text}");
     }

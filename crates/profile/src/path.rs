@@ -1992,10 +1992,13 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // NAMED here, because the label is a claim about the
                     // two of them and about nothing else the funnel
                     // decides.
-                    Some(name @ ("path_junction_turn" | "path_junction_side")) => write!(
+                    Some("path_junction_turn" | "path_junction_side") => write!(
                         f,
                         "{} is too close to call: {source}",
-                        crate::validate::decision_subject(name).unwrap_or_default()
+                        source
+                            .predicate
+                            .and_then(crate::validate::decision_subject)
+                            .unwrap_or_default()
                     ),
                     // A name no arm above claims. If the crate has
                     // decided it needs nothing beyond the shared clause
