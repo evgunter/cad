@@ -126,7 +126,7 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
         s::HitTestError::Ambiguous { hits } => {
             [none(), none(), none(), none(), obj(tied(py, hits))]
         }
-        s::HitTestError::Unnamed { node: n, entity } => [
+        s::HitTestError::Unnamed(s::UnnamedEntity { node: n, entity }) => [
             node(*n),
             none(),
             kind(entity.key.kind()),
@@ -182,9 +182,16 @@ fn hit_test_err(py: Python<'_>, err: &s::HitTestError) -> PyErr {
 /// [`NodePick::patch_names`] is total per patch: one naming-emission
 /// bug must not cost a consumer the names of every other patch it is
 /// drawing, so the refusal rides IN the slot. A Python exception is a
-/// value, which is what makes that shape spellable here at all.
-fn hit_test_value(py: Python<'_>, err: &s::HitTestError) -> Py<PyAny> {
-    hit_test_err(py, err).value(py).clone().into_any().unbind()
+/// value, which is what makes that shape spellable here at all. The
+/// kernel's slot holds [`s::UnnamedEntity`], the lookup's own refusal;
+/// it crosses as the `unnamed` arm of this class, the one Python
+/// spelling the surface has for it.
+fn hit_test_value(py: Python<'_>, unnamed: s::UnnamedEntity) -> Py<PyAny> {
+    hit_test_err(py, &s::HitTestError::from(unnamed))
+        .value(py)
+        .clone()
+        .into_any()
+        .unbind()
 }
 
 /// Raise `NodePickError` carrying the refusal's stable tag and payload.
@@ -615,11 +622,11 @@ impl NodePick {
 /// hit-test refusal as a VALUE.
 fn slot_name(
     py: Python<'_>,
-    slot: &Result<pncad::prelude::StableName, s::HitTestError>,
+    slot: &Result<pncad::prelude::StableName, s::UnnamedEntity>,
 ) -> PyResult<Py<PyAny>> {
     match slot {
         Ok(name) => Ok(PyString::new(py, &name_text(py, name)?).unbind().into_any()),
-        Err(err) => Ok(hit_test_value(py, err)),
+        Err(unnamed) => Ok(hit_test_value(py, *unnamed)),
     }
 }
 

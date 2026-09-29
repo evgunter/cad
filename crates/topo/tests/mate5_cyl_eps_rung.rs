@@ -8,7 +8,7 @@
 //! [`topo::declared_pair_overlap`] directly with Door 1's verdict in
 //! hand, on pairs of independently authored cylinder-wall sheets whose
 //! descriptions genuinely diverge — different `u_ref`, different
-//! origin station, opposed axis directions — so `same_chart` refuses
+//! origin station, opposed axis directions — so `declared_chart` refuses
 //! and the cylinder enclosure arm is the only authority in play.
 //!
 //! **ε posture.** As the #1063 suite (`census_g2_carrier.rs`): the

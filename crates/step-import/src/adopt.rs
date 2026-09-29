@@ -43,7 +43,7 @@
 //! at the kernel's own ε.
 
 use geom::Curve3;
-use geom::Surface;
+use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
 use geom_core::spline::SplineError;
 use geom_core::{Affine3, Point2, Point3};
@@ -235,78 +235,28 @@ fn rotate_loop_firsts(
 
 /// A surface's exact structural signature: variant tag + field bits,
 /// the dedup key that restores writer-side surface-key sharing
-/// (bitwise identity — an exact structural comparison, no ε).
+/// (bitwise identity — an exact structural comparison, no ε). An
+/// analytic kind's fields are [`Surface::data`]'s, so a field a variant
+/// gains is a field of the key.
 fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
     let p = |p: Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
-    let v = |v: geom_core::Vec3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
-    match *surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => [&[0u64][..], &p(origin), &v(normal), &v(u_ref)].concat(),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => [
-            &[1u64][..],
-            &p(origin),
-            &v(axis),
-            &[radius.to_bits()],
-            &v(u_ref),
-        ]
-        .concat(),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => [
-            &[2u64][..],
-            &p(apex),
-            &v(axis),
-            &[half_angle.to_bits()],
-            &v(u_ref),
-        ]
-        .concat(),
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => [
-            &[3u64][..],
-            &p(center),
-            &[radius.to_bits()],
-            &v(axis),
-            &v(u_ref),
-        ]
-        .concat(),
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => [
-            &[4u64][..],
-            &p(center),
-            &v(axis),
-            &[major_radius.to_bits(), minor_radius.to_bits()],
-            &v(u_ref),
-        ]
-        .concat(),
-        // The full structural payload: degrees, knot values, control
-        // bits, weight bits (M7-3). A tag-only arm here was the
-        // silent-wrong-body trap: once NURBS surfaces parse, every
-        // wall in a body would share ONE surface key — four distinct
-        // walls collapsing to one surface, exactly the class of wrong
-        // the dedup exists to prevent — so the signature hashes every
-        // field the record states, like the analytic arms above.
-        // Counts lead each variable-length section so two payloads
-        // with different shapes cannot alias by concatenation.
+    let tag: u64 = match surface {
+        Surface::Plane { .. } => 0,
+        Surface::Cylinder { .. } => 1,
+        Surface::Cone { .. } => 2,
+        Surface::Sphere { .. } => 3,
+        Surface::Torus { .. } => 4,
+        Surface::Nurbs(_) => 5,
+        Surface::Approx(_) => 6,
+    };
+    match surface.data() {
+        SurfaceData::Analytic(data) => core::iter::once(tag)
+            .chain(
+                data.into_iter()
+                    .flat_map(|(_, value)| value.scalars())
+                    .map(f64::to_bits),
+            )
+            .collect(),
         // No import path mints one (STEP's OFFSET_SURFACE is not read),
         // so this arm exists to keep the signature TOTAL rather than to
         // dedup: a tag alone would alias every approximating surface to
@@ -316,11 +266,20 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
         // need, and it is not written until one exists — so the arm
         // signs a tag that can alias only with itself and no import
         // reaches it.
-        Surface::Approx(_) => vec![6u64],
-        Surface::Nurbs(ref payload) => {
+        SurfaceData::Approx(_) => vec![tag],
+        // The full structural payload: degrees, knot values, control
+        // bits, weight bits (M7-3). A tag-only arm here was the
+        // silent-wrong-body trap: once NURBS surfaces parse, every
+        // wall in a body would share ONE surface key — four distinct
+        // walls collapsing to one surface, exactly the class of wrong
+        // the dedup exists to prevent — so the signature hashes every
+        // field the record states, like the analytic arm above.
+        // Counts lead each variable-length section so two payloads
+        // with different shapes cannot alias by concatenation.
+        SurfaceData::Nurbs(payload) => {
             let (nu, nv) = payload.control_counts();
             let mut sig = vec![
-                5u64,
+                tag,
                 payload.knots_u().degree() as u64,
                 payload.knots_v().degree() as u64,
                 payload.knots_u().knots().len() as u64,

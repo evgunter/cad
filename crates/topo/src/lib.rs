@@ -136,6 +136,7 @@ pub mod boolean;
 pub(crate) mod census;
 pub mod chart;
 pub mod chart_bound;
+pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the

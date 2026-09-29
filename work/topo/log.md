@@ -2135,3 +2135,21 @@ forward first, with the same build targets as before. Their first
 lanes' tokens and wall time are lost with their reports and are
 recorded as missing data. Neither PR's dual has started: each
 dispatches on its head once that is green.
+## `[ev]` PR 3156 answered: no door, and `query.rs`'s compare is a violation (2026-09-29)
+
+Ev answered on 2026-09-24.
+1. "no, i.e. 3". The re-basing gate gets no bit-identity door, and
+   the m7-8 row closes on the ruling. Ev also asked why this was a
+   question when (3) was already the recommendation. It should not
+   have been: an option that keeps a ratified decision as it stands
+   (here the Q1 comparison-free surface and the retirement) is the
+   orchestrator's to take and log, not Ev's to be asked. Only the
+   options that would have changed the ratified text were Ev's.
+2. "(b), nice catch". `query.rs`'s compare is a consumer, so the
+   ruling goes on TQUERY's row and the gate half is filed on GUARD
+   (`the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds`).
+   Both logs have a note.
+
+Meanwhile both implementer lanes (`kev`'s two doors and mint-at-site)
+died on the weekly usage limit on 2026-09-24. Their recovery is the
+next entry.

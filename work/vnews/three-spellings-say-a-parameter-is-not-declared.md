@@ -79,3 +79,16 @@ pane says a fact once: the panel's `"that parameter is gone"` line is
 spellings are left — the header's `"parameter {name} is no longer
 declared"` and the session refusal's — and which words they share is
 still this row's question.
+
+## Evidence 2026-09-24 (`chrome/subset-policy`, PR 3140)
+
+There is a fourth reading of the same fact, and it disagrees with the
+wording. `frame::creation_offer` is now exhaustive over `Refusal`
+(through `Refusal::parse_error`). Written out, it shows that
+`Refusal::NoSuchParam` gets **no** creation offer: only the parse door's
+`ParseError::UnknownParam` prefills the add-parameter affordance. Yet
+`NoSuchParam`'s sentence ends *"— declare it first"*. So a drag or a
+range probe on an undeclared parameter tells the reader to declare it,
+and the chrome does not offer the door to do so. That PR left the
+answer unchanged, since the answer is behaviour, and whoever settles the
+wording here also settles whether the offer follows it.
