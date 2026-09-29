@@ -384,7 +384,8 @@ transform composes into `expr` (`SourceExpr::Placed`), `revert` flips `orient`
 same `GeomSource` ⇒ bit-identical descriptions (D9); the converse is not
 claimed, so equal bits without a shared source stay unglued. The declared
 coincidence rung is this lookup (`merge_faces.rs`, `oriented_plane_eq`); the bit
-comparison survives only as the debug assertions behind `plane_bits_witness`, and the gate
+comparison survives only in the debug assertions built on `crates/topo/src/source.rs`'s
+bit witnesses (`plane_bits_witness`, `vec3_bits_witness`, `surface_bits_witness`), and the gate
 `scripts/gates/bit-identity-consumer.sh` keeps the production allowlist empty.
 Identity holds per evaluation against the current document only.
 

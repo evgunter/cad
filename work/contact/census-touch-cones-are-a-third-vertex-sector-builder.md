@@ -2,11 +2,12 @@
 id: census-touch-cones-are-a-third-vertex-sector-builder
 kind: issue
 title: The census's touch cones (Cone::vertex) are a second vertex-neighbourhood sector builder beside boolean::sectors::build_sectors and splitting::neighborhood, and a third edge-convexity reader beside classify_dihedral and classify_material_pairing
-status: dispatched
+status: closed
 opened: 2026-09-26
 priority: P1
 cost: D
 parent: CONTACT-7
+closed: 2026-09-28
 ---
 
 
@@ -38,3 +39,22 @@ convexity readers that have drifted from it:
 The fix is one vertex-neighbourhood reader both lanes and the census
 consume, with the convexity read through the classifiers that already
 exist. Difficulty D.
+
+## Closed
+
+Fixed by CONTACT-7, by building no sectors. The census's touch analysis
+reads the touch point's finite star from its own snapshot (the faces
+holding the point, and the line edges through it), each face through
+its piece at the point, and walks no orbit. `Cone::vertex`,
+`Cone::wedge`, the fan, `touch_lever` and the census's use of
+`sector_face` and `sector_shape` are deleted, and `Cone::within`'s name
+clash went with it. The boolean and splitting lanes keep their own
+sector code, which answers a sector question the census does not ask.
+
+This row's proposed fix, reading convexity through
+`geom_brep::classify_dihedral`, was not taken: that classifier is
+unsigned (transverse or smooth), levered at the edge's extent, and
+answers whether an edge is well conditioned, not which way it turns.
+The census reads an edge's convexity as the far face's piece's vertex
+distances from the near face's plane, in both orders, and reads a fold
+through `geom_brep::classify_material_pairing`.

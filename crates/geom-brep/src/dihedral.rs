@@ -589,14 +589,41 @@ pub fn classify_material_pairing<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
+    classify_material_pairing_as(
+        "material_wedge_side",
+        s_plus,
+        sense_plus,
+        s_minus,
+        sense_minus,
+        p,
+        arm,
+        band,
+    )
+}
+
+/// [`classify_material_pairing`] under a caller's own predicate name:
+/// the same construction and margin, decided as `name` so a caller
+/// asking it about a different pair of planes keeps its own population
+/// in the K report instead of joining `material_wedge_side`'s.
+///
+/// # Errors
+///
+/// [`Indeterminate`] under `name`, as [`classify_material_pairing`]'s.
+#[allow(clippy::too_many_arguments)] // `classify_material_pairing`'s signature plus the name
+pub fn classify_material_pairing_as<T: Decide>(
+    name: &'static str,
+    s_plus: &Surface<T>,
+    sense_plus: bool,
+    s_minus: &Surface<T>,
+    sense_minus: bool,
+    p: Point3<T>,
+    arm: T,
+    band: Band,
+) -> Result<MaterialPairing, Indeterminate> {
     let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
     let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
     Ok(
-        match decide_nonzero(
-            "material_wedge_side",
-            Margin::levered(n_plus.dot(n_minus), arm),
-            band,
-        )? {
+        match decide_nonzero(name, Margin::levered(n_plus.dot(n_minus), arm), band)? {
             NonzeroSign::Positive => MaterialPairing::Aligned,
             NonzeroSign::Negative => MaterialPairing::Opposed,
         },

@@ -509,6 +509,8 @@ mod m9_3_wall_door;
 
 #[path = "germ_circle_torus.rs"]
 mod germ_circle_torus;
+#[path = "germ_cone_apex_closure.rs"]
+mod germ_cone_apex_closure;
 #[path = "germ_cone_doors.rs"]
 mod germ_cone_doors;
 #[path = "germ_conic_plane_roots.rs"]
@@ -519,6 +521,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_sphere_no_crossings.rs"]
+mod germ_sphere_no_crossings;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]

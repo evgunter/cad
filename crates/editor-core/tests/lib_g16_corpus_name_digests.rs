@@ -73,6 +73,13 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// scalar. Every other row above and below is byte-identical, which is
 /// the receipt that the change is local to the die.
 ///
+/// The digest encodes each name's entity with its slot VERSION, so a
+/// change in how many keys an arena has spent before a mint moves a
+/// row with no name changing. A graft spends one key per dead
+/// ancestor its forwarded records name (`topo`'s combine door), which
+/// is why the documents whose booleans graft a split operand carry
+/// versions that no name reads.
+///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
 /// `die` is `0xfdf3_d13d_4782_a4e5` — the same number
@@ -117,11 +124,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xe743_2c17_9253_7939),
     ("corner_table", 0xf56d_7982_6a7b_c431),
-    ("heat_sink", 0x5cf0_86e3_8ade_cafc),
-    ("crossing_slots", 0x0ff4_ff7d_a076_ff46),
-    ("nested_islands_105", 0xef82_b612_2217_5910),
-    ("nested_islands_106_depth1", 0xbf31_68ac_757e_652c),
-    ("nested_islands_106_depth2", 0x36c3_3357_6485_df32),
+    ("heat_sink", 0x6360_713a_747e_4886),
+    ("crossing_slots", 0x9f16_d11a_5005_26e5),
+    ("nested_islands_105", 0x7baa_45e2_183e_e816),
+    ("nested_islands_106_depth1", 0x2fec_8e06_4263_3626),
+    ("nested_islands_106_depth2", 0x1edb_6734_884b_50ec),
     ("declared_tangency", 0xa6aa_4a23_d78f_14e3),
     // Moved by the in-plane revolve axis, and the ONLY row that did.
     // `kitchen_sink` shared one `Datum::Axis` between a circular
@@ -135,7 +142,7 @@ const PINNED: &[(&str, u64)] = &[
     // datum mints no names, so the swap moves no id that any name
     // holds: their rows are byte-identical. That is what this
     // per-document instrument is for.
-    ("kitchen_sink", 0x7e40_f09e_9373_de28),
+    ("kitchen_sink", 0x3345_43cd_49ba_2154),
     ("cut_cylinder", 0xd543_9780_803a_6367),
     ("measured_web", 0x4b31_ec37_371f_2254),
     ("boss_union", 0xf871_08d9_6fc4_1ab0),
@@ -151,8 +158,8 @@ const PINNED: &[(&str, u64)] = &[
     // arrival moved no other row.
     ("part_select", 0x3e52_4c0e_2d96_88a9),
     ("loft_prism", 0xeb00_6a33_5df4_7a35),
-    ("die_composed", 0xe56d_368a_fc21_c0f2),
-    ("die_composed_tour", 0x811a_ce38_6d44_56c9),
+    ("die_composed", 0xbf5a_4601_49a8_1101),
+    ("die_composed_tour", 0xc899_d64d_5f8c_f753),
     ("plate_param", 0x263a_704c_add8_e71a),
     ("kiss_carry", 0x5beb_8e24_6a92_26f2),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
