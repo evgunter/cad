@@ -150,12 +150,13 @@ pub enum ProductError {
         /// The later root.
         second: RecipeNodeId,
     },
-    /// Name rows the gather carried would alias in the product table
-    /// — the same STRICT name twice, or two names on one aggregate
-    /// entity. Raised by the per-root carry (`carry_names`, `node` a
-    /// root) or by the tie flush after the last source (`node` the
-    /// name's minter, since the colliding rows belong to no one root).
-    /// Never resolved by picking one.
+    /// Name rows the gather carried would alias in the product table:
+    /// one (name, candidate) pair carried twice (N4, "A tie's candidates
+    /// keep their identity") — the same STRICT name twice, since a
+    /// strict name is its own only candidate, or the same candidate of
+    /// a tie twice, the tied case of one entity placed twice. Raised by
+    /// the per-root carry (`carry_names`), so `node` is the root whose
+    /// row repeated the pair. Never resolved by picking one.
     ///
     /// Two roots that place one body through transforms and part
     /// selections refuse earlier, as
@@ -171,21 +172,20 @@ pub enum ProductError {
     ///   `Instance(0 + 1)` passes the recipe check and the per-root
     ///   carry refuses.
     ///
-    /// Rows arriving under one tied name MERGE into one `Entry::Tied`
-    /// rather than colliding — which is what a split ROOT hands the
-    /// gather for a tie its plane separates, since the split's own
-    /// table keeps the tie across both output bodies. The two halves
-    /// taken as two `Part` roots merge the same way, through the
-    /// separated-piece mark (`NameTable`'s `separated` field). What
-    /// that costs is stated where it lands: the
-    /// product genuinely holds two entities under the one name, and a
-    /// selection that matches both refuses
+    /// DIFFERENT candidates of one tie arriving from different sources
+    /// MERGE into one `Entry::Tied` rather than colliding — which is
+    /// what a split ROOT hands the gather for a tie its plane
+    /// separates, since the split's own table keeps the tie across both
+    /// output bodies, and what the two halves hand it as two `Part`
+    /// roots, each keeping its candidate. What that costs is stated
+    /// where it lands: the product genuinely holds two entities under
+    /// the one name, and a selection that matches both refuses
     /// (`SelectRefusal::TiedDisagrees`) instead of the gather refusing
     /// for it.
     Naming {
-        /// The root whose rows collided — or, for a collision the
-        /// tie merge below the roots surfaced, the node that minted
-        /// the name (`product_recorded`'s flush).
+        /// The root whose row repeated the pair — or, for a collision
+        /// the final narrowing surfaced, the node that minted the name
+        /// (`product_recorded`'s flush; not reachable by construction).
         node: RecipeNodeId,
         /// The colliding name.
         name: Box<StableName>,
@@ -382,9 +382,9 @@ impl core::fmt::Display for ProductError {
             ),
             // TWO SENTENCES BECAUSE `node` CARRIES TWO MEANINGS (the
             // arm's own doc): the root whose rows were being carried,
-            // or — for the tie merge's collision, which happens after
-            // the last root and belongs to no one of them — the node
-            // that minted the name. The guard is what keeps the second
+            // or — for a collision of the final narrowing, which happens
+            // after the last root and belongs to no one of them — the
+            // node that minted the name. The guard is what keeps the second
             // from being announced as a root: on that path `node` IS
             // `name.node`, and the sentence below says only what is
             // then true. A carried row could reach it too, by naming
@@ -965,7 +965,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
             output: *ix,
             solid,
         }));
-        carry_names(&mut names, &mut tie_rows, table, *node, *ix, keys)?;
+        carry_names(&mut tie_rows, table, *node, *ix, keys)?;
         carry_contacts(&mut contacts, records, keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         carry_declarations(&mut carried, &rows.minted, keys)
@@ -975,15 +975,14 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         carried_unminted.extend(rows.unminted.iter().cloned());
     }
     // The name carry's second half, after the last source: every
-    // tie-descended row, narrowed ONCE over all of them (`carry_names`).
-    // A tie whose candidates the document separated into different
-    // SOURCES is one tie of the product — the product holds both faces
-    // — and this is where that is decided, because no single source
-    // can see it.
+    // carried row, narrowed ONCE over all of them (`carry_names`). A tie
+    // whose candidates the document separated into different SOURCES is
+    // one tie of the product — the product holds both faces — and this
+    // is where that is written, because no single source can see it.
     //
     // A refusal here names the node that MINTED the colliding name
-    // rather than a root: the collision is between rows that arrived
-    // from different sources, so no one root is its author.
+    // rather than a root: every repeated pair refused in the carry
+    // above, so what is left belongs to no one root.
     tie_rows
         .finish(&mut names)
         .map_err(|e| ProductError::Naming {
@@ -1241,19 +1240,18 @@ fn carry_declarations(
 /// The KEY MAP is this function's own — it is the graft's descendant
 /// map, plus the product's rule that a root body-row does not carry
 /// (see `product_named`: the product's own body is nobody's root
-/// body). WHICH ROWS go in strict and which are deferred is not: that
-/// is [`crate::names::CarriedRows`], the accumulate-then-narrow
-/// mechanism the emitters share, so the aggregate table narrows a tie
-/// by the one rule every other table narrows by.
+/// body). What a carried row may collide with is not: that is
+/// [`crate::names::CarriedRows`], the accumulate-then-narrow mechanism
+/// the emitters share, so the aggregate table narrows a tie by the one
+/// rule every other table narrows by.
 fn carry_names(
-    into: &mut NameTable,
     rows: &mut CarriedRows,
     from: &NameTable,
     node: RecipeNodeId,
     ix: u32,
     keys: &topo::GraftKeys,
 ) -> Result<(), ProductError> {
-    rows.carry(into, from, ix, |key| match key {
+    rows.carry(from, ix, |key| match key {
         EntityKey::Body => None,
         EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
         EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
@@ -1422,8 +1420,8 @@ mod tests {
 
     /// **The refusal calls a node a ROOT only when it is one.**
     /// [`ProductError::Naming`]'s `node` is the carried root on the
-    /// per-source path and the MINTING node on the tie merge's, where
-    /// no one root authored the collision — so the rendering is
+    /// per-source path and the MINTING node on the final narrowing's,
+    /// where no one root authored the collision — so the rendering is
     /// guarded, and this is the guard's other side. The two renderings
     /// are asserted apart by the word the second must not use and by
     /// the id the first must not print twice.
@@ -1448,7 +1446,7 @@ mod tests {
         let merged = named(6, 6);
         assert!(
             !merged.contains("root"),
-            "the tie merge's collision has no one root to name, and must not invent one: {merged}"
+            "the final narrowing's collision has no one root to name, and must not invent one: {merged}"
         );
         assert!(
             merged.contains("node 6"),

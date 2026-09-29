@@ -450,7 +450,7 @@ pub use editor_core::{
 /// two different findings about the SAME thing: the component count
 /// for this subject is unknowable, because a shell's orientation read
 /// escalated or because a face of it is outside the flux inventory.
-/// Which shell, and which of the four ways the door refused, is
+/// Which shell, and which of the five ways the door refused, is
 /// `source` — and a consumer that could match the arm and not name its
 /// type read that only out of the message prose.
 ///

@@ -34,12 +34,13 @@
 //!   crosses a plane at most once, so the split face is done with both
 //!   children); each split strictly shortens spans — termination is
 //!   structural.
-//! - **Coplanar edge-face pairs are skipped** (both endpoints ON the
-//!   face plane ⇒ endpoint processing only): every relevant crossing
-//!   inside the face is caught when the edge is swept against the
-//!   face's noncoplanar NEIGHBOR faces, where the crossing point lands
-//!   ON the shared boundary edge (the `OnEdge` case — tested by the
-//!   coplanar-overlap acceptance fixture).
+//! - **Coplanar edge-face pairs are skipped** (a line with both
+//!   endpoints ON the face plane, or a conic lying in it ⇒ endpoint
+//!   processing only): every relevant crossing inside the face is
+//!   caught when the edge is swept against the face's noncoplanar
+//!   NEIGHBOR faces, where the crossing point lands ON the shared
+//!   boundary edge (the `OnEdge` case — tested by the coplanar-overlap
+//!   acceptance fixture).
 //! - **Edge-on-edge crossings** are discovered as edge-face events
 //!   landing ON an edge of the face: BOTH edges are split at the
 //!   (bitwise-shared) intersection point — the minted vertices are a
@@ -56,6 +57,7 @@ use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
+use crate::splitting::ConicPlaneMeet;
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -830,17 +832,33 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     band,
                 ) {
                     Err(()) => {} // a line: the M3 lane below owns it
-                    Ok(None) => {
-                        // A conic that definitely never meets the
-                        // plane: endpoint processing only (Zero
-                        // endpoints are impossible here; fall through
-                        // for the trace's sake).
+                    Ok(ConicPlaneMeet::Miss) => continue,
+                    // The conic's plane is parallel to the face's: off
+                    // it, a miss; in it, the line lane's `(Zero, Zero)`
+                    // posture — both endpoints through
+                    // `vertex_on_face`, the interior left to the
+                    // neighbour faces.
+                    Ok(ConicPlaneMeet::Parallel { offset }) => {
+                        match decide("bool_conic_face_plane_offset", Margin::of(offset), band) {
+                            Ok(Sign::Positive | Sign::Negative) => continue,
+                            Ok(Sign::Zero) => {}
+                            Err(diag) => return Err(BooleanError::Escalated { diag }),
+                        }
+                        let mut hit =
+                            vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band, tol)?;
+                        if v != u {
+                            hit |=
+                                vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band, tol)?;
+                        }
+                        if hit && let Some(tr) = trace.as_deref_mut() {
+                            tr.accepted.push((edge_key, face));
+                        }
                         continue;
                     }
-                    Ok(Some(Err(diag))) => {
+                    Ok(ConicPlaneMeet::Roots(Err(diag))) => {
                         return Err(BooleanError::Escalated { diag });
                     }
-                    Ok(Some(Ok(roots))) => {
+                    Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
                         for &t in &roots {
                             let p = curve.carrier().eval(t);
                             let containment =
@@ -2333,3 +2351,7 @@ mod undeclared_rule_rows {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "coplanar_conic_rows.rs"]
+mod coplanar_conic_rows;
