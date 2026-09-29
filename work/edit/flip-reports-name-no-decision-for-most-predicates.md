@@ -4,6 +4,8 @@ kind: issue
 title: edit: a flip report names no decision for most predicates a subtract logs
 status: open
 opened: 2026-09-29
+priority: P3
+cost: M
 ---
 
 

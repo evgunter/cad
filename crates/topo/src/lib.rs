@@ -89,7 +89,7 @@
 //! let mut body = Body::<f64>::new();
 //!
 //! // The seed: solid + shell + one face holding lone vertex A.
-//! let seed = body.mvfs(pt(0.0, 0.0, 0.0))?;
+//! let seed = body.mvfs(pt(0.0, 0.0, 0.0), true)?;
 //! // The bottom rim A → B → C → D, grown by three mev …
 //! let e_ab = body.mev_line(MevSite::Lone { r#loop: seed.r#loop }, pt(1.0, 0.0, 0.0), tol)?;
 //! let strut = |he| MevSite::Fan { he1: he, he2: he };

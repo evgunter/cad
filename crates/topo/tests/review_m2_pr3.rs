@@ -85,7 +85,7 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
     let plane = |corners: &[Point3<T>]| newell_plane(corners, band()).unwrap();
 
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     let e_ab = body
         .mev(
             MevSite::Lone {
@@ -116,7 +116,10 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
                 he2: e_ab.he_plus,
             },
             rim(sc, sa, c, a, place_bottom),
-            FaceSurface::New(plane(&[c, b, a])),
+            FaceSurface::New {
+                surface: plane(&[c, b, a]),
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
@@ -142,7 +145,10 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
                 he2: e_bb.he_minus,
             },
             rim(sa, sb, a1, b1, place_top),
-            FaceSurface::New(plane(&[a, b, b1, a1])),
+            FaceSurface::New {
+                surface: plane(&[a, b, b1, a1]),
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
@@ -153,7 +159,10 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
                 he2: e_cc.he_minus,
             },
             rim(sb, sc, b1, c1, place_top),
-            FaceSurface::New(plane(&[b, c, c1, b1])),
+            FaceSurface::New {
+                surface: plane(&[b, c, c1, b1]),
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
@@ -164,13 +173,22 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
                 he2: f_ab.he_plus,
             },
             rim(sc, sa, c1, a1, place_top),
-            FaceSurface::New(plane(&[c, a, a1, c1])),
+            FaceSurface::New {
+                surface: plane(&[c, a, a1, c1]),
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
     // The seed face survives as the top cap (outward +z: A′ B′ C′).
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1])))
-        .unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: plane(&[a1, b1, c1]),
+            sense: true,
+        },
+    )
+    .unwrap();
     (body, seed, [f_bottom, f_ab, f_bc, f_ca])
 }
 
@@ -291,7 +309,10 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         .mef(
             MefSite::Chords { he1: he, he2: he },
             EdgeCurveSpec::self_loop_circle_at(Point3::origin()),
-            FaceSurface::Shared(stale_surface),
+            FaceSurface::Shared {
+                key: stale_surface,
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap_err();
@@ -355,7 +376,13 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
 
     // 6. set_face_surface: stale Shared key.
     let err = body
-        .set_face_surface(seed.face, FaceSurface::Shared(stale_surface))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::Shared {
+                key: stale_surface,
+                sense: true,
+            },
+        )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::StaleGeometry { .. }), "{err:?}");
     assert_eq!(snapshot(&body), before, "surface setter mutated body");
@@ -382,8 +409,14 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    body.set_face_surface(t.seed.face, FaceSurface::New(shifted))
-        .unwrap();
+    body.set_face_surface(
+        t.seed.face,
+        FaceSurface::New {
+            surface: shifted,
+            sense: true,
+        },
+    )
+    .unwrap();
 
     // Anchoring: the old plane is still referenced by four Intersection
     // descriptions, so it must survive the orphan sweep.
@@ -415,7 +448,7 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
 /// entirely by two set_face_surface calls.
 fn lamina() -> (Body<f64>, topo::MvfsCreated, topo::MefCreated) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::origin()).unwrap();
+    let seed = body.mvfs(Point3::origin(), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -486,10 +519,22 @@ fn survives_sliver_dihedral_isolated_at_rest() {
         u_ref: Vec3::unit_x(),
     };
     let flat_key = body
-        .set_face_surface(seed.face, FaceSurface::New(flat.clone()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: flat.clone(),
+                sense: true,
+            },
+        )
         .unwrap();
-    body.set_face_surface(split.face, FaceSurface::New(tilted))
-        .unwrap();
+    body.set_face_surface(
+        split.face,
+        FaceSurface::New {
+            surface: tilted,
+            sense: true,
+        },
+    )
+    .unwrap();
     // Both chords run along the x-axis, which lies in BOTH planes
     // exactly; describe them in the flat one so the only thing wrong
     // with this body is the sliver the row is about.
@@ -507,9 +552,15 @@ fn survives_sliver_dihedral_isolated_at_rest() {
     // definitely smooth, tier 3 clean.
     let (mut body, seed, split) = lamina();
     let key = body
-        .set_face_surface(seed.face, FaceSurface::New(flat.clone()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: flat.clone(),
+                sense: true,
+            },
+        )
         .unwrap();
-    body.set_face_surface(split.face, FaceSurface::Shared(key))
+    body.set_face_surface(split.face, FaceSurface::Shared { key, sense: true })
         .unwrap();
     describe_every_edge_in(&mut body, key);
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
@@ -524,7 +575,7 @@ fn survives_nurbs_seed_gate_and_clear() {
     // Mid-construction (open) state: tier-3 must surface the TIER-2
     // failures verbatim, not geometric reports.
     let mut body = Body::<f64>::new();
-    let _open_seed = body.mvfs(Point3::origin()).unwrap();
+    let _open_seed = body.mvfs(Point3::origin(), true).unwrap();
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter()
@@ -540,7 +591,13 @@ fn survives_nurbs_seed_gate_and_clear() {
         u_ref: Vec3::unit_x(),
     };
     let key = body
-        .set_face_surface(split.face, FaceSurface::New(flat.clone()))
+        .set_face_surface(
+            split.face,
+            FaceSurface::New {
+                surface: flat.clone(),
+                sense: true,
+            },
+        )
         .unwrap();
     // The chords rest in the plane just grafted on; describe them
     // there, so the only complaint left is the seed's Nurbs.
@@ -553,7 +610,7 @@ fn survives_nurbs_seed_gate_and_clear() {
         "{errs:?}"
     );
     // Clearing it through the public setter makes tier 3 pass.
-    body.set_face_surface(seed.face, FaceSurface::Shared(key))
+    body.set_face_surface(seed.face, FaceSurface::Shared { key, sense: true })
         .unwrap();
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let _ = seed;
@@ -726,7 +783,7 @@ fn fixed_aliased_interval_refused_at_public_setter() {
 #[test]
 fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::origin()).unwrap();
+    let seed = body.mvfs(Point3::origin(), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -766,10 +823,22 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    body.set_face_surface(seed.face, FaceSurface::New(z0))
-        .unwrap();
-    body.set_face_surface(split.face, FaceSurface::New(y0.clone()))
-        .unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: z0,
+            sense: true,
+        },
+    )
+    .unwrap();
+    body.set_face_surface(
+        split.face,
+        FaceSurface::New {
+            surface: y0.clone(),
+            sense: true,
+        },
+    )
+    .unwrap();
     // The circular face claims the y = 0 plane — its boundary circle
     // reaches y = ±1, a meter off; and its wedge against z = 0 is a
     // true right angle. The wedge now classifies definitely Transverse
@@ -781,8 +850,14 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     // MappedCurve chords/circles by construction here — the two A–B
     // chords sit on the z0/y0 corner, the self-loop on its right-angle
     // wedge), in edge-arena order, before the boundary report.
-    body.set_face_surface(circ.face, FaceSurface::New(y0.clone()))
-        .unwrap();
+    body.set_face_surface(
+        circ.face,
+        FaceSurface::New {
+            surface: y0.clone(),
+            sense: true,
+        },
+    )
+    .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
@@ -990,7 +1065,9 @@ mod interval_lane {
     #[test]
     fn fixed_interval_lane_certifies_self_loop_scaffolding() {
         let mut body = Body::<Interval>::new();
-        let seed = body.mvfs(common::identity_map(0.0, 0.0, 0.0)).unwrap();
+        let seed = body
+            .mvfs(common::identity_map(0.0, 0.0, 0.0), true)
+            .unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {

@@ -89,7 +89,13 @@ fn m7_8_cube() -> (
         );
     }
     let wall = body
-        .set_face_surface(front, FaceSurface::New(nurbs_wall(0.0)))
+        .set_face_surface(
+            front,
+            FaceSurface::New {
+                surface: nurbs_wall(0.0),
+                sense: true,
+            },
+        )
         .unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = Vec::new();

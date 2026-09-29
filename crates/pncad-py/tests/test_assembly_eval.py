@@ -343,6 +343,37 @@ class TestTheResolutionRefusals(CorpusCase):
             sorted(r.reason for r in refusals.values()), ["node_failed", "poisoned"]
         )
 
+    def test_a_missing_part_resolves_once_its_recourse_is_followed(self):
+        """The recourse the refusal states, followed word for word: the
+        part's file put in the store's directory, then the store opened
+        again. A `Workspace` holds the scan it was opened with, so the
+        file alone does not reach it."""
+        directory = self.scratch()
+        part = directory / f"{identities()['post']}.pncad"
+        kept = part.read_bytes()
+        part.unlink()
+        _, docs = opened()
+        store = Workspace(str(directory))
+
+        (refusal,) = [
+            r
+            for r in failures(evaluate(docs["layout"], resolver=store)).values()
+            if r.reason == "node_failed"
+        ]
+        self.assertIn(
+            "Recourse: put the part's file in this store's directory, "
+            "then open the store again",
+            str(refusal),
+        )
+
+        part.write_bytes(kept)
+        self.assertTrue(
+            failures(evaluate(docs["layout"], resolver=store)),
+            "the store opened before the file was put back does not see it",
+        )
+        store = Workspace(str(directory))
+        self.assertEqual(failures(evaluate(docs["layout"], resolver=store)), {})
+
 
 class TestAPartWhoseRootFails(unittest.TestCase):
     """`part_root_failed`, reached: a part whose own product root

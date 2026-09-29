@@ -74,7 +74,7 @@ fn build_holed_box(body: &mut Body<f64>) -> HoledBox {
     let ck = |body: &Body<f64>| assert_eq!(validate(body), Ok(()));
 
     // ---- (a)–(e): the 2×2×2 box, exactly the cube test's sequence. ----
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap(); // A
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap(); // A
     ck(body);
     let mev = |body: &mut Body<f64>, site, x, y, z| {
         let created = body

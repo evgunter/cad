@@ -948,7 +948,8 @@ impl OpPlacement {
             | E::NoShellsNamed
             | E::ShellRepeated { .. }
             | E::ShellsAcrossSolids { .. }
-            | E::SolidWouldEmpty { .. } => Self::TheEnumsVerdict,
+            | E::SolidWouldEmpty { .. }
+            | E::SenseContradictsChart { .. } => Self::TheEnumsVerdict,
         }
     }
 }
@@ -2542,8 +2543,14 @@ mod tests {
             .filter(|&k| k != top && k != half)
             .collect();
         for f in others {
-            body.set_face_surface(f, crate::euler::FaceSurface::New(flat_plane()))
-                .expect("a live face takes a surface");
+            body.set_face_surface(
+                f,
+                crate::euler::FaceSurface::New {
+                    surface: flat_plane(),
+                    sense: true,
+                },
+            )
+            .expect("a live face takes a surface");
         }
         assert_eq!(
             validate_closed(&body),
@@ -3243,8 +3250,14 @@ mod tests {
         assert_eq!(MergeKind::of(&poisoned_net()), Err(PoisonedNet));
         let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
-        body.set_face_surface(face, crate::euler::FaceSurface::New(poisoned_net()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            face,
+            crate::euler::FaceSurface::New {
+                surface: poisoned_net(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         assert_eq!(
             body.merge_kind(face),
             Err(MergeCoplanarError::PoisonedSurfaceDescription { face })
@@ -3273,11 +3286,20 @@ mod tests {
         let tol = Tol::witness();
         let mut body = declined_cube::<f64>(tol).body;
         let (first, second) = adjacent_pair(&body);
-        body.set_face_surface(first, crate::euler::FaceSurface::New(poisoned_net()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            first,
+            crate::euler::FaceSurface::New {
+                surface: poisoned_net(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         body.set_face_surface(
             second,
-            crate::euler::FaceSurface::Shared(surface_of(&body, first)),
+            crate::euler::FaceSurface::Shared {
+                key: surface_of(&body, first),
+                sense: true,
+            },
         )
         .expect("a live face takes a shared key");
         let named = body
@@ -3359,7 +3381,10 @@ mod tests {
             .expect("a cube has faces");
         body.set_face_surface(
             side,
-            crate::euler::FaceSurface::New(Surface::nurbs_placeholder()),
+            crate::euler::FaceSurface::New {
+                surface: Surface::nurbs_placeholder(),
+                sense: true,
+            },
         )
         .expect("a live face takes a surface");
         let outcome = body
@@ -3385,8 +3410,14 @@ mod tests {
     fn cube_with_one_described_face(tol: Tol) -> (Body<f64>, FaceKey) {
         let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
-        body.set_face_surface(face, crate::euler::FaceSurface::New(flat_plane()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            face,
+            crate::euler::FaceSurface::New {
+                surface: flat_plane(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         (body, face)
     }
 
@@ -3489,7 +3520,7 @@ mod tests {
     fn pillow_with_a_placeholder_cap(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
         let seed = body
-            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs has no preconditions");
         let seg = body
             .mev_line(
@@ -3509,8 +3540,14 @@ mod tests {
                 tol,
             )
             .expect("the chord closes a second face");
-        body.set_face_surface(split.face, crate::euler::FaceSurface::New(flat_plane()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            split.face,
+            crate::euler::FaceSurface::New {
+                surface: flat_plane(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         (body, seed.face, split.face)
     }
 
@@ -3681,9 +3718,15 @@ mod winding_arm_tests {
 
     fn tri(a: Point3<f64>, b: Point3<f64>, d: Point3<f64>, tol: Tol) -> Tri {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let surface = body
-            .set_face_surface(seed.face, FaceSurface::New(plane()))
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: plane(),
+                    sense: true,
+                },
+            )
             .unwrap();
         let e_ab = body
             .mev_line(
@@ -3713,8 +3756,14 @@ mod winding_arm_tests {
                 tol,
             )
             .unwrap();
-        body.set_face_surface(new.face, FaceSurface::New(plane()))
-            .unwrap();
+        body.set_face_surface(
+            new.face,
+            FaceSurface::New {
+                surface: plane(),
+                sense: true,
+            },
+        )
+        .unwrap();
         let r#loop = body.get_face(seed.face).unwrap().outer;
         let ab = body_edge(&body, e_ab.he_plus);
         Tri {
@@ -3773,9 +3822,15 @@ mod winding_arm_tests {
         let tol = Tol::witness();
         let (a, b) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let surface = body
-            .set_face_surface(seed.face, FaceSurface::New(plane()))
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: plane(),
+                    sense: true,
+                },
+            )
             .unwrap();
         let arc = |axis: Vec3<f64>| EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(surface),
@@ -3809,7 +3864,10 @@ mod winding_arm_tests {
                     he2: e1.he_minus,
                 },
                 arc(-Vec3::unit_z()),
-                FaceSurface::New(plane()),
+                FaceSurface::New {
+                    surface: plane(),
+                    sense: true,
+                },
                 tol,
             )
             .unwrap();

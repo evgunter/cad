@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn split_arc_edge() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
                 segment: SketchSegment::Arc {
@@ -531,7 +531,7 @@ mod tests {
     #[test]
     fn split_self_loop_edge() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {

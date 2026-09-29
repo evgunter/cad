@@ -358,12 +358,15 @@ mod tests {
         let mut body = p.body;
         body.set_face_surface(
             face,
-            crate::FaceSurface::New(geom::Surface::Sphere {
-                center: geom_core::Point3::new(0.0, 0.0, 0.0),
-                radius: 2.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            crate::FaceSurface::New {
+                surface: geom::Surface::Sphere {
+                    center: geom_core::Point3::new(0.0, 0.0, 0.0),
+                    radius: 2.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
         let outer = body.get_face(face).unwrap().outer;

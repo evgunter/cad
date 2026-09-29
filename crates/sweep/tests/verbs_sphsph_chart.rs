@@ -709,14 +709,18 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
         // The disc face carries the tilted circle's own plane, so the
         // pair the description names IS the edge's adjacent pair.
         let disc = flat_disc(&planted);
+        let sense = planted.get_face(disc).unwrap().sense;
         let plane_key = planted
             .set_face_surface(
                 disc,
-                topo::FaceSurface::New(geom::Surface::Plane {
-                    origin: c,
-                    normal: m,
-                    u_ref: u,
-                }),
+                topo::FaceSurface::New {
+                    surface: geom::Surface::Plane {
+                        origin: c,
+                        normal: m,
+                        u_ref: u,
+                    },
+                    sense,
+                },
             )
             .unwrap();
         planted

@@ -1436,7 +1436,7 @@ mod continuation_refusal_order_tests {
     fn refusal_at(threads: usize) -> MassPropsError {
         let mut body = Body::<f64>::new();
         let skeletal = body
-            .mvfs(Point3::new(0.0, 0.0, 0.0))
+            .mvfs(Point3::new(0.0, 0.0, 0.0), true)
             .expect("the skeletal body builds")
             .face;
         let early = FaceKey::null();
@@ -1485,7 +1485,7 @@ mod continuation_refusal_order_tests {
     fn the_later_slots_resumption_refuses_outright() {
         let mut body = Body::<f64>::new();
         let skeletal = body
-            .mvfs(Point3::new(0.0, 0.0, 0.0))
+            .mvfs(Point3::new(0.0, 0.0, 0.0), true)
             .expect("the skeletal body builds")
             .face;
         let band = Band::linear(Tol::witness()).expect("the witness band builds");
@@ -2980,7 +2980,7 @@ mod at_rest_policy_tests {
     /// scalar-generic refusing subject.
     fn refusing_body<T: Decide>() -> Body<T> {
         let mut b = Body::new();
-        b.mvfs(Point3::new(T::zero(), T::zero(), T::zero()))
+        b.mvfs(Point3::new(T::zero(), T::zero(), T::zero()), true)
             .expect("mvfs has no preconditions");
         b
     }
