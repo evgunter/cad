@@ -31,6 +31,7 @@ test_utils::gated_to![
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Interval, Point2, Point3};

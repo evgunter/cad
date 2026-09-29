@@ -2,11 +2,12 @@
 id: surface-field-census-is-hand-kept-beside-the-walk
 kind: issue
 title: param_source.rs's SurfaceField is a hand-kept census of fields the surface walk now enumerates
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P4
 cost: E
 refs: [surface-field-walks-and-source-theorem-checks-have-no-one-home]
+branch: origin/curve-walk
 ---
 
 

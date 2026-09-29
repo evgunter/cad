@@ -142,6 +142,7 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -281,7 +282,7 @@ pub enum MeterError {
         verdict: Refused,
     },
     /// A meter escalated: the margin landed in the ambiguity band or
-    /// was poisoned (escalate-never-guess, D4 ¶3).
+    /// was refused (escalate-never-guess, D4 ¶3).
     ///
     /// It renders the classifier's payload without `Indeterminate`'s
     /// shared coincidence tail — a meter decides one face's own normal
@@ -369,14 +370,14 @@ impl MeterError {
 impl core::error::Error for MeterError {}
 
 /// The smallest `|x|` over the enclosure — zero when it straddles, and
-/// zero when it is poisoned, which is the conservative answer.
+/// zero when it is refused, which is the conservative answer.
 ///
-/// **The poison arm is asked by name.** Interval arithmetic's refusal is its
+/// **The refusal arm is asked by name.** Interval arithmetic's refusal is its
 /// decoration, not a NaN pair, so a refused enclosure carries ordinary
 /// endpoints and `i.lo() > 0.0` can be TRUE of one — a quotient by a
 /// divisor not proven away from zero is the shape that reaches here.
 ///
-/// The **mignitude**, and the same quantity `ssi::certify`'s
+/// The **mignitude**, and the same quantity `ssi::enclose`'s
 /// `zero_free_lower_bound` reads for the transversality margin. Kept
 /// separate rather than shared: that one is a *decision* helper on a
 /// residual channel and answers `0.0` for a straddling interval
@@ -444,7 +445,7 @@ pub(crate) fn norm_sq(v: &[Interval; 3]) -> Interval {
 /// by ulps, which is the unsound side wherever the result is a
 /// divisor of a lower bound — so a site that wants an upper bound on
 /// a norm calls this rather than re-spelling the fold.
-/// A poisoned enclosure answers `NaN` — no bound at all, which is what
+/// A refused enclosure answers `NaN` — no bound at all, which is what
 /// every consumer of this value already treats as unbounded. The
 /// refusal is asked by name because a refused enclosure carries ordinary
 /// endpoints and `sqrt_up` of one would be a plausible bound with
@@ -515,7 +516,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         // so dividing by it is the sound side.
         //
         // The quotient's refusal is asked by name: `f64::max(NaN, 0.0)`
-        // used to absorb a poisoned quotient, and a refused quotient
+        // used to absorb a NaN quotient, and a refused quotient
         // now carries real endpoints instead.
         let q = proj / Interval::point(dn);
         if !q.is_certified() {
@@ -622,8 +623,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
         let n = cell_normal(cell);
         // `cell_normal` never answers a NaN floor — its assemblies
         // clamp at zero, which is the conservative reading of a
-        // poisoned cell — so a plain `<` is the whole fold. The sup
-        // CAN be NaN (it reads `mag`), and the explicit poison step
+        // refused cell — so a plain `<` is the whole fold. The sup
+        // CAN be NaN (it reads `mag`), and the explicit refusal step
         // below is what keeps that from being dropped by `max`.
         if n.floor < floor {
             floor = n.floor;
@@ -666,7 +667,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 ///
 /// [`MeterError::NormalFloor`] when the margin is certifiably at or
 /// below zero, [`MeterError::Escalated`] when it lands in the
-/// ambiguity band or is poisoned.
+/// ambiguity band or is refused.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
     let meter = Meter::NormalFloor;
     let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
@@ -903,7 +904,7 @@ pub enum MeterResult {
 ///
 /// [`MeterError::CurvatureHeadroom`] when the margin is certifiably
 /// at or below zero, [`MeterError::Escalated`] when it lands in the
-/// ambiguity band or is poisoned.
+/// ambiguity band or is refused.
 pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(), MeterError> {
     let meter = Meter::CurvatureHeadroom;
     let decided = decide_reported(meter.predicate(), Margin::of(coll.headroom), band)

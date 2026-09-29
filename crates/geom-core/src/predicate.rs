@@ -1669,6 +1669,7 @@ impl Decide for f64 {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::interval::certification::Certification;
     use crate::tolerance::Tol;
     use proptest::prelude::*;
 
