@@ -314,12 +314,19 @@ fn in_band_shell_escalates_typed_never_guessed() {
     };
     // The escalation names the funnel site it came from.
     assert_eq!(source.predicate, Some("chk_shell_volume_sign"));
-    // The rendered story names the margin data and the check's own
-    // recourse — not the funnel's generic declare-the-coincidence
-    // menu, and no kernel arena key.
+    // The rendered story names the margin data and ends in the
+    // shell-role decision's own ending — a thickness a smaller
+    // tolerance decides — not the funnel's generic
+    // declare-the-coincidence menu, and no kernel arena key.
     let rendered = finding.to_string();
     assert!(rendered.contains("chk_shell_volume_sign"), "{rendered}");
-    assert!(rendered.contains("thicken or remove"), "{rendered}");
+    assert!(
+        rendered.contains(
+            "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
+             intended, tighten the tolerance below "
+        ),
+        "{rendered}"
+    );
     assert!(!rendered.contains("declare"), "{rendered}");
     assert!(!rendered.contains("ShellKey"), "{rendered}");
 }
