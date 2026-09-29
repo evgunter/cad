@@ -58,6 +58,7 @@ pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
 pub mod enters;
+pub mod fitted_lane;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -92,6 +93,7 @@ pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
+pub use fitted_lane::FittedLane;
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
@@ -127,8 +129,8 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve,
-    chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, chart_pcurve, chart_stretch_inf,
+    chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

@@ -20,7 +20,7 @@ pins** — is stale in substance: `crates/geom-brep/src/ssi/enclose.rs`'s
 own `tests::decoration_seam` module pins that crossing with three rows,
 `every_ring_crossing_refuses_exactly_where_the_decoration_degrades`,
 `no_crossing_may_be_rebounded_to_the_bracket_door` and
-`a_violated_radius_poisons_the_pad`, all three green under
+`a_violated_radius_refuses_the_pad`, all three green under
 `--features interval` (measured 2026-09-04). The bullet should name them
 as the other three bullets name theirs.
 
@@ -104,7 +104,7 @@ carries `mod decoration_seam` under `#[cfg(feature = "interval")]`, doc'd
 finding names:
 `every_ring_crossing_refuses_exactly_where_the_decoration_degrades`,
 `no_crossing_may_be_rebounded_to_the_bracket_door`,
-`a_violated_radius_poisons_the_pad`.
+`a_violated_radius_refuses_the_pad`.
 
 **The roster's population re-derived, since "a roster with a count in it
 is what the finding was about".** `grep -rln 'RingInterval::from_certified'

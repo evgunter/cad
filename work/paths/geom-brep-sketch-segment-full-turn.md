@@ -99,7 +99,7 @@ certification and the symbolic tier. It is broad and hard to reverse.
   change is disclosed.
 - (C5) Certification still certifies every edge it certified before.
 
-## Closed (2026-09-29, #3254, DR-20)
+## Closed (2026-09-29, #3254, DR-22)
 
 geom-brep's `SketchSegment::Arc` now carries the canonical carrier
 (centre, radius, Δθ), and no bulge crosses the boundary. What moved:

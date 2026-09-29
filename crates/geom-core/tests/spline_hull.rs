@@ -37,6 +37,7 @@ test_utils::gated_to![
 use core::num::NonZeroUsize;
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::{KnotVector, basis};
 use test_utils::fuzz;
 
@@ -446,7 +447,7 @@ fn structural_errors_poison_rather_than_panic() {
     // neither has a poison row here.
     // A poisoned coefficient poisons every bound it participates in.
     let mut poisoned: Vec<Interval> = coeffs.iter().map(|c| Interval::point(*c)).collect();
-    poisoned[0] = Interval::poison();
+    poisoned[0] = Interval::refused();
     let pp = kv.with_coeffs(&poisoned).expect("its own vector");
     assert!(!pp.domain_hull().is_certified());
     assert!(
