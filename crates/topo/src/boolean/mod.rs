@@ -71,6 +71,8 @@ pub mod carrier_eq;
 mod circle_cone;
 mod circle_torus;
 pub(crate) mod combine;
+#[cfg(test)]
+mod cone_roots_fuzz;
 pub mod contact_verify;
 mod contain;
 // The variant roster the sample-coverage row reads (test builds only).
