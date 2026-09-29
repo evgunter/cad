@@ -150,18 +150,32 @@ converged. A11 (2)–(5) now state the result:
 - **The accepted jump.** A part whose placing source is gone sits at
   its gauge's origin.
 
-**What Ev rules on:**
-1. **How an instance comes to be on a gauge.**
-   - (a) Each instance names its gauge (the world by default). A mate
-     across gauges only declares, so a part joins a gauged group by
-     being put on that gauge.
-   - (b) Gauge membership comes from attachment edges plus placing
-     mates. A mate that would weld two gauged groups is refused, and a
-     contact-only mate declares across gauges.
-2. **Deleting a gauge that parts are on:** refused while in use, or
-   what it held becomes unplaced.
-3. **Under (b):** the contact-only mate now or later, and more than one
-   attachment per group now or later.
+**Ev's answers so far (2026-09-29, on #3441):**
+- Membership: (a) is leaned towards, since a "copy x's gauge to y, then
+  mate" shortcut stays possible as one compound edit.
+- Deleting a gauge: "definitely not refused".
+- Ev asked whether a group nothing places can be shown without a jump,
+  with the displayed location "only a convenience" that never enters
+  the logic.
+
+**The third pair (row 17).** It weighed what such a group becomes. Both
+designers agreed:
+- the viewer holds the group where it was last shown, as display state
+  (G3's probe, widened to a group);
+- placing it "where shown" is one edit whose frame the user supplies.
+
+A11 (2) now states these points and the settled ones.
+
+**What Ev rules on:** the pair split, and crossed in reconciliation, on
+one question. When nothing places a group, does the logic:
+- **answer at a default pose?** Evaluation stays total and A9's "one
+  deterministic body" holds. The jump reaches export and the gate, and
+  the GUI annotates it. Deleting a gauge re-gauges its instances to the
+  world.
+- **or refuse?** "Unplaced" is a state. Export, the gate and cross-group
+  queries refuse with a recourse, and nothing unauthored enters the
+  logic. Deleted-gauge references are kept, so the refusal names the
+  cause.
 
 **Sequencing (orchestrator).** The box and seed lanes still solve mates
 at the nominal, a silent class filed on MSOLVE as

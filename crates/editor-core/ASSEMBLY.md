@@ -354,8 +354,9 @@ so a verdict about the pair, and a state a mate comes to hold after
 insert (a head a rebind or a shrunk pattern strands, a re-pointed
 `Part`, a loaded snapshot), stay the solve's. (2) Placement lives on a
 gauge. A gauge is a document node that holds a placement and denotes no
-body; an instance's world pose is its gauge's frame composed with an
-offset, and the world is the gauge of anything placed nowhere else. A
+body; each instance names its gauge, the world by default, and may carry
+an offset in it, and an instance's world pose is its gauge's frame
+composed with its offset. A
 placement is parametric (Ev, `[ev]` #3437, 2026-09-29): a chain of
 steps, each either a rigid step of `Expr`s (the translation, rotation
 axis and rotation angle `Node::Transform` holds, and `Node::Transform`
@@ -363,12 +364,17 @@ holds the same type) or a literal proper matrix held to A6, so a
 document parameter can drive where a group of parts sits. Mates place
 instances relative to one another only within one gauge; contact
 between groups on different gauges is declared and verified at the
-at-rest gate, never placed. A further statement of where a placed
+at-rest gate, never placed, and copying one part's gauge to another
+and mating them is one edit. A further statement of where a placed
 instance sits is verified against the solve, never trusted and never
 silently ignored. No edit records a frame: deleting a mate, an instance
-or a gauge recomputes what is placed from what remains, a part whose
-placing source is gone sits at its gauge's origin until placed again,
-and replay re-applies the edits alone, without solving. (3) A
+or a gauge is never refused for the placement it removes, what is placed
+is recomputed from what remains, and replay re-applies the edits alone,
+without solving. A group nothing places any more keeps its shape, and
+the viewer draws it where it was last shown, as display state that no
+logic reads (G3's free-move probe, widened to a whole group) until it is
+placed again; placing it where it is shown is one edit whose frame the
+user supplies. (3) A
 cluster's tree is rooted at its placed member when it has one, and at
 its earliest instance in document order otherwise, a convention that
 decides nothing a user placed; pattern-placed instances are
