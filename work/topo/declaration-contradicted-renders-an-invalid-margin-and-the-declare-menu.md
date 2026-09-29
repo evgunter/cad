@@ -2,7 +2,7 @@
 id: declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu
 kind: issue
 title: topo: a contradicted declaration renders its definite verdict as an invalid margin followed by the declare menu, beside its own recourse
-status: open
+status: review
 opened: 2026-09-29
 priority: P2
 cost: E

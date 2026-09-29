@@ -162,6 +162,11 @@ pub(crate) fn escalation(predicate: Option<&str>) -> Option<Escalation> {
 /// by the decision's lever. Grouped by the raise path each group
 /// arrives through.
 fn lever(name: &str) -> Option<Lever> {
+    // `SectorFault::Rung` (`sectors`): a corner's own shape. The names
+    // are spelled in `sector_shape` alone.
+    if crate::sector_shape::RUNG_NAMES.contains(&name) {
+        return Some(CORNER);
+    }
     Some(match name {
         // The plane and carrier identity rungs (`plane_eq`,
         // `carrier_eq`), the tangent locus and the declared-tangent
@@ -274,8 +279,6 @@ fn lever(name: &str) -> Option<Lever> {
         | "bool_sphere_sphere_nested"
         | "bool_sphere_escape_parallel"
         | "bool_sphere_recut_align" => Lever::Coincidence,
-        // `SectorFault::Rung` (`sectors`): a corner's own shape.
-        "sector_arm" | "sector_reflex" | "sector_straight" => CORNER,
         // `NormalAtError::Escalated` (`vtxfac`): the pierced face's
         // normal at the pierce point.
         "bool_pierce_normal_on_chart" => PIERCE_POINT,
@@ -493,13 +496,13 @@ mod tests {
             "Recourse: declare the coincidence, move the geometry, or lower the tolerance",
         ),
         (
-            "sector_arm",
+            crate::sector_shape::RUNG_NAMES[0],
             "whether a corner's edges are long enough to measure its angle over is undecided: ",
             "Recourse: reshape that corner so its edges are clearly longer than the tolerance \
              and clearly not in line",
         ),
         (
-            "sector_straight",
+            crate::sector_shape::RUNG_NAMES[2],
             "whether a corner is straight or folds back on itself is undecided: ",
             "Recourse: reshape that corner so its edges are clearly longer than the tolerance \
              and clearly not in line",
@@ -690,9 +693,9 @@ mod tests {
             "bool_torus_trim_minor_period",
             "src/boolean/solid_contain.rs",
         ),
-        ("sector_arm", "src/sector_shape.rs"),
-        ("sector_reflex", "src/sector_shape.rs"),
-        ("sector_straight", "src/sector_shape.rs"),
+        (crate::sector_shape::RUNG_NAMES[0], "src/sector_shape.rs"),
+        (crate::sector_shape::RUNG_NAMES[1], "src/sector_shape.rs"),
+        (crate::sector_shape::RUNG_NAMES[2], "src/sector_shape.rs"),
         ("bool_pierce_normal_on_chart", "src/face_normal.rs"),
         ("split_conic_plane_parallel", "src/splitting/classify.rs"),
         ("split_conic_belly_graze", "src/splitting/classify.rs"),

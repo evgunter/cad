@@ -153,14 +153,14 @@ pub use voids::{
 /// does not own.
 #[must_use]
 pub fn decision_words(predicate: &str) -> Option<&'static str> {
+    if let Some(words) = crate::sector_shape::rung_words(predicate) {
+        return Some(words);
+    }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
         "bool_plane_parallel" => "whether the two planes are parallel",
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
         crate::query::DATUM_UNIT_NORM => "whether a direction has any length",
-        "sector_arm" => "whether a corner's edges are long enough to measure its angle over",
-        "sector_reflex" => "whether a corner is convex or reflex",
-        "sector_straight" => "whether a corner is straight or folds back on itself",
         "bool_pierce_normal_on_chart" => {
             "whether a point lies on a curved face, so the face's normal can be read there"
         }

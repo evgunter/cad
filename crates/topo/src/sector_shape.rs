@@ -176,6 +176,22 @@ const SECTOR_REFLEX: &str = "sector_reflex";
 /// at the arm), reached only when rung 2 is not definitely signed.
 const SECTOR_STRAIGHT: &str = "sector_straight";
 
+/// The three rungs' names, for a door that routes a refusal by the
+/// decision that raised it (`boolean::refusal_routes`). Reading a name
+/// decides nothing: the rungs are decided here alone.
+pub(crate) const RUNG_NAMES: [&str; 3] = [SECTOR_ARM, SECTOR_REFLEX, SECTOR_STRAIGHT];
+
+/// What each rung decides, in the words a refusal or a flip report
+/// states (`boolean::decision_words`).
+pub(crate) fn rung_words(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        SECTOR_ARM => "whether a corner's edges are long enough to measure its angle over",
+        SECTOR_REFLEX => "whether a corner is convex or reflex",
+        SECTOR_STRAIGHT => "whether a corner is straight or folds back on itself",
+        _ => return None,
+    })
+}
+
 /// Why [`sector_shape`] refused.
 ///
 /// Two causes, kept apart because their recourses are different
