@@ -209,9 +209,10 @@
 //! the `start(m)`-side write is last and wins (kemr's precedent). The
 //! plan proves every anchor write before mutating (the crate-internal
 //! `Body::require_kill_anchors`): a `Some` starts at its endpoint, a
-//! `None` leaves it no half-edge but the killed two, the surviving
-//! loop's `first` lies in it once the remnant has moved in, and an
-//! `Empty` surviving loop keeps no member but the killed two.
+//! `None` leaves it no half-edge but the killed two, the remnant claims
+//! the dying loop, the surviving loop's `first` lies in it once the
+//! remnant has moved in, and an `Empty` surviving loop keeps no member
+//! but the killed two.
 //!
 //! # `mfkrh` — inverse of `kfmrh`
 //!
@@ -309,7 +310,7 @@ use crate::entity::{
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::{EulerOpError, FaceSurface};
+use crate::euler::{EulerOpError, FaceSurface, KillRun};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
@@ -957,7 +958,7 @@ impl<T: Decide> Body<T> {
         };
         let emanating = [(v, anchor, he)];
         let proven: &[_] = if fan.is_empty() { &emanating } else { &[] };
-        self.require_kill_anchors(proven, &loops, &[he, m], &[], None)?;
+        self.require_kill_anchors(proven, &loops, &[he, m], None)?;
         if unsplice != KevUnsplice::General && l2 != l1 {
             return Err(EulerOpError::LoopCycleBroken { r#loop: l2 });
         }
@@ -1214,12 +1215,15 @@ impl<T: Decide> Body<T> {
     /// two ([`EulerOpError::OrbitBroken`] naming `he`, then the mate —
     /// tier-1-invalid input: a torn `next` can put either anchor on
     /// another vertex, or land both steps on the killed halves at an
-    /// endpoint that keeps edges); then the surviving loop's new anchor
-    /// holds: its `first` lies in it once the remnant has moved in, and
-    /// in the `Lone` inverse it keeps no member but the killed two
-    /// ([`EulerOpError::LoopCycleBroken`] naming the surviving loop —
-    /// tier-1-invalid input: a torn `next(m)` can land in another loop,
-    /// or read the mate as alone in a loop that keeps other members).
+    /// endpoint that keeps edges); then every remnant member claims the
+    /// dying loop ([`EulerOpError::LoopCycleBroken`] naming the dying
+    /// loop — tier-1-invalid input: a torn `next` can divert its walk
+    /// through another loop, whose members the move would take); then
+    /// the surviving loop's new anchor holds: its `first` lies in it once
+    /// the remnant has moved in, and in the `Lone` inverse it keeps no
+    /// member but the killed two (`LoopCycleBroken` naming the surviving
+    /// loop — a torn `next(m)` can land in another loop, or read the mate
+    /// as alone in a loop that keeps other members).
     ///
     /// # Errors
     ///
@@ -1341,7 +1345,7 @@ impl<T: Decide> Body<T> {
         // The surviving loop (unconditional rule, module docs): `next(m)`
         // where that survives, else the remnant's first member, else
         // `Empty` at `w`, the Lone inverse. The plan proves it with the
-        // `emanating` writes: the remnant moves into `l2`.
+        // `emanating` writes, and the remnant it moves into `l2`.
         let m_alone = d.key() == m; // mate's loop was [m]
         let l2_boundary = match (b, m_alone) {
             (None, true) => LoopBoundary::Empty { vertex: w },
@@ -1352,8 +1356,11 @@ impl<T: Decide> Body<T> {
             &[(u, u_anchor, he), (w, w_anchor, m)],
             &[(l2, l2_boundary)],
             &[he, m],
-            &remnant,
-            Some(l2),
+            Some(KillRun {
+                members: &remnant,
+                from: l1,
+                into: Some(l2),
+            }),
         )?;
 
         // ---- Mutation (infallible from here on). ----
@@ -3670,5 +3677,35 @@ mod tests {
             b.kev_describing(a0, &[], tol).unwrap_err()
         });
         assert_eq!(body.kev_merged_members(a0).map(|_| ()), Err(torn));
+    }
+
+    #[test]
+    fn kef_refuses_a_remnant_walked_through_another_loop() {
+        // The loop-anchor probe's `kef` counterexample once the written
+        // anchor is proven (declined cube, seed 57, two tears): the
+        // dying loop's walk is diverted through a third loop and back,
+        // so the remnant carries that loop's anchor into the surviving
+        // loop. Unchecked, the third loop keeps an anchor that the kill
+        // moved into another loop, and the kill returns `Ok`.
+        let (mut body, halves) = torn_cube(&[(5, 14), (13, 1)]);
+        let he = halves[1];
+        let l1 = loop_of(&body, he);
+        let walk = body.loop_cycle(he).unwrap();
+        let taken: Vec<LoopKey> = walk
+            .iter()
+            .map(|&x| loop_of(&body, x))
+            .filter(|&l| l != l1)
+            .collect();
+        assert!(
+            taken.iter().any(|&l| {
+                let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary else {
+                    return false;
+                };
+                walk.contains(&first)
+            }),
+            "the walk takes a third loop's anchor"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l1 };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
     }
 }

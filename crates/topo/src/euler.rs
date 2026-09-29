@@ -2592,9 +2592,8 @@ impl<T: Decide> Body<T> {
     }
 
     /// Proves the anchor writes of a kill that removes the half-edges
-    /// `killed` and re-parents the run `moved` into `moved_into` (`None`:
-    /// a loop the kill mints), first every `emanating` write and then
-    /// every loop write.
+    /// `killed` and re-parents `run`, first every `emanating` write, then
+    /// the run, then every loop write.
     ///
     /// One `(vertex, anchor, origin)` per `emanating` write:
     /// `Some(anchor)` starts at `vertex`
@@ -2606,26 +2605,31 @@ impl<T: Decide> Body<T> {
     /// fan) proves that anchor by its walk instead, and a kill that
     /// writes one vertex twice proves both writes.
     ///
+    /// Every member of the run claims the loop it is taken from, so the
+    /// move takes nothing out of a third loop; refuses
+    /// [`EulerOpError::LoopCycleBroken`] naming that loop otherwise.
+    ///
     /// One `(loop, boundary)` per loop write, for the loops the kill
     /// leaves standing: a `Cycle`'s `first` is not killed and lies in
-    /// the loop once the kill has run (its `parent_loop`, or `moved_into`
-    /// for a member of `moved`); an `Empty` loop keeps no member but
-    /// `killed`, and its vertex is one the `emanating` writes above leave
-    /// at a proven `None`. Refuses [`EulerOpError::LoopCycleBroken`]
-    /// naming the loop at the first write that fails. A loop the kill
-    /// mints, and a run it moves in, anchor by construction and are not
-    /// listed.
+    /// the loop once the kill has run (its `parent_loop`, or the loop the
+    /// run joins for a member of the run); an `Empty` loop keeps no
+    /// member but `killed`, and its vertex is one the `emanating` writes
+    /// above leave at a proven `None`. Refuses `LoopCycleBroken` naming
+    /// the loop at the first write that fails. A loop the kill mints
+    /// anchors in the run it receives, or at a vertex the `emanating`
+    /// writes prove lone, and is not listed.
     ///
     /// Each kill reads an anchor one `next` step from a killed half, and
     /// reads "no anchor" where that step lands on a killed half. A torn
     /// `next` can put the step on another vertex or into another loop,
     /// or land it on a killed half where the vertex or the loop keeps
-    /// other members. The orbit and cycle walks from the killed half
-    /// take that same step first, so they close on the killed halves
-    /// either way; the `None` and `Empty` proofs read the whole arena
-    /// instead, bounded as the kill's orphan sweeps are. The validator
-    /// reports the faults this refuses in pass 5
-    /// (`EmanatingStartMismatch`, `LoneVertexWithIncidence`,
+    /// other members; and a cycle walk it diverts through another loop
+    /// hands the kill that loop's members as its run. The orbit and cycle
+    /// walks from the killed half take the torn step first, so they
+    /// close on the killed halves either way; the `None` and `Empty`
+    /// proofs read the whole arena instead, bounded as the kill's orphan
+    /// sweeps are. The validator reports the faults this refuses in pass
+    /// 5 (`EmanatingStartMismatch`, `LoneVertexWithIncidence`,
     /// `EmptyLoopVertexWithEmanating`) and in its cycle pass
     /// (`ParentLoopMismatch`, `UnreachableHalfEdge`).
     pub(crate) fn require_kill_anchors(
@@ -2633,8 +2637,7 @@ impl<T: Decide> Body<T> {
         writes: &[(VertexKey, Option<HalfEdgeKey>, HalfEdgeKey)],
         loops: &[(LoopKey, LoopBoundary)],
         killed: &[HalfEdgeKey],
-        moved: &[Live],
-        moved_into: Option<LoopKey>,
+        run: Option<KillRun<'_>>,
     ) -> Result<(), EulerOpError> {
         for &(vertex, anchor, origin) in writes {
             match anchor {
@@ -2652,14 +2655,31 @@ impl<T: Decide> Body<T> {
                 }
             }
         }
-        let mut run: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
-        for member in moved {
-            run.insert(member.key(), ());
+        let mut moved: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
+        let mut into = None;
+        if let Some(KillRun {
+            members,
+            from,
+            into: joins,
+        }) = run
+        {
+            for member in members {
+                if self
+                    .half_edges
+                    .get(member.key())
+                    .map(|data| data.parent_loop)
+                    != Some(from)
+                {
+                    return Err(EulerOpError::LoopCycleBroken { r#loop: from });
+                }
+                moved.insert(member.key(), ());
+            }
+            into = joins;
         }
         let stays_in = |he: HalfEdgeKey, data: &HalfEdge, r#loop: LoopKey| {
             !killed.contains(&he)
-                && if run.contains_key(he) {
-                    moved_into == Some(r#loop)
+                && if moved.contains_key(he) {
+                    into == Some(r#loop)
                 } else {
                     data.parent_loop == r#loop
                 }
@@ -3341,6 +3361,20 @@ impl<T: Decide> Body<T> {
         );
         self.assert_tier1_postcondition(op);
     }
+}
+
+/// A run of half-edges a kill re-parents
+/// ([`Body::require_kill_anchors`]): the members its cycle walk took
+/// from the loop `from`, which join `into` (`None`: a loop the kill
+/// mints).
+#[derive(Clone, Copy)]
+pub(crate) struct KillRun<'a> {
+    /// The run, as the walk returned it.
+    pub(crate) members: &'a [Live],
+    /// The loop the walk was of.
+    pub(crate) from: LoopKey,
+    /// The loop the run joins.
+    pub(crate) into: Option<LoopKey>,
 }
 
 /// The **plane × NURBS attach door** (M7-8).
