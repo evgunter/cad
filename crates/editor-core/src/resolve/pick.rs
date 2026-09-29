@@ -667,13 +667,9 @@ impl From<NodeStanding> for NodePickError {
 pub enum NameLookupError {
     /// The handed evaluation is of another document (DI3, A2a): node
     /// ids are minted per document, so its tables would answer about
-    /// other geometry.
-    EvaluationOfAnotherDocument {
-        /// The document the index was built from.
-        expected: DocumentId,
-        /// The document the handed evaluation is of.
-        found: DocumentId,
-    },
+    /// other geometry. `expected` is the document the index was built
+    /// from.
+    EvaluationOfAnotherDocument(crate::ident::Mispaired),
     /// The node has no value in the handed evaluation, so there is no
     /// table to read.
     Standing(NodeStanding),
@@ -681,10 +677,7 @@ pub enum NameLookupError {
 
 impl From<crate::ident::Mispaired> for NameLookupError {
     fn from(m: crate::ident::Mispaired) -> Self {
-        Self::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        }
+        Self::EvaluationOfAnotherDocument(m)
     }
 }
 
@@ -697,10 +690,11 @@ impl From<NodeStanding> for NameLookupError {
 impl core::fmt::Display for NameLookupError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+            Self::EvaluationOfAnotherDocument(m) => write!(
                 f,
-                "name lookup: the evaluation is of document {found}, not of document \
-                 {expected} — the index and the tables it is read against are of two documents"
+                "name lookup: the evaluation is of document {}, not of document {} — the index \
+                 and the tables it is read against are of two documents",
+                m.found, m.expected
             ),
             Self::Standing(standing) => write!(f, "name lookup: {standing}"),
         }
@@ -1045,17 +1039,6 @@ impl PickMemo {
         self.closed = true;
         self.patches.end_picture();
     }
-}
-
-/// The pairing for [`pick_face`]: `None` when `eval` is of `expected`,
-/// else the typed refusal, which is `HitTestError`'s `From<Mispaired>`
-/// and no second spelling of which field goes where.
-///
-/// The comparison is `ident::mispaired`, the one predicate the pairing
-/// doors share (A2a) — identity only, never a version, so a LATER
-/// evaluation of the same document still pairs.
-fn mispairing<T: Decide>(expected: DocumentId, eval: &Evaluation<T>) -> Option<HitTestError> {
-    crate::ident::mispaired(expected, eval.document).map(HitTestError::from)
 }
 
 fn tolerance_bits(delta: f64, tol: Tol) -> [u64; 3] {
@@ -1599,8 +1582,8 @@ pub fn pick_face<T: Decide>(
     // The pairing, before any standing is read: a foreign
     // evaluation has an `Ok` value for these node ids too (docs).
     for target in targets {
-        if let Some(refusal) = mispairing(target.document, eval) {
-            return Err(refusal);
+        if let Some(m) = crate::ident::mispaired(target.document, eval.document) {
+            return Err(m.into());
         }
     }
 

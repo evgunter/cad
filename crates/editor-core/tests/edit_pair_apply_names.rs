@@ -39,7 +39,7 @@ use crate::fixture;
 
 use std::collections::BTreeSet;
 
-use editor_core::NodeStanding;
+use editor_core::{Mispaired, NodeStanding};
 use editor_core::{
     CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, HitTestError,
     NameLookupError, Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
@@ -389,10 +389,10 @@ fn the_name_doors_refuse_a_twins_evaluation() {
          refusal here buys something"
     );
 
-    let expected = NameLookupError::EvaluationOfAnotherDocument {
+    let expected = NameLookupError::EvaluationOfAnotherDocument(Mispaired {
         expected: t.square.id(),
         found: t.triangle.id(),
-    };
+    });
     assert_eq!(
         pick.patch_names(&t.ev_triangle),
         Err(expected),
@@ -618,10 +618,10 @@ fn the_memo_refuses_a_prior_of_another_document() {
         second
             .patch_names(&ev_a)
             .expect_err("a is the other document"),
-        NameLookupError::EvaluationOfAnotherDocument {
+        NameLookupError::EvaluationOfAnotherDocument(Mispaired {
             expected: b.id(),
             found: a.id(),
-        },
+        }),
         "and it is not a's"
     );
 }

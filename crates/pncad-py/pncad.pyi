@@ -609,8 +609,8 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `datum_has_no_value`, `not_a_length`,
-    `pair_in_band`, `bad_value`, or `band`. The other attributes are
+    `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
+    `not_a_length`, `pair_in_band`, `bad_value`, or `band`. The other attributes are
     the refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text),
     `predicate` (the funnel site), `matched`/`candidates` (a tied
@@ -4858,10 +4858,11 @@ class Evaluation:
         outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
         finding cannot disagree with the boolean's verify-at-use).
-        Findings are DEFINITE and canonically ordered; empty when
-        either node has no value. Raises `SelectRefusal`, typed
-        (`pair_in_band`, `tied_disagrees`, `unreadable`, `band`) —
-        an ambiguous pair is never silently included or dropped."""
+        Findings are DEFINITE and canonically ordered. Raises
+        `SelectRefusal`, typed (`node_has_no_value` when either node
+        has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
+        `band`) — an ambiguous pair is never silently included or
+        dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every

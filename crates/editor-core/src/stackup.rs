@@ -138,7 +138,7 @@ use crate::doc::{Doc, DocParam, ParamName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
-    NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeErrorKind, NodeResult, NodeStanding, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
@@ -542,10 +542,6 @@ fn leaf_opts(box_: ParamBox) -> EvalOptions {
     }
 }
 
-/// The measured value at `id`, or the refusal rendered with the node
-/// it came from (the measure itself, or the failed ancestor a poisoned
-/// measure names) — the one ladder every reader of a measure payload
-/// takes.
 /// The stackup's NOMINAL column: the f64 value, or the typed reason
 /// there is none — distinguished from a measure node that genuinely
 /// failed, which stays an error.
@@ -563,10 +559,27 @@ fn nominal_of(
             ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
             other => Err((id, format!("node is a {}", other.kind_name()))),
         },
-        Err(standing) => Err((id, format!("the measure did not evaluate: {standing}"))),
+        Err(standing) => Err(no_measure(ev, standing)),
     }
 }
 
+/// The refusal for a measure node with no value, rendered with the
+/// node it came from: a failed measure's own error, a poisoned one's
+/// failed ancestor's, and otherwise the standing.
+fn no_measure<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    standing: NodeStanding,
+) -> (RecipeNodeId, String) {
+    ev.node_error(standing.node()).map_or_else(
+        || (standing.node(), standing.to_string()),
+        |e| (e.node, e.kind.to_string()),
+    )
+}
+
+/// The measured value at `id`, or the refusal rendered with the node
+/// it came from (the measure itself, or the failed ancestor a poisoned
+/// measure names) — the one ladder every reader of a measure payload
+/// takes.
 fn measure_of<T: geom_core::Decide + Copy>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
@@ -593,10 +606,7 @@ fn measure_of<T: geom_core::Decide + Copy>(
                 format!("node evaluated to a {}, not a measure", other.kind_name()),
             )),
         },
-        Err(standing) => Err(ev.node_error(id).map_or_else(
-            || (id, standing.to_string()),
-            |e| (e.node, e.kind.to_string()),
-        )),
+        Err(standing) => Err(no_measure(ev, standing)),
     }
 }
 

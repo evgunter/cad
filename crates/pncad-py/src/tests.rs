@@ -678,10 +678,12 @@ fn picking_refusal_tags_are_stable() {
         assert_eq!(name_lookup_error_tag(&L::Standing(standing)), word);
     }
     assert_eq!(
-        name_lookup_error_tag(&L::EvaluationOfAnotherDocument {
-            expected: pncad::document::DocumentId::derive("tag-expected"),
-            found: pncad::document::DocumentId::derive("tag-found"),
-        }),
+        name_lookup_error_tag(&L::EvaluationOfAnotherDocument(
+            pncad::document::Mispaired {
+                expected: pncad::document::DocumentId::derive("tag-expected"),
+                found: pncad::document::DocumentId::derive("tag-found"),
+            }
+        )),
         "evaluation_of_another_document"
     );
 
@@ -1542,6 +1544,14 @@ fn select_refusal_tags_are_stable() {
             }
         )),
         "datum_has_no_value"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::NodeHasNoValue(
+            pncad::document::NodeStanding::Failed {
+                node: RecipeNodeId(0)
+            }
+        )),
+        "node_has_no_value"
     );
     assert_eq!(
         select_refusal_tag(&SelectRefusal::NotALength {

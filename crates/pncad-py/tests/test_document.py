@@ -32,6 +32,7 @@ from pncad import (
     Open,
     ParamName,
     PatternKind,
+    SelectRefusal,
     Selector,
     SketchPlane,
     Start,
@@ -418,7 +419,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "no_findings")
         self.assertNotIn("  ", str(caught.exception))
 
-    def test_detection_answers_empty_for_separated_and_unevaluated(self):
+    def test_detection_answers_empty_for_separated_and_refuses_unevaluated(self):
         # Separated in EVERY plane family: a pair sharing any plane —
         # even with disjoint faces (two boxes side by side on one
         # floor) — is honestly a finding, so "no findings" needs no
@@ -428,9 +429,17 @@ class TestDetectDeclareDoors(unittest.TestCase):
         b = slab(doc, (3 * m, 4 * m), (5 * m, 6 * m), (2 * m, 3 * m))
         ev = evaluate(doc)
         self.assertEqual(ev.find_flush_candidates(a, b), [])
-        # A node the evaluation does not know: empty, like `select`.
+        # A node the evaluation does not know refuses under its
+        # standing: "no flush pair" would be a claim about geometry
+        # that was never built.
         c = slab(doc, (6 * m, 7 * m), (8 * m, 9 * m), (4 * m, 5 * m))
-        self.assertEqual(ev.find_flush_candidates(a, c), [])
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.find_flush_candidates(a, c)
+        self.assertEqual(caught.exception.reason, "node_has_no_value")
+        self.assertIn(
+            "is not a node of the document this evaluation ran over",
+            str(caught.exception),
+        )
 
     def test_findings_are_values_with_opaque_names(self):
         doc, lower, upper = self.stacked()

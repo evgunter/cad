@@ -897,7 +897,9 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
         match cause.standing {
             NodeStanding::Failed { node } => ("target_failed", node),
             NodeStanding::Poisoned { through, .. } => ("target_poisoned", through),
-            NodeStanding::NotEvaluated { node } => ("target_not_evaluated", node),
+            NodeStanding::NotEvaluated { node } | NodeStanding::NotInDocument { node } => {
+                ("target_not_evaluated", node)
+            }
         }
     }
     assert_eq!(
@@ -2442,7 +2444,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
     ));
     assert!(matches!(
         door(RecipeNodeId(u64::MAX)),
-        Err(ExportError::Standing(NodeStanding::NotEvaluated { .. }))
+        Err(ExportError::Standing(NodeStanding::NotInDocument { .. }))
     ));
     assert!(matches!(
         door(cut),

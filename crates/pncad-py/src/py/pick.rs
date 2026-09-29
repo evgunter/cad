@@ -192,7 +192,7 @@ fn name_lookup_err(py: Python<'_>, err: &s::NameLookupError) -> PyErr {
     let node = |n: pncad::document::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
     let (which, through) = match err {
         // The pairing names two DOCUMENTS; the message states both.
-        s::NameLookupError::EvaluationOfAnotherDocument { .. } => (none(), none()),
+        s::NameLookupError::EvaluationOfAnotherDocument(_) => (none(), none()),
         s::NameLookupError::Standing(standing) => (
             node(standing.node()),
             standing.through().map_or_else(none, node),

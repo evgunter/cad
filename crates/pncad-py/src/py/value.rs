@@ -1592,11 +1592,12 @@ impl Evaluation {
     /// `Doc.declare` / `Doc.declare_all` turn the inspected findings
     /// into the `Declare` node `Node.boolean`'s `declare=` consumes.
     /// Detection and declaration are separate doors ON PURPOSE (the
-    /// ruled no-fusion boundary). Like `select`, the query answers
-    /// EMPTY if either node has no value in this evaluation.
+    /// ruled no-fusion boundary).
     ///
     /// Raises `SelectRefusal`, typed, exactly where the Rust door
-    /// refuses: a pair whose verify-door margin is inside the
+    /// refuses: either node with no value in this evaluation
+    /// (`reason="node_has_no_value"`, its standing in the message), a
+    /// pair whose verify-door margin is inside the
     /// ambiguity band (`reason="pair_in_band"` — neither reported nor
     /// silently dropped), a tied name whose candidates disagree
     /// (`"tied_disagrees"`), an unreadable name-table entry

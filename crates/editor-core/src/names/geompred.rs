@@ -191,8 +191,9 @@ pub enum GeomPred {
 /// faults of a malformed query — [`NotADatum`](Self::NotADatum),
 /// [`DatumHasNoValue`](Self::DatumHasNoValue),
 /// [`NotALength`](Self::NotALength), [`BadValue`](Self::BadValue) —
-/// and the detector's [`PairInBand`](Self::PairInBand) are about the
-/// query and the pair, not about the filter's exactness.
+/// and the detector's [`PairInBand`](Self::PairInBand) and
+/// [`NodeHasNoValue`](Self::NodeHasNoValue) are about the query and
+/// the pair, not about the filter's exactness.
 /// One door with one contract was preferred over splitting into an
 /// infallible and a fallible materializer.
 #[derive(Debug)]
@@ -243,6 +244,12 @@ pub enum SelectRefusal {
     /// The referenced datum node has no value in this evaluation.
     DatumHasNoValue(
         /// The datum node's standing.
+        NodeStanding,
+    ),
+    /// One of the flush detector's two nodes has no value in this
+    /// evaluation, so there is no geometry to pair.
+    NodeHasNoValue(
+        /// That node's standing.
         NodeStanding,
     ),
     /// The stated value is not a length (`Dimension::Length`) — the
@@ -353,6 +360,9 @@ impl core::fmt::Display for SelectRefusal {
                     f,
                     "select: the distance query's datum has no value: {standing}"
                 )
+            }
+            Self::NodeHasNoValue(standing) => {
+                write!(f, "select: the flush query's node has no value: {standing}")
             }
             Self::NotALength { dim } => write!(
                 f,
@@ -563,6 +573,7 @@ mod census {
             Unreadable,
             NotADatum,
             DatumHasNoValue,
+            NodeHasNoValue,
             NotALength,
             PairInBand,
             BadValue,
@@ -611,6 +622,9 @@ mod census {
             SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
                 node: RecipeNodeId(9),
                 through: RecipeNodeId(4),
+            }),
+            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
+                node: RecipeNodeId(9),
             }),
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,

@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::NodeStanding;
+use editor_core::{Mispaired, NameLookupError, NodeStanding};
 use editor_core::ParamNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
@@ -192,6 +192,53 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
     assert_f6_every_variant(&cases, &NODE_PICK_ERROR, &[]);
 }
 
+test_utils::f6_variants! {
+    /// `NameLookupError`'s census — see [`NODE_PICK_ERROR`].
+    const NAME_LOOKUP_ERROR: NameLookupError = [EvaluationOfAnotherDocument, Standing];
+}
+
+/// The name doors' refusal of the whole call names the lookup, and
+/// then the pairing or the standing — never a hit test, which these
+/// doors do not run.
+#[test]
+fn name_lookup_error_display_names_its_content_not_its_struct() {
+    let expected = DocumentId::derive("name-lookup-expected");
+    let found = DocumentId::derive("name-lookup-found");
+    let cases = [
+        (
+            NameLookupError::EvaluationOfAnotherDocument(Mispaired { expected, found }),
+            vec![
+                "name lookup:".to_owned(),
+                format!("of document {found}, not of document {expected}"),
+                "two documents".to_owned(),
+            ],
+        ),
+        (
+            NameLookupError::Standing(NodeStanding::Poisoned {
+                node: RecipeNodeId(6),
+                through: RecipeNodeId(2),
+            }),
+            vec![
+                "name lookup:".to_owned(),
+                "node 6".to_owned(),
+                "poisoned".to_owned(),
+                "node 2".to_owned(),
+            ],
+        ),
+    ];
+    let cases: Vec<(NameLookupError, Vec<&str>)> = cases
+        .iter()
+        .map(|(e, want)| (*e, want.iter().map(String::as_str).collect()))
+        .collect();
+    assert_f6_every_variant(&cases, &NAME_LOOKUP_ERROR, &["Mispaired"]);
+    for (refusal, _) in &cases {
+        assert!(
+            !refusal.to_string().contains("hit test"),
+            "no hit test ran: {refusal}"
+        );
+    }
+}
+
 /// The name doors' per-entity refusal is a LOOKUP's, and its sentence
 /// says so: it names the lookup, the entity by kind and body, and the
 /// bug it is — and it names no hit test, because none ran.
@@ -229,7 +276,7 @@ fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
 
 test_utils::f6_variants! {
     /// `NodeStanding`'s census — see [`NODE_PICK_ERROR`].
-    const NODE_STANDING: NodeStanding = [NotEvaluated, Failed, Poisoned];
+    const NODE_STANDING: NodeStanding = [NotEvaluated, NotInDocument, Failed, Poisoned];
 }
 
 /// The standing names itself — the node, its state, where the repair
@@ -241,7 +288,11 @@ fn node_standing_display_names_its_content_and_no_door() {
     let cases = [
         (
             NodeStanding::NotEvaluated { node },
-            vec!["node 6", "no result", "canceled"],
+            vec!["node 6", "no result", "canceled", "re-evaluate"],
+        ),
+        (
+            NodeStanding::NotInDocument { node },
+            vec!["node 6", "not a node of the document"],
         ),
         (
             NodeStanding::Failed { node },
@@ -414,6 +465,8 @@ fn select_refusal_is_exhaustive(e: &SelectRefusal) {
         | SelectRefusal::TiedDisagrees { .. }
         | SelectRefusal::Unreadable { .. }
         | SelectRefusal::NotADatum { .. }
+        | SelectRefusal::DatumHasNoValue(_)
+        | SelectRefusal::NodeHasNoValue(_)
         | SelectRefusal::NotALength { .. }
         | SelectRefusal::PairInBand { .. }
         | SelectRefusal::BadValue(_)
@@ -438,6 +491,8 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
             "TiedDisagrees",
             "Unreadable",
             "NotADatum",
+            "DatumHasNoValue",
+            "NodeHasNoValue",
             "NotALength",
             "PairInBand",
             "BadValue",
@@ -499,6 +554,19 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 found: "a body",
             },
             vec!["node 9", "a body", "evaluated datum"],
+        ),
+        (
+            SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
+                node: RecipeNodeId(9),
+                through: RecipeNodeId(4),
+            }),
+            vec!["distance query's datum", "node 9", "poisoned", "node 4"],
+        ),
+        (
+            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
+                node: RecipeNodeId(9),
+            }),
+            vec!["flush query's node", "node 9", "failed"],
         ),
         (
             SelectRefusal::NotALength {

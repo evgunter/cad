@@ -861,6 +861,9 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
             fill(&mut fields, "datum", datum_obj);
             format!("the node `datum_distance` references has no value: {standing}")
         }
+        R::NodeHasNoValue(standing) => {
+            format!("a node the flush query reads has no value: {standing}")
+        }
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));
             "the comparand of a distance must be a length".to_string()

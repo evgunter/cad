@@ -309,6 +309,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::Unreadable { .. } => "unreadable",
         R::NotADatum { .. } => "not_a_datum",
         R::DatumHasNoValue(_) => "datum_has_no_value",
+        R::NodeHasNoValue(_) => "node_has_no_value",
         R::NotALength { .. } => "not_a_length",
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
@@ -2499,7 +2500,7 @@ pub fn node_standing_tag(standing: &NodeStanding) -> &'static str {
 /// with, or the standing's.
 pub fn name_lookup_error_tag(err: &NameLookupError) -> &'static str {
     match err {
-        NameLookupError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
+        NameLookupError::EvaluationOfAnotherDocument(_) => "evaluation_of_another_document",
         NameLookupError::Standing(standing) => node_standing_tag(standing),
     }
 }
