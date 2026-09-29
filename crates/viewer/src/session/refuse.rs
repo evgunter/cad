@@ -659,14 +659,10 @@ impl Refusal {
     /// wording drifts from the decision.
     ///
     /// The current value is spelled as the slot's field spells it
-    /// ([`props::computed_text`], in `dimension`'s notation for a
-    /// computed value and carrying its symbol), so the two never show
-    /// one number two ways.
-    pub fn affordance(
-        params: &[ParamName],
-        dimension: Dimension,
-        current: Option<SlotValue>,
-    ) -> String {
+    /// ([`props::computed_text`], in the notation of `slot`'s
+    /// dimension for a computed value and carrying its symbol), so the
+    /// two never show one number two ways.
+    pub fn affordance(params: &[ParamName], slot: SlotId, current: Option<SlotValue>) -> String {
         let over = if params.is_empty() {
             "an expression".to_owned()
         } else {
@@ -676,7 +672,7 @@ impl Refusal {
         match current {
             Some(value) => format!(
                 "driven by {over} (currently {}) — edit the expression?",
-                props::computed_text(dimension, value.as_f64())
+                props::computed_text(slot.dimension(), value.as_f64())
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
@@ -725,11 +721,7 @@ impl core::fmt::Display for Refusal {
                 params,
                 current,
                 ..
-            } => write!(
-                f,
-                "{}",
-                Self::affordance(params, slot.dimension(), *current)
-            ),
+            } => write!(f, "{}", Self::affordance(params, *slot, *current)),
             Self::NoSuchSlot { node, slot } => {
                 write!(f, "node {} has no {} slot", node.0, slot.label())
             }

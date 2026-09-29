@@ -726,38 +726,29 @@ pub(crate) struct FieldShowing {
     pub(crate) source: Option<String>,
 }
 
-/// **The text a field last turned into an operation**, remembered
-/// under that field's own widget id.
+/// **One open keyboard edit**, remembered under its field's own
+/// widget id from the frame the field takes focus to the frame it
+/// loses it — and not a frame longer, so nothing accumulates.
 ///
 /// A named type rather than a bare `String`, and that is load-bearing:
-/// `egui::Memory`'s store is keyed by id AND type, and `egui` keeps
-/// the OPEN keyboard edit's buffer under the same id as a `String`
+/// `egui::Memory`'s store is keyed by id AND type, and `egui` keeps the
+/// OPEN edit's buffer under the same id as a `String`
 /// (`egui-0.36.1/src/widgets/drag_value.rs`). A `String` written here
-/// would not sit beside that buffer — it would BE it, and the field
-/// would edit the text the user is typing.
+/// would not sit beside that buffer — it would BE it.
 #[derive(Clone, PartialEq)]
-struct HandedOver(String);
-
-/// **The text a field's open keyboard edit was seeded with**, kept
-/// from the frame the field took focus ([`seed_edit`]).
-///
-/// A named type for [`HandedOver`]'s reason. It is what makes an
-/// untouched edit an echo when the document moved under the field
-/// while the edit was open: the render and the source compared at
-/// the parse are the document's NEW ones, and the buffer still holds
-/// the old — without this, clicking away would write the old text
-/// back over the change.
-#[derive(Clone, PartialEq)]
-struct Seeded(String);
-
-/// **The open edit's buffer as of the end of the last frame**, for a
-/// field showing fixed text — so an arrow key, which makes
-/// `egui::DragValue` step its number and discard the buffer
-/// (`drag_value.rs`, `change != 0.0`), does not throw away the text
-/// the user is editing. A field showing text is not stepped by a key:
-/// the number under it is not what it shows.
-#[derive(Clone, PartialEq)]
-struct EditCopy(String);
+struct OpenEdit {
+    /// What the edit opened on ([`seed_edit`]).
+    seed: String,
+    /// Whether the user has typed since it opened. Until they have,
+    /// the seed is the field's own text even after the document moved
+    /// under it; once they have, the same characters are an act.
+    typed: bool,
+    /// The buffer as of the last frame, for a field showing fixed text:
+    /// an arrow key makes `egui::DragValue` step its number and discard
+    /// the buffer (`drag_value.rs`, `change != 0.0`), and a field
+    /// showing text is not stepped by a key.
+    copy: String,
+}
 
 /// **A panel value field: one number, two doors and a gesture** — the
 /// whole of what `pane::properties`' slot row and parameter row draw,
@@ -793,32 +784,34 @@ struct EditCopy(String);
 /// differs is the user's and takes its door. No tolerance, no second
 /// opinion about what a number means, and the same rule for a field
 /// showing a number and a field showing an expression. A field whose
-/// edit was seeded with a source it does not show produced that
-/// source too, and the text the edit was seeded with at focus is the
-/// field's own even after the document has moved under it
-/// ([`Seeded`]) — so a typed text is compared against all three.
+/// edit was seeded with a source it does not show produced that source
+/// too. And until the user types, what the edit opened on is the
+/// field's own even after the document has moved under it — the render
+/// and the source compared at the parse are the NEW ones, and an
+/// untouched buffer written back would revert a change nobody undid
+/// ([`OpenEdit`]).
 ///
 /// **Whether the edit CHANGES anything is not this question.** A user
 /// who re-types a number the document already holds has still typed
 /// it, and what the document does with an edit that writes what
 /// stands is the document's answer, at the door that applies it.
 ///
-/// # One keyboard edit is one operation
+/// # One keyboard edit is one operation, and Escape is none
 ///
 /// `egui` parses the text it buffered on TWO consecutive frames — once
 /// where the text box reports `lost_focus`, and again at the top of
 /// the next frame, where `Memory::lost_focus` is still true and the
 /// buffered text is removed and parsed a second time
-/// (`egui-0.36.1/src/widgets/drag_value.rs`). `Response::lost_focus`
-/// spans both frames by design, so it cannot tell them apart. So this
-/// field remembers, under the widget's own id, the text it last turned
-/// into an operation, and the second hand-over of that text emits
-/// nothing.
+/// (`egui-0.36.1/src/widgets/drag_value.rs`). The second parse skips
+/// Escape only on the frame Escape was pressed, so an edit Escape
+/// abandoned is parsed — and would be committed — one frame later.
 ///
-/// **Cleared on `gained_focus`**, which is what keeps a re-type an
-/// act: the same characters typed into the same field a second time
-/// are a second edit, and the only thing this suppresses is one
-/// keyboard edit handed over twice.
+/// So a parse is an edit only while the field has an [`OpenEdit`], and
+/// the edit is forgotten on the frame focus leaves, after that frame's
+/// parse: a text handed over once is not handed over again, and an
+/// edit abandoned with Escape (which that frame does not parse) hands
+/// over nothing. A new focus opens a new edit, so the same characters
+/// typed again are a second act.
 ///
 /// **The id comes off the `Response`, never re-derived.** A
 /// `DragValue`'s id is `ui.next_auto_id()` read before the widget is
@@ -885,7 +878,7 @@ pub(crate) fn value_field_ops(
     // below is recognised by.
     let typed: core::cell::RefCell<Option<(String, props::FieldEdit)>> =
         core::cell::RefCell::new(None);
-    // Read before the widget consumes it ([`EditCopy`]).
+    // Read before the widget consumes them ([`OpenEdit::copy`]).
     let arrowed = fixed.is_some()
         && ui.input(|input| {
             input.events.iter().any(|event| {
@@ -938,55 +931,74 @@ pub(crate) fn value_field_ops(
     // match ran and for every text the widget marked changed,
     // including the echo this field is built to swallow.
     drag_gesture_ops(&widget, writing.authored(number), gesture, ops);
+    let id = widget.id;
+    let mut open = ui.data(|data| data.get_temp::<OpenEdit>(id));
     if widget.gained_focus() {
-        // A fresh keyboard edit: what the last one handed over is not
-        // this one's repeat, so the same characters typed again are an
-        // act.
-        ui.data_mut(|data| data.remove::<HandedOver>(widget.id));
         let seed = source.clone().unwrap_or_else(|| rendered.borrow().clone());
-        seed_edit(ui, widget.id, &seed);
-        ui.data_mut(|data| data.insert_temp(widget.id, Seeded(seed)));
-    }
-    if fixed.is_some() && widget.has_focus() {
-        if arrowed && let Some(EditCopy(before)) = ui.data(|data| data.get_temp(widget.id)) {
-            ui.data_mut(|data| data.insert_temp(widget.id, before));
+        seed_edit(ui, id, &seed);
+        open = Some(OpenEdit {
+            copy: seed.clone(),
+            seed,
+            typed: false,
+        });
+    } else if let Some(edit) = open.as_mut().filter(|_| widget.has_focus()) {
+        if arrowed {
+            let copy = edit.copy.clone();
+            ui.data_mut(|data| data.insert_temp(id, copy));
         }
-        if let Some(now) = ui.data(|data| data.get_temp::<String>(widget.id)) {
-            ui.data_mut(|data| data.insert_temp(widget.id, EditCopy(now)));
-        }
+        edit.typed |= ui.input(|input| {
+            input.events.iter().any(|event| {
+                matches!(
+                    event,
+                    egui::Event::Text(_)
+                        | egui::Event::Paste(_)
+                        | egui::Event::Cut
+                        | egui::Event::Key {
+                            key: egui::Key::Backspace | egui::Key::Delete,
+                            pressed: true,
+                            ..
+                        }
+                )
+            })
+        });
+    } else if widget.has_focus() {
+        // Focus arrived without the frame that reports it: the edit
+        // opened on whatever the widget seeded it with.
+        let seed = ui
+            .data(|data| data.get_temp::<String>(id))
+            .unwrap_or_else(|| rendered.borrow().clone());
+        open = Some(OpenEdit {
+            copy: seed.clone(),
+            seed,
+            typed: false,
+        });
     }
-    let seeded = ui.data(|data| data.get_temp::<Seeded>(widget.id));
+    if let Some(edit) = open.as_mut()
+        && let Some(buffer) = ui.data(|data| data.get_temp::<String>(id))
+    {
+        edit.copy = buffer;
+    }
     // Text the field itself produced: this frame's render, the source
-    // a driven slot's edit opens on, and whatever the edit was seeded
-    // with when it opened.
-    let own = |text: &str| {
+    // a driven slot's edit opens on, and — until the user types — what
+    // the edit opened on.
+    let own = |text: &str, edit: &OpenEdit| {
         props::echoed(text, &rendered.borrow())
             || source
                 .as_deref()
                 .is_some_and(|source| props::echoed(text, source))
-            || seeded
-                .as_ref()
-                .is_some_and(|Seeded(seed)| props::echoed(text, seed))
+            || (!edit.typed && props::echoed(text, &edit.seed))
     };
-    let handed = match typed.into_inner() {
-        None => None,
-        Some((text, _)) if own(&text) => None,
-        Some((text, edit)) => {
-            let text = text.trim().to_owned();
-            let repeat = ui.data(|data| data.get_temp::<HandedOver>(widget.id))
-                == Some(HandedOver(text.clone()));
-            if repeat {
-                // The second of the two frames `egui` parses one
-                // buffered text on. Nothing is emitted and nothing is
-                // forgotten: the text stands remembered until this
-                // field takes focus again.
-                None
-            } else {
-                ui.data_mut(|data| data.insert_temp(widget.id, HandedOver(text)));
-                Some(edit)
-            }
+    let handed = match (typed.into_inner(), &open) {
+        (Some((text, edit)), Some(open)) if !own(&text, open) => Some(edit),
+        _ => None,
+    };
+    if widget.has_focus() {
+        if let Some(open) = open {
+            ui.data_mut(|data| data.insert_temp(id, open));
         }
-    };
+    } else {
+        ui.data_mut(|data| data.remove::<OpenEdit>(id));
+    }
     match handed {
         // **A number the dimension cannot carry is not an edit, and
         // it is news.** A `Count` field takes `inf` and `NaN` from its
@@ -1021,10 +1033,10 @@ pub(crate) fn value_field_ops(
 /// text it did not.
 ///
 /// The widget keeps the open edit's buffer under its own id as a
-/// `String` ([`HandedOver`] says why that type is taken) and reads it
+/// `String` ([`OpenEdit`] says why that type is taken) and reads it
 /// back on the frames it edits, so a buffer written here the frame the
 /// field takes focus is the one the edit opens on — every field's
-/// edit, so what it opened on is known exactly ([`Seeded`]). The
+/// edit, so what it opened on is known exactly ([`OpenEdit`]). The
 /// selection is the widget's `select_all_text`, restated over the
 /// public `egui::TextEdit` state because the widget selected the
 /// length of its render and the buffer may be a different text.
@@ -3754,7 +3766,12 @@ mod value_field_tests {
         }
 
         fn click(&mut self, at: egui::Pos2) {
-            self.frame(vec![
+            self.click_with(at, Vec::new());
+        }
+
+        /// A click at `at`, with `also` delivered in the same frame.
+        fn click_with(&mut self, at: egui::Pos2, also: Vec<egui::Event>) {
+            let mut events = vec![
                 egui::Event::PointerMoved(at),
                 egui::Event::PointerButton {
                     pos: at,
@@ -3768,7 +3785,20 @@ mod value_field_tests {
                     pressed: false,
                     modifiers: egui::Modifiers::NONE,
                 },
-            ]);
+            ];
+            events.extend(also);
+            self.frame(events);
+        }
+
+        /// A key pressed, in a frame of its own.
+        fn key(&mut self, key: egui::Key) {
+            self.frame(vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }]);
         }
 
         /// Settle the layout, then click into the field. Two frames
@@ -4473,6 +4503,125 @@ mod value_field_tests {
             ),
             "the edit typed before the key is what lands: {landed:?}"
         );
+    }
+
+    /// **A new edit opens on the document's source, not on an old
+    /// edit's buffer** — the probe: commit `base_r * 5.0`, change the
+    /// source elsewhere to `base_r * 7.0`, then click the field with an
+    /// arrow key in the same batch. Restoring a buffer kept from the
+    /// LAST edit would open this one on `base_r * 5.0` and clicking
+    /// away would write it back over the change.
+    #[test]
+    fn an_arrow_key_with_the_click_does_not_reopen_an_old_edit() {
+        let mut row = Row::driven_distance("chrome-stale-copy", "base_r * 2.0");
+        let Subject::Slot { node, slot } = row.subject.clone() else {
+            panic!("the fixture is a slot row");
+        };
+        row.click_in();
+        row.frame(vec![egui::Event::Text("base_r * 5.0".to_owned())]);
+        row.click_away();
+        assert_eq!(row.slot().source.as_deref(), Some("base_r * 5.0"));
+        row.taken();
+        let outcome = row.session.perform(SessionOp::SetSlotExpression {
+            node,
+            slot,
+            text: "base_r * 7.0".to_owned(),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        row.frame(Vec::new());
+        row.frame(Vec::new());
+        let target = row.rect.center();
+        row.click_with(
+            target,
+            vec![egui::Event::Key {
+                key: egui::Key::ArrowUp,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        );
+        row.frame(Vec::new());
+        assert!(
+            row.texts.iter().any(|text| text == "base_r * 7.0"),
+            "the edit opens on the current source: {:?}",
+            row.texts
+        );
+        row.click_away();
+        let emitted = row.taken();
+        assert!(emitted.is_empty(), "nothing was typed: {emitted:?}");
+        assert_eq!(row.slot().source.as_deref(), Some("base_r * 7.0"));
+    }
+
+    /// **Typing the text the edit opened on is an act once the
+    /// document has moved.** The field opens on 10 mm, 20 mm is set
+    /// elsewhere, and the user types `10.0` back: that is a revert
+    /// they asked for, not the field's own text handed back.
+    #[test]
+    fn typing_the_opening_text_back_after_a_change_is_an_edit() {
+        let mut row = Row::millimetres("chrome-deliberate-revert", 0.01);
+        let Subject::Param(name) = row.subject.clone() else {
+            panic!("the fixture is a parameter row");
+        };
+        let (_, opening) = row.showing();
+        row.click_in();
+        let outcome = row.session.perform(SessionOp::SetParam {
+            name,
+            value: props::SlotValue::Continuous(0.02),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        row.frame(vec![egui::Event::Text(opening.clone())]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            "typing `{opening}` back is one edit: {landed:?}"
+        );
+        assert_eq!(row.showing().0, 10.0, "and the value is 10 mm again");
+    }
+
+    /// **An arrow key still steps a PARAMETER's field** — the field
+    /// shows its number, so keeping a buffer across the key is only for
+    /// a field showing text.
+    #[test]
+    fn an_arrow_key_steps_a_parameter_field() {
+        let mut row = Row::millimetres("chrome-step-param", 0.01);
+        row.click_in();
+        row.key(egui::Key::ArrowUp);
+        row.frame(Vec::new());
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            "one step, one edit: {landed:?}"
+        );
+        assert!(row.showing().0 > 10.0, "and the value moved up");
+    }
+
+    /// **Escape abandons an edit**, at a parameter and at a driven
+    /// slot: `egui` parses the buffer again the frame after focus
+    /// leaves, and that parse does not see the Escape.
+    #[test]
+    fn escape_abandons_an_edit() {
+        let mut row = Row::millimetres("chrome-escape-param", 0.01);
+        row.click_in();
+        row.frame(vec![egui::Event::Text("12".to_owned())]);
+        row.key(egui::Key::Escape);
+        row.frame(Vec::new());
+        row.frame(Vec::new());
+        let emitted = row.taken();
+        assert!(emitted.is_empty(), "Escape commits nothing: {emitted:?}");
+        assert_eq!(row.showing().0, 10.0);
+
+        let mut row = Row::driven_distance("chrome-escape-slot", "base_r * 2.0");
+        row.click_in();
+        row.frame(vec![egui::Event::Text("base_r * 5.0".to_owned())]);
+        row.key(egui::Key::Escape);
+        row.frame(Vec::new());
+        row.frame(Vec::new());
+        let emitted = row.taken();
+        assert!(emitted.is_empty(), "Escape commits nothing: {emitted:?}");
+        assert_eq!(row.slot().source.as_deref(), Some("base_r * 2.0"));
     }
 
     /// **A slot row's number door still lands**, so the two rows above

@@ -1142,7 +1142,7 @@ fn slot_notes(
             format!(
                 "{}: {}",
                 row.slot.label(),
-                Refusal::affordance(params, row.dimension, row.value.as_ref().ok().copied())
+                Refusal::affordance(params, row.slot, row.value.as_ref().ok().copied())
             ),
             theme,
             Tone::Advisory,
@@ -1308,7 +1308,7 @@ mod layout_tests {
             &format!(
                 "{}: {}",
                 SlotId::Distance.label(),
-                Refusal::affordance(&params, Dimension::Length, Some(value))
+                Refusal::affordance(&params, SlotId::Distance, Some(value))
             ),
         );
         assert_own_lines(region, affordance);
@@ -1486,7 +1486,7 @@ mod tests {
             .to_string();
         assert_eq!(
             rendered,
-            Refusal::affordance(&[thickness()], Dimension::Length, Some(current)),
+            Refusal::affordance(&[thickness()], SlotId::Distance, Some(current)),
             "and it renders as the ratified affordance, from its one home"
         );
         // The mapping itself, planted: the words a reader gets for this
@@ -1590,7 +1590,7 @@ mod tests {
         );
         assert_eq!(
             refusal.to_string(),
-            Refusal::affordance(&[thickness()], Dimension::Length, None)
+            Refusal::affordance(&[thickness()], SlotId::Distance, None)
         );
         assert!(refusal.to_string().contains("thickness"));
     }
