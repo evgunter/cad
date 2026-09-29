@@ -7,7 +7,7 @@ opened: 2026-09-28
 priority: P2
 cost: H
 design: true
-refs: [every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one, self-overlapping-spines-build-and-validate]
+refs: [3373, self-overlapping-spines-build-and-validate]
 ---
 
 
