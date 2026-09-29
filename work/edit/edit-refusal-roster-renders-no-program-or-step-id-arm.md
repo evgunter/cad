@@ -2,7 +2,9 @@
 id: edit-refusal-roster-renders-no-program-or-step-id-arm
 kind: issue
 title: edit: the status-line refusal roster renders none of EditError's three program and step-id arms
-status: open
+status: spec
+rides_with: edit-refusals-short-of-the-shape-guard
+branch: edit/part-refusal-recourse
 opened: 2026-09-29
 ---
 
@@ -37,3 +39,7 @@ Add the rows (one per `StepIdFault` arm, the way `Roots` and
 the recourse its raise site supports, reading the site first. A
 `StepIdFault` is forwarded, so the recourse belongs in the
 `StepIdsRefused` wrapper, matched on the fault, as `Roots` does.
+
+## Ruled (2026-09-29, EDIT orchestrator) — rides with `edit-refusals-short-of-the-shape-guard`
+
+One unit with the feature-tree half; the spec is in that row.
