@@ -2,7 +2,7 @@
 //! items 1–2 and the ratified π arm of
 //! `docs/MATE-7-TANGENCY-DESIGN.md`).
 //!
-//! Three things are pinned here, on torus geometry a producer actually
+//! Four things are pinned here, on torus geometry a producer actually
 //! mints (`sweep::tube_along_arc`, solid and hollow):
 //!
 //! 1. **The operand gate lets a torus through.** The torus is on the
@@ -19,6 +19,9 @@
 //!    a kissing torus pair classifies wedge 2π (the cusp family, whose
 //!    certified rim witness is defined and unbuilt). Each refuses
 //!    typed naming the arm the geometry earned.
+//! 4. **∖ and ∩ stop where ∪ does.** The torus is on the revert
+//!    roster, so each fixture under a subtract (both orders) or an
+//!    intersect refuses at the door its union meets.
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
@@ -538,32 +541,118 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
 }
 
 // -------------------------------------------------------------------
-// 4. What the widening did NOT do.
+// 4. ∖ and ∩ on the same fixtures.
 // -------------------------------------------------------------------
 
-/// **∖ and ∩ keep their roster verbatim.** The operand gate admits a
-/// declared pair because a declaration supplies the VERDICT a germ arm
-/// would have; the revert roster is a different claim — which kinds
-/// have a seam lane to revert through — and no declaration supplies
-/// one. So a declared torus pair under a subtract is exactly as
-/// refused as an undeclared one.
-#[test]
-fn a_declared_torus_pair_under_subtract_is_still_refused_by_the_revert_roster() {
-    let (s, p) = (socket(), segment_a());
-    let decls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
-    let err = topo::subtract_with(&s, &p, &decls, Tol::witness())
-        .expect_err("no declaration supplies a revert seam lane");
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPairUnsupported {
-                op: Some(topo::BooleanOp::Subtract),
-                kind: geom_brep::SurfaceKind::Torus,
-                ..
-            }
+/// The same declarations with the operands' roles swapped, for `B ∖ A`.
+fn swapped(d: &BooleanDeclarations) -> BooleanDeclarations {
+    let mut out = BooleanDeclarations::none();
+    out.coincident_faces = d
+        .coincident_faces
+        .iter()
+        .map(|p| FacePairDeclaration::new(p.b, p.a, p.class))
+        .collect();
+    out
+}
+
+/// `A ∖ B`, `B ∖ A` and `A ∩ B` under one set of declarations.
+fn subtract_and_intersect(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    d: &BooleanDeclarations,
+) -> [(&'static str, Result<BooleanResult<f64>, BooleanError>); 3] {
+    [
+        ("A ∖ B", topo::subtract_with(a, b, d, Tol::witness())),
+        (
+            "B ∖ A",
+            topo::subtract_with(b, a, &swapped(d), Tol::witness()),
         ),
-        "the revert roster refuses the declared pair unchanged: {err:?}"
-    );
+        ("A ∩ B", topo::intersect_with(a, b, d, Tol::witness())),
+    ]
+}
+
+/// **∖ and ∩ pass the revert roster and stop where ∪ does.** The torus
+/// is on the roster, so a torus pair under a subtract or an intersect
+/// reaches the same doors as under a union, in both operand orders:
+///
+/// - the declared socket and peg, and the declared coincident pair,
+///   stop at the no-crossings section pass on the tangency (R-tan);
+/// - the declared chain routes to the seam, the declared kissing pair
+///   to the unbuilt cusp family;
+/// - undeclared, each pair refuses at the crossing layer (escalated
+///   where the run's band puts the sampled margin in its window).
+///
+/// None of them is a body.
+#[test]
+fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
+    let tangency = |what: &str, err: &BooleanError| {
+        let BooleanError::FallbackExtentUnsupported { what: w, .. } = err else {
+            panic!("{what}: the section pass refuses the tangency: {err:?}");
+        };
+        assert!(
+            w.contains("tangent or near-tangent carriers"),
+            "{what}: {w}"
+        );
+    };
+    let (s, p) = (socket(), segment_a());
+    for (op, r) in
+        subtract_and_intersect(&s, &p, &wall_declarations(&s, &p, TUBE, ContactClass::Rest))
+    {
+        tangency(&format!("socket and peg, {op}"), &r.expect_err(op));
+    }
+    let (a, b) = (full_torus(RING), full_torus(RING));
+    for (op, r) in
+        subtract_and_intersect(&a, &b, &wall_declarations(&a, &b, TUBE, ContactClass::Rest))
+    {
+        tangency(&format!("coincident pair, {op}"), &r.expect_err(op));
+    }
+    let (a, b) = (segment_a(), segment_b());
+    for (op, r) in subtract_and_intersect(
+        &a,
+        &b,
+        &wall_declarations(&a, &b, TUBE, ContactClass::Tangent),
+    ) {
+        let err = r.expect_err(op);
+        assert!(
+            matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
+            "the chain, {op}: {err:?}"
+        );
+    }
+    let (a, b) = kissing_pair();
+    for (op, r) in subtract_and_intersect(
+        &a,
+        &b,
+        &wall_declarations(&a, &b, TUBE, ContactClass::Tangent),
+    ) {
+        let err = r.expect_err(op);
+        assert!(
+            matches!(
+                err,
+                BooleanError::RimCuspArmUnbuilt {
+                    wedge: geom_brep::MaterialWedge::Slit,
+                    ..
+                }
+            ),
+            "the kissing pair, {op}: {err:?}"
+        );
+    }
+    for (name, (a, b)) in [
+        ("socket and peg", (socket(), segment_a())),
+        ("coincident pair", (full_torus(RING), full_torus(RING))),
+        ("chain", (segment_a(), segment_b())),
+        ("kissing pair", kissing_pair()),
+    ] {
+        for (op, r) in subtract_and_intersect(&a, &b, &BooleanDeclarations::none()) {
+            let err = r.expect_err(op);
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
+                ),
+                "{name} undeclared, {op}: the crossing layer's refusal: {err:?}"
+            );
+        }
+    }
 }
 
 /// **A cone declaration is still refused at the inventory**, which is

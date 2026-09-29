@@ -176,7 +176,7 @@ fn refuses_as_the_interior_loop_guard(
 }
 
 /// The refusal names its SITE, so a row can tell the guard from the
-/// ∖/∩ revert roster, which refuses the same pair up front.
+/// ∖/∩ revert roster, which refuses a NURBS pair up front.
 fn refuses_at(
     r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
     site: topo::PairRefusalSite,
@@ -206,41 +206,33 @@ fn refuses_at(
 /// off the outer equator.** The pin's crossings through the cap are the
 /// only events, so the oval was never seen, and ∪ came back a valid
 /// `Seamed` body of volume `π²/2 + 1.476 − 0.006` — the lens counted
-/// twice. ∪ now refuses at the GUARD. ∩ and ∖ never reach it: the ∖/∩
-/// revert roster has no torus and refuses the pair up front, and the
-/// row says so rather than crediting the guard with it.
+/// twice; ∩ came back a body missing the lens. Every op now refuses at
+/// the GUARD, in both operand orders of ∖: the revert roster has the
+/// torus, so the guard is what keeps ∖ and ∩ off the wrong answer.
 #[test]
-fn a_torus_oval_refuses_union_at_the_guard_and_intersect_and_subtract_at_the_roster() {
-    use topo::{BooleanOp as Op, PairRefusalSite as Site};
+fn a_torus_oval_refuses_every_op_at_the_guard() {
+    use topo::BooleanOp as Op;
     let (h, c) = (half_donut(), torus_bracket());
     let torus = geom_brep::SurfaceKind::Torus;
-    for (site, op, r, what) in [
+    for (op, r, what) in [
+        (Op::Union, topo::union(&h, &c, Tol::witness()), "h ∪ c"),
         (
-            Site::InteriorLoopGuard,
-            Op::Union,
-            topo::union(&h, &c, Tol::witness()),
-            "h ∪ c",
-        ),
-        (
-            Site::RevertRoster,
             Op::Intersect,
             topo::intersect(&h, &c, Tol::witness()),
             "h ∩ c",
         ),
         (
-            Site::RevertRoster,
             Op::Subtract,
             topo::subtract(&h, &c, Tol::witness()),
             "h ∖ c",
         ),
         (
-            Site::RevertRoster,
             Op::Subtract,
             topo::subtract(&c, &h, Tol::witness()),
             "c ∖ h",
         ),
     ] {
-        refuses_at(r, site, op, torus, what);
+        refuses_as_the_interior_loop_guard(r, op, torus, what);
     }
     // The foot's top face cuts a scrape oval with no event, witnessed
     // strictly inside both faces: a certified interior loop.
@@ -248,6 +240,18 @@ fn a_torus_oval_refuses_union_at_the_guard_and_intersect_and_subtract_at_the_ros
         verdicts(&h, &c).iter().any(|v| v == "Err(Loop)"),
         "{:?}",
         verdicts(&h, &c)
+    );
+    // The lens is real: a point inside both operands.
+    let q = Point3::new(0.0, 0.0, -2.47);
+    assert_eq!(
+        in_solid(&h, q),
+        Some(true),
+        "the lens point is in the half donut"
+    );
+    assert_eq!(
+        in_solid(&c, q),
+        Some(true),
+        "the lens point is in the bracket"
     );
 }
 
@@ -260,19 +264,7 @@ fn a_torus_oval_refuses_union_at_the_guard_and_intersect_and_subtract_at_the_ros
 /// witness, and W3 reading the torus face only.
 #[test]
 fn the_pin_alone_answers_its_closed_form() {
-    let pin_only = bracket_xz(
-        &[
-            (1.95, -0.1),
-            (2.05, -0.1),
-            (2.05, 0.8),
-            (3.0, 0.8),
-            (3.0, -2.45),
-            (3.2, -2.45),
-            (3.2, 1.0),
-            (1.95, 1.0),
-        ],
-        0.3,
-    );
+    let pin_only = pin_only_bracket();
     let h = half_donut();
     let v = verdicts(&h, &pin_only);
     assert!(v.iter().all(|x| x.starts_with("Ok(")), "{v:?}");
@@ -302,6 +294,94 @@ fn the_pin_alone_answers_its_closed_form() {
         (Point3::new(2.7, 0.0, -0.1), false),
     ] {
         assert_eq!(in_solid(b, q), Some(want), "{q:?}");
+    }
+}
+
+/// The bracket without its foot: the pin, the bridge and the upright.
+/// Its profile is `0.99 m²` (the pin `0.1 × 1.1`, the bridge
+/// `1.15 × 0.2`, the upright `0.2 × 3.25`), `0.6` thick, so `0.594 m³`.
+fn pin_only_bracket() -> Body<f64> {
+    bracket_xz(
+        &[
+            (1.95, -0.1),
+            (2.05, -0.1),
+            (2.05, 0.8),
+            (3.0, 0.8),
+            (3.0, -2.45),
+            (3.2, -2.45),
+            (3.2, 1.0),
+            (1.95, 1.0),
+        ],
+        0.3,
+    )
+}
+
+/// **The pin alone under ∖ and ∩, both orders, in closed form.** The
+/// pin's piece below the half donut's cap, `0.1 × 0.6 × 0.1 = 0.006`,
+/// lies wholly inside the tube (every point is within `√(0.05² + 0.3²)`
+/// of the spine), and the rest of the bracket stands clear of it. So
+/// `h ∩ p = 0.006`, `h ∖ p = π²/2 − 0.006` (the half donut is
+/// `π²R r²`, `R = 2`, `r = 0.5`) and `p ∖ h = 0.594 − 0.006`, each valid
+/// at tier 3 and each placing the witnesses where the two operands do.
+/// The section certificate clears every pair (the row above), so
+/// nothing but the torus's place on the revert roster stands between
+/// these and a refusal.
+#[test]
+fn the_pin_alone_answers_subtract_and_intersect_in_closed_form() {
+    let (h, p) = (half_donut(), pin_only_bracket());
+    let half = std::f64::consts::PI.powi(2) / 2.0;
+    close(volume(&h), half, "the half donut");
+    close(volume(&p), 0.594, "the pin-only bracket");
+    // (the pin's piece in the tube, above the cap in the pin, the
+    // torus beside the pin, the torus far round the ring, the upright)
+    let q = [
+        Point3::new(2.0, 0.0, -0.05),
+        Point3::new(2.0, 0.0, 0.5),
+        Point3::new(1.9, 0.45, -0.05),
+        Point3::new(0.0, 0.0, -2.0),
+        Point3::new(3.1, 0.0, 0.0),
+    ];
+    for (what, r, want, inside) in [
+        (
+            "h ∩ p",
+            topo::intersect(&h, &p, Tol::witness()),
+            0.006,
+            [true, false, false, false, false],
+        ),
+        (
+            "h ∖ p",
+            topo::subtract(&h, &p, Tol::witness()),
+            half - 0.006,
+            [false, false, true, true, false],
+        ),
+        (
+            "p ∖ h",
+            topo::subtract(&p, &h, Tol::witness()),
+            0.594 - 0.006,
+            [false, true, false, false, true],
+        ),
+    ] {
+        let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let b = &r.body().expect("non-empty").body;
+        assert_eq!(
+            topo::validate_geometric(b, Tol::witness()),
+            Ok(()),
+            "{what}"
+        );
+        close(volume(b), want, what);
+        for (&x, want) in q.iter().zip(inside) {
+            assert_eq!(in_solid(b, x), Some(want), "{what} at {x:?}");
+        }
+    }
+    for (&x, (in_h, in_p)) in q.iter().zip([
+        (true, true),
+        (false, true),
+        (true, false),
+        (true, false),
+        (false, true),
+    ]) {
+        assert_eq!(in_solid(&h, x), Some(in_h), "the half donut at {x:?}");
+        assert_eq!(in_solid(&p, x), Some(in_p), "the pin-only bracket at {x:?}");
     }
 }
 
@@ -464,12 +544,7 @@ fn the_oval_lens_is_well_above_the_rows_tolerance() {
 /// today — and that is what this row pins.
 #[test]
 fn the_corner_bar_never_comes_back_a_body() {
-    let d = {
-        let vp = validated(vec![revolve_common::donut_profile()]);
-        revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
-            .expect("the donut revolves")
-            .body
-    };
+    let d = donut();
     let hw = 0.1_f64;
     let rho = 2.0 - (0.25 - hw * hw).sqrt();
     let z = (rho * rho - hw * hw).sqrt();
@@ -489,6 +564,36 @@ fn the_corner_bar_never_comes_back_a_body() {
     }
 }
 
+/// The full donut, `R = 2`, `r = 0.5` about `y`.
+fn donut() -> Body<f64> {
+    let vp = validated(vec![revolve_common::donut_profile()]);
+    revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+        .expect("the donut revolves")
+        .body
+}
+
+/// A wedge above the donut, `6` deep in `z`: its profile runs from
+/// `y = 2.2` at `x = −3` down to `y = 0.4` at `x = 3` along the
+/// underside `0.3x + y = 1.3`, and up to `y = 2.5` — `7.2 m²`.
+fn wedge_above_the_donut() -> Body<f64> {
+    let lp = ProfileLoop::polygon([
+        Point2::new(-3.0, 2.2),
+        Point2::new(3.0, 0.4),
+        Point2::new(3.0, 2.5),
+        Point2::new(-3.0, 2.5),
+    ]);
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
+        Vec3::new(0.0, 0.0, -3.0),
+    ));
+    let vp = profile::Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .expect("the wedge profile validates");
+    sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
+        .expect("the wedge extrudes")
+        .body
+}
+
 /// **A wedge clear of the donut's carrier answers although its box
 /// overlaps.** A wedge above the donut (`R = 2`, `r = 0.5` about `y`), its
 /// underside tilted along the plane `0.3x + y = 1.3`: every face's
@@ -502,30 +607,7 @@ fn the_corner_bar_never_comes_back_a_body() {
 /// (the donut, `2π²Rr²`) plus the wedge's `7.2 × 6`.
 #[test]
 fn a_wedge_clear_of_the_donuts_carrier_is_answered_though_its_box_overlaps() {
-    let donut = {
-        let vp = validated(vec![revolve_common::donut_profile()]);
-        revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
-            .expect("the donut revolves")
-            .body
-    };
-    let wedge = {
-        let lp = ProfileLoop::polygon([
-            Point2::new(-3.0, 2.2),
-            Point2::new(3.0, 0.4),
-            Point2::new(3.0, 2.5),
-            Point2::new(-3.0, 2.5),
-        ]);
-        let plane = profile::SketchPlane::new(Affine3::from_parts(
-            Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-            Vec3::new(0.0, 0.0, -3.0),
-        ));
-        let vp = profile::Profile::new(plane, vec![lp])
-            .validate(Tol::witness())
-            .expect("the wedge profile validates");
-        sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
-            .expect("the wedge extrudes")
-            .body
-    };
+    let (donut, wedge) = (donut(), wedge_above_the_donut());
     let r = topo::union(&donut, &wedge, Tol::witness())
         .unwrap_or_else(|e| panic!("the certified-apart pair is answered: {e:?}"));
     let b = r.body().expect("non-empty");
@@ -534,6 +616,58 @@ fn a_wedge_clear_of_the_donuts_carrier_is_answered_though_its_box_overlaps() {
         volume(&b.body),
         std::f64::consts::PI.powi(2) + 7.2 * 6.0,
         "donut ∪ wedge",
+    );
+}
+
+/// **The same wedge under ∖ and ∩, both orders.** The section pass
+/// certifies every pair apart, so the fallback's vertex probe answers
+/// each op from the two disjoint solids: `donut ∖ wedge` is the donut
+/// (`π²`), `wedge ∖ donut` the wedge (`43.2`), and `donut ∩ wedge`
+/// empty. A point under the wedge's low end, inside its box but below
+/// its underside, is in neither.
+#[test]
+fn the_wedge_clear_of_the_donut_answers_subtract_and_intersect() {
+    let (d, w) = (donut(), wedge_above_the_donut());
+    let q = [
+        Point3::new(2.0, 0.0, 0.0),
+        Point3::new(0.0, 2.4, 0.0),
+        Point3::new(2.5, 0.45, 0.0),
+    ];
+    for (what, r, want, kind, inside) in [
+        (
+            "donut ∖ wedge",
+            topo::subtract(&d, &w, Tol::witness()),
+            std::f64::consts::PI.powi(2),
+            topo::BooleanResultKind::OperandA,
+            [true, false, false],
+        ),
+        (
+            "wedge ∖ donut",
+            topo::subtract(&w, &d, Tol::witness()),
+            7.2 * 6.0,
+            topo::BooleanResultKind::OperandA,
+            [false, true, false],
+        ),
+    ] {
+        let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let b = r.body().expect("non-empty");
+        assert_eq!(b.kind, kind, "{what}");
+        assert_eq!(
+            topo::validate_geometric(&b.body, Tol::witness()),
+            Ok(()),
+            "{what}"
+        );
+        close(volume(&b.body), want, what);
+        for (&x, want) in q.iter().zip(inside) {
+            assert_eq!(in_solid(&b.body, x), Some(want), "{what} at {x:?}");
+        }
+    }
+    assert!(
+        matches!(
+            topo::intersect(&d, &w, Tol::witness()),
+            Ok(topo::BooleanResult::Empty)
+        ),
+        "donut ∩ wedge is empty"
     );
 }
 

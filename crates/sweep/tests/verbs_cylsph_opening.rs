@@ -320,7 +320,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
 /// The clause it replaces was created by this unit's own refusal-text
 /// sweep and was measured FALSE: it said the join dispatch wires
 /// `(Sphere, Sphere)` and a declared-coaxial `(Cylinder, Sphere)`. It
-/// does not. `join::join_germ_pair`'s match has three arms —
+/// does not. `join::bool_connect`'s match has three arms —
 /// `(Plane, Plane)`, `(Plane, Sphere) | (Plane, Cylinder)` and the
 /// mirror of the second — and its catch-all is the site that raises
 /// THIS variant, so a sphere pair or a cyl×sphere germ reaches the
