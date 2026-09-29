@@ -83,7 +83,9 @@ mod line_cone;
 mod ops;
 pub(crate) mod section_cert;
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use ops::section_report;
+pub(crate) use ops::no_crossings_certificates;
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use ops::{ChartCache, section_report};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;

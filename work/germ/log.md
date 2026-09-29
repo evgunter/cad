@@ -354,3 +354,22 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
   - recentering, to recover large circles (P3);
   - `line-torus-roots-may-certify-noise-when-the-line-origin-is-far` (P1, M): the same coefficient growth may reach the line and ray torus quartics. Measure first.
 - **Unblocked:** VERBS-CONE U1 (line × cone) and U2 (circle × cone).
+
+## 2026-09-29 — cone U3+U6 land (PR 3395)
+
+**U3, the apex closure:**
+- `J = −ΣΔθ` at a single apex visit;
+- `point_in_solid` and `curved_face_containment` now answer apex-closed sectors of any width;
+- `describes` holds for apex-closed faces.
+
+**U6:** sphere × {cone, torus} moved from the extent scan to the section certificate's no-crossings pass. Three sphere × torus unions newly answer.
+
+**Single review:** APPROVE-WITH-FIXES, no MAJOR. The fix pass took all of it:
+- the cone trim refuses a non-rectangular chart outline (an area test), which fixes a pre-existing wrong `In` in an L-shaped face's notch;
+- precondition rows;
+- the partition row pins which band holds each point;
+- one home for the cycle extraction and the window fold.
+
+**Filed on CONTACT:** the torus box check passes an L-shaped face.
+
+**Merge of main:** composed `SectionPath::scope` with PR 3406. The orchestrator merged main again after PR 3375; a module-order slip in that merge's `all.rs` resolution turned lint red, fixed in `d777dd2c7`.
