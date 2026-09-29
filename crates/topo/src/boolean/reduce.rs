@@ -422,7 +422,10 @@ fn surface_of<'a, T: Decide>(
 }
 
 /// The BODY-scoped half of [`gate_operand_pairs`]: the edge carriers.
-fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
+pub(super) fn gate_operand_edges<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(CurveGeom::Certified(curve)) => match curve.carrier() {

@@ -513,6 +513,8 @@ mod germ_circle_torus;
 mod germ_cone_apex_closure;
 #[path = "germ_cone_doors.rs"]
 mod germ_cone_doors;
+#[path = "germ_cone_roots.rs"]
+mod germ_cone_roots;
 #[path = "germ_conic_plane_roots.rs"]
 mod germ_conic_plane_roots;
 #[path = "germ_coplanar_conic.rs"]
