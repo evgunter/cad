@@ -62,3 +62,38 @@ are admitted by exact row and label in
 
 - `Revolve/VoidInsertion`: "inserting the cavity of hole loop 1
   refused:" (`sweep/src/revolve/mod.rs`).
+
+## Escalations that offer a declaration the door cannot take (CHROME triage)
+
+(From the triage in `work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`.) These arms render the whole `Indeterminate`, so they end in
+`COINCIDENCE_RECOURSE` ("declare the coincidence, …"). None of the
+nodes that raise them takes a declaration: `Node::Extrude`,
+`Node::Revolve`, `Node::Tube`/`HollowTube` and `Node::Loft`
+(`crates/editor-core/src/node.rs` near :1691–:1849) carry no
+`declare`. Each already states a subject. What is owed is
+`source.payload()` and a routed `Recourse:`.
+
+- `ExtrudeError` (`crates/sweep/src/extrude.rs`):
+  `ExtrusionEscalated` (near :199), `CosurfaceEscalated` (:215),
+  `SliverJoin` (:227), `SliverRim` (:244).
+- `RevolveError` (`crates/sweep/src/revolve/mod.rs`):
+  `AxisEscalated` (:374), `AngleEscalated` (:385), `SliverRadius`
+  (:404, which also prepends its own "move the profile" lever),
+  `SliverAxisClearance` (:424), `CosurfaceEscalated` (:491),
+  `SliverJoin` (:502), `SliverRim` (:513).
+- `LoftError::StackingEscalated` (`crates/sweep/src/loft.rs` :179).
+- `TubeError::Escalated` (`crates/sweep/src/revolve/tube.rs` :149):
+  PR 3457 routed its subject by predicate name, but its recourse is
+  still the forwarded menu.
+
+Extrude and revolve offer the menu on purpose, on their definite arms
+too, and `extrude.rs` `extrusion_pair_carries_the_shared_recourse`
+and `revolve/mod.rs` `revolve_pairs_carry_the_shared_recourse` pin
+it. Whether the declare lever stays there is this program's call; the
+triage only records that neither door has a declaration for it to name.
+
+The same menu also reaches these doors whole through carriers on other
+ground. `CapPlane`/`SidePlane` forward `NewellError`, and
+`Pcurve` forwards `PcurveMintError`. Both are filed on
+`work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md`.
+The repair can be made at either end.
