@@ -68,8 +68,11 @@
 
 pub(crate) mod boxes;
 pub mod carrier_eq;
+mod circle_cone;
 mod circle_torus;
 pub(crate) mod combine;
+#[cfg(test)]
+mod cone_roots_fuzz;
 pub mod contact_verify;
 mod contain;
 // The variant roster the sample-coverage row reads (test builds only).
@@ -78,6 +81,7 @@ pub(crate) use contain::ContainErrorKind;
 mod finish;
 pub(crate) mod insert;
 mod join;
+mod line_cone;
 mod ops;
 pub(crate) mod section_cert;
 #[cfg(any(test, feature = "test-support"))]
@@ -2033,6 +2037,97 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         tol,
     )?;
     Ok((ab, ba))
+}
+
+/// **The reduction sweep, both directions, with the cone let past the
+/// operand roster** — every other gate unchanged. The cone's crossing
+/// lanes are reachable from no op until the roster admits it, so this
+/// is how a row reads them on a real body: the pairs each direction
+/// accepted, and the point and face of every vertex-on-face contact the
+/// sweep recorded, `(A on B, B on A)`.
+///
+/// # Errors
+///
+/// The gates' and the sweep's own refusals.
+#[cfg(any(test, feature = "test-support"))]
+#[allow(clippy::type_complexity)] // one row's reading: accepted pairs and contact points
+pub(crate) fn sweep_past_the_cone_roster(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<
+    (
+        [Vec<(EdgeKey, FaceKey)>; 2],
+        [Vec<(geom_core::Point3<f64>, FaceKey)>; 2],
+    ),
+    BooleanError,
+> {
+    let band = Band::linear(tol)?;
+    let declared = DeclaredPairs::default();
+    for (operand, body) in [(Operand::A, a_operand), (Operand::B, b_operand)] {
+        reduce::gate_operand_edges(body, operand)?;
+    }
+    let roster = |s: &geom::Surface<f64>| {
+        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
+    };
+    if let Some(p) =
+        reduce::first_unsupported_pair(a_operand, b_operand, band, roster, |_, _, _| false)?
+    {
+        return Err(BooleanError::CurvedPairUnsupported {
+            op: None,
+            site: PairRefusalSite::OperandGate,
+            operand: p.operand,
+            face: p.face,
+            kind: p.kind,
+            other_face: p.other_face,
+            other_kind: p.other_kind,
+        });
+    }
+    reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
+    reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
+    let mut a = a_operand.clone();
+    let mut b = b_operand.clone();
+    let mut acc = reduce::ContactAcc::default();
+    let mut ab = reduce::SweepTrace::default();
+    let mut ba = reduce::SweepTrace::default();
+    let knobs = reduce::SweepKnobs::default();
+    reduce::sweep_direction(
+        &mut a,
+        &mut b,
+        Operand::A,
+        &declared,
+        &mut acc,
+        band,
+        SweepStrategy::Realized,
+        &knobs,
+        Some(&mut ab),
+        tol,
+    )?;
+    reduce::sweep_direction(
+        &mut b,
+        &mut a,
+        Operand::B,
+        &declared,
+        &mut acc,
+        band,
+        SweepStrategy::Realized,
+        &knobs,
+        Some(&mut ba),
+        tol,
+    )?;
+    let records = acc.finish();
+    let points = |body: &Body<f64>, list: &[VfContact]| {
+        list.iter()
+            .filter_map(|c| {
+                let v = body.get_vertex(c.vertex)?;
+                Some((*body.get_point(v.point)?, c.face))
+            })
+            .collect::<Vec<_>>()
+    };
+    Ok((
+        [ab.accepted, ba.accepted],
+        [points(&a, &records.a_on_b), points(&b, &records.b_on_a)],
+    ))
 }
 
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —

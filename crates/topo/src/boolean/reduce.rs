@@ -163,8 +163,9 @@ impl ContactAcc {
 /// plane×NURBS arm, routed structurally so PR 7b's flag flip alone
 /// makes it live). Pair-level refusals fire at the sites that
 /// EXERCISE an arm (the sweep's crossing lanes, the join's section
-/// table), citing the C5 routing; the kind with no wired arm at all
-/// (`Cone`) is what [`gate_operand_pairs`] tests boxes for.
+/// table), citing the C5 routing; the kind off the roster (`Cone`, whose
+/// crossing lanes exist but whose section-certificate rows do not yet)
+/// is what [`gate_operand_pairs`] tests boxes for.
 ///
 /// **`Approx` is absent by DECISION, not by gap.** Its fit is a
 /// `Nurbs`, which is on the roster, so admitting it on the fitted
@@ -425,7 +426,10 @@ fn surface_of<'a, T: Decide>(
 }
 
 /// The BODY-scoped half of [`gate_operand_pairs`]: the edge carriers.
-fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
+pub(super) fn gate_operand_edges<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(CurveGeom::Certified(curve)) => match curve.carrier() {
@@ -1005,22 +1009,24 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// implicit residual; a definite miss is PROVEN — for a LINE carrier
 /// against a cylinder or sphere the residual is convex (both-inside
 /// means no wall crossing, both-outside clears through the span
-/// minimum), against a torus the certified quartic's roots decide, and
+/// minimum), against a torus or a cone the certified roots decide, and
 /// for a CIRCLE
 /// carrier the ARC's residual range is enclosed two ways (the
 /// carrier's exact harmonic bounds and the arc's own chord-dip
 /// bound), so a definitely one-sided arc clears. What definitely MEETS
 /// the face is split by kind, and the third paragraph below is the
-/// statement of record: a LINE carrier against a CYLINDER wall or a
-/// TORUS, and a CIRCLE carrier against a TORUS, are routed through the
-/// certified roots and pierce; everything else —
+/// statement of record: a LINE carrier against a CYLINDER wall, a TORUS
+/// or a CONE, and a CIRCLE carrier against a TORUS or a CONE, are routed
+/// through the certified roots and pierce; everything else —
 /// a tangency, a circle against a cylinder or sphere, a sphere face, an
 /// undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
 /// in-band clearance escalates (F6, the same margin's other half) —
 /// except a circle's against a torus, where the certified roots decide
-/// what the enclosures could not.
+/// what the enclosures could not. A cone has no enclosure form: its
+/// coaxial circles are decided in closed form, and every other circle
+/// goes to the roots.
 /// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
 /// silent fallback.
 ///
@@ -1076,15 +1082,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// this pair's question.
 ///
 /// **The pierce ring lane** (the definite-crossing half): a LINE edge
-/// that definitely crosses a cylinder WALL or a TORUS inside that
-/// face's trim is no longer the frontier. Its crossing parameters are
-/// the same certified roots the ray lane has always solved — the
+/// that definitely crosses a cylinder WALL, a TORUS or a CONE inside
+/// that face's trim is no longer the frontier. Its crossing parameters
+/// are the same certified roots the ray lane has always solved — the
 /// quadratic on a wall ([`super::solid_contain::line_wall_roots`]), the
-/// quartic on a torus ([`super::solid_contain::line_torus_roots`]) —
-/// taken over the edge's own span instead of a ray's forward half; on
-/// a torus the roots are consulted for every endpoint-sign pattern,
-/// since its residual is not convex along a line and no endpoint datum
-/// bounds a crossing between; the landing point is
+/// quartic on a torus ([`super::solid_contain::line_torus_roots`]), the
+/// quadratic on the double cone ([`super::line_cone`], metered for its
+/// `f64` noise) — taken over the edge's own span instead of a ray's
+/// forward half; on a torus or a cone the roots are consulted for every
+/// endpoint-sign pattern, since neither residual is convex along a line
+/// and no endpoint datum bounds a crossing between; the landing point is
 /// placed by [`super::contain::curved_face_containment`]; the
 /// split/record triple is the planar conic lane's, verbatim. Still the
 /// frontier is everything the roots do not cover: a TANGENCY (an
@@ -1094,10 +1101,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// with no root lane in this tree), a SPHERE face, and a trim the chart
 /// door declines to express.
 ///
-/// **A CIRCLE against a TORUS takes the same arms as a line**
-/// ([`super::circle_torus`]): its residual is a degree-2 trigonometric
-/// polynomial, a quartic in the tangent half-angle, and the ray lane's
-/// certified ladder answers it. It reaches those arms only from the
+/// **A CIRCLE against a TORUS or a CONE takes the same arms as a line**
+/// ([`super::circle_torus`], [`super::circle_cone`]): its residual is a
+/// degree-2 trigonometric polynomial, a quartic in the tangent
+/// half-angle, and the ray lane's certified ladder answers it. It reaches those arms only from the
 /// circle rung, after the enclosures failed to clear the arc, and never
 /// through a declared-cover arm — those rest on a line's separation
 /// story.
@@ -1118,7 +1125,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// — which, for the `(Zero, Zero)` arm, takes distinct certified roots
 /// and so structurally excludes an edge lying on the carrier (on a
 /// cylinder only rulings do, and a ruling answers `Constant`; no line
-/// lies on a torus). What the door then does is
+/// lies on a torus; on a cone only generators do, and a generator
+/// answers `Unsettled`). What the door then does is
 /// point-in-face containment on a chart, which is a trim question and
 /// not a gluing one.
 ///
@@ -1262,124 +1270,149 @@ fn curved_face_arm<T: Decide>(
             // and the harmonic one has no torus form. Reading the
             // certificate first is what lets a coincident pair reach
             // the declared-cover rung at all.
-            let clearance = if on_declared_rest_carrier(x, x_is, edge, face, declared) {
-                Ok(Sign::Zero)
-            } else {
-                circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
-                    .ok_or_else(frontier)?
-            };
-            match clearance {
-                Ok(Sign::Positive) => return Ok(CurvedEvent::None),
-                // The declared-cover rung: a covered zero-clearance
-                // circle takes the planar sweep's endpoint posture —
-                // each endpoint's own side decides its treatment
-                // (existing row): ON the carrier ⇒ boundary
-                // containment (which must decide, or the frontier
-                // stands); definitely clear ⇒ no event at that end (a
-                // TANGENT-covered circle touches the carrier at one
-                // point — a clear endpoint is honestly eventless);
-                // definitely inside ⇒ a crossing, never the covered
-                // posture. An interior-only touch (no endpoint on the
-                // carrier) keeps the frontier door. Uncovered keeps
-                // both doors verbatim.
-                //
-                // **An endpoint the trim places definitely OUT of THIS
-                // face is eventless HERE, not a refusal.** Reading that
-                // certificate as the frontier's remainder refuses a
-                // pair that has no incidence to report — and refuses
-                // the whole op, since one refusing pair is enough.
-                //
-                // `Out` has TWO sources on the carrier, and the argument differs by
-                // source, so it is made per source rather than for the
-                // one that motivated the change:
-                //
-                // - **AZIMUTH** — the endpoint is past this face's
-                //   angular window. On a closed carrier the azimuth is
-                //   covered by the operand's own wall faces, so the
-                //   point is a seam site a SIBLING face holds, and the
-                //   sweep reaches that pair on its own visit. This is
-                //   the case the rest lane is built on.
-                // - **HEIGHT** — the endpoint is past the window in z.
-                //   Here NO sibling need hold it: the carrier simply
-                //   ends, and a floating peg's rim has no face of the
-                //   other operand under it at all.
-                //
-                // An OFF-CARRIER answer is not a third source: the
-                // endpoint's residual decided `Zero` just above, so a
-                // containment that puts it definitely off the carrier
-                // contradicts that decision, and
-                // [`vertex_on_curved_face`] reports it `Undecided`.
-                //
-                // The HEIGHT source has no neighbour to appeal to, so the
-                // widening does NOT rest on one existing. What carries
-                // them is the **nothing-recorded guard** below: a pair
-                // whose every on-carrier endpoint came back `Elsewhere`
-                // records nothing and keeps the frontier, whatever the
-                // source. So an all-`Out` pair is exactly as loud as it
-                // was, and only a pair that ALREADY placed an endpoint
-                // on this face — i.e. one with a real, recorded
-                // incidence here — is allowed to stop treating its
-                // other end's absence as a failure.
-                //
-                // Still keeping the door, unchanged: a no-verdict
-                // endpoint ([`Placement::Undecided`]), and the pair
-                // where nothing was recorded — an arc whose interior
-                // crosses this face's window with both endpoints
-                // outside it is a real incidence this arm cannot see,
-                // and it must stay loud rather than become a silent
-                // no-event.
-                Ok(Sign::Zero) if covered => {
-                    let side = |p: Point3<T>| {
-                        decide(
-                            "bool_vertex_face_side",
-                            Margin::of(geom_brep::implicit_residual(&surface, p)),
-                            band,
-                        )
-                    };
-                    let mut ends = [None, None];
-                    for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
-                        match side(pw).map_err(|diag| BooleanError::Escalated { diag })? {
-                            Sign::Zero => {
-                                ends[i] = Some(vertex_on_curved_face(
-                                    x_is, y, w, pw, face, contacts, band, tol,
-                                )?);
-                            }
-                            // Definitely clear at this end: honestly
-                            // eventless, and not an endpoint the rule
-                            // below weighs either way.
-                            Sign::Positive => {}
-                            Sign::Negative => return Err(frontier()),
-                        }
+            'rung: {
+                let clearance = if on_declared_rest_carrier(x, x_is, edge, face, declared) {
+                    Ok(Sign::Zero)
+                } else if let Some(clearance) =
+                    circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
+                {
+                    clearance
+                } else if !covered && matches!(surface, geom::Surface::Cone { .. }) {
+                    // **A cone has no enclosure form.** Its coaxial pose is
+                    // decided here in closed form ([`super::circle_cone`]):
+                    // the residual is constant along the carrier, so a
+                    // definite elevation is no event, and a parallel lying
+                    // ON the cone keeps the door. Every other pose takes the
+                    // root arms below, as a torus does.
+                    match super::circle_cone::coaxial_pose(center, axis, radius, &surface, band)
+                        .map_err(|diag| BooleanError::Escalated { diag })?
+                    {
+                        super::circle_cone::Coaxial::Clear => return Ok(CurvedEvent::None),
+                        super::circle_cone::Coaxial::Door => return Err(frontier()),
+                        super::circle_cone::Coaxial::No => break 'rung,
                     }
-                    return if Placement::records_the_pair(ends) {
-                        Ok(CurvedEvent::Recorded)
-                    } else {
-                        Err(frontier())
-                    };
+                } else {
+                    return Err(frontier());
+                };
+                match clearance {
+                    Ok(Sign::Positive) => return Ok(CurvedEvent::None),
+                    // The declared-cover rung: a covered zero-clearance
+                    // circle takes the planar sweep's endpoint posture —
+                    // each endpoint's own side decides its treatment
+                    // (existing row): ON the carrier ⇒ boundary
+                    // containment (which must decide, or the frontier
+                    // stands); definitely clear ⇒ no event at that end (a
+                    // TANGENT-covered circle touches the carrier at one
+                    // point — a clear endpoint is honestly eventless);
+                    // definitely inside ⇒ a crossing, never the covered
+                    // posture. An interior-only touch (no endpoint on the
+                    // carrier) keeps the frontier door. Uncovered keeps
+                    // both doors verbatim.
+                    //
+                    // **An endpoint the trim places definitely OUT of THIS
+                    // face is eventless HERE, not a refusal.** Reading that
+                    // certificate as the frontier's remainder refuses a
+                    // pair that has no incidence to report — and refuses
+                    // the whole op, since one refusing pair is enough.
+                    //
+                    // `Out` has TWO sources on the carrier, and the argument differs by
+                    // source, so it is made per source rather than for the
+                    // one that motivated the change:
+                    //
+                    // - **AZIMUTH** — the endpoint is past this face's
+                    //   angular window. On a closed carrier the azimuth is
+                    //   covered by the operand's own wall faces, so the
+                    //   point is a seam site a SIBLING face holds, and the
+                    //   sweep reaches that pair on its own visit. This is
+                    //   the case the rest lane is built on.
+                    // - **HEIGHT** — the endpoint is past the window in z.
+                    //   Here NO sibling need hold it: the carrier simply
+                    //   ends, and a floating peg's rim has no face of the
+                    //   other operand under it at all.
+                    //
+                    // An OFF-CARRIER answer is not a third source: the
+                    // endpoint's residual decided `Zero` just above, so a
+                    // containment that puts it definitely off the carrier
+                    // contradicts that decision, and
+                    // [`vertex_on_curved_face`] reports it `Undecided`.
+                    //
+                    // The HEIGHT source has no neighbour to appeal to, so the
+                    // widening does NOT rest on one existing. What carries
+                    // them is the **nothing-recorded guard** below: a pair
+                    // whose every on-carrier endpoint came back `Elsewhere`
+                    // records nothing and keeps the frontier, whatever the
+                    // source. So an all-`Out` pair is exactly as loud as it
+                    // was, and only a pair that ALREADY placed an endpoint
+                    // on this face — i.e. one with a real, recorded
+                    // incidence here — is allowed to stop treating its
+                    // other end's absence as a failure.
+                    //
+                    // Still keeping the door, unchanged: a no-verdict
+                    // endpoint ([`Placement::Undecided`]), and the pair
+                    // where nothing was recorded — an arc whose interior
+                    // crosses this face's window with both endpoints
+                    // outside it is a real incidence this arm cannot see,
+                    // and it must stay loud rather than become a silent
+                    // no-event.
+                    Ok(Sign::Zero) if covered => {
+                        let side = |p: Point3<T>| {
+                            decide(
+                                "bool_vertex_face_side",
+                                Margin::of(geom_brep::implicit_residual(&surface, p)),
+                                band,
+                            )
+                        };
+                        let mut ends = [None, None];
+                        for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
+                            match side(pw).map_err(|diag| BooleanError::Escalated { diag })? {
+                                Sign::Zero => {
+                                    ends[i] = Some(vertex_on_curved_face(
+                                        x_is, y, w, pw, face, contacts, band, tol,
+                                    )?);
+                                }
+                                // Definitely clear at this end: honestly
+                                // eventless, and not an endpoint the rule
+                                // below weighs either way.
+                                Sign::Positive => {}
+                                Sign::Negative => return Err(frontier()),
+                            }
+                        }
+                        return if Placement::records_the_pair(ends) {
+                            Ok(CurvedEvent::Recorded)
+                        } else {
+                            Err(frontier())
+                        };
+                    }
+                    // **The circle × torus and circle × cone root lanes.**
+                    // An arc the enclosures could not clear against a TORUS
+                    // (or any non-coaxial circle against a CONE, which has
+                    // no enclosure) takes the same endpoint-sign arms as a
+                    // line below, and the certified roots of
+                    // [`super::circle_torus`] or [`super::circle_cone`]
+                    // decide every one of them through [`wall_crossing`].
+                    // Those arms never read convexity for either kind, so
+                    // nothing they conclude rests on the carrier being
+                    // straight. An
+                    // ESCALATED clearance goes the same way: the enclosures
+                    // are a shortcut in front of the roots, and a margin in
+                    // their escalation gap says only that the shortcut did
+                    // not decide — the roots still can.
+                    //
+                    // **Only an UNCOVERED circle falls through.** The
+                    // declared-cover arms below rest on a line's separation
+                    // story, so a covered circle — whose covered-Zero case
+                    // returned above — keeps the frontier door here rather
+                    // than reaching them. That makes those arms structurally
+                    // line-only, which they assert.
+                    Ok(Sign::Zero | Sign::Negative) | Err(_)
+                        if !covered
+                            && matches!(
+                                surface,
+                                geom::Surface::Torus { .. } | geom::Surface::Cone { .. }
+                            ) => {}
+                    Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
+                    Err(diag) => return Err(BooleanError::Escalated { diag }),
                 }
-                // **The circle × torus root lane.** An arc the
-                // enclosures could not clear against a TORUS takes the
-                // same endpoint-sign arms as a line below, and the
-                // certified roots of [`super::circle_torus`] decide
-                // every one of them through [`wall_crossing`]. Those
-                // arms never read convexity for a torus (its residual is
-                // not convex along a line either), so nothing they
-                // conclude rests on the carrier being straight. An
-                // ESCALATED clearance goes the same way: the enclosures
-                // are a shortcut in front of the roots, and a margin in
-                // their escalation gap says only that the shortcut did
-                // not decide — the roots still can.
-                //
-                // **Only an UNCOVERED circle falls through.** The
-                // declared-cover arms below rest on a line's separation
-                // story, so a covered circle — whose covered-Zero case
-                // returned above — keeps the frontier door here rather
-                // than reaching them. That makes those arms structurally
-                // line-only, which they assert.
-                Ok(Sign::Zero | Sign::Negative) | Err(_)
-                    if !covered && matches!(surface, geom::Surface::Torus { .. }) => {}
-                Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
-                Err(diag) => return Err(BooleanError::Escalated { diag }),
             }
         }
         _ => return Err(frontier()),
@@ -1528,11 +1561,15 @@ fn curved_face_arm<T: Decide>(
         // - **It is not an on-carrier edge.** `NoInterior` is reached only
         //   through a certified root count with distinct roots. For a
         //   LINE: the lines that lie on a wall are its rulings, which
-        //   answer `Constant`, and no line lies on a torus. For a CIRCLE
-        //   against a torus: a circle lying on it is either coaxial (a
-        //   rim or latitude circle, answered `Constant`) or has `F ≡ 0`,
-        //   whose pole no anchor can put definitely off the torus
-        //   (`Unsettled`). So the undeclared cosurface question
+        //   answer `Constant`; no line lies on a torus; and the lines
+        //   that lie on a cone are its generators, which answer
+        //   `Unsettled`. For a CIRCLE against a torus: a circle lying on
+        //   it is either coaxial (a rim or latitude circle, answered
+        //   `Constant`) or has `F ≡ 0`, whose pole no anchor can put
+        //   definitely off the torus (`Unsettled`). Against a cone: a
+        //   circle lying on it is a parallel, which is coaxial, and the
+        //   circle rung keeps the door on it before any arm here. So the
+        //   undeclared cosurface question
         //   (CONTACT-DESIGN C2/C4) keeps its door, and so does a
         //   tangency, a trim with no verdict, and every other answer.
         // - **Its interior meets this face nowhere.** The face lies on its
@@ -1579,20 +1616,36 @@ fn curved_face_arm<T: Decide>(
                 _ => Err(frontier()),
             }
         }
-        // **Both endpoints on one side of a TORUS: the roots decide,
-        // with no endpoint bound in front of them.** The two arms below
-        // lean on the residual being CONVEX along a line, which holds
-        // for a cylinder and a sphere and fails for a torus: its
-        // residual `((ρ − R)² + h² − r²)/2r` carries `−2Rρ`, concave in
-        // the line parameter. So a segment with both ends inside the
-        // tube can leave it and come back (a chord across the hole), and
-        // one with both ends outside can dip through it anywhere — no
-        // endpoint datum bounds either. The certified quartic does:
-        // an interior root in this face's trim is a pierce, a certified
+        // **Both endpoints on one side of a TORUS or a CONE: the roots
+        // decide, with no endpoint bound in front of them.** The two arms
+        // below lean on the residual being CONVEX along a line, which
+        // holds for a cylinder and a sphere and fails for both of these:
+        //
+        // - the torus's residual `((ρ − R)² + h² − r²)/2r` carries
+        //   `−2Rρ`, concave in the line parameter, so a segment with
+        //   both ends inside the tube can leave it and come back (a
+        //   chord across the hole), and one with both ends outside can
+        //   dip through it anywhere;
+        // - the cone's elevation `ρ cos α − |h| sin α` is convex on each
+        //   side of the apex plane `h = 0` and concave across it, where
+        //   it is `ρ cos α ≥ 0`. A segment with its ends inside
+        //   OPPOSITE nappes crosses the surface once on each side of
+        //   the apex (the apex pin), and one with both ends outside has
+        //   a second derivative `cos α·ρ″` that is unbounded as the line
+        //   nears the axis, so no dip bound holds.
+        //
+        // No endpoint datum bounds either. The certified roots do — the
+        // torus's quartic, and the cone's quadratic, which is exact along
+        // a line and shares the elevation's sign off the apex: an
+        // interior root in this face's trim is a pierce, a certified
         // absence of one is no event HERE, and an uncertain count keeps
-        // the door.
+        // the door. A circle edge reaches this arm too (the circle rung
+        // routes it here), and its roots are the half-angle quartic's.
         (Sign::Positive, Sign::Positive) | (Sign::Negative, Sign::Negative)
-            if matches!(surface, geom::Surface::Torus { .. }) =>
+            if matches!(
+                surface,
+                geom::Surface::Torus { .. } | geom::Surface::Cone { .. }
+            ) =>
         {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
@@ -1603,9 +1656,10 @@ fn curved_face_arm<T: Decide>(
                 SpanVerdict::Constant | SpanVerdict::Unsettled => Err(frontier()),
             }
         }
-        // Both inside: the residual along a line is convex (cylinder,
-        // sphere — the torus took the arm above), so its maximum is at
-        // an endpoint — definitely no wall crossing.
+        // Both inside: the residual along a line is convex on a
+        // cylinder and a sphere (the torus and the cone took the arm
+        // above), so its maximum is at an endpoint — definitely no wall
+        // crossing.
         (Sign::Negative, Sign::Negative) => Ok(CurvedEvent::None),
         // Both outside: clear through a DIVISION-FREE lower bound on
         // the span minimum of the convex residual. Division-free is a
@@ -1653,15 +1707,16 @@ fn curved_face_arm<T: Decide>(
             };
             let (t0, t1) = curve.params();
             // f″ per kind (the residual's second derivative along the
-            // ray, constant for these kinds).
+            // ray, constant for the cylinder and the sphere — the two
+            // kinds whose convexity this arm relies on).
             let f2 = match surface {
                 geom::Surface::Cylinder { axis, radius, .. } => {
                     let d_ax = dir.dot(axis);
                     (dir.norm_squared() - d_ax.powi(2)) / radius
                 }
                 geom::Surface::Sphere { radius, .. } => dir.norm_squared() / radius,
-                // Post-gate/pre-check unreachable kinds keep the
-                // frontier door.
+                // Every other kind keeps the frontier door; the torus
+                // and the cone never reach here (the roots arm above).
                 _ => return Err(frontier()),
             };
             let span = t1 - t0;
@@ -1795,14 +1850,15 @@ enum SpanVerdict<T: geom_core::Real> {
         p: Point3<T>,
         at: FaceContainment,
     },
-    /// A certified root set (two on a cylinder, two or four on a
-    /// torus), none of them STRICTLY INSIDE the span on this face: each
-    /// lies outside the span, sits at one of its ends, or lands on the
-    /// carrier outside the face's trim. Distinct certified roots also
-    /// certify that the edge does not LIE on the carrier (a line: not a
-    /// ruling of a wall, and no line lies on a torus; a circle: a
-    /// certified count needs a pole definitely off the torus, which a
-    /// circle lying on it has nowhere), which is what separates a chord
+    /// A certified root set (two on a cylinder or a cone, two or four on
+    /// a torus or for a circle on a cone), none of them STRICTLY INSIDE
+    /// the span on this face: each lies outside the span, sits at one of
+    /// its ends, or lands on the carrier outside the face's trim.
+    /// Distinct certified roots also certify that the edge does not LIE
+    /// on the carrier (a line: not a ruling of a wall, not a generator of
+    /// a cone, and no line lies on a torus; a circle: a certified count
+    /// needs a pole definitely off the surface, which a circle lying on
+    /// it has nowhere), which is what separates a chord
     /// from an on-carrier edge. What the
     /// absence of an interior crossing licenses depends on the
     /// endpoints, so the caller decides — an endpoint incidence is
@@ -1832,8 +1888,9 @@ enum SpanVerdict<T: geom_core::Real> {
 }
 
 /// The curved-wall crossing route: solve the certified roots — a
-/// line's quadratic on a cylinder wall, its quartic on a torus, a
-/// circle's half-angle quartic on a torus — keep the roots the EDGE's
+/// line's quadratic on a cylinder wall or a cone, its quartic on a
+/// torus, a circle's half-angle quartic on a torus or a cone — keep the
+/// roots the EDGE's
 /// span carries strictly inside, and place the landing point in the
 /// face's trim.
 ///
@@ -1846,7 +1903,8 @@ enum SpanVerdict<T: geom_core::Real> {
 /// crossing to every caller.
 ///
 /// **Every root is examined, and the FIRST interior one wins.** A
-/// segment through a wall meets it twice (a torus up to four times);
+/// segment through a wall or a cone meets it twice (a torus up to four
+/// times, and a circle a torus or a cone);
 /// the sweep splits at one root and re-queues both fragments against
 /// the SAME face, so the rest are found on later passes — the shape the
 /// conic × plane lane already uses, and the reason this function does
@@ -1867,34 +1925,53 @@ fn wall_crossing<T: Decide>(
     // parameter is an angle and its arc length is `radius·Δθ`.
     let (count, metres_per_param) = match *carrier {
         geom::Curve3::Line { origin, dir } => (
-            line_wall_root_count(origin, dir, surface, &mut roots, band)?,
+            line_wall_root_count(y, face, origin, dir, (t0, t1), surface, &mut roots, band)?,
             T::one(),
         ),
-        // The circle × torus quartic ([`super::circle_torus`]). A circle
-        // against any other kind has no root lane here, and the door
-        // says so (`Uncertain`).
+        // The half-angle quartics: circle × torus
+        // ([`super::circle_torus`]) and circle × cone
+        // ([`super::circle_cone`]). A circle against any other kind has
+        // no root lane here, and the door says so (`Unsettled`).
         geom::Curve3::Circle {
             center,
             axis,
             radius,
             u_ref,
-        } => match super::circle_torus::circle_torus_roots(
-            center, axis, radius, u_ref, t0, t1, surface, band,
-        )
-        .map_err(|diag| BooleanError::Escalated { diag })?
-        {
-            super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
-                roots = thetas;
-                (Ok(count), radius)
-            }
-            // A coaxial carrier's residual is constant: the circle rung's
-            // analogue of the axis-parallel line.
-            super::circle_torus::CircleTorusRoots::Coaxial => (Err(SpanVerdict::Constant), radius),
-            super::circle_torus::CircleTorusRoots::Uncertain => {
-                (Err(SpanVerdict::Unsettled), radius)
-            }
-            super::circle_torus::CircleTorusRoots::Miss => (Err(SpanVerdict::Miss), radius),
-        },
+        } => {
+            let escalated = |diag| BooleanError::Escalated { diag };
+            let verdict = match surface {
+                geom::Surface::Torus { .. } => match super::circle_torus::circle_torus_roots(
+                    center, axis, radius, u_ref, t0, t1, surface, band,
+                )
+                .map_err(escalated)?
+                {
+                    super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
+                        roots = thetas;
+                        Ok(count)
+                    }
+                    // A coaxial carrier's residual is constant: the circle
+                    // rung's analogue of the axis-parallel line.
+                    super::circle_torus::CircleTorusRoots::Coaxial => Err(SpanVerdict::Constant),
+                    super::circle_torus::CircleTorusRoots::Uncertain => Err(SpanVerdict::Unsettled),
+                    super::circle_torus::CircleTorusRoots::Miss => Err(SpanVerdict::Miss),
+                },
+                geom::Surface::Cone { .. } => match super::circle_cone::circle_cone_roots(
+                    center, axis, radius, u_ref, t0, t1, surface, band,
+                )
+                .map_err(escalated)?
+                {
+                    super::circle_cone::CircleConeRoots::Certified { count, thetas } => {
+                        roots = thetas;
+                        Ok(count)
+                    }
+                    super::circle_cone::CircleConeRoots::Coaxial => Err(SpanVerdict::Constant),
+                    super::circle_cone::CircleConeRoots::Uncertain => Err(SpanVerdict::Unsettled),
+                    super::circle_cone::CircleConeRoots::Miss => Err(SpanVerdict::Miss),
+                },
+                _ => Err(SpanVerdict::Unsettled),
+            };
+            (verdict, radius)
+        }
         _ => return Ok(SpanVerdict::Unsettled),
     };
     let count = match count {
@@ -1983,19 +2060,26 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
 
 /// The certified LINE × wall roots, per kind, written into `roots`:
 /// `Ok(count)` for a certified root set, `Err(verdict)` for the answers
-/// that are not one.
+/// that are not one. `face` and the span are read only for a cone, whose
+/// margins are levered by the face's slant extent and whose root slack is
+/// read against the span.
+#[allow(clippy::too_many_arguments)]
 fn line_wall_root_count<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
+    span: (T, T),
     surface: &geom::Surface<T>,
     roots: &mut [T; 4],
     band: Band,
 ) -> Result<Result<usize, SpanVerdict<T>>, BooleanError> {
-    // The certified roots, per kind. Both lanes answer the same three
+    // The certified roots, per kind. Every lane answers the same three
     // ways — a certified root set, a definite miss, or no certain
     // count — and the cylinder adds a fourth, the axis-parallel line
-    // whose residual is constant. A line never lies on a torus, so the
-    // torus has no such case.
+    // whose residual is constant. A line never lies on a torus, and a
+    // line on a cone is a generator, which the cone lane answers with
+    // no certain count.
     Ok(match *surface {
         geom::Surface::Cylinder {
             origin: c_origin,
@@ -2047,6 +2131,36 @@ fn line_wall_root_count<T: Decide>(
             super::solid_contain::TorusRoots::Uncertain => return Ok(Err(SpanVerdict::Unsettled)),
             super::solid_contain::TorusRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
         },
+        // The cone's quadratic ([`super::line_cone`]), metered for the
+        // `f64` noise of its coefficients. A generator-parallel line, a
+        // tangency, a line through the apex and a count or root the
+        // noise could move all keep the door (Q3 of the VERBS-CONE spec:
+        // the generator-parallel linear root is not taken).
+        geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let Ok(v) =
+                super::solid_contain::cone_slant_window(y, face, apex, axis, half_angle.cos())
+            else {
+                return Ok(Err(SpanVerdict::Unsettled));
+            };
+            let lever = v.0.abs().max(v.1.abs());
+            match super::line_cone::line_cone_edge_roots(
+                origin, dir, apex, axis, half_angle, lever, span, band,
+            )
+            .map_err(|diag| BooleanError::Escalated { diag })?
+            {
+                super::line_cone::EdgeConeRoots::Two(ts) => {
+                    roots[..2].copy_from_slice(&ts);
+                    Ok(2)
+                }
+                super::line_cone::EdgeConeRoots::Door => return Ok(Err(SpanVerdict::Unsettled)),
+                super::line_cone::EdgeConeRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+            }
+        }
         // A sphere face: no root lane here, and inventing one is not
         // this function's business.
         _ => return Ok(Err(SpanVerdict::Unsettled)),

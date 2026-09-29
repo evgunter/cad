@@ -362,6 +362,31 @@ pub mod test_support {
         )
     }
 
+    /// The reduction sweep of `a` × `b`, both directions, with the cone
+    /// let past the operand roster and every other gate unchanged: the
+    /// `(edge, face)` pairs each direction accepted, `[A→B, B→A]`, and
+    /// the point and face of every vertex-on-face contact recorded,
+    /// `[A on B, B on A]`. It reads the cone's crossing lanes on a real
+    /// body before any op can reach them.
+    ///
+    /// # Errors
+    ///
+    /// The gates' and the sweep's own refusals.
+    #[allow(clippy::type_complexity)] // one row's reading: accepted pairs and contact points
+    pub fn sweep_past_the_cone_roster(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<
+        (
+            [Vec<(crate::EdgeKey, crate::FaceKey)>; 2],
+            [Vec<(geom_core::Point3<f64>, crate::FaceKey)>; 2],
+        ),
+        crate::BooleanError,
+    > {
+        crate::boolean::sweep_past_the_cone_roster(a, b, tol)
+    }
+
     /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
     /// planar in-face test, which the ray sweep reaches only through a
     /// hit it decides to take — named here so a row can ask it about a
