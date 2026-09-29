@@ -2,10 +2,13 @@
 id: mint-face-surface-and-sense-reads-key-equality-where-same-chart-reads-provenance
 kind: issue
 title: A minted or re-charted face's sense is derived on the parent's chart (same_chart) and stated by the caller on any other, and a contradicting stated bit is refused
-status: open
+status: closed
 opened: 2026-09-24
 priority: P1
 cost: M
+closed: 2026-09-29
+pr: 3467
+branch: topo/sense-reads-same-chart
 ---
 
 
@@ -142,3 +145,35 @@ bullet now reads as PR 3480 wrote it.
   `set_face_surface_and_sense` folds into it.
 
 The implementation re-aims PR 3467.
+
+## Closed (2026-09-29, PR 3467)
+
+Built to Ev's ruling (PR 3480; D1's `sense` bullet). One plan-phase
+resolver, `Body::resolve_face_surface`, takes `ParentSide::With` from
+`mef` and `Against` from `mfkrh`, and asks the chart question once
+(`same_chart`).
+- On the parent's chart, it derives the bit: the parent's, or the
+  parent's negated.
+- There, it refuses a contradicting stated bit with
+  `SenseContradictsChart`, before mutating.
+- Off the parent's chart, it writes the stated bit.
+
+The API follows the same rule:
+- `FaceSurface::New`/`Shared` carry `sense`.
+- `set_face_surface` takes the same spec, and
+  `set_face_surface_and_sense` is gone.
+- `mvfs` and `mfkrh_plug` state their provisional bit at the call.
+
+Every sweep, rim-glue, STEP-adopt and offset caller states its bit.
+No golden moved: both reviewers found byte-identical results on the
+curved boolean and split corpus.
+
+The dual review found no MAJOR. Its union fix pass pinned the
+negation on a `false` parent and the shared-payload `mfkrh` validity
+(adopting both reviewers' probes). It also cut the rule's
+restatements down to pointers and corrected the stale prose.
+
+Filed:
+- `work/zip/slit-zip-band-run-across-two-loops-is-reached-by-no-row.md`
+- `work/tess/mesh-docs-say-every-face-mints-sense-true.md`
+- `work/wire/emit-topo-says-every-face-mints-sense-true.md`
