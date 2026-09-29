@@ -275,7 +275,7 @@ impl Tok {
 /// Lex the whole source (byte positions retained per token). The one
 /// way it refuses is a character outside the alphabet, returned as
 /// the offset and the character: [`parse_expr`] words it as
-/// [`ParseError::UnexpectedChar`] and [`param_name_fault`] as
+/// [`ParseError::UnexpectedChar`] and [`param_name_reason`] as
 /// [`ParamNameReason::OutsideAlphabet`], each in its own vocabulary
 /// over the same fact.
 fn lex(src: &str) -> Result<Vec<(usize, Tok)>, (usize, char)> {
@@ -371,7 +371,7 @@ fn lex(src: &str) -> Result<Vec<(usize, Tok)>, (usize, char)> {
 
 /// Why a text is not a parameter name, with the text that was offered.
 ///
-/// What [`ParamName::new`] answers. The rule is the lexer's, asked
+/// What [`ParamName::new`] answers. The rule is the parser's, asked
 /// once by `param_name_fault`: a parameter exists to be referenced
 /// from an expression, so a name is admissible exactly when the
 /// expression parser reads the text back as a reference to that same
@@ -463,41 +463,53 @@ impl core::fmt::Display for ParamNameReason {
     }
 }
 
-/// **The one admissibility rule for a parameter name**, as the lexer
-/// decides it: `None` when the whole text lexes as exactly one
-/// identifier token, otherwise the first thing that breaks that shape.
+/// **The one admissibility rule for a parameter name**, asked of the
+/// parser itself: `None` exactly when [`parse_expr`] over an empty
+/// table reads the whole text as one unresolved reference to that
+/// same text, otherwise what the lexer finds wrong with it
+/// ([`param_name_reason`]).
 ///
 /// The parser has no reserved words — `sin` is a call only when `(`
 /// follows it, and a bare `sin` is looked up as a parameter — and no
-/// constants, so a function word or a unit symbol is admissible here
-/// exactly because [`parse_expr`] would read it back as the parameter.
-/// `edit_one_predicate::a_name_is_admissible_exactly_when_the_parser_reads_it_back`
-/// pins that equivalence rather than restating the grammar here.
+/// constants, so a function word or a unit symbol is admissible
+/// because this is the parser's own reading, not a second grammar.
+/// No name is minted to ask: the table is empty, and the parser looks
+/// an identifier up by its lexed text.
 pub(crate) fn param_name_fault(text: &str) -> Option<ParamNameReason> {
+    match parse_expr(text, &BTreeMap::new()) {
+        Err(ParseError::UnknownParam { name, .. }) if name == text => None,
+        _ => Some(param_name_reason(text)),
+    }
+}
+
+/// Why a text the parser does not read back as a reference to itself
+/// is not a name, as the lexer sees it: the first thing that breaks
+/// "one identifier token covering the whole text".
+fn param_name_reason(text: &str) -> ParamNameReason {
     let toks = match lex(text) {
         Ok(toks) => toks,
-        Err((pos, ch)) => return Some(ParamNameReason::OutsideAlphabet { pos, ch }),
+        Err((pos, ch)) => return ParamNameReason::OutsideAlphabet { pos, ch },
     };
     let mut it = toks.into_iter();
     let Some((pos, first)) = it.next() else {
-        return Some(ParamNameReason::Blank);
+        return ParamNameReason::Blank;
     };
-    let Tok::Ident(ident) = first else {
-        return Some(ParamNameReason::NotAnIdentifier {
+    let Tok::Ident(_) = first else {
+        return ParamNameReason::NotAnIdentifier {
             pos,
             found: first.describe(),
-        });
+        };
     };
     if let Some((pos, second)) = it.next() {
-        return Some(ParamNameReason::NotOneToken {
+        return ParamNameReason::NotOneToken {
             pos,
             found: second.describe(),
-        });
+        };
     }
-    // One identifier token: it covers the whole text exactly when the
-    // text has no whitespace around it, since an identifier carries
-    // none of its own.
-    (ident != text).then_some(ParamNameReason::Padded)
+    // One identifier the parser did not read back as the whole text:
+    // an identifier carries no whitespace of its own, so the rest of
+    // the text is whitespace around it.
+    ParamNameReason::Padded
 }
 
 /// Parse `src` into a dimension-checked [`Expr`] (module docs: the

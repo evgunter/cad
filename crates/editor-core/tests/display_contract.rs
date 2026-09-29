@@ -712,7 +712,7 @@ fn param_name_reason_display_names_its_content_not_its_struct() {
 /// almost right.
 #[test]
 fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
-    let name = ParamName::literal("width");
+    let name = ParamName::from_static("width");
     let dump_words = dimension_dump_words();
     let dumps = as_strs(&dump_words);
 
@@ -1026,7 +1026,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotUnknownDocParam {
                 node,
                 slot: SlotId::Radius,
-                name: ParamName::literal("fillet"),
+                name: ParamName::from_static("fillet"),
             },
             vec!["slot radius", "fillet", "does not declare"],
         ),
@@ -1034,7 +1034,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotDocParamDimension {
                 node,
                 slot: SlotId::Distance,
-                name: ParamName::literal("depth"),
+                name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1043,14 +1043,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::PayloadUnknownDocParam {
                 node,
-                name: ParamName::literal("depth"),
+                name: ParamName::from_static("depth"),
             },
             vec!["node 5", "payload expression", "depth", "does not declare"],
         ),
         (
             SnapshotError::PayloadDocParamDimension {
                 node,
-                name: ParamName::literal("depth"),
+                name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1223,7 +1223,7 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     }
 
     let node = RecipeNodeId(5);
-    let name = ParamName::literal("width");
+    let name = ParamName::from_static("width");
 
     let edit_door: Vec<(String, String)> = vec![
         arm(&EditError::SlotUnknownDocParam {
@@ -3004,7 +3004,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         SeedError, SplitError,
     };
 
-    let name = ParamName::literal("width");
+    let name = ParamName::from_static("width");
     let node = RecipeNodeId(5);
     let framed: Vec<(&str, String)> = vec![
         (
@@ -3130,7 +3130,7 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};
 
-    let name = ParamName::literal("width");
+    let name = ParamName::from_static("width");
     let framed: Vec<(&str, String)> = vec![
         (
             "RangeRefusal::NotAContinuousParam",

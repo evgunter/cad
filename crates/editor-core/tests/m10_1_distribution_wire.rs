@@ -27,7 +27,7 @@ fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {
         doc = apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::literal(name),
+                name: ParamName::from_static(name),
                 value: value.clone(),
             },
             Tol::witness(),
@@ -173,7 +173,7 @@ fn the_same_document_refuses_at_save() {
 fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-1-log"), Tol::witness());
     let bad = DocEdit::SetDocParam {
-        name: ParamName::literal("s"),
+        name: ParamName::from_static("s"),
         value: annotated(1.0, Distribution::Normal { sigma: -1.0 }),
     };
     match save(&doc, &[editor_core::LoggedEdit::bare(bad)], Tol::witness()) {
@@ -182,7 +182,7 @@ fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
             assert_eq!(
                 error,
                 EditError::InvalidDistribution {
-                    name: ParamName::literal("s"),
+                    name: ParamName::from_static("s"),
                     fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },
                 }
             );
@@ -199,7 +199,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
         apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::literal("p"),
+                name: ParamName::from_static("p"),
                 value: annotated(1.0, d),
             },
             Tol::witness(),
@@ -210,21 +210,21 @@ fn the_edit_door_refuses_each_broken_invariant() {
     assert_eq!(
         set(Distribution::Normal { sigma: 0.0 }),
         Err(EditError::InvalidDistribution {
-            name: ParamName::literal("p"),
+            name: ParamName::from_static("p"),
             fault: DistributionFault::SigmaNotPositive { sigma: 0.0 },
         })
     );
     assert_eq!(
         set(Distribution::Band { lo: 0.1, hi: 0.2 }),
         Err(EditError::InvalidDistribution {
-            name: ParamName::literal("p"),
+            name: ParamName::from_static("p"),
             fault: DistributionFault::NominalOutsideSupport { lo: 0.1, hi: 0.2 },
         })
     );
     assert_eq!(
         set(Distribution::Uniform { lo: -0.2, hi: -0.1 }),
         Err(EditError::InvalidDistribution {
-            name: ParamName::literal("p"),
+            name: ParamName::from_static("p"),
             fault: DistributionFault::NominalOutsideSupport { lo: -0.2, hi: -0.1 },
         })
     );
@@ -235,7 +235,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
             hi: 0.1
         }),
         Err(EditError::NonFiniteDocParam {
-            name: ParamName::literal("p"),
+            name: ParamName::from_static("p"),
             field: editor_core::DocParamField::Offset(DistributionField::Sigma),
         }),
         "a non-finite offset joins the non-finite class, not the shape class, and names itself"
@@ -246,7 +246,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
             hi: 0.1
         }),
         Err(EditError::NonFiniteDocParam {
-            name: ParamName::literal("p"),
+            name: ParamName::from_static("p"),
             field: editor_core::DocParamField::Offset(DistributionField::Lo),
         })
     );
@@ -278,7 +278,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
 #[test]
 fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-1-precedence"), Tol::witness());
-    let name = ParamName::literal("s");
+    let name = ParamName::from_static("s");
     let broken = DocParam::Continuous {
         dim: Dimension::Count,
         value: 1.0,
@@ -366,7 +366,7 @@ fn a_non_finite_offset_names_which_offset_it_was() {
     ];
     for (dist, expected) in cases {
         let edit = DocEdit::SetDocParam {
-            name: ParamName::literal("p"),
+            name: ParamName::from_static("p"),
             value: annotated(1.0, dist),
         };
         match save(&doc, &[editor_core::LoggedEdit::bare(edit)], Tol::witness()) {
@@ -389,7 +389,7 @@ fn a_non_finite_offset_names_which_offset_it_was() {
     // The NOMINAL's own non-finiteness is the same class, and the
     // field names it rather than standing for it by absence.
     let edit = DocEdit::SetDocParam {
-        name: ParamName::literal("p"),
+        name: ParamName::from_static("p"),
         value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
     match save(&doc, &[editor_core::LoggedEdit::bare(edit)], Tol::witness()) {
@@ -419,14 +419,14 @@ fn diff_reports_a_distribution_only_change() {
     let d = plain.diff(&annotated_doc);
     assert_eq!(
         d.params,
-        vec![ParamName::literal("p")],
+        vec![ParamName::from_static("p")],
         "adding a distribution is a param diff"
     );
     assert!(!plain.bit_eq(&annotated_doc));
     let widened = doc_with(&[("p", annotated(1.0, Distribution::Normal { sigma: 0.02 }))]);
     assert_eq!(
         annotated_doc.diff(&widened).params,
-        vec![ParamName::literal("p")],
+        vec![ParamName::from_static("p")],
         "changing a distribution is a param diff"
     );
 }

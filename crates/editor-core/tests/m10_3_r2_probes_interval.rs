@@ -54,7 +54,7 @@ fn eps() -> f64 {
 }
 
 fn name(n: &'static str) -> ParamName {
-    ParamName::literal(n)
+    ParamName::from_static(n)
 }
 
 fn unit_square() -> LoopProgram {

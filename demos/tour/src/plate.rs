@@ -47,7 +47,7 @@ fn scl(v: f64) -> Expr {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(ParamName::literal(n), Dimension::Length)
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
@@ -67,7 +67,7 @@ fn declare(
     let applied = apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal(n),
+            name: ParamName::from_static(n),
             value: DocParam::continuous_with(Dimension::Length, value, distribution),
         },
         tol,

@@ -27,13 +27,13 @@ use editor_core::{Dimension, EvalError, Expr, ParamEnv, ParamName, ParamValue, e
 
 fn env_with(name: &'static str, v: ParamValue<f64>) -> ParamEnv<f64> {
     let mut env = ParamEnv::default();
-    env.bindings.insert(ParamName::literal(name), v);
+    env.bindings.insert(ParamName::from_static(name), v);
     env
 }
 
 #[test]
 fn param_lookup_and_typed_failures() {
-    let depth = Expr::param(ParamName::literal("depth"), Dimension::Length);
+    let depth = Expr::param(ParamName::from_static("depth"), Dimension::Length);
     // Bound correctly: the raw kernel-unit value comes back.
     let env = env_with(
         "depth",
@@ -46,7 +46,7 @@ fn param_lookup_and_typed_failures() {
     // Unbound: typed.
     assert_eq!(
         eval(&depth, &ParamEnv::<f64>::default()).unwrap_err(),
-        EvalError::UnknownParam(ParamName::literal("depth"))
+        EvalError::UnknownParam(ParamName::from_static("depth"))
     );
     // Bound at a different dimension: typed.
     let wrong = env_with(
@@ -59,7 +59,7 @@ fn param_lookup_and_typed_failures() {
     assert_eq!(
         eval(&depth, &wrong).unwrap_err(),
         EvalError::ParamDimensionMismatch {
-            name: ParamName::literal("depth"),
+            name: ParamName::from_static("depth"),
             expected: Dimension::Length,
             found: Dimension::Angle,
         }
@@ -68,7 +68,7 @@ fn param_lookup_and_typed_failures() {
 
 #[test]
 fn count_param_is_exact_i64() {
-    let n = Expr::param(ParamName::literal("n"), Dimension::Count);
+    let n = Expr::param(ParamName::from_static("n"), Dimension::Count);
     let env = env_with("n", ParamValue::Count(7));
     assert_eq!(eval_count(&n, &env).unwrap(), 7);
     // A Count param under continuous eval is a typed refusal.
@@ -179,10 +179,10 @@ mod interval_lane {
 
     #[test]
     fn interval_param_env_embeds_exactly() {
-        let depth = Expr::param(ParamName::literal("d"), Dimension::Length);
+        let depth = Expr::param(ParamName::from_static("d"), Dimension::Length);
         let mut env: ParamEnv<Interval> = ParamEnv::default();
         env.bindings.insert(
-            ParamName::literal("d"),
+            ParamName::from_static("d"),
             ParamValue::Continuous {
                 dim: Dimension::Length,
                 value: <Interval as Real>::from_f64(0.003),

@@ -75,7 +75,7 @@ fn main() {
         doc = apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::literal(name),
+                name: ParamName::from_static(name),
                 value: value.clone(),
             },
             tol,
@@ -125,10 +125,10 @@ fn main() {
     }
 
     // Price a driver-leaf-shaped sub-box on the measured bore.
-    let bore = b.get(&ParamName::literal("bore_r")).expect("axis");
+    let bore = b.get(&ParamName::from_static("bore_r")).expect("axis");
     let leaf = (0.0, bore.offsets.hi / 2.0);
     let m = box_mass(
-        &ParamName::literal("bore_r"),
+        &ParamName::from_static("bore_r"),
         &bore.distribution.expect("annotated"),
         leaf,
     )
@@ -137,9 +137,9 @@ fn main() {
 
     // And the refusal a first-time user WILL hit: pricing a leaf over
     // the vendor band.
-    let plate = b.get(&ParamName::literal("plate_t")).expect("axis");
+    let plate = b.get(&ParamName::from_static("plate_t")).expect("axis");
     match box_mass(
-        &ParamName::literal("plate_t"),
+        &ParamName::from_static("plate_t"),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {

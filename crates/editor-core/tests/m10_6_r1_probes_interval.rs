@@ -82,7 +82,7 @@ fn numeric_lane() -> DriveConfig {
 }
 
 fn name(n: &'static str) -> ParamName {
-    ParamName::literal(n)
+    ParamName::from_static(n)
 }
 
 fn half() -> f64 {

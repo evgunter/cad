@@ -100,7 +100,7 @@ fn sym(
 
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
     r.push(DocEdit::SetDocParam {
-        name: ParamName::literal(name),
+        name: ParamName::from_static(name),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
@@ -124,7 +124,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
     ));
-    let w = Expr::param(ParamName::literal("w"), Dimension::Length);
+    let w = Expr::param(ParamName::from_static("w"), Dimension::Length);
     let neg_w = Expr::neg(w.clone());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -207,7 +207,7 @@ fn sym5_tilted_width_parameter_ladder() {
 pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::literal("t"),
+        name: ParamName::from_static("t"),
         value: DocParam::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
@@ -218,7 +218,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             }),
         },
     });
-    let t = Expr::param(ParamName::literal("t"), Dimension::Scalar);
+    let t = Expr::param(ParamName::from_static("t"), Dimension::Scalar);
     let base = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -709,7 +709,7 @@ enum Place {
 fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::literal("t"),
+        name: ParamName::from_static("t"),
         value: DocParam::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
@@ -720,7 +720,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
             }),
         },
     });
-    let t = Expr::param(ParamName::literal("t"), Dimension::Scalar);
+    let t = Expr::param(ParamName::from_static("t"), Dimension::Scalar);
     let b = base_frame(&mut r, &t, base);
     let on = match place {
         Place::Authored => b,

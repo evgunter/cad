@@ -24,7 +24,7 @@ fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {
         doc = apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::literal(name),
+                name: ParamName::from_static(name),
                 value: value.clone(),
             },
             Tol::witness(),
@@ -46,7 +46,7 @@ fn annotated(value: f64, distribution: Distribution) -> DocParam {
 }
 
 fn p(name: &'static str) -> ParamName {
-    ParamName::literal(name)
+    ParamName::from_static(name)
 }
 
 /// The default policy IS the ±3σ convention, and the box it draws for

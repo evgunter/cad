@@ -254,11 +254,11 @@ fn r1_ceilings_per_variant() {
 /// `scale` multiplies every tolerance; `1.0` is the study a user would
 /// ask for.
 pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let plen = |n: &'static str| Expr::param(ParamName::literal(n), Dimension::Length);
+    let plen = |n: &'static str| Expr::param(ParamName::from_static(n), Dimension::Length);
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::literal(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,

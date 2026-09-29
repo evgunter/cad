@@ -1242,7 +1242,7 @@ mod layout_tests {
     const REGION: f32 = 260.0;
 
     fn param(name: &'static str) -> ParamName {
-        ParamName::literal(name)
+        ParamName::from_static(name)
     }
 
     /// An extrude distance row with `driver` and `value`.
@@ -1357,7 +1357,7 @@ mod tests {
     const NODE: RecipeNodeId = RecipeNodeId(4);
 
     fn thickness() -> ParamName {
-        ParamName::literal("thickness")
+        ParamName::from_static("thickness")
     }
 
     /// One extrude distance row, driven or not, with the value the
@@ -1639,7 +1639,7 @@ mod verdict_tests {
     #[test]
     fn an_undeclared_parameters_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Param {
-            name: ParamName::literal("width"),
+            name: ParamName::from_static("width"),
             present: false,
         });
         assert_eq!(
@@ -1659,7 +1659,7 @@ mod verdict_tests {
                 present: true,
             },
             Standing::Param {
-                name: ParamName::literal("width"),
+                name: ParamName::from_static("width"),
                 present: true,
             },
         ] {

@@ -61,7 +61,7 @@ use editor_core::{
 use geom_core::Tol;
 
 fn p(name: &'static str) -> ParamName {
-    ParamName::literal(name)
+    ParamName::from_static(name)
 }
 
 fn mm() -> UnitSym {

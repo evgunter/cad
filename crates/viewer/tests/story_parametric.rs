@@ -169,10 +169,10 @@ fn the_parametric_living_walk() {
 
     // ── 2. The user declares the proportions FIRST — four parameters,
     // each one committed `SetDocParam` edit and one undo step.
-    let base_r = ParamName::literal("base_r");
-    let taper = ParamName::literal("taper");
-    let height = ParamName::literal("height");
-    let embed = ParamName::literal("embed");
+    let base_r = ParamName::from_static("base_r");
+    let taper = ParamName::from_static("taper");
+    let height = ParamName::from_static("height");
+    let embed = ParamName::from_static("embed");
     for (name, param) in [
         (&base_r, DocParam::continuous(Dimension::Length, BASE_R)),
         (&taper, DocParam::continuous(Dimension::Scalar, TAPER)),
@@ -229,7 +229,7 @@ fn the_parametric_living_walk() {
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     let outcome = session.perform(SessionOp::SetParam {
-        name: ParamName::literal("tapper"),
+        name: ParamName::from_static("tapper"),
         value: SlotValue::Continuous(0.5),
     });
     match outcome.refusal {
@@ -448,7 +448,7 @@ fn the_parametric_living_walk() {
     );
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: ParamName::literal("tapper"),
+            name: ParamName::from_static("tapper"),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));

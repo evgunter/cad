@@ -794,7 +794,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
         "set-program-param-refs",
         vec![LoopProgram::Chain(square_steps())],
     );
-    let nope = Expr::param(ParamName::literal("nope"), Dimension::Length);
+    let nope = Expr::param(ParamName::from_static("nope"), Dimension::Length);
     let mut steps = square_steps();
     steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope.clone(), len(0.0)]));
     let slot = SlotId::Profile {
@@ -1219,7 +1219,7 @@ fn set_value(
     apply(
         doc,
         &DocEdit::SetDocParamValue {
-            name: ParamName::literal(name),
+            name: ParamName::from_static(name),
             value: editor_core::DocParamValue::Continuous(v),
         },
         tol(),
@@ -1232,7 +1232,7 @@ fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
     let (doc, _) = fixture::step(
         ProfileDoc::empty_derived(label, tol()),
         DocEdit::SetDocParam {
-            name: ParamName::literal(name),
+            name: ParamName::from_static(name),
             value: DocParam::continuous(Dimension::Length, v),
         },
     );
@@ -1240,7 +1240,7 @@ fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
 }
 
 fn param_len(name: &'static str) -> Expr {
-    Expr::param(ParamName::literal(name), Dimension::Length)
+    Expr::param(ParamName::from_static(name), Dimension::Length)
 }
 
 /// A profile of `loops` extruded, in `doc`; `(doc, profile, extrude)`.

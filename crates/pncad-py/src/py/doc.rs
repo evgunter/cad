@@ -2923,9 +2923,9 @@ impl Node {
     }
 }
 
-/// A document-level parameter name (guide §3.2) — a plain string
-/// newtype, the same name the recipe's expressions reference. NOT an
-/// arena key: recipe vocabulary, meaningful in any document.
+/// A document-level parameter name (guide §3.2): one identifier, the
+/// same name the recipe's expressions reference. NOT an arena key:
+/// recipe vocabulary, meaningful in any document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct ParamName(pub(crate) d::ParamName);

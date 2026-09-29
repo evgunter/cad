@@ -3443,7 +3443,7 @@ mod value_field_tests {
         /// `canonical` metres.
         fn millimetres(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
-            let name = ParamName::literal("base_r");
+            let name = ParamName::from_static("base_r");
             let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
             let mut session = DocSession::inline(doc, tol);
             let outcome = session.perform(SessionOp::CreateParam {
@@ -3474,7 +3474,7 @@ mod value_field_tests {
             let tol = Tol::witness();
             let doc = declared(
                 label,
-                &ParamName::literal("base_r"),
+                &ParamName::from_static("base_r"),
                 DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
                 tol,
             );

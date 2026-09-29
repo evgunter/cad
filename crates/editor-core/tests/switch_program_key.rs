@@ -123,7 +123,7 @@ fn resolved_values_feed_the_key() {
         let doc = doc
             .apply(
                 &DocEdit::SetDocParam {
-                    name: ParamName::literal("r"),
+                    name: ParamName::from_static("r"),
                     value: DocParam::continuous(Dimension::Length, value),
                 },
                 Tol::witness(),
@@ -138,7 +138,7 @@ fn resolved_values_feed_the_key() {
                         plane: PLANE,
                         loops: vec![LoopProgram::Circle {
                             centre: [len(0.0), len(0.0)],
-                            radius: Expr::param(ParamName::literal("r"), Dimension::Length),
+                            radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                         }],
                         ids: Vec::new(),
                     }),
@@ -175,7 +175,7 @@ fn a_carrier_centre_respelled_keys_identically() {
     let doc = doc
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::literal("cx"),
+                name: ParamName::from_static("cx"),
                 value: DocParam::continuous(Dimension::Length, 1.0),
             },
             Tol::witness(),
@@ -190,7 +190,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                     plane: PLANE,
                     loops: vec![LoopProgram::Circle {
                         centre: [
-                            Expr::param(ParamName::literal("cx"), Dimension::Length),
+                            Expr::param(ParamName::from_static("cx"), Dimension::Length),
                             len(0.0),
                         ],
                         radius: len(0.5),
@@ -238,7 +238,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::literal("r"),
+                name: ParamName::from_static("r"),
                 value: DocParam::continuous(Dimension::Length, value),
             },
             Tol::witness(),
@@ -278,7 +278,7 @@ fn a_chain_arcs_radius_feeds_the_key() {
     let parameterized = doc_with_r(
         0.5,
         vec![one_arc_chain(Expr::param(
-            ParamName::literal("r"),
+            ParamName::from_static("r"),
             Dimension::Length,
         ))],
     );
@@ -316,7 +316,7 @@ fn a_straight_chain_respelled_keys_identically() {
     let parameterized = doc_with_r(
         4.0,
         vec![straight(Expr::param(
-            ParamName::literal("r"),
+            ParamName::from_static("r"),
             Dimension::Length,
         ))],
     );

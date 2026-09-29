@@ -39,7 +39,7 @@ use geom_core::Tol;
 /// `howmany`,
 /// plus a linear pattern whose count READS that parameter.
 fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let name = ParamName::literal("howmany");
+    let name = ParamName::from_static("howmany");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs"),
@@ -149,7 +149,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
 /// arms.
 #[test]
 fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading() {
-    let name = ParamName::literal("depth");
+    let name = ParamName::from_static("depth");
     // The F1 checker, at construction, with no document in sight.
     let fault = MeasureExpr::add(
         MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
@@ -238,7 +238,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
         "{}",
         SnapshotError::PayloadUnknownDocParam {
             node: RecipeNodeId(7),
-            name: ParamName::literal("depth"),
+            name: ParamName::from_static("depth"),
         }
     );
     assert!(
@@ -255,7 +255,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let edit = format!(
         "{}",
         EditError::PayloadUnknownDocParam {
-            name: ParamName::literal("depth"),
+            name: ParamName::from_static("depth"),
             node: RecipeNodeId(7),
         }
     );

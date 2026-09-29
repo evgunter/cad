@@ -32,7 +32,7 @@ use geom_core::{Dual64, Tol};
 use fixture::{Recorder, ang, len, scl};
 
 fn name(n: &'static str) -> ParamName {
-    ParamName::literal(n)
+    ParamName::from_static(n)
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
@@ -922,7 +922,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
             };
             for name in ["h1", "h2"] {
                 let (lo, hi) = leaf
-                    .get(&ParamName::literal(name))
+                    .get(&ParamName::from_static(name))
                     .expect("the axis")
                     .span();
                 assert!(

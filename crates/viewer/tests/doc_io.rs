@@ -372,7 +372,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
 #[test]
 fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
     let tol = Tol::witness();
-    let name = pncad::document::ParamName::literal("base_r");
+    let name = pncad::document::ParamName::from_static("base_r");
     let mut session = DocSession::inline(
         pncad::document::Doc::<pncad::document::ProfileProgram>::empty_derived(
             "auth2-round-trip",

@@ -506,7 +506,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
     };
     let cases: Vec<(String, &[&str])> = vec![
         (
-            EvalError::UnknownParam(ParamName::literal("width")).to_string(),
+            EvalError::UnknownParam(ParamName::from_static("width")).to_string(),
             &[
                 "parameter width",
                 "has no binding",

@@ -264,7 +264,7 @@ pub(crate) fn d_tab_at(
     let declare =
         |r: &mut Recorder, n: &'static str, dim: Dimension, value: f64, d: Distribution| {
             r.push(DocEdit::SetDocParam {
-                name: ParamName::literal(n),
+                name: ParamName::from_static(n),
                 value: DocParam::Continuous {
                     dim,
                     value,
@@ -303,7 +303,7 @@ pub(crate) fn d_tab_at(
                 hi: 0.05 * scale,
             },
         );
-        Expr::param(ParamName::literal("bulge"), Dimension::Scalar)
+        Expr::param(ParamName::from_static("bulge"), Dimension::Scalar)
     } else {
         scl(bulge_nominal)
     };
@@ -332,10 +332,10 @@ pub(crate) fn d_tab_at(
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [
-                Expr::param(ParamName::literal("hole_x"), Dimension::Length),
+                Expr::param(ParamName::from_static("hole_x"), Dimension::Length),
                 len(0.0),
             ],
-            radius: Expr::param(ParamName::literal("hole_r"), Dimension::Length),
+            radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));

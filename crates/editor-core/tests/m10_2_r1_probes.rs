@@ -112,7 +112,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal("depth"),
+            name: ParamName::from_static("depth"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
@@ -141,7 +141,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::param(ParamName::literal("depth"), Dimension::Length),
+            distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
         },
     );
     (doc, slab)
@@ -1081,7 +1081,10 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let [bottom, top] = caps(&ev, slab);
     let expr = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::literal("ghost"), Dimension::Length)),
+        MeasureExpr::value(Expr::param(
+            ParamName::from_static("ghost"),
+            Dimension::Length,
+        )),
     )
     .expect("Length - Length");
     let err = apply(
@@ -1110,7 +1113,7 @@ fn r1_own_document_web_and_flip() {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal("r"),
+            name: ParamName::from_static("r"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
@@ -1125,7 +1128,7 @@ fn r1_own_document_web_and_flip() {
             plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(ParamName::literal("r"), Dimension::Length),
+                radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -1148,7 +1151,7 @@ fn r1_own_document_web_and_flip() {
     );
     let _ = p2;
     let ev = eval(&d5);
-    let r = || MeasureExpr::value(Expr::param(ParamName::literal("r"), Dimension::Length));
+    let r = || MeasureExpr::value(Expr::param(ParamName::from_static("r"), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -1175,7 +1178,7 @@ fn r1_own_document_web_and_flip() {
     let d8 = push(
         &d7,
         &DocEdit::SetDocParamValue {
-            name: ParamName::literal("r"),
+            name: ParamName::from_static("r"),
             value: DocParamValue::Continuous(0.24),
         },
     );

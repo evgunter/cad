@@ -65,7 +65,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal("depth"),
+            name: ParamName::from_static("depth"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
@@ -83,7 +83,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal("clearance"),
+            name: ParamName::from_static("clearance"),
             value: DocParam::continuous(Dimension::Length, 0.001),
         },
     );
@@ -123,7 +123,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Node::Extrude {
                 profile: editor_core::RecipeNodeId(1),
-                distance: Expr::param(ParamName::literal("depth"), Dimension::Length),
+                distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
             },
         },
     );
@@ -298,7 +298,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::measure(
                 editor_core::MeasureExpr::sub(
                     editor_core::MeasureExpr::value(Expr::param(
-                        ParamName::literal("depth"),
+                        ParamName::from_static("depth"),
                         Dimension::Length,
                     )),
                     editor_core::MeasureExpr::value(len(0.25)),

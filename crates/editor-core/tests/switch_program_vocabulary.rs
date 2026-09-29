@@ -1161,7 +1161,7 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
     let program = corpus();
     let slots = program.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
-    let unbound = ParamName::literal("nothing_binds_this");
+    let unbound = ParamName::from_static("nothing_binds_this");
     let mut misplaced = Vec::new();
     for slot in &slots {
         let mut broken = program.clone();

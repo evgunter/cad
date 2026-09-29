@@ -41,7 +41,7 @@ use geom_core::{Dual64, Tol};
 use fixture::{Recorder, fname, len, wall};
 
 fn name(n: &'static str) -> ParamName {
-    ParamName::literal(n)
+    ParamName::from_static(n)
 }
 
 fn param(n: &'static str) -> Expr {

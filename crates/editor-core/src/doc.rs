@@ -40,8 +40,8 @@ use geom_core::Tol;
 pub struct ParamName(String);
 
 impl ParamName {
-    /// The one door: the text, or why the lexer does not read it as
-    /// one identifier.
+    /// The one door: the text, or why the expression parser does not
+    /// read it back as a reference to itself.
     ///
     /// # Errors
     ///
@@ -57,18 +57,19 @@ impl ParamName {
 
     /// A name written in source text — a test fixture, a demo, a
     /// guide example — which is admissible or the program is wrong.
-    /// Takes `&'static str` so that user input cannot reach it by
-    /// type: a name that arrives at runtime goes through
+    /// The `&'static str` bound states that intent; it does not keep
+    /// runtime text out (a leaked `String` is `'static` too), so the
+    /// guard is the panic. A name that arrives at runtime goes through
     /// [`Self::new`] and is refused typed.
     ///
     /// # Panics
     ///
-    /// On an inadmissible literal, with the fault's own sentence: the
+    /// On an inadmissible name, with the fault's own sentence: the
     /// program's text is wrong, and that is a bug to fix rather than a
     /// refusal to carry.
     #[track_caller]
     #[allow(clippy::panic)]
-    pub fn literal(name: &'static str) -> Self {
+    pub fn from_static(name: &'static str) -> Self {
         match Self::new(name) {
             Ok(name) => name,
             Err(fault) => panic!("{fault}"),

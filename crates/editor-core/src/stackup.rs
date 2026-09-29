@@ -1897,7 +1897,7 @@ mod tests {
     /// weld, so an arm with no example here fails every row that reads
     /// this.
     fn every_arm(param: &'static str) -> Vec<Unavailable> {
-        let param = ParamName::literal(param);
+        let param = ParamName::from_static(param);
         let all = vec![
             Unavailable::TangentDegraded {
                 param: param.clone(),
@@ -1965,7 +1965,7 @@ mod tests {
     fn a_single_blocker_is_counted_in_the_singular() {
         let rendered = render_rss(&Rss::UnavailableBecause {
             blockers: vec![Unavailable::Unliftable {
-                param: ParamName::literal("w"),
+                param: ParamName::from_static("w"),
             }],
         });
         assert_eq!(

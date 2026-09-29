@@ -42,7 +42,7 @@ use viewer::{docio, props, tree};
 /// the unit suites' in the aggregated binary. No row asserts on the
 /// name.
 fn depth_param() -> ParamName {
-    ParamName::literal("r1_depth")
+    ParamName::from_static("r1_depth")
 }
 
 /// A triangle, for the same reason as `depth_param` — it reads apart

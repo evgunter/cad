@@ -3414,7 +3414,7 @@ mod properties_pane_tests {
     #[test]
     fn an_undeclared_parameter_is_said_once_in_the_pane() {
         let verdict = "parameter nope is no longer declared";
-        let mut with = painted_with(Selection::Param(ParamName::literal("nope")));
+        let mut with = painted_with(Selection::Param(ParamName::from_static("nope")));
         let mut without = painted_with(Selection::None);
         assert!(
             without.iter().any(|text| text == "select a feature"),

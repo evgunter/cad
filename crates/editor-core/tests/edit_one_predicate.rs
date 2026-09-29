@@ -53,6 +53,7 @@ use fixture::resolver::{PART_BODY, PartStore};
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 use std::collections::BTreeMap;
+use test_utils::fuzz;
 
 // ---- The assertion's bound ----
 
@@ -933,7 +934,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
     use editor_core::{Distribution, DistributionField, DocParamField, persist::NonFiniteSite};
 
     let (doc, _) = with_measure();
-    let name = ParamName::literal("wall");
+    let name = ParamName::from_static("wall");
     let annotated = |sigma: f64| {
         let mut value = DocParam::continuous(Dimension::Length, 1.0);
         if let DocParam::Continuous { distribution, .. } = &mut value {
@@ -1008,7 +1009,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 #[test]
 fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words() {
     let (doc, _) = with_measure();
-    let name = ParamName::literal("n");
+    let name = ParamName::from_static("n");
     match apply(
         &doc,
         &DocEdit::SetDocParam {
@@ -1123,7 +1124,7 @@ fn saved_with_width() -> (ProfileDoc, String) {
     let applied = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal("width"),
+            name: ParamName::from_static("width"),
             value: DocParam::continuous(Dimension::Length, 1.0),
         },
         Tol::witness(),
@@ -1187,7 +1188,7 @@ fn a_name_the_parser_cannot_read_back_is_refused_at_the_load_door() {
 fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
     let (doc, _) = saved_with_width();
     let log = vec![LoggedEdit::bare(DocEdit::SetDocParam {
-        name: ParamName::literal("depth"),
+        name: ParamName::from_static("depth"),
         value: DocParam::continuous(Dimension::Length, 2.0),
     })];
     let text = save(&doc, &log, Tol::witness()).expect("the fixture saves");
@@ -1211,46 +1212,189 @@ fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
     }
 }
 
-/// **The rule is the parser's.** Every admissible spelling parses,
-/// alone, to a reference to the parameter of that name — including a
-/// function word and a unit symbol, because the grammar has no
-/// reserved words: `sin` is a call only when `(` follows it — and no
-/// refused spelling parses to a reference to itself.
-#[test]
-fn a_name_is_admissible_exactly_when_the_parser_reads_it_back() {
-    for text in ["width", "hole_r", "_", "x1", "sin", "mm", "pi", "δ"] {
-        let name = ParamName::new(text).expect(text);
-        let table = BTreeMap::from([(name.clone(), Dimension::Scalar)]);
-        assert_eq!(
-            parse_expr(text, &table).expect(text),
-            Expr::param(name, Dimension::Scalar),
-            "{text:?} reads back as itself"
-        );
-    }
-    // The fact that admits a function word: a bare one is looked up
-    // as a parameter, and the table decides.
-    match parse_expr("sin", &BTreeMap::new()) {
-        Err(editor_core::ParseError::UnknownParam { name, .. }) => assert_eq!(name, "sin"),
-        other => panic!("a bare function word is a parameter reference, got {other:?}"),
-    }
-    let table = BTreeMap::from([(ParamName::literal("width"), Dimension::Scalar)]);
-    for (text, _) in inadmissible_names() {
-        let refs = parse_expr(text, &table).ok().map(|expr| {
-            let mut out = Vec::new();
-            expr.param_refs(&mut out);
-            out
-        });
-        assert!(
-            refs.is_none_or(|refs| refs.iter().all(|(name, _)| name.as_str() != text)),
-            "{text:?} must not read back as a reference to itself"
-        );
+/// The constructor admits exactly what the parser reads back, both
+/// ways. The oracle is the parser asked with nothing declared: the
+/// whole text is one unresolved reference to exactly that text. An
+/// admitted text is also asked the second reading — declared, it
+/// parses to `Param(name)` — so an admitted name is one an expression
+/// can refer to.
+fn agrees(text: &str, replay: &str) {
+    let shown = if text.chars().count() > 40 {
+        let head: String = text.chars().take(40).collect();
+        format!("{head:?}… ({} bytes)", text.len())
+    } else {
+        format!("{text:?}")
+    };
+    let read_back = matches!(
+        parse_expr(text, &BTreeMap::new()),
+        Err(editor_core::ParseError::UnknownParam { ref name, .. }) if name == text
+    );
+    match ParamName::new(text) {
+        Ok(name) => {
+            assert!(read_back, "{shown} is admitted but not read back{replay}");
+            let table = BTreeMap::from([(name.clone(), Dimension::Scalar)]);
+            assert!(
+                parse_expr(text, &table) == Ok(Expr::param(name, Dimension::Scalar)),
+                "{shown} is admitted, but declared it does not read back as itself{replay}"
+            );
+        }
+        Err(fault) => {
+            assert!(
+                !read_back,
+                "{shown} is read back but refused: {fault}{replay}"
+            );
+            assert!(
+                fault.offered == text,
+                "{shown}: the fault carries the text verbatim"
+            );
+        }
     }
 }
 
-/// The literal door is the panicking one, and it panics with the
+/// **The rule is the parser's**, over a table of edge spellings. A
+/// function word and a unit symbol are admitted because the grammar
+/// has no reserved words (`sin` is a call only when `(` follows it) and
+/// no constants.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back() {
+    for text in ["width", "hole_r", "_", "x1", "sin", "mm", "pi", "δ"] {
+        assert!(ParamName::new(text).is_ok(), "{text:?} is admitted");
+    }
+    let long = "a".repeat(100_000);
+    let long_bad = format!("{}-", "a".repeat(10_000));
+    let table = [
+        "",
+        " ",
+        "\t",
+        "\n",
+        "   ",
+        "\u{a0}",
+        "\u{2003}",
+        "\u{200b}",
+        "\u{feff}",
+        "1",
+        "1a",
+        "2width",
+        "1e3",
+        "1e",
+        "0x",
+        "_",
+        "__",
+        "_1",
+        "a_",
+        "_a_b_",
+        "δ",
+        "Δx",
+        "ñ",
+        "日本",
+        "ß",
+        "Ⅷ",
+        "x²",
+        "x٣",
+        "٣x",
+        "a\u{301}",
+        "\u{301}a",
+        "é",
+        "e\u{0345}",
+        "sin",
+        "cos",
+        "atan2",
+        "scalar",
+        "pi",
+        "mm",
+        "rad",
+        "deg",
+        "e",
+        "E",
+        "inf",
+        "nan",
+        "NaN",
+        "Infinity",
+        &long,
+        &long_bad,
+        "a\0",
+        "\0",
+        "a\0b",
+        "width\n",
+        "\nwidth",
+        "width\r\n",
+        " width",
+        "width ",
+        "a b",
+        "a+b",
+        "a-b",
+        "a.b",
+        "a,b",
+        "a(",
+        "a)",
+        "(a)",
+        "-a",
+        "a#",
+        "a:b",
+        "query:certified-range:1:distance",
+        "query_certified_range_1",
+        "a·b",
+        "·",
+        "sin(x)",
+        "pi rad",
+        "a\u{2028}",
+    ];
+    for text in table {
+        agrees(text, "");
+    }
+    for (text, _) in inadmissible_names() {
+        agrees(text, "");
+    }
+}
+
+/// The same equivalence as a counterexample search over an alphabet
+/// chosen to sit on the lexer's edges: identifier characters, digits,
+/// every operator, whitespace of three kinds, characters outside the
+/// alphabet, a combining mark, and non-ASCII letters and digits.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back_over_edge_characters() {
+    const ALPHABET: &[char] = &[
+        'a', 'Z', 'e', 'E', '_', '0', '9', ' ', '\t', '\n', '\u{a0}', '+', '-', '*', '/', '(', ')',
+        ',', '.', '#', ':', '·', 'δ', '\u{301}', '\0', 'é', '²', '٣',
+    ];
+    let mut rng = fuzz::start("param name vs parser read-back (edge characters)");
+    for _ in 0..fuzz::scaled(4096) {
+        let len = rng.below(9);
+        let text: String = (0..len)
+            .map(|_| ALPHABET[rng.below(ALPHABET.len())])
+            .collect();
+        agrees(&text, &format!(" — {}", fuzz::replay()));
+    }
+}
+
+/// The same equivalence over any Unicode scalar value, half the draws
+/// from ASCII so short texts mix the two.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back_over_any_scalar() {
+    let mut rng = fuzz::start("param name vs parser read-back (any scalar)");
+    for _ in 0..fuzz::scaled(4096) {
+        let len = rng.below(7);
+        let text: String = (0..len)
+            .map(|_| {
+                loop {
+                    let bound = if rng.below(2) == 0 { 0x80 } else { 0x11_0000 };
+                    if let Some(c) = u32::try_from(rng.below(bound))
+                        .ok()
+                        .and_then(char::from_u32)
+                    {
+                        break c;
+                    }
+                }
+            })
+            .collect();
+        agrees(&text, &format!(" — {}", fuzz::replay()));
+    }
+}
+
+/// The `from_static` door is the panicking one, and it panics with the
 /// same sentence the fallible door answers.
 #[test]
 #[should_panic(expected = "parameter name \"1 2\" opens with \"1\" at byte 0")]
-fn an_inadmissible_literal_panics_with_the_faults_sentence() {
-    let _ = ParamName::literal("1 2");
+fn an_inadmissible_static_name_panics_with_the_faults_sentence() {
+    let _ = ParamName::from_static("1 2");
 }

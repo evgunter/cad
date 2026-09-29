@@ -248,7 +248,7 @@ fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal("bore"),
+            name: ParamName::from_static("bore"),
             value: DocParam::continuous(Dimension::Length, 0.01),
         },
         Tol::witness(),
@@ -454,7 +454,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     let (doc, _) = small();
     // A NaN smuggled through an UNAPPLIED edit log (a log is data).
     let nan_edit = DocEdit::SetDocParam {
-        name: ParamName::literal("bad"),
+        name: ParamName::from_static("bad"),
         value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
     match save(

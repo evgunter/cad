@@ -146,7 +146,7 @@ fn half() -> f64 {
 }
 
 fn name(n: &'static str) -> ParamName {
-    ParamName::literal(n)
+    ParamName::from_static(n)
 }
 
 /// The leaf box: one axis at [`half`] around the nominal.

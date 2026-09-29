@@ -79,7 +79,7 @@ const H: f64 = 1.2;
 const PHI: f64 = PI / 4.0;
 
 fn param(name: &'static str) -> Expr {
-    Expr::param(ParamName::literal(name), Dimension::Length)
+    Expr::param(ParamName::from_static(name), Dimension::Length)
 }
 
 /// A document declaring `r`.
@@ -88,7 +88,7 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::literal("r"),
+            name: ParamName::from_static("r"),
             value: DocParam::continuous(Dimension::Length, R),
         },
     )
@@ -740,7 +740,7 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::literal("q"),
+            name: ParamName::from_static("q"),
             value: DocParam::continuous(Dimension::Length, Q),
         },
     );
@@ -903,7 +903,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::literal("r"),
+            name: ParamName::from_static("r"),
             value: DocParam::continuous(Dimension::Length, 2.0 * R),
         },
     );
@@ -1132,7 +1132,7 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::literal("q"),
+            name: ParamName::from_static("q"),
             value: DocParam::continuous(Dimension::Length, Q),
         },
     );

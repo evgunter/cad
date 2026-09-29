@@ -50,7 +50,7 @@ use geom_core::Tol;
 use quantity::{MM, WrittenLength};
 
 fn p(name: &'static str) -> ParamName {
-    ParamName::literal(name)
+    ParamName::from_static(name)
 }
 
 fn mm() -> UnitSym {

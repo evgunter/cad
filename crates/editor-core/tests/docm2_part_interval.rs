@@ -64,7 +64,7 @@ fn widened_document(width: f64) -> ProfileDoc {
     apply(
         &cd.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal(corpus::part_select::H),
+            name: ParamName::from_static(corpus::part_select::H),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,

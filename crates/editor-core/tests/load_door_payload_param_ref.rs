@@ -40,7 +40,7 @@ use geom_core::Tol;
 /// with the EXTRUDE's id, which only the rows that need a SLOT to
 /// break read.
 fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let name = ParamName::literal("depth");
+    let name = ParamName::from_static("depth");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("payload-param-ref"),
@@ -151,7 +151,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     let (doc, name, measure) = measuring_depth();
 
     // The edit door, over the node as written.
-    let missing = ParamName::literal("nowhere");
+    let missing = ParamName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -249,7 +249,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     };
     let (doc, assertion) = insert(doc, bound(&name));
 
-    let missing = ParamName::literal("nowhere");
+    let missing = ParamName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {

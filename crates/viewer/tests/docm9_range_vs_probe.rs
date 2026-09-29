@@ -26,7 +26,7 @@ fn tol() -> Tol {
 }
 
 fn name(n: &'static str) -> ParamName {
-    ParamName::literal(n)
+    ParamName::from_static(n)
 }
 
 /// A unit square extruded by a document parameter — the same branch

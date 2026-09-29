@@ -301,7 +301,7 @@ fn prism_part(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let mut scope: BTreeMap<ParamName, Dimension> = BTreeMap::new();
     for &(name, value) in params {
-        let name = ParamName::literal(name);
+        let name = ParamName::from_static(name);
         edit(
             &mut doc,
             &DocEdit::SetDocParam {
@@ -1314,7 +1314,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     edit(
         &mut thicker,
         &DocEdit::SetDocParamValue {
-            name: ParamName::literal("thickness"),
+            name: ParamName::from_static("thickness"),
             value: DocParamValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
@@ -1415,7 +1415,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     edit(
         &mut shorter,
         &DocEdit::SetDocParamValue {
-            name: ParamName::literal("height"),
+            name: ParamName::from_static("height"),
             value: DocParamValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
@@ -1518,7 +1518,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     edit(
         &mut shorter,
         &DocEdit::SetDocParamValue {
-            name: ParamName::literal("height"),
+            name: ParamName::from_static("height"),
             value: DocParamValue::Continuous(POST_HEIGHT),
         },
         tol,
@@ -1528,7 +1528,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     edit(
         &mut thicker,
         &DocEdit::SetDocParamValue {
-            name: ParamName::literal("thickness"),
+            name: ParamName::from_static("thickness"),
             value: DocParamValue::Continuous(SHELF_THICKNESS),
         },
         tol,

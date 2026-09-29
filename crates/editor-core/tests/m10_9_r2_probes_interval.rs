@@ -47,7 +47,7 @@ use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(ParamName::literal(n), Dimension::Length)
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// M10-9's tier with the door shut — M10-8's. The rows here are
@@ -91,7 +91,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::literal(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,

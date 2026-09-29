@@ -20,7 +20,7 @@ fn annotated_doc(sigma: f64) -> ProfileDoc {
     editor_core::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::literal("s"),
+            name: ParamName::from_static("s"),
             value: DocParam::continuous_with(
                 Dimension::Length,
                 1.0,
@@ -78,7 +78,7 @@ fn a_planted_bounds_corruption_refuses_at_load() {
         editor_core::apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::literal("b"),
+                name: ParamName::from_static("b"),
                 value: DocParam::continuous_with(
                     Dimension::Length,
                     1.0,
@@ -113,7 +113,7 @@ fn a_planted_bounds_corruption_refuses_at_load() {
 fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
     let base = ProfileDoc::empty(DocumentId::derive("r1-corrupt-log"), Tol::witness());
     let edit = DocEdit::SetDocParam {
-        name: ParamName::literal("s"),
+        name: ParamName::from_static("s"),
         value: DocParam::continuous_with(
             Dimension::Length,
             1.0,
@@ -134,7 +134,7 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
             assert_eq!(
                 error,
                 EditError::InvalidDistribution {
-                    name: ParamName::literal("s"),
+                    name: ParamName::from_static("s"),
                     fault: DistributionFault::SigmaNotPositive { sigma: -2.0 },
                 }
             );
@@ -169,7 +169,7 @@ fn unknown_forms_and_stray_fields_refuse_to_parse() {
         editor_core::apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::literal("n"),
+                name: ParamName::from_static("n"),
                 value: DocParam::Count { value: 3 },
             },
             Tol::witness(),

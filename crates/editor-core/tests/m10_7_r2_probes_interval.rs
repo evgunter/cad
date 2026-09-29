@@ -37,7 +37,7 @@ use geom_core::Tol;
 use crate::fixture::{Recorder, len, scl, xy_frame};
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(ParamName::literal(n), Dimension::Length)
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// The nominal arm of the bracket, in metres.
@@ -60,7 +60,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::literal(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,
@@ -456,7 +456,7 @@ fn r2_what_a_real_study_gets_today() {
 fn collinear_walls() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::literal("w"),
+        name: ParamName::from_static("w"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 4.0e-3,
@@ -472,7 +472,7 @@ fn collinear_walls() -> ProfileDoc {
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
-    let w = || Expr::param(ParamName::literal("w"), Dimension::Length);
+    let w = || Expr::param(ParamName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![

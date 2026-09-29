@@ -693,7 +693,7 @@ mod tests {
     use crate::test_support::len;
 
     fn p(name: &'static str) -> Expr {
-        Expr::param(ParamName::literal(name), Dimension::Length)
+        Expr::param(ParamName::from_static(name), Dimension::Length)
     }
 
     fn root() -> ParamScope {
@@ -824,7 +824,7 @@ mod tests {
             p("ab"),
             p("c"),
             p("bc"),
-            Expr::param(ParamName::literal("a"), Dimension::Angle),
+            Expr::param(ParamName::from_static("a"), Dimension::Angle),
             len(0.0),
             len(-0.0),
             len(1.0),
@@ -844,7 +844,7 @@ mod tests {
                 out.extend(Expr::atan2(x.clone(), y.clone()).ok());
             }
         }
-        let angle = Expr::param(ParamName::literal("th"), Dimension::Angle);
+        let angle = Expr::param(ParamName::from_static("th"), Dimension::Angle);
         out.extend(Expr::sin(angle.clone()).ok());
         out.extend(Expr::cos(angle.clone()).ok());
         out.extend(Expr::tan(angle).ok());

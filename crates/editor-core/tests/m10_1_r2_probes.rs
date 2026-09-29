@@ -45,7 +45,7 @@ use geom_core::Tol;
 use test_utils::fuzz;
 
 fn p(name: &'static str) -> ParamName {
-    ParamName::literal(name)
+    ParamName::from_static(name)
 }
 
 fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {

@@ -160,8 +160,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 
 // Named document parameters.
 // `ParamName` is a parameter's name — a string newtype admissible by
-// construction (one identifier an expression reads back), whose one
-// constructor answers `ParamNameFault` — and
+// construction (one identifier an expression reads back), whose
+// fallible constructor answers `ParamNameFault` — and
 // `DocParam` its declared dimension plus exact stored value: recipe
 // vocabulary, plain values, no arena key anywhere in either. They
 // complete doors this module already carried: `DocEdit::SetDocParam`

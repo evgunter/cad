@@ -343,7 +343,7 @@ fn assertions_of(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
 }
 
 fn name(n: &'static str) -> ParamName {
-    ParamName::literal(n)
+    ParamName::from_static(n)
 }
 
 /// The ε-scaled half-width every parametric fixture here uses, for the

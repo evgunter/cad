@@ -180,7 +180,7 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
 /// A one-extrude document whose distance is the PARAMETER `depth`,
 /// declared as a length.
 fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
-    let name = editor_core::ParamName::literal("depth");
+    let name = editor_core::ParamName::from_static("depth");
     let (doc, _, extrude) = doc();
     let doc = apply(
         &doc,
@@ -214,7 +214,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
 #[test]
 fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
     let (doc, extrude, name) = parameterized();
-    let missing = editor_core::ParamName::literal("nowhere");
+    let missing = editor_core::ParamName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::SetParam {
