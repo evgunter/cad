@@ -651,7 +651,15 @@ fn pierce_germ_dir<T: Decide>(
     band: Band,
 ) -> Result<geom_core::Vec3<T>, BooleanError> {
     let int = s.normal.vec().cross(pierced_normal);
-    match decide("bool_germ_line", Margin::levered(int.norm(), s.arm), band) {
+    // Levered at the sector's farther reach, as `insert::germ_dir` is: a
+    // transition sector has a bound read definitely off the pierced
+    // plane at its reach, and that reading is at most `|n_s × n_p|`
+    // times the reach, so this gate cannot call it coplanar.
+    match decide(
+        "bool_germ_line",
+        Margin::levered(int.norm(), s.span()),
+        band,
+    ) {
         Ok(Sign::Positive) => {}
         Ok(_) => {
             return Err(BooleanError::ClassificationInvariant {
