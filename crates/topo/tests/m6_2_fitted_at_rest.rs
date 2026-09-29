@@ -157,7 +157,9 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 /// hands the fixture's own `f64` cache what the dual's policy answers
 /// (`None`, and the dual's name), which passes checks 1–3 and refuses
 /// at check 4. The message must name the scalar and say it may not
-/// certify; it must not say it carries no bracket, which D1 made false.
+/// certify; it must not say it carries no bracket, which D1 made false;
+/// and its replay list names every scalar whose fitted door answers
+/// `Some`.
 #[test]
 fn the_dual_refuses_at_check_four_and_says_so() {
     use geom_brep::{ChartWindow, PcurveCache, PcurveCertifyError, PcurveCheck};
@@ -271,6 +273,22 @@ fn the_dual_refuses_at_check_four_and_says_so() {
         !msg.contains("no bracket") && !msg.contains("carries no bracket"),
         "TEXT: the refusal must not re-assert the premise D1 invalidated: {msg}"
     );
+    fn replay_list_names<T: AtRestPolicy>(msg: &str) {
+        let name = T::scalar_name();
+        assert!(
+            T::fitted_lane().is_some(),
+            "TEXT: {name} is checked against the replay list, so it must hold the door"
+        );
+        assert!(
+            msg.contains(name),
+            "TEXT: the refusal's replay list omits {name}, whose fitted door answers Some: {msg}"
+        );
+    }
+    replay_list_names::<f64>(&msg);
+    replay_list_names::<geom_core::interval::Interval>(&msg);
+    replay_list_names::<geom_core::Sym<f64>>(&msg);
+    #[cfg(feature = "probe")]
+    replay_list_names::<geom_core::Probe>(&msg);
 }
 
 /// ε is never a literal here; this row states what the file relies on.
