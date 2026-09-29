@@ -163,9 +163,7 @@ shard measurement falsifies it: the eps rows' cost on that lane is the
 term is hundreds of seconds and not tens. The "+96 s in expectation on a
 TIER=all run" that was composed from it — with the ~+172 s the interval
 archive adds to a run that would have drawn `default`, which nothing here
-re-took — goes with it. Neither figure is re-derived here: the readings that
-replace the first term are on
-`work/tcost/one-test-is-the-whole-ci-critical-path`.
+re-took — goes with it. Neither figure is re-derived here.
 
 THE LAST JOB ON THAT PATH IS THE eps = 1e-12 LEG — the interval lane's until
 that lane became the only one — AND IT USED TO BE NAMED AS
@@ -177,9 +175,7 @@ CI-latency cut) that was most of its leg at that ε and a rounding error at the
 other two, so the leg holding it finished last on EVERY code-tier run measured — 30 of them,
 18 at the live count of 2 and 12 more across counts 2, 3, 4 and 6. THE
 DURATIONS ARE NOT RESTATED HERE, because this note would be their fifth home
-and three of the four disagreed on the day they were written: they live once,
-on `work/tcost/one-test-is-the-whole-ci-critical-path`, with the per-run
-readings behind them on `work/tcost/nextest-shard-count-needs-remeasure`.
+and three of the four disagreed on the day they were written.
 WHICH shard of that row holds the test is not fixed: the count partition reads
 no timings, so it moves with the test list. Separately, and unchanged, the two
 editor-core steps ride on shard 1 of the FIRST eps row — that is where they
@@ -610,8 +606,7 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
 # for the layering and puts the tree's most tree-wide guard —
 # `reader_census.rs`'s `every_site_that_reads_rust_source_is_in_the_ledger` —
 # in scope for 1 of 18 members. It reddened `main` twice on 2026-09-04, both
-# times from a PR that was fully green because the guard was never built in it
-# (work/ciw/tree-wide-guards-outside-the-change-closure.md measures both).
+# times from a PR that was fully green because the guard was never built in it.
 #
 # THE RULE, AND IT IS DERIVED RATHER THAN LISTED. A source file that reads a
 # path outside its own crate has a BUILD EDGE ITS MANIFEST DOES NOT DECLARE,

@@ -51,8 +51,7 @@ the `env:` block — each pinned name and each pinned value — and asks where e
 in the tree they appear.** Not from the shape of whichever idiom is in front of
 you. `.claude/hooks/session-start.sh` is the piece still out of reach: it
 restates three pins as shell literals, and hosted CI deletes `.claude/` at
-checkout, so no hosted gate can see it —
-`work/ciw/session-start-hook-restates-ci-pins` carries it.
+checkout, so no hosted gate can see it.
 
 IMPORTING THIS READER. Two lines, and they are the same two at both callers:
 

@@ -667,3 +667,4 @@ Signed: (CONTACT orchestrator)
   after.
 
 Signed: (CONTACT orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `census.rs` `WitnessTooClose` drops ', or lower the tolerance'. Filed: `contain-escalation-carries-no-decision` (includes `ContainError::RayExhausted`'s own Display). (ENCL orchestrator)

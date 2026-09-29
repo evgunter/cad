@@ -54,10 +54,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{
-    Band, BandError, Decide, Indeterminate, InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, Margin, Point3, Real, Sign,
-};
+use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign};
 
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
@@ -66,7 +63,9 @@ use crate::dihedral::{DihedralClass, classify_dihedral, decide, decide_positive}
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
-use crate::recourse::{Definite, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{
+    Definite, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized, defect_ending,
+};
 
 /// The fixed certification sample count (module docs): 9 uniform
 /// parameters, endpoints included.
@@ -617,23 +616,12 @@ impl CertifyError {
     }
 }
 
-/// A decision's recourse when no size the user chose decides it.
-#[derive(Debug, PartialEq, Eq)]
-enum Unsized {
-    /// The kernel built what it claims exactly, so a miss is a defect.
-    Defect,
-    /// The kernel approximated (a fitted carrier, a certified bound), so
-    /// a miss may be the approximation's limit (D4 ¶1 (i)'s last resort).
-    LastResort,
-}
-
 /// How one decision's refusals end: the one table [`recourse`] reads.
 #[derive(Debug)]
 enum Ending {
     /// A decision on a size the user may intend ([`SizedDecision`]).
     Sized(SizedDecision),
-    /// A residual (passes only at zero) or a form selection (passes on
-    /// any definite sign): no size to tighten below.
+    /// A decision with no size ([`Unsized`]).
     Unsized(Unsized),
 }
 
@@ -732,17 +720,9 @@ impl CertCheck {
 ///   repairs a stored contradiction.
 #[must_use]
 pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> String {
-    let defect = defect_ending(reading);
     match check.ending() {
         Ending::Sized(sized) => sized.recourse(arm, reading),
-        Ending::Unsized(Unsized::Defect) => defect.to_owned(),
-        Ending::Unsized(Unsized::LastResort) => match (reading, arm) {
-            (Reading::Build, _) | (Reading::AtRest, RefusedArm::Undecided(_)) => {
-                KERNEL_LIMIT_RECOURSE.to_owned()
-            }
-            (Reading::AtRest, RefusedArm::Zero(_) | RefusedArm::SignCertain)
-            | (Reading::Adopt, _) => defect.to_owned(),
-        },
+        Ending::Unsized(no_size) => no_size.recourse(arm, reading),
     }
 }
 
@@ -765,15 +745,6 @@ fn tube_separation<T: Decide>(
             sample: 0,
             cause,
         }),
-    }
-}
-
-/// The defect ending at `reading`: the kernel's at a build, the kernel's
-/// or the file's over stored geometry.
-fn defect_ending(reading: Reading) -> &'static str {
-    match reading {
-        Reading::Build => KERNEL_DEFECT_ENDING,
-        Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
     }
 }
 
@@ -2633,7 +2604,10 @@ mod tests {
     use geom_core::MarginDiag;
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
-    use geom_core::{Affine3, Point2, Vec3};
+    use geom_core::{
+        Affine3, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Point2,
+        Vec3,
+    };
 
     use crate::mapped::{MappedCurve, SketchSegment};
 

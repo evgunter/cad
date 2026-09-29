@@ -100,8 +100,8 @@ from strip_png_stamps import parse_chunks
 
 HERE = Path(__file__).resolve().parent
 
-# The committed render trees, one per montage lane (render.sh /
-# render-wild.sh). A directory NAMED `renders-wild` runs under the
+# The committed PNG render trees, one per lane that draws PNGs (render.sh /
+# render-wild.sh); the SVG-only lanes carry no tEXt chunk to check. A directory NAMED `renders-wild` runs under the
 # wild lane's rules (matplotlib + wild Author stamp); every other lane
 # demands FreeCAD authorship.
 LANE_DIRS = ("renders", "renders-freecad", "renders-wild", "renders-gui")

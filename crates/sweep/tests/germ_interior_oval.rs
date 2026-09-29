@@ -536,3 +536,184 @@ fn a_wedge_clear_of_the_donuts_carrier_is_answered_though_its_box_overlaps() {
         "donut ∪ wedge",
     );
 }
+
+/// The bump's control-net height: its interior control points stand
+/// at `z = BUMP_H`, its boundary rows in `z = 0`.
+const BUMP_H: f64 = 2.0;
+
+/// A block `[−2, 2]² × [−1, 0]` whose top face carries a bicubic bump:
+/// a `4 × 4` net over the square, boundary rows in `z = 0` (so the
+/// four top edges are the lines they were) and the interior four at
+/// `BUMP_H`. The bump peaks at `(3/4)²·BUMP_H` over the centre.
+fn nurbs_bump() -> Body<f64> {
+    use geom_core::spline::KnotVector;
+    let mut body = boxed((-2.0, 2.0), (-2.0, 2.0), (-1.0, 0.0));
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let mut control = Vec::new();
+    for i in 0..4 {
+        for j in 0..4 {
+            let inner = (1..3).contains(&i) && (1..3).contains(&j);
+            control.push(Point3::new(
+                -2.0 + 4.0 * f64::from(i) / 3.0,
+                -2.0 + 4.0 * f64::from(j) / 3.0,
+                if inner { BUMP_H } else { 0.0 },
+            ));
+        }
+    }
+    let patch = geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 16]).unwrap();
+    let top = body
+        .faces()
+        .find(|(_, fd)| {
+            matches!(
+                body.get_surface(fd.surface),
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if origin.z.abs() < 1e-12 && normal.z.abs() > 0.5
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the block has a top face");
+    body.set_face_surface(
+        top,
+        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(patch))),
+    )
+    .expect("the bump replaces the top face's carrier");
+    body
+}
+
+/// A clamp over the bump block: a plate `[−3, 3]² × [0.8, 2.5]` whose
+/// underside grazes the bump in an oval interior to both faces, hung on
+/// a leg outside the block at `x ∈ [−3, −2.5]` from a bar
+/// `[−3, 3] × [−1, 1] × [−0.7, −0.3]` that runs through the block. The
+/// bar's four long edges pierce the block's `x = ±2` walls (the
+/// crossings). Every clamp edge stands below `z = 0`, at `x ≤ −2.5` or
+/// `x = 3`, or at `y = ±3`: clear of the bump face's box.
+fn nurbs_clamp() -> Body<f64> {
+    let plate = boxed((-3.0, 3.0), (-3.0, 3.0), (0.8, 2.5));
+    let leg = boxed((-2.9, -2.5), (-1.2, 1.2), (-0.8, 1.0));
+    let bar = boxed((-2.8, 3.0), (-1.0, 1.0), (-0.7, -0.3));
+    let r = topo::union(&plate, &leg, Tol::witness()).expect("plate ∪ leg");
+    let r = topo::union(&r.body().expect("non-empty").body, &bar, Tol::witness())
+        .expect("(plate ∪ leg) ∪ bar");
+    r.body().expect("non-empty").body.clone()
+}
+
+/// The bump face's pair verdicts: `(A kind, B kind, verdict)` for every
+/// in-scope pair with a NURBS face.
+fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
+    let kind = |x: &Body<f64>, f| {
+        let fd = x.get_face(f).expect("a reported face resolves");
+        geom_brep::SurfaceKind::of(x.get_surface(fd.surface).expect("its surface resolves"))
+    };
+    topo::test_support::section_report(topo::BooleanOp::Union, a, b, Tol::witness())
+        .expect("the reduction runs")
+        .into_iter()
+        .map(|(fa, fb, v)| (kind(a, fa), kind(b, fb), v))
+        .filter(|(ka, kb, _)| [ka, kb].contains(&&geom_brep::SurfaceKind::Nurbs))
+        .map(|(ka, kb, v)| format!("{ka:?} × {kb:?}: {v}"))
+        .collect()
+}
+
+/// **The NURBS graze: a bump a clamp's plate grazes in an oval, behind
+/// crossings elsewhere.** The oval is interior to both faces and no edge
+/// event marks it; the bar's crossings through the block's walls are the
+/// only events. The section certificate examines the bump × plate pair
+/// and refuses it on reach: the plane cuts the bump's control net, and
+/// no arm counts a spline section's components. Red against a scope that
+/// leaves NURBS out (no NURBS pair is examined) and against W0 reading
+/// any one control point clear of the plane rather than all.
+///
+/// ∪ never reaches the guard today: the join's role resolution probes
+/// the clamp's regions against the bump block, and point-in-solid has
+/// no NURBS arm, so ∪ refuses there first (and the volume backstop's
+/// closed form, which has no NURBS arm either, stands behind it). The
+/// row pins that refusal, so the day containment serves NURBS it goes
+/// red and says whether the guard is what refuses. ∩ and ∖ refuse at
+/// the revert roster, which has no NURBS.
+#[test]
+fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
+    use topo::{BooleanOp as Op, PairRefusalSite as Site};
+    let (a, b) = (nurbs_bump(), nurbs_clamp());
+    let nurbs = geom_brep::SurfaceKind::Nurbs;
+    assert_eq!(
+        nurbs_verdicts(&a, &b),
+        vec!["Nurbs × Plane: Err(Reach)".to_string()],
+        "the bump × plate pair is examined and refuses on reach"
+    );
+    assert_eq!(
+        nurbs_verdicts(&b, &a),
+        vec!["Plane × Nurbs: Err(Reach)".to_string()],
+        "the same with the operands swapped"
+    );
+    for (what, r) in [
+        ("a ∪ b", topo::union(&a, &b, Tol::witness())),
+        ("b ∪ a", topo::union(&b, &a, Tol::witness())),
+    ] {
+        match r {
+            Err(topo::BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
+                kind,
+                ..
+            })) => assert_eq!(kind, nurbs, "{what}"),
+            Err(e) => panic!("{what}: refused, but not at the join's containment probe: {e:?}"),
+            Ok(r) => panic!(
+                "{what}: answered {:?}",
+                r.body()
+                    .map(|x| (x.kind, in_solid(&x.body, Point3::new(0.0, 0.0, 0.9))))
+            ),
+        }
+    }
+    for (op, r, what) in [
+        (
+            Op::Intersect,
+            topo::intersect(&a, &b, Tol::witness()),
+            "a ∩ b",
+        ),
+        (
+            Op::Subtract,
+            topo::subtract(&a, &b, Tol::witness()),
+            "a ∖ b",
+        ),
+        (
+            Op::Subtract,
+            topo::subtract(&b, &a, Tol::witness()),
+            "b ∖ a",
+        ),
+    ] {
+        refuses_at(r, Site::RevertRoster, op, nurbs, what);
+    }
+}
+
+/// **A plane clear of the bump's control net is certified apart though
+/// its box overlaps (W0).** A wedge over the bump block whose underside
+/// rises along `z = 2.4 + 0.3x`: every control point of the net lies
+/// below it (the inner four by `0.2` at the least, at `x = −2/3`), while
+/// the underside's box reaches down to `z = 1.5` into the bump face's.
+/// Every wedge edge stands at `x = ±3` or `y = ±3`, so the pair meets no
+/// crossing, and the certificate answers it with no component. Red
+/// against W0 dropped from the NURBS arm.
+#[test]
+fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
+    let wedge = {
+        let lp = ProfileLoop::polygon([
+            Point2::new(-3.0, 1.5),
+            Point2::new(3.0, 3.3),
+            Point2::new(3.0, 3.5),
+            Point2::new(-3.0, 3.5),
+        ]);
+        let vp = profile::Profile::new(
+            profile::SketchPlane::new(Affine3::from_parts(
+                Mat3::from_cols(Vec3::unit_x(), Vec3::unit_z(), -Vec3::unit_y()),
+                Vec3::new(0.0, 3.0, 0.0),
+            )),
+            vec![lp],
+        )
+        .validate(Tol::witness())
+        .expect("the wedge profile validates");
+        sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
+            .expect("the wedge extrudes")
+            .body
+    };
+    assert_eq!(
+        nurbs_verdicts(&nurbs_bump(), &wedge),
+        vec!["Nurbs × Plane: Ok([])".to_string()]
+    );
+}
