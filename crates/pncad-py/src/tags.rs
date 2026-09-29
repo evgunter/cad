@@ -136,7 +136,7 @@ use pncad::document::{
     MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError,
     PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
     RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError, SlotId, SnapshotError,
-    SplitError, StepIdFault, Subgroup, UpdateError,
+    SplitError, StepHandleRefusal, StepIdFault, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -3066,6 +3066,17 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
         StepIdFault::Collides { .. } => "collides",
+    }
+}
+
+/// The stable tag for why an authored step handle does not bind
+/// (`StepHandleError.variant`).
+pub fn step_handle_refusal_tag(refusal: &StepHandleRefusal) -> &'static str {
+    match refusal {
+        StepHandleRefusal::OffProgram { .. } => "handle_off_program",
+        StepHandleRefusal::Unminted => "unminted",
+        StepHandleRefusal::StepIds(_) => "step_ids",
+        StepHandleRefusal::RoleNotDrawn { .. } => "role_not_drawn",
     }
 }
 

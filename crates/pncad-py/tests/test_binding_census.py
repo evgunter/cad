@@ -936,14 +936,19 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
-    # The profile step ids. A `StepId` is what `Doc.step_ids` answers
-    # and `DocEdit.set_program` takes, one int per authored step (a
-    # kept id, or `None` for a new step), which is the newtype spelled
-    # as Python data rather than a class of its own. `StepIdFault` is
-    # what `EditError::StepIdsRefused` carries, and its arms cross at
-    # the carrier's second word.
-    "StepId": "Doc.step_ids",
+    # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
+    # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # The authored-step doors. `StepHandleRefusal` crosses as its own
+    # class under the door's name, its arms at `variant`; `keep_grid`
+    # is the lowering `DocEdit.set_program` runs on its `keep` dicts;
+    # a profile piece's locator is `Piece` and its role `Role`, the
+    # `Piece` arm alone, because a kernel-built section's piece is
+    # never spelled from Python.
+    "StepHandleRefusal": "StepHandleError",
+    "keep_grid": "DocEdit.set_program",
+    "ProfileEdgeRef": "Piece",
+    "PieceRole": "Role",
     # `PiecesFault` is what `NodeErrorKind::ProfilePieces` carries, and
     # its arms cross at that carrier's second word.
     "PiecesFault": "EvaluationError.inner_kind",
@@ -2715,8 +2720,11 @@ NOT_BOUND = {
     # to Python — which is what `behind-a-door` means.
     "ParamEnv": INTERIOR,
     "Profile": INTERIOR,
-    "ProfileEdgeRef": INTERIOR,
-    "PieceRole": INTERIOR,
+    # What an `AuthoredStep` is made of: the value-erased shape of a
+    # step. Python holds the handle whole and never takes it apart.
+    "ArcShape": INTERIOR,
+    "StepShape": INTERIOR,
+    "TargetShape": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
