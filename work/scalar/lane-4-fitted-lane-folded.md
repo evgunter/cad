@@ -2,8 +2,9 @@
 id: lane-4-fitted-lane-folded
 kind: unit
 title: LANE-4: PcurveFittedLane folds into a FittedLane door value answered by AtRestPolicy::fitted_lane(); lane_name becomes a per-scalar name source
-status: review
+status: closed
 opened: 2026-09-24
+closed: 2026-09-29
 branch: scalar/lane-4
 pr: 3194
 ---
@@ -30,3 +31,26 @@ cache exists. Spec: `docs/LANE-4-SPEC.md` (deleted at merge). Survey:
 
 **Review tier: DUAL** (cross-crate; certification-rights semantics;
 five crates' bound sites).
+
+## Closed (2026-09-29) — PR 3194
+
+`PcurveFittedLane` is gone. The fitted door is `geom_brep::FittedLane<T>`,
+which `AtRestPolicy::fitted_lane()` answers alongside `scalar_name()`, and
+every consumer takes it from the policy, validators included. Dual review
+(two Opus reviewers, APPROVE-WITH-FIXES each). R2 raised one MAJOR by
+execution, which was upheld: the spec's up-front refusal for a `None` door
+was observable through `nurbs_iso_derive`'s own-chart arm, where a stated
+`General` image reaches `mint_face` directly. At `Dual64` a public-API
+mint moved from `Ok` to `FittedLaneUnsupported`. The fix pass:
+- restored the base's order in both fitted arms (`certify_general` takes
+  `Option<FittedLane<T>>` and refuses at check 4; spec clause 3 amended);
+- committed R2's body as `topo/tests/stated_general_image_mint.rs`, with
+  rows at all five scalars;
+- made the `m6_2` dual row run the dual, which turns R2's mutant red.
+
+R2's table now reads identical from base to head, and the fix pass took
+the reviews' prose and claim fixes and filed four rows. Main (about 2,190
+commits) was merged at `fa6c01041a` with five conflicts resolved per hunk
+and nine new trait sites on main re-spelled or dropped. Head `c8c6c107d0`,
+run 36544026365, green. This is the first SCALAR dual-review tally
+candidate (MINT-ORDER).
