@@ -136,6 +136,93 @@ pub enum Provenance {
     },
 }
 
+/// Where a record's keys go when its entity changes arena (a graft):
+/// one rewrite per key kind a [`Provenance`] payload can carry.
+pub(crate) trait ForwardKeys {
+    fn half_edge(&mut self, k: HalfEdgeKey) -> HalfEdgeKey;
+    fn loop_(&mut self, k: LoopKey) -> LoopKey;
+    fn edge(&mut self, k: crate::entity::EdgeKey) -> crate::entity::EdgeKey;
+    fn shell(&mut self, k: crate::entity::ShellKey) -> crate::entity::ShellKey;
+    fn solid(&mut self, k: crate::entity::SolidKey) -> crate::entity::SolidKey;
+}
+
+impl Provenance {
+    /// The same record with every payload key rewritten by `f` — the
+    /// record an entity carries into another arena, where its source
+    /// keys would name strangers.
+    pub(crate) fn forwarded(&self, f: &mut impl ForwardKeys) -> Self {
+        use crate::euler::{MefSite as Ef, MevSite as Ev};
+        use crate::euler_ring::MekrSite as Ek;
+        fn mev<F: ForwardKeys>(f: &mut F, s: Ev) -> Ev {
+            match s {
+                Ev::Fan { he1, he2 } => Ev::Fan {
+                    he1: f.half_edge(he1),
+                    he2: f.half_edge(he2),
+                },
+                Ev::Lone { r#loop } => Ev::Lone {
+                    r#loop: f.loop_(r#loop),
+                },
+            }
+        }
+        match self {
+            Self::Primordial { op } => Self::Primordial { op: *op },
+            Self::Mvfs => Self::Mvfs,
+            Self::Mev { site } => Self::Mev { site: mev(f, *site) },
+            Self::MevNull { site, new_side } => Self::MevNull {
+                site: mev(f, *site),
+                new_side: *new_side,
+            },
+            Self::Mef { site } => Self::Mef {
+                site: match *site {
+                    Ef::Chords { he1, he2 } => Ef::Chords {
+                        he1: f.half_edge(he1),
+                        he2: f.half_edge(he2),
+                    },
+                    Ef::Lone { r#loop } => Ef::Lone {
+                        r#loop: f.loop_(r#loop),
+                    },
+                },
+            },
+            Self::Kemr { he1, he2 } => Self::Kemr {
+                he1: f.half_edge(*he1),
+                he2: f.half_edge(*he2),
+            },
+            Self::Mekr { site } => Self::Mekr {
+                site: match *site {
+                    Ek::Cycles { target, ring } => Ek::Cycles {
+                        target: f.half_edge(target),
+                        ring: f.half_edge(ring),
+                    },
+                    Ek::EmptyRing { target, ring } => Ek::EmptyRing {
+                        target: f.half_edge(target),
+                        ring: f.loop_(ring),
+                    },
+                    Ek::EmptyTarget { target, ring } => Ek::EmptyTarget {
+                        target: f.loop_(target),
+                        ring: f.half_edge(ring),
+                    },
+                    Ek::BothEmpty { target, ring } => Ek::BothEmpty {
+                        target: f.loop_(target),
+                        ring: f.loop_(ring),
+                    },
+                },
+            },
+            Self::Mfkrh { ring } => Self::Mfkrh {
+                ring: f.loop_(*ring),
+            },
+            Self::SplitEdge { edge } => Self::SplitEdge {
+                edge: f.edge(*edge),
+            },
+            Self::Movefac { shell } => Self::Movefac {
+                shell: f.shell(*shell),
+            },
+            Self::MoveShells { solid } => Self::MoveShells {
+                solid: f.solid(*solid),
+            },
+        }
+    }
+}
+
 /// A split lineage that never reaches a root: chasing `SplitEdge`
 /// birth records parent to parent revisited an edge. A lineage is a
 /// chain of strictly older edges, so this is a corrupt provenance

@@ -195,11 +195,16 @@ pub struct BooleanNaming {
     /// B-side graft lineage, `(B key, result key)` in arena slot
     /// order (empty unless `b_keys` is `Grafted`). Source keys are
     /// B-CLONE keys: operand keys for surviving operand entities plus
-    /// reduction-minted keys (whose provenance rows, transplanted
-    /// verbatim, also speak B-clone keys).
+    /// reduction-minted keys.
     pub graft_vertices: Vec<(VertexKey, VertexKey)>,
     /// B-side edge graft lineage (see `graft_vertices`).
     pub graft_edges: Vec<(EdgeKey, EdgeKey)>,
+    /// B-side edges the grafted body's records name but that died in
+    /// B before the graft, `(B key, result key)` in B-key order: the
+    /// result key is dead on arrival and stands for the B key in every
+    /// forwarded record (a split's parent), so a lineage chased in the
+    /// result reads back to the B ancestor through this row.
+    pub graft_dead_edges: Vec<(EdgeKey, EdgeKey)>,
     /// B-side face graft lineage (see `graft_vertices`).
     pub graft_faces: Vec<(FaceKey, FaceKey)>,
     /// Seam edges surviving the zips, in zip/cycle order, result keys.
@@ -635,12 +640,13 @@ fn boolean_op_recut<
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
-    let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
+    let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
         b_keys: OperandKeys::Grafted,
         graft_vertices,
         graft_edges,
+        graft_dead_edges,
         graft_faces,
         seam_edges,
         vertex_merges,
@@ -1121,6 +1127,7 @@ fn faces_by_vertex<T: Real>(
 type GraftRows = (
     Vec<(VertexKey, VertexKey)>,
     Vec<(EdgeKey, EdgeKey)>,
+    Vec<(EdgeKey, EdgeKey)>,
     Vec<(FaceKey, FaceKey)>,
 );
 
@@ -1128,6 +1135,7 @@ pub(super) fn graft_rows(g: &GraftMap) -> GraftRows {
     (
         g.vertices.iter().map(|(k, &v)| (k, v)).collect(),
         g.edges.iter().map(|(k, &v)| (k, v)).collect(),
+        g.dead_edges.iter().map(|(&k, &v)| (k, v)).collect(),
         g.faces.iter().map(|(k, &v)| (k, v)).collect(),
     )
 }
@@ -2663,12 +2671,14 @@ fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
                 &desc,
             );
             gate(&body)?;
-            let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
+            let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) =
+                graft_rows(&graft);
             let naming = BooleanNaming {
                 a_keys: OperandKeys::Direct,
                 b_keys: OperandKeys::Grafted,
                 graft_vertices,
                 graft_edges,
+                graft_dead_edges,
                 graft_faces,
                 merge_groups: merge_rows(&merged),
                 merge_skipped: merged.skipped.clone(),
