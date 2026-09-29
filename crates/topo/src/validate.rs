@@ -2376,8 +2376,11 @@ fn classify_offset_fit(
 ) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::OffsetFitError as O;
     use geom_brep::offset_meters::MeterError as M;
-    // Each recourse is the one the fit's own message names for the same
-    // arm (`geom_brep::OffsetFitError`'s `Display`), without its numbers.
+    // Each recourse is written for the at-rest reading. It is the fit's
+    // own (`geom_brep::OffsetFitError`'s `Display`, without its numbers)
+    // where the lever is the same at rest, and differs where it is not:
+    // a request or sample the fit rejects is a stored defect here, not a
+    // distance the caller can re-supply.
     const DRIFT: &str =
         "the fitted surface does not stay within the tolerance of the one it stands for";
     let (why, recourse) = match e {
@@ -2433,7 +2436,14 @@ fn classify_offset_fit(
         | O::NonFiniteSample { .. }
         | O::WindowUnsupported { .. }
         | O::Elevation(_) => ("its stored fit is not well-formed", DEFECT),
-        O::Band(b) => (classify_band(b), TOLERANCE),
+        // The body was checked at a valid tolerance whose derived band
+        // failed anyway, so `classify_band`'s repairs (thresholds that
+        // are not finite and positive) are not this arm's: what every
+        // arm `Band::linear` returns means is a tolerance at an extreme.
+        O::Band(_) => (
+            "the tolerance is too extreme for the fit's ambiguity band to form",
+            "Recourse: check the body at a less extreme tolerance",
+        ),
     };
     (why, recourse.into())
 }
