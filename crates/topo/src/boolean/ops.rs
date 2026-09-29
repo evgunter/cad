@@ -209,8 +209,8 @@ pub struct BooleanNaming {
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
-    /// Merge groups the output stage did NOT glue, as outside the
-    /// never-elide inventory (M4 PR 5), and declared surface pairs
+    /// Curved merge groups the output stage did NOT glue, as outside
+    /// the merge's Euler inventory (M4 PR 5), and declared surface pairs
     /// the door has no rung for (a non-planar carrier) — the record's
     /// faces plus the typed
     /// [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
@@ -663,8 +663,7 @@ fn boolean_op_recut<
 /// module docs carry the argument).
 ///
 /// Every undeclared cross-operand pair whose certified boxes overlap,
-/// where either face is a torus, a sphere, a cylinder or a cone, is
-/// classified and certified. A DECLARED pair is exempt: its contact is
+/// where either face is not a plane, is classified and certified. A DECLARED pair is exempt: its contact is
 /// the verified carrier the declared rungs walk along its edges. The
 /// first refusing pair, in arena order (A's faces, then B's), refuses
 /// the operation as the operand gate refuses a pair with no arm —
@@ -751,11 +750,10 @@ impl ChartCache {
 /// they examine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SectionPath {
-    /// The crossings path: every pair with a torus, sphere, cylinder or
-    /// cone face.
+    /// The crossings path: every pair with a face that is not a plane.
     Crossings,
-    /// The no-crossings fallback: every pair with a torus, cylinder or
-    /// cone face and no sphere face — a sphere's pairs are the extent
+    /// The no-crossings fallback: every pair with a face that is not a
+    /// plane, and no sphere face — a sphere's pairs are the extent
     /// scan's ([`sphere_extent_scan`]), which runs first and keeps its
     /// re-cut.
     Fallback,
@@ -764,13 +762,7 @@ pub(crate) enum SectionPath {
 impl SectionPath {
     fn scope<T: Real>(self, x: &geom::Surface<T>, y: &geom::Surface<T>) -> bool {
         use geom::Surface as S;
-        let curved = |s: &geom::Surface<T>| match self {
-            Self::Crossings => matches!(
-                s,
-                S::Torus { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. }
-            ),
-            Self::Fallback => matches!(s, S::Torus { .. } | S::Cylinder { .. } | S::Cone { .. }),
-        };
+        let curved = |s: &geom::Surface<T>| !matches!(s, S::Plane { .. });
         let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
         (curved(x) || curved(y)) && !(self == Self::Fallback && (sphere(x) || sphere(y)))
     }
@@ -3035,5 +3027,144 @@ mod tests {
         desc.vertices.insert(dead_vertex, live_vertex);
         let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
+    }
+
+    /// **A record citing a vertex the merge pruned drops, through the
+    /// merge's REAL outcome.** The records cannot reach this point in a
+    /// boolean by construction, so the row drives the rule itself with
+    /// a real pruning merge instead:
+    ///
+    /// - A vertex the pruning deletes is a junction of the seam the
+    ///   zip laid in the merged plane — a vertex interior to the other
+    ///   operand's coplanar face, where its cut turns. A vertex-on-face
+    ///   rest there is one the zip fused into seam structure, so it
+    ///   has already dropped as fused before the merge runs.
+    /// - A vertex-vertex record there names the other operand's vertex
+    ///   at the same point, which the zip fuses into it too, so the
+    ///   pair is one vertex and consumed.
+    ///
+    /// What is left for the merge to get wrong is the descendant
+    /// chase: a fusion row whose survivor the pruning then deletes. So
+    /// the row takes a prism whose top is split by a seam bent at an
+    /// interior vertex, runs the real `merge_coplanar_faces`, absorbs
+    /// its outcome into [`Descendants`] exactly as the boolean does,
+    /// adds the fusion row a zip would have written into the deleted
+    /// vertex, and requires every lane to drop a record citing either
+    /// key. A `Descendants` that mapped the deleted vertex to a
+    /// survivor would carry the records and turn this red.
+    #[test]
+    fn a_record_citing_a_pruned_free_end_drops() {
+        use super::{Descendants, KeyView, remap_contacts};
+        use crate::boolean::{ContactRecords, VfContact, VvContact};
+        use crate::entity::VertexKey;
+        use crate::{MefSite, MevSite};
+        use geom_core::Point3;
+
+        let tol = Tol::witness();
+        let p = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let mut body = p.body;
+        let corner = |body: &crate::Body<f64>, x: f64, y: f64| {
+            let outer = body.get_face(p.top_face).unwrap().outer;
+            let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+            else {
+                panic!("the top is a cycle")
+            };
+            body.loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .find(|&he| {
+                    let v = body.get_half_edge(he).unwrap().start;
+                    let q = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                    (q.x, q.y) == (x, y)
+                })
+                .unwrap()
+        };
+        let he1 = corner(&body, 0.0, 0.0);
+        let strut = body
+            .mev_line(
+                MevSite::Fan { he1, he2: he1 },
+                Point3::new(0.9, 0.6, 1.0),
+                tol,
+            )
+            .unwrap();
+        let he2 = corner(&body, 2.0, 2.0);
+        body.mef_chord(
+            MefSite::Chords {
+                he1: strut.he_minus,
+                he2,
+            },
+            tol,
+        )
+        .unwrap();
+        let bend = strut.vertex;
+
+        let merged = body
+            .merge_coplanar_faces(tol)
+            .expect("the bent seam repairs");
+        let killed: Vec<VertexKey> = merged
+            .groups
+            .iter()
+            .flat_map(|g| g.killed_vertices.iter().copied())
+            .collect();
+        assert_eq!(killed, vec![bend], "the bend is the pruned free end");
+        assert!(body.get_vertex(bend).is_none());
+
+        let mut desc = Descendants::default();
+        desc.absorb_merge(&merged);
+        // The row the zip writes when it fuses a coincident vertex
+        // into the one the merge later deletes; the fused-in key is
+        // dead (the null key, which no arena holds).
+        let fused_in = VertexKey::default();
+        let survivor = body.vertices().map(|(k, _)| k).next().unwrap();
+        let face = body.faces().map(|(k, _)| k).next().unwrap();
+        desc.vertices.insert(fused_in, bend);
+        desc.fused.insert(bend);
+        assert_eq!(
+            desc.live_vertex(&body, bend),
+            None,
+            "no survivor for {bend:?}"
+        );
+
+        let records = |v: VertexKey| ContactRecords {
+            vv: vec![VvContact { a: v, b: survivor }],
+            a_on_b: vec![VfContact { vertex: v, face }],
+            b_on_a: vec![VfContact { vertex: v, face }],
+            ..ContactRecords::default()
+        };
+        let remap =
+            |c: &ContactRecords| remap_contacts(&body, c, KeyView::Direct, KeyView::Direct, &desc);
+        assert_eq!(
+            desc.live_vertex(&body, fused_in),
+            None,
+            "the chase ends dead"
+        );
+        for cited in [bend, fused_in] {
+            let out = remap(&records(cited));
+            assert!(out.vv.is_empty(), "{cited:?}: {:?}", out.vv);
+            assert!(out.a_on_b.is_empty(), "{cited:?}: {:?}", out.a_on_b);
+            assert!(out.b_on_a.is_empty(), "{cited:?}: {:?}", out.b_on_a);
+        }
+        // The control: the same records on a live vertex carry.
+        let other = body.vertices().map(|(k, _)| k).nth(1).unwrap();
+        let out = remap(&records(other));
+        assert_eq!(
+            out.vv,
+            vec![VvContact {
+                a: other,
+                b: survivor
+            }]
+        );
+        assert_eq!(
+            out.a_on_b,
+            vec![VfContact {
+                vertex: other,
+                face
+            }]
+        );
     }
 }

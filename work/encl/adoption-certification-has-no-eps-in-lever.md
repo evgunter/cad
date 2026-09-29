@@ -2,8 +2,10 @@
 id: adoption-certification-has-no-eps-in-lever
 kind: issue
 title: step-import: a band-decided certification refusal at adoption names no tolerance, because the ladder certifies at the kernel's ε and not at the file's ε_in
-status: open
+status: closed
 opened: 2026-09-28
+closed: 2026-09-29
+pr: 3380
 ---
 
 

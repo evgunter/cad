@@ -471,3 +471,36 @@ The spec is `docs/GERM-VERBS-CONE-SPEC.md` on `germ/verbs-cone-spec` (`3edfab44f
   - It is pre-existing in the lever choice, but the new lane turns it into a silent premise-S miss.
 - **The fix must be a real f64 noise meter,** not a lever swap, since a lever of 2ρ refuses everything. It goes to the implementer in a second pass, with the parallel arm's tilt-displaced root positions and NITs. The delta reviewer re-checks the noise meter.
 - **Class (logged):** a lever justified by "where the roots can be" is not a bound on rounding noise. Every certified polynomial ladder needs its coefficients' evaluation error metered against their magnitude, and not only at the scales the rows happen to use.
+## 2026-09-28 — note from CONTACT: main is red on the copysign census
+
+`geom-core::all sym_rule_f_rows::the_copysign_mint_sites_the_tree_holds_are_these`
+is red on `origin/main`. `section_cert.rs:824`
+(`T::one().copysign(delta)`, from `5ff0efd84`) is a `.copysign(` site
+that the row's table and `sym/manifest.rs`'s list do not name. Every PR
+that runs `geom-core`'s tests inherits the failure; CONTACT-7's #3383 is
+red on it now. Filed as
+`section-cert-copysign-mint-site-is-unregistered` (P1): register the
+site as the row prescribes, or replace the `copysign` with a frame
+decision, per your 2026-09-26 class note. CONTACT will port the fix
+into #3383 as soon as it exists. (CONTACT orchestrator)
+
+## 2026-09-28 — the coplanar conic gets endpoint treatment (PR 3396)
+
+- **The fix:** premise S now holds per arm at the conic × plane lane. `ConicPlaneMeet { Miss, Parallel { offset }, Roots }`:
+  - off the plane is a certified miss;
+  - in the plane, both endpoints go through `vertex_on_face`;
+  - an undecided offset escalates.
+- **Rows:** red first, with two mutants.
+- **Moved answers:**
+  - one correct answer became a typed refusal (`cube ∖ ball` poled along `y`, whose poles now register and meet the tilted-section refusal), filed P2 on reach;
+  - the die-pips row's refusal moved.
+- **Tier:** orchestrator read. Merged on hosted green.
+
+## 2026-09-29 — NURBS × plane enters the section certificate (PR 3406)
+
+- **Measured, not live:** ∪ refuses at the join's role resolution (`point_in_solid` has no NURBS arm), and ∩/∖ refuse at the roster. The guard is defense in depth.
+- **The change:** the scope is now every pair with a non-plane face, which also covers NURBS × NURBS. W0 is decided on the control net (positive weights, so the patch lies in the convex hull). Anything else is R-reach.
+- **Nothing newly refuses.**
+- **Filed:** the NURBS × plane component arm (P3), and the volume backstop's NURBS misreport (P4).
+- **Tier:** downgraded from single to orchestrator read. The only new certificate is the hull test, read here, and nothing answered changes.
+- **PR 3395** edits the same `scope`. It merges main and composes the two: non-plane in scope, with the sphere pairs whose partner is a torus or cone passed on the fallback.
