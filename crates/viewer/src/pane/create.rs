@@ -2102,7 +2102,7 @@ mod layout_tests {
     }
 
     #[test]
-    fn a_parts_id_is_said_under_its_pick_button_inside_the_pane() {
+    fn a_parts_id_is_said_under_its_file_name_inside_the_pane() {
         let entry = PartEntry {
             id: DocumentId(0x0123_4567_89ab_cdef_0123_4567_89ab_cdef),
             path: PathBuf::from("outer-enclosure-lid.pncad"),

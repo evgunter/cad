@@ -814,7 +814,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     use pncad::document::{Datum, Dimension, DocParam, Expr, Node, NodeErrorKind, ParamName};
 
     let tol = Tol::witness();
-    let span = ParamName::new("span");
+    let span = ParamName::from_static("span");
     let doc = common::declared(
         "tree-frame-direction",
         &span,

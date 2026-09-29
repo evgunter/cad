@@ -59,21 +59,25 @@ Signed: (CHROME implementer lane, `chrome/placer-link`)
 
 `tree::repair_of` now asks `repair_named`, an exhaustive `match` over
 every `NodeErrorKind`, with `Mate` delegating to `repaired_at`. The
-test is PR 3100's: does the kernel's doc for the arm call the named
-node the thing to repair?
+test is PR 3100's, stated to cover both links: is the named node the
+one whose own authored input refused, as the kernel's doc for the arm
+reads, rather than evidence or an input the failing node misused?
 
 - `FrameDirection { frame }` — **links.** The frame's own direction
   slot refused, and the profile only read it. The frame's row can read
   `Ok`, so without the link nothing gets a reader there. Held by
   `tree_badges::a_profile_refused_for_its_frames_direction_links_to_the_frame`,
   which fails on the old code.
-- `WrongOperand`, `EmptyOperand`, `EmptyHalf`, `InstanceOutOfRange` —
-  no link. The operand is the row the failing node hangs from, and the
-  refusal is the failing node's use of it.
+- `WrongOperand` — no link. The input is a sound node of the wrong
+  value family, and choosing it is the failing node's.
+- `EmptyOperand`, `EmptyHalf`, `InstanceOutOfRange`,
+  `AxisInDifferentPlane` — **open**, no link for now. Each has two
+  candidate repairs: the empty input or the failing node's use of it,
+  the pattern's count or the `Part`'s index, either frame. Filed as
+  `failed-row-repair-links-for-arms-with-two-candidate-repairs`, and
+  the code site cites it.
 - `MissingInput` — no link. The id names no live node, so there is no
   row to link to.
-- `AxisInDifferentPlane` — no link. The kernel says *"the fix depends
-  on which one is wrong"*, and one link would pick for the reader.
 - `SeedPinnedSection`, `DerivedFrameSection` — no link. These are lane
   limits: neither node is wrong, and the f64 lane builds them.
 - `DeclareSiteNotAnOperand { at }` — no link. The site is what the
@@ -91,6 +95,3 @@ one of these is evidence rather than the repair, and none links. The
 kernel-crate payloads (`BooleanError`, `ShellError`, …) cannot name a
 `RecipeNodeId`, because those crates sit below `editor-core`.
 
-The arms whose answer is a judgement call rather than read off the
-kernel's doc are filed as
-`failed-row-repair-links-for-arms-with-two-candidate-repairs`.

@@ -37,15 +37,17 @@ state of the open document's own entry then needs a spelling), or a
 character bound on the label at its source with the whole name on
 hover. `part_entry` is a free function, so a row in
 `pane/create.rs`'s `layout_tests` can drive it headlessly the way
-`a_parts_id_is_said_under_its_pick_button_inside_the_pane` does.
+`a_parts_id_is_said_under_its_pick_button_inside_the_pane` does (renamed
+`a_parts_id_is_said_under_its_file_name_inside_the_pane` by PR 3450).
 
 ## Closed 2026-09-29 (`chrome/create-residue`, PR 3450)
 
 The premise was half wrong. At egui 0.36 a button in the chooser's
 vertical `Ui` takes that `Ui`'s `Wrap` mode, so a long file name did
-not widen the window. It WRAPPED instead: the button broke one name
-across two lines at an arbitrary character, which is what a NAME must
-never do (the part id's rule, PR 3139).
+not widen the window. It WRAPPED instead: the fixture's name was
+painted in two rows (the break falls at a `-`, which epaint prefers,
+and the name was all hyphenated words). A NAME split across rows reads
+as two tokens, which is what the part id's rule (PR 3139) avoids.
 
 `pane::create::part_entry` now draws a fixed `add` button
 (`PICK_PART`, still carrying the entry's refusal through

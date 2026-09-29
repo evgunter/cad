@@ -23,6 +23,18 @@ says a decision asked in several places has one home, and the places
 call it. The fix is to make `puts_an_instance` reachable from
 `display` (it is private to `session` today) and call it there.
 
+`display::instance_check` asks it too: `Some(Node::InstantiatePart { .. })`
+is `Ok`, and `Some(_)` refuses `NotAnInstance`, a wildcard over `Node`.
+
+**Weigh the Identity exemption first.** The README exempts a question
+that IS the variant ("is this op an `Open`"). `instances_by_root`'s doc
+says display state names *"the thing with an identity a user hides or
+probes"*. That may read as "is this node an `InstantiatePart`", which
+is identity and correctly `false` for any new kind, rather than "does
+this node put a part in", the policy `assembly_shaped` asks. If it is
+identity, both sites stay and this row closes saying so; if it is the
+policy, both call `puts_an_instance`.
+
 ## Why it is filed rather than fixed
 
 Found by `chrome/create-residue`'s sweep for `matches!` over `Node`.

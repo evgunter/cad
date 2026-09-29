@@ -15,11 +15,9 @@
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
-//! agreeing with itself. Its match names every `SessionOp`, so no
-//! operation joins the enum without an answer for a drag. Its index
-//! half, checked against `OP_COUNT`, is what makes a MISSING
-//! sample fail too — an unasserted variant is the same silence in a
-//! different place.
+//! agreeing with itself. Its index half, checked against `OP_COUNT`,
+//! is what makes a MISSING sample fail too — an unasserted variant is
+//! the same silence in a different place.
 //!
 //! **This is the only row here that can catch a WRONG table entry**,
 //! and it catches one by disagreeing with a second hand-written copy,
@@ -808,8 +806,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
 
 // --- the cancel doors -----------------------------------------------
 
-/// **Which operations cancel a GESTURE**, so that no operation joins
-/// the enum without answering whether the chrome owes it a door.
+/// **Which operations cancel a GESTURE.**
 ///
 /// The rule ranges over what an operation cancels, NOT over what it is
 /// called. [`SessionOp::CancelEvaluation`] is spelled `Cancel` and

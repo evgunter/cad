@@ -661,8 +661,7 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
 
 test_utils::f6_variants! {
     /// Every `Refusal` arm's identifier, as the ban list the six
-    /// sampled renderings are held to; the macro's `match` keeps the
-    /// list the enum's.
+    /// sampled renderings are held to.
     ///
     /// **The roster is the enum's, not the sample's.** A rendering that
     /// leaks a SIBLING arm's identifier is as much a dump as one that
@@ -720,9 +719,9 @@ const REFUSAL_FIELDS: &[&str] = &["node:", "name:", "\""];
 /// construction. The two vocabulary-wide halves live elsewhere, and
 /// are named here so this row is not read as holding them:
 ///
-/// * **that every arm renders at all** is the compiler's:
-///   `Display for Refusal` and `Refusal::rank` name every arm, which
-///   is why there is no `Refusal::ALL` to walk.
+/// * **that every arm renders at all** is the compiler's
+///   (`crates/viewer/README.md`, *A policy over an enum names every
+///   variant*), which is why there is no `Refusal::ALL` to walk.
 /// * **that no rendering carries the field-brace fingerprint** is
 ///   `prose_census`'s, a census over SITES rather than samples.
 ///

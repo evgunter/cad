@@ -82,11 +82,10 @@
 //! is loud and carries the words, and the link is how a reader gets
 //! from those words to the node the kernel says to fix. No other mate
 //! arm links, for the reason above; `repaired_at` is where an arm
-//! answers this, and `repair_named` asks the same question of every
-//! other `NodeErrorKind`. On the fold's path the link lands on a poisoned placer whose
-//! own line points back at the mate — the words are on the mate's row,
-//! so the link's job is to put the placer under the selection, not to
-//! show a second copy of them.
+//! answers this. On the fold's path the link lands on a poisoned
+//! placer whose own line points back at the mate — the words are on
+//! the mate's row, so the link's job is to put the placer under the
+//! selection, not to show a second copy of them.
 //!
 //! **One seat the link inherits is wrong, and it is the kernel's.**
 //! `check_reference` evaluates a `Part`'s index expression under the
@@ -111,6 +110,14 @@
 //! it wants a status saying "the run, not this row" rather than a
 //! culprit invented here
 //! (`work/chrome/band-refusal-still-badges-every-row.md`).
+//!
+//! # A failed row outside the solve links where its own error says
+//!
+//! Every other `NodeErrorKind` is asked the same question
+//! (`repair_named`). One links: a profile refused with
+//! `FrameDirection` links to the frame, whose own direction slot is
+//! what refused — and whose row may read `Ok`, because the frame
+//! lands at the lane while its nominal does not.
 //!
 //! # Order and depth
 //!
@@ -678,28 +685,33 @@ fn repair_of(id: RecipeNodeId, ev: &Evaluation<f64>) -> Option<RecipeNodeId> {
 }
 
 /// **Which node an evaluation error names as the one an author
-/// repairs** — the node the kernel's own doc for the arm calls the
-/// thing to fix, not merely a node the words mention.
+/// repairs**: the named node whose own authored input is what
+/// refused, as against a node the words mention as evidence or as
+/// the input the failing node misused. The kernel's doc for the arm
+/// says which: `PlacerRefused`'s calls it *"the node an author goes
+/// and fixes"*; `FrameDirection`'s refusal is the frame's own slot's,
+/// carried unaltered to the reader.
 fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
     match kind {
         NodeErrorKind::Mate(fault) => repaired_at(fault),
         // The frame's own direction slot refused; the profile only
         // read it, and the frame's row may well read `Ok`.
         NodeErrorKind::FrameDirection { frame, .. } => Some(*frame),
-        // An operand of the failing node, which the tree draws as the
-        // row it hangs from. The operand is not what refused: the
-        // failing node's use of it is (a split fed to a boolean, an
-        // index past a pattern's count, a half or a body that holds
-        // nothing where this node needs one).
-        NodeErrorKind::WrongOperand { .. }
-        | NodeErrorKind::EmptyOperand { .. }
+        // An input of the failing node whose value is a family the
+        // operand does not take (a split fed to a boolean): the input
+        // is a sound node, and choosing it is the failing node's.
+        NodeErrorKind::WrongOperand { .. } => None,
+        // Either of two nodes may be the repair — the empty input or
+        // the failing node's use of it, the pattern's count or the
+        // `Part`'s index, either frame — and one link would pick for
+        // the reader. Open:
+        // `work/chrome/failed-row-repair-links-for-arms-with-two-candidate-repairs`.
+        NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::InstanceOutOfRange { .. } => None,
+        | NodeErrorKind::InstanceOutOfRange { .. }
+        | NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
-        // "The fix depends on which one is wrong": either frame may be
-        // the repair, and one link would pick for the reader.
-        NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // The lane cannot carry what the named nodes hold; neither
         // node is wrong, and the f64 lane builds them.
         NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,

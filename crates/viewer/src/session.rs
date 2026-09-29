@@ -2956,9 +2956,11 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         // Placements of a prototype drawn in THIS document: the rest
         // between them is the placement rule's, not a crossing.
         Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
-        // Relate instances some other node put in the document, and
-        // put none of their own.
-        Node::Mate { .. } | Node::Declare { .. } => false,
+        // Relates instances some other node put in the document.
+        Node::Mate { .. } => false,
+        // Declares contacts between faces of a consumer's operands,
+        // and puts no body of its own in.
+        Node::Declare { .. } => false,
         Node::Datum(_)
         | Node::Profile(_)
         | Node::Extrude { .. }
