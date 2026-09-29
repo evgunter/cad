@@ -44,8 +44,11 @@ Nobody has checked the sites one by one.
 - `PathError`'s non-junction arms render the payload view with their
   own recourse.
 - `MeterError::Escalated` does the same (PR 3347).
-- Four geom-brep carriers that `topo::validate` routes through
-  `own_close` are filed on their owners' slates:
+- Four geom-brep carriers whose escalations `topo::validate` ends
+  through their decisions' endings (`CertifyError::ending`,
+  `PcurveCertifyError::ending`), or with no lever where the decision is
+  not carried (`PropsError::Escalated`), are filed on their owners'
+  slates:
   - `work/encl/certify-escalation-renders-the-coincidence-menu-unlabelled.md`
   - `work/iso/plane-nurbs-escalation-renders-the-coincidence-menu-unlabelled.md`
   - `work/pcert/pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled.md`
