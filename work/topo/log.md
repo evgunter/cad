@@ -2923,3 +2923,19 @@ harness).
 Tier SINGLE, full. One Opus reviewer is on the frozen head, and its
 brief names D1's atomic per-op contract and the tier-1 guarantee as
 the governing text.
+
+## PR 3467 merged (2026-09-29)
+
+PR 3467 merged (`9b5fdd8210`), closing
+`mint-face-surface-and-sense-reads-key-equality-where-same-chart-reads-provenance`
+under Ev's PR 3480 ruling. DR-25 rode as its last commit.
+
+No `pull_request` event fired for the first closing head
+(`bf64e3a6eb`), and `workflow_dispatch` is refused to this session
+(403). Main was merged forward instead, and the DR-25 row recorded
+that merge in a final commit, so the row stayed last. CI ran green on
+`f03b4c1c76` (run 36644626479).
+
+The design-fork, the implementation and the dual review of the
+fragment-sense question are all done. `topo-rebase-target` is free
+after PR 3493's reviewer.
