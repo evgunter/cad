@@ -5,7 +5,8 @@ title: set_surface_source stamps a GeomSource on any live key without checking t
 status: open
 opened: 2026-09-24
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 
