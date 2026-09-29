@@ -1156,7 +1156,12 @@ class StepHandleError(PncadError):
     handle's index and shape — a handle is valid for the program it
     was authored for, a value edit keeps it valid, and across
     `set_program` a step is held by its `StepId`. `role_not_drawn`:
-    the step's verb never draws that role."""
+    the step's verb never draws that role.
+
+    `unminted` and `step_ids` are the Rust door's refusals for a
+    program outside a document, or one whose ids are malformed; `Doc`
+    never raises them, because a profile it holds carries one minted id
+    per step."""
 
     variant: str
     loop_: Optional[int]
@@ -1730,17 +1735,31 @@ class AuthoredStep:
     """The address of an authored step: its index in its loop and the
     loop's shape up to it, values erased.
 
-    Its role accessors are its verb's role list, read off the kernel's
-    one list when the attribute is looked up: `.leg` on a leg; `.run_in`,
-    `.arc` and `.run_out` on a fillet or a fused verb; `.piece(k)` on a
-    carrier form, `k` checked against its count; none on a binder. A
-    role the step's verb does not draw is an `AttributeError`."""
+    Its role accessors are its verb's role list, generated from the
+    kernel's one list: `.leg` on a leg; `.run_in`, `.arc` and `.run_out`
+    on a fillet or a fused verb; `.piece(k)` on a carrier form, `k`
+    checked against its count; none on a binder. An accessor the step's
+    verb does not draw raises `AttributeError`.
+
+    A handle binds wherever the stated loop's program has its prefix:
+    a wrong loop of the same shape, or a handle from an earlier program
+    whose prefix the new one still has, binds without error. Equal
+    handles are equal, so they are one key in a `set_program` keep
+    dict."""
 
     @property
     def index(self) -> int: ...
     @property
     def verb(self) -> str: ...
-    def __getattr__(self, name: str) -> Any: ...
+    @property
+    def leg(self) -> StepRole: ...
+    @property
+    def run_in(self) -> StepRole: ...
+    @property
+    def arc(self) -> StepRole: ...
+    @property
+    def run_out(self) -> StepRole: ...
+    def piece(self, k: int) -> StepRole: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -3232,14 +3251,14 @@ class DocEdit:
     def set_program(
         node: NodeId,
         outline: ClosedLoop,
-        keep: Optional[list[dict[AuthoredStep, StepId]]] = None,
+        keep: list[dict[AuthoredStep, StepId]],
     ) -> DocEdit: ...
     @overload
     @staticmethod
     def set_program(
         node: NodeId,
         outline: list[ClosedLoop],
-        keep: Optional[list[dict[AuthoredStep, StepId]]] = None,
+        keep: list[dict[AuthoredStep, StepId]],
     ) -> DocEdit:
         """Replace a live profile's PROGRAM whole — its loops, their
         verbs, order and count, arc modes and targets — validated
@@ -3251,7 +3270,7 @@ class DocEdit:
         handle of a step of that loop's NEW program (the `.step` its
         verb returned) to the `StepId` of the old step it keeps
         (`Doc.step` reads them). A step no entry names is new and the
-        door mints it; `keep` left out keeps nothing. The editor that
+        door mints it; a loop that keeps nothing is `{}`. The editor that
         reshaped the program knows which leg it inserted; the door is
         told, never guesses. A handle that is not a step of its loop's
         new program raises `StepHandleError` `handle_off_program`, and
@@ -3407,7 +3426,9 @@ class Doc:
         program has no step at that index with that shape up to it — a
         handle is valid for the program it was authored for, and a
         value edit keeps it valid — and `ValueError` for a node that is
-        not a profile."""
+        not a profile. The check is the prefix alone: a wrong loop of
+        the same shape, or a stale handle whose prefix still matches,
+        binds without error."""
 
     def piece(self, profile: NodeId, loop: int, role: StepRole) -> Piece:
         """The piece `role` of an authored step of the profile at

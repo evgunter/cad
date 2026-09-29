@@ -3874,7 +3874,9 @@ impl DocEdit {
     /// the handle of a step of that loop's NEW program (the `.step` its
     /// verb returned) to the `StepId` of the old step it keeps
     /// (`Doc.step` reads them). A step no entry names is new, and the
-    /// door mints it; `keep` left out keeps nothing. The editor that
+    /// door mints it; a loop that keeps nothing is `{}`. Equal handles
+    /// are one key, so two steps of one shaped prefix cannot both be
+    /// named. The editor that
     /// reshaped the program is the one party that knows which leg it
     /// inserted, so the door is told rather than guessing.
     ///
@@ -3899,37 +3901,28 @@ impl DocEdit {
     /// over every argument, `profile_program_refused` for a program
     /// that does not close, replay or validate.
     #[staticmethod]
-    #[pyo3(signature = (node, outline, keep=None))]
     fn set_program(
         py: Python<'_>,
         node: &NodeId,
         outline: &Bound<'_, PyAny>,
-        keep: Option<Vec<Bound<'_, PyDict>>>,
+        keep: Vec<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let loops = loops_from_outline(py, outline)?;
-        let ids = match keep {
-            None => loops
-                .iter()
-                .map(|lp| vec![None; lp.authored_steps()])
-                .collect(),
-            Some(keep) => {
-                let keep = keep
-                    .iter()
-                    .map(|kept| {
-                        kept.iter()
-                            .map(|(h, id)| {
-                                Ok((
-                                    h.extract::<super::step::AuthoredStep>()?.0,
-                                    id.extract::<super::step::StepId>()?.0,
-                                ))
-                            })
-                            .collect::<PyResult<Vec<_>>>()
+        let keep = keep
+            .iter()
+            .map(|kept| {
+                kept.iter()
+                    .map(|(h, id)| {
+                        Ok((
+                            h.extract::<super::step::AuthoredStep>()?.0,
+                            id.extract::<super::step::StepId>()?.0,
+                        ))
                     })
-                    .collect::<PyResult<Vec<_>>>()?;
-                d::keep_grid(&loops, &keep)
-                    .map_err(|refusal| super::step::handle_err(py, &refusal))?
-            }
-        };
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let ids =
+            d::keep_grid(&loops, &keep).map_err(|refusal| super::step::handle_err(py, &refusal))?;
         Ok(Self {
             inner: d::DocEdit::SetProgram {
                 node: node.0,

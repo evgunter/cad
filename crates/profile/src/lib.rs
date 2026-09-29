@@ -170,7 +170,7 @@ pub use path::{
 pub use structure::{
     CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
     LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
-    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind,
+    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{

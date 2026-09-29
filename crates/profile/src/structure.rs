@@ -334,8 +334,37 @@ impl core::fmt::Display for PieceRole {
 }
 
 /// How many pieces a `circle` draws: it is drawn as the `circle_split`
-/// with `n = 2`, two semicircles split at the circle's `±x` points.
+/// with `n = 2`, two semicircles split at the circle's `±x` points. The
+/// circle's lowering builds its vertex table at this length.
 pub const CIRCLE_PIECES: u32 = 2;
+
+/// **How many indexed pieces a step of `verb` draws**, `n` being a
+/// `circle_split`'s count (read for that verb alone): [`CIRCLE_PIECES`]
+/// for `circle`, `n` for `circle_split`, and `0` for every verb whose
+/// roles are not indexed. The one derivation the replay's role check
+/// and an authored step's address both read.
+#[must_use]
+pub fn carrier_pieces(verb: crate::Verb, n: usize) -> u32 {
+    match verb {
+        crate::Verb::Circle => CIRCLE_PIECES,
+        // `circle_split` refuses a count past `u32` at construction
+        // (`PathError::CircleSplitCount`), so no step holds one.
+        crate::Verb::CircleSplit => u32::try_from(n).unwrap_or(u32::MAX),
+        _ => 0,
+    }
+}
+
+impl<T: Real> crate::Step<T> {
+    /// How many indexed pieces this step draws ([`carrier_pieces`]).
+    #[must_use]
+    pub fn pieces(&self) -> u32 {
+        let n = match self {
+            Self::CircleSplit { n, .. } => *n,
+            _ => 0,
+        };
+        carrier_pieces(self.verb(), n)
+    }
+}
 
 /// **The roles a verb's steps may draw** — one list per verb
 /// ([`RoleList::of`]), the lists [`PieceRole`] describes.
@@ -363,6 +392,11 @@ pub enum RoleList {
 }
 
 impl RoleList {
+    /// Every list, in declaration order. That it is exactly the lists
+    /// [`RoleList::of`] answers for [`crate::Verb::ALL`] is pinned by
+    /// `tests/path_program.rs`.
+    pub const ALL: [Self; 4] = [Self::Bind, Self::Leg, Self::Fillet, Self::Carrier];
+
     /// The list `verb`'s steps draw from.
     #[must_use]
     pub const fn of(verb: crate::Verb) -> Self {
@@ -497,14 +531,9 @@ impl ReplayStructure {
                     program.len()
                 )
             };
-            let pieces = match step {
-                crate::Step::Circle { .. } => CIRCLE_PIECES,
-                crate::Step::CircleSplit { n, .. } => u32::try_from(*n).unwrap_or(u32::MAX),
-                _ => 0,
-            };
             let verb = step.verb();
             assert!(
-                RoleList::of(verb).admits(piece.role, pieces),
+                RoleList::of(verb).admits(piece.role, step.pieces()),
                 "the replay drew {piece}, a role `{verb}`'s list ({:?}) does not hold",
                 RoleList::of(verb)
             );

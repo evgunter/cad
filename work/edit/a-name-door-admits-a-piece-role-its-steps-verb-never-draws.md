@@ -23,7 +23,11 @@ opened: 2026-09-29
   now refuses such a role against the one per-verb list
   (`profile::RoleList`), so the authored path cannot spell one; a name
   spelled any other way (hand-built, carried in from another document,
-  loaded) still can.
+  loaded) still can. The Python binding has one such way on purpose:
+  `Piece(StepId, Role)` (`crates/pncad-py/src/py/step.rs`, `Piece::new`)
+  builds a piece from any id and role with no check, for a caller that
+  holds a `StepId` across a `set_program` and no handle; it is a further
+  door this row's check would have to cover.
 - **Why it is not a one-line close**: the check needs the step's verb,
   which only a live profile holding the step knows. A dropped step's id
   stays in the mint log with no verb behind it, so its names cannot be

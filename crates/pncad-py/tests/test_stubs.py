@@ -250,17 +250,6 @@ def stub_class_operators(node):
     }
 
 
-def implements(cls, op):
-    """Whether the compiled class answers the operator `op`.
-
-    PyO3 implements `__getattr__` as the class's attribute-lookup SLOT,
-    so what the class carries is its own `__getattribute__`, not a
-    `__getattr__` attribute `hasattr` could find."""
-    if op == "__getattr__":
-        return "__getattribute__" in vars(cls)
-    return hasattr(cls, op)
-
-
 def stub_class_dunders(node):
     """EVERY dunder a stub class declares, whatever `object` provides.
 
@@ -444,7 +433,7 @@ class TestStubClassDrift(unittest.TestCase):
             for name, node in stub_classes().items()
             for op in stub_class_operators(node)
             if isinstance(getattr(pncad, name, None), type)
-            and not implements(getattr(pncad, name), op)
+            and not hasattr(getattr(pncad, name), op)
         )
         self.assertEqual(
             missing,

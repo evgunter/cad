@@ -112,8 +112,8 @@ pub use ::profile::{
 pub use ::profile::{
     CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
     LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
-    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, replay_guided,
-    replay_recording, structure,
+    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
+    replay_guided, replay_recording, structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.

@@ -57,7 +57,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use pncad::document::EvalOptions;
-use pncad::profile::{ArcMode, PieceRole, TargetKind, TipState, Verb};
+use pncad::profile::{ArcMode, PieceRole, RoleList, TargetKind, TipState, Verb};
 use pncad::step_export::StepOptions;
 use pncad::step_import::ImportOptions;
 use pncad::stl::{AsciiOptions, BinaryOptions};
@@ -476,19 +476,18 @@ fn target_class(kind: TargetKind) -> Option<&'static str> {
 }
 
 /// **The role roster.** How a Python caller spells each piece role:
-/// a `Role` value, and the handle accessor that reads it off an
-/// authored step. A role `PieceRole` gains stops this function
-/// compiling; the accessors themselves are generated from the kernel's
-/// role lists at lookup (`crate::py::step`), so what this checks is
-/// the `Role` spelling and the carrier accessor the stub declares.
+/// a `Role` value, and the `AuthoredStep` accessor that reads it off an
+/// authored step (installed from the kernel's role lists by
+/// `crate::py::step`, declared in the stub). A role `PieceRole` gains
+/// stops this function compiling.
 fn role_spelling(role: PieceRole) -> Spelling {
     use Spelling::Bound;
     match role {
-        PieceRole::Leg => Bound(&["Role.Leg"]),
-        PieceRole::RunIn => Bound(&["Role.RunIn"]),
-        PieceRole::Arc => Bound(&["Role.Arc"]),
-        PieceRole::RunOut => Bound(&["Role.RunOut"]),
-        PieceRole::Piece(_) => Bound(&["Role.piece", "CarrierPieces"]),
+        PieceRole::Leg => Bound(&["Role.Leg", "AuthoredStep.leg"]),
+        PieceRole::RunIn => Bound(&["Role.RunIn", "AuthoredStep.run_in"]),
+        PieceRole::Arc => Bound(&["Role.Arc", "AuthoredStep.arc"]),
+        PieceRole::RunOut => Bound(&["Role.RunOut", "AuthoredStep.run_out"]),
+        PieceRole::Piece(_) => Bound(&["Role.piece", "AuthoredStep.piece", "CarrierPieces"]),
     }
 }
 
@@ -838,17 +837,41 @@ fn verb_roster() -> Roster {
     }
 }
 
-/// The role and step-handle rosters. Neither kernel type enumerates
-/// itself, so the members are listed here; the spelling functions'
-/// matches are what a new member breaks.
+/// The role and step-handle rosters, each derived from the kernel's own
+/// enumerations: the roles are every role the per-verb lists hold
+/// (`RoleList::ALL`, a carrier's indexed roles as one member), and the
+/// states are every state the transition table has a row at
+/// (`Verb::states` over `Verb::ALL`) plus `Closed`, the one state no row
+/// starts from. The spelling functions' matches are exhaustive, so a
+/// member either derivation gains has to be spelled there.
 fn handle_rosters() -> [Roster; 2] {
-    use PieceRole as R;
-    use TipState as S;
+    let mut roles: Vec<PieceRole> = Vec::new();
+    for list in RoleList::ALL {
+        let listed = match list {
+            RoleList::Carrier => vec![PieceRole::Piece(0)],
+            _ => list.named().to_vec(),
+        };
+        for role in listed {
+            if !roles.contains(&role) {
+                roles.push(role);
+            }
+        }
+    }
+    let mut states: Vec<TipState> = Vec::new();
+    for state in Verb::ALL
+        .iter()
+        .flat_map(|verb| verb.states().iter().copied())
+        .chain([TipState::Closed])
+    {
+        if !states.contains(&state) {
+            states.push(state);
+        }
+    }
     [
         Roster {
             subject: "PieceRole",
             alphabet: Alphabet::Declared,
-            entries: [R::Leg, R::RunIn, R::Arc, R::RunOut, R::Piece(0)]
+            entries: roles
                 .iter()
                 .map(|role| (format!("{role:?}"), role_spelling(*role)))
                 .collect(),
@@ -856,24 +879,10 @@ fn handle_rosters() -> [Roster; 2] {
         Roster {
             subject: "TipState",
             alphabet: Alphabet::Declared,
-            entries: [
-                S::Entry,
-                S::Open,
-                S::Angle,
-                S::PlainPoint,
-                S::DirectedPoint,
-                S::DirectedPlain,
-                S::DirectedIncoming,
-                S::RadiusArrival,
-                S::RadiusArrivalAt,
-                S::RadiusArrivalDir,
-                S::ViaArrival,
-                S::ViaArrivalStart,
-                S::Closed,
-            ]
-            .iter()
-            .map(|state| (format!("{state:?}"), state_step_spelling(*state)))
-            .collect(),
+            entries: states
+                .iter()
+                .map(|state| (format!("{state:?}"), state_step_spelling(*state)))
+                .collect(),
         },
     ]
 }

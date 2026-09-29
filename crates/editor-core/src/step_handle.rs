@@ -132,14 +132,14 @@ impl StepShape {
     }
 
     /// How many pieces a carrier form draws; `0` for every other step,
-    /// whose roles are not indexed.
+    /// whose roles are not indexed ([`profile::carrier_pieces`]).
     #[must_use]
     pub fn pieces(self) -> u32 {
-        match self {
-            Self::Circle => profile::CIRCLE_PIECES,
-            Self::CircleSplit { n } => u32::try_from(n).unwrap_or(u32::MAX),
+        let n = match self {
+            Self::CircleSplit { n } => n,
             _ => 0,
-        }
+        };
+        profile::carrier_pieces(self.verb(), n)
     }
 
     /// Whether this step may draw `role` ([`RoleList::admits`]).

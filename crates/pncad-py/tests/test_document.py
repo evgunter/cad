@@ -1635,6 +1635,15 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(caught.exception.node, profile)
         self.assertEqual(doc.last_maintenance, [])
 
+    def test_keep_is_stated_and_an_empty_dict_keeps_nothing(self):
+        doc, profile, _box, _rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(TypeError):
+            DocEdit.set_program(profile, reshaped)
+        doc.apply(DocEdit.set_program(profile, reshaped, [{}]))
+        fresh = [doc.step(profile, 0, h) for h in new]
+        self.assertEqual(set(fresh) & set(s), set(), "every step minted fresh")
+
     def test_a_keep_list_short_of_the_outline_refuses(self):
         doc, profile, _box, _rim, _ids = self.filleted_box()
         reshaped, _new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])

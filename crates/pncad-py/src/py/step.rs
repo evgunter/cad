@@ -5,9 +5,10 @@
 //! [`AuthoredStep`]: the address of the step its verb just recorded,
 //! which a profile binds to the id it minted (`Doc.step`,
 //! `Doc.piece`). A handle's role accessors are not written here per
-//! verb. They are read off the kernel's one role list for the step's
-//! verb (`profile::RoleList`) when an attribute is looked up, so a
-//! handle answers exactly the roles its verb draws: `.leg` on a leg,
+//! verb. One property per word the kernel's role lists answer
+//! (`profile::RoleList::ALL`) is installed at module load, and each
+//! answers only on a handle whose verb's list holds it, so a handle
+//! answers exactly the roles its verb draws: `.leg` on a leg,
 //! `.run_in`, `.arc` and `.run_out` on a fillet or a fused verb,
 //! `.piece(k)` on a carrier form, and nothing on a binder.
 
@@ -215,31 +216,10 @@ fn role_word(role: pf::PieceRole) -> &'static str {
 }
 
 impl AuthoredStep {
-    /// The attributes this handle's role list answers.
-    fn role_words(&self) -> Vec<&'static str> {
-        let list = self.0.step().roles();
-        match list {
-            pf::RoleList::Carrier => vec![role_word(pf::PieceRole::Piece(0))],
-            _ => list.named().iter().map(|r| role_word(*r)).collect(),
-        }
-    }
-}
-
-#[pymethods]
-impl AuthoredStep {
-    /// The step's index in its loop.
-    #[getter]
-    fn index(&self) -> u32 {
-        self.0.index()
-    }
-
-    /// The verb the step names, in its authoring spelling.
-    #[getter]
-    fn verb(&self) -> String {
-        self.0.step().verb().to_string()
-    }
-
-    fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
+    /// The accessor `name` on this handle: a role on its verb's list,
+    /// or `piece` on a carrier form; an `AttributeError` naming the
+    /// accessors it has otherwise.
+    fn accessor(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         let step = self.0.step();
         if let Some(role) = step.roles().named().iter().find(|r| role_word(**r) == name) {
             return Ok(Py::new(
@@ -264,6 +244,30 @@ impl AuthoredStep {
                 words.join(", ")
             }
         )))
+    }
+
+    /// The attributes this handle's role list answers.
+    fn role_words(&self) -> Vec<&'static str> {
+        let list = self.0.step().roles();
+        match list {
+            pf::RoleList::Carrier => vec![role_word(pf::PieceRole::Piece(0))],
+            _ => list.named().iter().map(|r| role_word(*r)).collect(),
+        }
+    }
+}
+
+#[pymethods]
+impl AuthoredStep {
+    /// The step's index in its loop.
+    #[getter]
+    fn index(&self) -> u32 {
+        self.0.index()
+    }
+
+    /// The verb the step names, in its authoring spelling.
+    #[getter]
+    fn verb(&self) -> String {
+        self.0.step().verb().to_string()
     }
 
     fn __repr__(&self) -> String {
@@ -386,11 +390,57 @@ pub(crate) fn handle_err(py: Python<'_>, refusal: &d::StepHandleRefusal) -> PyEr
     )
 }
 
+/// Every accessor word some role list answers: each list's named
+/// roles, and `piece` for the indexed carrier list.
+fn accessor_words() -> Vec<&'static str> {
+    let mut words = Vec::new();
+    for list in pf::RoleList::ALL {
+        let listed: Vec<pf::PieceRole> = match list {
+            pf::RoleList::Carrier => vec![pf::PieceRole::Piece(0)],
+            _ => list.named().to_vec(),
+        };
+        for role in listed {
+            let word = role_word(role);
+            if !words.contains(&word) {
+                words.push(word);
+            }
+        }
+    }
+    words
+}
+
+/// **Installs the role accessors on `AuthoredStep`**, one property per
+/// word the role lists answer ([`accessor_words`]). Each answers only on
+/// a handle whose verb's list holds it and raises `AttributeError`
+/// elsewhere, so the accessors a handle has are its list's and nothing
+/// here names a role per verb.
+fn install_accessors(py: Python<'_>) -> PyResult<()> {
+    let class = py.get_type::<AuthoredStep>();
+    let property = py.import("builtins")?.getattr("property")?;
+    for word in accessor_words() {
+        let fget = pyo3::types::PyCFunction::new_closure(
+            py,
+            None,
+            None,
+            move |args: &Bound<'_, pyo3::types::PyTuple>,
+                  _: Option<&Bound<'_, pyo3::types::PyDict>>|
+                  -> PyResult<Py<PyAny>> {
+                let handle = args.get_item(0)?;
+                let handle = handle.cast::<AuthoredStep>()?;
+                handle.get().accessor(args.py(), word)
+            },
+        )?;
+        class.setattr(word, property.call1((fget,))?)?;
+    }
+    Ok(())
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StepId>()?;
     m.add_class::<Role>()?;
     m.add_class::<Piece>()?;
     m.add_class::<AuthoredStep>()?;
+    install_accessors(m.py())?;
     m.add_class::<StepRole>()?;
     m.add_class::<CarrierPieces>()?;
     Ok(())

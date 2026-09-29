@@ -1703,6 +1703,16 @@ fn a_role_list_admits_its_verbs_roles_only() {
         !RoleList::of(Verb::Circle).admits(Leg, 2),
         "a carrier draws no leg"
     );
+    let answered: Vec<RoleList> = Verb::ALL.iter().map(|v| RoleList::of(*v)).collect();
+    for list in RoleList::ALL {
+        assert!(answered.contains(&list), "{list:?} is no verb's list");
+    }
+    for list in &answered {
+        assert!(
+            RoleList::ALL.contains(list),
+            "{list:?} is missing from RoleList::ALL"
+        );
+    }
 }
 
 /// **A record naming a role its verb's list lacks is a kernel bug**,
@@ -1714,4 +1724,96 @@ fn a_record_off_its_role_list_fails_loud() {
     let mut circle = profile::circle(Point2::new(0.0, 0.0), 1.0, t).unwrap();
     circle.structure.pieces[1].role = profile::PieceRole::Piece(2);
     circle.structure.check_role_lists(&circle.program);
+}
+
+/// **A fused verb's authored arrival arc is its fillet's `RunOut`,
+/// wherever it is drawn.** A `Via` or `Radius` arrival is emitted by a
+/// LATER binder step, and the emission site claims the arc as the run
+/// out; no geometric reading stands between the arc and its name. Far
+/// from the origin at a tight ε the arc's radial misses round past the
+/// band, and a reading refused the chain as a near-coincidence on the
+/// arrival carrier or named the arc the binder's `Leg`, a role no fused
+/// list holds.
+///
+/// Each scene is translated to two far corners. At every ε row it
+/// either builds and names its arrival arc the fused step's `RunOut`,
+/// or refuses with the geometry's own refusal — never on the naming
+/// decision. Where the geometry decides, it builds: at every ε of 1e-6
+/// and wider everywhere, and the `Via` close at (−1.35e6, 819) at
+/// 1e-11 too, which the carrier reading refused. At 1e-12 every scene
+/// at these corners refuses on the fillet arc's own storage decision,
+/// which rounds at ε·|coordinate| as the carrier reading did.
+#[test]
+fn a_fused_arrival_arc_far_from_the_origin_is_its_run_out() {
+    use profile::PieceRole::RunOut;
+    use profile::{ArcSide, Radius, Sweep, Via};
+    let t = Tol::witness();
+    let eps = t.eps();
+    let s2 = core::f64::consts::SQRT_2;
+    // `(scene, corner, the fused step, whether this ε must build it)`.
+    let far = (-1.35e6, 819.0);
+    let other = (85000.0, 40000.0);
+    let rows = [
+        ("via", far, 3, eps >= 1e-11),
+        ("via", other, 3, eps >= 1e-6),
+        ("radius", far, 4, eps >= 1e-6),
+        ("radius", other, 4, eps >= 1e-6),
+    ];
+    for (scene, (ox, oy), fused, must_build) in rows {
+        let p = |x: f64, y: f64| Point2::new(x + ox, y + oy);
+        let built = if scene == "via" {
+            Open.at(p(0.0, 2.0))
+                .line_to(p(0.0, 0.0), t)
+                .unwrap()
+                .toward(2.0, 0.0, t)
+                .unwrap()
+                .fillet_arc(
+                    0.5,
+                    Via {
+                        q: p(s2, s2),
+                        p: Start,
+                    },
+                    t,
+                )
+                .and_then(|a| a.toward(-1.0, 0.0, t))
+        } else {
+            Open.at(p(0.0, 0.0))
+                .angle(0.0, t)
+                .unwrap()
+                .line(4.0, t)
+                .unwrap()
+                .tangent()
+                .arc_fillet_arc(
+                    Sweep {
+                        r: 2.0,
+                        side: ArcSide::Left,
+                        angle: 0.6,
+                    },
+                    0.25,
+                    Radius {
+                        r: 3.0,
+                        side: ArcSide::Left,
+                    },
+                    t,
+                )
+                .and_then(|a| a.at(p(2.0, 6.0)).toward(-1.0, 0.0, t))
+                .and_then(|a| a.line(2.0, t))
+                .and_then(|a| a.line_to(Start, t))
+        };
+        let label = format!("{scene} at ({ox}, {oy}), eps {eps:e}");
+        match built {
+            Ok(closed) => assert!(
+                pieces_of(&closed).contains(&(fused, RunOut)),
+                "{label}: {:?}",
+                pieces_of(&closed)
+            ),
+            Err(e) => {
+                assert!(!must_build, "{label} refused: {e}");
+                assert!(
+                    !e.to_string().contains("arrival carrier"),
+                    "{label} refused on the naming decision: {e}"
+                );
+            }
+        }
+    }
 }
