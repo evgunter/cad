@@ -1560,6 +1560,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
         NamingError::SeamLineSides { .. } => "seam_line_sides",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::NarrowBand { .. } => "narrow_band",
@@ -2688,11 +2689,12 @@ pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
 /// The carrier's word says which finding the registry made: the count
 /// is unknowable because a shell would not classify (`escalated`), or
 /// because a face of the subject is outside the flux inventory
-/// (`unsupported`). This one says which of the shell door's four ways
+/// (`unsupported`). This one says which of the shell door's five ways
 /// it refused, so a caller reads it instead of substring-matching the
 /// sentence: the run's tolerance formed no band, a face refused in the
-/// props inventory, the sign read escalated in-band, or the signed
-/// volume is definitely zero and there is no side to classify to.
+/// props inventory, the sign read escalated, the signed volume (or an
+/// end of its bracket) is zero at this tolerance, or its certified
+/// bracket straddles zero, so there is no side to classify to.
 ///
 /// `band` is the same word [`checks_error_tag`] mints for the
 /// registry's own band refusal, one namespace up, and means the same
@@ -2703,6 +2705,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
         ShellClassifyError::Props { .. } => "props",
         ShellClassifyError::Escalated { .. } => "escalated",
         ShellClassifyError::ZeroVolume { .. } => "zero_volume",
+        ShellClassifyError::Straddles { .. } => "straddles",
     }
 }
 

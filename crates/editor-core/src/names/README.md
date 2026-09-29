@@ -246,6 +246,20 @@ Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
 hit-testing (`resolve/hit.rs`) reads the table backwards, so the GUI never sees
 an arena key.
 
+**A tie's candidates keep their identity.** The node that mints an
+`Entry::Tied` row numbers its candidates, and the number belongs to the row: a
+tied row holds (candidate, entity) pairs, and a row that narrows to one
+candidate (a `Part`'s projection of the half that holds it, a split's
+pass-through of the uncut one) is a `Unique` row that keeps its candidate. The
+pass-through ops of N1 carry the candidate with the name; an op that wraps the
+name numbers afresh, as it mints a fresh name. The product's gather therefore
+has one rule for strict and tied names alike: a (name, candidate) pair reaches
+the product at most once. A strict name is its own only candidate, so two roots
+carrying it refuse; two roots carrying different candidates of one tie merge
+back into the tie; two carrying the same candidate refuse
+(`ProductError::Naming`), the tied case of one entity placed twice. The
+candidate is not part of the name and reaches no name digest.
+
 **The row is a shared handle.** A table keys on `NameRef` — one `Arc<StableName>`
 per row, held by both directions — and a role segment holds its argument name by
 the same type, so a downstream name EMBEDS its operand's row rather than copying

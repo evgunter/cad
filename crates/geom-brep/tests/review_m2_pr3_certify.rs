@@ -15,6 +15,7 @@ use crate::shared::surf::table;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
+use geom_brep::recourse::Definite;
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
     MappedCurve, NewellError, SketchSegment, classify_dihedral, newell_plane,
@@ -300,7 +301,9 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     // interval, refused by the forward gate (N1).
     assert_eq!(
         EdgeCurve::certify(mk(-PI), p0, p1, &lookup, band()).unwrap_err(),
-        CertifyError::IntervalNotForward
+        CertifyError::IntervalNotForward {
+            verdict: Definite::Negative,
+        }
     );
     // An extra 1.5 windings: t runs 0 -> 3·pi — over one period,
     // refused by the winding bound (S1).
@@ -542,7 +545,9 @@ fn fixed_reversed_interval_refused() {
     };
     assert_eq!(
         EdgeCurve::certify(spec, p1, p0, |_| None, band()).unwrap_err(),
-        CertifyError::IntervalNotForward
+        CertifyError::IntervalNotForward {
+            verdict: Definite::Negative,
+        }
     );
 }
 
@@ -573,7 +578,9 @@ fn fixed_zero_length_edge_refused() {
     };
     assert_eq!(
         EdgeCurve::certify(spec, p, p, |_| None, band()).unwrap_err(),
-        CertifyError::IntervalNotForward
+        CertifyError::IntervalNotForward {
+            verdict: Definite::Zero,
+        }
     );
 }
 

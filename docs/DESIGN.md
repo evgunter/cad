@@ -672,8 +672,12 @@ Five commitments:
    healing may move geometry by up to O(ε_in) — and its refusals are
    the import door's, named in ε_in with the value the margin gives; a
    size below ε_in is not one the file intends, so no refusal offers to
-   keep it. A change to a document's ε reports what it flips at the
-   change itself. The
+   keep it. Until adoption rebuilds its caches from the file's
+   descriptions (D7), a certification refusal whose miss lies within
+   ε_in but beyond ε (the file's data agrees to its own declared
+   coincidence distance, not to this run's) names setting ε to ε_in as
+   a stopgap, beside re-exporting the file more precisely. A change to
+   a document's ε reports what it flips at the change itself. The
    three-arm sentence (declare the coincidence / move the geometry /
    tighten the tolerance) is thus the recourse of a decision whose
    refused side is a declarable coincidence; a contact site, whose

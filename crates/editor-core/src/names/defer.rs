@@ -8,18 +8,26 @@
 //! refuses a second row under a name it already carries
 //! (`DuplicateName`, whose contract is "the no-silent-aliasing bug"),
 //! and the members of an `Entry::Tied` row all carry the SAME name. So
-//! a row whose name descends from a tie is DEFERRED here, and so is
-//! every candidate of a tie an op mints itself ([`mint_candidates`]);
-//! both are flushed as a set at a stage boundary, where
-//! [`narrow_into`] writes the whole candidate list at once.
+//! rows are written by one of three routes, decided by how the row's
+//! name relates to its operand's:
 //!
-//! Rows that do not descend from a tie keep going through `insert`
-//! directly, so a genuine aliasing bug is still a typed `Duplicate` —
-//! and so is a tie-descended name colliding with a strict one, since
-//! the flush inserts into the same table. "Descends from a tie" is the
-//! operand row's `Tied` entry for an emitter; the product gather also
-//! defers a `Unique` row marked as one piece of a separated tie
-//! ([`CarriedRows`]; the mark is `NameTable`'s `separated` field).
+//! - **A name the op mints strict**, wrapping an operand name that is
+//!   not tied: straight through `insert`, so a genuine aliasing bug is a
+//!   typed `Duplicate`.
+//! - **A name the op mints under a tie** — wrapping a tied operand name
+//!   (B1), or several equally admissible candidates of its own (A2,
+//!   [`mint_candidates`]): DEFERRED, and flushed at a stage boundary
+//!   through [`mint_into`], which numbers the candidates afresh as the
+//!   name is fresh.
+//! - **The operand's own name, carried VERBATIM** — a split's intact
+//!   pass-through, every row of the product gather: DEFERRED with the
+//!   [`Candidate`] the operand row gave the entity (N4, "A tie's
+//!   candidates keep their identity"), under [`TieRows::carry`]'s one
+//!   rule, a (name, candidate) pair carried at most once, and flushed
+//!   through [`narrow_into`], which keeps each number.
+//!
+//! Every flush inserts into the same table as the strict route, so a
+//! deferred name colliding with a strict one is a typed `Duplicate` too.
 //!
 //! **One implementation, not a shape to copy.** This module exists
 //! because `emit_fillet` was written without the deferral and #708
@@ -38,11 +46,11 @@ use std::collections::BTreeMap;
 
 use super::emit::NamingError;
 use super::role::NameRef;
-use super::table::{DuplicateName, Entry, NameTable};
+use super::table::{Candidate, DuplicateName, EntityKey, EntityRef, Entry, NameTable};
 use crate::node::RecipeNodeId;
 
-/// An entity's upstream name, plus how its upstream row descends from
-/// an N2 tie: `Tied` itself, or a `Unique` separated piece of one.
+/// An entity's upstream name, how its upstream row descends from an N2
+/// tie, and which of the name's candidates the entity is.
 ///
 /// B1 (ratified, #512): a tie PROPAGATES — naming a tie is fine (N2);
 /// only *referencing* one is `Ambiguous`. This mirrors the three
@@ -58,12 +66,10 @@ pub(super) struct Upstream {
     pub(super) name: NameRef,
     /// True iff that name's entry is `Entry::Tied`.
     pub(super) tied: bool,
-    /// True iff that name's entry is `Unique` and marked as one piece
-    /// of a tie separated across output bodies (`NameTable`'s
-    /// `separated` field). Only a VERBATIM carry reads it
-    /// ([`pass_through`]): a wrapping emitter names a new row the piece
-    /// is the one entity of, and strict is right there.
-    pub(super) piece: bool,
+    /// The entity's candidate under that name. Only a VERBATIM carry
+    /// reads it ([`TieRows::carry`]): a wrapping emitter names a new
+    /// row, and its candidates are numbered afresh.
+    pub(super) candidate: Candidate,
 }
 
 /// The upstream name of an entity. A MISSING row is still loud (the
@@ -83,7 +89,7 @@ pub(super) struct Upstream {
 pub(super) fn upstream_name(
     table: &NameTable,
     node: RecipeNodeId,
-    e: super::table::EntityRef,
+    e: EntityRef,
 ) -> Result<Upstream, NamingError> {
     // The operand table is finished by the time an emitter reads it,
     // so this is where its key order is cached onto its names (the
@@ -92,89 +98,166 @@ pub(super) fn upstream_name(
     let name = table
         .name_ref_of(&e)
         .ok_or(NamingError::MissingUpstream { node })?;
+    let disagree = || NamingError::Emission {
+        what: "an operand name table's forward and reverse directions disagree",
+    };
     let tied = match table.entry_of(name) {
         Some(Entry::Unique(_)) => false,
         Some(Entry::Tied(_)) => true,
-        None => {
-            return Err(NamingError::Emission {
-                what: "an operand name table's forward and reverse directions disagree",
-            });
-        }
+        None => return Err(disagree()),
     };
+    let candidate = table.candidate_of(name, &e).ok_or_else(disagree)?;
     Ok(Upstream {
         name: name.clone(),
         tied,
-        piece: table.is_separated_piece(name),
+        candidate,
     })
 }
 
-/// Rows deferred because their name descends from an N2 tie (B1), or
-/// because the op itself mints several equally-admissible candidates
-/// under one name (A2) — every such minting site defers through
-/// [`mint_candidates`].
+/// A deferred row: the entity, and the candidate it CARRIES, or `None`
+/// for a row whose name this op minted, which the flush numbers.
+type Deferred = (Option<Candidate>, EntityRef);
+
+/// Rows deferred until a stage boundary: rows whose name descends from
+/// an N2 tie (B1), rows the op itself mints as several
+/// equally-admissible candidates under one name (A2, every such site
+/// through [`mint_candidates`]), and rows carried VERBATIM with their
+/// candidate ([`TieRows::carry`]).
 ///
 /// Upstream candidates that were equally admissible stay equally
 /// admissible downstream, so their same-named descendants MERGE into
 /// one entry at flush: `Tied` when ≥ 2 survive, narrowed back to
 /// `Unique` when exactly one does (the `graft_names` shape). Rows whose
-/// operand entry is not `Tied` keep going through `NameTable::insert`
-/// directly, so a genuine aliasing bug is still a typed `Duplicate` —
-/// and so is a tie-descended name colliding with a strict one, since
-/// the flush inserts into the same table. A `Unique` separated piece
-/// (`NameTable`'s `separated` field) is one of those strict rows here:
-/// an emitter wraps its name, and the piece is one entity of the
-/// operand. Only the gather's [`CarriedRows`] defers it.
+/// operand entry is not `Tied` and that an emitter wraps keep going
+/// through `NameTable::insert` directly, so a genuine aliasing bug is
+/// still a typed `Duplicate` — and so is a tie-descended name colliding
+/// with a strict one, since the flush inserts into the same table.
 ///
 /// Narrowing means a WRAPPED name can come out `Unique` here while the
 /// upstream name it wraps stays `Tied` (review NOTE-2). That is the
 /// ratified `graft_names` semantics, not laundering: the op genuinely
 /// separated the candidates, and the upstream table is untouched.
 #[derive(Default)]
-pub(super) struct TieRows(BTreeMap<NameRef, Vec<super::table::EntityRef>>);
+pub(super) struct TieRows(BTreeMap<NameRef, Vec<Deferred>>);
 
 impl TieRows {
-    /// Defers one row.
-    pub(super) fn push(&mut self, name: impl Into<NameRef>, e: super::table::EntityRef) {
-        self.0.entry(name.into()).or_default().push(e);
+    /// Defers one row of a name this op mints.
+    pub(super) fn push(&mut self, name: impl Into<NameRef>, e: EntityRef) {
+        self.0.entry(name.into()).or_default().push((None, e));
+    }
+
+    /// **Carries one row VERBATIM**: under its operand's own name, as
+    /// the candidate its operand row gave it (N1's pass-through; N4, "A
+    /// tie's candidates keep their identity").
+    ///
+    /// # Errors
+    ///
+    /// [`DuplicateName`] when the pair is already carried — the same
+    /// candidate twice, or a strict name ([`Candidate::Only`], its own
+    /// only candidate) beside any other row under it — or when the op
+    /// also mints a row under the name.
+    pub(super) fn carry(&mut self, up: Upstream, e: EntityRef) -> Result<(), DuplicateName> {
+        self.carry_as(up.name, up.candidate, e)
+    }
+
+    /// [`TieRows::carry`] with the name and candidate given apart —
+    /// the product gather's form, which reads them off a whole row.
+    fn carry_as(
+        &mut self,
+        name: NameRef,
+        candidate: Candidate,
+        e: EntityRef,
+    ) -> Result<(), DuplicateName> {
+        let rows = self.0.entry(name.clone()).or_default();
+        let distinct = |(held, _): &Deferred| match (held, candidate) {
+            (Some(Candidate::Of(a)), Candidate::Of(b)) => *a != b,
+            _ => false,
+        };
+        if !rows.iter().all(distinct) {
+            return Err(DuplicateName {
+                name: Box::new((*name).clone()),
+            });
+        }
+        rows.push((Some(candidate), e));
+        Ok(())
     }
 
     /// Drains the deferred rows into the table. Called at each stage
     /// boundary, because later stages read the names earlier stages
     /// wrote (the boolean vertex pass reads its incident EDGE names).
+    ///
+    /// # Errors
+    ///
+    /// [`DuplicateName`]: the insert doors' own, and a name holding
+    /// both carried and minted rows.
     pub(super) fn flush(&mut self, t: &mut NameTable) -> Result<(), DuplicateName> {
-        for (name, ents) in core::mem::take(&mut self.0) {
-            narrow_into(t, name, ents)?;
+        for (name, rows) in core::mem::take(&mut self.0) {
+            let carried: Option<Vec<(Candidate, EntityRef)>> =
+                rows.iter().map(|&(c, e)| c.map(|c| (c, e))).collect();
+            match carried {
+                Some(pairs) => narrow_into(t, name, pairs)?,
+                None if rows.iter().all(|(c, _)| c.is_none()) => {
+                    mint_into(t, name, rows.into_iter().map(|(_, e)| e).collect())?;
+                }
+                None => {
+                    return Err(DuplicateName {
+                        name: Box::new((*name).clone()),
+                    });
+                }
+            }
         }
         Ok(())
     }
 }
 
 /// **The one narrowing rule for a tie's survivors** (the ratified
-/// `graft_names` semantics): the candidates that survive an op — or a
-/// projection onto one output body — are written as `Unique` when
-/// exactly one does and as `Tied` when several do. `flush` writes a
-/// tie's downstream descendants through it, [`NameTable::project`]
-/// writes a tie's candidates in the selected body through it, and
-/// `emit::name_placed_union` writes the prototype candidates the fuse
-/// kept through it, so no two of those doors can narrow differently.
+/// `graft_names` semantics), for rows that KEEP their candidates: the
+/// candidates that survive a verbatim carry — a projection onto one
+/// output body, a split's pass-through, the product gather — are
+/// written as `Unique` when exactly one does and as `Tied` when several
+/// do, each keeping its [`Candidate`]. [`TieRows::flush`] writes a
+/// carried name through it, and [`NameTable::project`] writes each row
+/// of the selected body through it, so no two of those doors can narrow
+/// differently.
 ///
 /// A tie can straddle two output bodies: a pass-through entity keeps
 /// its upstream name with no side tag, and a split that separates two
 /// tied candidates without cutting either lands one in each half. The
 /// projection onto one half then genuinely separates them, exactly as
-/// an op does, and the survivor is `Unique` there while the split's
-/// own table stays `Tied`.
+/// an op does, and the survivor is `Unique` there — as candidate `k`
+/// of that tie — while the split's own table stays `Tied`.
 ///
 /// # Errors
 ///
-/// [`super::table::DuplicateName`] — the insert doors' own: the name
-/// already held, an entity already named, a kind disagreement, or a
-/// tie under two candidates.
+/// [`DuplicateName`] — the carrying insert door's own
+/// (`NameTable::insert_candidates_ref`): the name already held, an
+/// entity already named, a kind disagreement, or a candidate carried
+/// twice.
 pub(super) fn narrow_into(
     t: &mut NameTable,
     name: NameRef,
-    ents: Vec<super::table::EntityRef>,
-) -> Result<(), super::table::DuplicateName> {
+    pairs: Vec<(Candidate, EntityRef)>,
+) -> Result<(), DuplicateName> {
+    t.insert_candidates_ref(name, pairs)
+}
+
+/// **The narrowing rule for a name this op MINTS**: [`narrow_into`]'s
+/// counterpart for a wrapped name, whose candidates are numbered afresh
+/// as its name is fresh — one survivor is strict, several are a tie the
+/// insert door numbers. The flush writes a minted name through it, and
+/// so does `emit::name_placed_union` for the prototype candidates the
+/// fuse kept.
+///
+/// # Errors
+///
+/// [`DuplicateName`] — the insert doors' own: the name already held, an
+/// entity already named, a kind disagreement, or a tie under two
+/// candidates.
+pub(super) fn mint_into(
+    t: &mut NameTable,
+    name: NameRef,
+    ents: Vec<EntityRef>,
+) -> Result<(), DuplicateName> {
     match ents.as_slice() {
         [one] => t.insert_ref(name, *one),
         _ => t.insert_tied_ref(name, ents),
@@ -182,11 +265,11 @@ pub(super) fn narrow_into(
 }
 
 /// **The one minting rule for candidates an op makes under ONE name**
-/// — the minting counterpart of [`narrow_into`]: a lone candidate is
+/// — the minting counterpart of [`mint_into`]: a lone candidate is
 /// written as any row is ([`put`]: strict, or deferred when its name
 /// descends from a tie), and several are deferred together as one N2
 /// tie (A2: equally admissible, nothing covariant to tell them apart),
-/// which the flush then writes through [`narrow_into`] as `Tied`.
+/// which the flush then writes through [`mint_into`] as `Tied`.
 /// Every emitter that ends a candidate list in a tie ends it here, so
 /// "one ⇒ strict, several ⇒ tied" has one spelling.
 ///
@@ -198,7 +281,7 @@ pub(super) fn narrow_into(
 /// several-member branch ends in a tie, it ends here.
 ///
 /// An EMPTY list mints nothing and is not an error — an op with no
-/// candidate under a name has no row to write. [`narrow_into`] differs
+/// candidate under a name has no row to write. [`mint_into`] differs
 /// on purpose: its list is a tie's SURVIVORS, the insert door refuses
 /// an empty one, and a caller whose tie can lose every candidate skips
 /// the call itself.
@@ -212,7 +295,7 @@ pub(super) fn mint_candidates(
     tie: &mut TieRows,
     from_tie: bool,
     name: impl Into<NameRef>,
-    ents: Vec<super::table::EntityRef>,
+    ents: Vec<EntityRef>,
 ) -> Result<(), DuplicateName> {
     let name = name.into();
     match ents.as_slice() {
@@ -233,7 +316,7 @@ pub(super) fn put(
     tie: &mut TieRows,
     from_tie: bool,
     name: impl Into<NameRef>,
-    e: super::table::EntityRef,
+    e: EntityRef,
 ) -> Result<(), DuplicateName> {
     let name = name.into();
     if from_tie {
@@ -244,55 +327,28 @@ pub(super) fn put(
     }
 }
 
-/// Inserts a row that carries its operand's name VERBATIM — a
-/// split's pass-through of an entity it did not cut — through [`put`],
-/// keeping the operand row's separated-piece mark
-/// ([`Upstream::piece`]): a verbatim edge adds no segment, so the row
-/// is still that piece of that tie.
-pub(super) fn pass_through(
-    t: &mut NameTable,
-    tie: &mut TieRows,
-    up: Upstream,
-    e: super::table::EntityRef,
-) -> Result<(), DuplicateName> {
-    put(t, tie, up.tied, up.name.clone(), e)?;
-    if up.piece {
-        t.mark_separated_piece(up.name);
-    }
-    Ok(())
-}
-
 /// **The gather's carry**: several source tables re-keyed onto ONE
-/// aggregate table, with the tie-descended rows accumulated and
+/// aggregate table, every row carried VERBATIM with its candidate and
 /// narrowed once at the end.
 ///
 /// The product gather grafts one source BODY at a time and carries
 /// that source's rows as it goes, so a name whose candidates lie in
 /// two different source bodies arrives in two pieces — which is what
 /// a split that separates a tie without cutting either candidate
-/// hands it, one candidate per half. Inserting each piece as it
-/// arrives is what [`NameTable::insert`] refuses, and narrowing each
-/// piece on its own is a `Unique` reading the pieces do not support.
-/// So this is [`TieRows`] again, one level out: a tie-descended row
-/// is DEFERRED until the last source is carried and then narrowed
-/// through [`narrow_into`], the door `flush` and [`NameTable::project`]
-/// also narrow through, so no caller here can narrow differently.
+/// hands it, one candidate per half, whether as the split root's two
+/// bodies or as two `Part` roots over them. So this is [`TieRows`]
+/// again, one level out: every row is carried through
+/// [`TieRows::carry`]'s rule and narrowed through [`narrow_into`], the
+/// door `flush` and [`NameTable::project`] also narrow through, so no
+/// caller here can narrow differently.
 ///
-/// The deferral reads the SOURCE ROW's tie bit, never how many
-/// candidates survived into this one source — that count is 1 for
-/// each half of a separated tie. The bit is set for a `Tied` entry and
-/// for a `Unique` row marked as a separated piece (`NameTable`'s
-/// `separated` field, which tells why). Any other `Unique` row goes
-/// straight through `insert_ref`, so two roots aliasing a strict name
-/// is still a typed refusal, and so is a tie-descended name landing
-/// on one: the flush inserts into the same table.
-///
-/// Nothing here is about one root: the accumulator spans EVERY
-/// source, so candidates arriving under one tied name from different
-/// roots merge into one `Entry::Tied` of the product. That is
-/// [`TieRows`]'s own rule — upstream candidates that were equally
-/// admissible stay equally admissible downstream — read at the
-/// gather's scope, where the operand is the whole source list.
+/// **The one rule** (N4, "A tie's candidates keep their identity"): a
+/// (name, candidate) pair reaches the product at most once. Different
+/// candidates of one tie merge back into the tie. The same candidate
+/// twice — one entity placed twice — refuses, and so does a strict
+/// name carried twice, since a strict name is its own only candidate.
+/// The refusal is read as each row is carried, so it names the root
+/// whose row repeated the pair.
 ///
 /// **Why this door knows the gather's body model.** The source-body
 /// filter and the body-0 target live here rather than in the caller
@@ -313,58 +369,193 @@ pub(crate) struct CarriedRows(TieRows);
 
 impl CarriedRows {
     /// Carries one source body's rows: `from`'s candidates whose
-    /// [`super::table::EntityRef::body`] is `ix`, each re-keyed by
-    /// `map` onto body 0 — a gathered product is ONE body — and then
-    /// inserted into `into` or deferred. `map` answers `None` for a
-    /// row that does not carry.
+    /// [`EntityRef::body`] is `ix`, each re-keyed by `map` onto body 0
+    /// — a gathered product is ONE body. `map` answers `None` for a row
+    /// that does not carry.
     ///
     /// # Errors
     ///
-    /// [`super::table::DuplicateName`], the insert door's own.
+    /// [`DuplicateName`]: a (name, candidate) pair an earlier source
+    /// already carried ([`TieRows::carry`]).
     pub(crate) fn carry(
         &mut self,
-        into: &mut NameTable,
         from: &NameTable,
         ix: u32,
-        map: impl Fn(super::table::EntityKey) -> Option<super::table::EntityKey>,
+        map: impl Fn(EntityKey) -> Option<EntityKey>,
     ) -> Result<(), DuplicateName> {
-        for (name, entry) in from.iter_refs() {
-            let (candidates, from_tie) = match entry {
-                Entry::Unique(e) => (core::slice::from_ref(e), from.is_separated_piece(name)),
-                Entry::Tied(es) => (es.as_slice(), true),
-            };
-            for e in candidates.iter().filter(|e| e.body == ix) {
+        for (name, row) in from.rows() {
+            for (candidate, e) in row.pairs().filter(|(_, e)| e.body == ix) {
                 let Some(key) = map(e.key) else { continue };
-                let moved = super::table::EntityRef { body: 0, key };
-                put(into, &mut self.0, from_tie, name.clone(), moved)?;
+                let moved = EntityRef { body: 0, key };
+                self.0.carry_as(name.clone(), candidate, moved)?;
             }
         }
         Ok(())
     }
 
-    /// Narrows every deferred name onto the aggregate — once, after
-    /// the last source has been carried.
-    ///
-    /// **Both of `narrow_into`'s arms are live here.** It writes `Tied`
-    /// when several candidates were deferred under a name and `Unique`
-    /// when exactly one was — which is what a lone `Part` root over a
-    /// separated tie hands the gather: its one marked piece is
-    /// deferred, and nothing else arrives under the name.
+    /// Writes every carried name onto the aggregate — once, after the
+    /// last source has been carried: `Unique` for one candidate (a
+    /// strict name, or a lone `Part` root's piece of a separated tie),
+    /// `Tied` for several.
     ///
     /// # Errors
     ///
-    /// [`super::table::DuplicateName`]: a deferred name colliding with
-    /// a row the table already holds, which for the product gather
-    /// means a STRICT row under the same name.
-    ///
-    /// No document in the tree reaches it — an argument, not a
-    /// measurement, and nothing re-checks it. The shape that would: one
-    /// source carrying the name strict beside another carrying it tied,
-    /// with no strictly named entity shared between them to collide in
-    /// [`CarriedRows::carry`] first — for instance a split's own flush
-    /// narrowing a tie it cut all but one candidate of, beside a root
-    /// over the split's target whose shared boundary is tied throughout.
+    /// [`DuplicateName`], the insert doors' own. Not reachable by
+    /// construction: `into` is empty, [`CarriedRows::carry`] already
+    /// refused every repeated pair, and the graft mints a distinct
+    /// entity per source entity.
     pub(crate) fn finish(mut self, into: &mut NameTable) -> Result<(), DuplicateName> {
         self.0.flush(into)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    //! **The gather's one rule on bare rows**: a (name, candidate) pair
+    //! is carried at most once, whichever sources carry it.
+
+    use super::{Candidate, CarriedRows, narrow_into};
+    use crate::names::role::{EntityKind, NameRef, RoleSeg, StableName};
+    use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
+    use crate::node::RecipeNodeId;
+
+    fn name() -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(7),
+            path: vec![RoleSeg::OutputBody],
+        }
+    }
+
+    /// A distinct face per index; the tables here are never read
+    /// against an arena.
+    fn face(body: u32, i: u64) -> EntityRef {
+        EntityRef {
+            body,
+            key: EntityKey::Face(topo::FaceKey::from(slotmap::KeyData::from_ffi(i))),
+        }
+    }
+
+    /// A source table naming `face(0, i)` as candidate `c` of `name()`.
+    fn source(c: Candidate, i: u64) -> NameTable {
+        let mut t = NameTable::new();
+        narrow_into(&mut t, NameRef::new(name()), vec![(c, face(0, i))]).expect("a fresh row");
+        t
+    }
+
+    /// Carries body `ix` of each source with its keys verbatim (a graft
+    /// mints a distinct aggregate entity per source entity, and the
+    /// sources here already name distinct faces), then narrows. A
+    /// refusal reports the index of the source that carried it.
+    fn gather(sources: &[(&NameTable, u32)]) -> Result<NameTable, (usize, Box<StableName>)> {
+        let mut rows = CarriedRows::default();
+        for (i, (t, ix)) in sources.iter().enumerate() {
+            rows.carry(t, *ix, Some).map_err(|e| (i, e.name))?;
+        }
+        let mut out = NameTable::new();
+        rows.finish(&mut out).map_err(|e| (usize::MAX, e.name))?;
+        Ok(out)
+    }
+
+    fn candidates(t: &NameTable) -> Vec<Candidate> {
+        let mut ks: Vec<Candidate> = t
+            .rows()
+            .flat_map(|(_, r)| r.pairs())
+            .map(|(c, _)| c)
+            .collect();
+        ks.sort();
+        ks
+    }
+
+    #[test]
+    fn different_candidates_of_one_tie_merge_back_into_the_tie() {
+        let (a, b) = (source(Candidate::Of(0), 1), source(Candidate::Of(1), 2));
+        let out = gather(&[(&a, 0), (&b, 0)]).expect("two candidates of one tie merge");
+        assert!(
+            matches!(out.lookup(&name()), Some(Entry::Tied(es)) if es.len() == 2),
+            "the product holds the tie over both: {out:?}"
+        );
+        assert_eq!(candidates(&out), vec![Candidate::Of(0), Candidate::Of(1)]);
+    }
+
+    #[test]
+    fn a_split_tie_gathers_the_same_whole_or_as_its_projected_halves() {
+        // The split's own table: one tie straddling its two bodies.
+        let mut split = NameTable::new();
+        narrow_into(
+            &mut split,
+            NameRef::new(name()),
+            vec![
+                (Candidate::Of(0), face(0, 1)),
+                (Candidate::Of(1), face(1, 2)),
+            ],
+        )
+        .expect("the split's tie");
+        let whole = gather(&[(&split, 0), (&split, 1)]).expect("the split root gathers");
+        let (above, below) = (split.project(0).unwrap(), split.project(1).unwrap());
+        assert!(
+            matches!(above.lookup(&name()), Some(Entry::Unique(_))),
+            "a half holding one candidate publishes the name unique"
+        );
+        assert_eq!(
+            candidates(&above),
+            vec![Candidate::Of(0)],
+            "and keeps its candidate"
+        );
+        let halves = gather(&[(&above, 0), (&below, 0)]).expect("the halves gather");
+        assert_eq!(whole, halves, "the halves merge back into the split's tie");
+        assert_eq!(
+            gather(&[(&above, 0), (&split, 0)]).map(|t| t.len()),
+            Err((1, Box::new(name()))),
+            "a half beside the split root's same body carries candidate 0 twice"
+        );
+    }
+
+    #[test]
+    fn a_lone_candidate_narrows_to_unique_and_keeps_its_number() {
+        let a = source(Candidate::Of(1), 1);
+        let out = gather(&[(&a, 0)]).expect("one candidate");
+        assert!(matches!(out.lookup(&name()), Some(Entry::Unique(_))));
+        assert_eq!(candidates(&out), vec![Candidate::Of(1)]);
+    }
+
+    #[test]
+    fn the_same_candidate_twice_refuses() {
+        let (a, b, c) = (
+            source(Candidate::Of(0), 1),
+            source(Candidate::Of(1), 2),
+            source(Candidate::Of(0), 3),
+        );
+        assert_eq!(
+            gather(&[(&a, 0), (&b, 0), (&c, 0)]).map(|t| t.len()),
+            Err((2, Box::new(name()))),
+            "the third source repeats candidate 0, and is the one refused"
+        );
+    }
+
+    #[test]
+    fn a_strict_name_carried_twice_refuses() {
+        let (a, b) = (source(Candidate::Only, 1), source(Candidate::Only, 2));
+        assert_eq!(
+            gather(&[(&a, 0), (&b, 0)]).map(|t| t.len()),
+            Err((1, Box::new(name())))
+        );
+    }
+
+    #[test]
+    fn a_strict_name_beside_a_tie_candidate_refuses() {
+        for [first, second] in [
+            [Candidate::Only, Candidate::Of(0)],
+            [Candidate::Of(0), Candidate::Only],
+        ] {
+            let (a, b) = (source(first, 1), source(second, 2));
+            assert_eq!(
+                gather(&[(&a, 0), (&b, 0)]).map(|t| t.len()),
+                Err((1, Box::new(name()))),
+                "a strict name is its own only candidate: {first:?} then {second:?}"
+            );
+        }
     }
 }

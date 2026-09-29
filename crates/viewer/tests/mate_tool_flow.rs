@@ -217,6 +217,7 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     let mut tool = MateTool::new();
     tool.pick(post_top.clone());
     tool.pick(shelf_bottom);
+    let held_line = tool.state().line();
 
     // The SECOND pick's instance is deleted out from under the tool.
     session.perform(SessionOp::DeleteNode {
@@ -235,6 +236,18 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
             ..
         }
     ));
+    // The notice says the pick in the panel's words on the frame
+    // before: the same `face of feature N` the line held, so a
+    // notice that called the node `node N` goes red here.
+    let said = format!("face of feature {}", bench.shelf_i.0);
+    assert!(
+        held_line.ends_with(&format!("pick b: {said}")),
+        "{held_line:?}"
+    );
+    assert_eq!(
+        events[0].to_string(),
+        format!("pick b (a {said}) no longer resolves; the tool dropped it")
+    );
     match tool.state() {
         MateToolState::One(held) => assert_eq!(held, &post_top),
         other => panic!("the tool degrades to its previous step, got {other:?}"),
@@ -913,4 +926,39 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     for row in session.tree_rows() {
         assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
     }
+}
+
+/// **A refusal about a pick calls its node what the panel calls it.**
+/// The mate panel says a held pick is the `face of feature N`, and the
+/// two refusals that name a picked node reach the status line on the
+/// frame the panel still shows that pick — so they say `feature N`
+/// too ([`viewer::tree::node_number`]), not `node N`.
+#[test]
+fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
+    let panel = MateToolState::One(FaceSelection {
+        name: pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Face,
+            node: RecipeNodeId(3),
+            path: vec![RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+        },
+        node: RecipeNodeId(3),
+        body: 0,
+    })
+    .line();
+    assert_eq!(panel, "pick a: face of feature 3; pick b: —");
+    assert_eq!(
+        MateToolError::NotAnInstancePick {
+            side: MateSide::A,
+            node: RecipeNodeId(3),
+        }
+        .to_string(),
+        "pick a is on feature 3, which is not a part instance or a copy of one"
+    );
+    assert_eq!(
+        MateToolError::SamePick {
+            head: RecipeNodeId(3),
+        }
+        .to_string(),
+        "both picks name the same member (head: feature 3); a mate relates a pair"
+    );
 }

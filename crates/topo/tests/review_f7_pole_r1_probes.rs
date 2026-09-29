@@ -7,12 +7,10 @@
 //! attacks succeeded, which is why it was. R1's fixture geometry and
 //! reasoning are preserved; what changed is the assertions,
 //! which now pin the behaviour the fixtures actually produce: every
-//! one of these bent/ordinary shapes REFUSES `NonMaximalFaces`, and
-//! that is what makes them the negative differential rows for the
-//! repair op's collinearity trigger (`merge_faces::
-//! redundant_subdivision_vertex`). The positive pole of that
-//! differential is `verbs_f7_collinear_seam` and, for a real revolve
-//! cap, `sweep`'s `f7_pole_split_cap_repairs_to_one_face`.
+//! one of these bent/ordinary shapes REFUSES `NonMaximalFaces` at the
+//! boolean's maximal-faces gate. Repairing such an operand is the
+//! caller's explicit `merge_coplanar_faces` (for a real revolve cap,
+//! `sweep`'s `f7_pole_split_cap_repairs_to_one_face`).
 //! Every fixture here is HAND-BUILT via public euler ops — no revolve
 //! anywhere — so what these rows measure is the structural predicate
 //! itself, divorced from the producer whose shape motivated it.
@@ -70,7 +68,7 @@ fn he_at(body: &Body<f64>, face: topo::FaceKey, x: f64, y: f64, z: f64) -> topo:
 /// exists, and the gate refuses. (The "exemption" these rows were
 /// written against was WITHDRAWN; what ships is a repair in
 /// `merge_coplanar_faces`, and the gate is unchanged — so this control
-/// and its siblings are the repair trigger's negative rows.)
+/// and its siblings pin the gate.)
 #[test]
 fn p1_single_chord_pair_still_refuses() {
     let p = prism_z::<f64>(

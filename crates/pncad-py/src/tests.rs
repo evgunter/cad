@@ -4795,6 +4795,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fragment_lineage_cycle",
             "member_edge_tied",
             "merged_chord",
+            "merged_chord_constituents",
             "merged_chord_off_rim",
             "missing_upstream",
             "narrow_band",
@@ -5259,7 +5260,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "shell_classify_error_tag",
-        values: &["band", "escalated", "props", "zero_volume"],
+        values: &["band", "escalated", "props", "straddles", "zero_volume"],
         delegates: &[],
     },
     TagEntry {
