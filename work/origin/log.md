@@ -267,3 +267,14 @@ had closed; the shared core moved to `geom::datum`; exhaustive kind
 fixtures; the `face_plane_source` → `face_oriented_source` rename with
 its planes-only premise). Three rows close. The slate left is design
 only (see `plan.md`).
+
+## 2026-09-29 — track handed back (`ready`)
+
+PR 3442 merged on a green combined-tree gate. Nothing is in flight: no
+lane, no open PR, no unpushed branch. Every remaining row is a design
+row (`plan.md`), so the sitting ends here and the track goes back on
+the board as `ready`. A successor starts at `plan.md`'s Order: weigh
+`a-live-spliced-…` and `set-surface-source-…` with a designer pair
+each (`memories/orchestration-model.md`), then open the `[ev]` PRs.
+The fork log's rows 11 and 12 are closed; their blinding record is on
+`analysis/design-fork/origin-chart-identity-2026-09-29`.
