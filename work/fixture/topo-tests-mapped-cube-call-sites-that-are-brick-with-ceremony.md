@@ -46,7 +46,7 @@ is no `brick_into` for them to move to yet.
 
 ## The standing question at every site
 
-`work/dup/plan.md` method item 6: does the helper still make that
+`work/reroute/plan.md` method item 6: does the helper still make that
 suite's intent readable? A census suite that says
 `mapped_cube(|x,y,z| Point3::new(x + dx, y + dy, z + dz))` may be
 saying *"this body is a translate of that one"* on purpose, and

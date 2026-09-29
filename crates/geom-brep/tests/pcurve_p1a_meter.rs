@@ -120,7 +120,9 @@ fn a_cone_edge_inside_the_legacy_band_now_escalates() {
             cause,
             ..
         } => {
-            let geom_core::MarginDiag::Value(v) = cause.margin else {
+            let geom_core::ErrorTextReading::Value(v) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("an f64 lane classifies a value, not an enclosure: {cause:?}");
             };
             let expected = d / alpha.cos();
@@ -174,7 +176,9 @@ fn the_cache_lane_already_imposed_the_collapsed_meter() {
                 Some("pcurve_map_residual"),
                 "the same predicate the collapsed description arm now meters"
             );
-            let geom_core::MarginDiag::Value(v) = cause.margin else {
+            let geom_core::ErrorTextReading::Value(v) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("an f64 lane classifies a value: {cause:?}");
             };
             let expected = d / alpha.cos();
@@ -305,17 +309,6 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
 /// scalar: an enclosure lane can widen where an `f64` lane is exact,
 /// and the `sec α` re-baseline is a claim about the GEOMETRY that
 /// should survive the widening — which it does, measured below.
-///
-/// **Why these rows live here rather than in a file of their own.**
-/// A separate `*_interval.rs` file pins the interval compile-mode
-/// lane for the whole change (`ci-filter.py`'s `_forces_interval`
-/// matches on basenames), and pinning it would mean the DEFAULT lane
-/// never draws — which is where every bit-level row in this unit
-/// lives, including the mint tripwire that is the D2 guard. The proof
-/// below is already obtained; sampling re-verifies it over time,
-/// which is the normal posture. Guaranteeing one lane by excluding
-/// the other was the bad trade.
-#[cfg(feature = "interval")]
 mod at_intervals {
     use crate::shared::interval::iv;
     use crate::shared::surf::table;

@@ -31,11 +31,9 @@
 //!
 //! D2 bump: the hand-declared bracket's extrude `Distance`.
 
-use editor_core::{
-    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId,
-};
+use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId};
 
-use crate::fixture::{frame, len, xy_frame};
+use crate::fixture::{frame, len, len2, scl, xy_frame};
 
 use super::{CorpusDoc, Recorder};
 
@@ -47,34 +45,28 @@ pub fn document() -> CorpusDoc {
     // G1 exact-director spelling: `toward` components are exact, so
     // the ray carries no sin_cos dirt; the trims are the algebra's own
     // closed forms).
-    let pt = |x: f64, y: f64| {
-        [
-            Expr::literal(x, Dimension::Length).unwrap(),
-            Expr::literal(y, Dimension::Length).unwrap(),
-        ]
-    };
-    let scl2 = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
     let filleted = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 1.0]))),
         ProgramStep::Toward {
-            dx: scl2(-1.0),
-            dy: scl2(0.0),
+            dx: scl(-1.0),
+            dy: scl(0.0),
         },
-        ProgramStep::Fillet(Expr::literal(0.5, Dimension::Length).unwrap()),
+        ProgramStep::Fillet(len(0.5)),
         ProgramStep::Toward {
-            dx: scl2(0.0),
-            dy: scl2(1.0),
+            dx: scl(0.0),
+            dy: scl(1.0),
         },
-        ProgramStep::FarEndTo(pt(1.0, 3.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
+        ProgramStep::FarEndTo(len2([1.0, 3.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 3.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let fillet_plane = r.insert(xy_frame());
     let fillet_p = r.insert(Node::Profile(ProfileProgram {
         plane: fillet_plane,
         loops: vec![filleted],
+        ids: Vec::new(),
     }));
     let fillet_body = r.insert(Node::Extrude {
         profile: fillet_p,
@@ -87,10 +79,10 @@ pub fn document() -> CorpusDoc {
     // the line leaving (1,1.5) — joints 3 and 4, both declared.
     // Bulge of a 90° arc is tan(90°/4) = √2 − 1.
     let bracket = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.5, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 1.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 1.0]))),
         // The declared-tangent quarter arc and the declared-tangent
         // straight leg out of it: `.tangent()` DECLARES joints 3 and 4
         // structurally (the hand-set `tangent_joints = vec![3, 4]` of
@@ -98,12 +90,12 @@ pub fn document() -> CorpusDoc {
         // derivation (tan(−π/8)) rather than the hand literal
         // −(√2 − 1) — the W1 ulp class, a numbered deviation.
         ProgramStep::Tangent,
-        ProgramStep::TangentArcTo(ProgramTarget::Point(pt(1.0, 1.5))),
+        ProgramStep::TangentArcTo(ProgramTarget::Point(len2([1.0, 1.5]))),
         ProgramStep::Tangent,
         // The declared-tangent straight leg rides the inherited
         // direction: authored as its LENGTH (the (1,1.5) → (1,3) run).
-        ProgramStep::Line(Expr::literal(1.5, Dimension::Length).unwrap()),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
+        ProgramStep::Line(len(1.5)),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 3.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     // A parallel plane, so the two bodies never interact.
@@ -111,6 +103,7 @@ pub fn document() -> CorpusDoc {
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
         plane: tangent_plane,
         loops: vec![bracket],
+        ids: Vec::new(),
     }));
     let tangent_body = r.insert(Node::Extrude {
         profile: tangent_p,
@@ -127,7 +120,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tangent_body,
             slot: SlotId::Distance,
-            expr: Expr::literal(0.5, Dimension::Length).expect("dyadic length literal"),
+            expr: len(0.5),
         },
         bump_root: tangent_body,
     }

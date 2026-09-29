@@ -396,7 +396,6 @@ fn the_scale_step_keeps_the_sign_of_both_halves() {
     );
 }
 
-#[cfg(feature = "interval")]
 mod gated {
     //! **The clause-3 gate survives the cancellation.** Rule C
     //! (`signed`, dial-off in the shipped set) folds `sqrt(R²)` to `R`

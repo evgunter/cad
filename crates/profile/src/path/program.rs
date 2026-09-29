@@ -13,9 +13,11 @@
 //! projected into the match and its [`SpecForms`]).
 //!
 //! 1. `transition_table!` — the one declaration. One row per
-//!    (state, verb, kernel fn, next state), expanded into all four
-//!    artifacts: the typed method, the driver arm, the [`Step`]
-//!    variant, and the [`Verb`] tag — the last carrying the word the
+//!    (state, verb, kernel fn, next state), expanded into all nine
+//!    projections the macro's own docs list: per row, the typed
+//!    method, the driver arm, the row-set entry and the arc-spec forms;
+//!    per verb, the [`Step`] variant, the [`Verb`] tag, its `ALL`
+//!    membership, its [`Step::verb`] read-back arm, and the word the
 //!    verb is called by, so its `Display` is the row's too.
 //! 2. [`Step`] — the step vocabulary: one variant per authoring verb,
 //!    storing **authored data only**. `ArcVia`/`ArcCenter` keep the
@@ -42,9 +44,11 @@
 //!
 //! **Unwritable, by the table:** a transition present in one surface
 //! and absent (or different) in the other. A row IS the transition;
-//! delete it and the typed method, the driver arm, the `Step` variant
-//! and the `Verb` tag all vanish together, so every consumer of any of
-//! the four breaks at COMPILE. There is no second place to write a
+//! delete it and its typed method, driver arm, row-set entry and
+//! arc-spec forms vanish together — and with the verb's declaration,
+//! its `Step` variant, `Verb` tag, `ALL` membership, read-back arm and
+//! `Display` word — so every consumer of any of the nine breaks at
+//! COMPILE. There is no second place to write a
 //! transition, so an inconsistent pair cannot be spelled.
 //!
 //! **Unwritable, by the types:** calling a binder on the CARRIED VALUE
@@ -108,22 +112,113 @@ use geom_core::Tol;
 // The step vocabulary
 // ------------------------------------------------------------------
 
-/// **The target vocabulary — ONE declaration, THREE projections.**
+/// **The tag half of a payload vocabulary — THREE projections of one
+/// variant list.**
+///
+/// Given a tag enum spelled `pub enum Tag { $($name),* }`, a payload
+/// enum `P<T: Real>` with the same variant names, and a read-back
+/// `fn read(&P)`, this expands exactly three projections: the
+/// payload-free tag enum, that tag's `ALL` (every variant, in
+/// declaration order), and the payload → tag read-back method. The tag
+/// is spelled as an `enum` item at each call site so that a reader
+/// searching for its declaration — and `pncad-py`'s prose census, which
+/// resolves `profile::Verb` by one — finds it under its own name.
+///
+/// Its callers are `target_forms!`, `arc_modes!` and
+/// `transition_table!`. Each declares its payload enum from the same
+/// variant list and hands the names here, so their tag halves are ONE
+/// expansion rather than parallel copies. The payload side stays with
+/// each caller: the payload enums differ in variant SHAPE (a tuple
+/// variant and two unit ones; struct variants with per-mode fields;
+/// the verb table's row grammar), and each keeps its own grammar.
+///
+/// **The trigger, by shape.** A vocabulary has this shape when it has
+/// all three projections — a payload-free tag, an `ALL` over it, and a
+/// read-back from a payload enum — however they are spelled. A macro in
+/// this crate that declares a vocabulary of that shape, with a payload
+/// generic as `P<T: Real>` and a tag deriving exactly `Clone, Copy,
+/// Debug, PartialEq, Eq`, calls this rather
+/// than spelling another copy. The macro is crate-private
+/// (`macro_rules!`, not exported), and the tree has vocabularies of the
+/// same shape it does not reach, each for a reason of its own:
+///
+/// - `editor-core`'s `SegTag` (`seg_tags!` for the tag and `ALL`,
+///   `SegTag::of` for the read-back, over `RoleSeg`): another crate,
+///   whose own macro is private too; `RoleSeg` is not generic, against
+///   the `impl<T: Real>` here; and `SegTag` derives `Hash` and `Ord`.
+/// - `viewer`'s `ToolKind` (`vocabulary!` for the tag and `ALL`,
+///   `OpenTool::kind` for the read-back): another crate; `OpenTool` is
+///   not generic; and `ToolKind` derives `Hash`.
+///
+/// An `ALL`-only vocabulary (a closed enum with no payload to read a
+/// tag back from) is not this shape. Nor is this macro an invitation
+/// to migrate hand-written kind mirror pairs — `PathErrorKind` beside
+/// `PathError`, `verbs`'s `VerbKind` beside `Verb` — onto a single
+/// declaration. For the error/kind pairs that was declined (Ev,
+/// 2026-09-12), and what survives the decline is carried by
+/// `work/census/a-new-kind-pair-arrives-unguarded-by-default.md`.
+/// This macro serves the macros that already declare a vocabulary
+/// from one list.
+///
+/// **Each tag variant's rustdoc names its payload variant** rather
+/// than repeating that variant's prose: the payload's docs describe
+/// what the payload carries, which is false of a tag that carries
+/// nothing.
+///
+/// **The read-back is `#[must_use]` at every caller alike.** It is one
+/// door expanded once per caller, so it carries one attribute set; the
+/// returned tag is the method's only effect. This is the rule for this
+/// door, not a crate-wide convention.
+macro_rules! tag_projections {
+    (
+        $(#[doc = $tdoc:literal])*
+        pub enum $tag:ident { $($name:ident),* }
+        $(#[doc = $adoc:literal])*
+        const ALL;
+        $(#[doc = $rdoc:literal])*
+        fn $read:ident(&$payload:ident);
+    ) => {
+        $(#[doc = $tdoc])*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum $tag {
+            $(
+                #[doc = concat!("The tag of [`", stringify!($payload), "::", stringify!($name), "`].")]
+                $name
+            ),*
+        }
+
+        impl $tag {
+            $(#[doc = $adoc])*
+            #[doc(hidden)]
+            pub const ALL: &'static [$tag] = &[$( $tag::$name ),*];
+        }
+
+        impl<T: Real> $payload<T> {
+            $(#[doc = $rdoc])*
+            #[must_use]
+            pub fn $read(&self) -> $tag {
+                match self {
+                    $( $payload::$name { .. } => $tag::$name ),*
+                }
+            }
+        }
+    };
+}
+
+/// **The target vocabulary — ONE declaration, FOUR projections.**
 ///
 /// A target form is named exactly once here, and the macro expands
-/// the name into [`Target`]'s variant, the [`TargetKind`] tag, and
-/// that tag's membership in `TargetKind::ALL`. So the form SET has
+/// the name into [`Target`]'s variant and, through `tag_projections!`,
+/// the [`TargetKind`] tag, that tag's membership in `TargetKind::ALL`,
+/// and its arm in the [`Target::kind`] read-back. So the form SET has
 /// one home, and a census anchored on `ALL` cannot fall behind a form
 /// the vocabulary gains — the same construction `arc_modes!` gives
 /// the mode vocabulary one level up and `transition_table!` gives the
 /// verbs one level above that.
 ///
-/// It is a SECOND small macro rather than a generalisation of
-/// `arc_modes!`: the two vocabularies differ in variant SHAPE (modes
-/// are struct variants carrying per-mode fields, forms are a tuple
-/// variant and two unit ones), so one grammar over both is more
-/// machinery than a second use buys. What they share is the property,
-/// not the expansion.
+/// The payload half is this macro's own because its variant SHAPE is
+/// its own (a tuple variant and two unit ones); the tag half is
+/// `tag_projections!`'s, shared with the other two.
 macro_rules! target_forms {
     (
         $(
@@ -143,29 +238,21 @@ macro_rules! target_forms {
             $( $(#[doc = $doc])* $name $(($payload))? ),*
         }
 
-        /// Which form a target names — [`Target`]'s tag, one value per
-        /// variant, projected from the same declaration.
-        ///
-        /// It is what a census over the target vocabulary is keyed on,
-        /// exactly as [`ArcMode`] is for the modes: a target travels
-        /// inside a verb AND inside an arc spec, so a form that fails to
-        /// reach a downstream spelling is invisible to both the
-        /// verb-keyed and the mode-keyed checks.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub enum TargetKind {
-            $( $(#[doc = $doc])* $name ),*
-        }
-
-        impl TargetKind {
+        tag_projections! {
+            /// Which form a target names — [`Target`]'s tag, one value per
+            /// variant, projected from the same declaration.
+            ///
+            /// It is what a census over the target vocabulary is keyed on,
+            /// exactly as [`ArcMode`] is for the modes: a target travels
+            /// inside a verb AND inside an arc spec, so a form that fails to
+            /// reach a downstream spelling is invisible to both the
+            /// verb-keyed and the mode-keyed checks.
+            pub enum TargetKind { $($name),* }
             /// Every target form the vocabulary declares, in declaration
             /// order — enumerated from the same declaration as the
             /// variants, so a census keyed on it grows with the
             /// vocabulary rather than behind it.
-            #[doc(hidden)]
-            pub const ALL: &'static [TargetKind] = &[$( TargetKind::$name ),*];
-        }
-
-        impl<T: Real> Target<T> {
+            const ALL;
             /// Which form this target names.
             ///
             /// A read-back door rather than a convenience, on
@@ -174,12 +261,7 @@ macro_rules! target_forms {
             /// form it is, and re-deriving that by matching the forms at
             /// every such site is how a new form goes missing from one
             /// of them.
-            #[must_use]
-            pub fn kind(&self) -> TargetKind {
-                match self {
-                    $( Target::$name { .. } => TargetKind::$name ),*
-                }
-            }
+            fn kind(&Target);
         }
     };
 }
@@ -225,11 +307,12 @@ impl<T: Real> ArcData<T> {
     }
 }
 
-/// **The arc-mode vocabulary — ONE declaration, THREE projections.**
+/// **The arc-mode vocabulary — ONE declaration, FOUR projections.**
 ///
 /// A mode is named exactly once here, and the macro expands the name
-/// into [`ArcData`]'s variant, the [`ArcMode`] tag, and that tag's
-/// membership in [`ArcMode::ALL`]. So the mode SET has one home, and
+/// into [`ArcData`]'s variant and, through `tag_projections!`, the
+/// [`ArcMode`] tag, that tag's membership in [`ArcMode::ALL`], and its
+/// arm in the [`ArcData::mode`] read-back. So the mode SET has one home, and
 /// the census anchored on `ALL` cannot fall behind a mode the
 /// vocabulary gains — the same construction, one level down, that
 /// `transition_table!` gives the verb vocabulary through
@@ -266,34 +349,22 @@ macro_rules! arc_modes {
             $( $(#[doc = $doc])* $name { $($(#[doc = $fdoc])* $f : $ft),* } ),*
         }
 
-        /// Which mode an arc spec names — [`ArcData`]'s tag, one value
-        /// per variant, projected from the same declaration.
-        ///
-        /// It is what a census over the mode vocabulary is keyed on,
-        /// exactly as [`Verb`] is for the verb vocabulary: the mode
-        /// travels INSIDE a verb, so a mode that fails to reach a
-        /// downstream spelling is invisible to every verb-keyed check.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub enum ArcMode {
-            $( $(#[doc = $doc])* $name ),*
-        }
-
-        impl ArcMode {
+        tag_projections! {
+            /// Which mode an arc spec names — [`ArcData`]'s tag, one value
+            /// per variant, projected from the same declaration.
+            ///
+            /// It is what a census over the mode vocabulary is keyed on,
+            /// exactly as [`Verb`] is for the verb vocabulary: the mode
+            /// travels INSIDE a verb, so a mode that fails to reach a
+            /// downstream spelling is invisible to every verb-keyed check.
+            pub enum ArcMode { $($name),* }
             /// Every arc mode the vocabulary declares, in declaration
             /// order — enumerated from the same declaration as the
             /// variants, so a census keyed on it grows with the
             /// vocabulary rather than behind it.
-            #[doc(hidden)]
-            pub const ALL: &'static [ArcMode] = &[$( ArcMode::$name ),*];
-        }
-
-        impl<T: Real> ArcData<T> {
+            const ALL;
             /// The mode this spec names.
-            pub fn mode(&self) -> ArcMode {
-                match self {
-                    $( ArcData::$name { .. } => ArcMode::$name ),*
-                }
-            }
+            fn mode(&ArcData);
         }
     };
 }
@@ -369,7 +440,7 @@ impl<T: Real> ArcData<T> {
     /// its arcs out of the record silently.
     ///
     /// **Its mirror is a document-layer table.** `editor-core`'s
-    /// `spec_slots` decides, over the same six modes, whether the spec
+    /// `spec_roles` decides, over the same six modes, whether the spec
     /// holds a `CarrierRadius`/`CarrierRadius2` ARGUMENT — the address
     /// the emission this predicate admits is read against. The two
     /// decide one fact in two crates, and
@@ -387,19 +458,23 @@ impl<T: Real> ArcData<T> {
     }
 }
 
-/// **The transition table — ONE declaration, SIX projections**
+/// **The transition table — ONE declaration, NINE projections**
 /// (PATHS-DESIGN §2c rounds 13–15, lean (a)).
 ///
 /// A verb is declared exactly once, with one `on` row per lattice
-/// state it is well-typed at, and the macro expands each row into all
-/// six artifacts: the **typed method** on that state, the **driver
-/// arm** in [`apply`], the [`Step`] variant, the [`Verb`] tag, the
-/// verb's row set ([`Verb::states`]) and, for an arc-spec verb, the
-/// forms its spec takes there ([`arc_specs_at`]). So none of those is
-/// written twice and no two of them can drift: a missing row is
-/// missing from all six, consistently and loudly, and an inconsistent
-/// pair is unwritable because there is no second place to write it.
-/// Those six are the whole of what the macro expands.
+/// state it is well-typed at. The macro expands each ROW into the
+/// **typed method** on that state (a `free` row: the free function),
+/// the **driver arm** in [`apply`], the state's entry in the verb's
+/// row set ([`Verb::states`]) and, for an arc-spec verb, the forms its
+/// spec takes there ([`arc_specs_at`]); and each VERB into the
+/// [`Step`] variant, its `Display` word, and — through
+/// `tag_projections!` — the [`Verb`] tag, its membership in
+/// [`Verb::ALL`], and its arm in the [`Step::verb`] read-back. So none
+/// of those is written twice and no two of them can drift: a missing
+/// row is missing from every projection it feeds, consistently and
+/// loudly, and an
+/// inconsistent pair is unwritable because there is no second place
+/// to write it. Those nine are the whole of what the macro expands.
 ///
 /// **The round-9 exhaustiveness pressure does NOT ride this table.**
 /// That pressure is over the ARC-MODE vocabulary — [`ArcData`] — and
@@ -417,8 +492,9 @@ impl<T: Real> ArcData<T> {
 ///
 /// # What the table does not reach
 ///
-/// The count is FOUR because four is what fits inside this crate, not
-/// because four is all there are. `editor-core` spells the same
+/// The projections stop at this crate's edge because that is as far as
+/// the macro reaches, not because they are all the spellings there
+/// are. `editor-core` spells the same
 /// vocabulary twice more — an expression-valued document form and a
 /// serde-bearing persisted form — because a step there carries `Expr`s
 /// and must serialize, and G1 layering keeps both out of `profile`.
@@ -527,35 +603,32 @@ macro_rules! transition_table {
             $( $(#[doc = $doc])* $name $({ $($(#[doc = $fdoc])* $f : $ft),* })? $(( $($tt),* ))? ),*
         }
 
-        /// Which verb a step names — the `verb` half of a
-        /// [`ReplayErrorKind::Transition`]. One value per [`Step`]
-        /// variant, projected from the same declaration.
-        ///
-        /// Its `Display` is the AUTHORING SPELLING — the word the
-        /// algebra calls the verb (`line_to`, `arc_fillet`), declared
-        /// on the row beside the variant so the two cannot disagree
-        /// and neither outlives the row. That is the word for a
-        /// sentence about the step a person wrote; `Debug` is the
-        /// variant identifier, for a sentence about the table
-        /// coordinate ([`ReplayError`]'s rendering states which is
-        /// which).
-        ///
-        /// The SKETCH program's verb, not the kernel's: that one is
-        /// `verbs::Verb` (an operation on a body). No signature takes
-        /// both; outside the owning crate, prose spells the crate and
-        /// code imports at most one of the two per file.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub enum Verb {
-            $( $(#[doc = $doc])* $name ),*
-        }
-
-        impl Verb {
+        tag_projections! {
+            /// Which verb a step names — the `verb` half of a
+            /// [`ReplayErrorKind::Transition`]. One value per [`Step`]
+            /// variant, projected from the same declaration.
+            ///
+            /// Its `Display` is the AUTHORING SPELLING — the word the
+            /// algebra calls the verb (`line_to`, `arc_fillet`), declared
+            /// on the row beside the variant so the two cannot disagree
+            /// and neither outlives the row. That is the word for a
+            /// sentence about the step a person wrote; `Debug` is the
+            /// variant identifier, for a sentence about the table
+            /// coordinate ([`ReplayError`]'s rendering states which is
+            /// which).
+            ///
+            /// The SKETCH program's verb, not the kernel's: that one is
+            /// `verbs::Verb` (an operation on a body). No signature takes
+            /// both; outside the owning crate, prose spells the crate and
+            /// code imports at most one of the two per file.
+            pub enum Verb { $($name),* }
             /// Every verb the table declares, in declaration order —
             /// the row set, enumerated from the same declaration, so
             /// the replay-coverage census cannot fall behind a verb
             /// the table gains (`tests/path_program.rs`).
-            #[doc(hidden)]
-            pub const ALL: &'static [Verb] = &[$( Verb::$name ),*];
+            const ALL;
+            /// The verb this step names.
+            fn verb(&Step);
         }
 
         /// The word the verb is CALLED — the authoring spelling, which
@@ -565,15 +638,6 @@ macro_rules! transition_table {
                 f.write_str(match self {
                     $( Verb::$name => $said ),*
                 })
-            }
-        }
-
-        impl<T: Real> Step<T> {
-            /// The verb this step names.
-            pub fn verb(&self) -> Verb {
-                match self {
-                    $( Step::$name { .. } => Verb::$name ),*
-                }
             }
         }
 
@@ -1791,7 +1855,7 @@ transition_table! {
                     // A closed carrier resolves no fillet: no gate, no
                     // ladder, nothing discrete to record but the one
                     // step's reach, which is the whole loop.
-                    structure: ReplayStructure::carrier(loop_.vertices.len()),
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
                     loop_,
                     program: vec![Step::Circle {
                         centre: center,
@@ -1836,7 +1900,7 @@ transition_table! {
             /// same posture as `.angle(θ)` directors).
             ///
             /// `radius` must classify definitely positive (the [`circle`] gate,
-            /// same funnel row); `n` must be ≥ 2 ([`PathError::CircleSplitCount`]
+            /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
             /// — a one-vertex full turn has no bulge representation). `n` is
             /// structural (a count, never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
@@ -1851,7 +1915,7 @@ transition_table! {
                     // Structural subdivisions of one carrier: still no
                     // fillet resolution anywhere in the form, and the
                     // one step reaches every subdivision.
-                    structure: ReplayStructure::carrier(loop_.vertices.len()),
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
                     loop_,
                     program: vec![Step::CircleSplit {
                         centre: center,
@@ -1866,6 +1930,130 @@ transition_table! {
                     circle_split(centre, radius, n, phase, tol)?,
                 )),
             }
+        }
+    }
+}
+
+impl<T: Real> Step<T> {
+    /// **The same recorded step, read at another scalar**: every scalar
+    /// the author wrote goes through `f`, and every structural field —
+    /// a target's form, an arc's winding and side, a split count — is
+    /// carried verbatim.
+    ///
+    /// Named by `geom`'s `scalar_lift` convention, as
+    /// [`ProfileLoop::map_scalar`] is: `map_scalar` on a type with
+    /// structure to carry, [`Point2::map`] at the leaves. It is a
+    /// structural map and performs no arithmetic, so it is exact
+    /// wherever `f` is — `U::from_f64` embeds a recorded `f64` program
+    /// at a lane scalar for [`replay`] to run there.
+    ///
+    /// `f` reaches lengths, angles and bulges alike, so this is a
+    /// change of SCALAR, never of geometry: a similarity scale, which
+    /// moves lengths and leaves angles and bulges, is not spelled with
+    /// it.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Step<U> {
+        // Exhaustive over the step vocabulary, and through the two rungs
+        // over the arc-spec modes and the target forms, with no wildcard
+        // arm: a variant any of the three gains fails to compile here
+        // rather than falling through.
+        match *self {
+            Step::At(p) => Step::At(p.map(&f)),
+            Step::Angle(theta) => Step::Angle(f(theta)),
+            Step::Toward { dx, dy } => Step::Toward {
+                dx: f(dx),
+                dy: f(dy),
+            },
+            Step::Tangent => Step::Tangent,
+            Step::Cusp => Step::Cusp,
+            Step::Turn(delta) => Step::Turn(f(delta)),
+            Step::Line(len) => Step::Line(f(len)),
+            Step::LineTo(t) => Step::LineTo(t.map_scalar(&f)),
+            Step::ContinueTo(t) => Step::ContinueTo(t.map_scalar(&f)),
+            Step::ArcTo(spec) => Step::ArcTo(spec.map_scalar(&f)),
+            Step::TangentArcTo(t) => Step::TangentArcTo(t.map_scalar(&f)),
+            Step::Fillet { radius } => Step::Fillet { radius: f(radius) },
+            Step::FilletArc { radius, spec } => Step::FilletArc {
+                radius: f(radius),
+                spec: spec.map_scalar(&f),
+            },
+            Step::ArcFillet { spec, radius } => Step::ArcFillet {
+                spec: spec.map_scalar(&f),
+                radius: f(radius),
+            },
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            } => Step::ArcFilletArc {
+                spec: spec.map_scalar(&f),
+                radius: f(radius),
+                spec2: spec2.map_scalar(&f),
+            },
+            Step::FarEndTo(p) => Step::FarEndTo(p.map(&f)),
+            Step::CloseTo => Step::CloseTo,
+            Step::Circle { centre, radius } => Step::Circle {
+                centre: centre.map(&f),
+                radius: f(radius),
+            },
+            Step::CircleSplit {
+                centre,
+                radius,
+                n,
+                phase,
+            } => Step::CircleSplit {
+                centre: centre.map(&f),
+                radius: f(radius),
+                n,
+                phase: f(phase),
+            },
+        }
+    }
+}
+
+impl<T: Real> Target<T> {
+    /// The same target at another scalar — [`Step::map_scalar`]'s rung
+    /// for the target a verb or an arc spec carries. The form is
+    /// structural and travels unchanged.
+    pub(crate) fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Target<U> {
+        match *self {
+            Target::Point(p) => Target::Point(p.map(f)),
+            Target::Start => Target::Start,
+            Target::StartArriving => Target::StartArriving,
+        }
+    }
+}
+
+impl<T: Real> ArcData<T> {
+    /// The same arc spec at another scalar — [`Step::map_scalar`]'s
+    /// rung for the spec an arc verb carries. The mode, winding and
+    /// side are structural and travel unchanged.
+    pub(crate) fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ArcData<U> {
+        match *self {
+            ArcData::Radius { r, side } => ArcData::Radius { r: f(r), side },
+            ArcData::Bulge { target, b } => ArcData::Bulge {
+                target: target.map_scalar(&f),
+                b: f(b),
+            },
+            ArcData::Via { q, target } => ArcData::Via {
+                q: q.map(&f),
+                target: target.map_scalar(&f),
+            },
+            ArcData::Center { c, winding, target } => ArcData::Center {
+                c: c.map(&f),
+                winding,
+                target: target.map_scalar(&f),
+            },
+            ArcData::Sweep { r, side, angle } => ArcData::Sweep {
+                r: f(r),
+                side,
+                angle: f(angle),
+            },
+            ArcData::ArcLen { r, side, len } => ArcData::ArcLen {
+                r: f(r),
+                side,
+                len: f(len),
+            },
         }
     }
 }
@@ -2531,8 +2719,8 @@ pub fn replay_recording<T: ArcCarrierScalar>(
 /// [`PathError::Structure`] for a decision that could not be
 /// reproduced. A record describing a different number of resolutions
 /// than the program reaches is refused the same way, and so is one
-/// whose per-step segment spans — or whose per-radius emissions —
-/// this pass did not reproduce.
+/// whose per-step segment spans — or whose per-radius emissions, or whose
+/// per-segment pieces — this pass did not reproduce.
 pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
@@ -2599,6 +2787,30 @@ pub fn replay_guided<T: ArcCarrierScalar>(
                 Decision::RadiusEmission { at },
                 DecisionValue::Emission(*recorded),
                 DecisionValue::Emission(*found),
+            )));
+        }
+    }
+    // The pieces, for the same reason: which step and role each
+    // segment is follows from which arm ran, and a pass that drew a
+    // run as its own segment where the record merged it into a leg
+    // names every later segment differently.
+    if structure.pieces.len() != closed.structure.pieces.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.pieces.len(),
+            closed.structure.pieces.len(),
+        )));
+    }
+    for (segment, (recorded, found)) in structure
+        .pieces
+        .iter()
+        .zip(&closed.structure.pieces)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::Piece { segment },
+                DecisionValue::Piece(*recorded),
+                DecisionValue::Piece(*found),
             )));
         }
     }

@@ -340,14 +340,30 @@ impl<'de> serde::Deserialize<'de> for UnitSym {
     /// it is checked where document invariants are, in the shared
     /// save/load validator (`persist::check::first_display_unit_fault`)
     /// — typed, and symmetric across both doors rather than load-only.
+    ///
+    /// The refusal is the SAME fact `persist::wire`'s rebuild raises
+    /// for an off-table symbol on an expression literal, so it leaves
+    /// by the same channel and reaches a caller as the same
+    /// `PersistError::Dimension`. Otherwise one fault would cross one
+    /// door under two classes with contradictory recourse: this route
+    /// used to answer "regenerate the file from its source recipe",
+    /// which is advice that reproduces the refusal.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let symbol = <String as serde::Deserialize>::deserialize(deserializer)?;
         match quantity::unit_by_symbol(&symbol) {
             Some(row) => Ok(Self::from_def(&row)),
-            None => Err(serde::de::Error::custom(format!(
-                "display unit {symbol:?} is not one of the {} rows quantity::UNITS carries",
-                quantity::UNITS.len()
-            ))),
+            None => {
+                // The typed refusal leaves through the frame; the serde
+                // message is the human half of the same fact
+                // (`persist::refusal`, which lists this recorder).
+                crate::persist::refusal::record(&DimensionError::UnknownDisplayUnit {
+                    symbol: symbol.clone(),
+                });
+                Err(serde::de::Error::custom(format!(
+                    "display unit {symbol:?} is not one of the {} rows quantity::UNITS carries",
+                    quantity::UNITS.len()
+                )))
+            }
         }
     }
 }

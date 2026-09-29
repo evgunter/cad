@@ -133,9 +133,9 @@ use pncad::document::{
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
     EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
     MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
+    MintRefusal, NodeErrorKind, ParseError, PersistError, PiecesFault, PlacementRuleFault,
+    ProgramFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepIdFault, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -529,6 +529,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
+        EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -554,6 +556,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
+        EditError::NameStepNeverMinted { .. } => "name_step_never_minted",
         EditError::ReadSiteMissingNode { .. } => "read_site_missing_node",
         EditError::NonFiniteDocParam { .. } => "non_finite_doc_param",
         EditError::InvalidDistribution { .. } => "invalid_distribution",
@@ -831,6 +834,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::ProfileReplay { .. } => "profile_replay",
         NodeErrorKind::ProfileLaneReplay { .. } => "profile_lane_replay",
         NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
+        NodeErrorKind::ProfilePieces { .. } => "profile_pieces",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -1022,6 +1026,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             None => None,
         },
         NodeErrorKind::ProfileAnchor { .. } => None,
+        NodeErrorKind::ProfilePieces { fault } => Some(pieces_fault_tag(fault)),
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1098,8 +1103,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureSelectionKind { .. } => None,
         // The clearance engine's class name is a `&str` the engine
-        // mints behind a feature boundary, not a discriminant this
-        // crate can match; it is already the whole of the message.
+        // mints, not a discriminant this crate can match; it is already
+        // the whole of the message.
         NodeErrorKind::MeasureClearanceRefused(_) => None,
         NodeErrorKind::AssertionDimension { .. } => None,
     }
@@ -1143,6 +1148,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RepeatedDesignation { .. } => None,
         EditError::SelectionNotCanonical { .. } => None,
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::SetProgramOnNonProfile { .. } => None,
+        // What is wrong with the ids is the arm.
+        EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1164,6 +1172,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::DocParamUnitMismatch { .. } => None,
         EditError::PathOffTree { .. } => None,
         EditError::DeclareNamesMissingNode { .. } => None,
+        EditError::NameStepNeverMinted { .. } => None,
         EditError::ReadSiteMissingNode { .. } => None,
         EditError::NonFiniteDocParam { .. } => None,
         EditError::RebindTargetMissingNode { .. } => None,
@@ -1280,6 +1289,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::CosurfaceEscalated { .. } => "cosurface_escalated",
         ExtrudeError::SliverJoin { .. } => "sliver_join",
         ExtrudeError::SliverRim { .. } => "sliver_rim",
+        ExtrudeError::SmoothJoinRefuted { .. } => "smooth_join_refuted",
         ExtrudeError::CapPlane { .. } => "cap_plane",
         ExtrudeError::SidePlane { .. } => "side_plane",
         ExtrudeError::Op { .. } => "op",
@@ -1311,6 +1321,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::CosurfaceEscalated { .. } => "cosurface_escalated",
         RevolveError::SliverJoin { .. } => "sliver_join",
         RevolveError::SliverRim { .. } => "sliver_rim",
+        RevolveError::SmoothJoinRefuted { .. } => "smooth_join_refuted",
         RevolveError::CapPlane { .. } => "cap_plane",
         RevolveError::Op { .. } => "op",
         RevolveError::Pcurve(_) => "pcurve",
@@ -1546,8 +1557,13 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
+        NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
+        NamingError::SeamLineSides { .. } => "seam_line_sides",
+        NamingError::MemberEdgeTied { .. } => "member_edge_tied",
+        NamingError::NarrowBand { .. } => "narrow_band",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -1603,6 +1619,9 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Transition { .. } => "transition",
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
+        ProgramRefusal::Unminted => "unminted",
+        ProgramRefusal::StepIds(_) => "step_ids",
+        ProgramRefusal::Pieces(_) => "pieces",
     }
 }
 
@@ -1752,6 +1771,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
+        SnapshotError::StepIds { .. } => "step_ids",
+        SnapshotError::NameStepBeyondCounter { .. } => "name_step_beyond_counter",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
         SnapshotError::DeclareInput { .. } => "declare_input",
@@ -1796,6 +1817,12 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         PersistError::IdMismatch { .. } => "id_mismatch",
         PersistError::Parse { .. } => "parse",
         PersistError::Unreadable { .. } => "unreadable",
+        // The document layer's own refusal, crossing whole: the word
+        // here names the STAGE (a load refused), and WHICH dimension
+        // check failed rides beside it as `inner_variant`, minted from
+        // [`expr_dimension_error_tag`] — the same map the text door
+        // draws `ParseError.kind` from. One vocabulary, three doors.
+        PersistError::Dimension { .. } => "dimension",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::EditReplay { .. } => "edit_replay",
         PersistError::MaintenanceFrame { .. } => "maintenance_frame",
@@ -1980,11 +2007,12 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     match err {
         E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         E::UnknownNode { .. } => "unknown_node",
+        E::PlacedUnderTwoRoots { .. } => "placed_under_two_roots",
         E::RootFailed { .. } => "root_failed",
         E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
         E::Graft { .. } => "graft_refused",
-        E::SolidInvalid { .. } => "solid_invalid",
+        E::RootInvalid { .. } => "root_invalid",
         E::ProductInvalid { .. } => "product_invalid",
         E::Naming { .. } => "product_naming",
         E::ContactLineage { .. } => "contact_lineage",
@@ -2256,10 +2284,12 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
+        SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
+        SplitError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2283,7 +2313,9 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
+        InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
+        InlineError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2657,11 +2689,12 @@ pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
 /// The carrier's word says which finding the registry made: the count
 /// is unknowable because a shell would not classify (`escalated`), or
 /// because a face of the subject is outside the flux inventory
-/// (`unsupported`). This one says which of the shell door's four ways
+/// (`unsupported`). This one says which of the shell door's five ways
 /// it refused, so a caller reads it instead of substring-matching the
 /// sentence: the run's tolerance formed no band, a face refused in the
-/// props inventory, the sign read escalated in-band, or the signed
-/// volume is definitely zero and there is no side to classify to.
+/// props inventory, the sign read escalated, the signed volume (or an
+/// end of its bracket) is zero at this tolerance, or its certified
+/// bracket straddles zero, so there is no side to classify to.
 ///
 /// `band` is the same word [`checks_error_tag`] mints for the
 /// registry's own band refusal, one namespace up, and means the same
@@ -2672,6 +2705,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
         ShellClassifyError::Props { .. } => "props",
         ShellClassifyError::Escalated { .. } => "escalated",
         ShellClassifyError::ZeroVolume { .. } => "zero_volume",
+        ShellClassifyError::Straddles { .. } => "straddles",
     }
 }
 
@@ -2702,7 +2736,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
         ValidationError::DegenerateTorus { .. } => "degenerate_torus",
         ValidationError::DegenerateTorusEscalated { .. } => "degenerate_torus_escalated",
-        ValidationError::NonpositiveTorusTube { .. } => "nonpositive_torus_tube",
+        ValidationError::PoisonedSurfaceDatum { .. } => "poisoned_surface_datum",
+        ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
+        ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",
+        ValidationError::UnrepresentableCurveDatum { .. } => "unrepresentable_curve_datum",
         ValidationError::EdgeCertification { .. } => "edge_certification",
         ValidationError::DescriptionNotAdjacent { .. } => "description_not_adjacent",
         ValidationError::PlanarFaceResidual { .. } => "planar_face_residual",
@@ -2713,7 +2750,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
-        ValidationError::UndeclaredCusp { .. } => "undeclared_cusp",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
@@ -2724,6 +2760,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",
         ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
         ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
+        ValidationError::ShellWinding { .. } => "shell_winding",
         ValidationError::UndeclaredContact { .. } => "undeclared_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",
@@ -2889,9 +2926,15 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
 /// The word decides where the ring has to move: a `vertex_vertex`
 /// contact is one shared position and a nudge of one vertex clears
 /// it, a `vertex_on_edge` contact puts a ring vertex on the interior
-/// of an outer edge, and an `edge_along_edge` contact shares a
-/// positive-length arc — the two loops run together rather than
-/// touching, and no single vertex move separates them.
+/// of an outer edge (`vertex_on_ring_edge` is the mirror: an outer
+/// vertex on a ring edge's interior), and an `edge_along_edge`
+/// contact shares a positive-length arc — the two loops run together
+/// rather than touching, and no single vertex move separates them.
+/// The two point words name a meeting no vertex carries:
+/// `edge_edge_point` is a ring edge crossing or touching an outer
+/// edge, and `circle_circle` is a whole-circle ring crossing or
+/// touching a whole-circle outer loop — the circle itself has to move
+/// or shrink.
 ///
 /// The words are the census vocabulary's where the shape is the same
 /// one ([`census_contact_tag`]), because a caller reading two contact
@@ -2902,6 +2945,9 @@ pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
         RingContact::Vertex { .. } => "vertex_vertex",
         RingContact::VertexOnEdge { .. } => "vertex_on_edge",
         RingContact::Edge { .. } => "edge_along_edge",
+        RingContact::OuterVertexOnEdge { .. } => "vertex_on_ring_edge",
+        RingContact::EdgesMeet { .. } => "edge_edge_point",
+        RingContact::Circles { .. } => "circle_circle",
     }
 }
 
@@ -2959,6 +3005,32 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
+    }
+}
+
+/// The stable tag for where a profile's naming anchor, replay record
+/// and minted ids disagree — the fault `NodeErrorKind::ProfilePieces`
+/// carries, published on `inner_variant` beside the node error's word.
+pub fn pieces_fault_tag(fault: &PiecesFault) -> &'static str {
+    match fault {
+        PiecesFault::NoRecord { .. } => "no_record",
+        PiecesFault::NoIds { .. } => "no_ids",
+        PiecesFault::Length { .. } => "length",
+        PiecesFault::NoStepId { .. } => "no_step_id",
+    }
+}
+
+/// The stable tag for what is wrong with a profile program's step ids
+/// — the fault `EditError::StepIdsRefused` carries, published on
+/// `inner_variant` beside the edit's own word.
+pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
+    match fault {
+        StepIdFault::Preminted => "preminted",
+        StepIdFault::LoopCount { .. } => "loop_count",
+        StepIdFault::Shape { .. } => "shape",
+        StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
+        StepIdFault::Repeated { .. } => "repeated",
+        StepIdFault::BeyondCounter { .. } => "beyond_counter",
     }
 }
 

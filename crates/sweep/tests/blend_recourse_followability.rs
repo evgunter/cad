@@ -57,7 +57,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     ALL_RECOURSES, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
@@ -78,12 +78,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(p2(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 /// `a ∖ b`, the one boolean these rows use.
@@ -95,12 +91,12 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// its turned prism with, so the two fixtures differ in the ONE thing
 /// their rows are about: whether the box is axis-aligned.
 fn ball_at(c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
@@ -283,7 +279,7 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
             BlendError::TangentialEdge { margin, .. }
                 if margin.predicate == "fillet3_convexity_sign"
                     && margin.sign == Sign::Zero
-                    && margin.value() == Some(0.0)
+                    && margin.reading.diagnostic_f64_for_error_text().value() == Some(0.0)
         ),
         "a co-surface seam is the zero-margin wedge, got {err:?}"
     );

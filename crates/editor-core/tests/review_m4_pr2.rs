@@ -20,7 +20,11 @@ use fixture::{
 use geom_core::Tol;
 use topo::{Body, mass_properties};
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Evaluation<f64> {
+fn run(
+    doc: &editor_core::ProfileDoc,
+    prior: Option<&Evaluation<f64>>,
+    parallel: bool,
+) -> Evaluation<f64> {
     let opts = EvalOptions {
         parallel,
         ..EvalOptions::default()
@@ -916,7 +920,6 @@ fn datum_kind_is_key_separated() {
 /// behave exactly like the f64 lane: full reuse on an identical
 /// re-evaluation, full invalidation of the edited cone, enclosures
 /// bracketing the f64 result.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_memo_reuses_and_invalidates_like_f64() {
     use geom_core::{Bounds, Interval};

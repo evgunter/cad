@@ -26,7 +26,6 @@
 //! form, or if the comparator stops being the width ceiling the doc
 //! comment claims it is.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::interval::iv;

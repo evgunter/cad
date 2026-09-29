@@ -15,6 +15,7 @@ use crate::shared::surf::table;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
+use geom_brep::recourse::{Classified, Refused};
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
     MappedCurve, NewellError, SketchSegment, classify_dihedral, newell_plane,
@@ -298,10 +299,12 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     };
     // The complementary (lower) arc: t runs 0 -> −pi — a decreasing
     // interval, refused by the forward gate (N1).
-    assert_eq!(
+    assert!(matches!(
         EdgeCurve::certify(mk(-PI), p0, p1, &lookup, band()).unwrap_err(),
-        CertifyError::IntervalNotForward
-    );
+        CertifyError::IntervalNotForward {
+            verdict: Refused::Negative { .. },
+        }
+    ));
     // An extra 1.5 windings: t runs 0 -> 3·pi — over one period,
     // refused by the winding bound (S1).
     assert_eq!(
@@ -540,10 +543,12 @@ fn fixed_reversed_interval_refused() {
         param_start: 1.0,
         param_end: 0.0,
     };
-    assert_eq!(
+    assert!(matches!(
         EdgeCurve::certify(spec, p1, p0, |_| None, band()).unwrap_err(),
-        CertifyError::IntervalNotForward
-    );
+        CertifyError::IntervalNotForward {
+            verdict: Refused::Negative { .. },
+        }
+    ));
 }
 
 /// FIXED (was `finding_zero_length_edge_certifies`): a ZERO-LENGTH
@@ -573,7 +578,12 @@ fn fixed_zero_length_edge_refused() {
     };
     assert_eq!(
         EdgeCurve::certify(spec, p, p, |_| None, band()).unwrap_err(),
-        CertifyError::IntervalNotForward
+        CertifyError::IntervalNotForward {
+            verdict: Refused::Zero(Classified {
+                margin: geom_core::MarginDiag::value(0.0),
+                band: band(),
+            }),
+        }
     );
 }
 
@@ -676,26 +686,11 @@ fn fixed_n3_near_collinear_normal_documented_under_determination() {
 // Interval lane (target 3d): the f64::MAX plane-arm fix and poison
 // hygiene, at the certified interval scalar.
 // =====================================================================
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
     use geom_core::{Bounds, Interval, Real};
 
-    fn ipt(x: f64, y: f64, z: f64) -> Point3<Interval> {
-        Point3::new(
-            Interval::from_f64(x),
-            Interval::from_f64(y),
-            Interval::from_f64(z),
-        )
-    }
-
-    fn ivec(x: f64, y: f64, z: f64) -> geom_core::Vec3<Interval> {
-        geom_core::Vec3::new(
-            Interval::from_f64(x),
-            Interval::from_f64(y),
-            Interval::from_f64(z),
-        )
-    }
+    use crate::shared::point::{p3, v3};
 
     /// Regression for the fixed bug: plane-adjacent dihedrals must NOT
     /// poison through the curvature-arm min fold (from_f64(MAX) is a
@@ -704,19 +699,19 @@ mod interval_lane {
     #[test]
     fn survives_interval_plane_dihedral_is_definite() {
         let floor: Surface<Interval> = Surface::Plane {
-            origin: ipt(0.0, 0.0, 0.0),
-            normal: ivec(0.0, 0.0, 1.0),
-            u_ref: ivec(1.0, 0.0, 0.0),
+            origin: p3(0.0, 0.0, 0.0),
+            normal: v3(0.0, 0.0, 1.0),
+            u_ref: v3(1.0, 0.0, 0.0),
         };
         let wall: Surface<Interval> = Surface::Plane {
-            origin: ipt(0.0, 0.0, 0.0),
-            normal: ivec(1.0, 0.0, 0.0),
-            u_ref: ivec(0.0, 1.0, 0.0),
+            origin: p3(0.0, 0.0, 0.0),
+            normal: v3(1.0, 0.0, 0.0),
+            u_ref: v3(0.0, 1.0, 0.0),
         };
         let c = classify_dihedral(
             &floor,
             &wall,
-            ipt(0.0, 0.0, 0.0),
+            p3(0.0, 0.0, 0.0),
             Interval::from_f64(1.0),
             band(),
         )
@@ -724,14 +719,14 @@ mod interval_lane {
         assert_eq!(c, DihedralClass::Transverse);
         // Coplanar pair: definite Smooth (no poison, no escalation).
         let coplanar: Surface<Interval> = Surface::Plane {
-            origin: ipt(0.0, 0.0, 0.0),
-            normal: ivec(0.0, 0.0, 1.0),
-            u_ref: ivec(0.0, 1.0, 0.0),
+            origin: p3(0.0, 0.0, 0.0),
+            normal: v3(0.0, 0.0, 1.0),
+            u_ref: v3(0.0, 1.0, 0.0),
         };
         let c = classify_dihedral(
             &floor,
             &coplanar,
-            ipt(0.0, 0.0, 0.0),
+            p3(0.0, 0.0, 0.0),
             Interval::from_f64(1.0),
             band(),
         )
@@ -743,8 +738,8 @@ mod interval_lane {
     /// the interval lane (no NaI leaks anywhere in the schedule).
     #[test]
     fn survives_interval_line_certification() {
-        let p0 = ipt(0.0, 0.0, 0.0);
-        let p1 = ipt(1.0, 0.0, 0.0);
+        let p0: Point3<Interval> = p3(0.0, 0.0, 0.0);
+        let p1 = p3(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec::line_between(p0, p1);
         let c = EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap();
         let r = c.certificate().max_residual;
@@ -763,21 +758,21 @@ mod interval_lane {
     /// `WindingExceeded`, not an escalation.
     #[test]
     fn fixed_interval_winding_alias_refused_by_detection() {
-        let center = ipt(1.0, 2.0, 3.0);
-        let p = ipt(2.0, 2.0, 3.0);
+        let center = p3(1.0, 2.0, 3.0);
+        let p = p3(2.0, 2.0, 3.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
                 point: Point2::new(Interval::from_f64(2.0), Interval::from_f64(2.0)),
-                place: Affine3::translation(ivec(0.0, 0.0, 3.0)),
+                place: Affine3::translation(v3(0.0, 0.0, 3.0)),
                 axis_origin: center,
-                axis_dir: ivec(0.0, 0.0, 1.0),
+                axis_dir: v3(0.0, 0.0, 1.0),
                 angle: Interval::from_f64(core::f64::consts::TAU),
             }),
             carrier: Curve3::Circle {
                 center,
-                axis: ivec(0.0, 0.0, 1.0),
+                axis: v3(0.0, 0.0, 1.0),
                 radius: Interval::from_f64(1.0),
-                u_ref: ivec(1.0, 0.0, 0.0),
+                u_ref: v3(1.0, 0.0, 0.0),
             },
             param_start: Interval::from_f64(0.0),
             param_end: Interval::from_f64(9.0 * core::f64::consts::TAU),

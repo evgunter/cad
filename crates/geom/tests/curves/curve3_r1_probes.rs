@@ -32,10 +32,7 @@ fn curve3(k: &KnotVector, weights: Vec<f64>) -> NurbsCurve3<f64> {
 fn lift3<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
         c.knots().clone(),
-        c.control()
-            .iter()
-            .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-            .collect(),
+        c.control().iter().map(|p| p.map(T::from_f64)).collect(),
         c.weights().to_vec(),
     )
     .unwrap()
@@ -201,7 +198,6 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_f64_and_dual() {
     assert!(checked > 400, "probe corpus shrank: {checked}");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_interval() {
     use geom_core::{Bounds, Interval};

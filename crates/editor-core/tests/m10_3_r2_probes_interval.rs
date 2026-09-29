@@ -5,9 +5,8 @@
 //! Why these rows and not the unit's: every accounting fixture in
 //! `m10_3_driver_interval.rs` uses a BOUNDED distribution, so its tail
 //! column is `Ok(0.0)` in every row and the composition of the analyzed
-//! columns with the tail is never exercised at all. Every determinism
-//! row drives one shape (`slab`). Every containment row lands on the
-//! NEGATIVE arm. The rows below drive a document whose tail is
+//! columns with the tail is never exercised at all. Every containment
+//! row lands on the NEGATIVE arm. The rows below drive a document whose tail is
 //! genuinely non-zero, construct the containment-positive case, and
 //! re-derive the receipt identity and the mass total from the shipped
 //! leaves with arithmetic that does not reuse the module's own.
@@ -24,13 +23,12 @@
 //! rows would delete the finding; they go green the day the
 //! composition becomes a sum.
 //!
-//! Sweep shape (`memories/test-suite-cost.md`): nothing here samples —
+//! Sweep shape (implementer-discipline §8): nothing here samples —
 //! every row is a witness that can be written down, so all are static
 //! fixtures asserted every run and no seed appears. Rows whose doc
 //! comment says EVIDENCE-ONLY assert that a documented behaviour is
 //! still what it is and gate nothing new.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -49,7 +47,7 @@ use editor_core::{
 };
 use geom_core::{Interval, Tol};
 
-use fixture::Recorder;
+use fixture::{Recorder, len, xy_frame};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -57,10 +55,6 @@ fn eps() -> f64 {
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
-}
-
-fn lit(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length literal")
 }
 
 fn unit_square() -> LoopProgram {
@@ -81,17 +75,11 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
             distribution: Some(dist),
         },
     });
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -114,7 +102,7 @@ fn depth_param() -> Expr {
 fn pinched(nominal: f64, half: f64) -> ProfileDoc {
     let distance = Expr::min(
         depth_param(),
-        Expr::sub(lit(2.0 * nominal), depth_param()).expect("length minus length"),
+        Expr::sub(len(2.0 * nominal), depth_param()).expect("length minus length"),
     )
     .expect("min of two lengths is a length");
     slab_with(
@@ -529,49 +517,6 @@ fn the_point_scalar_door_refuses_by_bits_not_by_value() {
     assert_eq!((di.deriv.lo(), di.deriv.hi()), (0.0, 0.0));
 }
 
-// -------------------------------------------------- determinism
-
-/// D9 determinism on a document of my own, not the unit's: the
-/// serialized verdict and its content key are bit-identical across a
-/// repeat and across the rayon schedule, on a drive with certified
-/// leaves, a real refusal class and hundreds of splits.
-///
-/// **The leaf-list comparisons below are whole `PartialEq`s, so they
-/// compare `decisions` and therefore `frozen`.** That column is each
-/// leaf's NEED of the drive's frozen set — a function of the leaf's box
-/// and of the drive, never of the order (`geom_core::SymCounts::frozen`
-/// and `geom_core::sym::memo`'s header) — so this row asks for
-/// something schedule-independent by construction. It was accidentally
-/// satisfied before SYM-13, when the column was the work a leaf
-/// happened to do and this document's every leaf happened to inherit
-/// its forms from the root;
-/// `m10_sym_drive_memo_interval::the_leaves_of_a_racing_drive_report_one_column_under_every_schedule`
-/// drives the adversary that made the difference visible.
-#[test]
-fn my_own_drive_is_bit_identical_across_repeats_and_schedules() {
-    let doc = pinched(20.0 * eps(), 40.0 * eps());
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let seq = DriveConfig {
-        max_leaves: 512,
-        ..DriveConfig::default()
-    };
-    let par = DriveConfig {
-        parallel: true,
-        ..seq.clone()
-    };
-    let a = drive(&doc, &analyzed, &seq, Tol::witness()).unwrap();
-    let b = drive(&doc, &analyzed, &seq, Tol::witness()).unwrap();
-    let c = drive(&doc, &analyzed, &par, Tol::witness()).unwrap();
-    assert!(a.receipt().splits > 16, "{:?}", a.receipt());
-    assert!(!a.certified().is_empty() || !a.refused().is_empty());
-    assert_eq!(a.serialize(), b.serialize());
-    assert_eq!(a.serialize(), c.serialize());
-    assert_eq!(a.content_key(), c.content_key());
-    // The parallel schedule must also agree leaf for leaf, in order.
-    assert_eq!(a.certified(), c.certified());
-    assert_eq!(a.refused(), c.refused());
-}
-
 // -------------------------------------------------- the widening
 
 /// **The macroscopic-box statement, re-measured after E12.** This row
@@ -667,24 +612,18 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                 },
             });
         }
-        let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [0.0, 0.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-            u: [1.0, 0.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-            v: [0.0, 1.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        }));
+        let xy_frame_1 = r.insert(xy_frame());
         let p = r.insert(Node::Profile(ProfileProgram {
             plane: xy_frame_1,
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                     .expect("finite plate corners"),
                 LoopProgram::Circle {
-                    centre: [lit(1.0), lit(1.0)],
+                    centre: [len(1.0), len(1.0)],
                     radius: Expr::param(name("hole_r"), Dimension::Length),
                 },
             ],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,

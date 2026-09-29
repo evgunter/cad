@@ -9,21 +9,8 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# Forwards geom-core's certified interval scalar so the verb door runs
-# at `Interval` in CI's interval lane, exactly as its operand crates do.
-# Every crate this one depends on that has the row is listed: an
-# unforwarded edge would compile the verb door against a DIFFERENT
-# scalar than the ops it dispatches to and fail to unify.
-interval = [
-    "geom-brep/interval",
-    "geom-core/interval",
-    "profile/interval",
-    "sweep/interval",
-    "topo/interval",
-]
 # Forwards geom-core's K-telemetry recording scalar so the
-# workspace-wide `--features probe` lane builds uniformly. Same shape
-# and same reason as the `interval` row above.
+# workspace-wide `--features probe` lane builds uniformly.
 probe = [
     "geom-brep/probe",
     "geom-core/probe",

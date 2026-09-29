@@ -3,9 +3,9 @@
 # crate stays buildable, testable, and certifiable on its own, and its
 # gmp-backed inari DEV-oracle can never reach a kernel build.
 #
-# Since M5 PR 1 the kernel DOES depend on it: geom-core's `interval` feature
-# takes a path dependency on this crate, which is the sole backend of the
-# `Interval` scalar. A path dependency does not make it a workspace member;
+# Since M5 PR 1 the kernel DOES depend on it: geom-core takes a path
+# dependency on this crate, which is the sole backend of the `Interval`
+# scalar. A path dependency does not make it a workspace member;
 # only its one non-dev dependency (libm — already a kernel dependency)
 # enters kernel builds.
 [workspace]
@@ -35,7 +35,7 @@ libm = "=0.2.16"
 # edges + the division fuzz) without that C build, on the same pipeline
 # that gates the kernel — see README "Certification".
 #
-# The `interval` feature of geom-core never enables `oracle-inari`, so no
+# geom-core never enables `oracle-inari`, so no
 # kernel build in any configuration pulls inari, gmp-mpfr-sys or rug, and
 # their LGPL-3.0+ obligations reach neither this crate's consumers nor the
 # kernel's. inari itself requires AVX+FMA on x86-64 — not merely a machine

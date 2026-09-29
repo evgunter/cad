@@ -57,17 +57,15 @@
 //!    description; this certifies the BODY, which is what "import is
 //!    adoption" has to mean if it means anything.
 //!
-//!    Asked once per `MANIFOLD_SOLID_BREP` **on that solid's own
-//!    body**, and once on the assembled body. Per solid because
-//!    several of the gate's invariants are whole-body sums (check 7's
-//!    +V is the boundary flux over every shell), so an inside-out
-//!    solid can be cancelled by a right-side-out neighbour and the
-//!    aggregate reads Zero, which is exempt — "every imported solid
-//!    passes the gate" is only true if each solid is a subject. The
-//!    refusal names which one. There is exactly one place in this
-//!    crate that calls the validator (`gate`), and it is
-//!    unconditional there: no body kind is exempt, no verdict class is
-//!    filtered (an escalated verdict refuses like any other —
+//!    Asked once on the assembled body (tier 3′, `gate3`) and, where
+//!    [`topo::per_part_gate_owed`] says the file owes it — more than
+//!    one instance — once per placed instance **on that solid's own
+//!    body** (tier 3, `gate`), so the refusal names the
+//!    `MANIFOLD_SOLID_BREP` it is about. Why each solid is asked is
+//!    `docs/DESIGN.md` import step 4. Those two functions are the only
+//!    places this crate calls the validator, and neither holds an
+//!    opinion: no body kind is exempt, no verdict class is filtered
+//!    (an escalated verdict refuses like any other —
 //!    escalate-never-guess).
 //!
 //!    This is D9 engineering convention 2 applied to the door #260
@@ -155,8 +153,11 @@
 //! and read, and their rational walls now have a volume quadrature
 //! that converges through interior knots — but it is a composite on a
 //! fixed round budget, so a large or strongly curved rational wall can
-//! still exhaust that budget and the at-rest gate below refuses it,
-//! carrying the measured width.
+//! still exhaust that budget. The at-rest gate below decides each
+//! solid's volume SIGN and admits such a body; what the budget refuses
+//! is the NUMBER, and the import carries that refusal — with the
+//! measured width and the narrowest bracket the measurement held — on
+//! the enclosure it returns rather than refusing the file.
 //!
 //! # The wild (M7-4)
 //!
@@ -557,32 +558,37 @@ pub enum StepImport {
         /// invariant is a flux SUM: on a multi-solid body an
         /// inside-out solid can hide behind a right-side-out one.)
         ///
-        /// A body whose native twin refuses tier 3 (a rational-walled
-        /// loft whose volume quadrature exhausts its round budget, say)
-        /// does not arrive here at all; the gate
-        /// hands back its verdicts as
+        /// A body whose native twin refuses tier 3 does not arrive here
+        /// at all; the gate hands back its verdicts as
         /// [`StepImportError::TierInvalid`]. Nothing imports into a
         /// state its native twin does not occupy — and nothing imports
         /// into a state the kernel will not certify.
         body: Body<f64>,
-        /// **The at-rest gate's own enclosure of `body`** — the
-        /// [`topo::MassProperties`] the aggregate gate's check 7
-        /// derived and decided the +V invariant on, handed back rather
-        /// than dropped. **Not a second computation**: a reader that
-        /// wants the imported body's volume reads this field instead of
-        /// calling [`topo::mass_properties`] again, and gets the same
-        /// four fields bit for bit, because it is the same object.
+        /// **The at-rest gate's own enclosure of `body`, continued to
+        /// the number** — the certificate the aggregate gate's check 7
+        /// decided the +V invariant on, refined to the reporting target
+        /// rather than dropped. **Not a second computation**: the
+        /// continuation reuses every round the gate ran and pays only
+        /// the rest, so a reader that wants the imported body's volume
+        /// reads this field instead of calling
+        /// [`topo::mass_properties`] again, and gets the same four
+        /// fields bit for bit — the `Ok` arm, or the same refusal.
         ///
-        /// Present on every `Solid`, and that is the gate's structure
-        /// rather than a convenience: check 7 runs on a clean battery
-        /// and reports its own refusal, so a body that reaches this
-        /// variant has a certificate by construction (the gate would
-        /// otherwise have refused [`StepImportError::TierInvalid`]).
+        /// **An `Err` is not an import refusal.** Check 7 decides a
+        /// SIGN, so the gate admits a valid body whose volume is not
+        /// measurable at this ε (a rational-walled loft whose
+        /// quadrature exhausts its round budget, say) exactly as it
+        /// admits that body's native twin; the reader holds no opinion
+        /// of its own about which admitted bodies ship (DESIGN import
+        /// step 4). What it cannot give is the number, and
+        /// [`topo::TargetUnreached`] says why — with the narrowest
+        /// bracket the gate's certificate or its continuation held,
+        /// when the reason is the schedule running out.
         ///
         /// Its band is `Band::linear` of the import's `tol`, and its
         /// lane is the tier-3′ door's — the `f64` quadrature lane,
         /// which is the certified one at this scalar.
-        enclosure: topo::MassProperties<f64>,
+        enclosure: Result<topo::MassProperties<f64>, topo::TargetUnreached<f64>>,
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.
         eps_in: f64,
@@ -728,7 +734,9 @@ impl StepImport {
 /// entities outside the exported subset, units the subset does not
 /// cover, topology that does not assemble, geometry the D7 adoption
 /// ladder cannot certify, or a body the kernel's shared at-rest gate
-/// refuses ([`StepImportError::TierInvalid`]). Files written by
+/// refuses ([`StepImportError::TierInvalid`]). A body the gate admits
+/// whose volume is not measurable at this ε is NOT an error: it imports,
+/// and the refusal rides on `StepImport::Solid`'s `enclosure`. Files written by
 /// `step_export::step_string` from finished kernel bodies import
 /// cleanly.
 pub fn import_step(
@@ -789,11 +797,13 @@ pub fn import_step(
                     _ => one,
                 };
                 // The per-solid subject of the shared gate (below),
-                // asked about the PLACED copy — the body that ships.
-                // With one instance the per-solid and aggregate
-                // subjects are the same body, so this call is skipped
-                // as an identity, never as an exemption.
-                if model.instances.len() > 1 {
+                // asked about the PLACED copy — the body that ships —
+                // when `topo::per_part_gate_owed` says the aggregate
+                // owes it. The instance count IS the shipped body's
+                // solid count: `topo::graft_disjoint` below refuses any
+                // copy that is not exactly one solid (derivation:
+                // `work/gather/product-gate-says-verbatim-then-states-the-difference.md`).
+                if topo::per_part_gate_owed(model.instances.len()) {
                     gate(&one, Some(spec.id), tol)?;
                 }
                 topo::graft_disjoint(&mut body, &one, tol).map_err(|source| {
@@ -805,8 +815,9 @@ pub fn import_step(
                 // The A7 record, minted where the instance is: `index`
                 // is the graft order, and the graft appends one solid
                 // per call, so it IS the shipped body's `solids()`
-                // order (pinned by `the_assembly_record_indexes_the_
-                // shipped_solids`).
+                // order (pinned by `freecad.rs`'s
+                // `the_assembly_record_retains_the_occurrence_structure`
+                // and `the_assembly_record_covers_a_file_that_places_nothing`).
                 record.push(PlacedInstance {
                     index,
                     solid: spec.id,
@@ -833,23 +844,14 @@ pub fn import_step(
             // certifies the BODY, which is what `StepImport::Solid`
             // promises at rest.
             //
-            // Asked twice, for two different subjects. Several of the
-            // gate's invariants are WHOLE-BODY sums — check 7's +V is
-            // the boundary flux summed over every shell — so a solid
-            // stated inside-out cancels against a right-side-out
-            // neighbour and the aggregate reads Zero, which is exempt.
-            // "Every imported solid passes the gate" therefore has to
-            // mean each INSTANCE's own body, which is exactly the body
-            // the materialization loop above already holds, and the
-            // refusal names which `MANIFOLD_SOLID_BREP` it came from.
-            // The aggregate pass stays: it is the subject that owns
-            // the cross-solid structure (shared arena integrity, edges
-            // across shells) no per-solid view can see.
-            //
-            // With one instance the two subjects are the same body, so
-            // the per-solid call would re-run the aggregate call on
-            // identical geometry — skipped as an identity, never as an
-            // exemption.
+            // Asked for two subjects, and when the first is asked at
+            // all is `topo::per_part_gate_owed`'s to say, with its
+            // reason (one solid is one subject, not two); why it is
+            // asked is `docs/DESIGN.md` import step 4. Here the per-solid
+            // subject is each INSTANCE's own body, which is exactly the
+            // body the materialization loop above already holds, and
+            // the refusal names which `MANIFOLD_SOLID_BREP` it came
+            // from; the aggregate subject is the shipped body.
             //
             // The per-solid subject is the PLACED copy (M8): the body
             // that ships is the union of exactly these, so gating them
@@ -926,31 +928,37 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 
 /// The aggregate subject's gate: the tier-3′ form over the resolved
 /// declaration records — the same function a native declared-contact
-/// body's caller runs, with the same no-opinion contract as [`gate`].
+/// body's caller runs, with the same no-opinion contract as [`gate`] —
+/// followed by the measurement the reader ships.
 ///
-/// It returns the enclosure the gate itself computed. That is MORE
-/// returned and nothing filtered: the subject, the records, the
-/// tolerance and every verdict are what they were.
+/// The gate returns the certificate its check 7 decided on: each
+/// solid's SIGN, certified per solid and assembled over the whole face
+/// arena, one read of each face. The enclosure `StepImport::Solid`
+/// carries is that certificate CONTINUED to the reporting target
+/// ([`topo::SignCertificate::measure`]), so the continuation's cost is
+/// spelled here, where the reader asks for the number. The verdicts are
+/// the gate's, verbatim; a continuation that cannot reach the target is
+/// not a verdict, and rides on the enclosure rather than refusing the
+/// import.
 ///
-/// **What the value is depends on the subject's solid count**, because
-/// check 7's subject is a solid: over a one-solid body it is the object
-/// check 7 decided on rather than a second quadrature over the same
-/// body, and over the multi-solid aggregate this door exists for the
-/// kernel takes a further arena-wide reporting read, since no one
-/// solid's read is the body's. Either way the verdicts are the check's
-/// and the import path adds nothing to them
-/// (`topo::validate_pseudomanifold_certificate` states the split).
+/// **What the import as a whole pays is more than this gate.** Where
+/// [`topo::per_part_gate_owed`] asks for it, each placed solid is gated
+/// on its own first ([`gate`], tier 3), so every face of an assembly is
+/// read once there and once again here: a two-instance assembly of
+/// certifying solids records twice one measurement's quadrature
+/// verdicts through `import_step`. Where it does not, the import pays
+/// this gate only.
 fn gate3(
     body: &topo::Body<f64>,
     records: &topo::ContactRecords,
     tol: Tol,
-) -> Result<topo::MassProperties<f64>, StepImportError> {
-    topo::validate_pseudomanifold_certificate(body, records, tol).map_err(|errors| {
-        StepImportError::TierInvalid {
+) -> Result<Result<topo::MassProperties<f64>, topo::TargetUnreached<f64>>, StepImportError> {
+    topo::validate_pseudomanifold_certificate(body, records, tol)
+        .map(topo::SignCertificate::measure)
+        .map_err(|errors| StepImportError::TierInvalid {
             solid: None,
             errors,
-        }
-    })
+        })
 }
 
 /// Resolves the position-anchored import declarations against the
@@ -989,12 +997,16 @@ fn resolve_declarations(
 /// the body that produced it. That is a corrupt-body state, and no
 /// caller here can prove it away: the aggregate body reaches this
 /// resolution before any gate has run on it, and the per-solid gate
-/// above sees only the pre-graft copies and only when more than one
-/// instance ships. Passing over such a vertex would silently
-/// understate the census — a resolvable anchor would report as
-/// `DeclarationUnresolved` with the wrong `found`, a three-way
-/// coincidence would resolve as exactly two — so the census refuses
-/// with [`StepImportError::VertexWithoutPoint`] instead.
+/// above sees only the pre-graft copies, and only where
+/// [`topo::per_part_gate_owed`] asks for it — which at one solid it
+/// does not, so a one-instance import reaches here with NO gate run on
+/// any of its geometry (the premise
+/// `the_per_part_policy_still_skips_a_lone_solid` pins). Passing over
+/// such a vertex would silently understate the census — a resolvable
+/// anchor would report as `DeclarationUnresolved` with the wrong
+/// `found`, a three-way coincidence would resolve as exactly two — so
+/// the census refuses with [`StepImportError::VertexWithoutPoint`]
+/// instead.
 fn vertex_rest_contact(
     candidates: impl Iterator<Item = (topo::VertexKey, Option<geom_core::Point3<f64>>)>,
     at: [f64; 3],
@@ -1059,6 +1071,32 @@ mod declaration_tests {
             [records.vv[0].a, records.vv[0].b],
             [keys[0], keys[1]],
             "the record names the two vertices at the anchor"
+        );
+    }
+
+    /// **The premise [`vertex_rest_contact`]'s refusal is argued from**,
+    /// read off the policy's one home rather than restated: at one
+    /// solid the per-part gate is not owed, so a one-instance import
+    /// runs no gate on any of its geometry before its declarations
+    /// resolve. Two solids owe it, which is the other side of the same
+    /// threshold and what makes the lone-solid answer a threshold rather
+    /// than "never".
+    ///
+    /// Red here means `topo::per_part_gate_owed` changed its answer.
+    /// The refusal may well still be right — the per-part gate sees only
+    /// pre-graft copies — but its doc argues from this answer, so
+    /// re-read that argument before re-pinning.
+    #[test]
+    fn the_per_part_policy_still_skips_a_lone_solid() {
+        assert!(
+            !topo::per_part_gate_owed(1),
+            "the per-part gate is now owed by a lone solid: \
+             `vertex_rest_contact`'s premise no longer holds as written"
+        );
+        assert!(
+            topo::per_part_gate_owed(2),
+            "two solids no longer owe the per-part gate: a refusal about one \
+             instance of an assembly would stop naming its MANIFOLD_SOLID_BREP"
         );
     }
 

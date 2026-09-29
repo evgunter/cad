@@ -31,7 +31,7 @@ use pncad::document::{Doc, Node, ProductError, ProfileProgram, gathers_on_this_t
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::evalseam::EvalDone;
-use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
+use viewer::session::{AtRestBadge, DocSession, Landing};
 
 /// Re-land the result a session already holds, and answer how many
 /// times the gather ran while it did.
@@ -101,11 +101,11 @@ fn an_assembly_shaped_document_lands_on_one_gather() {
 /// **The landing's body is handed on, not gathered again**, on a part
 /// document — the path with no A5 gate to give it away.
 ///
-/// Delete `land`'s `Some(Arc::new(product.body))` and this row goes
-/// red on the `expect`, where the certified-assembly row below stays
-/// green; make `DocSession::landed_body` gather instead of borrow and
-/// it goes red on the count while the assembly row's count also
-/// moves.
+/// Delete `land`'s `Some(Arc::new(product.body.into_body()))` and
+/// this row goes red on the `expect`, where the certified-assembly row
+/// below stays green; make `DocSession::landed_body` gather instead of
+/// borrow and it goes red on the count while the assembly row's count
+/// also moves.
 #[test]
 fn a_part_documents_body_is_borrowed_from_its_landing() {
     let tol = Tol::witness();
@@ -168,13 +168,15 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    session.perform(SessionOp::AddMate {
-        a: common::head(common::asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Tangent,
-        alignment: common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
-    });
-    session.pump();
+    common::commit_mate(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Tangent,
+            common::asm::middle_seat_alignment(),
+        ),
+    );
     assert!(
         matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
         "this row's premise is a refused gate: {:?}",
@@ -244,12 +246,12 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
 /// The row above uses a document whose ROOT failed, and the registry
 /// refuses that on its own precondition — so it cannot see whether the
 /// landing's `NoBodyRoots` filter is doing anything at all. This one
-/// can: two `Transform`s of one extrude are two roots whose name rows
-/// collide in the product table, every root evaluates, and the ONLY
-/// thing that refuses is the gather. Widen the filter to `true` and
+/// can: two `Transform`s of one extrude are two roots placing one
+/// body, every root evaluates, and the ONLY thing that refuses is the
+/// gather. Widen the filter to `true` and
 /// this row goes red where the other stays green.
 #[test]
-fn a_naming_collision_lands_with_a_fault_and_no_report() {
+fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-collision-landing", tol);
     let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
@@ -282,8 +284,11 @@ fn a_naming_collision_lands_with_a_fault_and_no_report() {
 
     assert_eq!(gathers_of_one_landing(&mut session), 1);
     assert!(
-        matches!(session.product_fault(), Some(ProductError::Naming { .. })),
-        "the premise: only the gather refuses here, and it is a collision: {:?}",
+        matches!(
+            session.product_fault(),
+            Some(ProductError::PlacedUnderTwoRoots { .. })
+        ),
+        "the premise: only the gather refuses here, and it is one body under two roots: {:?}",
         session.product_fault()
     );
     assert!(

@@ -133,7 +133,6 @@ fn probe_rimless_pole_split_anchored_at_poles() {
 /// escalating. The first draft's `atan2`/`floor` margin is expected
 /// to blow up here (branch cut at the south-pole anchor, integer
 /// step at the north's).
-#[cfg(feature = "interval")]
 #[test]
 fn probe_interval_pole_anchored_hemisphere_certifies() {
     use geom_core::{Bounds, Interval};
@@ -155,7 +154,6 @@ fn probe_interval_pole_anchored_hemisphere_certifies() {
 /// The half-cap through the interval scalar, split at an ordinary
 /// vertex: the accepting path of `props_meridian_pole` (sign
 /// decisively positive) must also hold at interval.
-#[cfg(feature = "interval")]
 #[test]
 fn probe_interval_half_cap_certifies() {
     use geom_core::{Bounds, Interval};

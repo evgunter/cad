@@ -33,10 +33,6 @@ use profile::{
     PathError, Profile, ProfileLoop, Start,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// √3 — the y coordinate of the crossing points of the unit-spaced
 /// radius-2 circles used by the arc×arc fixtures.
 fn s3() -> f64 {
@@ -82,13 +78,13 @@ fn validates_with_declared_joints(lp: ProfileLoop<f64>, expected: &[usize]) -> P
 /// derived corner is (2, 0), where that ray meets that circle.
 /// Vertex chain: (0,2) → (0,0) → T1 → T2 ⤾.
 fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    Open.at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())?
+    Open.at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())?
         .toward(2.0, 0.0, Tol::witness())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -103,15 +99,15 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// radius R + r circle. Rotated the same way as its internal twin.
 /// Vertex chain: (3,-1) → (3,-2) → (0,-2) → (0,0) → T1 → T2 ⤾.
 fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    Open.at(p2(3.0, -1.0))
-        .line_to(p2(3.0, -2.0), Tol::witness())?
-        .line_to(p2(0.0, -2.0), Tol::witness())?
-        .line_to(p2(0.0, 0.0), Tol::witness())?
+    Open.at(Point2::new(3.0, -1.0))
+        .line_to(Point2::new(3.0, -2.0), Tol::witness())?
+        .line_to(Point2::new(0.0, -2.0), Tol::witness())?
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())?
         .toward(2.0, 0.0, Tol::witness())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(3.0, 0.0),
+                c: Point2::new(3.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -129,17 +125,17 @@ fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet(
         Center {
-            c: p2(0.0, 0.0),
+            c: Point2::new(0.0, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(0.0, 2.0),
+            p: Point2::new(0.0, 2.0),
         },
         radius,
         Tol::witness(),
     )?
     .toward(1.0, 0.0, Tol::witness())?
-    .to(p2(4.0, 0.0), Tol::witness())?
-    .line_to(p2(4.0, 3.0), Tol::witness())?
-    .line_to(p2(-1.0, 3.0), Tol::witness())?
+    .to(Point2::new(4.0, 0.0), Tol::witness())?
+    .line_to(Point2::new(4.0, 3.0), Tol::witness())?
+    .line_to(Point2::new(-1.0, 3.0), Tol::witness())?
     .line_to(Start, Tol::witness())
     .map(|closed| closed.loop_)
 }
@@ -156,15 +152,15 @@ fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-1.0, 0.0),
+            c: Point2::new(-1.0, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(1.0, 0.0),
+            p: Point2::new(1.0, 0.0),
         },
         radius,
         Center {
-            c: p2(1.0, 0.0),
+            c: Point2::new(1.0, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(-1.0, 0.0),
+            p: Point2::new(-1.0, 0.0),
         },
         Tol::witness(),
     )?
@@ -178,15 +174,15 @@ fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-1.0, 0.0),
+            c: Point2::new(-1.0, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(1.0, 0.0),
+            p: Point2::new(1.0, 0.0),
         },
         radius,
         Center {
-            c: p2(1.0, 0.0),
+            c: Point2::new(1.0, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(3.0, 0.0),
+            p: Point2::new(3.0, 0.0),
         },
         Tol::witness(),
     )?
@@ -207,11 +203,11 @@ fn line_arc_internal_validates_with_declared_tangency() {
     // (0,2) → (0,0) → T1 on y = 0 → fillet arc → T2 on the circle ⤾.
     assert_eq!(lp.vertices().len(), 4);
     // T1 = (√2, 0) exactly: x² = (2−r)² − r² = 2 at r = 1/2.
-    assert!((lp.vertices()[2].pos().x - 2.0f64.sqrt()).abs() < 1e-15);
-    assert_eq!(lp.vertices()[2].pos().y, 0.0);
+    assert!((lp.vertices()[2].x - 2.0f64.sqrt()).abs() < 1e-15);
+    assert_eq!(lp.vertices()[2].y, 0.0);
     // T2 sits on the arrival carrier to rounding — tangency by
     // construction.
-    let t2 = lp.vertices()[3].pos();
+    let t2 = lp.vertices()[3];
     // The claim is that T2 lies on the carrier, so measure THAT — the
     // radial residual — and not its square. |t|² − R² is 2R times the
     // radial error, so on this R = 2 carrier the squared form silently
@@ -229,7 +225,7 @@ fn line_arc_internal_validates_with_declared_tangency() {
 fn line_arc_external_validates_with_declared_tangency() {
     let lp = line_arc_external(0.5).expect("the fillet fits");
     assert_eq!(lp.vertices().len(), 6);
-    let t2 = lp.vertices()[5].pos();
+    let t2 = lp.vertices()[5];
     // On the arrival side's carrier (center (3,0), R = 1).
     assert!(((t2.x - 3.0).powi(2) + t2.y.powi(2) - 1.0).abs() < 1e-15);
     validates_with_declared_joints(lp, &[4, 5]);
@@ -239,19 +235,19 @@ fn line_arc_external_validates_with_declared_tangency() {
 fn arc_line_validates_with_declared_tangency() {
     let lp = arc_line(0.5).expect("the fillet fits");
     assert_eq!(lp.vertices().len(), 6);
-    let t1 = lp.vertices()[1].pos();
+    let t1 = lp.vertices()[1];
     // T1 on the incoming side's carrier (origin, R = 2).
     assert!((t1.x.powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-15);
     // T2 on the straight arrival side y = 0.
-    assert!(lp.vertices()[2].pos().y.abs() < 1e-15);
+    assert!(lp.vertices()[2].y.abs() < 1e-15);
     validates_with_declared_joints(lp, &[1, 2]);
 }
 
 #[test]
 fn arc_arc_internal_validates_with_declared_tangency() {
     let lp = arc_arc_internal(0.5).expect("the fillet fits");
-    let t1 = lp.vertices()[1].pos();
-    let t2 = lp.vertices()[2].pos();
+    let t1 = lp.vertices()[1];
+    let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
     validates_with_declared_joints(lp, &[1, 2]);
@@ -260,8 +256,8 @@ fn arc_arc_internal_validates_with_declared_tangency() {
 #[test]
 fn arc_arc_mixed_validates_with_declared_tangency() {
     let lp = arc_arc_mixed(0.5).expect("the fillet fits");
-    let t1 = lp.vertices()[1].pos();
-    let t2 = lp.vertices()[2].pos();
+    let t1 = lp.vertices()[1];
+    let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
     validates_with_declared_joints(lp, &[1, 2]);
@@ -282,9 +278,9 @@ fn bracket_with_an_arc_leg_validates_and_declares() {
     let lp = Open
         .arc_fillet(
             Center {
-                c: p2(2.0, -2.0),
+                c: Point2::new(2.0, -2.0),
                 winding: ArcSweep::Ccw,
-                p: p2(3.0, 1.0),
+                p: Point2::new(3.0, 1.0),
             },
             0.5,
             Tol::witness(),
@@ -292,13 +288,13 @@ fn bracket_with_an_arc_leg_validates_and_declares() {
         .expect("the arc-carrier bracket fillet fits")
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(p2(1.0, 3.0), Tol::witness())
+        .to(Point2::new(1.0, 3.0), Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0), Tol::witness())
+        .line_to(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
-        .line_to(p2(3.0, 0.0), Tol::witness())
+        .line_to(Point2::new(3.0, 0.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap()
@@ -307,10 +303,10 @@ fn bracket_with_an_arc_leg_validates_and_declares() {
     // arc side's anchor: (3,1), T1, T2, (1,3), (0,3), (0,0), (3,0).
     assert_eq!(lp.vertices().len(), 7);
     // T2 sits on the straight arrival side x = 1, above the corner.
-    assert_eq!(lp.vertices()[2].pos().x, 1.0);
-    assert!(lp.vertices()[2].pos().y > 1.0);
+    assert_eq!(lp.vertices()[2].x, 1.0);
+    assert!(lp.vertices()[2].y > 1.0);
     // T1 sits on the incoming side's carrier.
-    let t1 = lp.vertices()[1].pos();
+    let t1 = lp.vertices()[1];
     assert!(((t1.x - 2.0).powi(2) + (t1.y + 2.0).powi(2) - 10.0).abs() < 1e-14);
     validates_with_declared_joints(lp, &[1, 2]);
 }
@@ -323,15 +319,15 @@ fn oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin() {
     // point back further than that, so the trim would eat the anchor.
     let short = 10.0f64.to_radians();
     let err = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0 * short.cos(), 2.0 * short.sin()),
+                p: Point2::new(2.0 * short.cos(), 2.0 * short.sin()),
             },
             Tol::witness(),
         )
@@ -370,15 +366,15 @@ fn oversized_radius_on_a_straight_side_still_names_the_straight_carrier() {
     // Same corner class, but the STRAIGHT side is the short one: its
     // ray origin sits 1/10 short of the derived corner.
     let err = Open
-        .at(p2(1.9, 0.0))
+        .at(Point2::new(1.9, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
             },
             Tol::witness(),
         )
@@ -464,18 +460,18 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
     // extent and the arm/turn gates pass cleanly.
     let along = |cx: f64, cy: f64, r: f64, delta: f64| {
         let a = f64::atan2(-cy, -cx) + delta;
-        p2(cx + r * a.cos(), cy + r * a.sin())
+        Point2::new(cx + r * a.cos(), cy + r * a.sin())
     };
     let arc_arc_at = |r: f64| {
         Open.arc_fillet_arc(
             Center {
-                c: p2(0.0, -1.0),
+                c: Point2::new(0.0, -1.0),
                 winding: ArcSweep::Ccw,
                 p: along(0.0, -1.0, 1.0, -1.0),
             },
             r,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: along(0.5, 0.0, 0.5, 1.0),
             },
@@ -597,7 +593,7 @@ fn vesica_lens(
         },
         r,
         Center {
-            c: p2(1.0, 0.0),
+            c: Point2::new(1.0, 0.0),
             winding: w,
             p: Start,
         },
@@ -614,11 +610,16 @@ fn vesica_lens(
 /// junctions declared and verified.
 #[test]
 fn two_corner_side_candidates_pick_the_near_one() {
-    let lp = vesica_lens(p2(0.0, -s3()), p2(-1.0, 0.0), ArcSweep::Ccw, 0.5);
+    let lp = vesica_lens(
+        Point2::new(0.0, -s3()),
+        Point2::new(-1.0, 0.0),
+        ArcSweep::Ccw,
+        0.5,
+    );
     // entry, T1, T2: trimmed incoming run, fillet arc, closing run.
     assert_eq!(lp.vertices().len(), 3);
-    let t1 = lp.vertices()[1].pos();
-    let t2 = lp.vertices()[2].pos();
+    let t1 = lp.vertices()[1];
+    let t2 = lp.vertices()[2];
     // Tangent points exactly on their carriers (tangency by
     // construction), and in the TOP pocket — the near candidate's.
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
@@ -646,10 +647,15 @@ fn two_corner_side_candidates_pick_the_near_one() {
 /// arithmetic, which f64 does not commute with exactly).
 #[test]
 fn the_far_pocket_is_authored_as_the_other_corners_near_fillet() {
-    let lp = vesica_lens(p2(0.0, s3()), p2(-1.0, 0.0), ArcSweep::Cw, 0.5);
+    let lp = vesica_lens(
+        Point2::new(0.0, s3()),
+        Point2::new(-1.0, 0.0),
+        ArcSweep::Cw,
+        0.5,
+    );
     assert_eq!(lp.vertices().len(), 3);
-    let t1 = lp.vertices()[1].pos();
-    let t2 = lp.vertices()[2].pos();
+    let t1 = lp.vertices()[1];
+    let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(t1.y < 0.0 && t2.y < 0.0, "wrong pocket: {lp:?}");
@@ -668,15 +674,24 @@ fn the_far_pocket_is_authored_as_the_other_corners_near_fillet() {
 /// same pick from the other lane).
 #[test]
 fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
-    let build = || vesica_lens(p2(0.0, -s3()), p2(-1.0, 0.0), ArcSweep::Ccw, 0.5);
+    let build = || {
+        vesica_lens(
+            Point2::new(0.0, -s3()),
+            Point2::new(-1.0, 0.0),
+            ArcSweep::Ccw,
+            0.5,
+        )
+    };
     let a = build();
     let b = build();
     assert_eq!(a.tangent_joints(), b.tangent_joints());
     assert_eq!(a.vertices().len(), b.vertices().len());
     for (va, vb) in a.vertices().iter().zip(b.vertices()) {
-        assert_eq!(va.pos().x.to_bits(), vb.pos().x.to_bits());
-        assert_eq!(va.pos().y.to_bits(), vb.pos().y.to_bits());
-        assert_eq!(va.bulge().to_bits(), vb.bulge().to_bits());
+        assert_eq!(va.x.to_bits(), vb.x.to_bits());
+        assert_eq!(va.y.to_bits(), vb.y.to_bits());
+    }
+    for (ba, bb) in a.bulges().iter().zip(b.bulges()) {
+        assert_eq!(ba.to_bits(), bb.to_bits());
     }
 }
 
@@ -700,8 +715,8 @@ fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
 fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
     let build = || {
         vesica_lens(
-            p2(0.0, -s3()),
-            p2(-1.0 + f64::EPSILON, 0.0),
+            Point2::new(0.0, -s3()),
+            Point2::new(-1.0 + f64::EPSILON, 0.0),
             ArcSweep::Ccw,
             0.5,
         )
@@ -711,13 +726,15 @@ fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
     assert_eq!(a.tangent_joints(), b.tangent_joints());
     assert_eq!(a.vertices().len(), b.vertices().len());
     for (va, vb) in a.vertices().iter().zip(b.vertices()) {
-        assert_eq!(va.pos().x.to_bits(), vb.pos().x.to_bits());
-        assert_eq!(va.pos().y.to_bits(), vb.pos().y.to_bits());
-        assert_eq!(va.bulge().to_bits(), vb.bulge().to_bits());
+        assert_eq!(va.x.to_bits(), vb.x.to_bits());
+        assert_eq!(va.y.to_bits(), vb.y.to_bits());
+    }
+    for (ba, bb) in a.bulges().iter().zip(b.bulges()) {
+        assert_eq!(ba.to_bits(), bb.to_bits());
     }
     // One pocket was definitely committed to (which one is the lane's
     // own business).
-    assert!(a.vertices()[1].pos().y.abs() > 0.5);
+    assert!(a.vertices()[1].y.abs() > 0.5);
 }
 
 #[test]
@@ -727,15 +744,15 @@ fn an_already_tangent_corner_asks_for_the_declaration_instead() {
     // the whole tangent/anti-tangent class — a doubled-back contact is
     // the same "no corner exists" story, not a second arm.
     let err = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(2.0, 2.0),
+                c: Point2::new(2.0, 2.0),
                 winding: ArcSweep::Ccw,
-                p: p2(4.0, 2.0),
+                p: Point2::new(4.0, 2.0),
             },
             Tol::witness(),
         )
@@ -757,15 +774,15 @@ fn a_side_with_no_extent_is_refused_before_any_angle_is_classified() {
     // not ahead of the side being authored and there is no lever arm to
     // meter the turn at (D4 ¶1).
     let err = Open
-        .at(p2(2.0, 0.0))
+        .at(Point2::new(2.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
             },
             Tol::witness(),
         )
@@ -803,7 +820,7 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
     // poison). Both must come out as typed refusals, never a panic and
     // never a classification taken on a collapsed lever arm.
     let empty_sweep = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
@@ -813,9 +830,9 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
                 // neither crossing is admitted: the far one is not
                 // behind the arrival anchor and the near one is behind
                 // the ray's own origin (the row reads both windows).
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0, 0.0),
+                p: Point2::new(2.0, 0.0),
             },
             Tol::witness(),
         )
@@ -856,7 +873,7 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
         "recourse: {empty_sweep}"
     );
     let zero_radius = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
@@ -864,9 +881,9 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
             Center {
                 // The carrier's centre IS its anchor: R = 0, so the
                 // winding selects no tangent.
-                c: p2(2.0, 0.0),
+                c: Point2::new(2.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0, 0.0),
+                p: Point2::new(2.0, 0.0),
             },
             Tol::witness(),
         )
@@ -898,17 +915,17 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
 #[test]
 fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
     let underflowed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(2.0, 0.0),
+                c: Point2::new(2.0, 0.0),
                 winding: ArcSweep::Ccw,
                 // Exact in binary: 2.0 - 2.0 = 0 and 1e-200 - 0 = 1e-200,
                 // so the displacement really is (0, 1e-200).
-                p: p2(2.0, 1e-200),
+                p: Point2::new(2.0, 1e-200),
             },
             Tol::witness(),
         )
@@ -936,15 +953,15 @@ fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
     // The row above still refuses the other way: a carrier whose centre
     // IS its anchor really has no radius, and it keeps its own arm.
     let zero = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(2.0, 0.0),
+                c: Point2::new(2.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0, 0.0),
+                p: Point2::new(2.0, 0.0),
             },
             Tol::witness(),
         )
@@ -985,15 +1002,15 @@ fn corner_advance_trio() {
     // in-band: a ray origin 5ε short of the derived corner.
     let tiny = in_band();
     let err = Open
-        .at(p2(2.0 - tiny, 0.0))
+        .at(Point2::new(2.0 - tiny, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
             },
             Tol::witness(),
         )
@@ -1016,15 +1033,15 @@ fn carrier_meet_trio() {
     // margin R − |offset| = δ inside (ε, K·ε).
     let delta = in_band();
     let err = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(2.0, 2.0 - delta),
+                c: Point2::new(2.0, 2.0 - delta),
                 winding: ArcSweep::Ccw,
-                p: p2(4.0, 2.0 - delta),
+                p: Point2::new(4.0, 2.0 - delta),
             },
             Tol::witness(),
         )
@@ -1108,10 +1125,10 @@ fn fillet_leg_fit_trio_definite_and_exact() {
     assert!(lp.tangent_joints().is_empty(), "{:?}", lp.tangent_joints());
     // The entry anchor and the ray's origin survive verbatim; the fillet
     // arc springs off the origin and closes on the entry.
-    assert!((lp.vertices()[0].pos().y - 2.0).abs() < 1e-15);
-    assert_eq!(lp.vertices()[0].pos().x, 0.0);
-    assert_eq!(lp.vertices()[1].pos().x, 0.0);
-    assert_eq!(lp.vertices()[1].pos().y, 0.0);
+    assert!((lp.vertices()[0].y - 2.0).abs() < 1e-15);
+    assert_eq!(lp.vertices()[0].x, 0.0);
+    assert_eq!(lp.vertices()[1].x, 0.0);
+    assert_eq!(lp.vertices()[1].y, 0.0);
 }
 
 #[test]
@@ -1178,13 +1195,8 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
     let dump = |lp: &ProfileLoop<f64>| -> Vec<VertexBits> {
         lp.vertices()
             .iter()
-            .map(|v| {
-                (
-                    v.pos().x.to_bits(),
-                    v.pos().y.to_bits(),
-                    v.bulge().to_bits(),
-                )
-            })
+            .zip(lp.bulges())
+            .map(|(v, b)| (v.x.to_bits(), v.y.to_bits(), b.to_bits()))
             .collect()
     };
     let cases: [PinnedCase; 5] = [

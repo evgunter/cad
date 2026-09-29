@@ -6,7 +6,7 @@
 //! poison channel was not. This file is the enumerated pin for that: for
 //! every operation on the scalar's surface, at a domain-violating or
 //! otherwise poisoned input, the wrapper must classify exactly as the
-//! inari-backed wrapper did — `Indeterminate` with [`MarginDiag::Invalid`]
+//! inari-backed wrapper did — `Indeterminate` with [`MarginKind::Invalid`](crate::MarginKind::Invalid)
 //! wherever the decoration falls below `Def`, and a *definite* verdict
 //! wherever the pre-swap kernel produced one.
 //!
@@ -26,7 +26,6 @@
 //! file deliberately checks *decisions*, not endpoints, because
 //! decisions are what the swap was forbidden to change.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign};
@@ -42,9 +41,9 @@ fn band() -> Band {
 /// `Invalid` margin, not merely a straddling enclosure.
 #[track_caller]
 fn assert_poisoned(name: &str, x: Interval) {
-    match x.sign_within(band()) {
+    match x.sign_within(band()).map(|d| d.sign) {
         Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             ..
         }) => {}
         other => panic!("{name}: expected poison-refusal, got {other:?}"),
@@ -55,7 +54,7 @@ fn assert_poisoned(name: &str, x: Interval) {
 /// every healthy input in this file.
 #[track_caller]
 fn assert_decides(name: &str, x: Interval, expect: Sign) {
-    match x.sign_within(band()) {
+    match x.sign_within(band()).map(|d| d.sign) {
         Ok(s) if s == expect => {}
         other => panic!("{name}: expected Ok({expect:?}), got {other:?}"),
     }

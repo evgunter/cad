@@ -70,10 +70,19 @@
 // `Applied::maintenance` answers in — the A11 cluster-record acts an
 // edit forced and the references a delete stranded (DM7) — and a
 // consumer that can hold an `Applied` in a typed field must be able to
-// hold what it carries.
+// hold what it carries. `MaintenanceNet` rides with it: a consumer
+// that applies several edits as one action (a cascade delete) folds
+// their rows into what is true of the document the action ends at, and
+// that rule has one spelling.
+// `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
+// who cannot spell it cannot author the edit — and `StepIdFault` is
+// what `EditError::StepIdsRefused` carries, so a consumer matching that
+// arm can name what it caught. `PiecesFault` is the same for
+// `NodeErrorKind::ProfilePieces` and `ProgramRefusal::Pieces`.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    Maintenance, MetaVersionError, ProgramRefusal, apply, apply_logged,
+    Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
+    StepIdFault, apply, apply_logged,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -97,22 +106,24 @@ pub use editor_core::{
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
-// `MeasureUnavailableAt` and `MinClearanceRefusal` are carried for the
+// `MeasureUnavailableAt` and `ClearanceRefusal` are carried for the
 // reason a payload's payload always is: they are what
 // `UnevaluatedReason::MeasureUnavailable` and
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
 // name the outer type and not the inner one can see that there is a
-// reason and never read it.
+// reason and never read it. `CellBudget` and `SelectionRefusal` are
+// `ClearanceRefusal`'s own `Budget` and `Selection` payloads, one rung
+// further down, for the same reason.
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
+pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceRefusal, NotAFaceName, SitedFace, SitedRef,
-    UnevaluatedReason,
+    MeasureUnavailableAt, NotAFaceName, SitedFace, SitedRef, UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -274,7 +285,7 @@ pub use editor_core::ContentBits;
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
 pub use editor_core::{
-    Product, ProductError, ProductErrorKind, RootFault, product, product_recorded,
+    Product, ProductError, ProductErrorKind, RootFault, SourceFinding, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -395,7 +406,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, inline, split,
+    SplitOutcome, StepMap, StepMapDivergence, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s
@@ -439,7 +450,7 @@ pub use editor_core::{
 /// two different findings about the SAME thing: the component count
 /// for this subject is unknowable, because a shell's orientation read
 /// escalated or because a face of it is outside the flux inventory.
-/// Which shell, and which of the four ways the door refused, is
+/// Which shell, and which of the five ways the door refused, is
 /// `source` — and a consumer that could match the arm and not name its
 /// type read that only out of the message prose.
 ///
@@ -454,7 +465,9 @@ pub use topo::ShellClassifyError;
 // The profile description node type and its document alias, plus the
 // refusal of the door that reads a step's profile edges — matchable
 // here because a caller that asked which edges a step became has to be
-// able to say WHY it was not told.
+// able to say WHY it was not told. `CanonicalSegment` is what that door
+// answers in: a canonical position, which is what emission iterates
+// and the pieces (`crate::select::ProfilePieces`) translate.
 //
 // `RecordedNotation` rides with them because a recorded path program is
 // bare `f64`s and a document literal names its notation (D6): it is what
@@ -462,6 +475,7 @@ pub use topo::ShellClassifyError;
 // `LoopProgram::from_recorded_with_notation` so the document reads back
 // what they wrote.
 pub use editor_core::{
-    LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError, resolve_loops,
+    CanonicalSegment, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError,
+    resolve_loops,
 };

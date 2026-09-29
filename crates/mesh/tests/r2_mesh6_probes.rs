@@ -179,7 +179,6 @@ fn r2_scaffold_strut_body_through_tessellate() {
     // the corner the strut hangs off (that bundle's documented order).
     let e_ab = cube.mevs[0];
     let strut = |he| MevSite::Fan { he1: he, he2: he };
-    let pt = Point3::new;
     println!(
         "R2-SCAF closed cube: validate_closed = {:?}",
         topo::validate_closed(&body).is_ok()
@@ -191,7 +190,7 @@ fn r2_scaffold_strut_body_through_tessellate() {
 
     // Now the scaffolding strut: tier-1 legal, tier-2 invalid.
     let scaffold = body
-        .mev_line(strut(e_ab.he_plus), pt(2.0, 0.0, 0.0), tol)
+        .mev_line(strut(e_ab.he_plus), Point3::new(2.0, 0.0, 0.0), tol)
         .unwrap();
     let _ = scaffold;
     println!(

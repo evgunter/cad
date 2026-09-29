@@ -23,11 +23,13 @@ use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::render_number;
-use crate::seats::{Seat, seat_line};
-use crate::session::{FaceFrameFault, ProfilePlane, Selection, SessionOp, face_frame_seat};
+use crate::seats::{Seats, seat_line};
+use crate::session::{
+    FaceFrameFault, FaceSelection, ProfilePlane, Selection, SessionOp, Standing, face_frame_seat,
+};
 use crate::sketch;
 use crate::theme::Theme;
-use crate::tools::ToolKind;
+use crate::tools::{ToolKind, ToolNotice};
 use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
@@ -139,6 +141,25 @@ pub(crate) fn duplicate_note() -> String {
     )
 }
 
+/// **A seated tool's held picks, drawn**: [`seat_line`] over the
+/// tool's own [`Seats`], in the advisory voice every tool panel says
+/// its picks in.
+///
+/// Takes the `Seats` rather than a line or a list of roles, so a panel
+/// has no roles to re-list and no line to compose; a free function over
+/// the `Ui` so a headless row can read what it paints
+/// (`crate::pane::headless`).
+pub(crate) fn seats_row(ui: &mut egui::Ui, seats: &Seats, theme: &Theme) {
+    crate::widgets::message_toned(ui, seat_line(seats), theme, Tone::Advisory);
+}
+
+/// **The mate tool's held picks, drawn** — [`MateToolState::line`],
+/// the seated tools' line over the mate's two sides, in the same voice
+/// as [`seats_row`].
+pub(crate) fn mate_picks_row(ui: &mut egui::Ui, state: &MateToolState, theme: &Theme) {
+    crate::widgets::message_toned(ui, state.line(), theme, Tone::Advisory);
+}
+
 /// **The smallest pattern count the form offers.**
 ///
 /// A pattern of zero instances refuses at evaluation
@@ -234,10 +255,7 @@ fn part_window(opener: &egui::Ui) -> egui::Window<'static> {
 /// the op's own refusal — read off the entry, not minted here.
 fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
     let refusal = entry.refusal();
-    let mut pick = ui.add_enabled(refusal.is_none(), egui::Button::new(entry.file_name()));
-    if let Some(refusal) = refusal {
-        pick = pick.on_disabled_hover_text(refusal.to_string());
-    }
+    let picked = crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref());
     ui.add(
         egui::Label::new(crate::app::toned(
             entry.id.to_string(),
@@ -246,7 +264,7 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
         ))
         .truncate(),
     );
-    pick.clicked()
+    picked
 }
 
 /// **What the add-profile form calls the frame it offers to mint.**
@@ -305,6 +323,167 @@ pub(crate) fn profile_plane_row(
             ProfilePlane::Existing(id) => names(id),
         },
     );
+}
+
+/// **The chooser's answer, drawn**: the directory it read, then the
+/// parts on offer or what it has to say instead — and the entry that
+/// was clicked, when one was.
+///
+/// How loud the answer is, is the chooser's to say
+/// ([`PartChooser::tone`]), read once for the two arms that draw a
+/// sentence rather than a list.
+///
+/// A chooser with no directory draws no header line: it has refused
+/// for exactly that reason ([`crate::session::Refusal::NoDocumentDirectory`],
+/// minted from the same resolver its directory is), and a quiet "no
+/// directory" above the loud refusal would be one fact in two voices.
+///
+/// A free function over the `Ui` so a headless drive can reach it
+/// (`crate::pane::headless`).
+fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Option<DocumentId> {
+    if let Some(dir) = chooser.dir() {
+        crate::widgets::message_toned(
+            ui,
+            format!("parts in {}", dir.display()),
+            theme,
+            Tone::Advisory,
+        );
+    }
+    let mut chosen = None;
+    match chooser.offered() {
+        // An EMPTY listing is not "no parts here": `PartChooser::tone`
+        // says why, and why it is loud. The sentence says it to the
+        // reader.
+        Ok([]) => {
+            crate::widgets::message_toned(
+                ui,
+                "this directory holds no documents at all — not even the open document's own \
+                 file, which has gone from it",
+                theme,
+                chooser.tone(),
+            );
+        }
+        Ok(entries) => {
+            for entry in entries {
+                if part_entry(ui, theme, entry) {
+                    chosen = Some(entry.id);
+                }
+            }
+        }
+        // The refusing layer's own sentence — the store's or the
+        // directory rule's — never one composed here.
+        Err(refusal) => {
+            crate::widgets::message_toned(ui, refusal.to_string(), theme, chooser.tone());
+        }
+    }
+    chosen
+}
+
+/// **A face-frame fault under the datum form**, in the voice the fault
+/// gives itself ([`FaceFrameFault::tone`]) — or nothing, where this
+/// pane already says the fact elsewhere, because it says a fact once:
+///
+/// - `NoFace` is the form's unmet seat, which the form has already
+///   asked for in the same words from its one home;
+/// - `Unresolved`, when `said_by_selection`: the form's latched face IS
+///   the selection, and the selection's own verdict
+///   (`pane::properties::standing_verdict`, in this pane) is already
+///   saying, loud, that it does not resolve. A latched face that is no
+///   longer selected has nobody else to say it, so the form does.
+///
+/// A free function over the `Ui` so a headless drive can reach it.
+fn face_frame_fault(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    fault: &FaceFrameFault,
+    said_by_selection: bool,
+) {
+    let said_elsewhere = match fault {
+        FaceFrameFault::NoFace => true,
+        FaceFrameFault::Unresolved { .. } => said_by_selection,
+        FaceFrameFault::NotLanded
+        | FaceFrameFault::NotOneBody { .. }
+        | FaceFrameFault::NotPlanar { .. } => false,
+    };
+    if !said_elsewhere {
+        crate::widgets::message_toned(ui, fault.to_string(), theme, fault.tone());
+    }
+}
+
+/// **Whether the selection's verdict is already saying that the form's
+/// latched face does not resolve**: the latched face is the one
+/// selected, and the selection carries an unresolved verdict
+/// ([`Standing::unresolved`]). A selected face that resolves, or has no
+/// evaluation behind it yet, says no such thing, so the form's own
+/// refusal is the only place a reader would learn it.
+fn selection_says_unresolved(standing: &Standing, latched: Option<&FaceSelection>) -> bool {
+    match standing {
+        Standing::Face { face, .. } => Some(face) == latched && standing.unresolved().is_some(),
+        Standing::Empty
+        | Standing::Node { .. }
+        | Standing::Param { .. }
+        | Standing::Edge { .. } => false,
+    }
+}
+
+/// **Why the add-profile button is held**, when it is — and how loud
+/// that is, which depends on which of two things it is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    /// The form is waiting for its next input: a frame, a shape, a
+    /// first step. The form asking, [`Tone::Advisory`].
+    Waiting(&'static str),
+    /// An input the reader gave is refused, and the button stays shut
+    /// until they change it: [`Tone::Actionable`].
+    Refused(&'static str),
+}
+
+impl Held {
+    fn words(self) -> &'static str {
+        match self {
+            Self::Waiting(words) | Self::Refused(words) => words,
+        }
+    }
+
+    fn tone(self) -> Tone {
+        match self {
+            Self::Waiting(_) => Tone::Advisory,
+            Self::Refused(_) => Tone::Actionable,
+        }
+    }
+}
+
+/// **The one reason the add-profile button is held for**, out of every
+/// reason the form found, handed over in the form's own top-to-bottom
+/// order.
+///
+/// A refused input outranks the form waiting for one: a missing frame,
+/// shape or first step shows in the form itself (an empty picker, no
+/// shape chosen, an empty chain), while a refused value looks like any
+/// other number in its field and has no other voice. Between two of
+/// one kind the earlier in the form is said, so the first thing a
+/// person is asked for is the first thing the form lacks.
+fn held_for(holds: impl IntoIterator<Item = Held>) -> Option<Held> {
+    holds.into_iter().reduce(|said, next| match (said, next) {
+        (Held::Waiting(_), Held::Refused(_)) => next,
+        _ => said,
+    })
+}
+
+/// **What a bored circle holds the button for**: a bore at least as
+/// wide as the radius, which is an input the reader gave and the form
+/// refuses — [`Held::Refused`], not a request for the next input.
+fn bore_held(bored: bool, bore: f64, radius: f64) -> Option<Held> {
+    (bored && bore >= radius).then_some(Held::Refused(
+        "the bore must be smaller than the radius — which loop is the hole is decided by \
+         containment, so a larger bore would swap the roles rather than refuse",
+    ))
+}
+
+/// The held button's reason, drawn in its own voice. A free function
+/// over the `Ui` so a headless drive can reach it.
+fn held_line(ui: &mut egui::Ui, theme: &Theme, held: Held) {
+    crate::widgets::message_toned(ui, held.words(), theme, held.tone());
 }
 
 impl ViewerBehavior<'_> {
@@ -373,22 +552,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
-        match tool.state() {
-            MateToolState::Idle => {
-                ui.weak("no picks yet");
-            }
-            MateToolState::One(a) => {
-                ui.weak(format!("pick a: face of node {}", a.node.0));
-            }
-            MateToolState::Two { a, b } => {
-                crate::widgets::message_toned(
-                    ui,
-                    format!("pick a: node {}; pick b: node {}", a.node.0, b.node.0),
-                    &self.theme,
-                    Tone::Advisory,
-                );
-            }
-        }
+        mate_picks_row(ui, tool.state(), &self.theme);
         // The class choice, offered THROUGH the kernel's admission
         // table: each class is shown with its verdict, and the
         // deferral (Fit and every future class) is a sentence here
@@ -457,14 +621,17 @@ impl ViewerBehavior<'_> {
                                 close = true;
                             }
                             Err(error) => {
-                                self.notices
-                                    .push(frame::tool_news(ToolKind::Mate.says(&error)));
+                                self.notices.push(frame::tool_news(
+                                    ToolKind::Mate.says(&error),
+                                    frame::Retold::Again,
+                                ));
                             }
                         }
                     }
                     _ => {
                         self.notices.push(frame::tool_news(
                             ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
+                            frame::Retold::Again,
                         ));
                     }
                 }
@@ -516,50 +683,7 @@ impl ViewerBehavior<'_> {
         let mut close = false;
         if let Some(chooser) = self.part_chooser.as_ref() {
             part_window(ui).show(ui.ctx(), |ui| {
-                match chooser.dir() {
-                    Some(dir) => {
-                        crate::widgets::message_toned(
-                            ui,
-                            format!("parts in {}", dir.display()),
-                            &self.theme,
-                            Tone::Advisory,
-                        );
-                    }
-                    None => {
-                        ui.weak("no directory");
-                    }
-                }
-                match chooser.offered() {
-                    // An EMPTY listing is not "no parts here": a
-                    // saved session's own file is in its own
-                    // directory, so the only way to scan clean and
-                    // find nothing is for that file to have gone
-                    // away underneath the session. Say that, since
-                    // it is also why the instances already placed
-                    // will stop resolving.
-                    Ok([]) => {
-                        crate::widgets::message_toned(
-                            ui,
-                            "this directory holds no documents at all — not even the open \
-                                 document's own file, which has gone from it",
-                            &self.theme,
-                            Tone::Advisory,
-                        );
-                    }
-                    Ok(entries) => {
-                        for entry in entries {
-                            if part_entry(ui, &self.theme, entry) {
-                                chosen = Some(entry.id);
-                            }
-                        }
-                    }
-                    // The refusing layer's own sentence — the
-                    // store's or the directory rule's — never one
-                    // composed here.
-                    Err(refusal) => {
-                        crate::widgets::message(ui, refusal.to_string());
-                    }
-                }
+                chosen = part_listing(ui, &self.theme, chooser);
                 ui.horizontal(|ui| {
                     if ui
                         .button("Rescan")
@@ -698,10 +822,12 @@ impl ViewerBehavior<'_> {
         }
         // `NoFace` is the unmet seat above, in the same words from its
         // one home: the sentence asking for the pick is drawn once.
-        if let Some(fault) = refused
-            && *fault != FaceFrameFault::NoFace
-        {
-            crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
+        if let Some(fault) = refused {
+            let said = selection_says_unresolved(
+                &self.session.standing(),
+                self.drafts.datum_face.as_ref(),
+            );
+            face_frame_fault(ui, &self.theme, fault, said);
         }
         if ui
             .add_enabled(
@@ -717,8 +843,10 @@ impl ViewerBehavior<'_> {
                 // no `ToolKind` to compose the prefix — the form's own
                 // name is the sentence's subject here.
                 Err(error) => {
-                    self.notices
-                        .push(frame::tool_news(format!("add datum: {error}")));
+                    self.notices.push(frame::tool_news(
+                        format!("add datum: {error}"),
+                        frame::Retold::Again,
+                    ));
                 }
             }
         }
@@ -880,17 +1008,17 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.profile_plane,
         );
         let shape = self.drafts.profile_shape;
-        let mut blocked: Option<&'static str> = None;
-        // Stated before the shape check so the FIRST thing a person is
-        // told is the thing they have to do first.
+        // Every reason the button is held, in the form's order; which
+        // one is said is `held_for`'s to decide, not any one arm's.
+        let mut holds: Vec<Held> = Vec::new();
         if self.drafts.profile_plane.is_none() {
-            blocked = Some("pick a frame to draw on");
+            holds.push(Held::Waiting("pick a frame to draw on"));
         }
         match shape {
             // No shape chosen: the form is at rest. It says what it is
             // waiting for and draws nothing — no fields to fill in for
             // a shape nobody picked, and no preview in the viewport.
-            None => blocked = blocked.or(Some("choose a shape to add")),
+            None => holds.push(Held::Waiting("choose a shape to add")),
             Some(ShapeKind::Circle) => {
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
@@ -918,15 +1046,11 @@ impl ViewerBehavior<'_> {
                         unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
                     }
                 });
-                if self.drafts.profile_bored
-                    && self.drafts.profile_bore >= self.drafts.profile_radius
-                {
-                    blocked = Some(
-                        "the bore must be smaller than the radius — which loop is the \
-                         hole is decided by containment, so a larger bore would swap \
-                         the roles rather than refuse",
-                    );
-                }
+                holds.extend(bore_held(
+                    self.drafts.profile_bored,
+                    self.drafts.profile_bore,
+                    self.drafts.profile_radius,
+                ));
             }
             Some(ShapeKind::Rectangle) => {
                 let unit = self.drafts.length_unit.def();
@@ -968,12 +1092,13 @@ impl ViewerBehavior<'_> {
                 // this the empty list drew the lattice's own refusal
                 // about a program nobody had started writing.
                 if self.drafts.profile_path.is_empty() {
-                    blocked = Some("add a step to the chain");
+                    holds.push(Held::Waiting("add a step to the chain"));
                 }
             }
         }
-        if let Some(reason) = blocked {
-            crate::widgets::message_toned(ui, reason, &self.theme, Tone::Advisory);
+        let blocked = held_for(holds);
+        if let Some(held) = blocked {
+            held_line(ui, &self.theme, held);
         }
         // **What the loops would draw, said before they are
         // authored.** The preview ran the commit door's own ladder,
@@ -1012,12 +1137,16 @@ impl ViewerBehavior<'_> {
                 // condition and its commit are two pieces of code, and
                 // this one does not assume the other got it right.
                 (None, _) => {
-                    self.notices
-                        .push(frame::tool_news("add profile: no frame picked"));
+                    self.notices.push(frame::tool_news(
+                        "add profile: no frame picked",
+                        frame::Retold::Again,
+                    ));
                 }
                 (_, Err(error)) => {
-                    self.notices
-                        .push(frame::tool_news(format!("add profile: {error}")));
+                    self.notices.push(frame::tool_news(
+                        format!("add profile: {error}"),
+                        frame::Retold::Again,
+                    ));
                 }
             }
         }
@@ -1052,8 +1181,10 @@ impl ViewerBehavior<'_> {
                             distance,
                         }),
                         Err(error) => {
-                            self.notices
-                                .push(frame::tool_news(format!("extrude: {error}")));
+                            self.notices.push(frame::tool_news(
+                                format!("extrude: {error}"),
+                                frame::Retold::Again,
+                            ));
                         }
                     }
                 }
@@ -1086,15 +1217,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Revolve.says(&"pick the profile, then the axis"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::RevolveProfile, tool.profile()),
-                (Seat::RevolveAxis, tool.axis()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(
@@ -1127,12 +1250,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Boolean.says(&"pick the first body, then the second"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::OperandA, tool.a()), (Seat::OperandB, tool.b())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
@@ -1167,15 +1285,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Split.says(&"pick the body, then the datum plane"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::SplitTarget, tool.target()),
-                (Seat::SplitPlane, tool.plane()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| Ok(tool.op()?));
     }
 
@@ -1189,12 +1299,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::TransformBody, tool.input())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
@@ -1249,15 +1354,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Pattern.says(&"pick the body, then (circular) the axis"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::PatternBody, tool.input()),
-                (Seat::PatternAxis, tool.axis()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
@@ -1362,15 +1459,7 @@ impl ViewerBehavior<'_> {
                   of",
             ),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::PartSplit, tool.split()),
-                (Seat::PartInstance, tool.pattern()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         part_selector_rows(
             ui,
             &self.theme,
@@ -1402,12 +1491,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::DuplicateBody, tool.input())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
         self.tool_commit_row(ui, "Commit duplicate", ToolKind::Duplicate, |_| {
             Ok(tool.op()?)
@@ -1510,7 +1594,7 @@ impl ViewerBehavior<'_> {
             .and_then(|tool| tool.load_all_edges(target, eval, index));
         if let Some(event) = event {
             self.notices
-                .push(frame::tool_news(ToolKind::Blend.says(&event)));
+                .push(frame::tool_notice(&ToolNotice::Blend(event)));
         }
     }
 
@@ -1542,22 +1626,23 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.ops.push(op),
                             Some(Err(error)) => {
-                                self.notices
-                                    .push(frame::tool_news(ToolKind::Blend.says(&error)));
+                                self.notices.push(frame::tool_news(
+                                    ToolKind::Blend.says(&error),
+                                    frame::Retold::Again,
+                                ));
                             }
                             None => {}
                         }
                     }
                     Err(error) => {
-                        self.notices
-                            .push(frame::tool_news(ToolKind::Blend.says(&error)));
+                        self.notices.push(frame::tool_news(
+                            ToolKind::Blend.says(&error),
+                            frame::Retold::Again,
+                        ));
                     }
                 }
             }
-            if ui
-                .add_enabled(count > 0, egui::Button::new("Clear picks"))
-                .on_hover_text("drop every picked edge and start on any body")
-                .clicked()
+            if clear_picks_button(ui, count)
                 && let Some(tool) = self.tools.blend_mut()
             {
                 tool.clear();
@@ -1593,7 +1678,8 @@ impl ViewerBehavior<'_> {
                 match op(self.drafts) {
                     Ok(op) => self.ops.push(op),
                     Err(error) => {
-                        self.notices.push(frame::tool_news(kind.says(&error)));
+                        self.notices
+                            .push(frame::tool_news(kind.says(&error), frame::Retold::Again));
                     }
                 }
             }
@@ -1607,6 +1693,26 @@ impl ViewerBehavior<'_> {
     }
 }
 
+/// **The blend tool's `Clear picks`**, live while `count` edges are
+/// held. No operation stands behind it — clearing is tool state — so
+/// with nothing held there is no refusal to read, and the literal here
+/// is the sentence: each state carries its own on the hook egui shows
+/// in that state.
+///
+/// Answers whether it was clicked, which a disabled button never is.
+fn clear_picks_button(ui: &mut egui::Ui, count: usize) -> bool {
+    let button = ui.add_enabled(count > 0, egui::Button::new("Clear picks"));
+    if count > 0 {
+        button
+            .on_hover_text("drop every picked edge and start on any body")
+            .clicked()
+    } else {
+        button
+            .on_disabled_hover_text("no edge is picked, so there is nothing to clear")
+            .clicked()
+    }
+}
+
 /// **The creation forms' own widgets, driven** —
 /// `crate::pane::headless` carries the harness and what it can and
 /// cannot reach.
@@ -1616,16 +1722,78 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::RecipeNodeId;
-
+    use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+    use pncad::geom_core::Tol;
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::SplitHalf;
 
     use super::{
-        NEW_XY_LABEL, ProfilePlane, duplicate_note, part_selector_rows, profile_plane_row,
+        NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, mate_picks_row,
+        part_selector_rows, profile_plane_row, seats_row,
     };
+    use crate::combine::BooleanTool;
     use crate::forms::PartSelectChoice;
-    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use crate::matetool::MateToolState;
+    use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
+    use crate::session::FaceSelection;
     use crate::theme::Theme;
+
+    /// A face pick on the body of `node`.
+    fn face_on(node: u64) -> FaceSelection {
+        FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(node),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: RecipeNodeId(node),
+            body: 0,
+        }
+    }
+
+    /// **The mate panel's picks, painted**: the seated tools' line —
+    /// one `role: pick` item per side, `—` for the open one, the
+    /// seated line's empty sentence — with a pick called the face of a
+    /// FEATURE, which is what every other panel calls a node.
+    #[test]
+    fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
+        let painted =
+            |state: &MateToolState| painted_text(|ui| mate_picks_row(ui, state, &Theme::DEFAULT));
+        assert_eq!(painted(&MateToolState::Idle), "no picks yet");
+        assert_eq!(
+            painted(&MateToolState::One(face_on(3))),
+            "pick a: face of feature 3; pick b: —"
+        );
+        assert_eq!(
+            painted(&MateToolState::Two {
+                a: face_on(3),
+                b: face_on(5),
+            }),
+            "pick a: face of feature 3; pick b: face of feature 5"
+        );
+    }
+
+    /// **A seated panel's picks, painted in its tool's role order**:
+    /// the boolean's first pick is the operand a subtraction KEEPS,
+    /// and the line says so before the second is picked.
+    #[test]
+    fn the_boolean_panel_says_which_operand_each_pick_is() {
+        let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
+        let mut tool = BooleanTool::new();
+        let painted =
+            |tool: &BooleanTool| painted_text(|ui| seats_row(ui, tool.seats(), &Theme::DEFAULT));
+        assert_eq!(painted(&tool), "no picks yet");
+        tool.pick(&doc, RecipeNodeId(3));
+        assert_eq!(
+            painted(&tool),
+            "first operand: feature 3; second operand: —"
+        );
+        tool.pick(&doc, RecipeNodeId(5));
+        assert_eq!(
+            painted(&tool),
+            "first operand: feature 3; second operand: feature 5"
+        );
+    }
 
     /// The part form's selector rows, driven: the half choice paints
     /// the kernel's own two sides and no index field.
@@ -1840,6 +2008,34 @@ mod tests {
         );
         assert!(!drawn.contains("pick one"), "{drawn}");
     }
+
+    /// **`Clear picks` says why while it is disabled** — hovered with
+    /// nothing held, it paints its own sentence, and not the enabled
+    /// one that egui would have shown nobody.
+    #[test]
+    fn clear_picks_with_nothing_held_says_there_is_nothing_to_clear() {
+        let hovered = painted_while_hovering("Clear picks", 0, |ui| {
+            clear_picks_button(ui, 0);
+        });
+        assert!(
+            hovered.contains("no edge is picked, so there is nothing to clear"),
+            "{hovered}"
+        );
+        assert!(!hovered.contains("drop every picked edge"), "{hovered}");
+    }
+
+    /// And holding picks, the same hover paints what a click does.
+    #[test]
+    fn clear_picks_with_picks_held_says_what_it_drops() {
+        let hovered = painted_while_hovering("Clear picks", 0, |ui| {
+            clear_picks_button(ui, 3);
+        });
+        assert!(
+            hovered.contains("drop every picked edge and start on any body"),
+            "{hovered}"
+        );
+        assert!(!hovered.contains("nothing to clear"), "{hovered}");
+    }
 }
 
 /// **Where this pane's sentences LAND** — each measured in a pane
@@ -1983,5 +2179,259 @@ mod layout_tests {
         // text does: the window sits wherever egui places it.
         let pane = egui::Rect::from_min_size(egui::pos2(left, 0.0), egui::vec2(REGION, 1.0));
         assert_inside(pane, said);
+    }
+}
+
+/// **How loud this pane's verdicts are drawn**, read off the paint and
+/// held against fixed colours ([`crate::pane::headless::Voices`]),
+/// through the free functions the pane calls — so a literal tone put
+/// back at a draw site, or a value that answers the wrong tone, turns
+/// a row red.
+#[cfg(test)]
+mod tone_tests {
+    use std::path::PathBuf;
+
+    use pncad::document::{DocumentId, RecipeNodeId};
+    use pncad::prelude::SurfaceKind;
+
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+    use pncad::select::{InterrogateError, Resolution};
+
+    use super::{
+        Held, bore_held, face_frame_fault, held_for, held_line, part_listing,
+        selection_says_unresolved,
+    };
+    use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
+    use crate::parts::{PartCensus, PartChooser, PartEntry};
+    use crate::session::{FaceFrameFault, FaceSelection, Refusal, Standing};
+    use crate::theme::Theme;
+
+    fn listed(
+        dir: Option<&str>,
+        offered: Result<Vec<PartEntry>, Refusal>,
+    ) -> (Vec<Landed>, Voices) {
+        let chooser = PartChooser::opened(PartCensus::taken(dir.map(PathBuf::from), offered));
+        landed_voiced(|ui| {
+            part_listing(ui, &Theme::DEFAULT, &chooser);
+        })
+    }
+
+    /// **A chooser with no directory says so once, loud** — the
+    /// refusal's own sentence, and no quiet "no directory" over it.
+    #[test]
+    fn a_chooser_with_no_directory_says_so_once_and_loud() {
+        let (painted, voices) = listed(None, Err(Refusal::NoDocumentDirectory));
+        assert_eq!(
+            find_opening(&painted, "save the document first").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            painted.len(),
+            1,
+            "one line: {:?}",
+            painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+    }
+
+    /// **An empty listing is loud**: the open document's own file has
+    /// gone, and what is placed will stop resolving. The directory it
+    /// read is a report, and quiet.
+    #[test]
+    fn an_empty_listing_is_drawn_loud_under_a_quiet_header() {
+        let (painted, voices) = listed(Some("/parts"), Ok(Vec::new()));
+        assert_eq!(
+            find_opening(&painted, "this directory holds no documents at all").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
+    }
+
+    /// **A listing is a report**, and its entries' ids are quiet.
+    #[test]
+    fn a_listing_is_drawn_quiet() {
+        let id = DocumentId(7);
+        let (painted, voices) = listed(
+            Some("/parts"),
+            Ok(vec![PartEntry {
+                id,
+                path: PathBuf::from("/parts/bracket.pncad"),
+                open_document: false,
+            }]),
+        );
+        assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
+        assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
+    }
+
+    fn latched() -> FaceSelection {
+        FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: RecipeNodeId(2),
+            body: 0,
+        }
+    }
+
+    fn unresolved() -> FaceFrameFault {
+        FaceFrameFault::Unresolved {
+            error: InterrogateError::NoSuchName,
+        }
+    }
+
+    /// **A face-frame fault about the pick is loud**, a stale latched
+    /// pick included; one about a seat not yet answerable is quiet.
+    #[test]
+    fn a_face_frame_fault_takes_the_voice_the_fault_gives_it() {
+        let (painted, voices) = landed_voiced(|ui| {
+            let theme = &Theme::DEFAULT;
+            face_frame_fault(
+                ui,
+                theme,
+                &FaceFrameFault::NotPlanar {
+                    carrier: SurfaceKind::Cylinder,
+                },
+                false,
+            );
+            face_frame_fault(
+                ui,
+                theme,
+                &FaceFrameFault::NotOneBody {
+                    at: RecipeNodeId(4),
+                },
+                false,
+            );
+            face_frame_fault(ui, theme, &unresolved(), false);
+            face_frame_fault(ui, theme, &FaceFrameFault::NotLanded, false);
+        });
+        assert_eq!(
+            find_opening(&painted, "a sketch frame is read off a PLANAR face").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            find_opening(&painted, "feature 4's value is several bodies").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            find_opening(&painted, "that face does not resolve: ").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            find_opening(&painted, "the document has not evaluated yet").ink,
+            Some(voices.weak)
+        );
+    }
+
+    /// **A stale pick the selection is already calling gone is not said
+    /// a second time** by the form; one the selection is not about is.
+    #[test]
+    fn a_stale_latched_face_is_said_once_in_the_pane() {
+        let (said_once, _) = landed_voiced(|ui| {
+            face_frame_fault(ui, &Theme::DEFAULT, &unresolved(), true);
+        });
+        assert!(
+            said_once.is_empty(),
+            "{:?}",
+            said_once.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+        // Only `Unresolved` is the selection's to say.
+        let (planar, _) = landed_voiced(|ui| {
+            face_frame_fault(
+                ui,
+                &Theme::DEFAULT,
+                &FaceFrameFault::NotPlanar {
+                    carrier: SurfaceKind::Cylinder,
+                },
+                true,
+            );
+        });
+        assert_eq!(planar.len(), 1);
+    }
+
+    /// **The selection says a latched face does not resolve exactly when
+    /// it IS that face and no longer denotes** — the one case the form
+    /// leaves the sentence to it.
+    #[test]
+    fn the_selection_speaks_for_the_latched_face_only_when_it_is_that_face_and_gone() {
+        let face = |resolution: Option<Resolution>| Standing::Face {
+            face: latched(),
+            resolution: resolution.map(Box::new),
+        };
+        let gone = face(Some(Resolution::Failed(pncad::select::ResolutionFailure {
+            error: pncad::select::ResolveError::NodeGone {
+                name: latched().name,
+                edit: editor_core::RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(1),
+                },
+            },
+            offers: Vec::new(),
+        })));
+        assert!(selection_says_unresolved(&gone, Some(&latched())));
+        // Another face, or nothing latched: the form must say it.
+        let other = FaceSelection {
+            node: RecipeNodeId(9),
+            ..latched()
+        };
+        assert!(!selection_says_unresolved(&gone, Some(&other)));
+        assert!(!selection_says_unresolved(&gone, None));
+        // The latched face selected with no evaluation behind it: the
+        // selection says "no evaluation yet", not that it is gone.
+        assert!(!selection_says_unresolved(&face(None), Some(&latched())));
+        // A node selected: the header is about the node.
+        assert!(!selection_says_unresolved(
+            &Standing::Node {
+                node: RecipeNodeId(2),
+                present: false,
+            },
+            Some(&latched())
+        ));
+    }
+
+    /// **A bore at least as wide as the radius is a refused input**, and
+    /// loud — not the form asking for its next one.
+    #[test]
+    fn a_bore_as_wide_as_the_radius_is_refused() {
+        assert!(matches!(
+            bore_held(true, 0.01, 0.01),
+            Some(Held::Refused(_))
+        ));
+        assert_eq!(bore_held(true, 0.005, 0.01), None);
+        assert_eq!(bore_held(false, 0.02, 0.01), None);
+    }
+
+    /// **Which held reason is said**: a refused input over the form
+    /// waiting for one, wherever it came in the form; between two of
+    /// one kind, the earlier.
+    #[test]
+    fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
+        let frame = Held::Waiting("pick a frame to draw on");
+        let chain = Held::Waiting("add a step to the chain");
+        let bore = Held::Refused("the bore is too wide");
+        let wider = Held::Refused("the bore is wider still");
+        assert_eq!(held_for([frame, chain]), Some(frame));
+        assert_eq!(held_for([frame, bore]), Some(bore));
+        assert_eq!(held_for([bore, frame]), Some(bore));
+        assert_eq!(held_for([frame, bore, chain]), Some(bore));
+        assert_eq!(held_for([bore, wider]), Some(bore));
+        assert_eq!(held_for([]), None);
+    }
+
+    /// **The add-profile form's held reason**: a refused input is loud,
+    /// the form waiting for one is quiet.
+    #[test]
+    fn a_held_profile_button_says_why_in_the_reasons_own_voice() {
+        let (painted, voices) = landed_voiced(|ui| {
+            held_line(ui, &Theme::DEFAULT, Held::Refused("the bore is too wide"));
+            held_line(ui, &Theme::DEFAULT, Held::Waiting("choose a shape to add"));
+        });
+        assert_eq!(
+            find(&painted, "the bore is too wide").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            find(&painted, "choose a shape to add").ink,
+            Some(voices.weak)
+        );
     }
 }

@@ -304,7 +304,6 @@ fn round_trip_non_dyadic_slack_is_one_ulp() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::{Bounds, Interval, Real};
@@ -400,7 +399,7 @@ mod interval {
         };
         match offset_surface(&torus, Interval::from_bounds(0.99, 1.01), band()) {
             Err(OffsetError::Escalated { source }) => {
-                assert_eq!(source.predicate, Some("offset_torus_ring"));
+                assert_eq!(source.predicate, Some("ring_torus_convention"));
             }
             other => panic!("straddling ring must escalate, got {other:?}"),
         }

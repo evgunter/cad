@@ -62,9 +62,9 @@ use common::orient::{
 };
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, OrthoFrame, Point3, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use revolve_common::{assert_all_tiers, axis_y, p2, validated};
+use geom_core::{Affine3, OrthoFrame, Point2, Point3, Vec3};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use revolve_common::{assert_all_tiers, axis_y, validated};
 use sweep::test_support::swept_elbow_lofted;
 use sweep::{Extrusion, Lofted, Revolution, Section, extrude, loft_body, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -103,11 +103,11 @@ fn notched_loops() -> Vec<ProfileLoop<f64>> {
     let b = FRAC_PI_8.tan();
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
-    vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), b),
-        ProfileVertex::new(p2(2.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 1.5), -b),
-        ProfileVertex::new(p2(0.0, 1.5), 0.0),
+    vec![bulge_loop(vec![
+        (Point2::new(0.0, 0.0), b),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.5), -b),
+        (Point2::new(0.0, 1.5), 0.0),
     ])]
 }
 
@@ -117,10 +117,15 @@ fn notched_loops() -> Vec<ProfileLoop<f64>> {
 /// lies OUTSIDE the hole's carrier.
 fn holed_loops() -> Vec<ProfileLoop<f64>> {
     vec![
-        ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]),
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(1.0, 2.0), 1.0),
-            ProfileVertex::new(p2(3.0, 2.0), 1.0),
+        ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(4.0, 0.0),
+            Point2::new(4.0, 4.0),
+            Point2::new(0.0, 4.0),
+        ]),
+        bulge_loop(vec![
+            (Point2::new(1.0, 2.0), 1.0),
+            (Point2::new(3.0, 2.0), 1.0),
         ]),
     ]
 }
@@ -274,7 +279,12 @@ fn hole_walls_mint_sense_false_and_the_door_reads_the_hole_as_void() {
 /// (Δz < 0 ⇒ cylinder `false`).
 #[test]
 fn washer_bore_and_under_annulus_mint_sense_false() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -314,7 +324,12 @@ fn washer_bore_and_under_annulus_mint_sense_false() {
 /// planes and stay `true` — every cap face of the wedge).
 #[test]
 fn washer_wedge_partial_revolve_mints_the_same_wall_senses() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -371,7 +386,12 @@ fn washer_wedge_partial_revolve_mints_the_same_wall_senses() {
 /// criterion.
 #[test]
 fn countersink_cone_wall_mints_sense_false() {
-    let lp = ProfileLoop::polygon([p2(0.5, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.5, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -408,12 +428,12 @@ fn dimple_sphere_wall_mints_sense_false() {
     let b = FRAC_PI_8.tan();
     // Leaving bulges: three straight legs, then the dimple arc (-b)
     // from (0.5, 2) to the axis; the closing leg is straight.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 2.0), 0.0),
-        ProfileVertex::new(p2(0.5, 2.0), -b),
-        ProfileVertex::new(p2(0.0, 1.5), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 2.0), 0.0),
+        (Point2::new(0.5, 2.0), -b),
+        (Point2::new(0.0, 1.5), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -479,11 +499,11 @@ fn dimple_sphere_wall_mints_sense_false() {
 fn notched_ring_torus_band_mints_sense_false() {
     let b = FRAC_PI_8.tan();
     // The notched profile shifted to x ∈ [1, 3]: same leaving bulges.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(1.0, 0.0), b),
-        ProfileVertex::new(p2(3.0, 0.0), 0.0),
-        ProfileVertex::new(p2(3.0, 1.5), -b),
-        ProfileVertex::new(p2(1.0, 1.5), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(1.0, 0.0), b),
+        (Point2::new(3.0, 0.0), 0.0),
+        (Point2::new(3.0, 1.5), -b),
+        (Point2::new(1.0, 1.5), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -677,8 +697,9 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
     assert_eq!(topo::validate_closed(&lied), Ok(()), "tier 2");
     // The recorded residual, stated as what it is: a CHANGE DETECTOR,
     // not a guarantee. Check 6's curved arm skips `Surface::Nurbs` by
-    // name and its planar arm is line-bounded, so an orientation error
-    // on a lofted wall is unreachable today and this assertion cannot
+    // name and its planar arm reads only `Plane` faces, so an
+    // orientation error on a lofted wall is unreachable today and this
+    // assertion cannot
     // fail — which is the point. It fires the day that skip is
     // removed, i.e. exactly when the guard should move out of these
     // rows and into the validator where it belongs.
@@ -743,11 +764,11 @@ fn loft_hole_walls_face_out_of_the_plate() {
 fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
     let prism = loft_pair(&notched_loops(), 1.0);
     let b = FRAC_PI_8.tan();
-    let scaled: Vec<ProfileLoop<f64>> = vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), b),
-        ProfileVertex::new(p2(1.6, 0.0), 0.0),
-        ProfileVertex::new(p2(1.6, 1.2), -b),
-        ProfileVertex::new(p2(0.0, 1.2), 0.0),
+    let scaled: Vec<ProfileLoop<f64>> = vec![bulge_loop(vec![
+        (Point2::new(0.0, 0.0), b),
+        (Point2::new(1.6, 0.0), 0.0),
+        (Point2::new(1.6, 1.2), -b),
+        (Point2::new(0.0, 1.2), 0.0),
     ])];
     let sections: Vec<Section> = vec![notched_loops(), scaled];
     let places = vec![
@@ -792,10 +813,10 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     // The S11 pellet: strictly inside the concave notch (the floor at
     // x = 1 is y = 2.5 − √2 ≈ 1.0858), so the two solids are disjoint.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(0.9, 1.25),
-        p2(1.1, 1.25),
-        p2(1.1, 1.35),
-        p2(0.9, 1.35),
+        Point2::new(0.9, 1.25),
+        Point2::new(1.1, 1.25),
+        Point2::new(1.1, 1.35),
+        Point2::new(0.9, 1.35),
     ]);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.3)));
     let vp = Profile::new(plane, vec![lp])
@@ -860,11 +881,11 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
 /// traversal-following chart could plausibly twist.
 fn flipping_loops(sign: f64) -> Vec<ProfileLoop<f64>> {
     let b = FRAC_PI_8.tan() * sign;
-    vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), -b),
-        ProfileVertex::new(p2(2.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 1.5), b),
-        ProfileVertex::new(p2(0.0, 1.5), 0.0),
+    vec![bulge_loop(vec![
+        (Point2::new(0.0, 0.0), -b),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.5), b),
+        (Point2::new(0.0, 1.5), 0.0),
     ])]
 }
 

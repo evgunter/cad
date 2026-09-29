@@ -746,8 +746,8 @@ impl<T: Decide> Body<T> {
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): the remnant's stored rows
     /// are curves stated in the DYING face's chart. Where the surviving
-    /// face is on the same chart — one key, or two the body records as
-    /// one description ([`Body::same_chart`]) — they stand; on any
+    /// face is on the same chart — one key, or two sharing one
+    /// payload ([`Body::same_chart`]) — they stand; on any
     /// other chart the remnant's rows are DROPPED, for the reasons and
     /// with the consequences [`Body::drop_rows`] states. The surviving
     /// loop's own rows are untouched either way. Which is why the
@@ -1052,7 +1052,7 @@ impl<T: Decide> Body<T> {
     /// **Pcurve rows** ([`crate::pcurves`]): the promoted ring's stored
     /// rows are a curve stated in the DEMOTING face's chart.
     /// [`FaceSurface::Inherit`] — and a [`FaceSurface::Shared`] naming
-    /// that same key, or one the body records as the same description
+    /// that same key, or one sharing its payload
     /// ([`Body::same_chart`]) — keeps them, since the chart does not
     /// move; any other surface DROPS them, for the reasons and with
     /// the consequences [`Body::drop_rows_on_chart_change`] states. A

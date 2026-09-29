@@ -26,12 +26,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::num::NonZeroUsize;
+use geom_core::Bounds;
 use std::f64::consts::{FRAC_1_SQRT_2, PI};
 use std::time::Instant;
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
-use geom_core::ring_interval::RingInterval;
+use geom_core::interval::Interval;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, DEFAULT_K};
 
@@ -44,12 +45,8 @@ use crate::review_r1_rational_probes::TARGET_LEN_FACTOR;
 const RATIONAL_SCHEDULE_ROUNDS: usize = 8;
 const INTEGRAL_SCHEDULE_ROUNDS: usize = 7;
 
-fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
+fn p(x: f64, y: f64, z: f64) -> [Interval; 3] {
+    [Interval::point(x), Interval::point(y), Interval::point(z)]
 }
 
 /// The band (ε, `DEFAULT_K`·ε) at an ε this suite chooses, per the
@@ -70,7 +67,7 @@ struct Face {
     name: &'static str,
     ku: KnotVector,
     kv: KnotVector,
-    net: Vec<[RingInterval; 3]>,
+    net: Vec<[Interval; 3]>,
     weights: Vec<f64>,
     perimeter: f64,
     /// The boundary defect the pad is folded from; `0.0` unless a row

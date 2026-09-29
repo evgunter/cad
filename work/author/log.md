@@ -1198,3 +1198,57 @@ prompts, seat lines and `duplicate_note`) are not converted. They are
 lands.
 
 Signed (CHROME, `chrome/create-messages` lane).
+
+## 2026-09-24 — AUTH-4 MERGED (`2273a3a1`): AddPart, and Ev's duplicate
+
+Four units closed this sitting. Two reviews, a fix pass, a narrow
+re-review of the fix pass's new designs, and a last small fix pass.
+
+**The narrow re-review earned its place again.** The fix pass
+introduced three designs no review had seen: a pick accessor that
+reroutes six shipped tools, a measured offset, and a value check at
+the duplicate door. The re-review found that the measured offset read
+a stale picture: duplicate before an edit lands and the copy is spaced
+for the old body. That was the overlap G2 had just removed, back
+through timing. Same rule as AUTH-2: a fix pass that adds design earns
+a narrow arm.
+
+**Two mistakes of mine this unit, for the record.**
+- I told Ev tracker PRs #3044 and #3045 were open. Those numbers were
+  other programs' PRs; my branches had no PRs for two days. Recorded
+  above and fixed in #3131 and #3132.
+- Between fix passes I deleted `/root/auth-4-scratch/` and
+  `/root/auth-4-target/` to reclaim disk, then resumed the lane and
+  told it its scratch was there. A byte copy failed to write and the
+  lane had to restore one edit by hand, which it did and verified. It
+  called the scratch "emptied from outside the lane"; that was me.
+  **Reclaim a lane's directories only once I will not resume it.**
+
+## 2026-09-29 — AUTH-5 and AUTH-6 dispatched in parallel; Ev declined the discipline line
+
+**Ev declined** the proposed implementer-discipline addition (check
+every new constant, literal and format against the tree before
+pushing), on the grounds that the reviews already catch it. They have,
+four units out of four. The style review stays the net for that class;
+no `[ev]` PR was opened.
+
+**AUTH-5** is the path preview's prefix half (`path-preview-draws-nothing-for-a-refused-step`,
+Ev's own report). **AUTH-6** is the profile lock
+(`the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`),
+triaged to P0 today. It was filed onto VIEW with no priority and
+re-homed here, and it is a door a person cannot get through:
+`SetProgram` exists in the kernel, but the viewer still draws a
+committed sketch's shape controls disabled under a sentence saying it
+doesn't. The two units run in parallel. They share `sketch.rs`,
+`drafts.rs` and `pane/profile.rs`, but in different functions; each
+spec names the other.
+
+**Checked before specifying**: every site both rows name is present,
+and `SetProgram` is in `edit.rs`. One citation was stale: the fused-step
+design item moved from `work/paths/` to `work/round/`. It is still a
+design question for Ev and is not dispatchable, so AUTH-5 draws only
+the prefix before a refused fused step and changes nothing about what
+`replay` returns.
+
+`paths` gains `app.rs`, `pane/profile.rs` and `pane/viewport.rs`: the
+rows name all three, and two merged AUTHOR units have edited `app.rs`.

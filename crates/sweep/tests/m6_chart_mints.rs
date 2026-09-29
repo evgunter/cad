@@ -10,7 +10,7 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Point2, Vec2};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -69,9 +69,9 @@ fn assert_curved_faces_fully_minted(name: &str, body: &Body<f64>) {
 /// The ball: two half-sphere faces, pole-to-pole seam meridians.
 #[test]
 fn the_ball_carries_stored_sphere_pcurves_at_rest() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
-        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_curved_faces_fully_minted("ball", &t.body);
@@ -93,9 +93,9 @@ fn the_cone_carries_stored_cone_pcurves_at_rest() {
 /// two closed-form families in one body.
 #[test]
 fn the_donut_carries_stored_torus_pcurves_at_rest() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(1.5, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(2.5, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(1.5, 0.0), 1.0),
+        (Point2::new(2.5, 0.0), 1.0),
     ]);
     let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_curved_faces_fully_minted("donut", &t.body);

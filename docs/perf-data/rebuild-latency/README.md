@@ -40,6 +40,17 @@ Read the `±` spread before believing a delta. Each figure is the median
 of 5 runs in one process; a shared hosted runner has a fat tail, and a
 `vs base` move inside the spread is noise, not a regression.
 
+## Where a column changed meaning
+
+A column whose subject moved steps at the change, and the step is not a
+regression or a speed-up of the same work:
+
+- `registry_split.census_ms` times the assembly gate over the heat
+  sink's product. Up to PR 3374 that gate ran tier 3's local battery
+  and then the census; from it on the product carries its tier-3
+  verdict and the gate runs the census alone, so the column drops by the
+  battery's share (about 60–100 ms in a local dev-profile run).
+
 ## Why the history exists at all
 
 The single committed baseline this replaces disqualified itself in its

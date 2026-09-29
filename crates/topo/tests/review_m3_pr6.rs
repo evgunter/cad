@@ -232,7 +232,6 @@ fn r1_mirror_identity_structural_f64() {
     mirror_identity_scenario::<f64>();
 }
 
-#[cfg(feature = "interval")]
 mod interval_r1 {
     use super::*;
 
@@ -254,6 +253,8 @@ mod interval_r1 {
 /// slabs occupying the same z range. The census has no face-face
 /// sweep; the claim is the skeleton lanes catch it. Expect LOUD:
 /// EdgeEdgeCross (in-plane boundary crossings) and/or EdgeFaceOverlap.
+/// The instance arm reads those crossings as touches of two wedges
+/// whose interiors meet, and refuses the pair as a mixed touch.
 #[test]
 fn r2_coplanar_plus_overlap_detected() {
     let mut body = mapped_cube(|x, y, z| Point3::new(3.0 * x, 1.0 + y, z), Tol::witness());
@@ -264,10 +265,18 @@ fn r2_coplanar_plus_overlap_detected() {
     );
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
-    assert!(
+    // Beside the findings, the instance arm's one refusal of the pair.
+    assert_eq!(
         errors
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .filter(|e| !matches!(e, ValidationError::UndeclaredContact { .. }))
+            .map(|e| match e {
+                ValidationError::CensusUndecidable { what, .. } =>
+                    what.contains("one passes into the other where they touch"),
+                _ => false,
+            })
+            .collect::<Vec<_>>(),
+        [true],
         "{errors:?}"
     );
     assert!(
@@ -686,7 +695,6 @@ fn r7_closure_reversed_rows_loud() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval_r5 {
     use super::*;
 

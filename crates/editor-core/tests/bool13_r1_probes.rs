@@ -373,10 +373,12 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 /// than the break is the additive half, so this exemplar is written by
 /// today's writer and kept minimal: its node vocabulary is
 /// {Datum, Profile, Extrude} and nothing newer, so the row still says
-/// that a document lacking every later arm loads.
+/// that a document lacking every later arm loads. Re-frozen again when
+/// a profile's steps gained minted ids (the program's `ids` and the
+/// document's `next_step`), the same kind of break.
 const OLDER_SHAPED: &str = concat!(
     "id: 12c74470374c7c76269f22a931efab85\n",
-    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"next_id\":3,\"nodes\":{\"0",
+    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"next_id\":3,\"next_step\":5,\"nodes\":{\"0",
     "\":{\"Datum\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"un",
     "it\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal",
     "\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0",
@@ -391,7 +393,7 @@ const OLDER_SHAPED: &str = concat!(
     "\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
     "\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{",
     "\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":",
-    "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}]}},\"2\":",
+    "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[0,1,2,3,4]]}},\"2\":",
     "{\"Extrude\":{\"profile\":1,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
     "\"unit\":\"m\"}}}}},\"order\":[0,1,2],\"roots\":[2],\"placements\":{},\"params\":{},\"ep",
     "silon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
