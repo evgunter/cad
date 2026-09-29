@@ -720,6 +720,9 @@ fn sector_overlap<T: Decide>(
     Ok(straight || crossed)
 }
 
+/// One sector's two side codes, `(start, end)`.
+type SidePair = (SideCode, SideCode);
+
 /// The four side codes of a sector pair: each sector's bounds against
 /// the other's face.
 fn pair_codes<T: Decide>(
@@ -727,7 +730,7 @@ fn pair_codes<T: Decide>(
     sb: &BoolSector<T>,
     arm: T,
     band: Band,
-) -> Result<((SideCode, SideCode), (SideCode, SideCode)), BooleanError> {
+) -> Result<(SidePair, SidePair), BooleanError> {
     let code = |dir, reach, normal| side_code(dir, reach, normal, arm, NO_CURVATURE(), band);
     Ok((
         (
