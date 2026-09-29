@@ -2873,3 +2873,26 @@ constructor-bit mutant already reds 11–247 rows.
 On the branch, the item closes, then DR-25 goes in as the LAST
 commit (`bf64e3a6eb`): 0 candidates; tally stays 4 of 8; pairs toward
 twelve stay 9. Merge once CI on that head is green.
+
+## PR 3493's D4 (i) rework delivered; its single review out (2026-09-29)
+
+The rework took 462,113 tokens, 275 tools and 72 min (harness).
+Head `5f8f70ed3c` passed `gate ok` on run 36642762807.
+- **Closed types:** `Contradiction` (12 variants) and `BooleanDecision`
+  are set at the raise sites and matched exhaustively. Endings come
+  from (decision, verdict) through `geom_brep::recourse`, as `CertCheck`
+  does.
+- **The tolerance arm:** it is conditional and valued, and appears only
+  on the band-decided passing side. An `INVALID` margin gets the lever
+  plus the kernel-bug clause. `PierceOnFace` becomes a residual defect
+  ending. `SplitParamEscalated` gains its valued tightening clause.
+- **Crossings:** `geom-core` gains `SizedPass::Negative` for the
+  strut-straightness rung.
+- **One behaviour change:** the quartic count disagreement becomes
+  `ClassificationInvariant`. It has never fired.
+- **Filed:** a lib row for the new payload rungs. The blend's name
+  routing was already filed on `band`.
+
+Tier SINGLE, full. One Opus reviewer is on the frozen head. Its brief
+names D4 ¶1 (i)–(iv) and PR 3352 as the governing ruling, and asks
+it to derive every pass set from the deciding code.
