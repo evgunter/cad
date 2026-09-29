@@ -4,6 +4,7 @@ kind: issue
 title: patch_names reports a patch with no name through HitTestError, so the sentence names a hit test that did not happen
 status: review
 branch: edit/unnamed-patch-is-a-lookup
+pr: 3439
 opened: 2026-09-25
 priority: P4
 cost: D
