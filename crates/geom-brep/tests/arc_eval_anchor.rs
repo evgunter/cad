@@ -3,25 +3,24 @@
 //! `SketchSegment::eval` evaluates `a + (R − I)·v` rather than
 //! `center + R·v`. The two are the same point over the reals, so no
 //! f64 row can tell them apart; what separates them is the enclosure
-//! at `T = Interval`. The center-anchored form mentions the
-//! reconstructed center twice and interval arithmetic cannot cancel
-//! it, so the result carries `2·width(center)` — and `width(center)`
-//! is the sub-arc chord's relative width scaled by the radius, a
-//! factor ∝ 1/sin(θ/2) that grows without bound as the sub-arc
-//! shortens. `restrict` re-derives its endpoints through `eval`, so
-//! that width is stored back into the description and successive
-//! splits compound it.
+//! at `T = Interval`. The center-anchored form mentions the center
+//! twice and interval arithmetic cannot cancel it, so the result
+//! carries `2·width(center)`. `restrict` re-derives its endpoints
+//! through `eval`, so an evaluation's width is stored back into the
+//! description and successive splits compound it.
 //!
-//! The row below is the guard: on a short restricted sub-arc, the
+//! The row below is the guard: on a short arc whose centre is derived
+//! from its own short chord (so the centre is wide), the
 //! evaluated point's enclosure must stay at the scale of the sub-arc's
 //! own endpoint data. Under the center-anchored form the same fixture
 //! is two orders wider than that and the row is red.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::arc::lowered_arc;
 use crate::shared::interval::iv;
 use geom_brep::SketchSegment;
-use geom_core::{Bounds, Interval, Point2};
+use geom_core::{Bounds, Interval, Point2, Real};
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(iv(x), iv(y))
@@ -44,19 +43,28 @@ fn point_width(p: Point2<Interval>) -> f64 {
 
 /// The pip meridian's shape: a semicircle of radius 0.09 through the
 /// sketch origin's axis, which is what a revolve profile hands to the
-/// splitters. Its bulge is exactly 1, so its own apothem is exactly
-/// zero and its center is exactly the chord midpoint — the sub-arc,
-/// not the parent, is where a reconstructed center can be wide.
+/// splitters, lowered from its unit bulge. Its apothem is exactly zero
+/// and its center is exactly the chord midpoint.
 fn meridian() -> SketchSegment<Interval> {
-    SketchSegment::Arc {
-        a: p2(0.0, -0.09),
-        b: p2(0.0, 0.09),
-        bulge: iv(1.0),
-    }
+    lowered_arc(p2(0.0, -0.09), p2(0.0, 0.09), iv(1.0))
 }
 
-/// A short restricted sub-arc's evaluated points stay at the scale of
-/// its own endpoint data.
+/// A short arc whose carrier is derived from its own chord: the 0.4 %
+/// window of the meridian from `s = 0.4`, its endpoints cut by
+/// `restrict` (so they carry an evaluation's width), and its carrier
+/// lowered from that short chord and the window's bulge
+/// `tan(atan(1)·0.004)` — how the profile's lift derives a short
+/// authored arc's carrier at `Interval`. (`restrict` itself keeps the
+/// parent's carrier, whose centre here is exact.)
+fn short_arc() -> SketchSegment<Interval> {
+    let SketchSegment::Arc { a, b, .. } = meridian().restrict(iv(0.4), iv(0.404)) else {
+        panic!("restriction changed the segment kind");
+    };
+    lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan())
+}
+
+/// A short arc's evaluated points stay at the scale of its own
+/// endpoint data, even where its centre is wide.
 ///
 /// The window is 0.4 % of a semicircle — θ′ ≈ 0.0126 rad, chord
 /// ≈ 1.1 mm against a 90 mm radius, so a reconstructed center carries
@@ -74,10 +82,10 @@ fn meridian() -> SketchSegment<Interval> {
 /// endpoint width); it is NOT bitwise `a`, so this row bounds the
 /// width rather than pinning equality.
 #[test]
-fn a_short_restricted_sub_arc_evaluates_at_its_endpoints_scale() {
-    let sub = meridian().restrict(iv(0.4), iv(0.404));
+fn a_short_arc_with_a_derived_centre_evaluates_at_its_endpoints_scale() {
+    let sub = short_arc();
     let SketchSegment::Arc { a, b, .. } = sub else {
-        panic!("restriction changed the segment kind");
+        panic!("the fixture is an arc");
     };
     let endpoint_width = point_width(a).max(point_width(b));
     assert!(

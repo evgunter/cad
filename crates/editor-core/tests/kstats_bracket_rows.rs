@@ -569,7 +569,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness tolerance bands");
     let in_band = (band.zero() * band.escalate()).sqrt();
-    let edge = ParamName::new("island_edge");
+    let edge = ParamName::from_static("island_edge");
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-pre-pass-fails"), tol);
     let (doc, _) = step(
         doc,
@@ -645,7 +645,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
 /// because the frame was the node's.
 #[test]
 fn a_pre_key_expr_refusal_carries_no_escalations() {
-    let divisor = ParamName::new("divisor");
+    let divisor = ParamName::from_static("divisor");
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-expr-refusal"), Tol::witness());
     let (doc, _) = step(
         doc,
