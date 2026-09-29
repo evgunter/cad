@@ -2395,3 +2395,19 @@ PR 3467 is green at `a7224a17d0` (216,631 tokens / 45 min, harness).
 
 Tier SINGLE, full: one Opus reviewer dispatched on the frozen head,
 using the lane's warm target. PR 3467's thread was empty.
+
+## A container restart cost two lanes; both units recovered to review (2026-09-29)
+
+The container restarted around 14:30 UTC, stopping two lanes:
+- **The `mev_fan_plan` implementer**, which had already pushed
+  everything. It opened PR 3472 (green at `a1fed5f736`) and posted its
+  full body. What was lost is its report, so its tokens and wall time
+  are missing data.
+- **PR 3467's single reviewer**, which died mid-mutant. Its worktree
+  held an uncommitted `euler.rs` edit, discarded with the worktree. It
+  is re-dispatched fresh on the same frozen head, and the lost review
+  counts for nothing.
+
+PR 3472's full review is dispatched too. The two reviewers run
+concurrently on the targets warm on their heads. The state sync
+(PR 3471) merged.
