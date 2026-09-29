@@ -882,3 +882,16 @@ Signed: (CONTACT orchestrator)
   - **Owed on resume:** a delta review of the linear test, then
     landing. When it lands, correct the carried row's stale "fix as the
     cone took it" section.
+
+- 2026-09-29 — **All lanes stopped on Ev's word** (usage limit). Their
+  clones stay on disk for resume:
+  - **CONTACT-10:** `/home/user/contact-10` at `b4d1bcab6`. The fix pass
+    is committed and clippy is clean. The battery on it was not yet run.
+  - **CONTACT-12:** `/home/user/contact-12` at `a6724f53b`. The rows
+    are committed, with one uncommitted file. The lane was mid-way
+    through building and running topo with the new rows.
+  - **CONTACT-13:** `/home/user/contact-13` at `a1461506a`, with one
+    uncommitted file. The red rows are confirmed: all four wrong-clear
+    rows return `Ok(())` at `e43584e37`, and the controls pass. Arm 1
+    and arm 2 were not yet started.
+  - On resume, restart each lane from its clone.
