@@ -132,7 +132,7 @@
 # `is_poison` would compile and pass every row today (the hull maps any
 # refusal to NaI, on which the two questions agree); and the crossings
 # in `probe_tube_chart` (the plane normal) and `geom/src/net.rs`'s
-# `ring_coords` (`Interval::from_certified` is inherent, the crossing
+# `certified_coords` (`Interval::from_certified` is inherent, the crossing
 # INTO certification arithmetic, and is called from files that hold a
 # lane `T: Real` legitimately). That population is
 # `geom-core/tests/certified_endpoint_census.rs`'s, which asks the

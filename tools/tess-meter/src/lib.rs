@@ -897,7 +897,7 @@ impl From<&CellMeasure> for Bound {
 /// `chordal` is finite and positive, and `δ_s` is `chordal · 0.5`; and
 /// `nurbs_cert`'s `nurbs_face_bound` and `nurbs_cell_grid` both return
 /// `UnsupportedNurbsFace` (*"second-derivative hull is
-/// unbounded/poisoned"*) unless every component of the bound is finite.
+/// unbounded/refused"*) unless every component of the bound is finite.
 /// Non-negativity rides along with those components being sups of
 /// norms. So the refusals guard the meter against a kernel that stopped
 /// doing that, not against inputs it meets today.

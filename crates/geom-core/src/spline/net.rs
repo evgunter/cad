@@ -317,7 +317,7 @@ impl TensorNet {
     }
 
     /// **Refines the net along `u` IN INTERVAL ARITHMETIC**: the insertion chain is
-    /// applied to each `u`-line by [`CurvePlan::apply_ring`], so the
+    /// applied to each `u`-line by [`CurvePlan::apply_certified`], so the
     /// answer ENCLOSES the refined net of the described coefficients
     /// instead of being a rounded copy of it. That is the difference
     /// between a bound on the patch a caller described and a bound on
@@ -335,7 +335,7 @@ impl TensorNet {
     /// **A net whose extent the schedule was not built for REFUSES**, at
     /// the new extent, and the guard is on the extent rather than on the
     /// answer's length because the answer's length cannot report it.
-    /// [`CurvePlan::apply_ring`] answers its own plan's control count
+    /// [`CurvePlan::apply_certified`] answers its own plan's control count
     /// whatever it is handed — that is what makes it total — so a line
     /// LONGER than the schedule expects comes back the right length with
     /// its tail silently dropped, which is a hull over fewer
@@ -358,7 +358,7 @@ impl TensorNet {
         for j in 0..self.nv {
             let mut line = self.column(j);
             for plan in plans {
-                line = plan.apply_ring(&line);
+                line = plan.apply_certified(&line);
             }
             for (i, q) in line.iter().enumerate() {
                 if let Some(slot) = c.get_mut(i * self.nv + j) {
@@ -388,7 +388,7 @@ impl TensorNet {
         for i in 0..self.nu {
             let mut line = self.row(i).to_vec();
             for plan in plans {
-                line = plan.apply_ring(&line);
+                line = plan.apply_certified(&line);
             }
             for (j, q) in line.iter().enumerate() {
                 if let Some(slot) = c.get_mut(i * nv_new + j) {
@@ -443,7 +443,7 @@ mod tests {
         for j in 0..nv {
             let mut want = net.column(j);
             for plan in &plans_u {
-                want = plan.apply_ring(&want);
+                want = plan.apply_certified(&want);
             }
             let got = refined_u.column(j);
             assert_eq!(got.len(), want.len());
@@ -469,7 +469,7 @@ mod tests {
         for i in 0..nu {
             let mut want = net.row(i).to_vec();
             for plan in &plans_v {
-                want = plan.apply_ring(&want);
+                want = plan.apply_certified(&want);
             }
             let got = refined_v.row(i);
             assert_eq!(got.len(), want.len());
