@@ -2,7 +2,8 @@
 id: checks-escalated-evidence-says-lower-the-tolerance
 kind: issue
 title: editor-core: the checks window's Escalated evidence says 'lower the tolerance' with no decision behind it
-status: dispatched
+status: review
+pr: 3390
 opened: 2026-09-28
 priority: P3
 cost: E
