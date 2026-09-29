@@ -1938,3 +1938,17 @@ scheduled.
 - **Dispatched:** SCALAR-NAME (`scalar/scalar-name`), Opus, M, single
   review. It also folds in the offset-fit refusals' three shapes and
   the unfiled two-rosters question from the LANE-4 spec.
+
+**2026-09-29 — CERT-DIFF and CERT-NAMES landed.**
+- **CERT-DIFF** (#3451, `fc193e5761`). The fix pass took every
+  item: the carve-out is narrowed so S2 reds, and each door's doc now
+  states its contract. The corpus gained bounded `Dac` brackets and
+  exact verdict floors.
+- **CERT-NAMES** (#3448, `aae5716bf2`). The fix pass took every
+  item and folded in the deferred row: 251 more hits read, 155
+  re-worded, one shared refusal helper. It filed EXCH
+  `try-line-max-drops-a-refused-locus-certificate` (P3, a real defect:
+  `f64::max` drops a refused NaN, so the curve promotes to `Line`) and
+  PROPS `invalid-margin-display-calls-a-refused-enclosure-poisoned`
+  (P4).
+- **Still in flight:** SCALAR-NAME.
