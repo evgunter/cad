@@ -53,13 +53,17 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::k_stats::GateRefusal;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign};
 
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
-use crate::dihedral::{DihedralClass, decide, decide_positive, decide_reported, wedge_decided};
+use crate::dihedral::{
+    DihedralClass, DihedralRefusal, decide, decide_positive_reported, decide_reported,
+    wedge_decided,
+};
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
@@ -96,6 +100,12 @@ pub enum CertCheck {
     /// escalations of that decision; its definite failure is
     /// [`CertifyError::IntervalNotForward`].
     ParamSpan,
+    /// A spline carrier's knot domain, metered at its certified speed
+    /// floor (a lower bound on its length), is definitely positive —
+    /// the metre scale [`CertCheck::ParamSpan`] converts the stored
+    /// interval by; its definite failure is
+    /// [`CertifyError::SpanMeterCollapsed`].
+    ParamSpanMeter,
     /// A periodic carrier's stored interval leaves headroom to one full
     /// period — named on escalations of that decision; its definite
     /// failure is [`CertifyError::WindingExceeded`].
@@ -125,6 +135,10 @@ pub enum CertCheck {
     /// (the dihedral displacement margin — must be definitely
     /// transverse).
     Transversality,
+    /// Intersection: the folded lever arm the transversality margin is
+    /// metered at is definitely positive at an interior sample; its
+    /// definite failure is [`CertifyError::ArmCollapsed`].
+    TransversalityArm,
     /// TangentIntersection: the normal-parallelism defect at an
     /// interior sample — `sin θ` metered at the lever arm `1/κ_rel`
     /// (D2's derived angular threshold ε·κ_rel; C7 jet schedule), or,
@@ -223,6 +237,7 @@ impl core::fmt::Display for CertCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::ParamSpan => "the stored interval's span",
+            Self::ParamSpanMeter => "the spline carrier's metered length",
             Self::ParamWinding => "the stored interval's headroom to one full period",
             Self::EndpointStart => "the start-endpoint residual",
             Self::EndpointEnd => "the end-endpoint residual",
@@ -232,6 +247,7 @@ impl core::fmt::Display for CertCheck {
             Self::WitnessSurface2 => "the witness point's residual against surface 2",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
+            Self::TransversalityArm => "the transversality margin's lever arm",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentSecondOrder => "the second-order margin",
             Self::TangentHull => "the between-samples sag bound",
@@ -340,6 +356,16 @@ pub enum CertifyError {
         /// The span's verdict, with its reporting margin.
         verdict: Refused,
     },
+    /// A spline carrier's knot domain, metered at its certified speed
+    /// floor, did not classify positive, so the stored interval has no
+    /// metre scale to be measured by. The floor is a conservative lower
+    /// bound on the carrier's speed: it reaches zero or below where the
+    /// spline stalls or turns back on itself, and where the bound itself
+    /// falls short; a knot domain stored reversed reads below zero too.
+    SpanMeterCollapsed {
+        /// The metered length's verdict, with its reporting margin.
+        verdict: Refused,
+    },
     /// A circle carrier's stored interval spans definitely more than
     /// one full period (arc length `(t₁ − t₀)·r > τ·r` beyond
     /// tolerance). This closes the 9-sample winding alias (M2 PR 3
@@ -368,6 +394,17 @@ pub enum CertifyError {
         /// The interior sample index.
         sample: u32,
         /// The verdict on the levered angle, with its reporting margin.
+        verdict: Refused,
+    },
+    /// `Intersection` only: the folded lever arm the transversality
+    /// margin is metered at did not classify positive at a sample — the
+    /// edge's extent, or a face's own radius there (a cone near its
+    /// apex), is not above zero at this tolerance — so there is no angle
+    /// between the faces to measure.
+    ArmCollapsed {
+        /// The interior sample index.
+        sample: u32,
+        /// The arm's verdict, with its reporting margin.
         verdict: Refused,
     },
     /// `TangentIntersection` only: the second-order margin (relative
@@ -478,6 +515,11 @@ impl core::fmt::Display for CertifyError {
                 "the stored parameter interval runs backwards — increasing parameter must \
                  run start → end of he_plus (the ratified vertices-derive-bounds convention)"
             ),
+            Self::SpanMeterCollapsed { .. } => write!(
+                f,
+                "the spline carrier's knot domain, metered at its certified speed floor, is not \
+                 above zero at this tolerance, so its stored interval cannot be measured in metres"
+            ),
             Self::WindingExceeded => write!(
                 f,
                 "a periodic (circle/ellipse) carrier's parameter interval \
@@ -501,6 +543,11 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "the faces meet tangentially at sample {sample}, where the \
                  edge's description says they cross"
+            ),
+            Self::ArmCollapsed { sample, .. } => write!(
+                f,
+                "the faces have no length above zero at sample {sample}, at this tolerance, to \
+                 measure their angle over"
             ),
             Self::NotSecondOrderSeparated { sample, .. } => write!(
                 f,
@@ -571,6 +618,8 @@ impl CertifyError {
             }
             Self::TubeNotSeparated { verdict } => (CertCheck::TangentTube, verdict.arm()),
             Self::IntervalNotForward { verdict } => (CertCheck::ParamSpan, verdict.arm()),
+            Self::SpanMeterCollapsed { verdict } => (CertCheck::ParamSpanMeter, verdict.arm()),
+            Self::ArmCollapsed { verdict, .. } => (CertCheck::TransversalityArm, verdict.arm()),
             Self::WindingExceeded => (CertCheck::ParamWinding, RefusedArm::SignCertain),
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
             Self::ChartImageUnavailable { .. } => (CertCheck::ChartImage, RefusedArm::SignCertain),
@@ -638,6 +687,19 @@ impl CertCheck {
                              worth reporting",
                 }),
             }),
+            // The floor is a conservative lower bound, so a definite
+            // refusal of it is the certificate's limit, which the lever
+            // reaches, never a stored contradiction.
+            Self::ParamSpanMeter => Ending::Sized(SizedDecision {
+                lever: "move the geometry so this spline edge turns through less",
+                size: "length",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
+                at_zero: Some(AtZero::same(
+                    "a vanishing speed floor means the spline stalls or turns back on itself, or \
+                     the floor has reached its limit, worth reporting",
+                )),
+            }),
             Self::ParamWinding => Ending::Sized(SizedDecision {
                 lever: "move the geometry so this arc stays clearly short of a full turn",
                 size: "arc",
@@ -652,6 +714,7 @@ impl CertCheck {
                 stored: StoredDefinite::Contradiction,
                 at_zero: None,
             }),
+            Self::TransversalityArm => Ending::Sized(crate::dihedral::LEVER_ARM),
             Self::TangentSecondOrder => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the faces curve apart more clearly where they touch",
                 size: "curvature difference",
@@ -1024,14 +1087,18 @@ impl<T: Decide> EdgeCurve<T> {
     ///    negative ([`CertifyError::WindingExceeded`]) — at most one
     ///    full period, which closes the 9-sample `8kτ` winding-alias
     ///    family (see that variant's docs). In-band/poisoned span
-    ///    margins escalate under [`CertCheck::ParamSpan`].
+    ///    margins escalate under [`CertCheck::ParamSpan`]. A spline
+    ///    carrier's metre scale is decided first
+    ///    ([`CertCheck::ParamSpanMeter`];
+    ///    [`CertifyError::SpanMeterCollapsed`] where it is not there).
     /// 3. Endpoint pinning: `|carrier(t₀) − start| ≤ ε`,
     ///    `|carrier(t₁) − end| ≤ ε`.
     /// 4. Per-sample description residuals, samples i = 0…8 in order
     ///    (per-sample check order as listed in [`CertCheck`]):
     ///    - `Intersection`: implicit residual vs `s1`, then `s2`; at
     ///      interior samples (i = 1…7) the transversality margin
-    ///      (definitely transverse required), metered through the
+    ///      (definitely transverse required; its lever arm decided
+    ///      first, [`CertCheck::TransversalityArm`]), metered through the
     ///      edge's honest extent ([`edge_extent`] — carrier diameter,
     ///      not the collapsing chord, for closed circle carriers).
     ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
@@ -1963,7 +2030,7 @@ fn run_checks<T: Decide>(
         // FIRST (the collapsed-arm idiom): a zero/negative meter (a
         // carrier whose speed genuinely collapses) or poison (a
         // malformed net) cannot convert the span to metres, and no
-        // forward verdict may be fabricated from it — escalate, never
+        // forward verdict may be fabricated from it — refuse, never
         // guess. RATIONAL carriers used to land here unconditionally;
         // since M7 they have their own arm of the meter and state a
         // real bound (`speed_lower_bound`'s rational derivation).
@@ -1976,13 +2043,27 @@ fn run_checks<T: Decide>(
         // reparametrized `t → 2t` halves the rate and doubles the
         // domain), which the bare rate is not, and it is the quantity
         // ε classifies under D4. The two failure modes stay distinct:
-        // a collapsed or poison meter answers `Invalid`/escalates,
-        // while a backwards or zero span is `IntervalNotForward` below.
+        // a collapsed meter is `SpanMeterCollapsed` and an undecided one
+        // escalates under `ParamSpanMeter`, while a backwards or zero
+        // span is `IntervalNotForward` below.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();
             let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
-            decide_positive("nurbs_span_meter", net_length, band).map_err(span_escalated)?;
+            decide_positive_reported("nurbs_span_meter", net_length, band).map_err(|gate| {
+                match gate {
+                    GateRefusal::Collapsed { sign, margin, .. } => {
+                        CertifyError::SpanMeterCollapsed {
+                            verdict: Refused::collapsed(sign, margin, band),
+                        }
+                    }
+                    GateRefusal::Undecided(cause) => CertifyError::Escalated {
+                        check: CertCheck::ParamSpanMeter,
+                        sample: NOT_A_SAMPLE,
+                        cause,
+                    },
+                }
+            })?;
             forward(Margin::metered(span, meter))?;
         }
     }
@@ -2126,9 +2207,22 @@ fn run_checks<T: Decide>(
                             let verdict = Refused::Zero(Classified { margin, band });
                             return Err(CertifyError::NotTransverse { sample: i, verdict });
                         }
-                        Err(cause) => {
+                        Err(DihedralRefusal::Wedge(cause)) => {
                             return Err(CertifyError::Escalated {
                                 check: CertCheck::Transversality,
+                                sample: i,
+                                cause,
+                            });
+                        }
+                        Err(DihedralRefusal::Arm(GateRefusal::Collapsed {
+                            sign, margin, ..
+                        })) => {
+                            let verdict = Refused::collapsed(sign, margin, band);
+                            return Err(CertifyError::ArmCollapsed { sample: i, verdict });
+                        }
+                        Err(DihedralRefusal::Arm(GateRefusal::Undecided(cause))) => {
+                            return Err(CertifyError::Escalated {
+                                check: CertCheck::TransversalityArm,
                                 sample: i,
                                 cause,
                             });
@@ -2630,8 +2724,9 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 22] = [
+    const ALL_CHECKS: [CertCheck; 24] = [
         CertCheck::ParamSpan,
+        CertCheck::ParamSpanMeter,
         CertCheck::ParamWinding,
         CertCheck::EndpointStart,
         CertCheck::EndpointEnd,
@@ -2641,6 +2736,7 @@ mod tests {
         CertCheck::WitnessSurface2,
         CertCheck::WitnessMidpoint,
         CertCheck::Transversality,
+        CertCheck::TransversalityArm,
         CertCheck::TangentParallel,
         CertCheck::TangentSecondOrder,
         CertCheck::TangentHull,
@@ -2670,28 +2766,30 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 22,
-            CertCheck::ParamWinding => 22,
-            CertCheck::EndpointStart => 22,
-            CertCheck::EndpointEnd => 22,
-            CertCheck::Surface1Residual => 22,
-            CertCheck::Surface2Residual => 22,
-            CertCheck::WitnessSurface1 => 22,
-            CertCheck::WitnessSurface2 => 22,
-            CertCheck::WitnessMidpoint => 22,
-            CertCheck::Transversality => 22,
-            CertCheck::TangentParallel => 22,
-            CertCheck::TangentSecondOrder => 22,
-            CertCheck::TangentHull => 22,
-            CertCheck::TangentTube => 22,
-            CertCheck::MappedSource => 22,
-            CertCheck::SeamHalfplane => 22,
-            CertCheck::SeamSide => 22,
-            CertCheck::ChartImage => 22,
-            CertCheck::ChartResidual => 22,
-            CertCheck::PlaneNurbsOnLocus => 22,
-            CertCheck::PlaneNurbsHull => 22,
-            CertCheck::PlaneNurbsCertificate => 22,
+            CertCheck::ParamSpan => 24,
+            CertCheck::ParamSpanMeter => 24,
+            CertCheck::ParamWinding => 24,
+            CertCheck::EndpointStart => 24,
+            CertCheck::EndpointEnd => 24,
+            CertCheck::Surface1Residual => 24,
+            CertCheck::Surface2Residual => 24,
+            CertCheck::WitnessSurface1 => 24,
+            CertCheck::WitnessSurface2 => 24,
+            CertCheck::WitnessMidpoint => 24,
+            CertCheck::Transversality => 24,
+            CertCheck::TransversalityArm => 24,
+            CertCheck::TangentParallel => 24,
+            CertCheck::TangentSecondOrder => 24,
+            CertCheck::TangentHull => 24,
+            CertCheck::TangentTube => 24,
+            CertCheck::MappedSource => 24,
+            CertCheck::SeamHalfplane => 24,
+            CertCheck::SeamSide => 24,
+            CertCheck::ChartImage => 24,
+            CertCheck::ChartResidual => 24,
+            CertCheck::PlaneNurbsOnLocus => 24,
+            CertCheck::PlaneNurbsHull => 24,
+            CertCheck::PlaneNurbsCertificate => 24,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -2713,7 +2811,7 @@ mod tests {
     ///
     /// The `Display` arms are an exhaustive match, so the words cannot
     /// fall BEHIND the taxonomy — a check without a word does not
-    /// compile. What twenty-one hand-written phrases CAN do is collide,
+    /// compile. What the hand-written phrases CAN do is collide,
     /// and several of these are one token apart by design (surface 1
     /// against surface 2, the carrier's residual against the witness
     /// point's), so a literal copied onto a neighbouring row is the
@@ -4403,9 +4501,14 @@ mod tests {
                 .map(|cause| recourse(check, RefusedArm::Undecided(cause), Reading::Adopt))
                 .collect();
             let definite = recourse(check, RefusedArm::SignCertain, Reading::Adopt);
-            // The tube's definite refusal is the certificate's limit, not
-            // a stored contradiction: it keeps its lever.
-            if check == CertCheck::TangentTube {
+            // The tube's and the span meter's definite refusals are the
+            // certificate's limit, and the lever arm's is geometry the
+            // lever reaches, not a stored contradiction: each keeps its
+            // lever.
+            if matches!(
+                check,
+                CertCheck::TangentTube | CertCheck::ParamSpanMeter | CertCheck::TransversalityArm
+            ) {
                 assert!(definite.starts_with("Recourse: move"), "{definite}");
             } else {
                 assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
@@ -4458,6 +4561,7 @@ mod tests {
             (CertCheck::EndpointStart, Defect),
             (CertCheck::EndpointEnd, Defect),
             (CertCheck::ParamSpan, Sized(Positive)),
+            (CertCheck::ParamSpanMeter, Sized(Positive)),
             (CertCheck::ParamWinding, Sized(NonNegative)),
             (CertCheck::Surface1Residual, LastResort),
             (CertCheck::Surface2Residual, LastResort),
@@ -4465,6 +4569,7 @@ mod tests {
             (CertCheck::WitnessSurface2, Defect),
             (CertCheck::WitnessMidpoint, Defect),
             (CertCheck::Transversality, Sized(Positive)),
+            (CertCheck::TransversalityArm, Sized(Positive)),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
             (CertCheck::TangentParallel, Defect),
             (CertCheck::TangentHull, LastResort),

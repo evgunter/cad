@@ -79,18 +79,22 @@
 //! *definite* `Smooth` at what may be a true 90° corner — a definite
 //! wrong answer, worse than no answer. The classifier therefore decides
 //! the arm first (predicate `"dihedral_arm"`): definitely positive
-//! proceeds; coincident-with-zero **escalates** with
-//! [`geom_core::MarginKind::Invalid`] (with no displacement scale the
-//! wedge question is not validly posed at this site — the same honest
-//! refusal as the poison gradient exactly *at* the apex); in-band or
-//! poisoned arms escalate through the ordinary decide door. "Arm too
-//! small to say" is always an escalation, never a classification.
+//! proceeds; coincident-with-zero **refuses** (with no displacement
+//! scale the wedge question is not validly posed at this site), and the
+//! funnel records that refusal as an escalation with
+//! [`geom_core::MarginKind::Invalid`]; in-band or poisoned arms escalate
+//! through the ordinary decide door. "Arm too small to say" is never a
+//! classification. The arm is a decision of its own:
+//! [`classify_dihedral_gated`] says which decision refused and, for a
+//! collapsed arm, the verdict it reached, so a refusal ends in the arm's
+//! words rather than the wedge's.
 
 use geom::Surface;
-use geom_core::k_stats::NonzeroSign;
+use geom_core::k_stats::{GateRefusal, NonPositiveSign, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
+use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
 
 /// A definite dihedral classification (the indeterminate outcome is the
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).
@@ -153,6 +157,17 @@ pub(crate) fn decide_positive<T: Decide>(
     geom_core::k_stats::decide_positive(name, margin, band)
 }
 
+/// [`decide_positive`], keeping the gate's verdict
+/// ([`geom_core::k_stats::decide_positive_reported`]): for a gate
+/// reported as a decision of its own.
+pub(crate) fn decide_positive_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), GateRefusal<NonPositiveSign>> {
+    geom_core::k_stats::decide_positive_reported(name, margin, band)
+}
+
 /// The crate's **collapsed-discriminant gate**
 /// ([`geom_core::k_stats::decide_nonzero`]): for a predicate that reads
 /// a side off the margin's sign and has none to read at a definite
@@ -192,10 +207,70 @@ pub fn classify_dihedral<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<DihedralClass, Indeterminate> {
+    classify_dihedral_gated(s1, s2, p, extent, band).map_err(DihedralRefusal::escalation)
+}
+
+/// Which of [`classify_dihedral`]'s two decisions refused: the folded
+/// lever arm's ("is there an arm to measure an angle over?") or the
+/// wedge's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DihedralRefusal {
+    /// The folded lever arm (`"dihedral_arm"`) is definitely not there
+    /// ([`GateRefusal::Collapsed`]: no angle between the faces can be
+    /// measured at this point), or could not be decided.
+    Arm(GateRefusal<NonPositiveSign>),
+    /// The wedge (`"dihedral_wedge"`) landed in the sliver band, or was
+    /// poisoned.
+    Wedge(Indeterminate),
+}
+
+impl DihedralRefusal {
+    /// The escalation the funnel recorded for this refusal.
+    #[must_use]
+    pub fn escalation(self) -> Indeterminate {
+        match self {
+            Self::Arm(gate) => gate.escalation(),
+            Self::Wedge(cause) => cause,
+        }
+    }
+}
+
+/// **The folded lever arm's decision** ([`DihedralRefusal::Arm`]): is
+/// there a length to measure the angle between two faces over? It
+/// passes on a positive arm. The arm is the edge's extent or a face's
+/// own radius at the point, whichever is smaller, so the lever keeps the
+/// edge clear of a vanishing one; a sign-certain refusal is geometry the
+/// lever reaches, at rest as at a build. One home for every reader of
+/// the arm: certification's `CertCheck::TransversalityArm` and the
+/// tier-3 validator's.
+pub const LEVER_ARM: SizedDecision = SizedDecision {
+    lever: "move the geometry so neither the edge nor its faces' radii along it are vanishingly \
+            small",
+    size: "length",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: Some(AtZero::same(
+        "an arm of no length, as at a cone apex, leaves no angle between the faces to measure",
+    )),
+};
+
+/// [`classify_dihedral`], naming which of its decisions refused and,
+/// for the arm, the verdict it reached.
+///
+/// # Errors
+///
+/// [`DihedralRefusal`].
+pub fn classify_dihedral_gated<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    extent: T,
+    band: Band,
+) -> Result<DihedralClass, DihedralRefusal> {
     wedge_decided(s1, s2, p, extent, band).map(|(class, _)| class)
 }
 
-/// [`classify_dihedral`], keeping the wedge decision's reporting
+/// [`classify_dihedral_gated`], keeping the wedge decision's reporting
 /// margin for a refusal that quotes it (certification's
 /// `NotTransverse`).
 pub(crate) fn wedge_decided<T: Decide>(
@@ -204,19 +279,18 @@ pub(crate) fn wedge_decided<T: Decide>(
     p: Point3<T>,
     extent: T,
     band: Band,
-) -> Result<(DihedralClass, geom_core::MarginDiag), Indeterminate> {
+) -> Result<(DihedralClass, geom_core::MarginDiag), DihedralRefusal> {
     let n1 = implicit_gradient(s1, p);
     let n2 = implicit_gradient(s2, p);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
     let arm = folded_lever_arm(s1, s2, p, extent);
     // The collapsed-arm gate (module docs): the wedge margin is only
-    // meaningful through a definitely-positive arm. A Zero (or, for a
-    // true magnitude, unreachable Negative) arm escalates as Invalid —
-    // "the question was never validly posed here" — and an in-band or
-    // poisoned arm escalates through `decide` itself via `?`.
-    decide_positive("dihedral_arm", Margin::of(arm), band)?;
+    // meaningful through a definitely-positive arm.
+    decide_positive_reported("dihedral_arm", Margin::of(arm), band)
+        .map_err(DihedralRefusal::Arm)?;
     let margin = Margin::levered(sin_theta, arm);
-    let Decided { sign, margin } = decide_reported("dihedral_wedge", margin, band)?;
+    let Decided { sign, margin } =
+        decide_reported("dihedral_wedge", margin, band).map_err(DihedralRefusal::Wedge)?;
     let class = match sign {
         Sign::Positive => DihedralClass::Transverse,
         Sign::Zero => DihedralClass::Smooth,

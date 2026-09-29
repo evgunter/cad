@@ -71,6 +71,10 @@ const KERNEL_KEYED: &[&str] = &[
     "Transform/Certify/Routed/not-transverse, tangent",
     "Transform/Certify/Routed/span",
     "Transform/Certify/Routed/invalid",
+    "Transform/Certify/Routed/lever arm",
+    "Transform/Certify/Routed/no lever arm",
+    "Transform/Certify/Routed/spline meter turns back",
+    "Transform/Certify/Routed/spline meter, invalid",
     "Transform/Certify/Routed/endpoint",
     "Transform/Certify/Routed/surface-residual",
     "Transform/NullScaffold",
@@ -997,6 +1001,9 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 ///   in-band arm, and the same lever and conditional on its definite
 ///   zero arm, which has no margin to quote;
 /// - the span's own lever;
+/// - a collapse-gate's own decision (a lever arm, a spline's metered
+///   length): its lever, with what a length of none means on a definite
+///   zero, and on a poisoned margin what that may mean;
 /// - a poisoned margin on a sized decision: the lever, and what it may
 ///   mean;
 /// - an exact residual's kernel-defect ending;
@@ -1059,6 +1066,41 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::INVALID),
             "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable or \
+             collapsed margin may indicate a kernel bug worth reporting",
+        ),
+        (
+            "lever arm",
+            escalated(CertCheck::TransversalityArm, in_band),
+            "Recourse: move the geometry so neither the edge nor its faces' radii along it are \
+             vanishingly small, or, if this length is \
+             intended, tighten the tolerance below 5e-10 m",
+        ),
+        (
+            "no lever arm",
+            CertifyError::ArmCollapsed {
+                sample: 4,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                }),
+            },
+            "Recourse: move the geometry so neither the edge nor its faces' radii along it are \
+             vanishingly small; an arm of no length, as at a cone apex, leaves no angle \
+             between the faces to measure",
+        ),
+        (
+            "spline meter turns back",
+            CertifyError::SpanMeterCollapsed {
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1.0),
+                },
+            },
+            "Recourse: move the geometry so this spline edge turns through less",
+        ),
+        (
+            "spline meter, invalid",
+            escalated(CertCheck::ParamSpanMeter, MarginDiag::INVALID),
+            "Recourse: move the geometry so this spline edge turns through less; an unreadable or \
              collapsed margin may indicate a kernel bug worth reporting",
         ),
         (

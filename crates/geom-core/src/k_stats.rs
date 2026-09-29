@@ -409,36 +409,40 @@ fn record_escalation(source: Indeterminate) -> Indeterminate {
 
 /// The gated body: classify through the funnel, then apply the sign
 /// requirement the calling predicate's question depends on. A definite
-/// sign the requirement rejects is an [`Indeterminate`] carrying
-/// [`MarginKind::Invalid`](crate::MarginKind::Invalid) — "the question was never validly posed
-/// here" — recorded on the same frame and in the same decision order as
-/// the escalation `classify` itself would have produced.
+/// sign the requirement rejects is recorded as an [`Indeterminate`]
+/// carrying [`MarginKind::Invalid`](crate::MarginKind::Invalid) — "the
+/// question was never validly posed here" — on the same frame and in the
+/// same decision order as the escalation `classify` itself would have
+/// produced, and handed back beside the verdict that was rejected
+/// ([`GateRefusal::Collapsed`]).
 ///
 /// Both outcomes of one gated decision reach the frame: the funnel's
 /// definite verdict, because the classifier really did decide, and the
 /// gate's escalation beside it. The verdict channel is therefore
 /// unchanged by gating, which is what keeps the verdict-diff engine's
 /// populations comparable across this seam.
-fn classify_gated<T: Decide, R>(
+fn classify_gated<T: Decide, R, S>(
     name: &'static str,
     margin: T,
     band: Band,
-    admits: fn(Sign) -> Option<R>,
-) -> Result<R, Indeterminate> {
+    admits: fn(Sign) -> Result<R, S>,
+) -> Result<R, GateRefusal<S>> {
     // `admits` both TESTS the sign and carries it into the caller's own
     // vocabulary, in one function: a gate that answered `bool` here
     // would leave every caller converting an already-tested sign a
     // second time, with an arm for the answer this door escalated — the
     // shape these doors exist to remove, reproduced one level up.
-    if let Some(admitted) = admits(classify(name, margin, band)?.sign) {
-        return Ok(admitted);
-    }
-    Err(record_escalation(Indeterminate {
-        margin: MarginDiag::INVALID,
-        band,
-        predicate: Some(name),
-        terminal_sliver: false,
-    }))
+    let decided = classify(name, margin, band).map_err(GateRefusal::Undecided)?;
+    admits(decided.sign).map_err(|sign| GateRefusal::Collapsed {
+        sign,
+        margin: decided.margin,
+        escalation: record_escalation(Indeterminate {
+            margin: MarginDiag::INVALID,
+            band,
+            predicate: Some(name),
+            terminal_sliver: false,
+        }),
+    })
 }
 
 /// **An EVALUATOR check, named for the recorder and NOT logged as a
@@ -625,8 +629,69 @@ pub fn decide_positive<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    classify_gated(name, margin.value(), band, |sign| {
-        (sign == Sign::Positive).then_some(())
+    decide_positive_reported(name, margin, band).map_err(GateRefusal::escalation)
+}
+
+/// A definite sign a [`decide_positive_reported`] gate refuses: the
+/// quantity it meters is not there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonPositiveSign {
+    /// The margin classified zero: the quantity collapsed to within the
+    /// tolerance.
+    Zero,
+    /// The margin classified definitely negative.
+    Negative,
+}
+
+/// A gated decision's refusal, as the gate reached it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GateRefusal<S> {
+    /// The classifier decided, and the gate refused the sign it reached:
+    /// the quantity the gate meters is not there, which is a verdict,
+    /// not an undecided margin.
+    Collapsed {
+        /// The refused sign.
+        sign: S,
+        /// What the classifier saw, for error reporting only
+        /// ([`MarginDiag`]).
+        margin: MarginDiag,
+        /// The escalation the funnel recorded under the gate's name.
+        escalation: Indeterminate,
+    },
+    /// The classifier could not decide: the margin is in band or
+    /// poisoned.
+    Undecided(Indeterminate),
+}
+
+impl<S> GateRefusal<S> {
+    /// The escalation the funnel recorded for this refusal.
+    #[must_use]
+    pub fn escalation(self) -> Indeterminate {
+        match self {
+            Self::Collapsed { escalation, .. } | Self::Undecided(escalation) => escalation,
+        }
+    }
+}
+
+/// [`decide_positive`], keeping the gate's verdict: for a caller that
+/// reports the gate as a decision of its own, whose definite refusal
+/// ("there is no arm") ends differently from an undecided one.
+/// Classification and recording are [`decide_positive`]'s.
+///
+/// # Errors
+///
+/// [`GateRefusal::Undecided`] with [`decide`]'s [`Indeterminate`] for an
+/// in-band or invalid margin; [`GateRefusal::Collapsed`] for a definite
+/// non-positive sign.
+pub fn decide_positive_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), GateRefusal<NonPositiveSign>> {
+    classify_gated(name, margin.value(), band, |sign| match sign {
+        Sign::Positive => Ok(()),
+        Sign::Zero => Err(NonPositiveSign::Zero),
+        Sign::Negative => Err(NonPositiveSign::Negative),
     })
 }
 
@@ -659,10 +724,11 @@ pub fn decide_nonzero<T: Decide>(
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
     classify_gated(name, margin.value(), band, |sign| match sign {
-        Sign::Positive => Some(NonzeroSign::Positive),
-        Sign::Negative => Some(NonzeroSign::Negative),
-        Sign::Zero => None,
+        Sign::Positive => Ok(NonzeroSign::Positive),
+        Sign::Negative => Ok(NonzeroSign::Negative),
+        Sign::Zero => Err(()),
     })
+    .map_err(GateRefusal::escalation)
 }
 
 /// **The measurement gate** — the funnel's door for a value an op is

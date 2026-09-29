@@ -11,6 +11,7 @@
 //!
 //! A decision with no size the user chose ([`Unsized`]) ends here too.
 
+use geom_core::k_stats::NonPositiveSign;
 use geom_core::{
     Band, Decided, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
     KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, Sign, SizedWords,
@@ -119,6 +120,17 @@ impl Refused {
             Sign::Positive => None,
             Sign::Zero => Some(Self::Zero(Classified { margin, band })),
             Sign::Negative => Some(Self::Negative { margin }),
+        }
+    }
+
+    /// The verdict a collapsed-arm gate refused
+    /// ([`geom_core::k_stats::GateRefusal::Collapsed`]), classified at
+    /// `band`.
+    #[must_use]
+    pub fn collapsed(sign: NonPositiveSign, margin: MarginDiag, band: Band) -> Self {
+        match sign {
+            NonPositiveSign::Zero => Self::Zero(Classified { margin, band }),
+            NonPositiveSign::Negative => Self::Negative { margin },
         }
     }
 

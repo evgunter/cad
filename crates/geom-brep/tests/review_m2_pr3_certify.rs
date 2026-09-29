@@ -487,6 +487,180 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
     assert_eq!(err.predicate, Some("dihedral_arm"), "zero extent");
 }
 
+/// **A collapsed arm refuses as the arm's decision**, not as an
+/// unreadable transversality margin. An `Intersection` edge along a
+/// cone's generator, through its apex, with a plane holding the axis:
+/// every interior sample crosses at a right angle, and at the apex
+/// (sample 4) the cone's radius, and with it the folded arm, is zero,
+/// so there is no angle to measure. The refusal carries the arm's zero
+/// verdict and ends in the arm's lever and what a vanishing radius
+/// means — never the poisoned-margin note, which is a real poison's.
+#[test]
+fn a_collapsed_arm_refuses_as_the_arm_decision() {
+    use geom_brep::keys::SurfaceKey;
+    use geom_brep::recourse::Reading;
+    let cone = Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle: FRAC_PI_6,
+        u_ref: Vec3::unit_x(),
+    };
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    let mut arena: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
+    let (s1, s2) = (arena.insert(cone), arena.insert(plane));
+    let carrier = Curve3::Line {
+        origin: Point3::origin(),
+        dir: Vec3::new(FRAC_PI_6.sin(), 0.0, FRAC_PI_6.cos()),
+    };
+    let (start, end) = (carrier.eval(-1.0), carrier.eval(1.0));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1,
+            s2,
+            witness: carrier.eval(0.0),
+        },
+        carrier,
+        param_start: -1.0,
+        param_end: 1.0,
+    };
+    let err = EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band()).unwrap_err();
+    assert_eq!(
+        err,
+        CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: Refused::Zero(Classified {
+                margin: geom_core::MarginDiag::value(0.0),
+                band: band(),
+            }),
+        },
+        "the apex has no arm to measure the angle over"
+    );
+    assert_eq!(
+        err.decision().map(|(check, _)| check),
+        Some(CertCheck::TransversalityArm)
+    );
+    let text = err.render(Reading::Build);
+    assert!(!text.contains("unreadable"), "{text}");
+    assert!(
+        text.ends_with(
+            "Recourse: move the geometry so neither the edge nor its faces' radii along it are \
+             vanishingly small; an arm of no length, as at a cone apex, leaves no angle \
+             between the faces to measure"
+        ),
+        "{text}"
+    );
+}
+
+/// **A collapsed spline meter refuses as the meter's decision**, not as
+/// an unreadable span margin. A degree-2 net along the z axis (the
+/// intersection of the planes x = 0 and y = 0) that stalls at its end —
+/// its last two control points coincide — has a speed floor of exactly
+/// zero, and one that turns back on itself a floor below zero: neither
+/// has a metre scale for its stored interval. Each carries the meter's
+/// own verdict and ends in its lever, the stall with what a vanishing
+/// floor means, and never in the poisoned-margin note; a poisoned net
+/// keeps the note, under the meter's own check.
+#[test]
+fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
+    use std::sync::Arc;
+
+    use geom::NurbsCurve3;
+    use geom_brep::certify::NOT_A_SAMPLE;
+    use geom_brep::keys::SurfaceKey;
+    use geom_brep::recourse::Reading;
+    use geom_core::spline::KnotVector;
+    const LEVER: &str = "Recourse: move the geometry so this spline edge turns through less";
+    let net = |degree: usize, control: &[f64]| {
+        let n = control.len();
+        let knots = [vec![0.0; degree + 1], vec![1.0; degree + 1]].concat();
+        assert_eq!(knots.len(), n + degree + 1, "a single-span clamped net");
+        let knots = KnotVector::clamped(knots, degree).expect("knots");
+        let control = control.iter().map(|&z| Point3::new(0.0, 0.0, z)).collect();
+        let net = NurbsCurve3::new(knots, control, vec![1.0; n]).expect("the net builds");
+        Curve3::Nurbs(Arc::new(net))
+    };
+    let certify = |carrier: Curve3<f64>| {
+        let mut arena: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
+        let s1 = arena.insert(Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        });
+        let s2 = arena.insert(Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_y(),
+            u_ref: Vec3::unit_x(),
+        });
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: carrier.eval(0.5),
+            },
+            carrier: carrier.clone(),
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let (start, end) = (carrier.eval(0.0), carrier.eval(1.0));
+        EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band()).unwrap_err()
+    };
+    for (name, control, zero) in [
+        ("stalls", [0.0, 1.0, 1.0], true),
+        ("turns back", [0.0, 1.0, 0.5], false),
+    ] {
+        let err = certify(net(2, &control));
+        match err {
+            CertifyError::SpanMeterCollapsed {
+                verdict: Refused::Zero(_),
+            } => assert!(zero, "{name}: {err:?}"),
+            CertifyError::SpanMeterCollapsed {
+                verdict: Refused::Negative { .. },
+            } => assert!(!zero, "{name}: {err:?}"),
+            other => panic!("{name}: the meter must refuse as its own decision: {other:?}"),
+        }
+        assert_eq!(
+            err.decision().map(|(check, _)| check),
+            Some(CertCheck::ParamSpanMeter),
+            "{name}"
+        );
+        let text = err.render(Reading::Build);
+        assert!(!text.contains("unreadable"), "{name}: {text}");
+        let want = if zero {
+            format!(
+                "{LEVER}; a vanishing speed floor means the spline stalls or turns back on \
+                 itself, or the floor has reached its limit, worth reporting"
+            )
+        } else {
+            LEVER.to_owned()
+        };
+        assert!(text.ends_with(&want), "{name}: {text}");
+    }
+    // A net whose control points all coincide has no chord to project
+    // on: its floor is poison, which stays undecided under the meter's
+    // own check and keeps the note.
+    let err = certify(net(1, &[1.0, 1.0]));
+    assert!(
+        matches!(
+            err,
+            CertifyError::Escalated {
+                check: CertCheck::ParamSpanMeter,
+                sample: NOT_A_SAMPLE,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    let text = err.render(Reading::Build);
+    assert!(
+        text.ends_with(&format!("{LEVER}; {}", geom_core::UNREADABLE_MARGIN_NOTE)),
+        "{text}"
+    );
+}
+
 /// (c) SURVIVES: huge edges on tiny features — the curvature arm caps
 /// the chord, so a long edge on a tiny cylinder still escalates/
 /// classifies through the honest small arm rather than the huge chord.

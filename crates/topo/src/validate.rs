@@ -385,9 +385,10 @@ use geom_brep::recourse::{
     Unsized,
 };
 use geom_brep::{
-    CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
-    classify_material_pairing,
+    CertCheck, CertifyError, DihedralClass, DihedralRefusal, MaterialPairing, MaterialWedge,
+    classify_dihedral_gated, classify_material_pairing,
 };
+use geom_core::k_stats::GateRefusal;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
@@ -1159,6 +1160,19 @@ pub enum ValidationError {
     LaminaWedge {
         /// The edge whose opposed faces osculate.
         edge: EdgeKey,
+    },
+    /// Tier 3 (check 4): at an interior sample of an edge, the folded
+    /// lever arm the wedge between its faces is metered at did not
+    /// classify positive — the edge's extent, or a face's own radius
+    /// there (a cone near its apex), is not above zero at this tolerance
+    /// — so there is no angle between the faces to measure
+    /// ([`geom_brep::dihedral::LEVER_ARM`]). An arm the run cannot
+    /// decide is [`Self::SliverDihedral`] under [`WedgeCheck::LeverArm`].
+    NoDihedralArm {
+        /// The edge whose wedge has no arm to be measured over.
+        edge: EdgeKey,
+        /// The arm's verdict, with its reporting margin.
+        verdict: Refused,
     },
     /// Tier 3 (check 6): a planar face's loop ROLES disagree with its
     /// windings — the outer loop winds **definitely negatively** (or a
@@ -2112,9 +2126,13 @@ impl fmt::Display for StaleDeclaration {
 /// paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WedgeCheck {
-    /// The first-order wedge between the faces' tangent planes, with the
-    /// folded lever arm it is metered at: a crease or a smooth join.
+    /// The first-order wedge between the faces' tangent planes: a
+    /// crease or a smooth join.
     Dihedral,
+    /// The folded lever arm the wedge is metered at: whether there is a
+    /// length to measure the angle over
+    /// ([`geom_brep::dihedral::LEVER_ARM`]).
+    LeverArm,
     /// On a definitely-smooth edge, whether the faces separate at second
     /// order (the surfaces determine the locus) or not.
     SecondOrder,
@@ -2133,6 +2151,10 @@ impl WedgeCheck {
                 "the angle between two faces at an edge is too close to call at this \
                  tolerance (a sliver)"
             }
+            Self::LeverArm => {
+                "whether an edge's faces have a length to measure their angle over is too close \
+                 to call at this tolerance"
+            }
             Self::SecondOrder => {
                 "whether two faces meeting smoothly at an edge curve apart there is too \
                  close to call at this tolerance"
@@ -2149,11 +2171,30 @@ impl WedgeCheck {
         let arm = RefusedArm::Undecided(cause);
         match self {
             Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
+            Self::LeverArm => geom_brep::dihedral::LEVER_ARM
+                .recourse(arm, Reading::AtRest)
+                .into(),
             Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
             // A split along the edge, or a side read after the decisions
             // before it came out definite: no margin of its own gives a
             // size or a lever.
             Self::MaterialSide => DEFECT.into(),
+        }
+    }
+}
+
+/// Check 4's finding for an edge whose first-order dihedral refused
+/// at a sample: the decision that refused, with its verdict.
+fn dihedral_finding(edge: EdgeKey, refused: DihedralRefusal, band: Band) -> ValidationError {
+    let sliver = |check, cause| ValidationError::SliverDihedral { edge, check, cause };
+    match refused {
+        DihedralRefusal::Wedge(cause) => sliver(WedgeCheck::Dihedral, cause),
+        DihedralRefusal::Arm(GateRefusal::Undecided(cause)) => sliver(WedgeCheck::LeverArm, cause),
+        DihedralRefusal::Arm(GateRefusal::Collapsed { sign, margin, .. }) => {
+            ValidationError::NoDihedralArm {
+                edge,
+                verdict: Refused::collapsed(sign, margin, band),
+            }
         }
     }
 }
@@ -2414,6 +2455,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
+        CertifyError::ArmCollapsed { .. } => "its faces have no length to measure their angle over",
+        CertifyError::SpanMeterCollapsed { .. } => {
+            "its spline's certified speed floor gives it no measurable length at this tolerance"
+        }
         CertifyError::NotSecondOrderSeparated { .. } => {
             "its faces agree to second order, so they do not fix where it runs, which its \
              description says they do"
@@ -2462,6 +2507,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
             | CertifyError::NotTransverse { .. }
+            | CertifyError::ArmCollapsed { .. }
+            | CertifyError::SpanMeterCollapsed { .. }
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
@@ -2482,11 +2529,18 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
 fn certify_undecided(check: CertCheck) -> &'static str {
     match check {
         CertCheck::ParamSpan => "its length is too close to zero to decide at this tolerance",
+        CertCheck::ParamSpanMeter => {
+            "whether its spline has a measurable length is too close to call at this tolerance"
+        }
         CertCheck::ParamWinding => {
             "whether its arc stays short of a full turn is too close to call at this tolerance"
         }
         CertCheck::Transversality => {
             "its faces meet too nearly tangentially to decide at this tolerance"
+        }
+        CertCheck::TransversalityArm => {
+            "whether its faces have a length to measure their angle over is too close to call at \
+             this tolerance"
         }
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
@@ -2962,6 +3016,12 @@ impl fmt::Display for ValidationError {
                  thickness here, or one face is inside-out. Recourse: move the geometry so \
                  the body has thickness here; if it already has, report the inside-out face \
                  as a kernel defect"
+            ),
+            Self::NoDihedralArm { verdict, .. } => write!(
+                f,
+                "an edge's faces have no length above zero, at this tolerance, to measure their \
+                 angle over. {}",
+                geom_brep::dihedral::LEVER_ARM.recourse(verdict.arm(), Reading::AtRest)
             ),
             Self::LoopRoleInverted { .. } => write!(
                 f,
@@ -5640,9 +5700,9 @@ pub(crate) fn tier3_local_checks_marked<
         // `Intersection` description at rest. `Seam` is exempt by
         // kind, definitely-smooth keeps `MappedCurve` (the D2
         // conventional split), an escalation reports `SliverDihedral`
-        // and exempts the edge (ε-tightening escalates, it never flips
-        // valid → invalid), and a mixed sample set is enforced as
-        // neither.
+        // (a collapsed lever arm, `NoDihedralArm`) and exempts the edge
+        // (ε-tightening escalates, it never flips valid → invalid), and
+        // a mixed sample set is enforced as neither.
         //
         // **Nurbs-adjacent edges are exempt BY KIND** (M6-3 flip B —
         // the `Seam` exemption idiom, one shelf over): implicit-form
@@ -5667,19 +5727,20 @@ pub(crate) fn tier3_local_checks_marked<
         let mut all_smooth = true;
         if !nurbs_adjacent {
             for &p in &samples {
-                match classify_dihedral(s_plus, s_minus, p, extent, band) {
-                    Ok(DihedralClass::Transverse) => all_smooth = false,
-                    Ok(DihedralClass::Smooth) => all_transverse = false,
-                    Err(cause) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::Dihedral,
-                            cause,
-                        });
-                        escalated = true;
-                        break;
+                let refused = match classify_dihedral_gated(s_plus, s_minus, p, extent, band) {
+                    Ok(DihedralClass::Transverse) => {
+                        all_smooth = false;
+                        continue;
                     }
-                }
+                    Ok(DihedralClass::Smooth) => {
+                        all_transverse = false;
+                        continue;
+                    }
+                    Err(refused) => refused,
+                };
+                errors.push(dihedral_finding(edge_key, refused, band));
+                escalated = true;
+                break;
             }
             // The prefer-intrinsic rule reads the AUTHORITY record
             // (U2 Q3), not the description's shape: since the
@@ -9649,6 +9710,48 @@ mod tests {
                     .to_owned(),
             ),
             (
+                "lever arm, in band",
+                sliver(WedgeCheck::LeverArm, in_band),
+                format!(
+                    "whether an edge's faces have a length to measure their angle over is too \
+                     close to call at this tolerance. {ARM_LEVER}, or, if this length \
+                     is intended, tighten the tolerance below 5e-10 m"
+                ),
+            ),
+            (
+                "lever arm, poisoned",
+                sliver(WedgeCheck::LeverArm, diag(MarginDiag::INVALID)),
+                format!("{ARM_LEVER}; {UNREADABLE_MARGIN_NOTE}"),
+            ),
+            (
+                "no lever arm",
+                ValidationError::NoDihedralArm {
+                    edge,
+                    verdict: Refused::Zero(Classified {
+                        margin: MarginDiag::value(0.0),
+                        band,
+                    }),
+                },
+                format!(
+                    "an edge's faces have no length above zero, at this tolerance, to measure \
+                     their angle over. {ARM_LEVER}; {ARM_AT_ZERO}"
+                ),
+            ),
+            (
+                "lever arm within the tolerance",
+                ValidationError::NoDihedralArm {
+                    edge,
+                    verdict: Refused::Zero(Classified {
+                        margin: MarginDiag::value(5e-10),
+                        band,
+                    }),
+                },
+                format!(
+                    "{ARM_LEVER}, or, if this length is intended, tighten the tolerance below \
+                     5e-11 m"
+                ),
+            ),
+            (
                 "second order, in band",
                 sliver(WedgeCheck::SecondOrder, in_band),
                 "whether two faces meeting smoothly at an edge curve apart there is too close to \
@@ -9813,6 +9916,79 @@ mod tests {
             let text = error.to_string();
             assert!(text.ends_with(&ending), "{row}: {text}");
         }
+    }
+
+    const ARM_LEVER: &str = "Recourse: move the geometry so neither the edge nor its faces' radii \
+                             along it are vanishingly small";
+    const ARM_AT_ZERO: &str =
+        "an arm of no length, as at a cone apex, leaves no angle between the faces to measure";
+
+    /// **Check 4 reports the lever arm as the decision it is**, from the
+    /// classifier's own refusals at a cone and a plane through its axis:
+    /// an arm that vanishes (at the apex) is `NoDihedralArm` carrying
+    /// the zero verdict, whose ending says there is no angle to measure
+    /// and never that the margin was unreadable; an arm in band is a
+    /// sliver of the arm's decision, in its words and with its tolerance.
+    #[test]
+    fn check_four_reports_the_lever_arm_as_its_own_decision() {
+        use core::f64::consts::FRAC_PI_6;
+        use geom_brep::classify_dihedral_gated;
+        use geom_core::{MarginDiag, Point3, Vec3};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_y(),
+            u_ref: Vec3::unit_x(),
+        };
+        let edge = EdgeKey::default();
+        let at = |rho: f64| Point3::new(rho, 0.0, rho / FRAC_PI_6.tan());
+        let finding = |rho| {
+            let refused = classify_dihedral_gated(&cone, &plane, at(rho), 1.0, band)
+                .expect_err("the arm refuses near the apex");
+            dihedral_finding(edge, refused, band)
+        };
+        let apex = finding(0.0);
+        assert_eq!(
+            apex,
+            ValidationError::NoDihedralArm {
+                edge,
+                verdict: Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                }),
+            },
+            "the apex has no arm"
+        );
+        let text = apex.to_string();
+        assert!(!text.contains("unreadable"), "{text}");
+        assert!(
+            text.ends_with(&format!("{ARM_LEVER}; {ARM_AT_ZERO}")),
+            "{text}"
+        );
+        let in_band = finding(5e-9);
+        assert!(
+            matches!(
+                in_band,
+                ValidationError::SliverDihedral {
+                    check: WedgeCheck::LeverArm,
+                    ..
+                }
+            ),
+            "{in_band:?}"
+        );
+        let text = in_band.to_string();
+        assert!(
+            text.ends_with(&format!(
+                "{ARM_LEVER}, or, if this length is intended, tighten the tolerance below 5e-10 m"
+            )),
+            "{text}"
+        );
     }
 
     #[test]
@@ -12934,7 +13110,8 @@ mod offset_fit_door_rows {
         use geom_brep::offset_meters::{Meter, MeterError};
         use geom_brep::recourse::{Classified, Refused};
         use geom_core::{Indeterminate, MarginDiag};
-        const LEAD: &str = "a face's fitted offset surface no longer certifies against the surface it approximates";
+        const LEAD: &str = "a face's fitted offset surface no longer certifies against the \
+                            surface it approximates";
         const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
         const DISTANCE: &str =
             "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
