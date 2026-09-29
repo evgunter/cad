@@ -2940,7 +2940,7 @@ The design-fork, the implementation and the dual review of the
 fragment-sense question are all done. `topo-rebase-target` is free
 after PR 3493's reviewer.
 
-## PR 3493's review: NOT-MERGEABLE-AS-IS; a container restart; three lanes out (2026-09-30)
+## PR 3493's review: NOT-MERGEABLE-AS-IS; a container restart; three lanes out (2026-09-29)
 
 **PR 3493.** The single full review of `5f8f70ed3c` took 335,038
 tokens, 112 tools and 21 min (harness); archived privately. The
@@ -2969,7 +2969,7 @@ All the MINORs, NOTE-9/11/12/13 and the style findings are accepted:
 NOTE-7/8/10 are not taken (already filed, no consumer, or unreachable).
 The fix pass runs on the reviewer's warm target.
 
-**The restart.** The container restarted at about 00:05 UTC and
+**The restart.** The container restarted at about 23:45 UTC and
 stopped PR 3495's reviewer (mid-run) and the `mev_null` implementer
 (before its first push; nothing lost). Both worktrees were
 force-removed. Both are re-dispatched fresh on the same briefs, and
