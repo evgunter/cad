@@ -1892,3 +1892,28 @@ Held:
 Decided alone: GAP 3 of the certification gate is recorded as the
 consequence of Ev's RING-3 choice of no certification newtype, not
 scheduled.
+
+**2026-09-29 — residue progress.**
+- **SCALAR-HYGIENE** (#3449) merged after the orchestrator's read, with
+  its seven rows closed. It filed five rows for owners: CURVED and
+  CONTACT (both design), RESTFRONT, TINT and SCALAR.
+- **CERT-DIFF** (#3451):
+  - The differential found `DInterval::contains(±inf)` true on an
+    unbounded side, against its own doc and inari. I ruled it a defect
+    against the documented contract, fixed at the backend, not a design
+    fork. The caller survey found no production caller relying on it,
+    and nothing moved.
+  - The single review was APPROVE-WITH-FIXES, no MAJOR; F1 is a
+    carve-out wider than its doc, where a mutant survives. The fix
+    pass runs as a fresh lane.
+  - My error: I removed the implementer's worktree after its hand-back,
+    so it could not be resumed. From now on a lane's worktree stays
+    until its PR merges.
+- **CERT-NAMES** (#3448): the single review was APPROVE-WITH-FIXES, no
+  MAJOR. The fix pass folds in the filed follow-up row, so the
+  boundary is the class, not a list.
+- **Fitted-door pair** (`fitted-door-and-scalar-name-travel-as-a-pair-by-convention`,
+  design): the Opus and Fable designer pair was dispatched on a
+  problem-only statement. The byte is drawn and committed to
+  `analysis/design-fork/scalar-fitted-door-pair`. If the answer is not
+  Ev's fork, it is not a log row.
