@@ -329,10 +329,11 @@ pub enum MergeCoplanarError {
     /// ([`MergeKind`]), so the run is neither a planar run nor a
     /// curved one and there is no regime to give it.
     ///
-    /// The hard rungs glue on *source* identity, not on kind, and
-    /// [`Body::set_surface_source`] is a public door that stamps a
-    /// source without comparing the descriptions it joins — so a
-    /// caller can declare a plane and a cylinder to be one recipe
+    /// The hard rungs glue on *source* identity, not on kind, and a
+    /// source can join descriptions nothing compared — the graft copies
+    /// origin rows verbatim, and [`Body::set_surface_source`] checks
+    /// agreement only where debug assertions are compiled in — so a
+    /// body can declare a plane and a cylinder to be one recipe
     /// surface, or a plane and a placeholder that describes nothing
     /// yet. Deciding the group's kind off one member would let arena
     /// order pick its contract; this refuses instead. The two members
@@ -3467,8 +3468,8 @@ mod tests {
             .expect("a face on the placeholder key");
         let source = crate::GeomSource::minted(7, 0);
         for face in [plane, on_placeholder_key] {
-            body.set_surface_source(surface_of(&body, face), source.clone())
-                .expect("a live key takes a source");
+            let key = surface_of(&body, face);
+            forge_source(&mut body, key, &source);
         }
         let before = crate::fixtures::deep_snapshot(&body);
         let Err(MergeCoplanarError::GroupKindSplit {
@@ -3491,6 +3492,14 @@ mod tests {
             "the other member is on the placeholder key"
         );
         assert_eq!(crate::fixtures::deep_snapshot(&body), before);
+    }
+
+    /// Writes a recipe origin on `key` with no agreement check — the
+    /// way the graft carries one in. The stamp door's assertion refuses
+    /// a pair of unequal descriptions under one source.
+    fn forge_source(body: &mut Body<f64>, key: crate::SurfaceKey, source: &crate::GeomSource) {
+        body.surface_origins
+            .insert(key, crate::GeomOrigin::Recipe(source.clone()));
     }
 
     /// The two-face digon pillow — two vertices, two chord edges —
@@ -3544,8 +3553,8 @@ mod tests {
 
         let source = crate::GeomSource::minted(11, 0);
         for face in [cap, plane] {
-            body.set_surface_source(surface_of(&body, face), source.clone())
-                .expect("a live key takes a source");
+            let key = surface_of(&body, face);
+            forge_source(&mut body, key, &source);
         }
         let before = crate::fixtures::deep_snapshot(&body);
         assert_eq!(

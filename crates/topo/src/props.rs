@@ -1812,12 +1812,10 @@ pub fn loop_edges<T: Decide>(
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
-            // A lineage that cycles is one a graft aliased (issue 1597:
-            // records are copied with their source keys, which in the
-            // destination chain into strangers); the flattening then
-            // stamps NO identity, so no two such edges are ever folded
-            // into one — the fold declines rather than trusting a
-            // record it cannot read, and a split meridian on such a
+            // A lineage that cycles is a corrupt record; the flattening
+            // then stamps NO identity, so no two such edges are ever
+            // folded into one — the fold declines rather than trusting
+            // a record it cannot read, and a split meridian on such a
             // body refuses at the far rim as it did before any fold.
             carrier_id: body
                 .split_root(he.edge, |_| false)
