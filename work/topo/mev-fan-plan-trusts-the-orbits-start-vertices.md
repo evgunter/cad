@@ -2,7 +2,7 @@
 id: mev-fan-plan-trusts-the-orbits-start-vertices
 kind: issue
 title: mev_fan_plan trusts the vertex orbit's start vertices: a torn orbit is carried through a fan mev instead of refused typed, the gap kev_plan closed in PR 3161
-status: review
+status: closed
 opened: 2026-09-29
 refs: [kevs-fan-merge-needs-a-re-describing-kill-door, 3161]
 priority: P2
@@ -69,3 +69,23 @@ can falsify.
    `next(mate(x))` idiom, and trusts start vertices: proven,
    trusting-and-panicking, or trusting-and-carrying. File a row for
    any trusting site not fixed here.
+
+## Closed (2026-09-29, PR 3472)
+
+`mev_fan_plan` proves the whole orbit walk from `he1`, struts
+included, through `Body::require_orbit_starts_at`, the one helper it
+shares with `kev_plan`. A torn walk refuses `OrbitBroken`, typed and
+before mutating, in every fan door (`mev_null`, `mev_line`, `mev`).
+
+The single full review found that the first head carried a torn
+orbit through a strut, and the fix pass closed it. In the tear search
+the strut residue went from 120 minted keys in orbit errors to 0, with
+no over-refusal on 852 valid bodies or the sweep corpus.
+
+Two residues remain, each with its own row:
+- the read side, which carries a rho-shaped merge that no plan-time
+  check sees: `vertex-orbit-reads-no-start-vertex`;
+- the kill ops: `kill-ops-anchor-emanating-on-an-unproven-next-mate-step`.
+
+The snapshot function written three times is
+`deep-snapshot-is-written-three-times`.
