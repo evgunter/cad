@@ -2,11 +2,13 @@
 id: a-chart-spans-solids-after-move-shells-to-new-solid
 kind: unit
 title: move_shells_to_new_solid re-homes a shell without re-minting its surfaces, so a chart can span two solids
-status: dispatched
+status: closed
 opened: 2026-09-08
 priority: P0
 cost: M
 branch: origin/scoped-chart-grouping
+closed: 2026-09-29
+pr: 3430
 ---
 
 
@@ -213,3 +215,21 @@ as two solids; the reshaped probe on `origin/chart-spans-solids-remint`
 under the opposite claim (no re-mint, surface count unchanged by the
 move). The disconnecting subtract's one-solid filing stays ZIP's
 (`work/zip/subtract-of-a-hollow-operand-…`).
+
+## Closed (2026-09-29, PR 3430)
+
+Built as re-ruled. One grouping primitive, `topo::chart_groups::ChartGroups::within(body, scope)`
+(and `of_body` for a deliberately whole-body scope), is the only
+spelling; the shell door, `replace_faces_offset` and point-in-solid
+group their own scope, `ShellError::ChartSpansSolids` and
+`PointInSolidError::SurfaceSharedOutsideSolid` retired across topo,
+editor-core and pncad-py, `ChartSenseMixed` and `SharedSurfaceKey`
+narrowed to one solid. SHELL-8's subtract-then-move slab now thickens
+as two solids (red first on main with `ChartSpansSolids`). Review
+(single FULL) found no MAJOR — executed oracles on same- and
+opposed-sense sharing, a three-solid sphere chart, 177 instrumented
+lifts — and its fix pass ported the probes, made the lift solid's
+faces one live read, and pinned a cone-containment change (a lone
+wrapping cone face beside a shared chart now answers In/Out instead of
+refusing). Tier-3 check 10 now reads shells whose key is shared across
+two shells of one solid (RESTFRONT seam note).
