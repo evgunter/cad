@@ -2,11 +2,12 @@
 id: path-preview-draws-nothing-for-a-refused-step
 kind: issue
 title: viewer: the add-profile path preview draws nothing once any authored step refuses, so the author cannot see what to fix
-status: dispatched
+status: review
 opened: 2026-09-18
 priority: P0
 cost: M
 branch: author/path-preview-prefix
+pr: 3440
 ---
 
 Reported by Ev from the viewer (2026-09-18): "arc_fillet_arc and other such paths should try to display something even when invalid, so the user can figure out how to fix them."
