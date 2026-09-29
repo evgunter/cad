@@ -1250,3 +1250,4 @@ class of 65 sites is PRED's row.
   - Seam notes posted to every program in the territory.
 - 2026-09-29 — Dispatched `certify-collapsed-arm-gates-route-as-the-decision-they-guard` (P3/M) on `encl/collapsed-arm-gates`.
 - 2026-09-29 — `adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` is held. Ev's #3380 door decision (m ≤ ε_in, miss within ε_in) is a decision on the reporting margin, which #3402 forbids. The likely resolution is a named comparison decided inside geom-core that returns words. Raising it with Ev is pending the user's go-ahead.
+- 2026-09-29 — Dispatch paused by the user (usage limit); the running collapsed-arm lane is allowed to finish. The import row's ε_in comparison is confirmed as error-text-only (it picks the sentence, and no outcome changes), so it needs no `[ev]` question. The row now carries the implementation note, and it is ready to dispatch when work resumes.
