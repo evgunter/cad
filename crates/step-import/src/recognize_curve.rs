@@ -44,7 +44,7 @@
 //! [`compose::CompositeForm::sup_bound`] reads a certified sup off its
 //! coefficient hulls. Data in, bounds out: nothing is evaluated, no
 //! schedule exists to be data-dependent, and rational carriers are
-//! first-class (the weight channel is part of the form). Poison
+//! first-class (the weight channel is part of the form). A refusal
 //! anywhere yields `NaN`, which fails every `≤ ε` comparison (D4 ¶2).
 //!
 //! ## The dimension conversion, as an invariant
@@ -174,7 +174,7 @@
 //! individually turn by π or more is refused rather than analysed.
 
 use geom::{Curve3, NurbsCurve3};
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
 use geom_core::{Point3, Vec3};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
@@ -264,10 +264,10 @@ pub(crate) fn recognize(curve: &NurbsCurve3<f64>, eps_in: f64) -> CurveRecogniti
 
 /// The certified sup of `|f ∘ C|` over the whole domain, in the
 /// composite's OWN units (module docs' scaling conventions). `NaN` on
-/// every refusal and every poison path, which certifies nothing.
+/// every structural refusal and every refused hull, which certifies nothing.
 fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
-    let coords = curve.ring_coords();
-    let Ok(data) = CurveRingData::new(curve.knots(), curve.weights(), &coords) else {
+    let coords = curve.certified_coords();
+    let Ok(data) = CurveCertData::new(curve.knots(), curve.weights(), &coords) else {
         return f64::NAN;
     };
     match compose::implicit_composite(&data, surface) {
@@ -304,7 +304,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     let dir = chord / len;
     // INV-C3: the zero-radius cylinder composite is `dist(P, line)²`
     // over the whole domain — meters², exact, whole-domain, no
-    // schedule. NaN (poison, or a structural refusal) fails the
+    // schedule. NaN (a refused hull, or a structural refusal) fails the
     // budget comparison below (D4 ¶2).
     let sup = composite_sup(
         curve,

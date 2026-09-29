@@ -171,7 +171,7 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
 /// produces; at the interval scalar each coefficient carries its
 /// enclosure into the hull, which is what makes a composite bound over
 /// a lifted payload honest.
-pub(crate) fn ring_coords<T: CertifiedBounds, P: ControlPoint<T>>(
+pub(crate) fn certified_coords<T: CertifiedBounds, P: ControlPoint<T>>(
     control: &[P],
 ) -> Vec<Vec<Interval>> {
     // One lane per channel. The lane count is read off the channel

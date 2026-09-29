@@ -1400,14 +1400,14 @@ fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
         }
         Err(e) => panic!("the ℝ⁴ trace: {e}"),
     };
-    use geom_core::spline::compose::{CurveRingData, tensor};
-    let scoords = w.ring_coords();
+    use geom_core::spline::compose::{CurveCertData, tensor};
+    let scoords = w.certified_coords();
     let sdata =
-        tensor::SurfaceRingData::new(w.knots_u(), w.knots_v(), w.weights(), &scoords).unwrap();
-    let ccoords = carrier.ring_coords();
-    let cdata = CurveRingData::new(carrier.knots(), carrier.weights(), &ccoords).unwrap();
-    let pcoords = pb.ring_coords();
-    let pdata = CurveRingData::new(pb.knots(), pb.weights(), &pcoords).unwrap();
+        tensor::SurfaceCertData::new(w.knots_u(), w.knots_v(), w.weights(), &scoords).unwrap();
+    let ccoords = carrier.certified_coords();
+    let cdata = CurveCertData::new(carrier.knots(), carrier.weights(), &ccoords).unwrap();
+    let pcoords = pb.certified_coords();
+    let pdata = CurveCertData::new(pb.knots(), pb.weights(), &pcoords).unwrap();
     let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &[])
         .unwrap()
         .sup_bound();

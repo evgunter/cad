@@ -21,8 +21,8 @@
 
 use geom_core::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::compose::CurveRingData;
-use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
+use geom_core::spline::compose::CurveCertData;
+use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
 use geom_core::spline::{KnotVector, basis};
 
 type Surf = (KnotVector, KnotVector, Vec<f64>, Vec<Vec<f64>>);
@@ -78,9 +78,9 @@ fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
 
 fn sup_of(s: &Surf, p: &Curve, c: &Curve, extra: &[f64]) -> f64 {
     let (sx, px, cx) = (lift(&s.3), lift(&p.2), lift(&c.2));
-    let sd = SurfaceRingData::new(&s.0, &s.1, &s.2, &sx).unwrap();
-    let pd = CurveRingData::new(&p.0, &p.1, &px).unwrap();
-    let cd = CurveRingData::new(&c.0, &c.1, &cx).unwrap();
+    let sd = SurfaceCertData::new(&s.0, &s.1, &s.2, &sx).unwrap();
+    let pd = CurveCertData::new(&p.0, &p.1, &px).unwrap();
+    let cd = CurveCertData::new(&c.0, &c.1, &cx).unwrap();
     surface_curve_residual(&sd, &pd, &cd, extra)
         .unwrap()
         .sup_bound()

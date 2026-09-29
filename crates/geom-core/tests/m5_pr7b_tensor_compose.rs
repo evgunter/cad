@@ -40,8 +40,8 @@
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
-use geom_core::spline::compose::{ComposeError, CurveRingData};
+use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
+use geom_core::spline::compose::{ComposeError, CurveCertData};
 use geom_core::spline::{KnotVector, basis};
 use test_utils::tightness::{Anchor, Sup, control_net_box_diagonal};
 
@@ -169,9 +169,9 @@ fn sup_of(
     extra: &[f64],
 ) -> f64 {
     let (sx, px, cx) = (lift(&wall.3), lift(&pc.2), lift(&ca.2));
-    let s = SurfaceRingData::new(&wall.0, &wall.1, &wall.2, &sx).unwrap();
-    let p = CurveRingData::new(&pc.0, &pc.1, &px).unwrap();
-    let c = CurveRingData::new(&ca.0, &ca.1, &cx).unwrap();
+    let s = SurfaceCertData::new(&wall.0, &wall.1, &wall.2, &sx).unwrap();
+    let p = CurveCertData::new(&pc.0, &pc.1, &px).unwrap();
+    let c = CurveCertData::new(&ca.0, &ca.1, &cx).unwrap();
     surface_curve_residual(&s, &p, &c, extra)
         .unwrap()
         .sup_bound()
@@ -570,9 +570,9 @@ fn the_pipeline_is_deterministic_to_the_bit() {
     let (w, p, c) = (wall(), pcurve_data(), carrier_data());
     let (sx, px, cx) = (lift(&w.3), lift(&p.2), lift(&c.2));
     let run = || {
-        let s = SurfaceRingData::new(&w.0, &w.1, &w.2, &sx).unwrap();
-        let pd = CurveRingData::new(&p.0, &p.1, &px).unwrap();
-        let cd = CurveRingData::new(&c.0, &c.1, &cx).unwrap();
+        let s = SurfaceCertData::new(&w.0, &w.1, &w.2, &sx).unwrap();
+        let pd = CurveCertData::new(&p.0, &p.1, &px).unwrap();
+        let cd = CurveCertData::new(&c.0, &c.1, &cx).unwrap();
         surface_curve_residual(&s, &pd, &cd, &[0.1, 0.9]).unwrap()
     };
     let (a, b) = (run(), run());
@@ -624,7 +624,7 @@ fn the_entry_points_refuse_typed() {
     let (sx, px, cx) = (lift(&w.3), lift(&p.2), lift(&c.2));
 
     // Surface: weight count, weight sign, channel count.
-    match SurfaceRingData::new(&w.0, &w.1, &w.2[..4], &sx) {
+    match SurfaceCertData::new(&w.0, &w.1, &w.2[..4], &sx) {
         Err(ComposeError::Structure(_)) => {}
         other => panic!("weight count: {other:?}"),
     }
@@ -633,11 +633,11 @@ fn the_entry_points_refuse_typed() {
             .enumerate()
             .map(|(i, x)| if i == 3 { -1.0 } else { *x })
             .collect();
-    match SurfaceRingData::new(&w.0, &w.1, &bad_w, &sx) {
+    match SurfaceCertData::new(&w.0, &w.1, &bad_w, &sx) {
         Err(ComposeError::Structure(_)) => {}
         other => panic!("weight sign: {other:?}"),
     }
-    match SurfaceRingData::new(&w.0, &w.1, &w.2, &sx[..2]) {
+    match SurfaceCertData::new(&w.0, &w.1, &w.2, &sx[..2]) {
         Err(ComposeError::DimensionMismatch {
             dims: 2,
             expected: 3,
@@ -645,9 +645,9 @@ fn the_entry_points_refuse_typed() {
         other => panic!("channel count: {other:?}"),
     }
 
-    let s = SurfaceRingData::new(&w.0, &w.1, &w.2, &sx).unwrap();
-    let pd = CurveRingData::new(&p.0, &p.1, &px).unwrap();
-    let cd = CurveRingData::new(&c.0, &c.1, &cx).unwrap();
+    let s = SurfaceCertData::new(&w.0, &w.1, &w.2, &sx).unwrap();
+    let pd = CurveCertData::new(&p.0, &p.1, &px).unwrap();
+    let cd = CurveCertData::new(&c.0, &c.1, &cx).unwrap();
 
     // A 3-channel "pcurve" and a 2-channel "carrier" both refuse.
     match surface_curve_residual(&s, &cd, &cd, &[]) {
@@ -668,7 +668,7 @@ fn the_entry_points_refuse_typed() {
     // A carrier on a different knot domain refuses (the OQ4 identity).
     let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
     let cx4: Vec<Vec<Interval>> = cx.iter().map(|ch| ch[..4].to_vec()).collect();
-    let cd2 = CurveRingData::new(&kv2, &c.1[..4], &cx4).unwrap();
+    let cd2 = CurveCertData::new(&kv2, &c.1[..4], &cx4).unwrap();
     match surface_curve_residual(&s, &pd, &cd2, &[]) {
         Err(ComposeError::DomainMismatch { .. }) => {}
         other => panic!("domain mismatch: {other:?}"),

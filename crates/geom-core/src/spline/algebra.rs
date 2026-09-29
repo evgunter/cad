@@ -28,7 +28,7 @@
 //! # One schedule, two arithmetics
 //!
 //! An insertion plan is applied by [`CurvePlan::apply_points`] in the
-//! caller's scalar and by [`CurvePlan::apply_ring`] in the certification
+//! caller's scalar and by [`CurvePlan::apply_certified`] in the certification
 //! ring, off the SAME [`Step`] list — same targets, same sources, same
 //! order. The two differ in the coefficient the combination is taken
 //! with, and they must: the projective applier's `λ` is an `f64`
@@ -142,7 +142,7 @@ enum Src {
 /// Carried as INGREDIENTS and not as values, because the two appliers
 /// need them at two precisions: `f64`, folded into the projective `λ`
 /// below, and outward-rounded ring quotients for
-/// [`CurvePlan::apply_ring`]. A stored `f64` ratio would leave interval arithmetic
+/// [`CurvePlan::apply_certified`]. A stored `f64` ratio would leave interval arithmetic
 /// applier padding a rounded number by a guess.
 #[derive(Clone, Copy, Debug)]
 struct Ratio {
@@ -163,7 +163,7 @@ enum Step {
     /// is the projective form of a Boehm ratio. Removal and degree
     /// elevation combine with coefficients that are not ratios of
     /// knots at all, so they carry `None` and
-    /// [`CurvePlan::apply_ring`] refuses them.
+    /// [`CurvePlan::apply_certified`] refuses them.
     Combo {
         target: usize,
         x: Src,
@@ -265,7 +265,7 @@ impl CurvePlan {
     /// target, as does a malformed plan or a channel of the wrong
     /// length. The refusal then flows through every hull the caller
     /// reads.
-    pub fn apply_ring(&self, old: &[Interval]) -> Vec<Interval> {
+    pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
         let n_new = self.knots.control_count();
         let mut new: Vec<Option<Interval>> = vec![None; n_new];
         let fetch = |new: &[Option<Interval>], s: Src| -> Option<Interval> {
@@ -424,7 +424,7 @@ pub fn insert_knot_plan(
 /// than an argued one.** That function's own docs still argue the split
 /// on the ground that it "folds `Interval` coefficients with an
 /// outward-rounding quotient and has no weights to form `λ` from" —
-/// which is a description of [`CurvePlan::apply_ring`], so the argument
+/// which is a description of [`CurvePlan::apply_certified`], so the argument
 /// no longer separates them. What still does is the SHAPE of the
 /// schedule each needs: that one inserts to full interior multiplicity
 /// over a raw knot list, deliberately never rebuilding a [`KnotVector`]
@@ -535,12 +535,12 @@ pub fn refine_plan(
 /// sequence — the shape a HOMOGENEOUS net has, since `w` and each `w·P`
 /// channel of a rational description are themselves polynomial
 /// B-splines. The schedule is the arm a ring consumer wants
-/// ([`CurvePlan::apply_ring`]): the plan's own `λ` is then the
+/// ([`CurvePlan::apply_certified`]): the plan's own `λ` is then the
 /// `f64`-rounded insertion ratio, which interval arithmetic applier does not read.
 ///
 /// Unit weights are the net's real weights and not a stand-in, and what
 /// they buy is the positivity precondition for free — nothing else, since
-/// [`CurvePlan::apply_ring`] reads neither the plan's weights nor its
+/// [`CurvePlan::apply_certified`] reads neither the plan's weights nor its
 /// `λ`.
 ///
 /// # Errors
@@ -1309,7 +1309,7 @@ mod tests {
                 let f64_out = apply_chain(&plans, &coeffs);
                 let mut ring_out = input.clone();
                 for plan in &plans {
-                    ring_out = plan.apply_ring(&ring_out);
+                    ring_out = plan.apply_certified(&ring_out);
                 }
                 let tag = format!("p={p} interior={interior:?} splits={splits}");
                 assert_eq!(ring_out.len(), f64_out.len(), "{tag}: extent");
@@ -1396,7 +1396,7 @@ mod tests {
             let plans = equal_split_plan(&kv, splits).unwrap();
             let mut out: Vec<Interval> = vec![Interval::point(c); kv.control_count()];
             for plan in &plans {
-                out = plan.apply_ring(&out);
+                out = plan.apply_certified(&out);
             }
             let mut outside = 0usize;
             let mut worst = 0.0f64;

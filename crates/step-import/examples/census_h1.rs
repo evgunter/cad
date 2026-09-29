@@ -14,7 +14,7 @@
 use geom::NurbsCurve3;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
 
 const INCH: f64 = 0.0254;
 
@@ -128,8 +128,8 @@ fn main() {
             axis: [chord.x, chord.y, chord.z],
             radius: 0.0,
         };
-        let coords = curve.ring_coords();
-        let data = CurveRingData::new(curve.knots(), curve.weights(), &coords).unwrap();
+        let coords = curve.certified_coords();
+        let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
         let sup = match compose::implicit_composite(&data, &surface) {
             Ok(form) => form.sup_bound(),
             Err(e) => {

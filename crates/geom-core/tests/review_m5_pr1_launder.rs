@@ -1,7 +1,7 @@
 //! **Poison-laundering attempts over the public `Dual<Interval>`
 //! surface.** Adopted from the M5 PR 1 adversarial review's scratch
 //! harness (its F3), an independent derivation kept for its regression
-//! value; `m5_pr1_poison_conservation.rs` pins the same contract at the
+//! value; `m5_pr1_refusal_conservation.rs` pins the same contract at the
 //! bare `Interval` scalar.
 //!
 //! Attempts to launder poison (Trv/Empty/NaI) into a deciding verdict

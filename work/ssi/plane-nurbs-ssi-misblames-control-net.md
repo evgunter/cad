@@ -21,9 +21,8 @@ Measured while writing the D286 fixture for the CERT-2 lane (SMELL scan Track Q,
 `plane_nurbs_ssi(&plane, &wall, …)` with a **finite, ordinary wall** and a plane whose `origin` carries `+∞` (or `NaN`) in one coordinate refuses with:
 
 ```
-ssi: the NURBS control-net enclosure poisoned over a cell — a weight so small that
-the rational's own denominator underflows to zero, or homogeneous arithmetic that
-does not stay finite over the net
+ssi: the NURBS control-net enclosure refused over a cell — a weight so small that
+the rational's own denominator underflows to zero
 ```
 
 The wall is the acceptance suite's own substrate net: order-1 control points, unit weights, a chart speed of ~25 m per parameter unit. Nothing about its control net poisoned anything. The plane did.

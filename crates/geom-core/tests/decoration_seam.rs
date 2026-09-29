@@ -34,11 +34,11 @@
 //! `crates/*/src`, every one of them inside a crate that depends on this
 //! one, so no test here can call them:
 //!
-//! - `geom`'s `ring_coords`, which lifts a control net channel by channel
-//!   — pinned by `geom/tests/{curves,surfaces}/decoration_ring_coords.rs`;
+//! - `geom`'s `certified_coords`, which lifts a control net channel by channel
+//!   — pinned by `geom/tests/{curves,surfaces}/decoration_certified_coords.rs`;
 //! - `geom_brep::ssi::certify`'s three direct reads of a plane normal —
 //!   pinned by that file's `normal_crossing_tests`, which drives
-//!   `probe_tube_chart` and therefore runs `ring_coords` as well;
+//!   `probe_tube_chart` and therefore runs `certified_coords` as well;
 //! - `topo::props`'s bracket helper — pinned by that file's
 //!   `bracket_seam_tests`;
 //! - `geom_brep::ssi::enclose`'s, which **no row named here pins**.
@@ -46,7 +46,7 @@
 //! The sweeps are **paired**: each walks an operand across the domain
 //! boundary and requires refusal *iff* the decoration degraded, with
 //! non-vacuity assertions on both halves. A laundering implementation
-//! certifies the whole sweep and fails; an implementation that poisons
+//! certifies the whole sweep and fails; an implementation that refuses
 //! indiscriminately refuses the whole sweep and fails too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
