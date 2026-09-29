@@ -87,7 +87,7 @@
 //! combination), and the recurrence is evaluated SIGNED in certification arithmetic —
 //! the true minus signs, divided by the whole hull, which is where the
 //! quotient rule's cancellations survive. The interval division
-//! poisons if positivity was never proven.
+//! refuses if positivity was never proven.
 //!
 //! **Recentring keeps the cross terms cell-sized**: with the cell's
 //! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
@@ -172,7 +172,7 @@
 //! convex-combination licence), C⁰ creases (the Taylor remainder
 //! needs C¹ — for the standard multi-arc rational quadratic that
 //! means split at the double knots), degree-0 directions, and
-//! poisoned/non-finite hulls. The placeholder refuses
+//! refused/non-finite hulls. The placeholder refuses
 //! [`TessellateError::UnsupportedSurface`] upstream in `trimmed`.
 
 use geom::NurbsSurface;
@@ -501,8 +501,8 @@ pub(crate) struct CellBound {
     pub bound: NurbsFaceBound,
 }
 
-/// The shared `Σ sup² → sup` collapse: `√hi`, rounded out. Poison
-/// answers NaN, which every consumer treats as "unbounded/poisoned".
+/// The shared `Σ sup² → sup` collapse: `√hi`, rounded out. A refused
+/// enclosure answers NaN, which every consumer treats as "unbounded/refused".
 ///
 /// **An exactly-zero enclosure collapses to exactly `0.0`** — sound
 /// (the sup of the zero enclosure IS zero; `next_up` exists to cover
@@ -669,7 +669,7 @@ pub(crate) fn face_cells(
 /// the memo's absence) on every later one. The refusal CLASS is
 /// unchanged from a whole-patch memo: the per-cell finite check and the
 /// whole-patch one refuse the same faces with the same prose, because
-/// the fold's hull carries a poisoned or infinite cell straight into
+/// the fold's hull carries a refused or infinite cell straight into
 /// the whole-patch number. A refusal here refuses the whole
 /// tessellation, in the chord pass, before any lane runs — which is why
 /// [`face_cells`] never has to answer for one.
@@ -828,7 +828,7 @@ impl NurbsCellGrid {
 ///
 /// # Errors
 ///
-/// As [`nurbs_cell_bounds`], plus the unbounded/poisoned refusal when
+/// As [`nurbs_cell_bounds`], plus the unbounded/refused refusal when
 /// any single cell's bound fails the finite check.
 pub(crate) fn nurbs_cell_grid(
     n: &NurbsSurface<f64>,
@@ -846,7 +846,7 @@ pub(crate) fn nurbs_cell_grid(
         {
             return Err(TessellateError::UnsupportedNurbsFace {
                 face: fk,
-                note: "NURBS face second-derivative hull is unbounded/poisoned — \
+                note: "NURBS face second-derivative hull is unbounded/refused — \
                        outside the certified inventory",
             });
         }
@@ -2600,11 +2600,11 @@ pub(crate) mod tests {
         }
     }
 
-    /// The POISON row the flip keeps: an ILLEGAL rational (non-positive
-    /// or non-finite weight) cannot even be described —
-    /// `NurbsSurface::new` refuses at the door, which is why
-    /// `rational_face_bound`'s own licence check is a defensive
-    /// backstop rather than a reachable lane.
+    /// The row the CONSCIOUS FLIP (M8-5) above keeps: an ILLEGAL
+    /// rational (non-positive or non-finite weight) cannot even be
+    /// described — `NurbsSurface::new` returns `Err` at construction,
+    /// which is why `rational_face_bound`'s own licence check is a
+    /// defensive backstop rather than a reachable lane.
     #[test]
     fn illegal_rational_weight_refuses_at_the_door() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);

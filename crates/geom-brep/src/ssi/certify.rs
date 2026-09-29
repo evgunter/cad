@@ -110,7 +110,7 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
 };
@@ -381,8 +381,8 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let (form, to_meters) =
         composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
     let fine = refined(carrier);
-    let coords = fine.ring_coords();
-    let data = CurveRingData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
+    let coords = fine.certified_coords();
+    let data = CurveCertData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
         SsiError::UnsupportedCertificate {
             what: "the fitted carrier's enclosure data is malformed",
         }
@@ -482,20 +482,20 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // The `SSI_CERT_SPANS` uniform breaks are injected for hull
     // tightness — the same structure choice `refined` makes for the box
     // chain (C6's f64 lane), expressed as breaks instead of a refit.
-    let coords = carrier.ring_coords();
-    let cdata = CurveRingData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
+    let coords = carrier.certified_coords();
+    let cdata = CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
         SsiError::UnsupportedCertificate {
             what: "the fitted carrier's enclosure data is malformed",
         }
     })?;
-    let pcoords = pcurve.ring_coords();
-    let pdata = CurveRingData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
+    let pcoords = pcurve.certified_coords();
+    let pdata = CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
         SsiError::UnsupportedCertificate {
             what: "the traced pcurve's enclosure data is malformed",
         }
     })?;
-    let scoords = surface.ring_coords();
-    let sdata = tensor::SurfaceRingData::new(
+    let scoords = surface.certified_coords();
+    let sdata = tensor::SurfaceCertData::new(
         surface.knots_u(),
         surface.knots_v(),
         surface.weights(),
@@ -518,7 +518,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         .sup_bound();
     // Unlike the analytic arm, the NURBS arm needs NO exactness gate:
     // every coefficient of every operand entered interval arithmetic through its
-    // own bracket (`ring_coords`), so a widened control net widens the
+    // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
     match decide("ssi_hull_sup_chart", Margin::of(sup), band) {
@@ -538,7 +538,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
 ) -> Vec<(Box3, Vec3<T>)> {
     let fine = refined(carrier);
-    let coords = fine.ring_coords();
+    let coords = fine.certified_coords();
     let kv = fine.knots();
     let mut out = Vec::new();
     // One pair per coordinate channel, minted once outside the span
@@ -645,7 +645,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Option<(f64, u32)> {
     let kv = pcurve.knots();
     let boxes = NurbsBoxes::new(surface);
-    let coords = pcurve.ring_coords();
+    let coords = pcurve.certified_coords();
     // One pair per chart channel, minted once: the coordinates and the
     // knots are both the pcurve's, so the count is `NurbsCurve2::new`'s
     // fact and the refusal arm is unreachable by construction; it
