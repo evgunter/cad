@@ -774,7 +774,7 @@ fn apex_closure_describes<T: Decide>(
     if !matches!(surface, geom::Surface::Cone { .. }) {
         return false;
     }
-    let Ok(ApexClosure::Closed { window, reach }) =
+    let Ok(ApexClosure::Closed { window, reach, .. }) =
         crate::chord_join::cone_apex_closure(body, surface, face, band)
     else {
         return false;

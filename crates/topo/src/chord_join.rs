@@ -1395,14 +1395,15 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    Ok(
-        face_azimuth_images(body, surface, face, band)?.and_then(|images| {
-            images
-                .into_iter()
-                .map(|image| image.range)
-                .reduce(|(a, b), (lo, hi)| (a.min(lo), b.max(hi)))
-        }),
-    )
+    Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
+}
+
+/// The azimuth hull of a walk's images: the window every caller folds.
+pub(crate) fn azimuth_hull<T: Real>(images: &[AzimuthImage<T>]) -> Option<(T, T)> {
+    images
+        .iter()
+        .map(|image| image.range)
+        .reduce(|(a, b), (lo, hi)| (a.min(lo), b.max(hi)))
 }
 
 /// The boolean PLANAR-side chord of a curved germ pair (M5 PR 9): the
@@ -1750,10 +1751,9 @@ fn run_azimuth_window<T: Decide>(
     halves: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    Ok(run_azimuth_images(body, surface, face, halves, band)?
-        .into_iter()
-        .map(|image| image.range)
-        .reduce(|(a, b), (lo, hi)| (a.min(lo), b.max(hi))))
+    Ok(azimuth_hull(&run_azimuth_images(
+        body, surface, face, halves, band,
+    )?))
 }
 
 /// One boundary half-edge's chart azimuth image, on the branch the
@@ -1770,6 +1770,8 @@ pub(crate) struct AzimuthImage<T: geom_core::Real> {
     pub(crate) exit: T,
     /// Its azimuth extent (padded by the image's harmonic amplitude).
     pub(crate) range: (T, T),
+    /// The chart's second coordinate at its start and end vertices.
+    pub(crate) v: (T, T),
 }
 
 /// Every charted half-edge of `face`'s outer loop, in loop order, with
@@ -1786,6 +1788,18 @@ pub(crate) fn face_azimuth_images<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Vec<AzimuthImage<T>>>, SplitJoinError> {
+    let Some(halves) = outer_cycle(body, face)? else {
+        return Ok(None);
+    };
+    run_azimuth_images(body, surface, face, &halves, band).map(Some)
+}
+
+/// The half-edges of `face`'s outer loop in cycle order; `None` for a
+/// loop that is not a cycle.
+fn outer_cycle<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Option<Vec<HalfEdgeKey>>, SplitJoinError> {
     let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
     let crate::entity::LoopBoundary::Cycle { first } = body
         .get_loop(outer)
@@ -1794,18 +1808,49 @@ pub(crate) fn face_azimuth_images<T: Decide>(
     else {
         return Ok(None);
     };
-    let halves = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
-    run_azimuth_images(body, surface, face, &halves, band).map(Some)
+    body.loop_cycle(first)
+        .ok_or_else(|| corrupt_he(first))
+        .map(Some)
+}
+
+/// **Is a walk's chart polygon its own bounding box?** Every image is a
+/// chart segment on the cone's two iso families — a rim holds `v`, a
+/// generator holds `u` — so the lifted boundary, closed by the segment
+/// from its last exit to its first entry (the apex jump, when the walk
+/// was closed there), is a rectilinear chart polygon. Such a polygon is
+/// its bounding box exactly when its enclosed area is the box's; an L or
+/// a notch has strictly less, and every one of them has the same hull,
+/// so a window read off the hull would cover the notch. Returns
+/// `(u window, v window, box area − |area|)`, `None` for an empty walk.
+pub(crate) fn chart_box_defect<T: Real>(images: &[AzimuthImage<T>]) -> Option<((T, T), (T, T), T)> {
+    let (first, last) = (images.first()?, images.last()?);
+    let u = azimuth_hull(images)?;
+    let mut v = (first.v.0, first.v.0);
+    let mut twice = T::zero();
+    let closing = [(last.exit, last.v.1, first.entry, first.v.0)];
+    for (u0, v0, u1, v1) in images
+        .iter()
+        .map(|i| (i.entry, i.v.0, i.exit, i.v.1))
+        .chain(closing)
+    {
+        v = (v.0.min(v0).min(v1), v.1.max(v0).max(v1));
+        twice = twice + (u0 * v1 - u1 * v0);
+    }
+    let area = twice.abs() / T::from_f64(2.0);
+    Some((u, v, (u.1 - u.0) * (v.1 - v.0) - area))
 }
 
 /// What the apex closure makes of a cone face's outer cycle.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) enum ApexClosure<T: Real> {
     /// The cycle never reaches the apex; every junction is a chart
     /// point, where the nearest-branch walk is exact.
     Clear,
     /// One apex visit and no ring: the lifted loop, closed at the apex.
     Closed {
+        /// The lift's images, starting at the half-edge that leaves the
+        /// apex.
+        images: Vec<AzimuthImage<T>>,
         /// The azimuth hull of the lift.
         window: (T, T),
         /// The farthest boundary vertex from the apex, in metres: the
@@ -1856,14 +1901,9 @@ pub(crate) fn cone_apex_closure<T: Decide>(
     };
     let esc = |diag| SplitJoinError::Escalated { face, diag };
     let fd = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let crate::entity::LoopBoundary::Cycle { first } = body
-        .get_loop(fd.outer)
-        .ok_or_else(|| corrupt_loop(fd.outer))?
-        .boundary
-    else {
+    let Some(halves) = outer_cycle(body, face)? else {
         return Ok(ApexClosure::Open);
     };
-    let halves = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
     let mut leaving = Vec::new();
     let mut reach = T::zero();
     let mut nappes = [false; 2];
@@ -1899,14 +1939,15 @@ pub(crate) fn cone_apex_closure<T: Decide>(
         .chain(&halves[..start])
         .copied()
         .collect();
-    Ok(run_azimuth_images(body, surface, face, &lifted, band)?
-        .into_iter()
-        .map(|image| image.range)
-        .reduce(|(a, b), (lo, hi)| (a.min(lo), b.max(hi)))
-        .map_or(ApexClosure::Open, |window| ApexClosure::Closed {
+    let images = run_azimuth_images(body, surface, face, &lifted, band)?;
+    Ok(match azimuth_hull(&images) {
+        Some(window) => ApexClosure::Closed {
+            images,
             window,
             reach,
-        }))
+        },
+        None => ApexClosure::Open,
+    })
 }
 
 /// The run walk behind [`run_azimuth_window`] and
@@ -2051,6 +2092,7 @@ fn run_azimuth_images<T: Decide>(
             entry: pcurve.eval(entry_t).x,
             exit,
             range: (lo, hi),
+            v: (pcurve.eval(entry_t).y, pcurve.eval(exit_t).y),
         });
         prev_exit = Some(exit);
     }

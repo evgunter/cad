@@ -1481,15 +1481,21 @@ pub(super) fn cone_face_trim<T: Decide>(
 /// The azimuth window of a cone face in the TRIMMED class: the
 /// nearest-branch walk on a face clear of the apex, the apex closure
 /// ([`crate::chord_join::cone_apex_closure`]) on a face that visits it
-/// once. Only a window definitely narrower than a period trims; a face
-/// through the apex twice, or once with a ring, has no single lift.
+/// once. A face through the apex twice, or once with a ring, has no
+/// single lift. The window trims only when it is definitely narrower
+/// than a period AND the face is the chart rectangle it reports
+/// (`bool_cone_chart_box`, [`crate::chord_join::chart_box_defect`]): a
+/// face with a notch has the rectangle's hull, and the window would
+/// cover the notch. That is the torus trim's box check, spelled by area
+/// because the apex jump is one of the cone polygon's sides.
 ///
 /// # Errors
 ///
 /// [`PointInSolidError::CorruptFace`] for a window the walk cannot
 /// take, [`PointInSolidError::PartialConeFace`] for a face with no
-/// single lift or a window not definitely under a period,
-/// [`PointInSolidError::Escalated`] in-band.
+/// single lift, a window not definitely under a period, or a boundary
+/// that is not its window's rectangle, [`PointInSolidError::Escalated`]
+/// in-band.
 fn cone_trimmed_window<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1497,6 +1503,8 @@ fn cone_trimmed_window<T: Decide>(
     band: Band,
 ) -> Result<(T, T), PointInSolidError> {
     use crate::chord_join::{ApexClosure, SplitJoinError};
+    let partial = PointInSolidError::PartialConeFace { face };
+    let esc = |diag| PointInSolidError::Escalated { face, diag };
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
@@ -1504,28 +1512,42 @@ fn cone_trimmed_window<T: Decide>(
         .get_surface(f.surface)
         .cloned()
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let az = match crate::chord_join::cone_apex_closure(body, &surf, face, band) {
-        Ok(ApexClosure::Clear) => crate::chord_join::face_azimuth_window(body, &surf, face, band)
+    let images = match crate::chord_join::cone_apex_closure(body, &surf, face, band) {
+        Ok(ApexClosure::Clear) => crate::chord_join::face_azimuth_images(body, &surf, face, band)
             .ok()
             .flatten()
             .ok_or(PointInSolidError::CorruptFace { face })?,
-        Ok(ApexClosure::Closed { window, .. }) => window,
-        Ok(ApexClosure::Open) => return Err(PointInSolidError::PartialConeFace { face }),
-        Err(SplitJoinError::Escalated { diag, .. }) => {
-            return Err(PointInSolidError::Escalated { face, diag });
-        }
+        Ok(ApexClosure::Closed { images, .. }) => images,
+        Ok(ApexClosure::Open) => return Err(partial),
+        Err(SplitJoinError::Escalated { diag, .. }) => return Err(esc(diag)),
         Err(_) => return Err(PointInSolidError::CorruptFace { face }),
     };
-    match decide(
+    let (az, chart_v, defect) = crate::chord_join::chart_box_defect(&images)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let lever = v.0.abs().max(v.1.abs());
+    if decide(
         "bool_cone_trim_period",
-        Margin::levered(T::tau() - (az.1 - az.0), v.0.abs().max(v.1.abs())),
+        Margin::levered(T::tau() - (az.1 - az.0), lever),
         band,
     )
-    .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+    .map_err(esc)?
+        != Sign::Positive
     {
-        Sign::Positive => Ok(az),
-        Sign::Zero | Sign::Negative => Err(PointInSolidError::PartialConeFace { face }),
+        return Err(partial);
     }
+    // The defect is an area in (radian × metre); over the slant span it
+    // is the azimuth the notch removes, levered like the period.
+    if decide(
+        "bool_cone_chart_box",
+        Margin::levered(defect / (chart_v.1 - chart_v.0), lever),
+        band,
+    )
+    .map_err(esc)?
+        != Sign::Zero
+    {
+        return Err(partial);
+    }
+    Ok(az)
 }
 
 /// The face's slant window, folded over its outer cycle's vertices.
@@ -1842,14 +1864,13 @@ pub(super) fn torus_face_windows<T: Decide>(
 ///   `2·(hi − lo)` exactly when the polygon IS its bounding box. The
 ///   L-shape has strictly more.
 ///
-/// **This is a class, and the other two chart trims do not carry it.**
-/// [`sphere_chart_trim`] and [`cone_chart_trim`] build their windows the
-/// same way — a fold over boundary images — and neither checks that the
-/// boundary is the rectangle it reports. Their premise is stated
-/// (ISO-BOUNDED, and for the sphere a checked edge-class membership) but
-/// the box itself is not checked there. Whether an L-shaped face of
-/// either kind is mintable is unproven in both cases; it is unproven
-/// here too, and checked anyway because the check was three lines.
+/// **This is a class.** [`cone_chart_trim`] carries the same check
+/// (`bool_cone_chart_box`, by area, since its polygon has the apex jump
+/// for a side). [`sphere_chart_trim`] builds its window the same way — a
+/// fold over boundary images — and does not check that the boundary is
+/// the rectangle it reports; its premise is stated (ISO-BOUNDED, with a
+/// checked edge-class membership) but the box itself is not checked
+/// there.
 ///
 /// **The null-scaffolding skip is unchecked**, and stated so rather than
 /// premised silently: an edge with no certified curve geometry is
