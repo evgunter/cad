@@ -2382,3 +2382,16 @@ In flight:
 Two rows the minting unit filed get their missing `priority`/`cost`
 (P2, D): `loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`
 and `mev-null-leaves-a-complete-curved-face-half-minted`.
+
+## The sense unit delivered as PR 3467; its single review dispatched (2026-09-29)
+
+PR 3467 is green at `a7224a17d0` (216,631 tokens / 45 min, harness).
+- `mint_face_surface_and_sense` inherits the parent's `sense` exactly
+  when `same_chart` holds, and the orientation argument is written.
+- Two consequences, both rowed: `Shared(second key, one Arc)` now
+  inherits, and so does `New(parent's own Arc)`. The second is a
+  disclosed deviation from the brief's control.
+- The mutant (key equality) reds exactly the two new rows.
+
+Tier SINGLE, full: one Opus reviewer dispatched on the frozen head,
+using the lane's warm target. PR 3467's thread was empty.
