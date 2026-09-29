@@ -869,6 +869,7 @@ fn the_pick_index_refusal_is_matchable_through_the_select_list() {
 /// cannot spell them, which is exactly what the curated list decided.
 #[test]
 fn the_resolution_payloads_are_matchable_through_the_select_list() {
+    use pncad::document::NodeStanding;
     use pncad::select::{ResolutionFailure, ResolveError, ResolveIndeterminate};
 
     // The repair each failure asks for, which is why the three stay
@@ -893,15 +894,20 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
     // ...and which node to look at, on the state where the NAME is
     // fine and the run is not.
     fn upstream(cause: ResolveIndeterminate) -> (&'static str, RecipeNodeId) {
-        match cause {
-            ResolveIndeterminate::TargetFailed { node } => ("target_failed", node),
-            ResolveIndeterminate::TargetPoisoned { through } => ("target_poisoned", through),
-            ResolveIndeterminate::TargetNotEvaluated { node } => ("target_not_evaluated", node),
+        match cause.standing {
+            NodeStanding::Failed { node } => ("target_failed", node),
+            NodeStanding::Poisoned { through, .. } => ("target_poisoned", through),
+            NodeStanding::NotEvaluated { node } | NodeStanding::NotInDocument { node } => {
+                ("target_not_evaluated", node)
+            }
         }
     }
     assert_eq!(
-        upstream(ResolveIndeterminate::TargetPoisoned {
-            through: RecipeNodeId(4)
+        upstream(ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
+                node: RecipeNodeId(7),
+                through: RecipeNodeId(4)
+            }
         }),
         ("target_poisoned", RecipeNodeId(4))
     );
@@ -2395,7 +2401,7 @@ fn the_document_export_door_refuses_a_bodiless_document() {
 
 #[test]
 fn the_export_door_refuses_typed_not_vaguely() {
-    use pncad::document::{Node, RecipeNodeId};
+    use pncad::document::{Node, NodeStanding, RecipeNodeId};
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = box_doc("all");
     // A failing Boolean (undeclared coincidence) and its downstream.
@@ -2438,15 +2444,32 @@ fn the_export_door_refuses_typed_not_vaguely() {
     ));
     assert!(matches!(
         door(RecipeNodeId(u64::MAX)),
-        Err(ExportError::UnknownNode { .. })
+        Err(ExportError::Standing(NodeStanding::NotInDocument { .. }))
     ));
-    assert!(matches!(door(cut), Err(ExportError::NodeFailed { node }) if node == cut));
+    assert!(matches!(
+        door(cut),
+        Err(ExportError::Standing(NodeStanding::Failed { node })) if node == cut
+    ));
     assert!(matches!(
         door(downstream),
-        Err(ExportError::Poisoned { node, through }) if node == downstream && through == cut
+        Err(ExportError::Standing(NodeStanding::Poisoned { node, through }))
+            if node == downstream && through == cut
     ));
     // The typed root cause is one door away, F3's promise.
     assert!(ev.node_error(downstream).is_some());
+
+    // Each standing renders one way: the door's subject, then the
+    // standing's own sentence (`editor-core`'s `node_standing` rows
+    // hold the other doors to the same shape).
+    for node in [RecipeNodeId(u64::MAX), cut, downstream] {
+        let standing = ev.usable(node).expect_err("no value");
+        let refusal = door(node).expect_err("refuses");
+        assert_eq!(
+            refusal.to_string(),
+            format!("export: {standing}"),
+            "{standing:?}"
+        );
+    }
 }
 
 #[test]

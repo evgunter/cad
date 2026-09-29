@@ -122,8 +122,8 @@ pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
     EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeValue, PartFault, PartReach, PiecesFault, ProfileLift, ProfilePieces,
-    SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate, mate_reach,
+    NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, ProfileLift,
+    ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate, mate_reach,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
@@ -217,7 +217,8 @@ pub use step_mint::StepMint;
 // direct bvh dependency.
 pub use bvh::Ray;
 pub use resolve::{
-    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
+    MeshPick, MeshPickError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo,
+    PickTarget, pick_face,
 };
 pub use roots::RootFault;
 pub use stackup::{

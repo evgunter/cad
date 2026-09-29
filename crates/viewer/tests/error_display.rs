@@ -26,7 +26,9 @@
 //! `an_illegal_walk_refuses_at_the_preview_and_at_the_door`).
 
 use bvh::Aabb;
-use editor_core::{HitTestError, InterrogateError, MateSide, NodePickError, UnnamedEntity};
+use editor_core::{
+    HitTestError, InterrogateError, MateSide, NodePickError, NodeStanding, UnnamedEntity,
+};
 use pncad::document::{EditError, RecipeNodeId};
 use pncad::mesh::TessellateError;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
@@ -296,9 +298,9 @@ fn pick_error_forwards_its_camera_arm() {
 /// composing a sentence about somebody else's refusal.
 #[test]
 fn pick_error_forwards_its_hit_test_arm() {
-    let inner = HitTestError::NodeFailed {
+    let inner = HitTestError::Standing(NodeStanding::Failed {
         node: RecipeNodeId(4),
-    };
+    });
     let outer = PickError::HitTest(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "NodeFailed");
@@ -349,13 +351,16 @@ fn indeterminate_wording_forwards_the_causes_own_words() {
     use editor_core::ResolveIndeterminate;
     use viewer::app::indeterminate_wording;
 
-    let cause = ResolveIndeterminate::TargetFailed {
-        node: RecipeNodeId(6),
+    let cause = ResolveIndeterminate {
+        standing: NodeStanding::Failed {
+            node: RecipeNodeId(6),
+        },
     };
     let shown = indeterminate_wording("face", &cause);
     assert!(shown.contains("face"), "{shown}");
     assert!(shown.contains(&cause.to_string()), "{shown}");
-    prose(&shown, "TargetFailed");
+    prose(&shown, "ResolveIndeterminate");
+    prose(&shown, "Failed");
 }
 
 test_utils::loud_skip_marker!(

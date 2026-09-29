@@ -145,7 +145,8 @@ fn all_of_kind<T: geom_core::Decide>(
     node: crate::node::RecipeNodeId,
     kind: EntityKind,
 ) -> Vec<StableName> {
-    let Some(crate::eval::NodeResult::Ok(value)) = ev.nodes.get(&node) else {
+    // No value, no names: `select::select`'s doc.
+    let Some(value) = ev.value(node) else {
         return Vec::new();
     };
     let mut out: Vec<StableName> = value

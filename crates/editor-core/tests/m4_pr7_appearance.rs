@@ -7,6 +7,7 @@
 
 use crate::fixture;
 
+use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
@@ -452,7 +453,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetFailed { node: ext }
+        AppearanceLossCause::Indeterminate(NodeStanding::Failed { node: ext })
     );
     // Repair the parameter: the attribute resolves again, unchanged —
     // it was never dropped.
@@ -513,7 +514,10 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetPoisoned { through: a }
+        AppearanceLossCause::Indeterminate(NodeStanding::Poisoned {
+            node: uni,
+            through: a
+        })
     );
 }
 
@@ -750,6 +754,6 @@ fn canceled_run_reports_not_evaluated_not_vanished() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetNotEvaluated
+        AppearanceLossCause::Indeterminate(NodeStanding::NotEvaluated { node: ext })
     );
 }

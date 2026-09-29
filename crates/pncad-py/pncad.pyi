@@ -609,12 +609,13 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `not_a_length`, `pair_in_band`, `bad_value`, or
-    `band`. The other attributes are the refusing arm's payload,
-    always present and `None` where inapplicable: `name` (the
-    candidate's opaque name text), `predicate` (the funnel site),
-    `matched`/`candidates` (a tied name's disagreement counts),
-    `datum` (the non-datum reference), `found` (what it evaluated to),
+    `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
+    `not_a_length`, `pair_in_band`, `bad_value`, or `band`. The other attributes are
+    the refusing arm's payload, always present and `None` where
+    inapplicable: `name` (the candidate's opaque name text),
+    `predicate` (the funnel site), `matched`/`candidates` (a tied
+    name's disagreement counts), `datum` (the non-datum reference, or
+    the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
 
     reason: str
@@ -782,6 +783,11 @@ class HitTestError(PncadError):
     not produce cannot belong to it, so the pick refuses up front
     rather than inverting against a table that is not there.
 
+    `NodePick.patch_names` and `NodePick.boundary_names` raise this
+    class too when they refuse the whole call — the pairing below, or
+    one of those three — under the same words and fields; their
+    message says a name lookup refused, because no hit test ran.
+
     `evaluation_of_another_document` is the pairing refusal, the same
     word `Doc.product`, the checks and the name-level edit door already
     answer with: the index and the evaluation handed to it are of two
@@ -832,8 +838,8 @@ class NodePickError(PncadError):
     under an edit, which is why the two are not one arm.
 
     Two arms FORWARD rather than wrap. The standing ladder arrives
-    under `HitTestError`'s own tags, because it IS that refusal; a
-    tessellation refusal arrives under the tessellator's own tag and
+    under the tags `HitTestError` answers with, because it is the same
+    standing; a tessellation refusal arrives under the tessellator's own tag and
     prose. A forwarded arm does not bring the inner refusal's extra
     ATTRIBUTES: a tessellation refusal's `value`, `bound`, `requested`
     and `note` stay on `TessellateError`, where `Body.tessellate`
@@ -4855,10 +4861,11 @@ class Evaluation:
         outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
         finding cannot disagree with the boolean's verify-at-use).
-        Findings are DEFINITE and canonically ordered; empty when
-        either node has no value. Raises `SelectRefusal`, typed
-        (`pair_in_band`, `tied_disagrees`, `unreadable`, `band`) —
-        an ambiguous pair is never silently included or dropped."""
+        Findings are DEFINITE and canonically ordered. Raises
+        `SelectRefusal`, typed (`node_has_no_value` when either node
+        has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
+        `band`) — an ambiguous pair is never silently included or
+        dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every

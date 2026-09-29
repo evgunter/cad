@@ -1529,7 +1529,7 @@ mod tests {
 #[cfg(test)]
 mod verdict_tests {
     use editor_core::RecipeEditRef;
-    use pncad::document::{ParamName, RecipeNodeId};
+    use pncad::document::{NodeStanding, ParamName, RecipeNodeId};
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
 
@@ -1600,11 +1600,11 @@ mod verdict_tests {
                 node: RecipeNodeId(2),
                 body: 0,
             },
-            resolution: Some(Box::new(Resolution::Indeterminate(
-                ResolveIndeterminate::TargetFailed {
+            resolution: Some(Box::new(Resolution::Indeterminate(ResolveIndeterminate {
+                standing: NodeStanding::Failed {
                     node: RecipeNodeId(1),
                 },
-            ))),
+            }))),
         };
         let (painted, voices) = drawn(&standing);
         assert_eq!(
