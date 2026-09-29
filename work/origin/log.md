@@ -33,3 +33,22 @@ the slate against the tree:
   question is open.
 - The review posture question the plan left open is answered by the
   per-unit tiers in `memories/orchestration-model.md`.
+
+## 2026-09-29 — wave 1 dispatched
+
+- `a-chart-spans-solids-after-move-shells-to-new-solid` → implementer,
+  branch `origin/chart-spans-solids-remint`. Review tier: single FULL —
+  a re-mint that must carry origin, recipe and pcurve rows, plus a new
+  tier-1 pass, is more than reading can believe.
+- `graft-copies-provenance-keys-verbatim` → implementer, measure-first,
+  branch `origin/graft-remaps-provenance`; stops and reports if the
+  measurement moves the fix shape into a fork. Tier decided on the
+  diff: dual if the names-lane bridge lands (tricky, and hard to change
+  later), single full otherwise.
+- The chart-identity question (`two-provenance-free-keys-…`,
+  `set-surface-source-…`, and `three-spellings-of-one-chart-…`,
+  claimed from TOPO this day with a seam note on TOPO's log) → the
+  designer pair, blinded per `docs/DESIGN-FORK-PROTOCOL.md`; the
+  byte is on `analysis/design-fork/origin-chart-identity-2026-09-29`.
+  The third row reached the designers as an identical addendum after
+  dispatch.

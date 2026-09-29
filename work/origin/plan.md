@@ -10,6 +10,7 @@ the D5/N6 identity channel: what a description's source says, and what the Live 
 | P0 | `graft-copies-provenance-keys-verbatim` | H | — | measure first: the corrected fix shape (a dead-ancestor bridge on `GraftMap`) is a 2026-09-02 reading |
 | P0 | `two-provenance-free-keys-holding-one-surface-read-as-two-charts` | H | yes | weighed with the P3 row below as one question |
 | P1 | `axis-per-component-source-beside-geom-source` | H | — | ratified design, `docs/AXIS-DECLARATION-DESIGN.md` |
+| P2 | `three-spellings-of-one-chart-answer-the-same-question-differently` | M | yes | claimed from TOPO; the same question |
 | P3 | `set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree` | M | yes | weighed with the P0 row above |
 | P3 | `live-guard-proves-ordering-not-identity` | M | yes | the scan question first |
 
@@ -19,8 +20,9 @@ the D5/N6 identity channel: what a description's source says, and what the Live 
 directions of one question: what decides that two surface keys are one
 chart. One is the decision missing a true "same" (equal descriptions
 no `GeomSource` ties), the other is it trusting a false one (a stamp
-nothing checks). `Body::same_chart` (`euler_ring.rs`) and
-`chart_region.rs`'s own `same_chart` both answer it. They go to the
+nothing checks). `Body::same_chart` (`euler_ring.rs`), `chart_region.rs`'s own
+`same_chart` and `merge_faces::planes_declared_equal` each answer it
+(`three-spellings-…`, claimed from TOPO). They go to the
 designer pair together (`memories/orchestration-model.md`), and to Ev
 only if what comes back is a fork that is Ev's.
 
