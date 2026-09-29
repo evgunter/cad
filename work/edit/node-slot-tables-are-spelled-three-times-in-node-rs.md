@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P1
 cost: D
-refs: [step-arg-roles-are-spelled-in-three-homes]
+refs: [3264]
 ---
 
 

@@ -37,3 +37,7 @@ exposes no identity a verdict could carry. Tying the verdict to it
 would need a session id, or a check that the current session's
 (budget, rules) are the minting one's. That is worth doing only once a
 caller splits the pair across sessions.
+
+## Re-homed
+
+Moved from `work/gather/` with GATHER's close (2026-09-29), id kept. `AtRestBody` lives in `crates/topo/src/validate.rs`, RESTFRONT's ground; SYM would fit the session half, but the fix, if one is owed, is to the verdict type.

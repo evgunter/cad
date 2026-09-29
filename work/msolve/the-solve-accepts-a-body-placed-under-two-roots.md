@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P1
 cost: D
-refs: [product-refuses-naming-when-one-instance-is-placed-under-two-roots]
+refs: [3142]
 ---
 
 Filed by GATHER's two-roots lane (branch `gather/two-roots-refusal`),
