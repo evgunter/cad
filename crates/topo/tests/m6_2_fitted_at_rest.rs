@@ -159,7 +159,8 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 /// at check 4. The message must name the scalar and say it may not
 /// certify; it must not say it carries no bracket, which D1 made false;
 /// and its replay list names every scalar whose fitted door answers
-/// `Some`.
+/// `Some` (the telemetry probe's arm is `probe`-gated, so its name is
+/// not read here).
 #[test]
 fn the_dual_refuses_at_check_four_and_says_so() {
     use geom_brep::{ChartWindow, PcurveCache, PcurveCertifyError, PcurveCheck};
@@ -287,8 +288,6 @@ fn the_dual_refuses_at_check_four_and_says_so() {
     replay_list_names::<f64>(&msg);
     replay_list_names::<geom_core::interval::Interval>(&msg);
     replay_list_names::<geom_core::Sym<f64>>(&msg);
-    #[cfg(feature = "probe")]
-    replay_list_names::<geom_core::Probe>(&msg);
 }
 
 /// ε is never a literal here; this row states what the file relies on.
