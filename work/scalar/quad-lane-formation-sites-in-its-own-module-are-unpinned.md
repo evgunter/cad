@@ -5,7 +5,7 @@ title: QuadLane is formed in the module that owns its private field and nothing 
 status: open
 opened: 2026-09-24
 priority: P3
-cost: D
+cost: E
 ---
 
 ## What

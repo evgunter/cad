@@ -108,6 +108,29 @@ blend and wire ground). The editor-core six (`Lane`, `MinClearanceLane`,
 `SectionScalar`, `AxisScalar`, `SeedScalar`, `ChartCoherenceLane`) are a
 census row on WIRE's and PROPS' slates, not SCALAR units.
 
+## The residue slate (2026-09-29)
+
+H5 is closed: every unit of its plan is on main. What remains is
+residue the units filed, triaged against main at `09f4b2c8c3`, where
+`ring-2-red-rows-…` and `ring-nan-poison-…` closed as moot (RING-2,
+PR 3032). The units below are ordered by what each unblocks, and none
+collides with another on a file.
+
+| unit | rows it carries | class · review tier | ground |
+| --- | --- | --- | --- |
+| SCALAR-HYGIENE | `door-wiring-rows-justification-written-four-times`, `quad-lane-formation-sites-in-its-own-module-are-unpinned`, `rustc-suggests-importing-real-in-a-certification-file`, `certification-gate-gaps-3-and-5-have-no-follow-up` (GAP 5 guarded; GAP 3 recorded as the consequence of Ev's RING-3 choice of no certification newtype), `fitted-lane-refusal-text-omits-symbolic-and-cites-a-retired-hull`, `ring-3-residue-outside-its-fence` (every bullet but the CURVED spiric one and the "C9-ring class" meaning, which go to their owners), `tracker-rows-cite-the-deleted-pcurve-fitted-lane-trait` | E · orchestrator's read (mechanical: prose, a guard row, a source-literal row) | GUARD, PCERT, CHART, GERM/REACH/TANG, RESTFRONT, CONTACT, CIW, unowned `props.rs`/`fitted_lane.rs`/`offset_fit_lane.rs`, six programs' tracker rows |
+| CERT-NAMES | `public-ring-names-spell-the-retired-type`, `certification-refusal-still-called-poison-outside-the-importers` | M · single review (≈300 sites; the classification certification-refusal vs evaluation-poison is judgement per hit, and a pinned message may move) | NURBS, PROPS, SSI, ENCL, EXCH, CHORD, TCOST/TINT |
+| CERT-DIFF | `certification-doors-have-no-differential` | M · single review (an independent reference per door is the whole content) | TCOST/TINT (`crates/geom-core/tests/`) |
+
+Held:
+- **`fitted-door-and-scalar-name-travel-as-a-pair-by-convention`**
+  (M, design: true). The bundle's shape is a design question, weighed
+  by the designer pair before a lane builds it. It is P4, so it
+  follows the three units.
+- **`ab-sample-230-claimed-twice-on-main-and-branch-side`** is Ev's.
+  The numbering rule binds a suspended protocol, and parking it until
+  reinstatement is one answer.
+
 ## Order
 
 **What is next (2026-09-15).** Two items remain and they are not the

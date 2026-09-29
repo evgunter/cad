@@ -5,7 +5,7 @@ title: no differential stands over the certification doors that are more than a 
 status: open
 opened: 2026-09-24
 priority: P3
-cost: D
+cost: M
 ---
 
 

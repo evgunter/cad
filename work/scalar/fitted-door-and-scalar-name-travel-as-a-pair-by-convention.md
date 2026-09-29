@@ -5,7 +5,8 @@ title: The fitted door and the scalar's name travel as two parameters tied by co
 status: open
 opened: 2026-09-25
 priority: P4
-cost: D
+cost: M
+design: true
 ---
 
 

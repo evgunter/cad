@@ -5,7 +5,7 @@ title: CurveRingData, SurfaceRingData, ring_coords and apply_ring name the retir
 status: open
 opened: 2026-09-24
 priority: P4
-cost: D
+cost: E
 ---
 
 

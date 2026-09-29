@@ -5,7 +5,7 @@ title: outside the certification importers, holders and tests still call the cer
 status: open
 opened: 2026-09-24
 priority: P4
-cost: D
+cost: M
 ---
 
 ## Finding

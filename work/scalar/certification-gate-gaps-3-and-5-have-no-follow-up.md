@@ -5,7 +5,7 @@ title: the certification-doors gate's KNOWN GAPs 3 (a value handed to an unliste
 status: open
 opened: 2026-09-24
 priority: P3
-cost: H
+cost: E
 ---
 
 ## Finding
