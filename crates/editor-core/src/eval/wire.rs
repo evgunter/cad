@@ -4059,6 +4059,9 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     let value = value_of(results, input)?;
     let placeable = placeable_operand(value, input)?;
     let map = placement.motion(vals, band(tol)?)?;
+    if std::env::var_os("PLACE1_R2_MOTION").is_some() {
+        eprintln!("MOTION node={} {:?}", id.0, map);
+    }
     let per = placeable.bodies().len();
     let payload =
         placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;

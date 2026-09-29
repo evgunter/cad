@@ -709,7 +709,11 @@ fn transform_map<P: crate::ProfilePayload>(
     let Some(Node::Transform { placement, .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
     };
-    placement.eval(env, band).map_err(here)
+    let m = placement.eval(env, band).map_err(here)?;
+    if std::env::var_os("PLACE1_R2_MOTION").is_some() {
+        eprintln!("MMOTION node={} {:?}", node.0, m);
+    }
+    Ok(m)
 }
 
 /// **The placer's slots, in `env`** — [`eval_slots`], the
