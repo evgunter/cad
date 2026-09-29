@@ -26,7 +26,7 @@
 //! `an_illegal_walk_refuses_at_the_preview_and_at_the_door`).
 
 use bvh::Aabb;
-use editor_core::{HitTestError, InterrogateError, MateSide, NodePickError};
+use editor_core::{HitTestError, InterrogateError, MateSide, NodePickError, UnnamedEntity};
 use pncad::document::{EditError, RecipeNodeId};
 use pncad::mesh::TessellateError;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
@@ -304,15 +304,26 @@ fn pick_error_forwards_its_hit_test_arm() {
     prose(&outer, "NodeFailed");
 }
 
-/// A drawn edge with no name carries the naming layer's own report.
+/// A drawn edge with no name carries the naming layer's own report —
+/// a lookup's, whole, and the sentence says no hit test ran, because
+/// the index was built by a table read and the status line that
+/// forwards this refusal must not name an event that did not happen.
 #[test]
 fn edge_name_fault_forwards_its_unnamed_arm() {
-    let inner = HitTestError::NodeFailed {
+    let inner = UnnamedEntity {
         node: RecipeNodeId(4),
+        entity: editor_core::EntityRef {
+            body: 0,
+            key: editor_core::EntityKey::Edge(pncad::topo::EdgeKey::default()),
+        },
     };
-    let outer = EdgeNameFault::Unnamed(inner.clone()).to_string();
+    let outer = EdgeNameFault::Unnamed(inner).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(!outer.contains("hit test"), "{outer}");
     prose(&outer, "Unnamed");
+    let picked = PickError::EdgeName(EdgeNameFault::Unnamed(inner)).to_string();
+    assert!(picked.contains(&inner.to_string()), "{picked}");
+    assert!(!picked.contains("hit test"), "{picked}");
 }
 
 #[test]

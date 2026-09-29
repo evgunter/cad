@@ -39,6 +39,7 @@
 
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
 use geom_core::spline::compose::{ComposeError, CurveRingData};
 use geom_core::spline::{KnotVector, basis};

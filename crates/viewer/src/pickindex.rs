@@ -74,7 +74,8 @@ use pncad::document::{Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
-    HitTestError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray, pick_face,
+    HitTestError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray, UnnamedEntity,
+    pick_face,
 };
 // The kernel's certified order over hit intervals, which the
 // cross-group merge below applies to the groups' own answers. A DIRECT
@@ -445,12 +446,14 @@ trait DrawnKind {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`] when the part is not of `eval`'s document —
-    /// the door's own pairing refusal, verbatim.
+    /// [`HitTestError`] when the part is not of `eval`'s document, or
+    /// its node has no table there — the door's own refusal of the
+    /// call, verbatim. A slot holds a name or the lookup's one refusal,
+    /// [`UnnamedEntity`].
     fn names_of(
         part: &NodePick,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError>;
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError>;
 
     /// The address of the entity at `position` in the part drawing
     /// `(node, body)`, which is at `flat` in the whole index.
@@ -468,7 +471,7 @@ impl DrawnKind for Patches {
     fn names_of(
         part: &NodePick,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
         part.patch_names(eval)
     }
 
@@ -493,7 +496,7 @@ impl DrawnKind for Edges {
     fn names_of(
         part: &NodePick,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
         part.boundary_names(eval)
     }
 
@@ -531,7 +534,7 @@ enum WindowFault {
         drawn: usize,
     },
     /// The entity is drawn but its node's table has no name for it.
-    Unnamed(HitTestError),
+    Unnamed(UnnamedEntity),
 }
 
 /// **Where one part's window of drawn entities lives** — the parts in
@@ -563,9 +566,9 @@ struct PartWindows<K: DrawnKind> {
     /// Every drawn entity, part by part.
     entities: Vec<K::Id>,
     /// Every drawn entity's name, parallel to [`Self::entities`] —
-    /// `Err` for the loud unnamed-entity bug arm, which is one
+    /// `Err` for the loud unnamed-entity bug report, which is one
     /// entity's problem and not the index's.
-    names: Vec<Result<StableName, HitTestError>>,
+    names: Vec<Result<StableName, UnnamedEntity>>,
     /// The inverse of [`Self::names`], across every part. A name can
     /// be drawn under several (node, body) pairs — two `Transform`
     /// roots over one extrude carry the extrude's names on both drawn
@@ -604,7 +607,7 @@ impl<K: DrawnKind> PartWindows<K> {
         &mut self,
         node: RecipeNodeId,
         body: u32,
-        names: Vec<Result<StableName, HitTestError>>,
+        names: Vec<Result<StableName, UnnamedEntity>>,
     ) -> Result<(), PickIndexError> {
         if self.by_target.contains_key(&(node, body)) {
             // Two parts drawing one (node, body) would leave the
@@ -668,7 +671,7 @@ impl<K: DrawnKind> PartWindows<K> {
 
     /// The name at a FLAT position — the door a GLOBAL address reads
     /// through, which is why it takes no window.
-    fn name_at(&self, flat: usize) -> Option<&Result<StableName, HitTestError>> {
+    fn name_at(&self, flat: usize) -> Option<&Result<StableName, UnnamedEntity>> {
         self.names.get(flat)
     }
 
@@ -687,7 +690,7 @@ impl<K: DrawnKind> PartWindows<K> {
         }
         match self.names.get(window.start + position) {
             Some(Ok(name)) => Ok(name),
-            Some(Err(error)) => Err(WindowFault::Unnamed(error.clone())),
+            Some(Err(error)) => Err(WindowFault::Unnamed(*error)),
             // Unreachable: the window is a range of `names`, and the
             // two are filled in one pass. Reported as the address
             // fault it would be rather than degraded to a miss.
@@ -954,13 +957,13 @@ impl PickIndex {
     /// The name of the patch `id` denotes.
     ///
     /// `None` for [`IdMap::NOTHING`] and for an id this index did not
-    /// assign; `Some(Err(_))` for the loud unnamed-face bug arm.
+    /// assign; `Some(Err(_))` for the loud unnamed-face bug report.
     /// **A flat lookup, with no window check and none needed**: a
     /// patch id is a GLOBAL address, assigned across every part, so
     /// there is no next body for it to run into. That is the
     /// difference [`PickIndex::edge_name_of`] carries a window check
     /// for.
-    pub fn name_of(&self, id: u32) -> Option<&Result<StableName, HitTestError>> {
+    pub fn name_of(&self, id: u32) -> Option<&Result<StableName, UnnamedEntity>> {
         self.patches
             .name_at(usize::try_from(id.checked_sub(1)?).ok()?)
     }
@@ -1744,11 +1747,7 @@ impl PickIndex {
             // refusal, not as a silent miss. The address arms cannot
             // fire here — this id was built from `edges_in`'s own
             // window — and are reported rather than swallowed.
-            let name = match self.edge_name_of(id) {
-                Ok(name) => name.clone(),
-                Err(EdgeNameFault::Unnamed(error)) => return Err(PickError::HitTest(error)),
-                Err(fault) => return Err(PickError::EdgeName(fault)),
-            };
+            let name = self.edge_name_of(id).map_err(PickError::EdgeName)?.clone();
             return Ok(Some(EdgePick {
                 name,
                 node: id.node,
@@ -2127,8 +2126,9 @@ pub enum PickError {
     Camera(CameraError),
     /// The hit test refused.
     HitTest(HitTestError),
-    /// A drawn edge could not be addressed — the arms of
-    /// [`EdgeNameFault`] that are not somebody else's refusal.
+    /// The picked edge has no name here — [`EdgeNameFault`], per arm:
+    /// an address this index does not draw, or a drawn edge the
+    /// naming layer's lookup could not name.
     EdgeName(EdgeNameFault),
 }
 
@@ -2158,8 +2158,8 @@ pub enum EdgeNameFault {
         drawn: usize,
     },
     /// The edge is drawn but has no name in its node's table — the
-    /// naming-emission bug arm, carried verbatim.
-    Unnamed(HitTestError),
+    /// naming layer's own bug report, carried verbatim.
+    Unnamed(UnnamedEntity),
 }
 
 impl core::fmt::Display for EdgeNameFault {
@@ -2235,7 +2235,7 @@ mod tests {
     }
 
     /// `count` names, `tag`-distinct, as one part's run.
-    fn run(tag: u64, count: u64) -> Vec<Result<StableName, HitTestError>> {
+    fn run(tag: u64, count: u64) -> Vec<Result<StableName, UnnamedEntity>> {
         (0..count).map(|i| Ok(name(tag * 100 + i))).collect()
     }
 

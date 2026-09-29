@@ -274,7 +274,7 @@ impl<T: Real> BooleanResult<T> {
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
-pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -294,7 +294,7 @@ pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::At
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn intersect<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -314,7 +314,7 @@ pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn subtract<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -335,7 +335,7 @@ pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props:
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn union_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -349,9 +349,7 @@ pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::prop
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+pub fn intersect_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -372,9 +370,7 @@ pub fn intersect_with<
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+pub fn subtract_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -400,9 +396,7 @@ pub fn subtract_with<
 /// # Errors
 ///
 /// [`BooleanError`] — identical to [`union`] and friends.
-pub fn boolean_op_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -466,9 +460,7 @@ pub fn boolean_op_with<
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
-fn boolean_op_recut<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -672,9 +664,7 @@ fn boolean_op_recut<
 /// Decided on the unmutated reduction and raised only where a body
 /// would be returned (the call site), so every refusal the pipeline
 /// meets first stands verbatim.
-fn interior_loop_verdict<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -741,7 +731,7 @@ impl ChartCache {
     /// punctured nappe's universal cover, at most a period wide. Every
     /// closed curve in `int F` therefore lifts to a closed curve with
     /// zero winding, and no essential component lies in `int F`.
-    pub(crate) fn describes<T: geom_brep::PcurveFittedLane>(
+    pub(crate) fn describes<T: crate::props::AtRestPolicy>(
         &mut self,
         operand: Operand,
         body: &Body<T>,
@@ -919,7 +909,7 @@ pub(crate) fn place_witness<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] for a face whose surface
 /// or loops do not resolve, and the box builder's own errors.
-pub(crate) fn section_pairs<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     band: Band,
@@ -1013,7 +1003,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// pair's curved face. Declarations exempt nothing on this path: with
 /// no crossings, a declared coincident pair is exactly what the vertex
 /// probe cannot decide.
-fn section_extent_pass<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     band: Band,
@@ -1051,9 +1041,7 @@ fn section_extent_pass<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 ///
 /// The reduction's own refusals, and [`section_pairs`]'.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn section_report<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -2424,7 +2412,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
 /// polar axis lands on the escape normal (the same point set — a
 /// sphere is rotation-invariant about its center — with the seam
 /// meridians now transverse to the escape planes), and grafted back.
-fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     recuts: &[SphereRecut<T>],
@@ -2602,7 +2590,7 @@ fn classify_shells<T: Decide>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
-fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
+fn fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     red: &BooleanReduction<T>,
     a_pristine: &Body<T>,
@@ -2759,7 +2747,7 @@ fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
-fn finish_fallback<T: Decide + geom_brep::PcurveFittedLane>(
+fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
     contacts: &ContactRecords,

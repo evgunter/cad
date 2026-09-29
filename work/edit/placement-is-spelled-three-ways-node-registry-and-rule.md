@@ -125,42 +125,46 @@ edited slot is not decided. It stays this row's later question, with
 the two obstacles recorded above (`roots` as the sink set, and names as
 role paths through the node).
 
-## Put to Ev (2026-09-29) — the unit's design, after the designer pair
+## Put to Ev (2026-09-29) — where a placement lives, after two designer pairs
 
-Ev's "yes" settled that a placement is parametric, not the design of the
-unit that follows. That design went to a designer pair
-(`docs/DESIGN-FORK-PROTOCOL.md`, row 14 of `docs/DESIGN-FORK-LOG.md`)
-and then to Ev on the `[ev]` PR from `edit/ev-placement-design`.
+**The first pair.** It weighed the unit's design: one parametric type
+for the registry and `Transform`, and maintenance that mints only a
+literal (`docs/DESIGN-FORK-LOG.md` row 14). Ev did not choose between
+its two sides. Ev asked what the recorded literal is for, found it "a
+weird side channel through which to keep the source", accepted that a
+part may jump when the thing putting it there is gone, and proposed a
+gauge that attaches to several members at once.
 
-**What the designers converged on.** A11 rule (2) now states it.
-- **The row.** It is `Transform`'s parametric triple (the motion)
-  applied over a literal frame.
-- **Maintenance** re-mints only the literal, so a parameter keeps
-  driving a cluster after its gauge moves. This revises the
-  agent-written "minted frames are literals" clause.
-- **`Join`** carries the absorbed row and reports the drive it drops.
-- **Addressing.** One address owner, `Placement(any member)`, and one
-  `Doc::exprs()` walk that reaches every expression the document holds.
-- **`SetPlacement`** is continuous, not structural.
-- **Inline** refuses typed a placed host over a parametric part row.
-- **Old files** refuse typed at load.
-- **`PatternKind::Explicit`** is untouched.
+**The second pair.** It weighed that widened problem (row 16) and
+converged. A11 (2)–(5) now state the result:
+- **The gauge is a node.** It holds a parametric placement, a chain of
+  rigid `Expr` steps and literal matrices; `Transform` holds the same
+  type.
+- **An instance's pose** is its gauge's frame composed with an offset.
+- **Mates place only within one gauge.** Contact across gauges is
+  declared and verified, never placed.
+- **Extra statements of where a placed instance sits** are verified,
+  never dormant.
+- **No edit records a frame.** Maintenance, its logged rows and its
+  solve at the edit door all go.
+- **The accepted jump.** A part whose placing source is gone sits at
+  its gauge's origin.
 
-**The split Ev rules on.** Where does the literal live?
-- **Option (i): inside `Placement { motion, frame }`.**
-  - `Transform` can carry a matrix.
-  - A6 stands unchanged.
-  - Matrix constructors stay bit-exact.
-- **Option (ii): only on the registry row, as a solver-owned gauge offset.**
-  - `Placement` is proper by construction, so a mirror is unrepresentable.
-  - A6's refusal moves to a `from_frame` door, and a new axis-angle
-    extraction rounds once, at authoring.
-- Each designer's first report took one of these, and each moved to the
-  other's in reconciliation.
+**What Ev rules on:**
+1. **How an instance comes to be on a gauge.**
+   - (a) Each instance names its gauge (the world by default). A mate
+     across gauges only declares, so a part joins a gauged group by
+     being put on that gauge.
+   - (b) Gauge membership comes from attachment edges plus placing
+     mates. A mate that would weld two gauged groups is refused, and a
+     contact-only mate declares across gauges.
+2. **Deleting a gauge that parts are on:** refused while in use, or
+   what it held becomes unplaced.
+3. **Under (b):** the contact-only mate now or later, and more than one
+   attachment per group now or later.
 
-**Sequencing (orchestrator).** Box and seed runs solve mates at the
-nominal. That is a silent class which predates this unit, so it is
-filed on MSOLVE as
+**Sequencing (orchestrator).** The box and seed lanes still solve mates
+at the nominal, a silent class filed on MSOLVE as
 `work/msolve/a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`.
-The unit ships no parametric placement into the lanes without that
-refusal.
+The placement unit ships no parametric placement into the lanes
+without that refusal.

@@ -352,42 +352,37 @@ refused at the insert door (`EditError::MateRefused`, carrying the
 solve's fault); the doors decide edits and the solve decides states,
 so a verdict about the pair, and a state a mate comes to hold after
 insert (a head a rebind or a shrunk pattern strands, a re-pointed
-`Part`, a loaded snapshot), stay the solve's. (2) Placement lives on the
-cluster: clusters are connected components of the instance–mate graph
-(`clusters`); `Doc::placements` holds at most one placement per cluster,
-keyed by its gauge, a missing entry being the identity, so zero- and
-multi-anchor states are unrepresentable. A placement is parametric
-(Ev, `[ev]` #3437, 2026-09-29): a cluster's row is an authored motion,
-the translation, rotation axis and rotation angle `Node::Transform`
-holds, all `Expr`s, so a document parameter can drive where a cluster
-sits, applied over a literal frame, which is what the maintenance
-writes. When a gauge moves, the maintenance re-mints the literal from the solved pose and
-the motion travels with the cluster, so a parameter's drive survives
-it; a `Join` consumes the absorbed cluster's motion and reports the
-drive it drops. A component of the motion is addressed through any
-instance of the cluster and edited by the ordinary expression edits;
-`reconcile` re-keys records
-when an edit joins or splits clusters
-(`ClusterMaintenance::{Join, Split, GaugeRewrite}`, gauge-exact in
-bits). When a gauge moves the maintenance solves the prior document
-with the mated parts' reach (`apply` takes it) to mint the new gauge's
-frame from its solved pose, and asks nothing otherwise; a solve that
-reaches no verdict refuses the edit typed
-(`EditError::MaintenanceRefused`). The rows ride the logged edit
-(`LoggedEdit`), and replay re-applies them without solving. (3) The
-gauge is the cluster's earliest instance in document
-order, a convention, not data; pattern-placed instances are
-gauge-ineligible. (4) `solve_document` takes the deterministic spanning
-tree rooted at the gauge: tree mates DETERMINE and must fold to
+`Part`, a loaded snapshot), stay the solve's. (2) Placement lives on a
+gauge. A gauge is a document node that holds a placement and denotes no
+body; an instance's world pose is its gauge's frame composed with an
+offset, and the world is the gauge of anything placed nowhere else. A
+placement is parametric (Ev, `[ev]` #3437, 2026-09-29): a chain of
+steps, each either a rigid step of `Expr`s (the translation, rotation
+axis and rotation angle `Node::Transform` holds, and `Node::Transform`
+holds the same type) or a literal proper matrix held to A6, so a
+document parameter can drive where a group of parts sits. Mates place
+instances relative to one another only within one gauge; contact
+between groups on different gauges is declared and verified at the
+at-rest gate, never placed. A further statement of where a placed
+instance sits is verified against the solve, never trusted and never
+silently ignored. No edit records a frame: deleting a mate, an instance
+or a gauge recomputes what is placed from what remains, a part whose
+placing source is gone sits at its gauge's origin until placed again,
+and replay re-applies the edits alone, without solving. (3) A
+cluster's tree is rooted at its placed member when it has one, and at
+its earliest instance in document order otherwise, a convention that
+decides nothing a user placed; pattern-placed instances are
+root-ineligible. (4) `solve_document` takes the deterministic spanning
+tree rooted at the cluster's root: tree mates DETERMINE and must fold to
 `Trivial` (an UNDER tree edge refuses naming the residual subgroup,
 recourse `UNDER_RECOURSE`); non-tree mates DECLARE and are only
 verified by the gate. No cycle is ever solved; an inconsistent loop
 dies at its closing mate's verification (`MateFault::Contradictory`,
 recourse `CONTRADICTORY_RECOURSE`). The solve is total and
 per-node: a refusing cluster faults its own mate and instances
-(`SolvedPoses::fault`), nothing else. (5) `SolvedPoses::placement`
-composes the cluster frame onto the solved relative pose; a singleton
-cluster returns its recorded frame bit for bit. It is one of A2a's
+(`SolvedPoses::fault`), nothing else. (5) An instance's world pose composes its gauge's frame and its
+root's offset onto the solved relative pose; a lone instance returns
+its placement's frame bit for bit. It is one of A2a's
 pairing doors: the document it is handed must be the one solved, else
 `MateFault::PosesOfAnotherDocument` before any frame is read. A
 reference resolves by walking from its OPERAND down to a live

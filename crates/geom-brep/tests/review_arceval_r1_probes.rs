@@ -20,14 +20,15 @@
 //!    `a`/`b`, so the far end is the direction a regression would take
 //!    (P3).
 //!
-//! The center-anchored comparator is replicated inline, byte-for-byte
-//! the retired form (`center + R·v`, `sin_cos`), so P2 goes red either
+//! The center-anchored comparator is spelled inline (`center + R·v`,
+//! `sin_cos`, over the segment's own carrier), so P2 goes red either
 //! way the relationship breaks: if `eval` regresses toward the center
 //! form, or if the comparator stops being the width ceiling the doc
 //! comment claims it is.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::arc::lowered_arc;
 use crate::shared::interval::iv;
 use geom_brep::SketchSegment;
 use geom_core::{Bounds, Interval, Point2, Real, Vec2};
@@ -50,22 +51,18 @@ fn point_width(p: Point2<Interval>) -> f64 {
     width(p.x).max(width(p.y))
 }
 
-/// The retired center-anchored evaluation, replicated exactly as it
-/// stood (`(s·θ).sin_cos()`, `center + R·v`), as the width comparator.
+/// The center-anchored evaluation (`(s·θ).sin_cos()`, `center + R·v`)
+/// over the segment's own carrier and sweep, as the width comparator.
 fn eval_center_anchored(seg: &SketchSegment<Interval>, s: Interval) -> Point2<Interval> {
-    let SketchSegment::Arc { a, b, bulge } = *seg else {
+    let SketchSegment::Arc {
+        a,
+        centre: center,
+        sweep: theta,
+        ..
+    } = *seg
+    else {
         panic!("comparator is arc-only");
     };
-    let half = Interval::from_f64(0.5);
-    let four = Interval::from_f64(4.0);
-    let chord = b - a;
-    let len = chord.norm();
-    let unit = chord / len;
-    let n = Vec2::new(-unit.y, unit.x);
-    let mid = a.lerp(b, half);
-    let apothem = len * (Interval::one() - bulge.powi(2)) / (four * bulge);
-    let center = mid + n * apothem;
-    let theta = four * bulge.atan();
     let (sin, cos) = (s * theta).sin_cos();
     let v = a - center;
     center + Vec2::new(v.x * cos - v.y * sin, v.x * sin + v.y * cos)
@@ -93,10 +90,12 @@ fn family(w: f64) -> Vec<SketchSegment<Interval>> {
     ];
     bulges
         .iter()
-        .map(|&bl| SketchSegment::Arc {
-            a: Point2::new(wide(0.0, w), wide(-0.09, w)),
-            b: Point2::new(wide(0.0, w), wide(0.09, w)),
-            bulge: iv(bl),
+        .map(|&bl| {
+            lowered_arc(
+                Point2::new(wide(0.0, w), wide(-0.09, w)),
+                Point2::new(wide(0.0, w), wide(0.09, w)),
+                iv(bl),
+            )
         })
         .collect()
 }
@@ -187,19 +186,32 @@ fn p2_anchored_width_is_bounded_by_center_width_plus_far_anchor_slack() {
     }
 }
 
-/// P2b: on the defect's own shape — a short restricted sub-arc, where
-/// the reconstructed center is wide — the anchored form is *strictly*
+/// The defect's own shape: a short sub-arc whose center is derived from
+/// its own short chord, so the center is wide — the 0.4 % window of the
+/// pip meridian from `s = 0.4`, its endpoints cut by `restrict` and its
+/// carrier lowered from that chord and the window's bulge. (`restrict`
+/// keeps the parent's carrier; this is the carrier a profile's lift
+/// derives for a short authored arc.)
+fn short_sub_arc() -> SketchSegment<Interval> {
+    let meridian = lowered_arc(
+        Point2::new(iv(0.0), iv(-0.09)),
+        Point2::new(iv(0.0), iv(0.09)),
+        iv(1.0),
+    );
+    let SketchSegment::Arc { a, b, .. } = meridian.restrict(iv(0.4), iv(0.404)) else {
+        panic!("restriction changed the segment kind");
+    };
+    lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan())
+}
+
+/// P2b: on the defect's own shape — a short sub-arc whose center is
+/// wide ([`short_sub_arc`]) — the anchored form is *strictly*
 /// tighter than the center-anchored form at every sample, not merely
 /// bounded. This is the claim "tighter wherever |s·θ| is small" with
 /// teeth: the row goes red if the improvement evaporates.
 #[test]
 fn p2b_on_a_short_sub_arc_the_anchored_form_is_strictly_tighter_everywhere() {
-    let meridian = SketchSegment::Arc {
-        a: Point2::new(iv(0.0), iv(-0.09)),
-        b: Point2::new(iv(0.0), iv(0.09)),
-        bulge: iv(1.0),
-    };
-    let sub = meridian.restrict(iv(0.4), iv(0.404));
+    let sub = short_sub_arc();
     for &s in &[0.0, 0.25, 0.5, 0.75, 1.0] {
         let new_w = point_width(sub.eval(iv(s)));
         let old_w = point_width(eval_center_anchored(&sub, iv(s)));
@@ -217,12 +229,7 @@ fn p2b_on_a_short_sub_arc_the_anchored_form_is_strictly_tighter_everywhere() {
 /// bound, at s = 1.
 #[test]
 fn p3_the_far_endpoint_of_a_short_sub_arc_evaluates_at_its_endpoints_scale() {
-    let meridian = SketchSegment::Arc {
-        a: Point2::new(iv(0.0), iv(-0.09)),
-        b: Point2::new(iv(0.0), iv(0.09)),
-        bulge: iv(1.0),
-    };
-    let sub = meridian.restrict(iv(0.4), iv(0.404));
+    let sub = short_sub_arc();
     let ew = endpoint_width(&sub);
     assert!(ew > 0.0, "FIXTURE: endpoints must carry width");
     let at_end = sub.eval(iv(1.0));
