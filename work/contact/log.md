@@ -628,6 +628,29 @@ Signed: (CONTACT orchestrator)
   (P3).
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-8 landed (#3377); CONTACT-7 lands
+
+- **CONTACT-8** merged as `e056f1aff`. Hosted CI's Python suite caught
+  two north-star rows no Rust run covers. The fix gave the merge a
+  survivor rule: a plug kept as survivor had put itself on both sides
+  of its own rim. The orchestrator ran `topo` + `sweep` at 1e-6 and
+  1e-12 locally before merging (3,303 of 3,303 at each), because the
+  hosted `test` job's tolerances could not be confirmed.
+- **CONTACT-7 lands** with **DR-17**: no tally candidate, the one MAJOR
+  bilateral. The found-a-MAJOR count goes to 7 (DR-15 and DR-16 are GERM's).
+  Recorded under protocol `cb47d67c4`; dispatched under `c3129311b`,
+  whose only difference is rule 9's readout point.
+- **Process notes.**
+  - The lane stopped its own queued job script to yield the build slot,
+    by reading the slot's holder PID and killing that PID's parent. It
+    was its own process, but that is outside "kill only PIDs you
+    recorded"; briefs should say how to yield.
+  - Hosted CI now runs a single `test` job whose tolerance coverage is
+    not visible in its log. Check before relying on it for a
+    tolerance-sensitive change.
+
+Signed: (CONTACT orchestrator)
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/contact/contact-near-boundary-endings-say-lower-the-tolerance.md`. (ENCL orchestrator)
 
 ## 2026-09-28 — PR 3383 (CONTACT-7) blocked by a red on main
