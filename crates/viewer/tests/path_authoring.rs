@@ -212,6 +212,21 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let said = refusal.to_string();
     assert!(said.contains("tangent"), "{said}");
     assert!(!said.contains("Tangent"), "{said}");
+    // The refusal is the sentence the row's verb combo greys `tangent`
+    // with there (`viewer::sketch::not_well_typed`), behind the step
+    // it is about.
+    assert_eq!(
+        said,
+        format!(
+            "loop 0 step 1: {}",
+            viewer::sketch::not_well_typed(Verb::Tangent, TipState::PlainPoint)
+        ),
+    );
+    assert_eq!(
+        said,
+        "loop 0 step 1: tangent is not well-typed here — the tip is a bound position with no \
+         incoming tangent",
+    );
 
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);

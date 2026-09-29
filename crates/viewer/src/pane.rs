@@ -121,22 +121,76 @@ pub(crate) mod headless {
         mut draw: impl FnMut(&mut egui::Ui),
     ) -> String {
         let ctx = egui::Context::default();
-        let delay = f64::from(ctx.global_style().interaction.tooltip_delay);
-        let run = |seconds: f64, events: Vec<egui::Event>, draw: &mut dyn FnMut(&mut egui::Ui)| {
-            let input = egui::RawInput {
-                time: Some(seconds),
-                events,
-                ..Default::default()
-            };
-            frame(&ctx, input, draw)
+        let laid_out = timed(&ctx, 0.0, Vec::new(), &mut draw);
+        rest_on(&ctx, &laid_out, target, nth, &mut draw)
+    }
+
+    /// [`painted_while_hovering`] inside what clicking `opener` opens —
+    /// for the words a choice in an open combo's list says only on
+    /// hover. The click lands on the first painting of `opener`, and
+    /// `target` is found in the frame after it, with the list open.
+    ///
+    /// Panics when `opener` was never painted, or `target` was
+    /// painted fewer than `nth + 1` times once it was clicked.
+    pub(crate) fn painted_while_hovering_opened(
+        opener: &str,
+        target: &str,
+        nth: usize,
+        mut draw: impl FnMut(&mut egui::Ui),
+    ) -> String {
+        let ctx = egui::Context::default();
+        let laid_out = timed(&ctx, 0.0, Vec::new(), &mut draw);
+        let at =
+            hit(&laid_out, opener, 0).unwrap_or_else(|| panic!("`{opener}` was never painted"));
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
         };
-        let laid_out = run(0.0, Vec::new(), &mut draw);
-        let at = hit(&laid_out, target, nth)
+        timed(
+            &ctx,
+            0.1,
+            vec![egui::Event::PointerMoved(at), press(true), press(false)],
+            &mut draw,
+        );
+        let opened = timed(&ctx, 0.2, Vec::new(), &mut draw);
+        rest_on(&ctx, &opened, target, nth, &mut draw)
+    }
+
+    /// One frame of `draw` on `ctx` at the clock reading `seconds`.
+    fn timed(
+        ctx: &egui::Context,
+        seconds: f64,
+        events: Vec<egui::Event>,
+        draw: &mut dyn FnMut(&mut egui::Ui),
+    ) -> Vec<Landed> {
+        let input = egui::RawInput {
+            time: Some(seconds),
+            events,
+            ..Default::default()
+        };
+        frame(ctx, input, draw)
+    }
+
+    /// The hover half of [`painted_while_hovering`]: move the pointer
+    /// onto the `nth` painting of `target` in `laid_out`, then rest it
+    /// there until well past egui's tooltip delay, and answer what the
+    /// last frame painted.
+    fn rest_on(
+        ctx: &egui::Context,
+        laid_out: &[Landed],
+        target: &str,
+        nth: usize,
+        draw: &mut dyn FnMut(&mut egui::Ui),
+    ) -> String {
+        let delay = f64::from(ctx.global_style().interaction.tooltip_delay);
+        let at = hit(laid_out, target, nth)
             .unwrap_or_else(|| panic!("`{target}` was painted fewer than {} times", nth + 1));
-        run(1.0, vec![egui::Event::PointerMoved(at)], &mut draw);
+        timed(ctx, 1.0, vec![egui::Event::PointerMoved(at)], draw);
         let mut rested = Vec::new();
         for rest in 1..=3 {
-            rested = run(1.0 + 2.0 * delay * f64::from(rest), Vec::new(), &mut draw);
+            rested = timed(ctx, 1.0 + 2.0 * delay * f64::from(rest), Vec::new(), draw);
         }
         rested
             .into_iter()

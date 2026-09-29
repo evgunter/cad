@@ -930,8 +930,10 @@ pub enum PreviewError {
 // vocabulary: the verb through `profile::Verb`'s own `Display` — the
 // same word the row's combo shows, so a verb cannot be picked under
 // one name and refused under another — and the state through
-// [`tip_state_words`]. `profile`'s `ReplayError` renders the same pair
-// as the table's COORDINATE and says there why that sentence differs.
+// [`tip_state_words`], in the sentence the form's pickers grey a
+// refused choice with ([`not_well_typed`]). `profile`'s `ReplayError`
+// renders the same pair as the table's COORDINATE and says there why
+// that sentence differs.
 impl core::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -945,8 +947,8 @@ impl core::fmt::Display for PreviewError {
             } => match verb {
                 Some(verb) => write!(
                     f,
-                    "loop {loop_} step {step}: {verb} is not well-typed there — the tip is {}",
-                    tip_state_words(*state)
+                    "loop {loop_} step {step}: {}",
+                    not_well_typed(verb, *state)
                 ),
                 None => write!(
                     f,
@@ -1263,9 +1265,9 @@ pub fn committed(
 /// `RadiusArrivalDir` — which is the right thing in a backtrace and
 /// the wrong thing in a tooltip: it names the state without saying
 /// what about the chain put it there. One home for the phrasing,
-/// because both places a reader meets a tip state (this module's
-/// refusal sentence and the form's greyed-out verbs) have to call the
-/// same state the same thing.
+/// because every place a reader meets a tip state (this module's
+/// refusal sentences and the form's greyed-out choices) has to call
+/// the same state the same thing.
 pub fn tip_state_words(state: TipState) -> &'static str {
     match state {
         TipState::Entry => "at the entry, before any verb",
@@ -1282,6 +1284,18 @@ pub fn tip_state_words(state: TipState) -> &'static str {
         TipState::ViaArrivalStart => "a via close awaiting its director",
         TipState::Closed => "a closed loop, which no verb may follow",
     }
+}
+
+/// **The sentence for a choice the tip refuses**: `choice` is not
+/// well-typed at `state`, in the author's words. The one composition
+/// of it — the preview's refusal of a written verb and every picker
+/// that greys a refused choice say it through this, so a choice cannot
+/// be refused in two phrasings.
+pub fn not_well_typed(choice: impl core::fmt::Display, state: TipState) -> String {
+    format!(
+        "{choice} is not well-typed here — the tip is {}",
+        tip_state_words(state)
+    )
 }
 
 /// **The lattice state the chain is in just before `steps[at]`** —
