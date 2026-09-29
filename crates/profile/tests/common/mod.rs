@@ -378,13 +378,15 @@ pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
 /// the arc's tangent line at `s` and along it in the arc's travel
 /// sense, and an arc side's run lies on the one circle tangent there
 /// that the side's spec also pins: its centre, its radius and side, or
-/// a point it passes through. The run's far end and its arc midpoint
-/// are each measured from that circle, never the run's own circle
-/// rebuilt from its chord — the point deviation production's
-/// `PendingRunOut::rides` reads too, and for the same reason: it rounds
-/// at ε·R whatever the run's length. Each is a distance in meters,
-/// compared against the run's escalation threshold Kε: a run on a
-/// definitely different carrier is past it.
+/// a point it passes through, and winds the way that circle's centre
+/// sits from the fillet arc. The run's far end, its apex and its two
+/// quarter points are measured from that circle, never the run's own
+/// circle rebuilt from its chord, and the largest of their misses is
+/// compared against the run's escalation threshold Kε — the point
+/// deviation production's `PendingRunOut::rides` decides, in the same
+/// convention (the apex is `seg::ChordFrame::apex`'s), and for the same
+/// reason: it rounds at ε·R whatever the run's length, and samples a
+/// quarter turn apart see a long arc whose ends alone look right.
 pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
     use profile::{ArcData, ArcSide, PieceRole, Segment, Step, Target};
     let tol = Tol::witness();
@@ -497,23 +499,34 @@ pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
                         panic!("{what}: a bulge spec with a {target:?} target authors no circle")
                     }
                 };
+                // A centre on the fillet arc's left winds the side's
+                // circle counter-clockwise in the arc's travel sense.
+                assert_eq!(
+                    sweep > 0.0,
+                    lambda > 0.0,
+                    "{what} but winds against its side's circle {spec:?} (λ = {lambda:e})"
+                );
                 let (cx, cy, radius) = (s.x + lambda * lx, s.y + lambda * ly, lambda.abs());
-                // The run's far end and its arc midpoint, each measured
-                // from that circle: a point deviation, which rounds at
-                // ε·R however short the run — the same measurement, in
-                // the same convention, as `PendingRunOut::rides`, the
-                // production test of which step a run out is named for.
+                let apex = |a: Point2<f64>, e: Point2<f64>, b: f64| {
+                    let (hx, hy) = ((e.x - a.x) / 2.0, (e.y - a.y) / 2.0);
+                    Point2::new(a.x + hx + hy * b, a.y + hy - hx * b)
+                };
                 let (a, e, bulge) = (verts[k], verts[(k + 1) % n], closed.loop_.bulges()[k]);
-                let (hx, hy) = ((e.x - a.x) / 2.0, (e.y - a.y) / 2.0);
-                let mid = Point2::new(a.x + hx + hy * bulge, a.y + hy - hx * bulge);
-                for (at, q) in [("end", other), ("midpoint", mid)] {
-                    let miss = (q.x - cx).hypot(q.y - cy) - radius;
-                    assert!(
-                        miss.abs() <= reach,
-                        "{what} but its {at} is {miss:e} off its side's circle {spec:?} \
-                         (Kε = {reach:e})"
-                    );
-                }
+                let mid = apex(a, e, bulge);
+                let quarter = bulge / (1.0 + (1.0 + bulge * bulge).sqrt());
+                let samples = [
+                    ("end", other),
+                    ("apex", mid),
+                    ("first quarter", apex(a, mid, quarter)),
+                    ("last quarter", apex(mid, e, quarter)),
+                ];
+                let misses = samples.map(|(at, q)| (at, (q.x - cx).hypot(q.y - cy) - radius));
+                let off = misses.iter().fold(0.0f64, |w, (_, m)| w.max(m.abs()));
+                assert!(
+                    off <= reach,
+                    "{what} but is {off:e} off its side's circle {spec:?} (Kε = {reach:e}): \
+                     {misses:?}"
+                );
             }
             (carrier, seg) => panic!(
                 "{what} but is {seg:?} while that side's carrier is {}",

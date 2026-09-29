@@ -2218,8 +2218,9 @@ enum ArrivalCarrier<T: Real> {
     /// straight continuation's miss is measured from the same point
     /// along the same direction here as where it was accepted.
     Ray { anchor: Point2<T>, dir: Dir<T> },
-    /// An authored arrival arc: its circle.
-    Circle(ArcData<T>),
+    /// An authored arrival arc: its circle, and the sense the arrival
+    /// travels it in.
+    Circle { arc: ArcData<T>, winding: ArcSweep },
 }
 
 /// A fillet whose run out may be the next emission: the step that
@@ -2237,38 +2238,25 @@ struct PendingRunOut<T: Real> {
 
 impl<T: Decide> PendingRunOut<T> {
     /// Whether the segment of `kind` from `from` to `to` with `bulge`
-    /// lies on this run's carrier: a straight segment whose end is on
-    /// the arrival ray — on its line and ahead of the chain head — or
-    /// an arc whose end and midpoint are on the arrival circle. The
-    /// segment's start is the chain head the fillet arc left on the
-    /// carrier, so the two points the test reads are the ones the
-    /// segment could still take off it.
+    /// lies on this run's carrier, continuing it from the chain head
+    /// `from`.
     ///
-    /// The ray's lateral margin is the end's displacement from the line
-    /// in meters — the number `on_ray_extent` classifies for a `to`
-    /// continuation, from the same anchor along the same direction, so
-    /// a target that continuation accepted rides here. Its advance
-    /// `dir·(to − from)` must be definitely positive: the ray is a
-    /// half-line, and a segment leaving the head backward along its
-    /// line is not on it.
+    /// A straight segment rides the ray when its end is on the ray's
+    /// line (the lateral miss `on_ray_extent` classifies, from the same
+    /// anchor) and its advance from the head is definitely positive.
+    /// An arc rides the circle when it leaves the head in the arrival's
+    /// sense and the largest of its end's, apex's and two quarter
+    /// points' radial misses is zero (the largest, not the sum: an
+    /// enclosure of a sum carries all four widths). With the head,
+    /// those are points at most a quarter turn apart on the arc's own
+    /// circle, so the test holds however long the arc; and each miss is
+    /// a point deviation, rounded at ε·R whatever the chord, where
+    /// rebuilding the arc's circle to compare as
+    /// [`carriers_are_identical`] does would round at ε·R²/chord.
     ///
-    /// The circle's margin is a POINT deviation — the sum of the end's
-    /// and the arc midpoint's radial misses — where
-    /// [`carriers_are_identical`] reads CARRIER identity, d + |Δr|
-    /// between two whole circles. Rebuilding this segment's circle from
-    /// its chord and bulge would cost ~ε·R²/chord in the centre, so a
-    /// short run genuinely on the circle would read as off it or as
-    /// undecidable; each point's miss is instead rounded at ε·R
-    /// whatever the chord. Three points on one circle fix it, and the
-    /// head is the third.
-    ///
-    /// Every margin is decided on the linear band under its own key,
-    /// because the question is which step a segment is named for, not
-    /// whether the chain is sound. An undecidable margin escalates
-    /// rather than guessing a name: a name is a durable locator an edit
-    /// later resolves, so a guess would silently move it to another
-    /// step's segment, which is exactly the failure the naming exists
-    /// to prevent.
+    /// Every margin is decided under `path_run_out_carrier` and an
+    /// undecidable one escalates: a name is a durable locator, so a
+    /// guess would silently move it to another step's segment.
     fn rides(
         &self,
         kind: FirstSeg,
@@ -2277,32 +2265,48 @@ impl<T: Decide> PendingRunOut<T> {
         bulge: T,
     ) -> Result<bool, PathError<T>> {
         let band = linear_band(self.tol)?;
-        let on = |margin: T| match decide("path_run_out_carrier", Margin::of(margin), band) {
+        let on = |margin: Margin<T>| match decide("path_run_out_carrier", margin, band) {
             Ok(sign) => Ok(sign),
             Err(source) => Err(PathError::Escalated { source }),
         };
         match (self.carrier, kind) {
             (ArrivalCarrier::Ray { anchor, dir }, FirstSeg::Line) => {
-                if on(dir.unit.perp_dot(to - anchor))? != Sign::Zero {
+                if on(Margin::of(dir.unit.perp_dot(to - anchor)))? != Sign::Zero {
                     return Ok(false);
                 }
-                Ok(on(dir.unit.dot(to - from))? == Sign::Positive)
+                Ok(on(Margin::of(dir.unit.dot(to - from)))? == Sign::Positive)
             }
-            (ArrivalCarrier::Circle(circle), FirstSeg::Arc) => {
-                // The arc's midpoint in `arc_carrier`'s convention:
-                // the sagitta `bulge·L/2` off the chord's midpoint,
-                // against the chord's left normal (a positive bulge
-                // winds counter-clockwise).
-                let half = T::from_f64(0.5);
-                let chord = to - from;
-                let mid = from + chord * half - Vec2::new(-chord.y, chord.x) * (bulge * half);
+            (ArrivalCarrier::Circle { arc, winding }, FirstSeg::Arc) => {
+                let frame = seg::ChordFrame::of(from, to);
+                // The arc leaves the head along its chord turned back by
+                // half its sweep θ = 4·atan(b); the carrier's tangent
+                // there, in the arrival's sense, must be that direction
+                // and not its reverse. A cosine of unit vectors, levered
+                // by the carrier's radius; a sagitta sign would read in
+                // the band for any short run.
+                let (sin, cos) = (T::from_f64(2.0) * bulge.atan()).sin_cos();
+                let u = frame.unit;
+                let leaves = Vec2::new(u.x * cos + u.y * sin, u.y * cos - u.x * sin);
+                let r = from - arc.center;
+                let ccw = seg::perp(r) / r.norm_squared().sqrt();
+                let ahead = match winding {
+                    ArcSweep::Ccw => ccw,
+                    ArcSweep::Cw => -ccw,
+                };
+                if on(Margin::levered(ahead.dot(leaves), arc.radius))? != Sign::Positive {
+                    return Ok(false);
+                }
+                let apex = frame.apex(bulge);
+                let quarter = seg::half_arc_bulge(bulge);
+                let q1 = seg::ChordFrame::of(from, apex).apex(quarter);
+                let q2 = seg::ChordFrame::of(apex, to).apex(quarter);
                 // A distance's square root inside the margin, as in
                 // `carriers_are_identical`: the miss is a length in
                 // meters, and the band is a length.
-                let miss = |p: Point2<T>| {
-                    ((p - circle.center).norm_squared().sqrt() - circle.radius).abs()
-                };
-                Ok(on(miss(to) + miss(mid))? == Sign::Zero)
+                let miss =
+                    |p: Point2<T>| ((p - arc.center).norm_squared().sqrt() - arc.radius).abs();
+                let off = miss(to).max(miss(apex)).max(miss(q1).max(miss(q2)));
+                Ok(on(Margin::of(off))? == Sign::Zero)
             }
             _ => Ok(false),
         }
@@ -2966,6 +2970,11 @@ fn seam_arrival_check<T: Decide>(
 /// a new tangent carrier constructed at the tip. Both outcomes are
 /// legal spellings, which is what deletes the old mismatched-r hole
 /// structurally: every authored `r` names a sound construction.
+///
+/// It compares two WHOLE circles. [`PendingRunOut::rides`] asks
+/// whether a segment lies on a circle, and measures its points'
+/// deviations instead: a circle rebuilt from a short chord carries
+/// ~ε·R²/chord in its centre.
 fn carriers_are_identical<T: Decide>(
     a: &ArcData<T>,
     b: &ArcData<T>,
@@ -4069,9 +4078,10 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// **Sibling measurement, cross-declared** (R1 S1): this,
     /// [`tangent_arc_geom`](Self::tangent_arc_geom) and
     /// [`PendingRunOut::rides`]'s ray arm compute the SAME displacement
-    /// — `d = target − at`, `across = û⊥·d` (and here and in the
-    /// tangent arc, `along = û·d`), then a banded decision — under
-    /// three different predicate keys.
+    /// — `d = target − at`, `across = û⊥·d` (and `along = û·d` here
+    /// and in the tangent arc; `rides` measures its advance from the
+    /// chain head instead, `û·(to − head)`), then a banded decision —
+    /// under three different predicate keys.
     ///
     /// They are kept separate deliberately rather than shared, because
     /// the keys are the point: this site classifies `across` as a
@@ -4335,10 +4345,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// carrier is the incoming circle itself.
     ///
     /// **Sibling measurement, cross-declared** (R1 S1): the
-    /// `d`/`along`/`across`/decide opening here is the same four lines
-    /// [`on_ray_extent`](Self::on_ray_extent) computes, under a
-    /// different predicate key. See that function for why the two are
-    /// kept apart rather than shared.
+    /// `d`/`along`/`across`/decide opening here is the same
+    /// displacement [`on_ray_extent`](Self::on_ray_extent) and
+    /// [`PendingRunOut::rides`]'s ray arm compute, each under its own
+    /// predicate key. See `on_ray_extent` for why the three are kept
+    /// apart rather than shared.
     fn tangent_arc_geom(&self, p: Point2<T>, tol: Tol) -> Result<TangentArcGeom<T>, PathError<T>> {
         let (at, ang) = self.dep()?;
         let d = p - at;
@@ -5582,10 +5593,14 @@ mod tests {
         // quarter from (1, 0) to (0, 1) rides it (bulge tan(π/8)); the
         // half-disc arc between the same two points is on the circle of
         // radius √2/2 about (0.5, 0.5).
-        let circle = ArrivalCarrier::Circle(ArcData {
+        let unit = ArcData {
             center: Point2::new(0.0, 0.0),
             radius: 1.0,
-        });
+        };
+        let circle = ArrivalCarrier::Circle {
+            arc: unit,
+            winding: ArcSweep::Ccw,
+        };
         let quarter = (core::f64::consts::PI / 8.0).tan();
         assert_eq!(named(circle, Point2::new(0.0, 1.0), quarter), run_out);
         assert_eq!(named(circle, Point2::new(0.0, 1.0), 1.0), own_leg);
@@ -5601,6 +5616,54 @@ mod tests {
                 "a {chord:e} m chord along the arrival circle"
             );
         }
+
+        // An arc on the circle running backward from the head does not
+        // ride it: the run continues the arrival's sense.
+        let back = -0.1f64;
+        assert_eq!(
+            named(
+                circle,
+                Point2::new(back.cos(), back.sin()),
+                (back / 4.0).tan()
+            ),
+            own_leg,
+            "an arc on the arrival circle, against its sense"
+        );
+
+        // A major arc off the circle: its end nearly on the head, 0.8ε
+        // outside the circle, and its midpoint on the circle. Those two
+        // points and the head fix a circle that leaves the carrier by
+        // ~R/chord · 0.8ε between them, which only a sample within a
+        // quarter turn of each sees.
+        let cw = ArrivalCarrier::Circle {
+            arc: unit,
+            winding: ArcSweep::Cw,
+        };
+        let phi = 2.0 * (0.5e-3f64).asin();
+        let out = 1.0 + 0.8 * tol.eps();
+        let to = Point2::new(out * phi.cos(), out * phi.sin());
+        let mid_miss = |b: f64| {
+            let (hx, hy) = ((to.x - head.x) / 2.0, (to.y - head.y) / 2.0);
+            (head.x + hx + hy * b).hypot(head.y + hy - hx * b) - 1.0
+        };
+        let (mut lo, mut hi) = (-8000.0f64, -2000.0f64);
+        assert!(
+            mid_miss(lo).signum() != mid_miss(hi).signum(),
+            "the bracket holds the bulge whose midpoint is on the circle"
+        );
+        for _ in 0..200 {
+            let m = 0.5 * (lo + hi);
+            if mid_miss(m).signum() == mid_miss(lo).signum() {
+                lo = m;
+            } else {
+                hi = m;
+            }
+        }
+        assert_ne!(
+            named(cw, to, 0.5 * (lo + hi)),
+            run_out,
+            "a major arc whose end and midpoint are on the circle but which is not"
+        );
 
         // A segment of the other kind never rides, whatever its ends.
         assert_eq!(named(ray, Point2::new(0.0, 1.0), quarter), own_leg);

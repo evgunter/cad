@@ -227,15 +227,18 @@ fn line_arc_internal_validates_with_declared_tangency() {
 /// fused verb's run out — spans a chord of about `2·turn` meters. However
 /// short, that arc lies on the arrival circle, so it builds and is named
 /// the fillet step's `RunOut`; the fused `fillet_arc` has no `Leg` to
-/// name it instead. Each turn is floored at 10ε: a chord under ε is a
-/// tangent seam at that ε and refuses as one, not a run out.
+/// name it instead. Below a turn of about ε/2 the corner refuses as a
+/// tangent seam, and inside the band it escalates on
+/// `path_junction_turn`, so each turn is floored at Kε.
 #[test]
 fn a_short_closing_run_out_on_the_arrival_circle_is_named_the_run_out() {
     use profile::{Piece, PieceRole};
     let t2 = line_arc_internal(0.5).expect("the fillet fits").vertices()[3];
     let past_t2 = t2.y.atan2(t2.x);
-    let floor = 10.0 * tol().eps();
-    for turn in [1e-7_f64, 3e-8, 1e-8].map(|t| t.max(floor)) {
+    let floor = tol().k() * tol().eps();
+    let mut turns = [1e-7_f64, 3e-8, 1e-8].map(|t| t.max(floor)).to_vec();
+    turns.dedup();
+    for turn in turns {
         let entry = Point2::new(2.0 * (past_t2 + turn).cos(), 2.0 * (past_t2 + turn).sin());
         let closed = Open
             .at(entry)
