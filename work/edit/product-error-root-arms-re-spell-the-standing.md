@@ -5,7 +5,7 @@ title: ProductError's three root arms re-spell the node standing instead of carr
 status: open
 opened: 2026-09-29
 priority: P4
-cost: S
+cost: E
 rides_with: C6
 ---
 
