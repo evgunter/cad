@@ -1,7 +1,9 @@
 //! **`Node::Transform` holds a `Placement`** — a chain of rigid steps
-//! and literal frames (`docs/EDIT-PLACEMENT-SPEC.md` P1; ASSEMBLY A11
+//! and literal frames (`crates/editor-core/ASSEMBLY.md` A11
 //! (2)). Each row names the claim it keeps; the corpus's bit identity
 //! is `edit_placement_corpus_bits`.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 use crate::wire::doctored;

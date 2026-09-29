@@ -1,4 +1,8 @@
-//! Cluster placement frames (ASSEMBLY-DESIGN A11; ASM-2A D-2).
+//! Placement: the literal [`Frame`], and the [`Placement`] chain a
+//! `Node::Transform` holds (ASSEMBLY-DESIGN A11 (2)) — rigid steps of
+//! expressions and literal frames.
+//!
+//! # Cluster placement frames (ASSEMBLY-DESIGN A11; ASM-2A D-2)
 //!
 //! A11 puts placement on the **cluster**, never on the instance: a
 //! placement cluster is a connected component of the instance–mate
@@ -555,12 +559,17 @@ impl Placement {
 
     /// **The rigid motion this placement denotes, at `env`** — every
     /// rigid step's expressions evaluated through the evaluation
-    /// layer's own slot door, then [`Placement::motion`].
+    /// layer's own expression door, then the one construction the
+    /// transform node's evaluation reads too: a rigid step by the
+    /// transform construction over its axis decided under the
+    /// transform's role word, a matrix step by [`Frame::affine`], the
+    /// chain folded left to right with no identity seeded.
     ///
     /// # Errors
     ///
     /// [`NodeErrorKind::Expr`] naming the first slot that does not
-    /// evaluate, then whatever [`Placement::motion`] refuses.
+    /// evaluate, and the direction door's own refusal for an axis of
+    /// no definite direction.
     pub fn eval<T: Decide>(
         &self,
         env: &ParamEnv<T>,
@@ -575,22 +584,17 @@ impl Placement {
         self.motion(&vals, band)
     }
 
-    /// **The one construction of a placement's motion**, from its
-    /// slots already evaluated — what the transform node's evaluation
-    /// reads, having evaluated every node's slots through one door, and
-    /// what [`Placement::eval`] reads after evaluating them itself.
-    ///
-    /// A rigid step is [`crate::eval::transform_map`] over its axis
-    /// decided under [`crate::eval::TRANSFORM_AXIS_ROLE`]; a matrix
-    /// step is its frame's [`Frame::affine`]. The chain folds left to
-    /// right with no identity seeded, so a one-step chain is its step's
-    /// map unmultiplied.
+    /// **The one construction of a placement's motion** ([`Placement::eval`]
+    /// states it), from its slots already evaluated — what the
+    /// transform node's evaluation reads, having evaluated every node's
+    /// slots through one door, and what [`Placement::eval`] reads after
+    /// evaluating them itself. No identity is seeded into the fold, so
+    /// a one-step chain is its step's map unmultiplied.
     ///
     /// # Errors
     ///
     /// [`NodeErrorKind::MissingSlot`] when a rigid step's slot is not
-    /// among `vals`, and the direction door's own refusal for an axis
-    /// of no definite direction.
+    /// among `vals`, and the direction door's own refusal.
     pub(crate) fn motion<T: Decide>(
         &self,
         vals: &SlotValues<T>,
@@ -629,7 +633,8 @@ impl Placement {
 mod tests {
     //! [`Frame`]'s exactness rule, at the stored-arrays-to-geometry
     //! doors — which the eval-level tests exercise only through whole
-    //! documents.
+    //! documents — and [`Placement`]'s, at its one-step chains.
+    #![allow(clippy::expect_used)]
 
     use super::*;
 
@@ -854,6 +859,59 @@ mod tests {
                 !f.bit_eq(&Frame::IDENTITY),
                 "fixture {name} IS the identity"
             );
+        }
+    }
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).expect("the witness tolerance forms a band")
+    }
+
+    fn motion_bits(a: &Affine3<f64>) -> Vec<u64> {
+        [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
+            .iter()
+            .flat_map(|c| [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()])
+            .collect()
+    }
+
+    /// Keeps [`Placement::literal`]'s claim: a one-step literal
+    /// evaluates to its frame bit for bit — the `-0.0`s of [`sample`]
+    /// included, which any arithmetic on the way would turn to `+0.0`.
+    #[test]
+    fn a_one_step_literal_is_its_frame_bit_for_bit() {
+        for f in [sample(), other()] {
+            let motion = Placement::literal(&f)
+                .eval::<f64>(&ParamEnv::default(), band())
+                .expect("a literal evaluates");
+            assert!(Frame::from_affine(motion).bit_eq(&f));
+        }
+    }
+
+    /// Keeps [`Placement::eval`]'s claim for a one-step rigid chain: it
+    /// is the transform construction itself, bit for bit. A zero angle
+    /// puts `-0.0` in the rotation, and the translation carries one,
+    /// so an identity multiplied in anywhere moves a bit.
+    #[test]
+    fn a_one_step_rigid_is_the_transform_construction_bit_for_bit() {
+        use crate::test_support::{ang, len, scl};
+        for (t, axis, angle) in [
+            ([-0.0, 2.0, 0.1], [0.0, 0.0, 1.0], 0.0),
+            ([1.0, -0.0, 3.0], [1.0, 2.0, -3.0], 0.7),
+        ] {
+            let placement = Placement::rigid(t.map(len), axis.map(scl), ang(angle));
+            let got = placement
+                .eval::<f64>(&ParamEnv::default(), band())
+                .expect("a rigid step evaluates");
+            let want = crate::eval::transform_map(
+                Vec3::new(t[0], t[1], t[2]),
+                crate::eval::unit_direction(
+                    Vec3::new(axis[0], axis[1], axis[2]),
+                    crate::eval::TRANSFORM_AXIS_ROLE,
+                    band(),
+                )
+                .expect("a definite axis"),
+                angle,
+            );
+            assert_eq!(motion_bits(&got), motion_bits(&want), "axis {axis:?}");
         }
     }
 }
