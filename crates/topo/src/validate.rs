@@ -2433,7 +2433,14 @@ fn classify_offset_fit(
         | O::NonFiniteSample { .. }
         | O::WindowUnsupported { .. }
         | O::Elevation(_) => ("its stored fit is not well-formed", DEFECT),
-        O::Band(b) => (classify_band(b), TOLERANCE),
+        // The body was checked at a valid tolerance whose derived band
+        // failed anyway, so `classify_band`'s repairs (thresholds that
+        // are not finite and positive) are not this arm's: what every
+        // arm `Band::linear` returns means is a tolerance at an extreme.
+        O::Band(_) => (
+            "the tolerance is too extreme for the fit's ambiguity band to form",
+            "Recourse: check the body at a less extreme tolerance",
+        ),
     };
     (why, recourse.into())
 }
