@@ -2997,8 +2997,137 @@ fn every_check_finding_renders_within_the_budget() {
     }
 }
 
+/// **The checks window's escalated evidence ends in the decision that
+/// escalated** (D4 ¶1 (i)). The shell-role sign passes on either
+/// definite sign and its margin is a thickness, so every band-decided
+/// arm ends in its lever plus the tolerance that decides it, valued at
+/// `|m|/K` where the verdict carries a margin and without a value where
+/// it does not (a zero, a straddle); an enclosure across zero is passed
+/// by no tolerance and names the lever alone. A source that is not that decision's
+/// ends in its own payload's recourse and no invented lever. No row the
+/// window writes itself advises lowering the tolerance.
+#[test]
+fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
+    use editor_core::{CheckEvidence, CheckFinding, CheckId};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+    use topo::{ShellClassifyError as S, ShellKey};
+    const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
+    let shell = ShellKey::default();
+    // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
+    let band = Band::new(1e-9, 1e-8).expect("a band");
+    let escalated = |margin| S::Escalated {
+        shell,
+        source: Indeterminate {
+            margin,
+            band,
+            predicate: Some("chk_shell_volume_sign"),
+        },
+    };
+    let render = |source| {
+        CheckFinding {
+            check: CheckId::Connectedness,
+            root: RecipeNodeId(4),
+            output_ix: 0,
+            evidence: CheckEvidence::Escalated { source },
+        }
+        .to_string()
+    };
+    let head = "check connectedness: root 4 output 0: the component count is unknowable: ";
+    let in_band = |m: &str| {
+        format!(
+            "{head}predicate 'chk_shell_volume_sign' indeterminate: margin {m} lies inside the \
+             ambiguity band (1e-9, 1e-8). "
+        )
+    };
+    let pinned = [
+        (
+            "in band, outer side",
+            escalated(MarginDiag::Value(5e-9)),
+            format!(
+                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
+                in_band("5e-9")
+            ),
+        ),
+        (
+            "in band, void side",
+            escalated(MarginDiag::Value(-2e-9)),
+            format!(
+                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
+                in_band("-2e-9")
+            ),
+        ),
+        (
+            "in band, bracket across zero",
+            escalated(MarginDiag::Enclosure {
+                lo: -2e-9,
+                hi: 3e-9,
+            }),
+            format!(
+                "{head}predicate 'chk_shell_volume_sign' indeterminate: enclosure [-2e-9, 3e-9] \
+                 cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
+            ),
+        ),
+        (
+            "invalid margin",
+            escalated(MarginDiag::Invalid),
+            format!(
+                "{head}predicate 'chk_shell_volume_sign' indeterminate: margin is invalid (NaN \
+                 or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
+                 unreadable or collapsed margin may indicate a kernel bug worth reporting"
+            ),
+        ),
+        (
+            "zero",
+            S::ZeroVolume { shell },
+            format!(
+                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
+                 this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
+                 tolerance"
+            ),
+        ),
+        (
+            "straddle",
+            S::Straddles { shell },
+            format!(
+                "{head}a shell's certified volume bracket straddles zero at this tolerance. \
+                 {LEVER}, or, if this thickness is intended, tighten the tolerance"
+            ),
+        ),
+    ];
+    for (name, source, want) in pinned {
+        let text = render(source.clone());
+        assert_eq!(text, want, "{name}");
+        // The payload's own Display ends in the same one ending.
+        let ending = source.ending().expect("the shell-role decision's refusal");
+        assert!(text.ends_with(&ending), "{name}: {text}");
+        let whole = source.to_string();
+        assert!(whole.ends_with(&format!(". {ending}")), "{name}: {whole}");
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&whole),
+            1,
+            "{name}: {whole}"
+        );
+    }
+    // A band failure is the run's configuration, not the shell-role
+    // decision: the finding forwards its payload and adds no lever.
+    let error = payloads::band_error();
+    let unowned = render(S::Band { error });
+    assert!(unowned.ends_with(&error.to_string()), "{unowned}");
+    assert!(!unowned.contains("thicken"), "{unowned}");
+    for (name, finding) in &check_findings() {
+        let text = finding.to_string();
+        // The separation arm forwards the Boolean's own sentence, whose
+        // coincidence ending is `geom_core::COINCIDENCE_RECOURSE`'s to
+        // repair (work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md).
+        if !name.starts_with("SeparationUnavailable/") {
+            assert!(!text.contains("lower"), "{name}: {text}");
+        }
+    }
+}
+
 fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use editor_core::{CheckEvidence as E, CheckFinding, CheckId};
+    use geom_core::{Indeterminate, MarginDiag};
     use payloads::*;
     use topo::{
         BooleanError, CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey,
@@ -3056,6 +3185,30 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 CheckId::Connectedness,
                 E::Escalated {
                     source: ShellClassifyError::ZeroVolume { shell },
+                },
+            ),
+        ),
+        (
+            "Escalated(straddle)",
+            finding(
+                CheckId::Connectedness,
+                E::Escalated {
+                    source: ShellClassifyError::Straddles { shell },
+                },
+            ),
+        ),
+        (
+            "Escalated(invalid margin)",
+            finding(
+                CheckId::Connectedness,
+                E::Escalated {
+                    source: ShellClassifyError::Escalated {
+                        shell,
+                        source: Indeterminate {
+                            margin: MarginDiag::Invalid,
+                            ..diag()
+                        },
+                    },
                 },
             ),
         ),
