@@ -410,29 +410,21 @@ pub fn boolean_op_with<
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    // The curved ∖/∩ front door, NARROWED FROM WHOLESALE TO PER-CLASS
-    // (M5 S12; C12.1 — retire per class, never wholesale; M5 S13
-    // retires the SPHERE row).
-    //
-    // It used to refuse on ANY non-plane face, because both ops route
-    // regions through `revert` (A∖B ≡ A∩revert(B), the §15.9 posture)
-    // and `revert` was planar-only. That premise is gone: S10 ratified
-    // `Face::sense`, S11 made the incoming bits honest, S12 wired the
-    // flip — so `Cylinder` operands go all the way through, and since
-    // M5 S13 `Sphere` operands do too: the (Plane, Sphere) germ arm is
-    // wired (the exact C5 Circle) and the no-crossings fallback is
-    // extent-certified with a re-cut, so the sphere class's failure
-    // mode is typed, not silent.
-    //
-    // What is NOT retired is the classes with no seam lane behind them.
-    // `Cone`/`Torus` germ pairs have no join arm for ∖ or ∩ (PR 9c
-    // deviation 1 lineage) and NURBS faces have no crossing layer
-    // (deviation 5). Behind this door the no-crossings fallback is
-    // guarded per class: the sphere is extent-certified, and every
-    // torus, cylinder and cone pair is section-certified or refused
-    // typed there (`section_extent_pass`) — so a union, which the torus
-    // does reach, is never answered by the vertex probe across a face
-    // pair it could not see into.
+    // The curved ∖/∩ front door, per class (C12.1 — retire per class,
+    // never wholesale). Both ops route regions through `revert`
+    // (A∖B ≡ A∩revert(B), the §15.9 posture), which is kind-generic:
+    // `Face::sense` carries the flip on every carrier. The roster
+    // (`reduce::revert_arm_exists`) is ∪'s (`boolean_arm_exists`) minus
+    // `Nurbs`. A kind on it has a crossing layer whose every door is
+    // certified or typed, and a no-crossings path that certifies its
+    // reach or refuses — the sphere's extent by `sphere_extent_scan`
+    // and its re-cut, then every pair with a curved face by
+    // `section_extent_pass` — with `interior_loop_verdict` guarding the crossings path, so no
+    // face pair of the kind is answered by a vertex probe that could
+    // not see into it. `Nurbs` is on ∪'s roster for its plane×NURBS
+    // germ arm, but has no edge×NURBS-face crossing layer (deviation 5),
+    // so ∖ and ∩ have no seam lane for it; `Cone` has no arm under any
+    // op.
     //
     // Up front and PAIR-SCOPED: the kinds are read exactly, and the
     // question of whether a kind can matter to this operation is
@@ -445,7 +437,7 @@ pub fn boolean_op_with<
     // supplies the VERDICT a germ arm would have supplied. This roster
     // is not about verdicts: it names the kinds that have a seam lane
     // to revert through, and no declaration can supply one. A declared
-    // torus pair under ∖ or ∩ is therefore exactly as refused as an
+    // pair of a kind off this roster is exactly as refused as an
     // undeclared one, and says so at the same site.
     if !matches!(op, BooleanOp::Union) {
         let band = Band::linear(tol)?;

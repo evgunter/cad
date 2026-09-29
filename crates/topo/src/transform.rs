@@ -612,10 +612,11 @@ pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane + crate::prop
 
     // GeomSource hygiene (N6, M4 PR 5): this op rewrites every
     // description's bits without recipe context, so the cloned source
-    // records' same-source ⇒ same-bits claim would become FALSE here.
+    // records' same-source ⇒ same-bits claim would become FALSE here,
+    // and every axis row would name an axis this map just moved.
     // Clear them all; the recipe layer re-stamps composed sources
-    // (`GeomSource::placed`) right after the op — it, not this
-    // kernel-level map, knows the placing node's identity.
+    // (`GeomSource::placed`, `AxisSource::placed`) right after the op —
+    // it, not this kernel-level map, knows the placing node's identity.
     out.clear_geom_sources();
 
     // Points and surfaces first — edge re-certification below reads

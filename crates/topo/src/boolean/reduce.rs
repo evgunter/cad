@@ -198,7 +198,10 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
 pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
     matches!(
         surface,
-        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+        geom::Surface::Plane { .. }
+            | geom::Surface::Cylinder { .. }
+            | geom::Surface::Sphere { .. }
+            | geom::Surface::Torus { .. }
     )
 }
 

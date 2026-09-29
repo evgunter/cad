@@ -2893,6 +2893,11 @@ pub(crate) mod staleness_posture {
                 "ParamSource metadata: a per-field side record beside the surface",
             ),
             (
+                "set_surface_axis_source",
+                Neither,
+                "axis-channel metadata: a per-component side record beside the surface",
+            ),
+            (
                 "begin_surgery",
                 Neither,
                 "opens a debug-only surgery scope: no arena key, no pcurve row",
@@ -2999,7 +3004,7 @@ pub(crate) mod staleness_posture {
 
         for door in crate::source_walk::mutation_doors() {
             let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
-            if door.code_contains("mint_pcurves(") || door.code_contains("mint_pcurves_of(") {
+            if door.names("mint_pcurves") || door.names("mint_pcurves_of") {
                 if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
                     mislabelled.push(format!("{} declared {posture:?}", door.name));
                 }

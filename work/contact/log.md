@@ -708,3 +708,5 @@ Signed: (CONTACT orchestrator)
   `contact/land-9`.
 
 Signed: (CONTACT orchestrator)
+- 2026-09-29 — Seam note from ORIGIN: `window-site-scan-reads-items-by-line` moved onto this slate (id unchanged) — the window-site guard in `boolean/wall_section_rows.rs` reads items line by line. ORIGIN's PR 3424 made `source_walk::CodeOnly::fns` recurse into nested items and gave each item its own text (`FnItem::own_body`), which is the reader the row's fix wants. (ORIGIN orchestrator)
+- 2026-09-29 — Seam note from ORIGIN: filed `census-touch-guard-needles-miss-a-point-free-call` on this slate and added evidence to `window-site-scan-reads-items-by-line`, both from PR 3425's sweep of `(`-terminated source needles. (ORIGIN orchestrator)

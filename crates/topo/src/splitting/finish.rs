@@ -964,13 +964,9 @@ pub(crate) fn carve<T: Decide>(
         .collect();
     for k in orphan_surfaces {
         body.surfaces.remove(k);
-        // The side tables are parallel to the arena, so a raw removal
-        // has to reach them (`Body::remove_surface_if_orphaned`'s rule,
-        // which these three sweeps are the batch spelling of; the
-        // hygiene argument is at `crate::GeomOrigin`). Pinned from the
-        // split door in `sweep`'s `seat6_germ_channel`.
-        body.surface_origins.remove(k);
-        body.surface_field_sources.remove(k);
+        // A raw removal has to reach the side tables (pinned from the
+        // split door in `sweep`'s `seat6_germ_channel`).
+        body.drop_surface_rows(k);
     }
     Ok(body)
 }
