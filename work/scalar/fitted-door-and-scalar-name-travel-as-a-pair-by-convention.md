@@ -9,7 +9,6 @@ opened: 2026-09-25
 closed: 2026-09-29
 priority: P4
 cost: M
-design: true
 ---
 
 

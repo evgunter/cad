@@ -1952,3 +1952,19 @@ scheduled.
   PROPS `invalid-margin-display-calls-a-refused-enclosure-poisoned`
   (P4).
 - **Still in flight:** SCALAR-NAME.
+
+**2026-09-29 — SCALAR-NAME landed** (#3461, `80e3fd442c`).
+- **What landed:** `Real::NAME` is now the one name source, and
+  `scalar_name()` and `editor_core::lane::Lane` are deleted.
+- **What the fix pass took, from a single review with no MAJOR:**
+  - the derive-path refusal text, now pinned at `Dual64`;
+  - the replay lists, now built from `Real::NAME`, with their membership
+    pinned against the policy, Probe included.
+- **Merging main:** I resolved a conflict with TOPO's `mint_face`
+  refactor, checked it locally, and CI was green on the merged head.
+- **Reversed LIB-G17:** deleting `Lane` undoes LIB-G17's choice.
+  `Lane::end` was `Bounds::lo`/`hi` under another name, so the bracket
+  reads are now visible to the bounds census, each with its reason.
+- **Tracker:** WIRE's `two-scalar-name-rosters` is closed with it, and
+  the fitted-door row's `design` flag is cleared, since the question
+  is decided.
