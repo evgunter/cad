@@ -443,7 +443,10 @@ fn error_display_is_actionable() {
 
     let e = err(&near_tangent_hole(tol().eps()));
     let msg = e.to_string();
-    assert!(msg.contains("carrier_circles_internal"), "{msg}");
+    assert!(
+        format!("{e:?}").contains("carrier_circles_internal"),
+        "{e:?}"
+    );
     assert!(msg.contains("ambiguity band"), "{msg}");
     assert_eq!(
         msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),

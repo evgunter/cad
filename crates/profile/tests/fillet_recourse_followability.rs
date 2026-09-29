@@ -394,9 +394,11 @@ fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
             },
         };
         carries_its_own_recourse(&err, sentence, predicate);
+        // The routed sentence names the gate in words; the predicate's
+        // own name is routing, carried on the typed refusal.
         assert!(
-            err.to_string().contains(predicate),
-            "the refusal names the gate that could not be classified: {err}"
+            !err.to_string().contains(predicate),
+            "the refusal names the gate in words, not by its routing name: {err}"
         );
     }
 }

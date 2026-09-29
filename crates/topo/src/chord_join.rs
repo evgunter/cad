@@ -2866,11 +2866,17 @@ mod tests {
             panic!("expected the in-band neighbour, got {escalated:?}");
         };
         assert_eq!(diag.predicate, Some("split_arc_window"));
+        // The sentence says what was too close to call, in words.
+        assert!(
+            escalated
+                .to_string()
+                .contains("where a section runs across a face is too close to call"),
+            "{escalated}"
+        );
 
         for msg in [definite.to_string(), escalated.to_string()] {
             assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
             assert!(!msg.contains("declare"), "{msg}");
-            assert!(msg.contains("split_arc_window"), "{msg}");
             assert!(msg.contains("1e-9") && msg.contains("1e-8"), "{msg}");
         }
         // The sub-case that classified nothing must NOT carry the

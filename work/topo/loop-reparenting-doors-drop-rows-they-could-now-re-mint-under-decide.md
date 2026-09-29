@@ -4,6 +4,8 @@ kind: issue
 title: kfmrh, mfkrh, ring_move, mef's run and kef drop a moved loop's rows onto a minted analytic face where the Decide mint-site walk could now re-mint that face
 status: open
 opened: 2026-09-24
+priority: P2
+cost: D
 ---
 
 

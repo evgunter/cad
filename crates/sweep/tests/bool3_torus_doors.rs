@@ -538,7 +538,7 @@ fn an_uncertain_root_count_escalates_naming_its_predicate() {
         "the escalation is a shell about the tangency circle, not the whole body"
     );
     assert!(
-        format!("{diag}").contains("bool_ray_torus_disc"),
+        format!("{diag:?}").contains("bool_ray_torus_disc"),
         "the refusal must name the predicate that could not certify the count"
     );
     // And the door recovers at the probe offset the rest of the suite

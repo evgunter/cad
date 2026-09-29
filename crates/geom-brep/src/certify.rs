@@ -476,7 +476,7 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the stored parameter interval runs backwards — increasing parameter must \
-                 run start → end of he_plus (the ratified vertices-derive-bounds convention)"
+                 run from the edge's start vertex to its end vertex"
             ),
             Self::WindingExceeded => write!(
                 f,
@@ -4367,8 +4367,8 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        let payload = "the start-endpoint residual at sample 0 escalated: predicate 'a_probe' \
-                       indeterminate: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8)";
+        let payload = "the start-endpoint residual at sample 0 escalated: margin 5e-9 lies \
+                       inside the ambiguity band (1e-9, 1e-8)";
         // `Display` is the payload; the door's reading supplies the end.
         assert_eq!(escalated.to_string(), payload);
         assert_eq!(
