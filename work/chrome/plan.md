@@ -251,22 +251,34 @@ the 30-point ceiling, in two families and the class behind the second.
 **Wave 4 LANDED 2026-09-23** — PRs 3100, 3101 and 3108;
 `work/chrome/log.md` has the record.
 
-**After Wave 4 (19 points).** Next, in order:
-- `messages-in-the-creation-and-properties-panes-still-draw-past-their-row`
-  (P0), `create.rs` half. It waits only on AUTH-4 (#3052) leaving
-  `pane/create.rs`. `add_part_ui`'s window owes a `default_width`.
-- The concision row (P0) closes when its named check can be made: the
-  unowned `props.rs` and `certify.rs` residue.
-- `at-rest-badge-reports-an-empty-document-as-a-refusal` and the
-  subset-policy class, once `session.rs` and `session/refuse.rs` leave
-  the live PRs.
+**Waves 5 and 6 LANDED 2026-09-29**: PRs 3135, 3140, 3447, 3450 and
+3457. Both P0 rows are closed, and `work/chrome/log.md` has the
+record.
 
-**Held back, and why.**
-`at-rest-badge-reports-an-empty-document-as-a-refusal` is the next row
-and did not go this wave: its whole subject is `session.rs`, which is
-live in two open PRs. That is the same reason it was held last wave, and
-it is a scheduling fact, not a fence — it goes the moment 3052 and 2960
-land.
+**After Wave 6 (22 of 30 points).** Next, in order:
+- `viewer-panels-disagree-on-a-poisoned-node` (P1). The tree
+  re-attributes a cluster-refused node; properties and appearance
+  must read the same answer.
+- `a-driven-slots-field-draws-its-expression-source-at-any-width` (P2).
+  This is the wrap-floor class, one field left.
+- `escalations-forwarded-whole-are-untriaged-for-a-declarations-object`
+  (P2 M). It is triage now that each door has a subject table.
+- After those, the P3s by ground:
+  - `display-reads-an-instance-off-one-node-kind`;
+  - `a-hover-diff-counts-the-index-builds-progress-label`;
+  - `culling-is-load-bearing-with-no-pixel-test`.
+
+**On Ev:**
+- `a-long-cascades-maintenance-crowds-the-status-line`: options (a)–(d)
+  were asked in chat.
+- `cluster-maintenance-acts-reach-the-outcome-but-not-the-line`: worded
+  or silent.
+
+**Needs a design pass before any dispatch:**
+- `kernel-refusals-say-node-where-the-tree-says-feature`
+- `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`
+- `failed-row-repair-links-for-arms-with-two-candidate-repairs`
+- `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`
 
 **The board's in-flight column is a claim, not a fact** — see
 `work/chrome/log.md`, 2026-09-22. A row is marked `dispatched` here only
