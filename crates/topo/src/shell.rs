@@ -402,24 +402,6 @@ pub enum ShellError<T: Real> {
         /// The wall the two offsets would need, `2t`.
         needed: T,
     },
-    /// A chart is worn by faces of two different SOLIDS. A chart moves
-    /// as one and the door that moves it is its solid's, so such a
-    /// chart has neither a single door nor a single corner problem.
-    ///
-    /// **Reachable through public doors**, so this is a refusal rather
-    /// than an assertion of the impossible: a [`crate::subtract`] whose
-    /// cut DISCONNECTS its operand leaves the two components under one
-    /// solid still wearing the operand's own surface keys — a slab cut
-    /// in half keeps one plane key across both halves — and
-    /// [`crate::Body::move_shells_to_new_solid`] then files them as two
-    /// solids. The result is a valid body this verb cannot thicken
-    /// chart by chart, and it says so naming the pair.
-    ChartSpansSolids {
-        /// The chart's first face, in face-arena order.
-        face: FaceKey,
-        /// A face of the same chart on a different solid.
-        other: FaceKey,
-    },
     /// A chart worn by several faces has faces with DIFFERENT
     /// orientation bits, so "inward" is not one direction for it. The
     /// group door moves a chart as one; a mixed-sense chart has no
@@ -591,11 +573,6 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "two faces face each other across {gap:?} m of material and the two walls \
                  need {needed:?} m, so the cavity would self-intersect. Recourse: use a \
                  thinner wall"
-            ),
-            Self::ChartSpansSolids { .. } => write!(
-                f,
-                "two faces on one chart lie on different solids, so the chart cannot move \
-                 as one"
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -1018,20 +995,12 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         );
     }
 
-    // ---- Decide: every chart has ONE orientation, and ONE solid. ----
+    // ---- Decide: every chart has ONE orientation. ----
     //
-    // A chart moves as one, and the door that moves it is its solid's,
-    // so a chart worn by faces of two solids has no single door and no
-    // single corner problem. The state is reachable — a disconnecting
-    // subtract leaves both components wearing one surface key, and the
-    // ownership door can file them as two solids — so the second gate
-    // is a refusal, not an assertion.
+    // A chart moves as one, and the door that moves it is its solid's.
+    // That a chart has one solid is the body's own invariant (tier 1's
+    // chart pass), so only the orientation is decided here.
     let charts = chart_groups(body);
-    let chart_solid = |group: &[FaceKey]| -> Result<SolidKey, ShellError<T>> {
-        partition.solid_of(group[0]).ok_or(ShellError::Corrupt {
-            key: EntityId::Face(group[0]),
-        })
-    };
     for group in &charts {
         let sense = |f: FaceKey| -> Result<bool, ShellError<T>> {
             Ok(body
@@ -1042,16 +1011,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 .sense)
         };
         let first = sense(group[0])?;
-        let home = chart_solid(group)?;
         for &member in &group[1..] {
             if sense(member)? != first {
                 return Err(ShellError::ChartSenseMixed {
-                    face: group[0],
-                    other: member,
-                });
-            }
-            if partition.solid_of(member) != Some(home) {
-                return Err(ShellError::ChartSpansSolids {
                     face: group[0],
                     other: member,
                 });

@@ -680,12 +680,15 @@ fn r2_e2e_consumer_seat() {
     let _ = a_solid;
 }
 
-/// **Is `ChartSpansSolids` reachable through public doors?** A
-/// disconnecting subtract files both components under ONE solid; if
-/// their fragments share a surface key, `Body::move_shells_to_new_solid`
-/// (public) yields a two-solid body whose chart spans both.
+/// **A chart lives in one solid, and the mover keeps it.** A
+/// disconnecting subtract files both components under ONE solid, the
+/// fragments of each cut operand face sharing their operand's surface
+/// key; `Body::move_shells_to_new_solid` re-mints every chart the
+/// moved shell shares with the stayer, so the two solids wear disjoint
+/// charts, each copy carries its original's origin row, and the shell
+/// door thickens the pair chart by chart.
 #[test]
-fn r2_chart_spans_solids_through_subtract_then_move_shells() {
+fn r2_move_shells_to_new_solid_remints_the_charts_it_splits() {
     let slab = brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let wall = brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&slab, &wall, tol()) else {
@@ -693,36 +696,79 @@ fn r2_chart_spans_solids_through_subtract_then_move_shells() {
     };
     let mut body = b.body;
     let shells: Vec<topo::ShellKey> = body.shells().map(|(k, _)| k).collect();
-    assert_eq!(shells.len(), 2);
-    let mut shared_across_shells = 0usize;
-    for (fa, a) in body.faces() {
-        for (fb, bb) in body.faces() {
-            if fa < fb && a.surface == bb.surface && a.shell != bb.shell {
-                shared_across_shells += 1;
+    assert_eq!(shells.len(), 2, "the subtract files two shells");
+    assert_eq!(body.solids().count(), 1, "under one solid");
+    let sharing = |body: &Body<f64>, split: &dyn Fn(FaceKey, FaceKey) -> bool| {
+        let mut pairs = Vec::new();
+        for (fa, a) in body.faces() {
+            for (fb, bb) in body.faces() {
+                if fa < fb && a.surface == bb.surface && split(fa, fb) {
+                    pairs.push((fa, fb));
+                }
             }
         }
-    }
-    println!(
-        "[r2] split slab: face pairs on different shells sharing a surface key = {shared_across_shells}"
-    );
-    let minted = body
-        .move_shells_to_new_solid(&[shells[1]])
+        pairs
+    };
+    let across_shells = sharing(&body, &|fa, fb| {
+        body.get_face(fa).unwrap().shell != body.get_face(fb).unwrap().shell
+    });
+    // The top, bottom, front and back planes each cut in two.
+    assert_eq!(across_shells.len(), 4, "shared charts across the shells");
+    let charts_before: Vec<topo::SurfaceKey> = body.surfaces().map(|(k, _)| k).collect();
+
+    body.move_shells_to_new_solid(&[shells[1]])
         .expect("one component moves to its own solid");
-    println!(
-        "[r2] after move_shells_to_new_solid: solids={} minted={minted:?} tier3={:?}",
-        body.solids().count(),
-        topo::validate_geometric(&body, tol())
+
+    assert_eq!(body.solids().count(), 2);
+    let across_solids = sharing(&body, &|fa, fb| {
+        solid_of(&body, fa) != solid_of(&body, fb)
+    });
+    assert_eq!(across_solids, vec![], "no chart spans the two solids");
+    assert_eq!(
+        body.surfaces().count(),
+        charts_before.len() + across_shells.len(),
+        "one copy per shared chart"
     );
-    match topo::shell(&body, 0.05, tol()) {
-        Ok(s) => println!(
-            "[r2] the split slab as two solids BUILDS: solids={} volume={} want={}",
-            s.body.solids().count(),
-            volume(&s.body),
-            2.0 * (2.5 - 2.4 * 0.9 * 0.9)
-        ),
-        Err(e) => {
-            println!("[r2] the split slab as two solids refuses: {e}");
-            assert!(matches!(e, ShellError::ChartSpansSolids { .. }), "{e}");
-        }
+    // A moved edge's description names its own faces' charts: the
+    // re-point reached the curves, not just the faces.
+    let copies: Vec<topo::SurfaceKey> = body
+        .surfaces()
+        .map(|(k, _)| k)
+        .filter(|k| !charts_before.contains(k))
+        .collect();
+    let repointed = body
+        .edges()
+        .filter(|(_, e)| {
+            let curve = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+            match curve.description() {
+                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => {
+                    copies.contains(s1) || copies.contains(s2)
+                }
+                geom_brep::EdgeDescription::Chart(c) => copies.contains(&c.surface),
+                _ => false,
+            }
+        })
+        .count();
+    assert!(repointed > 0, "moved edges name the copied charts");
+    for &(fa, fb) in &across_shells {
+        let (a, b) = (body.get_face(fa).unwrap(), body.get_face(fb).unwrap());
+        assert_ne!(a.surface, b.surface, "the pair wears two charts now");
+        assert_eq!(
+            body.surface_origin(a.surface),
+            body.surface_origin(b.surface),
+            "the copy carries its original's origin row"
+        );
     }
+    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
+
+    let shelled = topo::shell(&body, 0.05, tol()).expect("the split slab as two solids shells");
+    let props = topo::mass_properties(&shelled.body, tol()).unwrap();
+    let want = 2.0 * (2.5 - 2.4 * 0.9 * 0.9);
+    assert_eq!(shelled.body.solids().count(), 2);
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "volume {} want {want}",
+        props.volume
+    );
+    assert_eq!(topo::validate_geometric(&shelled.body, tol()), Ok(()));
 }

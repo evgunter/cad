@@ -25,7 +25,14 @@
 use geom_core::Decide;
 
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey, Solid, SolidKey};
+use geom_brep::EdgeDescription;
+use slotmap::SecondaryMap;
+
+use crate::entity::{
+    EdgeKey, EntityId, FaceKey, GeomRef, LoopBoundary, Shell, ShellKey, Solid, SolidKey,
+};
+use crate::geometry::{CurveKey, SurfaceKey};
+use crate::null::CurveGeom;
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
@@ -197,17 +204,36 @@ impl<T: Decide> Body<T> {
     /// **new solid** and returns it. Not an Euler operator: it
     /// re-partitions ownership, like [`Body::movefac`] one level up.
     /// The moved shells keep their keys and their faces; what changes
-    /// is their `solid` back-pointer and the two solids' shell lists.
+    /// is their `solid` back-pointer, the two solids' shell lists, and
+    /// the charts the moved faces share with faces staying behind.
+    ///
+    /// **A chart lives in one solid** (a [`Body`] invariant, tier 1's
+    /// pass 14), so a surface key worn both by a moved face and by a
+    /// face staying behind is **re-minted**: the moved faces wear a
+    /// bitwise copy, the stayers keep the original. The copy carries
+    /// its source's [`crate::GeomOrigin`] row and per-field
+    /// `ParamSource` rows verbatim — a copy is the same description,
+    /// so a recipe source seen on it is the same source. A moved
+    /// edge's curve description that names a re-minted chart is
+    /// re-pointed at the copy (handles only, certificate verbatim, as
+    /// a disjoint graft carries it); a curve a staying edge also wears
+    /// is copied first, with its origin row. Pcurve caches are per
+    /// half-edge and name no chart, so they ride along untouched.
     ///
     /// **Determinism (D9)**: the new solid's shell list is `shells` in
     /// the order given; the source solid keeps its remaining shells in
     /// their relative order. **Minting order** (exact): the one solid,
-    /// recorded as [`Provenance::MoveShells`] naming the source — nothing
-    /// else is minted or killed.
+    /// recorded as [`Provenance::MoveShells`] naming the source; then
+    /// one surface copy per shared chart, in order of first wear
+    /// walking `shells` in the order given and each shell's face list;
+    /// then one curve copy per shared curve a moved edge re-points, in
+    /// edge-arena order. Nothing is killed.
     ///
     /// Tier-1 preservation: shells move **whole**, so every edge's two
     /// faces stay in one shell and every shell's complex is untouched;
-    /// both solids keep at least one shell (pass 9's floor).
+    /// both solids keep at least one shell (pass 9's floor); every
+    /// original chart and curve keeps a wearer on the stayers' side and
+    /// every copy has one on the moved side (pass 8).
     ///
     /// **Ownership, not material coherence.** Nothing here reads which
     /// shell is an outer boundary and which a cavity: moving a lone
@@ -276,6 +302,8 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::SolidWouldEmpty { solid: source });
         }
 
+        let plan = self.plan_chart_remint(shells)?;
+
         // ---- Mutation (infallible from here on). ----
         let new_solid = self.add_solid(
             Solid {
@@ -283,6 +311,7 @@ impl<T: Decide> Body<T> {
             },
             Provenance::MoveShells { solid: source },
         );
+        self.remint_charts(&plan);
         for &shell in shells {
             let Some(shell_data) = self.get_shell_mut(shell) else {
                 unreachable!(
@@ -310,6 +339,171 @@ impl<T: Decide> Body<T> {
             "move_shells_to_new_solid",
         );
         Ok(new_solid)
+    }
+}
+
+/// What [`Body::move_shells_to_new_solid`] re-mints so that a chart
+/// lives in one solid, planned read-only before any mutation.
+#[derive(Default)]
+struct ChartRemint {
+    /// Charts a moved face shares with a staying face, in minting
+    /// order (first wear, walking the moved shells as named).
+    surfaces: Vec<SurfaceKey>,
+    /// The moved faces wearing one of `surfaces`.
+    faces: Vec<FaceKey>,
+    /// Moved edges whose curve description names one of `surfaces`,
+    /// in edge-arena order.
+    edges: Vec<EdgeKey>,
+    /// Curves of `edges` a staying edge also wears: these are copied,
+    /// the rest re-pointed in place.
+    shared_curves: SecondaryMap<CurveKey, ()>,
+}
+
+/// The chart keys an edge description names.
+fn named_charts<T: geom_core::Real>(description: &EdgeDescription<T>) -> [Option<SurfaceKey>; 2] {
+    match description {
+        EdgeDescription::Intersection { s1, s2, .. }
+        | EdgeDescription::TangentIntersection { s1, s2, .. } => [Some(*s1), Some(*s2)],
+        EdgeDescription::Chart(chart) => [Some(chart.surface), None],
+        EdgeDescription::Scaffold(_) => [None, None],
+    }
+}
+
+impl<T: Decide> Body<T> {
+    /// The read-only half of the re-mint: which charts, faces, edges
+    /// and curves a move of `shells` touches. `shells` are live and
+    /// listed (the caller's plan phase established it).
+    fn plan_chart_remint(&self, shells: &[ShellKey]) -> Result<ChartRemint, EulerOpError> {
+        let mut staying: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
+        for (_, face) in self.faces.iter() {
+            if !shells.contains(&face.shell) {
+                staying.insert(face.surface, ());
+            }
+        }
+        let mut plan = ChartRemint::default();
+        let mut shared: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
+        for &shell in shells {
+            let listed = self.get_shell(shell).ok_or(EulerOpError::StaleKey {
+                key: EntityId::Shell(shell),
+            })?;
+            for &face in &listed.faces {
+                let surface = self
+                    .get_face(face)
+                    .ok_or(EulerOpError::StaleKey {
+                        key: EntityId::Face(face),
+                    })?
+                    .surface;
+                if !staying.contains_key(surface) {
+                    continue;
+                }
+                if shared.insert(surface, ()).is_none() {
+                    plan.surfaces.push(surface);
+                }
+                plan.faces.push(face);
+            }
+        }
+        if plan.surfaces.is_empty() {
+            return Ok(plan);
+        }
+        let mut staying_curves: SecondaryMap<CurveKey, ()> = SecondaryMap::new();
+        for (edge_key, edge) in self.edges.iter() {
+            let face = self
+                .face_of_half_edge(edge.he_plus)
+                .and_then(|face| self.get_face(face))
+                .ok_or(EulerOpError::StaleKey {
+                    key: EntityId::HalfEdge(edge.he_plus),
+                })?;
+            if !shells.contains(&face.shell) {
+                staying_curves.insert(edge.curve, ());
+                continue;
+            }
+            let curve = self
+                .curves
+                .get(edge.curve)
+                .ok_or(EulerOpError::StaleGeometry {
+                    key: GeomRef::Curve(edge.curve),
+                })?;
+            let CurveGeom::Certified(curve) = curve else {
+                continue; // null scaffolding names no chart
+            };
+            if named_charts(curve.description())
+                .into_iter()
+                .flatten()
+                .any(|k| shared.contains_key(k))
+            {
+                plan.edges.push(edge_key);
+            }
+        }
+        for &edge in &plan.edges {
+            let curve = self.edges[edge].curve;
+            if staying_curves.contains_key(curve) {
+                plan.shared_curves.insert(curve, ());
+            }
+        }
+        Ok(plan)
+    }
+
+    /// The mutating half of the re-mint (infallible: `plan` was read
+    /// off this body, and nothing has been killed since).
+    fn remint_charts(&mut self, plan: &ChartRemint) {
+        let mut copies: SecondaryMap<SurfaceKey, SurfaceKey> = SecondaryMap::new();
+        for &surface in &plan.surfaces {
+            let (Some(description), Some(origin)) = (
+                self.surfaces.get(surface).cloned(),
+                self.surface_origins.get(surface).cloned(),
+            ) else {
+                unreachable!(
+                    "chart re-mint: {surface:?} is worn by a live face and the origin map is \
+                     total over live keys (kernel bug)"
+                )
+            };
+            let fields = self.surface_field_sources.get(surface).cloned();
+            let copy = self.add_surface(description);
+            self.surface_origins.insert(copy, origin);
+            if let Some(fields) = fields {
+                self.surface_field_sources.insert(copy, fields);
+            }
+            copies.insert(surface, copy);
+        }
+        for &face in &plan.faces {
+            let Some(data) = self.faces.get_mut(face) else {
+                unreachable!("chart re-mint: {face:?} resolved in the plan phase")
+            };
+            let Some(&copy) = copies.get(data.surface) else {
+                unreachable!("chart re-mint: the plan lists {face:?} for a chart it copies")
+            };
+            data.surface = copy;
+        }
+        let mut curve_copies: SecondaryMap<CurveKey, CurveKey> = SecondaryMap::new();
+        for &edge in &plan.edges {
+            let curve = self.edges[edge].curve;
+            if let Some(&copy) = curve_copies.get(curve) {
+                self.edges[edge].curve = copy;
+                continue;
+            }
+            let Some(CurveGeom::Certified(certified)) = self.curves.get(curve) else {
+                unreachable!("chart re-mint: the plan lists {edge:?} for a certified curve")
+            };
+            let Some(repointed) =
+                certified.with_remapped_surfaces(|k| Some(copies.get(k).copied().unwrap_or(k)))
+            else {
+                unreachable!("chart re-mint: the remap answers every key")
+            };
+            if plan.shared_curves.contains_key(curve) {
+                let Some(origin) = self.curve_origins.get(curve).cloned() else {
+                    unreachable!(
+                        "chart re-mint: {curve:?} is live and the origin map is total over \
+                         live keys (kernel bug)"
+                    )
+                };
+                let copy = self.add_curve(repointed);
+                self.curve_origins.insert(copy, origin);
+                curve_copies.insert(curve, copy);
+                self.edges[edge].curve = copy;
+            } else {
+                self.curves[curve] = CurveGeom::Certified(repointed);
+            }
+        }
     }
 }
 

@@ -1591,7 +1591,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OperandOuterShells { .. } => "operand_outer_shells",
         ShellError::Partition { .. } => "partition",
         ShellError::WallClearance { .. } => "wall_clearance",
-        ShellError::ChartSpansSolids { .. } => "chart_spans_solids",
         ShellError::ChartSenseMixed { .. } => "chart_sense_mixed",
         ShellError::Face { .. } => "face",
         ShellError::OpenFaceStale { .. } => "open_face_stale",
@@ -2803,6 +2802,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::NullScaffoldShared { .. } => "null_scaffold_shared",
         ValidationError::LeakedNullFaceRecord { .. } => "leaked_null_face_record",
         ValidationError::StaleNullFaceLoop { .. } => "stale_null_face_loop",
+        ValidationError::ChartSpansSolids { .. } => "chart_spans_solids",
         ValidationError::NullEdgeAtRest { .. } => "null_edge_at_rest",
         ValidationError::NullFaceAtRest { .. } => "null_face_at_rest",
     }

@@ -5268,7 +5268,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "chart_sense_mixed",
-            "chart_spans_solids",
             "corrupt",
             "escalated",
             "face",
@@ -5582,6 +5581,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "census_lane_unsupported",
             "census_undecidable",
             "census_unsupported",
+            "chart_spans_solids",
             "component_euler_violation",
             "contact_contradicted",
             "curved_sense_inverted",

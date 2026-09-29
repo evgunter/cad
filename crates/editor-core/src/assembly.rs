@@ -1434,6 +1434,7 @@ fn attribute(
         | ValidationError::NullScaffoldShared { .. }
         | ValidationError::LeakedNullFaceRecord { .. }
         | ValidationError::StaleNullFaceLoop { .. }
+        | ValidationError::ChartSpansSolids { .. }
         | ValidationError::NullEdgeAtRest { .. }
         | ValidationError::NullFaceAtRest { .. } => Attribution::Unattributed,
     }

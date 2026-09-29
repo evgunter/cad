@@ -156,6 +156,13 @@
 //!     minimal and referential-only — attribute semantics are the
 //!     surgery ops' contract, and tier 2 bans null entities at rest
 //!     outright (see `crate::null`).
+//! 14. **A chart lives in one solid.** Every face wearing one surface
+//!     key belongs to one solid
+//!     ([`ValidationError::ChartSpansSolids`]): a chart moves with its
+//!     solid, so a door that re-homes faces into a new solid mints it
+//!     its own charts ([`crate::Body::move_shells_to_new_solid`]).
+//!     The solid is read through the ownership partition, as pass 10
+//!     reads the shell, so a wrong back-pointer does not echo here.
 //!
 //! The harness is deliberately a plain function plus an error enum,
 //! **not a trait**: there is exactly one notion of body validity per
@@ -342,7 +349,7 @@
 //!
 //! # Deterministic report order (D9)
 //!
-//! Errors arrive in a fixed, documented order — twelve tier-1 passes,
+//! Errors arrive in a fixed, documented order — the tier-1 passes,
 //! each walking its arenas in slot-index order, checking an entity's
 //! references in field-declaration order:
 //!
@@ -366,7 +373,11 @@
 //!     face in **face-arena order** (no hashing anywhere — D9);
 //! 12. provenance: missing records (entities in arena order, kinds in
 //!     the pass-1 order solids → … → vertices), then leaked records
-//!     (`SecondaryMap` entries in slot order, same kind order).
+//!     (`SecondaryMap` entries in slot order, same kind order);
+//! 13. null-entity coherence: shared null-scaffold curves (curve-arena
+//!     order), then null-face records (record slot order);
+//! 14. charts across solids, one report per chart, in the face-arena
+//!     order of the chart's second solid's first face.
 //!
 //! [`validate_closed`] appends the tier-2 failures after all tier-1
 //! errors, in this order: empty loops (loop-arena order), valence-1
@@ -391,7 +402,7 @@ use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
 use crate::contact::{ContactRefusal, DeclaredContact};
 use crate::face_normal::plane_outward_normal;
-use crate::geometry::CurveKey;
+use crate::geometry::{CurveKey, SurfaceKey};
 use crate::null::CurveGeom;
 use crate::props::AtRestOutcome;
 
@@ -1869,6 +1880,19 @@ pub enum ValidationError {
         /// The named loop key that no longer resolves.
         named_loop: LoopKey,
     },
+    /// **Tier 1, pass 14.** A chart (one surface key) is worn by faces
+    /// of two different solids. A chart lives in one solid: every door
+    /// that puts faces under a new solid mints that solid its own
+    /// charts, so a chart moves with its solid and nothing else.
+    /// Reported once per chart.
+    ChartSpansSolids {
+        /// The chart.
+        surface: SurfaceKey,
+        /// The chart's first face, in face-arena order.
+        face: FaceKey,
+        /// The first face of the same chart on a different solid.
+        other: FaceKey,
+    },
     /// **Tier 2 (M3 PR 1).** A null edge at rest: the edge's curve
     /// entry is `crate::CurveGeom::NullScaffold` — mid-surgery
     /// scaffolding (ch. 14/15 splitting/boolean transients) that must
@@ -3122,6 +3146,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a construction record on face {face:?} names loop {named_loop:?}, which \
                  no longer exists. {DEFECT}"
+            ),
+            Self::ChartSpansSolids { face, other, .. } => write!(
+                f,
+                "faces {face:?} and {other:?} share one surface but lie on different solids. \
+                 {DEFECT}"
             ),
             Self::NullEdgeAtRest { edge } => write!(
                 f,
@@ -8449,6 +8478,35 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                     named_loop,
                 });
             }
+        }
+    }
+
+    // Pass 14: a chart lives in one solid. One face-arena walk; the
+    // solid is read through the ownership partition (exactly one owner
+    // at each step — anything else was reported in pass 1 or 7).
+    let mut chart_home: SecondaryMap<SurfaceKey, (FaceKey, SolidKey)> = SecondaryMap::new();
+    let mut chart_reported: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
+    for (face_key, face) in body.faces.iter() {
+        let Some((1, shell)) = face_owners.get(face_key).copied() else {
+            continue;
+        };
+        let Some((1, solid)) = shell_owners.get(shell).copied() else {
+            continue;
+        };
+        match chart_home.get(face.surface).copied() {
+            None => {
+                chart_home.insert(face.surface, (face_key, solid));
+            }
+            Some((first, home)) if home != solid => {
+                if chart_reported.insert(face.surface, ()).is_none() {
+                    errors.push(ValidationError::ChartSpansSolids {
+                        surface: face.surface,
+                        face: first,
+                        other: face_key,
+                    });
+                }
+            }
+            Some(_) => {}
         }
     }
 

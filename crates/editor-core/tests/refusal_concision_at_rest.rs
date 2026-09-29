@@ -83,6 +83,7 @@ const KERNEL_KEYED: &[&str] = &[
     "NullScaffoldShared",
     "LeakedNullFaceRecord",
     "StaleNullFaceLoop",
+    "ChartSpansSolids",
     "NullEdgeAtRest",
     "NullFaceAtRest",
 ];

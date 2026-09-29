@@ -2824,7 +2824,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 needed: 0.002,
             },
         ),
-        ("ChartSpansSolids", S::ChartSpansSolids { face, other }),
         ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
         (
             "Face",
