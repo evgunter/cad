@@ -19,7 +19,8 @@
 //! across one chart, dropped across two. The last two headings row the
 //! one tie between two keys the doors read (a shared payload `Arc`) and
 //! the stamp door whose assertion keeps a recipe stamp to one
-//! description.
+//! description; the first of them also rows the new face's `sense`,
+//! which `mef` and `mfkrh` inherit on the same answer.
 //!
 //! The fixture is a minted cylinder-wall sheet split at mid-height into
 //! two curved faces, with the sheet's other side put on a PLANE: three
@@ -1709,6 +1710,82 @@ fn mef_carries_the_runs_rows_across_one_payload() {
             .unwrap();
         let want = if tied { (2, 1) } else { (0, 3) };
         assert_eq!(rows_of(&s.body, made.face), want, "tied: {tied}");
+    }
+}
+
+fn sense_of(body: &Body<f64>, face: FaceKey) -> bool {
+    body.get_face(face).unwrap().sense
+}
+
+/// A spec read off the fixture's body and its three keys.
+type Spec = fn(&Body<f64>, &[topo::SurfaceKey; 3]) -> FaceSurface<f64>;
+
+/// `New` holding `key`'s own payload `Arc`.
+fn new_on_payload_of(body: &Body<f64>, key: topo::SurfaceKey) -> FaceSurface<f64> {
+    match body.get_surface(key) {
+        Some(Surface::Nurbs(x)) => FaceSurface::New(Surface::Nurbs(x.clone())),
+        _ => panic!("every face was put on the patch"),
+    }
+}
+
+/// **A face minted on the parent's chart takes the parent's `sense`.**
+/// The lower panel is reversed, then split by `mef` (half-minted, as
+/// above) with each spec. Where the rows say the fragment is on the
+/// parent's chart — its own key, or a second key sharing its payload
+/// `Arc` — the bit says so too; everywhere else the mint's `true`
+/// stands.
+#[test]
+fn mef_onto_the_parents_chart_inherits_its_sense() {
+    let cases: [(&str, bool, Spec, bool); 5] = [
+        ("Shared(own key)", true, |_, k| FaceSurface::Shared(k[0]), false),
+        ("Shared(one payload)", true, |_, k| FaceSurface::Shared(k[2]), false),
+        ("Shared(deep copy)", false, |_, k| FaceSurface::Shared(k[2]), true),
+        ("New(own payload)", true, |b, k| new_on_payload_of(b, k[0]), false),
+        ("New(another patch)", true, |_, _| FaceSurface::New(Surface::Nurbs(patch())), true),
+    ];
+    for (name, tied, spec, want) in cases {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body.set_face_sense(s.low, false).unwrap();
+        let (a, c) = (at(U0, V0), at(U1, VM));
+        let (he1, he2) = (he_at(&s.body, s.low, a), he_at(&s.body, s.low, c));
+        assert!(s.body.detach_pcurve(he_at(&s.body, s.low, at(U0, VM))).is_some());
+        let spec = spec(&s.body, &keys);
+        let made = s
+            .body
+            .mef(
+                MefSite::Chords { he1, he2 },
+                EdgeCurveSpec::line_between(a, c),
+                spec,
+                tol(),
+            )
+            .unwrap();
+        assert_eq!(sense_of(&s.body, made.face), want, "mef {name}: new face");
+        assert!(!sense_of(&s.body, s.low), "mef {name}: the parent keeps its bit");
+    }
+}
+
+/// The same through `mfkrh`: the ring `kfmrh` demoted into the reversed
+/// lower panel is promoted back onto each spec.
+#[test]
+fn mfkrh_onto_the_parents_chart_inherits_its_sense() {
+    let cases: [(&str, bool, Spec, bool); 5] = [
+        ("Shared(own key)", true, |_, k| FaceSurface::Shared(k[0]), false),
+        ("Shared(one payload)", true, |_, k| FaceSurface::Shared(k[2]), false),
+        ("Shared(deep copy)", false, |_, k| FaceSurface::Shared(k[2]), true),
+        ("New(own payload)", true, |b, k| new_on_payload_of(b, k[0]), false),
+        ("New(another patch)", true, |_, _| FaceSurface::New(Surface::Nurbs(patch())), true),
+    ];
+    for (name, tied, spec, want) in cases {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body
+            .set_face_surface(s.up, FaceSurface::Shared(keys[0]))
+            .unwrap();
+        s.body.kfmrh(s.low, s.up).unwrap();
+        s.body.set_face_sense(s.low, false).unwrap();
+        let ring = ring_of(&s.body, s.low);
+        let spec = spec(&s.body, &keys);
+        let made = s.body.mfkrh(ring, spec).unwrap();
+        assert_eq!(sense_of(&s.body, made.face), want, "mfkrh {name}: new face");
     }
 }
 
