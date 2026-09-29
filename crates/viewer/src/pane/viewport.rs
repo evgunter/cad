@@ -50,20 +50,19 @@ fn push_segment(
 
 /// **One drawn loop, placed on its plane and appended to a lane.**
 ///
-/// A CLOSED loop's segment list wraps — the last point joins the
-/// first, which is the same thing `ProfileLoop` means by being closed
-/// by construction. An OPEN one's must not: the leg back to the start
-/// is the provisional close `sketch::preview` walked the chain under
-/// and nobody authored, so the wrap is dropped and what is drawn is the
-/// authored legs exactly. That is the whole of "a path draws while it
-/// is still being written".
+/// A loop that closes ([`sketch::LoopEnd::closes`]) wraps — the last
+/// point joins the first, which is the same thing `ProfileLoop` means
+/// by being closed by construction. One that does not must not: the
+/// leg back to the start is the provisional close `sketch::preview`
+/// walked the chain under and nobody authored, so the wrap is dropped
+/// and what is drawn is the authored legs exactly.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
     let points = &polyline.points;
-    let segments = if polyline.closes() {
+    let segments = if polyline.end.closes() {
         points.len()
     } else {
         points.len().saturating_sub(1)
@@ -96,12 +95,12 @@ fn push_loop(
 /// second derivation of a direction is a second thing to get wrong.
 ///
 /// **A refused loop's tip is a cross instead** ([`sketch::LoopEnd::Refused`]),
-/// on the diagonals of the heading it arrived on, with no arrowhead:
-/// the chain goes nowhere from there, because the step that would have
-/// taken it on is the one refused. An unfinished chain's tip keeps its
-/// arrowhead — it goes on from there as soon as the next step is
-/// written — so the two ends a reader must tell apart are drawn
-/// apart.
+/// on the diagonals of the heading there, with no arrowhead: the chain
+/// goes nowhere from there, because the step that would have taken it
+/// on is the one refused. The tip is the last vertex drawn, or the
+/// start where the drawn steps close. An unfinished chain's tip keeps
+/// its arrowhead — it goes on from there as soon as the next step is
+/// written — so the two ends a reader must tell apart are drawn apart.
 fn push_preview(
     lane: &mut marks::LegLane,
     drawn: &sketch::ProfilePreview,
@@ -111,12 +110,14 @@ fn push_preview(
     for polyline in &drawn.loops {
         let points = &polyline.points;
         push_loop(lane, &plane, polyline);
-        let refused_tip = polyline
-            .refusal()
-            .and_then(|_| polyline.vertices.last().copied());
+        let refused_tip = match &polyline.end {
+            sketch::LoopEnd::Refused { closes: true, .. } => polyline.vertices.first().copied(),
+            sketch::LoopEnd::Refused { closes: false, .. } => polyline.vertices.last().copied(),
+            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished => None,
+        };
         for &at in &polyline.vertices {
             let here = points[at];
-            let Some([dx, dy]) = heading(points, at, polyline.closes()) else {
+            let Some([dx, dy]) = heading(points, at, polyline.end.closes()) else {
                 continue;
             };
             let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
@@ -2252,15 +2253,10 @@ mod tests {
             .any(|[p, q]| near(*p, a) && near(*q, b) || near(*p, b) && near(*q, a))
     }
 
-    /// Two legs to `(0.01, 0.01)`, arriving along `+y`, then `tail`.
+    /// `test_support::two_legs` from the origin, to [`TIP`] arriving
+    /// along `+y`, then `tail`.
     fn chain(tail: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
-        use pncad::geom_core::Point2;
-        use pncad::profile::{Step, Target};
-        let mut steps = vec![
-            Step::At(Point2::new(0.0, 0.0)),
-            Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
-            Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
-        ];
+        let mut steps = crate::test_support::two_legs(0.0, 0.0);
         steps.extend(tail);
         sketch::preview(
             pncad::profile::SketchPlane::xy(),
@@ -2277,21 +2273,21 @@ mod tests {
     /// **A step the author picked that refuses still leaves the chain
     /// before it on screen, with a cross where it stops.** The
     /// `arc_fillet_arc` the form hands an author who picks that verb
-    /// at this tip is refused on arrival (Ev's report); what is
-    /// painted is the two legs before it, not the provisional close
-    /// back to the start, and at the tip a cross on the heading's
-    /// diagonals with no arrowhead.
+    /// at this tip is refused on arrival; what is painted is the two
+    /// legs before it, not the provisional close back to the start,
+    /// and at the tip a cross on the heading's diagonals with no
+    /// arrowhead.
     ///
-    /// Red if the refused loop draws nothing (`sketch::preview` an
-    /// `Err` again: the `expect` panics), if it draws its provisional
-    /// close, or if its tip is marked like any other vertex.
+    /// Red if the refused loop draws nothing (the `expect` panics), if
+    /// it draws its provisional close, or if its tip is marked like any
+    /// other vertex.
     #[test]
     fn a_refused_step_paints_the_chain_before_it_and_a_cross_at_its_tip() {
         use pncad::profile::{Step, Target, TipState, Verb};
         let picked = sketch::fresh_step_at(Verb::ArcFilletArc, Some(TipState::DirectedPoint));
         let drawn = chain(vec![picked, Step::LineTo(Target::Start)]);
         assert!(
-            drawn.loops[0].refusal().is_some(),
+            drawn.loops[0].end.refusal().is_some(),
             "a fixture whose picked step refuses: {drawn:?}"
         );
         let painted = painted_preview(&drawn);
@@ -2326,7 +2322,7 @@ mod tests {
     fn an_unfinished_chains_tip_is_painted_going_on() {
         let drawn = chain(Vec::new());
         assert!(
-            drawn.loops[0].refusal().is_none() && !drawn.loops[0].closes(),
+            drawn.loops[0].end.is_unfinished(),
             "a fixture that is merely unfinished: {drawn:?}"
         );
         let painted = painted_preview(&drawn);
@@ -2334,5 +2330,38 @@ mod tests {
         assert_eq!(centred.len(), 1, "one tick through the tip: {centred:?}");
         assert!(centred[0] < 1.0e-3, "square to the path: {centred:?}");
         assert_eq!(arrow, 2, "an arrowhead ahead of it");
+    }
+
+    /// **A chain that closed and then went on is painted closed, with
+    /// the cross at its start.** A square closed by `line_to Start`,
+    /// then one more `line_to`, which no closed loop takes: the four
+    /// authored legs are painted, the closing one included, and the
+    /// start — where the drawn steps end — carries the cross and no
+    /// arrowhead.
+    ///
+    /// Red if the drawn prefix is replayed only under the provisional
+    /// close (the closing leg goes unpainted and the cross lands on
+    /// `(0, 0.01)`).
+    #[test]
+    fn a_chain_that_closed_and_went_on_is_painted_closed() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let drawn = chain(vec![
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+            Step::LineTo(Target::Start),
+            Step::LineTo(Target::Point(Point2::new(0.005, 0.005))),
+        ]);
+        assert!(
+            drawn.loops[0].end.refusal().is_some(),
+            "a fixture whose last step refuses: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(
+            joins(&painted, [0.0, 0.01], [0.0, 0.0]),
+            "the authored close is painted: {painted:?}"
+        );
+        let (centred, arrow) = tip_marks(&painted, [0.0, 0.0], [1.0, 0.0]);
+        assert_eq!(centred.len(), 2, "the cross at the start: {centred:?}");
+        assert_eq!(arrow, 0, "no arrowhead at the start");
     }
 }

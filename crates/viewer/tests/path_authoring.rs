@@ -77,7 +77,7 @@ fn a_line_chain_previews_and_authors_the_same_square() {
     // Four corners and no subdivision: a straight leg has no sag to
     // answer for, so the flattener adds nothing between its ends.
     assert!(
-        drawn.loops[0].closes(),
+        drawn.loops[0].end.closes(),
         "the square's chain closes on its own"
     );
     assert_eq!(
@@ -262,10 +262,10 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     assert_eq!(drawn.loops.len(), 1);
     assert_eq!(
         drawn.loops[0].end,
-        LoopEnd::Open,
+        LoopEnd::Unfinished,
         "the chain has no closing verb, and the preview says so",
     );
-    assert!(drawn.has_open_chain());
+    assert!(drawn.has_unfinished_chain());
     // The authored vertices, and ONLY those: the provisional
     // `line_to Start` contributes no point of its own, so the polyline
     // is the three legs the person wrote.
@@ -516,7 +516,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     )
     .expect("the declared seam previews");
     assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
-    assert!(drawn.loops[0].closes());
+    assert!(drawn.loops[0].end.closes());
 
     // The same seam UNDECLARED is the refusal whose sentence names the
     // declaration — the one a person using this form now can act on —
@@ -532,6 +532,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     )
     .expect("the steps before an undeclared seam still draw");
     let refusal = cut.loops[0]
+        .end
         .refusal()
         .expect("an undeclared tangent seam is refused");
     assert!(
@@ -934,12 +935,12 @@ fn a_leg_whose_separation_overflows_gets_no_heading() {
     let points = &polyline.points;
     assert_eq!(points.len(), 3, "{points:?}");
     assert_eq!(
-        sketch::heading(points, 0, polyline.closes()),
+        sketch::heading(points, 0, polyline.end.closes()),
         None,
         "a separation of 1.4e308 in each axis answered a heading",
     );
     for at in [1, 2] {
-        let [dx, dy] = sketch::heading(points, at, polyline.closes())
+        let [dx, dy] = sketch::heading(points, at, polyline.end.closes())
             .unwrap_or_else(|| panic!("vertex {at} of a drawn loop has a heading"));
         let length = dx.hypot(dy);
         assert!(

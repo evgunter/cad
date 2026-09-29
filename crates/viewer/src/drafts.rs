@@ -1421,25 +1421,16 @@ mod tests {
         assert!(drawn(except).is_empty(), "the committed loops are left out");
         // A number that makes a step refuse leaves the steps before it
         // drawn, and that prefix is the edit being looked at.
+        // The `arc_fillet_arc` the form hands an author who picks it at
+        // step 3, whose carriers put every corner behind the incoming ray.
         if let Some(edit) = drafts.profile_edit.as_mut() {
-            use pncad::profile::{ArcData, ArcSweep};
-            edit.loops[0][3] = Step::ArcFilletArc {
-                spec: ArcData::Bulge {
-                    target: Target::Point(Point2::new(0.01, 0.0)),
-                    b: 0.5,
-                },
-                radius: 0.001,
-                spec2: ArcData::Center {
-                    c: Point2::origin(),
-                    winding: ArcSweep::Ccw,
-                    target: Target::Point(Point2::new(0.01, 0.0)),
-                },
-            };
+            let state = sketch::tip_state_at(&edit.loops[0], 3, tol);
+            edit.loops[0][3] = sketch::fresh_step_at(pncad::profile::Verb::ArcFilletArc, state);
         }
         let held = drafts.door_loops().edit.expect("held");
         let cut = sketch::preview(placement, &held.loops, tol, chord);
         assert!(
-            matches!(&cut, Ok(p) if p.loops[0].refusal().is_some()),
+            matches!(&cut, Ok(p) if p.loops[0].end.refusal().is_some()),
             "a refused step's prefix draws: {cut:?}"
         );
         assert_eq!(drafts.edited_in_place(Some(&cut)), Some(profile));
