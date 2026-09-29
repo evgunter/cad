@@ -193,3 +193,13 @@ and three design rows with no consumer pressing
 `live-tuple-constructor-…`). The track stays `active` while Ev's
 answers are hours away; if they are not, the blocked rows are cut into a
 program of their own per `work/README.md` rather than held here.
+
+## 2026-09-29 — PR 3410 ruled: no production comparator
+
+Ev asked why pcurve-row validity should be an exception to not
+deducing identity from numerical equality; the answer (it is a cache
+question, but nothing needs it and it would sit beside the gluing
+doors) led to "if nothing needs this then it should not be done". The
+N6 and DESIGN.md edits reverted; `two-provenance-free-keys-…` closed as
+the accepted re-mint; `set-surface-source-…` and
+`surface-field-walks-…` carry the answer. Fork row 11 completed.
