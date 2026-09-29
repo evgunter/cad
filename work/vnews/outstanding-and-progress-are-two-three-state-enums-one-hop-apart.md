@@ -2,10 +2,12 @@
 id: outstanding-and-progress-are-two-three-state-enums-one-hop-apart
 kind: issue
 title: session::Outstanding and frame::Progress are parallel three-state enums sharing two variant names, and progress() is nearly their identity
-status: open
+status: closed
 opened: 2026-09-06
 priority: P1
-cost: D
+cost: M
+branch: vnews/progress-names-its-own-states
+closed: 2026-09-28
 ---
 
 
@@ -104,3 +106,38 @@ ratifying sentence the row cites. The fork is this program's. The
 general finding lives once, in
 `work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
 section.
+
+## Closed 2026-09-28 (`vnews/progress-names-its-own-states`)
+
+**The names stay shared, and `frame::Progress`'s doc now says why.**
+`Progress::Evaluating` holds exactly when `Outstanding::Evaluating`
+does and `Progress::Canceled` exactly when `Outstanding::Canceled`
+does, so the shared spelling names one fact twice. That is the
+opposite of `frame::RankedVerdict`'s case, where a shared `Show` meant
+a candidate in one type and the winner in the other and the spelling
+was the defect; here a second spelling would be the defect, telling a
+reader two states differ where they do not. `Progress` is not
+`Outstanding` beside the index seam either: evaluation outranks
+indexing, so six pairs are five states. The type is unchanged.
+
+**The index seam's `bool` became a value, `pickcache::IndexSeam`, with
+one door, `PickCache::index_seam`, and that fixed a live disagreement
+the row did not name.** The `bool` was derived twice: the toolbar
+folded `picks.indexing() || fit.busy()` inline in `app.rs`, and
+`ViewerBehavior::indexing` read `picks.indexing()` alone. While the
+fit that prices a newly opened document's δ runs, `PickCache::sync` is
+handed no δ and holds no attempt, so the toolbar spun `indexing…`
+while a click in the viewport got `NotIndexed::Absent` — *none is
+being built*. Both consumers (`frame::progress`, `pickcache::unindexed`)
+now take the `IndexSeam`, which nothing but the door that reads both
+records returns, so filling either from the cache's record alone no
+longer type-checks. The README sentence the row cited
+(`crates/viewer/README.md`, The session's vocabularies) was agent text
+(`e574dfa00`), not an Ev ratification, and is re-worded with the
+change.
+
+Pinned by `tests/frame_policy.rs`'s progress table (six points) and
+`the_index_seam_is_building_through_the_fit_its_first_build_waits_on`,
+and by `app.rs`'s `the_toolbar_draws_each_progress_state_once`, which
+plants each `Outstanding` and index state in a headless app and reads
+the words and recourse the toolbar paints.

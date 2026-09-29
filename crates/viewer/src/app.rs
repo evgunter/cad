@@ -2703,6 +2703,7 @@ mod tests {
     #[test]
     fn the_toolbar_draws_each_progress_state_once() {
         use crate::evalseam::{FitService, InlineFitter};
+        use crate::pickcache::IndexSeam;
         use crate::session::{DocSession, Outstanding};
 
         const WORDS: [&str; 5] = [
@@ -2719,7 +2720,9 @@ mod tests {
             session.pump();
             match outstanding {
                 Outstanding::Current => {}
-                Outstanding::Evaluating => session.perform(SessionOp::Reevaluate),
+                Outstanding::Evaluating => {
+                    session.perform(SessionOp::Reevaluate);
+                }
                 Outstanding::Canceled => {
                     session.perform(SessionOp::Reevaluate);
                     session.perform(SessionOp::CancelEvaluation);
