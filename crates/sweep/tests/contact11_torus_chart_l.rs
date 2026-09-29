@@ -50,9 +50,9 @@ fn a_notched_half_donut_refuses_at_the_torus_plane_pair() {
     .unwrap()
     .body;
     let cutter = bar((0.0, 3.0), (0.0, 1.0), (-3.0, 3.0));
-    let err = topo::subtract(&half, &cutter, Tol::witness())
-        .err()
-        .expect("the torus × plane pair is refused");
+    let Err(err) = topo::subtract(&half, &cutter, Tol::witness()) else {
+        panic!("the torus × plane pair is refused");
+    };
     assert!(
         matches!(err, BooleanError::CurvedPairUnsupported { .. }),
         "refused at the curved pair: {err:?}"
