@@ -1244,3 +1244,9 @@ class of 65 sites is PRED's row.
 - 2026-09-29 — Dispatched `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M; Ev's structural-fence condition; full review) on `encl/zero-verdicts-reporting-margin`. Held behind it, because they touch the same code:
   - `adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` needs the structured verdict;
   - `certify-collapsed-arm-gates-…` touches the same `decide_positive` gates.
+- 2026-09-29 — PR 3418 merged (`3094222a13`, head `78f8af39f2`, hosted green). Row `certify-zero-verdicts-…` closed.
+  - **What it does:** implements Ev's #3402 ruling. The opaque `MarginDiag` serves error reporting only (door, mint, sentence and `terminal_sliver` lists, all gated). Certify's Zero arms quote `m/K`. The zero span goes through the table with a reading-aware note. `CertifyError::decision()` feeds the import door.
+  - **Reviews:** a full review (approve-with-fixes: M1 vacuous doctest; M2 terminal-sliver decided at classify time) and a delta re-review (behaviour preserved; the flag is gate-held).
+  - Seam notes posted to every program in the territory.
+- 2026-09-29 — Dispatched `certify-collapsed-arm-gates-route-as-the-decision-they-guard` (P3/M) on `encl/collapsed-arm-gates`.
+- 2026-09-29 — `adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` is held. Ev's #3380 door decision (m ≤ ε_in, miss within ε_in) is a decision on the reporting margin, which #3402 forbids. The likely resolution is a named comparison decided inside geom-core that returns words. Raising it with Ev is pending the user's go-ahead.
