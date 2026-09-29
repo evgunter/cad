@@ -2218,32 +2218,16 @@ fn settle_step_ids(
             }
         }
     }
-    let count = ids.iter().flatten().filter(|kept| kept.is_none()).count();
-    let fresh = mint
+    let minted = mint
         .mint(
             &crate::step_mint::MintingEdit::SetProgram {
                 node,
                 loops: new,
                 ids,
             },
-            count,
+            ids,
         )
         .map_err(refuse)?;
-    let mut next = 0;
-    let minted = ids
-        .iter()
-        .map(|given| {
-            given
-                .iter()
-                .map(|kept| {
-                    kept.unwrap_or_else(|| {
-                        next += 1;
-                        fresh[next - 1]
-                    })
-                })
-                .collect()
-        })
-        .collect();
     Ok((minted, dropped))
 }
 

@@ -3111,7 +3111,10 @@ class DocEdit:
         `Doc.last_maintenance` until `rebind` repairs it.
 
         Refuses `step_ids_refused` before the program is replayed
-        (`inner_variant`: `shape`, `not_this_profiles`, `repeated`),
+        (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
+        `repeated`, or `collides` for a new id the document's mint log
+        already holds; `not_minted`, an id the log lacks, is the load
+        door's word for the same family),
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_doc_param` and its
         siblings over every argument, `profile_program_refused` for a

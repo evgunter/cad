@@ -926,6 +926,7 @@ test_utils::f6_variants! {
         AssertionBound,
         MetadataUnversioned,
         StepIds,
+        MintLogOrder,
         NameStepNotMinted,
     ];
 }
@@ -1166,6 +1167,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "profile node 5's step ids",
                 "step id 3 stands for two steps",
             ],
+        ),
+        (
+            SnapshotError::MintLogOrder { step: StepId(6) },
+            vec!["not strictly ascending at id 6", "which no mint writes"],
         ),
         (
             SnapshotError::NameStepNotMinted {
@@ -2810,7 +2815,6 @@ test_utils::f6_variants! {
         Repeated,
         NotMinted,
         Collides,
-        Unencodable,
     ];
 }
 
@@ -2858,10 +2862,6 @@ fn a_step_id_fault_names_the_id_or_the_count() {
         (
             StepIdFault::Collides { step: StepId(7) },
             vec!["drew step id 7", "mint log already holds"],
-        ),
-        (
-            StepIdFault::Unencodable,
-            vec!["did not serialize", "canonical bytes"],
         ),
     ];
     assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);

@@ -41,14 +41,13 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
     (r.doc, solid)
 }
 
-/// One END-cap rim edge-shaped name on the prism, indexed `segment`:
-/// the piece in role `Piece(segment)` of the least step the prism
-/// minted, which the square never draws. These rows are about the ORDER
+/// One END-cap rim edge-shaped name on `doc`'s prism, indexed
+/// `segment`: the piece in role `Piece(segment)` of the least step
+/// `doc` minted, which the square never draws. These rows are about the ORDER
 /// of a selection, which the doors check before anything resolves, so
 /// the names only have to be well formed, spell a minted step, and sort
 /// by `segment` — so `edge(n, 0) < edge(n, 2)`.
-fn edge(node: RecipeNodeId, segment: u32) -> StableName {
-    let (doc, _) = prism();
+fn edge(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
     let step = *doc
         .step_mint()
         .log()
@@ -70,11 +69,11 @@ fn edge(node: RecipeNodeId, segment: u32) -> StableName {
 /// A hand-built `Node::Fillet` over the prism's END-cap rims, by
 /// profile segment — the shape `Node::fillet` would have
 /// canonicalized, handed to a door raw.
-fn raw_fillet(solid: RecipeNodeId, segments: &[u32]) -> Node<ProfileProgram> {
+fn raw_fillet(doc: &ProfileDoc, solid: RecipeNodeId, segments: &[u32]) -> Node<ProfileProgram> {
     Node::Fillet {
         target: solid,
         radius: fixture::len(0.0625),
-        selection: segments.iter().map(|s| edge(solid, *s)).collect(),
+        selection: segments.iter().map(|s| edge(doc, solid, *s)).collect(),
     }
 }
 
@@ -88,7 +87,7 @@ fn saved_fillet(segments: &[u32]) -> String {
             node: Node::fillet(
                 solid,
                 fixture::len(0.0625),
-                segments.iter().map(|s| edge(solid, *s)).collect(),
+                segments.iter().map(|s| edge(&doc, solid, *s)).collect(),
             ),
         },
         Tol::witness(),
@@ -126,7 +125,7 @@ fn corrupt_selection(text: &str, from: u32, to: u32) -> String {
 #[test]
 fn an_unsorted_selection_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
-    let raw = raw_fillet(solid, &[2, 0]);
+    let raw = raw_fillet(&doc, solid, &[2, 0]);
     match apply(
         &doc,
         &DocEdit::InsertNode { node: raw },
@@ -141,7 +140,7 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
     apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(solid, &[0, 2]),
+            node: raw_fillet(&doc, solid, &[0, 2]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -157,7 +156,7 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
     let raw: Node<ProfileProgram> = Node::Chamfer {
         target: solid,
         distance: fixture::len(0.0625),
-        selection: vec![edge(solid, 2), edge(solid, 0)],
+        selection: vec![edge(&doc, solid, 2), edge(&doc, solid, 0)],
     };
     match apply(
         &doc,
@@ -176,7 +175,7 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
 #[test]
 fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
-    let raw = raw_fillet(solid, &[0, 0, 2]);
+    let raw = raw_fillet(&doc, solid, &[0, 0, 2]);
     match apply(
         &doc,
         &DocEdit::InsertNode { node: raw },
@@ -231,9 +230,13 @@ fn a_repeated_selection_entry_is_refused_at_the_load_door() {
 /// the caller who uses them.
 #[test]
 fn the_construction_doors_canonicalize() {
-    let solid = RecipeNodeId(2);
-    let unruly = vec![edge(solid, 2), edge(solid, 0), edge(solid, 2)];
-    let canonical = vec![edge(solid, 0), edge(solid, 2)];
+    let (doc, solid) = prism();
+    let unruly = vec![
+        edge(&doc, solid, 2),
+        edge(&doc, solid, 0),
+        edge(&doc, solid, 2),
+    ];
+    let canonical = vec![edge(&doc, solid, 0), edge(&doc, solid, 2)];
 
     let fillet: Node<ProfileProgram> = Node::fillet(solid, fixture::len(0.0625), unruly.clone());
     let Node::Fillet { selection, .. } = &fillet else {
@@ -314,7 +317,7 @@ fn both_doors_forward_one_sentence() {
     let at_edit = match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(solid, &[0, 4, 2]),
+            node: raw_fillet(&doc, solid, &[0, 4, 2]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -351,7 +354,7 @@ fn both_doors_forward_one_sentence() {
 /// break, whichever kind it is.
 #[test]
 fn at_names_each_position() {
-    let solid = RecipeNodeId(2);
+    let (doc, solid) = prism();
     let cases: &[(&str, Vec<u32>, Option<usize>)] = &[
         ("canonical", vec![0, 2, 4], None),
         ("swap at 0", vec![2, 0, 4], Some(0)),
@@ -364,7 +367,7 @@ fn at_names_each_position() {
         ("repeat at 0 + swap at 2", vec![0, 0, 4, 2], Some(0)),
     ];
     for (what, segs, want) in cases {
-        let got = match raw_fillet(solid, segs).input_fault() {
+        let got = match raw_fillet(&doc, solid, segs).input_fault() {
             Some(InputFault::SelectionNotCanonical { at }) => Some(at),
             None => None,
             other => panic!("{what}: unexpected fault {other:?}"),
@@ -380,7 +383,7 @@ fn the_insert_door_reports_a_non_zero_position() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(solid, &[0, 4, 2]),
+            node: raw_fillet(&doc, solid, &[0, 4, 2]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -422,7 +425,11 @@ fn a_rebind_leaves_a_canonical_selection() {
                 node: Node::fillet(
                     solid,
                     fixture::len(0.0625),
-                    vec![edge(solid, 0), edge(solid, 2), edge(solid, 4)],
+                    vec![
+                        edge(&doc, solid, 0),
+                        edge(&doc, solid, 2),
+                        edge(&doc, solid, 4),
+                    ],
                 ),
             },
             Tol::witness(),
@@ -436,8 +443,8 @@ fn a_rebind_leaves_a_canonical_selection() {
     let doc = apply(
         &doc,
         &DocEdit::Rebind {
-            from: edge(solid, 4),
-            to: edge(solid, 0),
+            from: edge(&doc, solid, 4),
+            to: edge(&doc, solid, 0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -449,7 +456,7 @@ fn a_rebind_leaves_a_canonical_selection() {
     };
     assert_eq!(
         selection,
-        &vec![edge(solid, 0), edge(solid, 2)],
+        &vec![edge(&doc, solid, 0), edge(&doc, solid, 2)],
         "the repair re-establishes the canonical form, shrinking by one"
     );
     let node = doc.node(fillet).expect("the fillet is live");

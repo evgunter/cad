@@ -745,6 +745,12 @@ pub enum SnapshotError {
         /// What is wrong.
         fault: crate::program::StepIdFault,
     },
+    /// The step mint's log is not strictly ascending: an id logged
+    /// twice, or out of order — a log no mint wrote.
+    MintLogOrder {
+        /// The first entry not greater than the one before it.
+        step: crate::node::StepId,
+    },
     /// A name the document holds spells a profile step its mint log
     /// does not hold — one the document never minted.
     NameStepNotMinted {
@@ -1009,6 +1015,12 @@ impl core::fmt::Display for SnapshotError {
             Self::StepIds { node, fault } => {
                 write!(f, "profile node {}'s step ids: {fault}", node.0)
             }
+            Self::MintLogOrder { step } => write!(
+                f,
+                "the step mint's log is not strictly ascending at id {} — an id logged twice or \
+                 out of order, which no mint writes",
+                step.0
+            ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
                 "the {name} spells the profile step id #{}, which the document's mint log does not \
@@ -1210,6 +1222,11 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             Ok(())
         }
     };
+    // The mint log first, since every check below asks it: strictly
+    // ascending, the only log a mint writes.
+    if let Some(step) = doc.step_mint.out_of_order() {
+        return Err(SnapshotError::MintLogOrder { step });
+    }
     // Every profile's step ids: one per authored step, each one the
     // mint log holds, and no id standing for two steps anywhere in the
     // document — the three things the edit doors' minting makes true
@@ -1576,6 +1593,7 @@ mod tests {
             OrderMismatch,
             IdBeyondCounter,
             StepIds,
+            MintLogOrder,
             NameStepNotMinted,
             DanglingInput,
             ForwardInput,
@@ -1619,6 +1637,7 @@ mod tests {
             SnapshotError::OrderMismatch
             | SnapshotError::IdBeyondCounter { .. }
             | SnapshotError::StepIds { .. }
+            | SnapshotError::MintLogOrder { .. }
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DanglingInput { .. }
             | SnapshotError::ForwardInput { .. }
@@ -1675,6 +1694,9 @@ mod tests {
                 fault: crate::program::StepIdFault::Repeated {
                     step: crate::node::StepId(2),
                 },
+            },
+            SnapshotError::MintLogOrder {
+                step: crate::node::StepId(3),
             },
             SnapshotError::NameStepNotMinted {
                 name: Box::new(crate::names::StableName {

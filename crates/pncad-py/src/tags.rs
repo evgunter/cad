@@ -1772,6 +1772,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
         SnapshotError::StepIds { .. } => "step_ids",
+        SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
@@ -3032,7 +3033,6 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
         StepIdFault::Collides { .. } => "collides",
-        StepIdFault::Unencodable => "unencodable",
     }
 }
 

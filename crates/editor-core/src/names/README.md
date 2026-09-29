@@ -64,7 +64,8 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   `InsertNode` or `SetProgram`, from the document's mint chain: a digest
   the document carries, which each minting edit extends by that edit's
   canonical bytes. The steps one edit mints take the extended chain's
-  digests, one per step in authored order. So an id is a function of the
+  digests, one per step in authored order; an id is the first 64 bits of
+  its digest. So an id is a function of the
   edit sequence that minted it:
   - the same sequence of edits from one value mints the same ids (D9);
   - two documents that branch from one value — an undo followed by a
@@ -77,8 +78,9 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   Like a `RecipeNodeId`, a step id is never positional and never reused,
   and it is unique across the whole document. The document keeps every
   id it has minted in its mint log, dropped steps' included, and a mint
-  whose digest is already in the log is refused. The load door checks all
-  three. A name may spell only a step the document has minted: the doors
+  whose id is already in the log is refused. The load door checks the
+  three things minting makes true: one id per authored step, every id in
+  the mint log, and no id standing for two steps. A name may spell only a step the document has minted: the doors
   that write a name (`InsertNode`, `Rebind`, `SetAppearance`,
   `SetAppearanceMeta`) refuse one the mint log does not hold, and so does
   the load door.

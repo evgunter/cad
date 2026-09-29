@@ -32,6 +32,16 @@ blast radius is large". This is that row.
 applied to one base mint one `RecipeNodeId` for two different
 extrudes. The row pins the behaviour and is the one that turns.
 
+## What it also fixes
+
+A step id's uniqueness across branches inherits the node id's. The
+mint preimage (`MintingEdit` in `crates/editor-core/src/step_mint.rs`)
+hashes the node the edit mints for and the profile's plane, both
+`RecipeNodeId`s. Two branches whose different nodes share a node id and
+author byte-identical programs mint the same step ids, so a step id is
+only as branch-unique as the node ids it hashes. Moving node ids off
+the counter closes that for step ids too.
+
 ## Where to start
 
 - The step-id mint (`StepMint::mint`, `MintingEdit`) is the shape the

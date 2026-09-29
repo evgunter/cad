@@ -1141,8 +1141,10 @@ pub fn as_authored(node: &Node<ProfileProgram>) -> Node<ProfileProgram> {
 
 /// **A piece no profile draws, spelled without a document**: step id
 /// 0 in a role no verb gives it — a well-formed locator that denotes
-/// nothing. No document's mint log holds it, so a door that writes a
-/// name refuses it; [`no_piece_of`] is the spelling a door takes.
+/// nothing, since `Piece(7)` is no verb's role. Whether a document's
+/// mint log holds id 0 is a matter of what its chain drew, so a row
+/// whose name passes a door that checks the log uses [`no_piece_of`],
+/// which spells a step the document minted.
 pub fn no_piece() -> ProfileEdgeRef {
     ProfileEdgeRef::Piece {
         step: editor_core::StepId(0),

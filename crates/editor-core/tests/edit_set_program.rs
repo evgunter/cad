@@ -759,8 +759,8 @@ fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
     );
     assert_eq!(
         doc.step_mint().log(),
-        &every,
-        "the mint log holds exactly the minted ids"
+        every.iter().copied().collect::<Vec<_>>(),
+        "the mint log holds exactly the minted ids, ascending"
     );
     let (again, _, first_again, second_again) = build();
     assert_eq!(
@@ -1123,18 +1123,33 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         step_fault(unlogged, other),
         StepIdFault::NotMinted { step: theirs[1] }
     );
-    // A log entry twice.
-    let repeated = edited(&|v| {
-        let log = v["snapshot"]["step_mint"]["log"]
-            .as_array_mut()
-            .expect("the file carries its mint log");
-        log.push(theirs[1].0.into());
-    });
-    match load(&repeated, tol()) {
-        Err(PersistError::Unreadable { detail, .. }) => {
-            assert!(detail.contains("duplicate step mint log entry"), "{detail}");
+    // A log entry twice, and a log out of order: a snapshot fault the
+    // load door names, not a vocabulary this build lacks.
+    let log_of = |v: &serde_json::Value| -> Vec<u64> {
+        v["snapshot"]["step_mint"]["log"]
+            .as_array()
+            .expect("the file carries its mint log")
+            .iter()
+            .map(|id| id.as_u64().expect("an id"))
+            .collect()
+    };
+    let written = log_of(&body);
+    let set_log =
+        |log: Vec<u64>| edited(&|v| v["snapshot"]["step_mint"]["log"] = log.clone().into());
+    let mut twice = written.clone();
+    twice.insert(1, written[0]);
+    let mut swapped = written.clone();
+    swapped.swap(0, 1);
+    for (label, log, at) in [
+        ("an entry twice", twice, written[0]),
+        ("two entries out of order", swapped, written[0]),
+    ] {
+        match refused(set_log(log)) {
+            editor_core::SnapshotError::MintLogOrder { step } => {
+                assert_eq!(step, StepId(at), "{label}");
+            }
+            other => panic!("{label} refuses as a snapshot fault, got {other:?}"),
         }
-        other => panic!("a log entry twice is unreadable, got {other:?}"),
     }
     // No mint at all.
     let no_mint = edited(&|v| {

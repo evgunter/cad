@@ -47,6 +47,24 @@ fn the_selection_reaches_the_wire_canonical() {
             .expect("the fixture builds")
             .doc;
     }
+    let steps: Vec<u64> = (0..4)
+        .map(
+            |seg| match crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg) {
+                editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
+                other => panic!("a square's side is a step's piece, got {other:?}"),
+            },
+        )
+        .collect();
+    let step_of = |seg: usize| steps[seg];
+    // Canonical order is name order, which for two pieces of one
+    // profile is their steps' id order. The selection is AUTHORED high
+    // id first, so the stored order below differs from the authored one
+    // whatever ids the chain drew.
+    let (low, high) = if step_of(0) < step_of(2) {
+        (0, 2)
+    } else {
+        (2, 0)
+    };
     let rim = |seg: u32| StableName {
         kind: editor_core::EntityKind::Edge,
         node: editor_core::RecipeNodeId(2),
@@ -61,7 +79,7 @@ fn the_selection_reaches_the_wire_canonical() {
             node: Node::fillet(
                 editor_core::RecipeNodeId(2),
                 len(0.0625),
-                vec![rim(2), rim(0)],
+                vec![rim(high as u32), rim(low as u32)],
             ),
         },
         Tol::witness(),
@@ -73,19 +91,7 @@ fn the_selection_reaches_the_wire_canonical() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     assert!(text.contains("\"selection\""), "the field reaches the wire");
     let sel = text.find("\"selection\"").expect("the selection block");
-    let step_of =
-        |seg: usize| match crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg) {
-            editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
-            other => panic!("a square's side is a step's piece, got {other:?}"),
-        };
     let spelled = |seg: usize| format!("\"step\": {}", step_of(seg));
-    // Canonical order is name order, which for two pieces of one
-    // profile is their steps' id order.
-    let (low, high) = if step_of(0) < step_of(2) {
-        (0, 2)
-    } else {
-        (2, 0)
-    };
     let at_low = text[sel..].find(&spelled(low)).expect("the lower id");
     let at_high = text[sel..].find(&spelled(high)).expect("the higher id");
     assert!(

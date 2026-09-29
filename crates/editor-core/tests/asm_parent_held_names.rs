@@ -354,13 +354,14 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     match after_ev.appearance.losses.as_slice() {
         [loss] => {
             assert_eq!(loss.name, name, "the lost paint is the held name's");
-            assert!(
-                matches!(
-                    loss.cause,
-                    editor_core::AppearanceLossCause::Vanished { .. }
-                ),
-                "and it is lost as Vanished: {:?}",
-                loss.cause
+            // No candidate: an offer here could only point at the
+            // sibling's leg, which is the rebind this row refuses.
+            assert_eq!(
+                loss.cause,
+                editor_core::AppearanceLossCause::Vanished {
+                    candidates: Vec::new()
+                },
+                "and it is lost as Vanished, with nothing offered"
             );
         }
         other => panic!("one appearance loss, the held name's: {other:?}"),

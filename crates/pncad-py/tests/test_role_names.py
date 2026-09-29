@@ -36,6 +36,7 @@ third carries a HOLE, so the emitter mints a second loop's worth of
 bands, rims and meridian vertices on its second loop.
 """
 
+import json
 import math
 import unittest
 
@@ -158,6 +159,11 @@ def piece(doc, profile, lp, k):
     return doc.pieces(profile)[lp][k]
 
 
+def step_id(piece_text):
+    """The minted id a piece spells — the key its names sort by."""
+    return json.loads(piece_text)["Piece"]["step"]
+
+
 def of_role(ev, node, kind, tag, side=None):
     """What the kernel minted for one role, in the canonical order
     `select` answers in."""
@@ -177,20 +183,20 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         self.assertEqual(len(bands), 4, "one band per meridian segment")
-        # `select` answers in name order, which follows the minted ids;
-        # the door's answers are the same names.
-        self.assertCountEqual(bands, [band(node, piece(doc, profile, 0, seg)) for seg in range(4)])
+        # `select` answers in NAME order: for names that differ only in
+        # the piece, that is the pieces' step ids ascending, not the
+        # program's segment order.
+        by_id = sorted((piece(doc, profile, 0, k) for k in range(4)), key=step_id)
+        self.assertEqual(bands, [band(node, p) for p in by_id])
         # No pole, so no `[pi, 2pi)` half exists to name.
         self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
         # A rim per meridian vertex, and a seam vertex under each.
         rims = of_role(ev, node, EntityKind.Edge, SegTag.BandRim)
-        self.assertCountEqual(rims, [band_rim(node, piece(doc, profile, 0, v)) for v in range(4)])
+        self.assertEqual(rims, [band_rim(node, p) for p in by_id])
         seam = of_role(
             ev, node, EntityKind.Vertex, SegTag.MeridianVertex, MeridianEnd.Seam
         )
-        self.assertCountEqual(
-            seam, [meridian_vertex(MeridianEnd.Seam, node, piece(doc, profile, 0, v)) for v in range(4)]
-        )
+        self.assertEqual(seam, [meridian_vertex(MeridianEnd.Seam, node, p) for p in by_id])
         # The names denote what the door says they denote: `band` 2 is
         # the top annulus, and rim 2 the circle standing on it.
         self.assertEqual(

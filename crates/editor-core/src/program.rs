@@ -2369,22 +2369,19 @@ impl ProfilePayload for ProfileProgram {
         if self.carries_step_ids() {
             return Err(StepIdFault::Preminted);
         }
-        let count = self.loops.iter().map(LoopProgram::authored_steps).sum();
-        let mut minted = mint
-            .mint(
-                &crate::step_mint::MintingEdit::InsertNode {
-                    node,
-                    plane: self.plane,
-                    loops: &self.loops,
-                },
-                count,
-            )?
-            .into_iter();
-        self.ids = self
+        let every_new: Vec<Vec<Option<StepId>>> = self
             .loops
             .iter()
-            .map(|lp| minted.by_ref().take(lp.authored_steps()).collect())
+            .map(|lp| vec![None; lp.authored_steps()])
             .collect();
+        self.ids = mint.mint(
+            &crate::step_mint::MintingEdit::InsertNode {
+                node,
+                plane: self.plane,
+                loops: &self.loops,
+            },
+            &every_new,
+        )?;
         Ok(())
     }
 }
@@ -2435,9 +2432,6 @@ pub enum StepIdFault {
         /// The id.
         step: StepId,
     },
-    /// The minting edit did not serialize to its canonical bytes, so
-    /// there is no chain to extend.
-    Unencodable,
 }
 
 impl core::fmt::Display for StepIdFault {
@@ -2477,10 +2471,6 @@ impl core::fmt::Display for StepIdFault {
                 f,
                 "the mint drew step id {}, which the document's mint log already holds",
                 step.0
-            ),
-            Self::Unencodable => f.write_str(
-                "the minting edit did not serialize to its canonical bytes, so no step id could \
-                 be minted",
             ),
         }
     }

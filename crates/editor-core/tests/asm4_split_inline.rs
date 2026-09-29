@@ -1639,7 +1639,12 @@ fn a_split_step_map_follows_a_non_contiguous_re_mint() {
     let minted = flat_ids(&out.part, part_profile);
     assert_eq!(
         out.part.step_mint().log(),
-        &minted.iter().copied().collect::<BTreeSet<_>>(),
+        minted
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>(),
         "the part's mint log holds exactly its one profile's {n} ids"
     );
     assert_eq!(minted.len(), n);
