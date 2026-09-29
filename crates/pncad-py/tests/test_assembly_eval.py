@@ -358,25 +358,25 @@ class TestAPartWhoseRootFails(unittest.TestCase):
     #: (`test_utils::refusal::BUDGET`).
     BUDGET = 75
 
-    def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
+    def setUp(self):
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
-        store = Workspace(str(directory))
+        self.store = Workspace(str(directory))
         # The boss: its one root, an extrude, has no length to extrude.
         boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.0)
-        store.create(boss)
+        self.store.create(boss)
+        self.boss_ref = DocRef(boss.id, pncad.content_pin(boss))
         # The bracket: its one root instantiates the boss.
         bracket = pncad.Doc("pncad-partroot-bracket")
-        bracket_root = bracket.insert(
-            Node.instantiate_part(DocRef(boss.id, pncad.content_pin(boss)))
-        )
-        store.create(bracket)
-        assembly = pncad.Doc("pncad-partroot-assembly")
-        instance = assembly.insert(
-            Node.instantiate_part(DocRef(bracket.id, pncad.content_pin(bracket)))
-        )
+        self.bracket_root = bracket.insert(Node.instantiate_part(self.boss_ref))
+        self.store.create(bracket)
+        self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
+        self.assembly = pncad.Doc("pncad-partroot-assembly")
+        self.instance = self.assembly.insert(Node.instantiate_part(self.bracket_ref))
 
-        refusal = failures(evaluate(assembly, resolver=store))[instance]
+    def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
+        bracket_root, instance = self.bracket_root, self.instance
+        refusal = failures(evaluate(self.assembly, resolver=self.store))[instance]
         self.assertEqual(refusal.kind, "part_root_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
@@ -399,6 +399,32 @@ class TestAPartWhoseRootFails(unittest.TestCase):
             with self.subTest(level=str(level)):
                 self.assertLessEqual(len(str(level).split()), self.BUDGET)
         self.assertNotIn(str(boss_refusal), str(bracket_refusal))
+
+        # Each level says which document its node is numbered in: the
+        # instance is the assembly's own, and each cause is its part's.
+        self.assertIsNone(refusal.document)
+        self.assertEqual(bracket_refusal.document, self.bracket_ref)
+        self.assertEqual(boss_refusal.document, self.boss_ref)
+
+    def test_a_node_poisoned_through_the_part_hands_on_its_cause(self):
+        moved = self.assembly.insert(
+            Node.transform(
+                self.instance,
+                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
+            )
+        )
+        refusal = failures(evaluate(self.assembly, resolver=self.store))[moved]
+        self.assertEqual(refusal.reason, "poisoned")
+        self.assertEqual(refusal.through, self.instance)
+        cause = refusal.__cause__
+        self.assertIsInstance(cause, pncad.EvaluationError)
+        self.assertEqual(
+            (cause.node, cause.document), (self.bracket_root, self.bracket_ref),
+            "the poisoned node hands on the chain its root cause carries",
+        )
+        self.assertEqual(cause.__cause__.document, self.boss_ref)
 
 
 class TestTheMemoIsObservable(CorpusCase):

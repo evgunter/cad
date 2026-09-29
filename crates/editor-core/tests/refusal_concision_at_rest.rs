@@ -38,6 +38,7 @@ use editor_core::{
     AssemblyError, AtRestFinding, Attribution, DocumentId, EntityKind, MintedDeclaration,
     ProductError, RecipeNodeId, Relation, RoleSeg, Route, SourceFinding, StableName,
 };
+use test_utils::refusal::Admission;
 use topo::{ContactClass, FaceKey, ValidationError};
 
 /// The labels a finding legitimately opens with: the two badges'
@@ -45,10 +46,12 @@ use topo::{ContactClass, FaceKey, ValidationError};
 const LABELS: &[&str] = &["at rest", "product"];
 
 /// The routes whose attribution names the carrying document by its hex
-/// id (`Route`'s `Display`), which `arena_key` reads as a key; filed,
-/// EDIT's: work/edit/part-refusals-name-documents-by-hex-id.md. Admits
-/// that one problem on these routes and nothing else.
-const FILED_HEX_ROUTES: &[&str] = &["refuted, carried", "declined, carried"];
+/// id (`Route`'s `Display`).
+const CARRIED_ROUTES: &[&str] = &["refuted, carried", "declined, carried"];
+
+/// The id [`carried`]'s route names its part by, as `Route` prints it:
+/// the one span a carried route's row is admitted.
+const CARRIED_FROM: &str = "a163123cd123758083caff1cee9c0882";
 
 /// The tier-1/2 structure arms: each reports a damaged body, where the
 /// arena key is what the bug report needs. Every other arm names what
@@ -178,15 +181,20 @@ fn every_at_rest_finding_renders_to_the_standard() {
         for (route, text) in renderings(&error) {
             let name = format!("{label} ({route})");
             eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-            // The admission is for the hex id alone: an arena key proper
-            // on the same route is still red.
-            let hex_filed = FILED_HEX_ROUTES.contains(&route) && !text.contains("Key(");
-            let key_problem = format!("{name} dumps an arena key");
-            problems.extend(
-                test_utils::refusal::problems(&name, &text, LABELS, keyed)
-                    .into_iter()
-                    .filter(|p| !(hex_filed && p.starts_with(&key_problem))),
-            );
+            // A carried route's attribution names the part it was
+            // carried from by the part's hex id: that span, on this row.
+            let admitted = CARRIED_ROUTES.contains(&route).then(|| Admission {
+                row: &name,
+                span: CARRIED_FROM,
+                filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+            });
+            problems.extend(test_utils::refusal::problems_admitting(
+                &name,
+                &text,
+                LABELS,
+                keyed,
+                admitted.as_slice(),
+            ));
             if test_utils::refusal::recourse_markers(&text) == 0 {
                 problems.push(format!("{name} states no recourse: {text}"));
             }

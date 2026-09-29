@@ -2624,6 +2624,19 @@ NOT_BOUND = {
     # the fault's own `str()`. Nothing in Python hands one out and no
     # bound door takes one.
     "NodeRefusal": INTERIOR,
+    # The kernel's reading of the refusals a failure carries, level by
+    # level, with the document each level's node is in. Python reads the
+    # same chain in its own shape: each level is an `EvaluationError`
+    # that is the `__cause__` of the level above, and its `document` is
+    # the part's `DocRef`, or `None` for the evaluated document's own.
+    "CarriedChain": SHAPE,
+    "CarriedLevel": SHAPE,
+    "CarriedIn": SHAPE,
+    # Whether a `PlacerRefused` placer states its own refusal, which
+    # decides whether the fault carries it. Python never holds one: it
+    # reads the answer as `MateFault.cause` being the placer's refusal
+    # or `None`.
+    "PlacerRow": INTERIOR,
     # The entity door's answer: what a name turned out to denote, on the
     # four refusals that test an `EntityKey`'s kind
     # (`shell_open_kind`, `face_frame_kind`, the two blend selection

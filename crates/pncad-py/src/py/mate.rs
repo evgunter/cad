@@ -628,18 +628,16 @@ impl MateFault {
     }
 
     /// **The refusal this fault carries, typed** — the placer's own,
-    /// on `mate_placer_refused`: the `EvaluationError` the placer's
-    /// own evaluation raises, which `str(fault)` points at and never
-    /// quotes. The same value a raised `MateError` carries as its
-    /// `__cause__`. `None` on every other arm.
+    /// on `mate_placer_refused` where the placer is poisoned and cannot
+    /// state it: the `EvaluationError` the placer's own evaluation
+    /// raises, which `str(fault)` points at and never quotes. The same
+    /// value a raised `MateError` carries as its `__cause__`. `None` on
+    /// every other arm, and where the placer fails in its own right and
+    /// its own failure states it.
     #[getter]
     fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
-        let (node, refusal) = self.0.carried()?;
-        Some(
-            super::value::carried_err(py, node, refusal)
-                .into_value(py)
-                .into_any(),
-        )
+        super::value::carried_cause(py, self.0.carried_chain())
+            .map(|cause| cause.into_value(py).into_any())
     }
 
     /// The instance a self-mate names twice.
@@ -884,10 +882,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
     );
     // The refusal the fault carries, typed, as the cause — the value's
     // own `cause`, and what a node failure does with one.
-    if let Some((node, refusal)) = fault.carried() {
-        err.set_cause(py, Some(super::value::carried_err(py, node, refusal)));
-    }
-    err
+    super::value::with_carried(py, err, fault.carried_chain())
 }
 
 /// The document's solved poses: each instance's pose relative to its

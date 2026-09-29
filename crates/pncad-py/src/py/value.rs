@@ -65,12 +65,12 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 /// any future one, because no raise of this class can be written
 /// without naming a variant of the enum.
 ///
-/// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
-/// the exception — `None` where the reason has no failing kind, no
-/// arm under that kind, no poisoning ancestor, or no refusal-menu
-/// payload — so stub-guided code can read them without an
-/// `AttributeError` trap — a stub that over-promises is worse than one
-/// that says `None`.
+/// `kind`, `inner_kind`, `through`, `finding` and `document` are ALWAYS
+/// present on the exception — `None` where the reason has no failing
+/// kind, no arm under that kind, no poisoning ancestor, no refusal-menu
+/// payload, or the node is the evaluated document's own — so
+/// stub-guided code can read them without an `AttributeError` trap — a
+/// stub that over-promises is worse than one that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -88,6 +88,7 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
             ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
             ("finding", py.None().into_any()),
+            ("document", py.None().into_any()),
         ],
     )
 }
@@ -101,20 +102,35 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 /// refusal has no arms. Two enums, two discriminants, each projected
 /// where it lives.
 ///
-/// A refusal that CARRIES another node's ([`d::NodeErrorKind::carried`]
-/// — a part whose root failed, a mate whose placer refused) never
-/// quotes it in its message; the carried refusal crosses typed, as
-/// this exception's `__cause__` ([`with_carried`]).
+/// A refusal that CARRIES another node's (a part whose root failed, a
+/// mate whose placer's row cannot state its refusal) never quotes it in
+/// its message; the carried refusal crosses typed, as this exception's
+/// `__cause__` ([`with_carried`]).
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
-    refused(py, node, &error.kind, error.to_string())
+    let err = refused(py, node, &error.kind, error.to_string(), None);
+    with_carried(py, err, error.kind.carried_chain())
 }
 
-/// [`node_failure`] over a kind and its rendering, which is what a
-/// carried refusal is: it has no `NodeError` of its own.
-fn refused(py: Python<'_>, node: NodeId, kind: &d::NodeErrorKind, message: String) -> PyErr {
+/// [`node_failure`]'s one exception, over a kind, its rendering and the
+/// document its node is in (`None` for the evaluated document's own),
+/// with no cause: what one level of a carried chain is.
+fn refused(
+    py: Python<'_>,
+    node: NodeId,
+    kind: &d::NodeErrorKind,
+    message: String,
+    document: Option<&d::DocRef>,
+) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
+    };
+    let document = match document {
+        Some(doc_ref) => match super::store::DocRef(*doc_ref).into_pyobject(py) {
+            Ok(bound) => bound.unbind().into_any(),
+            Err(failed) => return failed,
+        },
+        None => py.None().into_any(),
     };
     // The refusal MENU: an undeclared-contact
     // refusal carries its candidate declaration as a typed
@@ -130,7 +146,7 @@ fn refused(py: Python<'_>, node: NodeId, kind: &d::NodeErrorKind, message: Strin
         }
         _ => py.None().into_any(),
     };
-    let err = typed_err(
+    typed_err(
         py,
         ErrorClass::Evaluation(EvalReason::NodeFailed),
         message,
@@ -143,34 +159,45 @@ fn refused(py: Python<'_>, node: NodeId, kind: &d::NodeErrorKind, message: Strin
             ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
             ("finding", finding),
+            ("document", document),
         ],
-    );
-    with_carried(py, err, kind)
+    )
 }
 
-/// **The refusal `kind` carries, as `err`'s `__cause__`**: an
-/// `EvaluationError` raised for the carried node exactly as
-/// [`node_failure`] raises one, so its own `__cause__` is the next
-/// level's and a part inside a part is a chain of causes, one per
-/// document. Its `node` is in the id space of the document that
-/// raised it — the part's, for a part's root.
-fn with_carried(py: Python<'_>, err: PyErr, kind: &d::NodeErrorKind) -> PyErr {
-    if let Some((node, refusal)) = kind.carried() {
-        err.set_cause(py, Some(carried_err(py, node, refusal)));
+/// **`chain` as `err`'s `__cause__`** ([`carried_cause`]).
+pub(crate) fn with_carried(py: Python<'_>, err: PyErr, chain: d::CarriedChain<'_>) -> PyErr {
+    if let Some(cause) = carried_cause(py, chain) {
+        err.set_cause(py, Some(cause));
     }
     err
 }
 
-/// **A carried refusal, typed**: the `EvaluationError` `node`'s own
-/// evaluation raises for `refusal`, its own carried refusal as its
-/// `__cause__` — what every surface that holds one hands a Python
-/// caller.
-pub(crate) fn carried_err(
-    py: Python<'_>,
-    node: d::RecipeNodeId,
-    refusal: &d::NodeRefusal,
-) -> PyErr {
-    refused(py, NodeId(node), refusal.kind(), refusal.line_at(node))
+/// **A carried chain, typed**: one `EvaluationError` per level of the
+/// kernel's chain ([`d::NodeErrorKind::carried_chain`]), each raised
+/// for its node as [`node_failure`] raises one and each the `__cause__`
+/// of the level above, so a part inside a part is a chain of causes,
+/// one per document. A level's `node` is in the id space of its
+/// `document`, the part's `DocRef`, or `None` for the evaluated
+/// document's own. `None` for a chain with no level.
+pub(crate) fn carried_cause(py: Python<'_>, chain: d::CarriedChain<'_>) -> Option<PyErr> {
+    let levels: Vec<d::CarriedLevel<'_>> = chain.collect();
+    levels.iter().rev().fold(None, |inner, level| {
+        let document = match level.document {
+            d::CarriedIn::ThisDocument => None,
+            d::CarriedIn::Part(doc_ref) => Some(doc_ref),
+        };
+        let err = refused(
+            py,
+            NodeId(level.node),
+            level.refusal.kind(),
+            level.line(),
+            document,
+        );
+        if inner.is_some() {
+            err.set_cause(py, inner);
+        }
+        Some(err)
+    })
 }
 
 /// Raise `EvaluationError` for a POISONED node: `through` names the
@@ -189,6 +216,7 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("node", node_obj),
         ("through", through_obj),
         ("finding", py.None().into_any()),
+        ("document", py.None().into_any()),
     ];
     // The message is the root cause's `Display` prose: the node
     // never ran, so the honest sentence names the ancestor's problem.
@@ -216,7 +244,7 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         &fields,
     );
     match root {
-        Some(error) => with_carried(py, err, &error.kind),
+        Some(error) => with_carried(py, err, error.kind.carried_chain()),
         None => err,
     }
 }

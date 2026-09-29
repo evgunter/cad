@@ -134,13 +134,16 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     };
     assert_eq!(
         carried,
-        &vec![format!(
-            "node {} failed: the pattern direction has no finite length (a component overflows \
-             the norm or is not a number). Recourse: {}",
-            pattern.0,
-            geom_core::RANGE_RECOURSE
-        )],
-        "the row carries the cause the evaluation typed, as its own line"
+        &vec![viewer::tree::CarriedLine {
+            document: viewer::tree::THIS_DOCUMENT.to_owned(),
+            line: format!(
+                "node {} failed: the pattern direction has no finite length (a component \
+                 overflows the norm or is not a number). Recourse: {}",
+                pattern.0,
+                geom_core::RANGE_RECOURSE
+            ),
+        }],
+        "the row carries the cause the evaluation typed, as its own line, in this document"
     );
 
     // The compensation the old design rested on, measured: the
@@ -509,12 +512,22 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
         "the fixture reaches the arm, naming the pattern: {fault:?}"
     );
     let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
+    let RowStatus::Failed {
+        message: pattern_message,
+        ..
+    } = common::status_of(&rows, s.pattern)
+    else {
+        panic!("the pattern fails in its own right on this path");
+    };
+    // The pattern's own row states its refusal, so the mate's row points
+    // there and carries nothing: the refusal is drawn once.
+    let RowStatus::Failed { carried, .. } = common::status_of(&rows, s.mate) else {
+        panic!("the mate's row is a failure");
+    };
     assert!(
-        matches!(
-            common::status_of(&rows, s.pattern),
-            RowStatus::Failed { .. }
-        ),
-        "the pattern fails in its own right on this path"
+        carried.is_empty(),
+        "the mate carries no line where the placer's own row states it ({pattern_message}): \
+         {carried:?}"
     );
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()

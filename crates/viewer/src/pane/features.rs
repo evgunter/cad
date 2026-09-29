@@ -111,12 +111,19 @@ pub(crate) fn failure_lines(
         }
     });
     // The refusals the row's words point at, each one step further in:
-    // the traceback reads down the way the failure reaches in.
+    // the traceback reads down the way the failure reaches in. Each is
+    // headed by the document its node is in, a label of its own, so
+    // the refusal is drawn as its own tree draws it.
     if let RowStatus::Failed { carried, .. } = &row.status {
-        for (level, line) in carried.iter().enumerate() {
+        for (level, carried) in carried.iter().enumerate() {
+            let indent = message_indent(ui, row.depth + 1 + level);
             ui.horizontal(|ui| {
-                ui.add_space(message_indent(ui, row.depth + 1 + level));
-                crate::widgets::message_toned(ui, line, theme, frame::Tone::Advisory);
+                ui.add_space(indent);
+                ui.weak(&carried.document);
+            });
+            ui.horizontal(|ui| {
+                ui.add_space(indent);
+                crate::widgets::message_toned(ui, &carried.line, theme, frame::Tone::Advisory);
             });
         }
     }
@@ -226,7 +233,7 @@ mod tests {
     };
     use crate::theme::Theme;
     use crate::tree;
-    use crate::tree::{RowStatus, TreeRow};
+    use crate::tree::{CarriedLine, RowStatus, TreeRow};
     use crate::widgets::{message, message_floor};
 
     /// A failure line of the length and shape a refusal has, quoting a
@@ -410,18 +417,24 @@ mod tests {
     }
 
     /// **A failed row draws each refusal it carries on a line of its
-    /// own**, under its own words and one step further in per level:
-    /// the traceback a part inside a part reads as.
+    /// own**, headed by the document it is in, under its own words and
+    /// one step further in per level: the traceback a part inside a
+    /// part reads as.
     #[test]
     fn a_failed_rows_carried_refusals_draw_under_it_one_step_in_per_level() {
         let carried = [
-            "in bracket.pncad, node 7 failed: the first level",
-            "in boss.pncad, node 3 failed: the second level",
+            ("bracket.pncad", "node 7 failed: the first level"),
+            ("boss.pncad", "node 3 failed: the second level"),
         ];
         let row = TreeRow {
             status: RowStatus::Failed {
                 message: FAILURE.to_owned(),
-                carried: carried.map(str::to_owned).to_vec(),
+                carried: carried
+                    .map(|(document, line)| CarriedLine {
+                        document: document.to_owned(),
+                        line: line.to_owned(),
+                    })
+                    .to_vec(),
             },
             ..placer_refused_row(None)
         };
@@ -435,14 +448,23 @@ mod tests {
                 .and_then(|landed| landed.rows.first().copied())
                 .unwrap_or_else(|| panic!("{text:?} was not painted"))
         };
-        let (own, first, second) = (at(FAILURE), at(carried[0]), at(carried[1]));
+        let own = at(FAILURE);
+        let (first_doc, first) = (at(carried[0].0), at(carried[0].1));
+        let (second_doc, second) = (at(carried[1].0), at(carried[1].1));
         assert!(
-            own.bottom() <= first.top() && first.bottom() <= second.top(),
-            "each line is under the one before: {own:?} {first:?} {second:?}"
+            own.bottom() <= first_doc.top()
+                && first_doc.bottom() <= first.top()
+                && first.bottom() <= second_doc.top()
+                && second_doc.bottom() <= second.top(),
+            "each level's document heads its line, under the level before:              {own:?} {first_doc:?} {first:?} {second_doc:?} {second:?}"
         );
         assert!(
             own.left() < first.left() && first.left() < second.left(),
-            "each line is one step further in: {own:?} {first:?} {second:?}"
+            "each level is one step further in: {own:?} {first:?} {second:?}"
+        );
+        assert!(
+            first_doc.left() == first.left() && second_doc.left() == second.left(),
+            "a level's document label stands at its line's indent"
         );
     }
 

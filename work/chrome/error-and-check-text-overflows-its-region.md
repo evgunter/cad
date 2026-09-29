@@ -337,7 +337,7 @@ reworking, `replace_face_offset:` (under `Shell/Face`, `Shell/Lift`),
 `certification:` (`geom-brep/src/certify.rs`) and the clearance
 engine's `Debug` payload (`editor-core/src/measure.rs`). Those are
 filed, each admitted by exact row id and exact label in the chain
-test's `FILED` / `FILED_DEBUG` lists with the row that owns it:
+test's `FILED` / `ADMISSIONS` lists with the row that owns it:
 `work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md`,
 `work/props/props-refusal-prose-outgrows-the-viewer.md` and
 `work/issues/unowned-refusal-prose-outgrows-the-viewer.md`.

@@ -20,8 +20,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
-    Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, PersistError,
+    CancelToken, CarriedIn, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions,
+    Evaluation, Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, PersistError,
     ProductErrorKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
     SnapshotError, StableName, content_pin, evaluate, load, product, product_named, save,
 };
@@ -918,20 +918,21 @@ fn the_named_gather_agrees_with_the_plain_one() {
 
 // ---- Review fixes (R1): the seam's diagnosis, and its guards ----
 
-/// The innermost seam fault of a chain of part-root failures — what the
-/// author has to be told, however many documents down it lies — and the
-/// line its node's own tree draws for it.
-fn root_cause(fault: &PartFault) -> (&PartFault, Option<String>) {
-    let mut fault = fault;
-    let mut line = None;
-    while let PartFault::PartRootFailed { node, refusal } = fault {
-        line = Some(refusal.line_at(*node));
-        match refusal.kind() {
-            NodeErrorKind::Part { fault: inner, .. } => fault = inner,
-            _ => break,
-        }
+/// The last level of a failure's carried chain — what the author has
+/// to be told, however many documents down it lies — as its refusal
+/// and the line its node's own tree draws for it.
+fn root_cause(kind: &NodeErrorKind) -> Option<(&NodeErrorKind, String)> {
+    kind.carried_chain()
+        .last()
+        .map(|level| (level.refusal.kind(), level.line()))
+}
+
+/// The failure `node` raised.
+fn failure(ev: &Evaluation<f64>, node: RecipeNodeId) -> &NodeErrorKind {
+    match ev.result(node) {
+        Some(NodeResult::Failed(e)) => &e.kind,
+        other => panic!("expected a failed node, got {other:?}"),
     }
-    (fault, line)
 }
 
 /// A deliberately MISBEHAVING resolver: it answers each of a pair of
@@ -983,10 +984,14 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
 
     // Terminates at the FIRST revisit — the guard is structural, not a
     // depth counter waiting 1024 levels out.
-    let fault = part_fault(&run(&doc, &opts), ids[0]);
-    let (cause, line) = root_cause(&fault);
+    let ev = run(&doc, &opts);
+    let (cause, rendered) =
+        root_cause(failure(&ev, ids[0])).expect("the cycle is reached through a failed root");
     match cause {
-        PartFault::ReferenceCycle { cycle } => {
+        NodeErrorKind::Part {
+            fault: PartFault::ReferenceCycle { cycle },
+            ..
+        } => {
             assert_eq!(
                 cycle,
                 &vec![a, b, a],
@@ -997,7 +1002,6 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
     }
     // The DIAGNOSIS reaches the caller: the chain's last line names the
     // loop, not an evaluation the caller cannot reach.
-    let rendered = line.expect("the cycle is reached through a failed root");
     assert!(
         rendered.contains("returns to a document it already entered"),
         "the top-level message names the cycle: {rendered}"
@@ -1030,7 +1034,8 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let opts = with_resolver(store);
 
     let (doc, ids) = assembly("asm2a-broken-asm", &[doc_ref]);
-    let fault = part_fault(&run(&doc, &opts), ids[0]);
+    let ev = run(&doc, &opts);
+    let fault = part_fault(&ev, ids[0]);
     match &fault {
         PartFault::PartRootFailed { node, refusal } => {
             assert_eq!(*node, inner_root, "the failing ROOT is named");
@@ -1060,11 +1065,72 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
             && !rendered.contains("did not resolve"),
         "it names the root and points, never quoting the root's own refusal: {rendered}"
     );
-    let (_, line) = root_cause(&fault);
     assert!(
-        line.is_some_and(|line| line.contains("did not resolve")),
+        root_cause(failure(&ev, ids[0])).is_some_and(|(_, line)| line.contains("did not resolve")),
         "the reason is the carried line's"
     );
+}
+
+/// **A real chain three documents deep reads one level per document,
+/// each in the document its node is numbered in.** The assembly
+/// instantiates `p1`, whose root instantiates `p2`, whose root
+/// instantiates `p3`, whose root, an extrude, refuses. The kernel's
+/// chain names `p1`, `p2` and `p3` in order with each level's failed
+/// root, and the last line is `p3`'s node error exactly as `p3`'s own
+/// evaluation renders it.
+#[test]
+fn a_depth_three_chain_keeps_every_level_and_its_document() {
+    let tol = Tol::witness();
+    let mut store = StubStore::default();
+    let p3 = ProfileDoc::empty(DocumentId::derive("asm2a-depth-p3"), tol);
+    let (p3, profile) = on_frame(
+        p3,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (p3, p3_root) = insert(
+        p3,
+        Node::Extrude {
+            profile,
+            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+        },
+    );
+    let p3_own = match run(&p3, &EvalOptions::default()).result(p3_root) {
+        Some(NodeResult::Failed(e)) => e.to_string(),
+        other => panic!("p3's extrude refuses on its own: {other:?}"),
+    };
+    let r3 = store.insert(p3, tol);
+    let wrapper = |label: &str, inner: DocRef| {
+        insert(
+            ProfileDoc::empty(DocumentId::derive(label), tol),
+            Node::instantiate_part(inner),
+        )
+    };
+    let (p2, p2_root) = wrapper("asm2a-depth-p2", r3);
+    let r2 = store.insert(p2, tol);
+    let (p1, p1_root) = wrapper("asm2a-depth-p1", r2);
+    let r1 = store.insert(p1, tol);
+    let (asm, instance) = wrapper("asm2a-depth-asm", r1);
+    let ev = run(&asm, &with_resolver(store));
+    let levels: Vec<_> = failure(&ev, instance)
+        .carried_chain()
+        .map(|level| (level.document, level.node, level.line()))
+        .collect();
+    assert_eq!(
+        levels
+            .iter()
+            .map(|(document, node, _)| (*document, *node))
+            .collect::<Vec<_>>(),
+        vec![
+            (CarriedIn::Part(&r1), p1_root),
+            (CarriedIn::Part(&r2), p2_root),
+            (CarriedIn::Part(&r3), p3_root),
+        ],
+        "one level per document, in order, each in the part it is numbered in"
+    );
+    assert_eq!(levels[2].2, p3_own, "the last line is p3's own rendering");
 }
 
 /// The gather's OTHER refusals cross the seam as a CLASS beside their

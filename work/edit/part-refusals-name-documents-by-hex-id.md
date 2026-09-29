@@ -34,13 +34,25 @@ arena key does. On EDIT's ground:
   "update: every reference to {id} already pins {pin}" (hex twice, and
   a stage prefix).
 
-`test_utils::refusal::arena_key` flags a hex id since
-`edit/part-root-carried-refusal`, and the roster rows are admitted by
-exact id with this file named beside them:
-`crates/editor-core/tests/refusal_concision_chains.rs` (`FILED_DEBUG`,
+- A part file a store wrote through `Workspace::create`
+  (`crates/pncad/src/workspace.rs`) is named `{id}.pncad`, so the
+  feature tree, which names a part by its file
+  (`crates/viewer/src/tree.rs`, `part_file` and `carried_lines`), draws
+  `<32 hex>.pncad` as the instance row's part and as a carried level's
+  label, and `arena_key` flags it there. It is the file's true name;
+  the viewer's own saves and `save_at` use the name a person gave, so
+  only a store written through `create` (the Python binding's
+  `Workspace.create`, the bench scenes) shows it.
+
+`test_utils::refusal::arena_key` flags a hex id, and the roster rows
+are admitted by exact row and exact span
+(`test_utils::refusal::Admission`), with this file named in each:
+`crates/editor-core/tests/refusal_concision_chains.rs` (`ADMISSIONS`,
 `Part/ReferenceCycle`), `crates/editor-core/tests/refusal_concision_at_rest.rs`
-(`FILED_HEX_ROUTES`) and `crates/viewer/tests/refusal_concision_edits.rs`
-(`FILED_HEX`).
+(the carried routes' `CARRIED_FROM`) and
+`crates/viewer/tests/refusal_concision_edits.rs` (`ADMISSIONS`). An
+admission whose span its row no longer holds is red, so each goes
+when its row is fixed.
 
 ## What would close it
 
@@ -50,4 +62,6 @@ part root's failure (`crates/viewer/src/tree.rs`, `carried_lines`).
 Either the sentence stops naming the document and the surface adds
 the file name, or the kernel sentence takes a namer. A version has no
 file name; "the version this reference already pins" is the sentence.
-Remove the admissions when it lands.
+A part file's name is the person's to choose; `create`'s default name
+could instead be one a person would have chosen. Remove the admissions
+when it lands.

@@ -26,13 +26,13 @@ the way an arena key does:
   can use. (`FaceUnbounded` and `MalformedBody` also print the face as
   `{face:?}`, an arena key.)
 
-`test_utils::refusal::arena_key` flags a hex document id since
-`edit/part-root-carried-refusal`; the rows are admitted by exact id
-with this file named beside them in
-`crates/editor-core/tests/refusal_concision_chains.rs` (`FILED_DEBUG`:
-`Mate/PosesOfAnotherDocument`, `Mate/Unleverable`) and, where an edit
-refusal forwards them to the status line,
-`crates/viewer/tests/refusal_concision_edits.rs` (`FILED_HEX`).
+`test_utils::refusal::arena_key` flags a hex document id; the rows
+are admitted by exact row and exact span, with this file named in
+each, in `crates/editor-core/tests/refusal_concision_chains.rs`
+(`ADMISSIONS`: `Mate/PosesOfAnotherDocument`, `Mate/Unleverable`) and,
+where an edit refusal forwards them to the status line,
+`crates/viewer/tests/refusal_concision_edits.rs` (`ADMISSIONS`). An
+admission whose span its row no longer holds is red.
 
 `lever-refusal-respells-reach-refusal` restructures `LeverRefusal`; the
 two want doing together.

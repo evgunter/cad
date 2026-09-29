@@ -224,9 +224,10 @@ impl core::fmt::Display for PartFault {
             ),
             Self::RootFailureUnrecorded { node } => write!(
                 f,
-                "the part's product names its node {} as failed and the part's evaluation holds \
-                 no failure there; the two disagree, so this is a kernel bug",
-                node.0
+                "the part's product names its node {n} as failed and the part's evaluation holds \
+                 no failure there; the two disagree, so this is a kernel bug. Recourse: report \
+                 it with the part's file, and open the part to see node {n} as it evaluates",
+                n = node.0
             ),
             Self::PartProduct { message, .. } => {
                 write!(f, "the referenced document has no product: {message}")

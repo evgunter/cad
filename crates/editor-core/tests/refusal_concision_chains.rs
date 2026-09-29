@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
+use test_utils::refusal::Admission;
 
 /// A `NodeErrorKind` as the feature tree's fault line draws it.
 pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
@@ -146,28 +147,45 @@ pub(crate) const FILED_NAMESPACES: &[(&str, &str)] = &[("Shell/Face/Fit/", "repl
 /// `EllipseInvalid` entries).
 pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
 
-/// The rows that render a `Debug` form — a struct, or an arena key —
-/// by exact row id, each filed with its owner.
-pub(crate) const FILED_DEBUG: &[&str] = &[
+/// The rows that render a key or a hex id, by exact row id and the
+/// exact span, each filed with its owner.
+pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`)
     // renders the faces of `Unsupported` and `PoisonEnclosure`, the two
     // arms `min_separation` refuses with that carry evidence, as
-    // `FaceKey` `Debug`, and this arm prints it; PROPS's:
-    // work/props/props-refusal-prose-outgrows-the-viewer.md
-    "MeasureClearanceRefused",
-    // A document named by its hex id, which `arena_key` reads as a key:
-    // the reference loop, EDIT's —
-    // work/edit/part-refusals-name-documents-by-hex-id.md
-    "Part/ReferenceCycle",
-    // and two mate refusals, MSOLVE's —
-    // work/msolve/mate-refusals-name-documents-by-hex-id.md
-    "Mate/PosesOfAnotherDocument",
-    "Mate/Unleverable",
+    // `FaceKey` `Debug`, and this arm prints it.
+    Admission {
+        row: "MeasureClearanceRefused",
+        span: "FaceKey(null)",
+        filed: "work/props/props-refusal-prose-outgrows-the-viewer.md",
+    },
+    // A document named by its hex id: the reference loop,
+    Admission {
+        row: "Part/ReferenceCycle",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    },
+    // and two mate refusals.
+    Admission {
+        row: "Mate/PosesOfAnotherDocument",
+        span: "3e23e8160039594a33894f6564e1b134",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Mate/PosesOfAnotherDocument",
+        span: "ca978112ca1bbdcafac231b39a23dc4d",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Mate/Unleverable",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
 ];
 
 /// Every way the rows among `rows` fall short of the standard:
-/// [`test_utils::refusal::problems`] on each, with the labels
-/// [`ALLOWED_LABELS`] and [`FILED`] admit, the `Debug` rows [`FILED_DEBUG`]
+/// [`test_utils::refusal::problems_admitting`] on each, with the labels
+/// [`ALLOWED_LABELS`] and [`FILED`] admit, the spans [`ADMISSIONS`]
 /// admits, the label and key [`FILED_NAMESPACES`] admits on its
 /// namespace, and the keys [`KERNEL_KEYED`] admits.
 pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
@@ -181,22 +199,15 @@ pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
             .find(|(prefix, _)| name.starts_with(prefix));
         allowed.extend(namespace.map(|(_, l)| *l));
         let key_filed = format!("{name} dumps an arena key");
-        let debug_filed = [
-            format!("{name} renders a Debug struct"),
-            format!("{name} dumps an arena key"),
-        ];
         problems.extend(
-            test_utils::refusal::problems(
+            test_utils::refusal::problems_admitting(
                 name,
                 text,
                 &allowed,
                 KERNEL_KEYED.contains(&name.as_str()),
+                ADMISSIONS,
             )
             .into_iter()
-            .filter(|p| {
-                !(FILED_DEBUG.contains(&name.as_str())
-                    && debug_filed.iter().any(|d| p.starts_with(d.as_str())))
-            })
             .filter(|p| !(namespace.is_some() && p.starts_with(key_filed.as_str()))),
         );
     }
@@ -263,7 +274,11 @@ fn every_node_refusal_renders_within_the_budget() {
         .into_iter()
         .map(|(name, kind)| (name, as_the_viewer_shows_it(kind)))
         .collect();
-    let problems = over_budget(&rows);
+    let mut problems = over_budget(&rows);
+    problems.extend(test_utils::refusal::unclaimed_admissions(
+        ADMISSIONS,
+        rows.iter().map(|(name, _)| name.as_str()),
+    ));
     assert!(problems.is_empty(), "{}", problems.join("\n"));
     // The join is shared; its recourse is its caller's. A split takes
     // no declaration and a Boolean does, so the same arm offers
@@ -292,20 +307,16 @@ fn every_node_refusal_renders_within_the_budget() {
 
 /// A failure as the feature tree draws it: the failed node's own line,
 /// then each refusal it carries as a line of its own, one per level
-/// ([`NodeErrorKind::carried`]).
+/// ([`NodeErrorKind::carried_chain`]).
 fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
     let error = NodeError {
         node: RecipeNodeId(5),
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
     };
-    let mut lines = vec![error.to_string()];
-    let mut next = error.kind.carried();
-    while let Some((node, refusal)) = next {
-        lines.push(refusal.line_at(node));
-        next = refusal.kind().carried();
-    }
-    lines
+    core::iter::once(error.to_string())
+        .chain(error.kind.carried_chain().map(|level| level.line()))
+        .collect()
 }
 
 /// **Every line a carried refusal draws fits where it is drawn.** A
@@ -366,6 +377,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
                 side: MateSide::B,
                 placer: RecipeNodeId(4),
                 error: inner().into(),
+                placer_row: editor_core::PlacerRow::Silent,
             })),
         ),
     ];
@@ -393,6 +405,39 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     }
     let problems = over_budget(&rows);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+
+    // A placer whose own row states its refusal is pointed at and not
+    // carried: the refusal is drawn once, on the placer's row.
+    let placer = |placer_row| {
+        NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
+            mate: RecipeNodeId(9),
+            side: MateSide::B,
+            placer: RecipeNodeId(4),
+            error: inner().into(),
+            placer_row,
+        }))
+    };
+    assert_eq!(
+        drawn_lines(placer(editor_core::PlacerRow::States)).len(),
+        1,
+        "a placer that states its own refusal is not carried"
+    );
+    // A mate's carried level inside a part is numbered in that part, as
+    // the part's own level is.
+    let in_part = part(7, placer(editor_core::PlacerRow::Silent));
+    let documents: Vec<_> = in_part
+        .carried_chain()
+        .map(|level| (level.document, level.node))
+        .collect();
+    let part_ref = doc_ref();
+    assert_eq!(
+        documents,
+        vec![
+            (editor_core::CarriedIn::Part(&part_ref), RecipeNodeId(7)),
+            (editor_core::CarriedIn::Part(&part_ref), RecipeNodeId(4)),
+        ],
+        "the placer's level is in the part the mate is in"
+    );
 }
 
 /// Every offset-fit refusal the feature tree shows ends exactly once,
@@ -2891,6 +2936,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 side: MateSide::B,
                 placer: n(4),
                 error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
+                placer_row: editor_core::PlacerRow::Silent,
             },
         ),
         (

@@ -505,7 +505,7 @@ struct LandedRun {
     /// **The part files the run's resolver could name** — one scan of
     /// the session's directory, taken at landing ([`PartFiles`]'s doc
     /// says why then): the file names the tree names this pair's
-    /// instances and their carried lines by. Empty for a document that
+    /// instances and their carried lines by. Unscanned for a document that
     /// instantiates nothing, which never asks.
     files: PartFiles,
 }
@@ -987,9 +987,9 @@ impl DocSession {
         match &self.derived.landed {
             Some(run) => tree::rows(&run.doc, Some(&run.evaluation), &run.files),
             // Nothing has landed: the shown document with no
-            // evaluation, which renders every row `Unevaluated` — and
-            // names no part file, since no run has read the directory.
-            None => tree::rows(self.doc(), None, &PartFiles::default()),
+            // evaluation, which renders every row `Unevaluated`, and
+            // no scan of the directory, which names a part as unread.
+            None => tree::rows(self.doc(), None, &PartFiles::Unscanned),
         }
     }
 
@@ -1138,7 +1138,7 @@ impl DocSession {
         let files = if assembly_shaped {
             PartFiles::scanned(self.resolver.as_deref())
         } else {
-            PartFiles::default()
+            PartFiles::Unscanned
         };
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.

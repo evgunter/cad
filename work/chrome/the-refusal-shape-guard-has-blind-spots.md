@@ -28,9 +28,12 @@ shapes it exists to catch. Each blind spot stays green:
 4. **Allowed labels are global.** `ALLOWED_LABELS`
    (`refusal_concision_chains.rs:92`) admits `check separation` and the
    rest on every row, not only on the checks-window rows that use them.
-5. **Exemptions are never required to fire.** `FILED`, `FILED_DECLARE`,
-   `FILED_DEBUG` and `KERNEL_KEYED` (`:104`, `:126`, `:130`, `:39`)
-   are never checked for use. When the owner's fix lands, the stale
+5. **Exemptions are never required to fire.** `FILED`, `FILED_DECLARE`
+   and `KERNEL_KEYED` are never checked for use. (The span admissions,
+   `ADMISSIONS` there and in `refusal_concision_edits.rs`, are:
+   `test_utils::refusal::problems_admitting` reds an admission whose
+   span its row no longer holds, and `unclaimed_admissions` one whose
+   row is gone.) When the owner's fix lands, the stale
    entry stays and the test stays green; it goes red only when someone
    reads the list.
 6. **The blend-detail reader.** It has no count floor: it asserts only

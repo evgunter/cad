@@ -22,6 +22,7 @@ use editor_core::{
     DocumentId, EditError, EntityKind, EvalError, ExprPath, MateFault, MeasureNodeFault,
     MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, StableName,
 };
+use test_utils::refusal::Admission;
 use viewer::session::Refusal;
 
 fn shown(e: EditError) -> String {
@@ -643,6 +644,7 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
                 side: MateSide::B,
                 placer: n(4),
                 error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
+                placer_row: pncad::document::PlacerRow::Silent,
             },
         ),
         (
@@ -720,6 +722,7 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
 #[test]
 fn every_edit_refusal_renders_within_the_budget() {
     let mut problems = Vec::new();
+    let mut names = Vec::new();
     let rows = edit_refusals()
         .into_iter()
         .map(|(arm, e)| (arm.to_owned(), e))
@@ -728,31 +731,69 @@ fn every_edit_refusal_renders_within_the_budget() {
         let text = shown(e);
         let name = format!("Edit/{arm}");
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-        // The admission is for a hex id alone: an arena key proper on
-        // the same row is still red.
-        let hex_filed = FILED_HEX.contains(&name.as_str()) && !text.contains("Key(");
-        let key_problem = format!("{name} dumps an arena key");
-        problems.extend(
-            test_utils::refusal::problems(&name, &text, &[], false)
-                .into_iter()
-                .filter(|p| !(hex_filed && p.starts_with(&key_problem))),
-        );
+        problems.extend(test_utils::refusal::problems_admitting(
+            &name,
+            &text,
+            &[],
+            false,
+            ADMISSIONS,
+        ));
+        names.push(name);
     }
+    problems.extend(test_utils::refusal::unclaimed_admissions(
+        ADMISSIONS,
+        names.iter().map(String::as_str),
+    ));
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
-/// The rows that name a document or a version by its hex id, which
-/// `arena_key` reads as a key, by exact row id, each filed with its
-/// owner.
-const FILED_HEX: &[&str] = &[
-    // `EditError`'s pairing and pin arms, EDIT's:
-    // work/edit/part-refusals-name-documents-by-hex-id.md
-    "Edit/EvaluationOfAnotherDocument",
-    "Edit/PinUnchanged",
-    // The mate refusals they forward, MSOLVE's:
-    // work/msolve/mate-refusals-name-documents-by-hex-id.md
-    "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-    "Edit/MateRefused(PosesOfAnotherDocument)",
-    "Edit/MaintenanceRefused(Unleverable)",
-    "Edit/MateRefused(Unleverable)",
+/// The rows that name a document or a version by its hex id, by exact
+/// row id and the exact span, each filed with its owner: `EditError`'s
+/// pairing and pin arms, and the mate refusals it forwards.
+const ADMISSIONS: &[Admission<'static>] = &[
+    Admission {
+        row: "Edit/EvaluationOfAnotherDocument",
+        span: "3e23e8160039594a33894f6564e1b134",
+        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/EvaluationOfAnotherDocument",
+        span: "ca978112ca1bbdcafac231b39a23dc4d",
+        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/PinUnchanged",
+        span: "9515831d455a13139e7a712b440337b3447c4b9f3b969d034020eacf0fd8a56d",
+        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
+        span: "3e23e8160039594a33894f6564e1b134",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
+        span: "ca978112ca1bbdcafac231b39a23dc4d",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MateRefused(PosesOfAnotherDocument)",
+        span: "3e23e8160039594a33894f6564e1b134",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MateRefused(PosesOfAnotherDocument)",
+        span: "ca978112ca1bbdcafac231b39a23dc4d",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MaintenanceRefused(Unleverable)",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MateRefused(Unleverable)",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
 ];

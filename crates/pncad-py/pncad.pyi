@@ -187,9 +187,10 @@ class EvaluationError(PncadError):
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
     `node_failed`, or `poisoned`. `kind` (which door refused),
     `inner_kind` (the arm of the kernel refusal that door holds),
-    `through` (the nearest failed ancestor) and `finding` (the
-    refusal-menu payload) are always present, `None` where the reason
-    has none (attributes never go missing).
+    `through` (the nearest failed ancestor), `finding` (the
+    refusal-menu payload) and `document` (the part the node is in) are
+    always present, `None` where the reason has none (attributes never
+    go missing).
 
     TWO WORDS BECAUSE THERE ARE TWO ENUMS, and each is projected where
     it lives. `kind` is the carrier's discriminant — `revolve`,
@@ -222,13 +223,13 @@ class EvaluationError(PncadError):
 
     A refusal that CARRIES another node's refusal — `part_root_failed`,
     a part whose product root failed, and `mate_placer_refused`, a
-    mate whose placer could not derive its pose — names that
+    mate whose poisoned placer could not derive its pose — names that
     node and points at it, and never quotes it. The carried refusal is
     `__cause__`: an `EvaluationError` raised for that node as its own
-    evaluation raises it, whose `node` is in the id space of the
-    document it failed in (the part's, for a part's root). A part
-    inside a part is a chain of causes, one per document, ending at the
-    node that refused.
+    evaluation raises it, whose `node` is in the id space of its
+    `document`: the part's `DocRef` for a part's root, or `None` for a
+    node of the evaluated document itself. A part inside a part is a
+    chain of causes, one per document, ending at the node that refused.
     """
 
     reason: str
@@ -237,6 +238,7 @@ class EvaluationError(PncadError):
     inner_kind: Optional[str]
     through: Optional[NodeId]
     finding: Optional[FlushFinding]
+    document: Optional[DocRef]
 
 class ValidationFinding:
     """ONE failure a validator found, as words a caller branches on.
@@ -5221,9 +5223,11 @@ class MateFault:
     constructor reports are the same value.
 
     `cause` is the refusal the fault CARRIES, typed: on
-    `mate_placer_refused`, the `EvaluationError` the placer's own
-    evaluation raises, which `str(fault)` points at and never quotes. A
-    raised `MateError` carries the same as its `__cause__`."""
+    `mate_placer_refused` where the placer is poisoned and cannot state
+    it, the `EvaluationError` the placer's own evaluation raises, which
+    `str(fault)` points at and never quotes. `None` where the placer
+    fails in its own right, whose own failure states it. A raised
+    `MateError` carries the same as its `__cause__`."""
 
     @property
     def variant(self) -> str: ...

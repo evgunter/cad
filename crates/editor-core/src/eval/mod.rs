@@ -825,7 +825,7 @@ impl NodeRefusal {
 
     /// The refusal as `node`'s own [`NodeError`] renders it: the line a
     /// surface draws for a carried refusal
-    /// ([`NodeErrorKind::carried`]), the same words that node's own
+    /// ([`NodeErrorKind::carried_chain`]), the same words that node's own
     /// tree draws.
     #[must_use]
     pub fn line_at(&self, node: RecipeNodeId) -> String {
@@ -1926,7 +1926,7 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
 // never rendered inside this sentence, which names that node and points
 // at it; it is drawn as its own line, read off
-// [`NodeErrorKind::carried`].
+// [`NodeErrorKind::carried_chain`].
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2322,11 +2322,9 @@ impl NodeErrorKind {
     ///
     /// Two arms carry one. A part whose root failed carries that root's
     /// refusal, in the REFERENCED document's id space; a mate whose
-    /// placer could not derive its pose carries the placer's, in this
-    /// document's. A surface drawing a failure draws the carried
-    /// refusal as its own line under this one, and asks it again for
-    /// the next line, so a part inside a part reads one line per
-    /// document.
+    /// placer's own row cannot state its refusal carries the placer's,
+    /// in the mate's document. One step only: a surface reads the whole
+    /// chain through [`NodeErrorKind::carried_chain`].
     ///
     /// Every other arm holds no [`NodeRefusal`]; the two that forward a
     /// fault enum ask that enum, whose own reading is exhaustive.
@@ -2337,6 +2335,96 @@ impl NodeErrorKind {
             Self::Mate(fault) => fault.carried(),
             _ => None,
         }
+    }
+
+    /// **Every refusal this one carries, outermost first**, each with
+    /// the document its node is in: the one reading every surface draws
+    /// a traceback from. A part inside a part yields one level per
+    /// document, and the last level is the node that refused.
+    pub fn carried_chain(&self) -> CarriedChain<'_> {
+        CarriedChain {
+            next: CarriedChain::step(self, CarriedIn::ThisDocument),
+        }
+    }
+}
+
+/// **Which document a carried refusal's node is in.** A node number
+/// means nothing without it: a part's root is numbered in the part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarriedIn<'a> {
+    /// The document whose evaluation raised the outermost refusal.
+    ThisDocument,
+    /// The part this reference names.
+    Part(&'a crate::ident::DocRef),
+}
+
+/// **One level of a carried chain**: the node that refused, the
+/// document it is in, and its refusal.
+#[derive(Clone, Copy, Debug)]
+pub struct CarriedLevel<'a> {
+    /// The document [`CarriedLevel::node`] is numbered in.
+    pub document: CarriedIn<'a>,
+    /// The node that raised the refusal.
+    pub node: RecipeNodeId,
+    /// Its refusal.
+    pub refusal: &'a NodeRefusal,
+}
+
+impl CarriedLevel<'_> {
+    /// The level as its node's own tree draws it
+    /// ([`NodeRefusal::line_at`]).
+    #[must_use]
+    pub fn line(&self) -> String {
+        self.refusal.line_at(self.node)
+    }
+}
+
+/// The iterator [`NodeErrorKind::carried_chain`] and
+/// [`crate::MateFault::carried_chain`] answer.
+#[derive(Clone, Debug)]
+pub struct CarriedChain<'a> {
+    next: Option<CarriedLevel<'a>>,
+}
+
+impl<'a> CarriedChain<'a> {
+    /// The chain whose first level is `first`, in `document`.
+    pub(crate) fn from_first(
+        first: Option<(RecipeNodeId, &'a NodeRefusal)>,
+        document: CarriedIn<'a>,
+    ) -> Self {
+        Self {
+            next: first.map(|(node, refusal)| CarriedLevel {
+                document,
+                node,
+                refusal,
+            }),
+        }
+    }
+
+    /// The level `kind` carries, when it carries one. A part's level is
+    /// in the part; a mate's is in `outer`, the document `kind` itself
+    /// was raised in.
+    fn step(kind: &'a NodeErrorKind, outer: CarriedIn<'a>) -> Option<CarriedLevel<'a>> {
+        let (node, refusal) = kind.carried()?;
+        let document = match kind {
+            NodeErrorKind::Part { doc_ref, .. } => CarriedIn::Part(doc_ref),
+            _ => outer,
+        };
+        Some(CarriedLevel {
+            document,
+            node,
+            refusal,
+        })
+    }
+}
+
+impl<'a> Iterator for CarriedChain<'a> {
+    type Item = CarriedLevel<'a>;
+
+    fn next(&mut self) -> Option<CarriedLevel<'a>> {
+        let level = self.next.take()?;
+        self.next = Self::step(level.refusal.kind(), level.document);
+        Some(level)
     }
 }
 

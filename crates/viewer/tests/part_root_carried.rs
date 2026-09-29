@@ -1,50 +1,115 @@
-//! **A part's root failure draws one line per document, each within
-//! the budget.**
+//! **A part's root failure draws one level per document, each line the
+//! node's own and each within the budget.**
 //!
 //! An instance whose part does not evaluate names the part's failed
 //! node and points at it; the part's own refusal is drawn under the
-//! row as a line of its own, and a part inside a part adds one line per
-//! document (`tree::carried_lines`). The rows here build that from a
-//! real directory store, open it through the session's `Open` door
-//! (which is what wires the resolver and the file names), and hold
-//! every drawn line to the refusal standard
-//! (`test_utils::refusal::problems`) — a hex document id included,
-//! which is how a part used to be named on these lines.
+//! row as a level of its own, and a part inside a part adds one level
+//! per document (`tree::carried_lines`). Each level's line is its node's
+//! refusal exactly as that node's own tree draws it, and the document
+//! it is in is a label beside it, never words inside it. The rows here
+//! build that from a real directory store and open it through the
+//! session's `Open` door, which is what wires the resolver and the file
+//! names.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use crate::common;
+use std::path::Path;
+use std::sync::Arc;
 
-use pncad::document::{Doc, DocRef, Expr, Node, ProfileDoc, content_pin};
+use crate::common;
+use crate::fixture;
+
+use fixture::resolver::in_part;
+use pncad::document::{
+    Alignment, AxisSense, CancelToken, Doc, DocRef, EvalOptions, Expr, MateFrame, MatePrimitive,
+    Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, content_pin, evaluate,
+};
 use pncad::geom_core::Tol;
+use pncad::prelude::StableName;
+use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
 use pncad::workspace::Workspace;
+use viewer::parts::PartFiles;
 use viewer::session::{DocSession, SessionOp};
-use viewer::tree::RowStatus;
+use viewer::tree::{CarriedLine, RowStatus, TreeRow};
+
+fn reference(doc: &ProfileDoc, tol: Tol) -> DocRef {
+    DocRef {
+        id: doc.id(),
+        pin: content_pin(doc, tol).expect("the pin computes"),
+    }
+}
+
+/// `node`'s failure as `doc`'s own evaluation, over the store in `dir`,
+/// renders it: the line `doc`'s own tree draws for it.
+fn own_line(doc: &ProfileDoc, node: RecipeNodeId, dir: &Path, tol: Tol) -> String {
+    let opts = EvalOptions {
+        resolver: Some(Arc::new(Workspace::open(dir).expect("the store opens"))),
+        ..EvalOptions::default()
+    };
+    match evaluate::<f64>(doc, None, &CancelToken::new(), &opts, tol).result(node) {
+        Some(NodeResult::Failed(error)) => error.to_string(),
+        other => panic!("{node:?} fails in its own document: {other:?}"),
+    }
+}
+
+/// Opens `path` in a fresh session, reads the tree before and after the
+/// run lands, and answers `instance`'s row from each.
+fn opened(path: std::path::PathBuf, instance: RecipeNodeId, tol: Tol) -> (TreeRow, TreeRow) {
+    let mut session = DocSession::inline(Doc::empty_derived("partroot-boot", tol), tol);
+    let outcome = session.perform(SessionOp::Open(path));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let row = |session: &DocSession| {
+        session
+            .tree_rows()
+            .into_iter()
+            .find(|row| row.id == instance)
+            .expect("the instance has a row")
+    };
+    let before = row(&session);
+    session.pump();
+    (before, row(&session))
+}
+
+/// Every drawn line of a failed row, held to the refusal standard, and
+/// every level's label to it too.
+fn hold_to_the_standard(message: &str, carried: &[CarriedLine]) {
+    let mut problems = test_utils::refusal::problems("level 0", message, &[], false);
+    for (level, carried) in carried.iter().enumerate() {
+        let name = format!("level {}", level + 1);
+        problems.extend(test_utils::refusal::problems(
+            &name,
+            &carried.line,
+            &[],
+            false,
+        ));
+        problems.extend(test_utils::refusal::problems(
+            &format!("{name}'s label"),
+            &carried.document,
+            &[],
+            false,
+        ));
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
 
 /// **Depth 2**: an assembly instantiates `bracket.pncad`, whose one
 /// root instantiates `boss.pncad`, whose one root, an extrude, refuses.
 ///
-/// The instance row names its part by file name, its own line names
-/// the bracket's failed node and points, and under it are two lines:
-/// the bracket's node in `bracket.pncad`, and the boss's extrude in
-/// `boss.pncad`, the last drawn exactly as the boss's own tree draws
-/// it. No line quotes the line under it, and every line is within the
-/// budget with no hex id.
+/// Before the run lands the instance row says its part's file is not
+/// read yet, never that there is none. Once it lands, the row names its
+/// part by file name, its own line names the bracket's failed node and
+/// points, and under it are two levels: the bracket's node, labelled
+/// `bracket.pncad`, and the boss's extrude, labelled `boss.pncad`. Each
+/// level's line is byte for byte what that part's own evaluation
+/// renders for its node, no line quotes the line under it, and every
+/// line is within the budget.
 #[test]
 fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let tol = Tol::witness();
-    let dir = std::env::temp_dir().join(format!("partroot-carried-{}", std::process::id()));
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir).expect("clear the fixture directory");
-    }
-    std::fs::create_dir_all(&dir).expect("create the fixture directory");
+    let dir = common::tempdir("partroot-carried");
     let mut store = Workspace::open(&dir).expect("the empty workspace opens");
-    let reference = |doc: &ProfileDoc| DocRef {
-        id: doc.id(),
-        pin: content_pin(doc, tol).expect("the pin computes"),
-    };
 
     // The boss: its one root is an extrude whose distance does not
     // evaluate, so the boss has no product.
@@ -65,8 +130,11 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
 
     // The bracket: its one root instantiates the boss.
     let mut bracket = Doc::empty_derived("partroot-bracket", tol);
-    let bracket_root =
-        common::insert_into(&mut bracket, Node::instantiate_part(reference(&boss)), tol);
+    let bracket_root = common::insert_into(
+        &mut bracket,
+        Node::instantiate_part(reference(&boss, tol)),
+        tol,
+    );
     store
         .save_at(&bracket, "bracket.pncad", tol)
         .expect("the bracket stores");
@@ -74,23 +142,19 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let mut assembly = Doc::empty_derived("partroot-assembly", tol);
     let instance = common::insert_into(
         &mut assembly,
-        Node::instantiate_part(reference(&bracket)),
+        Node::instantiate_part(reference(&bracket, tol)),
         tol,
     );
     let path = store
         .save_at(&assembly, "assembly.pncad", tol)
         .expect("the assembly stores");
 
-    let mut session = DocSession::inline(Doc::empty_derived("partroot-boot", tol), tol);
-    let outcome = session.perform(SessionOp::Open(path));
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
-    let rows = session.tree_rows();
-    let row = rows
-        .iter()
-        .find(|row| row.id == instance)
-        .expect("the instance has a row");
-
+    let (before, row) = opened(path, instance, tol);
+    assert_eq!(
+        before.pose.as_deref(),
+        Some(PartFiles::UNSCANNED),
+        "before the first scan the row says the file is unread, not absent"
+    );
     assert_eq!(
         row.pose.as_deref(),
         Some("bracket.pncad"),
@@ -99,54 +163,164 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let RowStatus::Failed { message, carried } = &row.status else {
         panic!("the instance's own operation failed: {:?}", row.status);
     };
-    let drawn: Vec<&String> = core::iter::once(message).chain(carried).collect();
-    eprintln!(
-        "DRAWN\n{}",
-        drawn
-            .iter()
-            .map(|l| l.as_str())
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
+    eprintln!("DRAWN\n{message}");
+    for (level, carried) in carried.iter().enumerate() {
+        let indent = "  ".repeat(level + 1);
+        eprintln!("{indent}[{}]\n{indent}{}", carried.document, carried.line);
+    }
 
     assert_eq!(
-        carried.len(),
-        2,
-        "one carried line per document below the instance: {drawn:#?}"
+        carried,
+        &vec![
+            CarriedLine {
+                document: "bracket.pncad".to_owned(),
+                line: own_line(&bracket, bracket_root, &dir, tol),
+            },
+            CarriedLine {
+                document: "boss.pncad".to_owned(),
+                line: own_line(&boss, boss_root, &dir, tol),
+            },
+        ],
+        "one level per document below the instance, each labelled with its file and drawn \
+         byte for byte as its part's own tree draws it"
     );
     assert!(
-        message.contains(&format!("repair node {}", bracket_root.0)),
-        "the row's own line points at the bracket's failed node: {message}"
+        message.contains(&format!("repair node {}", bracket_root.0))
+            && carried[0]
+                .line
+                .contains(&format!("repair node {}", boss_root.0)),
+        "each carrying line points at the node the level under it names: {message} / {}",
+        carried[0].line
     );
-    assert!(
-        carried[0].starts_with(&format!(
-            "in bracket.pncad, node {} failed: ",
-            bracket_root.0
-        )) && carried[0].contains(&format!("repair node {}", boss_root.0)),
-        "the bracket's line names its file and points at the boss's node: {}",
-        carried[0]
-    );
-    let boss_line = format!("in boss.pncad, node {} failed: ", boss_root.0);
-    assert!(
-        carried[1].starts_with(&boss_line),
-        "the last line names the boss's file and its failed node: {}",
-        carried[1]
-    );
-    let refusal = carried[1].strip_prefix(&boss_line).expect("checked above");
-    for line in &drawn[..2] {
+    let refusal = carried[1]
+        .line
+        .strip_prefix(&format!("node {} failed: ", boss_root.0))
+        .expect("the boss's line opens with its node");
+    for line in [message, &carried[0].line] {
         assert!(
             !line.contains(refusal),
             "a carrying line never quotes the refusal it carries: {line}"
         );
     }
-    let problems: Vec<String> = drawn
-        .iter()
-        .enumerate()
-        .flat_map(|(level, line)| {
-            test_utils::refusal::problems(&format!("level {level}"), line, &[], false)
-        })
-        .collect();
-    assert!(problems.is_empty(), "{}", problems.join("\n"));
+    hold_to_the_standard(message, carried);
 
+    std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
+}
+
+fn block(label: &str, tol: Tol) -> ProfileDoc {
+    let (doc, profile) = common::framed_square(&Doc::empty_derived(label, tol), 0.02, tol);
+    common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: common::len(0.02),
+        },
+        tol,
+    )
+    .0
+}
+
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+    MateFrame {
+        origin,
+        axis,
+        reference: [1.0, 0.0, 0.0],
+    }
+}
+
+/// **A mate's carried level inside a part is labelled with that part.**
+///
+/// `sub.pncad` mates onto copy 1 of a pattern whose direction is
+/// `1e200`, so its fold refuses `PlacerRefused` and poisons the pattern;
+/// its first root, the cap instance the mate places, fails with that
+/// fault. An assembly instantiating `sub.pncad` draws two levels under
+/// its row: the cap's refusal and, under it, the pattern's, which the
+/// mate carries. Both nodes are numbered in `sub.pncad`, and both
+/// levels say so.
+#[test]
+fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
+    let tol = Tol::witness();
+    let dir = common::tempdir("partroot-carried-mate");
+    let mut store = Workspace::open(&dir).expect("the empty workspace opens");
+    let leg = block("partroot-carried-leg", tol);
+    let top = block("partroot-carried-top", tol);
+    store.save_at(&leg, "leg.pncad", tol).expect("stores");
+    store.save_at(&top, "top.pncad", tol).expect("stores");
+
+    let sub = Doc::empty_derived("partroot-carried-sub", tol);
+    // The cap first, so it is the first root the product door reads.
+    let (sub, cap) = common::inserted(&sub, Node::instantiate_part(reference(&top, tol)), tol);
+    let (sub, legs) = common::inserted(&sub, Node::instantiate_part(reference(&leg, tol)), tol);
+    let (sub, pattern) = common::inserted(
+        &sub,
+        Node::Pattern {
+            input: legs,
+            count: Expr::count(4),
+            kind: PatternKind::Linear {
+                direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.05),
+            },
+        },
+        tol,
+    );
+    let (sub, _mate) = common::inserted(
+        &sub,
+        Node::Mate {
+            a: common::head(StableName {
+                kind: EntityKind::Face,
+                node: pattern,
+                path: vec![RoleSeg::Instance {
+                    i: 1,
+                    of: in_part(legs, CapEnd::End).into(),
+                }],
+            }),
+            b: common::head(in_part(cap, CapEnd::Start)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
+                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Opposed,
+                clocking: None,
+            },
+        },
+        tol,
+    );
+    store.save_at(&sub, "sub.pncad", tol).expect("stores");
+    let mut assembly = Doc::empty_derived("partroot-carried-mate-asm", tol);
+    let instance = common::insert_into(
+        &mut assembly,
+        Node::instantiate_part(reference(&sub, tol)),
+        tol,
+    );
+    let path = store
+        .save_at(&assembly, "assembly.pncad", tol)
+        .expect("stores");
+
+    let (_, row) = opened(path, instance, tol);
+    let RowStatus::Failed { message, carried } = &row.status else {
+        panic!("the instance fails: {:?}", row.status);
+    };
+    assert_eq!(
+        carried
+            .iter()
+            .map(|c| c.document.as_str())
+            .collect::<Vec<_>>(),
+        vec!["sub.pncad", "sub.pncad"],
+        "the cap's level and the placer's under it are both sub.pncad's: {carried:#?}"
+    );
+    assert_eq!(
+        carried[0].line,
+        own_line(&sub, cap, &dir, tol),
+        "the cap's level is sub.pncad's own line for it"
+    );
+    assert!(
+        carried[1]
+            .line
+            .starts_with(&format!("node {} failed: ", pattern.0)),
+        "the carried level is the pattern's refusal: {}",
+        carried[1].line
+    );
+    hold_to_the_standard(message, carried);
     std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
 }
