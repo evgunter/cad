@@ -982,6 +982,7 @@ mod tests {
                 margin,
                 band: band(),
                 predicate: Some(meter.predicate()),
+                terminal_sliver: false,
             },
         }
     }

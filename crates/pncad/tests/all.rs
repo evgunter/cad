@@ -595,14 +595,26 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             margin: MarginDiag::enclosure(-1e-9, 1e-9),
             band,
             predicate: Some("face_orientation"),
+            terminal_sliver: false,
         }),
         (band, Some("face_orientation"), "enclosure")
+    );
+    assert_eq!(
+        escalation_is_readable(&Indeterminate {
+            margin: MarginDiag::enclosure(2e-9, 5e-9),
+            band,
+            predicate: None,
+            terminal_sliver: true,
+        })
+        .2,
+        "sliver"
     );
     assert_eq!(
         escalation_is_readable(&Indeterminate {
             margin: MarginDiag::value(1e-12),
             band,
             predicate: None,
+            terminal_sliver: false,
         })
         .2,
         "value"
@@ -612,6 +624,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             margin: MarginDiag::INVALID,
             band,
             predicate: None,
+            terminal_sliver: false,
         })
         .2,
         "invalid"
@@ -778,8 +791,9 @@ fn entity_and_geometry_sites_are_matchable(
 /// struct readable in one import.
 ///
 /// The margin's kind is matched EXHAUSTIVELY, and the three words are
-/// three different next moves: a value landed in the band (tighten ε),
-/// an enclosure straddles (subdivide), a poisoned margin was never a
+/// different next moves: a value landed in the band (tighten ε), an
+/// enclosure straddles (subdivide) unless the classifier found it a
+/// terminal sliver (subdividing cannot help), a poisoned margin was never a
 /// validly posed question (neither helps). Reading which one it is is
 /// not recovering the sign the classifier refused.
 fn escalation_is_readable(
@@ -789,9 +803,11 @@ fn escalation_is_readable(
         margin,
         band,
         predicate,
+        terminal_sliver,
     } = escalation;
     let seen = match margin.kind() {
         MarginKind::Value => "value",
+        MarginKind::Enclosure if *terminal_sliver => "sliver",
         MarginKind::Enclosure => "enclosure",
         MarginKind::Invalid => "invalid",
     };

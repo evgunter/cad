@@ -24,21 +24,40 @@
 # sites are a second list here: a new one is a red, and a review reads
 # what it mints for.
 #
+# THE SENTENCE IS A THIRD ROUTE, and it is counted too.
+# `MarginDiag::sized_recourse` chooses its words from the number, so a
+# caller that asked it and searched the sentence for "tighten" would
+# read the margin's side through it. Its production call sites are a
+# third list here: the sized-decision table that owns the endings.
+#
 # WHAT A LISTED SITE OWES, and the gate checks none of it — it checks
 # only the file and the count, so the list is where the argument lives:
 # a door site puts the numbers into error text or a payload another
 # renderer prints, and nothing branches on them; a mint site reports
-# what its own classification saw. A review that finds the door or a
+# what its own classification saw; a sentence site returns the sentence
+# as an ending and searches nothing in it. A review that finds the door or a
 # mint anywhere else, or an entry whose site compares the numbers, has
 # found the misuse.
 #
-# WHAT THIS GATE DOES NOT COVER, stated rather than implied: it reads
-# production source text (test modules and test-only mounts are skipped:
-# a test pinning a payload's numbers decides nothing), so a call reached
-# through a macro or a re-export under another name is invisible to it;
-# and rendering the reading as text (`Display`/`LowerExp`) and parsing
-# the text back is a door it cannot see — as obviously wrong as it is
-# long.
+# WHAT IS SKIPPED: test modules, test-only mounts, and the modules a
+# crate mounts under `#[cfg(any(test, feature = "test-support"))]`
+# (`lib.sh`'s test-only resolver refuses `any(…)` on purpose, so this
+# gate resolves that one spelling itself): a test or a test-support
+# sample pinning a payload's numbers decides nothing in a build.
+#
+# WHAT THIS GATE DOES NOT COVER, stated rather than implied. It reads
+# production source text, so:
+#   * a call reached through a macro, or a re-export or `use … as`
+#     alias under another name, is invisible to it;
+#   * rendering the reading as text — `Display`, `LowerExp`, or the
+#     derived `Debug` every payload carries — and parsing the text back
+#     is a door it cannot see, as obviously wrong as it is long;
+#   * EQUALITY AGAINST A COMPARAND IT DID NOT MINT is invisible: a site
+#     holding two readings the classifier minted — `sign_within(..)?`'s
+#     or `decide_reported(..)`'s `.margin`, an escalation's — can ask
+#     whether they are the same reading without writing a mint. What it
+#     learns is identity of two classified quantities, not a threshold;
+#     a review that sees `==` between two margins has found the misuse.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -62,9 +81,41 @@ MINT_ALLOWLIST=(
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
   'crates/topo/src/boolean/sectors.rs 1 a bisector read On between definite bounds reports what is known of it, the zero band'
   'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'
-  'crates/topo/src/test_support_samples.rs 8 the refusal samples the coverage rows render'
 )
-MINT_RE='MarginDiag::(value|enclosure)([^A-Za-z0-9_]|$)'
+# `MarginDiag>?::` so the qualified-path form `<…MarginDiag>::value`
+# is one spelling with the plain one.
+MINT_RE='MarginDiag>?::(value|enclosure)([^A-Za-z0-9_]|$)'
+
+# `path count why` — one entry per production file outside the
+# definition home that asks the margin for a sized recourse sentence.
+SIZED_ALLOWLIST=(
+  'crates/geom-brep/src/recourse.rs 2 the sized-decision table: the Zero and the Undecided arm end in the sentence, returned whole'
+)
+SIZED_RE='sized_recourse([^A-Za-z0-9_]|$)'
+
+# The `mod` files a crate mounts under
+# `#[cfg(any(test, feature = "test-support"))]`, one path per line: the
+# attribute, any further attributes, then `mod name;`, resolved beside
+# the declaring file as `name.rs` or `name/mod.rs`.
+test_support_mounts() {
+  local f
+  for f in "$@"; do
+    awk -v F="$f" '
+      /^[[:space:]]*#\[cfg\(any\(test, feature = "test-support"\)\)\]/ { armed = 1; next }
+      armed && /^[[:space:]]*#\[/ { next }
+      armed && match($0, /^[[:space:]]*(pub(\([a-z]+\))? )?mod [a-z_][a-z0-9_]*;/) {
+        name = $0; sub(/^.*mod /, "", name); sub(/;.*$/, "", name)
+        dir = F; sub(/[^\/]*$/, "", dir)
+        base = F; sub(/^.*\//, "", base)
+        if (base != "lib.rs" && base != "mod.rs" && base != "main.rs") {
+          stem = base; sub(/\.rs$/, "", stem); dir = dir stem "/"
+        }
+        print dir name ".rs"; print dir name "/mod.rs"
+      }
+      { armed = 0 }
+    ' "$f"
+  done
+}
 
 # check_list WHAT RE ENTRY... — the hits of RE over production code,
 # outside the definition home, against the `path count why` entries.
@@ -74,7 +125,7 @@ check_list() {
   local what=$1 re=$2
   shift 2
   local hits
-  hits=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}" \
+  hits=$(gate_rust_code --skip-cfg-test "${GATE_SCAN[@]}" \
     | gate_grep -E "$re" \
     | gate_grep -vE "$(gate_record_anchor_any "${DEFINITION_HOMES[@]}")" \
     | cut -c1-200)
@@ -105,6 +156,17 @@ gate() {
   gate_require_crate_sources
   gate_production_sources
   gate_require_homes "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
+  local -a support=()
+  mapfile -t support < <(test_support_mounts "${GATE_PRODUCTION_FILES[@]}")
+  GATE_SCAN=()
+  local f m skip
+  for f in "${GATE_PRODUCTION_FILES[@]}"; do
+    skip=false
+    for m in ${support[@]+"${support[@]}"}; do
+      if [ "$f" = "$m" ]; then skip=true; break; fi
+    done
+    [ "$skip" = true ] || GATE_SCAN+=("$f")
+  done
   local rc=0
   check_list call "$DOOR_RE" "${DOOR_ALLOWLIST[@]}" || rc=$?
   case $rc in
@@ -120,7 +182,14 @@ gate() {
     2) gate_error "$(gate_name): an allowlisted mint site's count moved. Move the pin in the change that carries the argument"
        exit 1 ;;
   esac
-  gate_ok "the reporting margin's door is called only at the ${#DOOR_ALLOWLIST[@]} allowlisted site(s), and a valued reading minted only at the ${#MINT_ALLOWLIST[@]} allowlisted mint site(s), at the counts they pin"
+  check_list sentence "$SIZED_RE" "${SIZED_ALLOWLIST[@]}" || rc=$?
+  case $rc in
+    1) gate_error "$(gate_name): MarginDiag::sized_recourse asked outside the allowlisted sites (this file's header says what a site owes). Its sentence is chosen from the number, so reading it is reading the margin; end a sized decision through geom_brep::recourse::SizedDecision instead, or add the site here with its reason"
+       exit 1 ;;
+    2) gate_error "$(gate_name): an allowlisted sentence site's count moved. Move the pin in the change that carries the argument"
+       exit 1 ;;
+  esac
+  gate_ok "the reporting margin's door is called only at the ${#DOOR_ALLOWLIST[@]} allowlisted site(s), a valued reading minted only at the ${#MINT_ALLOWLIST[@]} allowlisted mint site(s), and its sized sentence asked only at the ${#SIZED_ALLOWLIST[@]} allowlisted site(s), at the counts they pin (${#support[@]} test-support mount path(s) skipped)"
 }
 
 # The clean fixture: the definition home and every allowlisted file,
@@ -138,11 +207,25 @@ impl MarginDiag {
 }
 fn f(m: f64) -> MarginDiag { MarginDiag::value(m) }
 RS
-  for entry in "${DOOR_ALLOWLIST[@]}" "${MINT_ALLOWLIST[@]}"; do
+  for entry in "${DOOR_ALLOWLIST[@]}" "${MINT_ALLOWLIST[@]}" "${SIZED_ALLOWLIST[@]}"; do
     read -r path want why <<<"$entry"
     mkdir -p "$1/${path%/*}"
     : > "$1/$path"
   done
+  for entry in "${SIZED_ALLOWLIST[@]}"; do
+    read -r path want why <<<"$entry"
+    for ((i = 0; i < want; i++)); do
+      printf 'fn s%d(d: MarginDiag, b: Band, w: SizedWords) -> String { d.sized_recourse(b, w) }\n' "$i" >> "$1/$path"
+    done
+  done
+  # A test-support mount, whose samples mint: skipped.
+  mkdir -p "$1/crates/topo/src"
+  cat > "$1/crates/topo/src/lib.rs" <<'RS'
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod samples;
+RS
+  printf 'fn m() -> MarginDiag { MarginDiag::value(5e-9) }\n' > "$1/crates/topo/src/samples.rs"
   for entry in "${DOOR_ALLOWLIST[@]}"; do
     read -r path want why <<<"$entry"
     for ((i = 0; i < want; i++)); do
@@ -203,6 +286,27 @@ plant_path_mint_outside() {
     > "$1/crates/sweep/src/blend.rs"
 }
 
+# The qualified-path form of a mint.
+plant_qualified_mint_outside() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f(d: MarginDiag) -> bool { d == <geom_core::MarginDiag>::value(0.0) }\n' \
+    > "$1/crates/topo/src/props.rs"
+}
+
+# A plain (not test-support) mount of the same samples: counted.
+plant_mint_in_a_plain_mount() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'mod extra;\n' >> "$1/crates/topo/src/lib.rs"
+  printf 'fn m() -> MarginDiag { MarginDiag::value(5e-9) }\n' > "$1/crates/topo/src/extra.rs"
+}
+
+# The sentence used as a sign oracle.
+plant_sentence_oracle_outside() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f(d: MarginDiag, b: Band, w: SizedWords) -> bool { d.sized_recourse(b, w).contains("tighten") }\n' \
+    > "$1/crates/topo/src/props.rs"
+}
+
 gate_selftest() {
   local outside="a call to MarginDiag::diagnostic_f64_for_error_text outside the allowlisted sites"
   local minted="a valued MarginDiag minted outside the allowlisted sites"
@@ -213,9 +317,12 @@ gate_selftest() {
   gate_selftest_case "an allowlisted site's call count moved" plant_second_call_in_a_listed_file
   gate_selftest_case "$minted" plant_equality_outside
   gate_selftest_case "$minted" plant_path_mint_outside
+  gate_selftest_case "$minted" plant_qualified_mint_outside
+  gate_selftest_case "$minted" plant_mint_in_a_plain_mount
+  gate_selftest_case "MarginDiag::sized_recourse asked outside the allowlisted sites" plant_sentence_oracle_outside
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading and on a path mint; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, and on the sized sentence asked outside its table; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

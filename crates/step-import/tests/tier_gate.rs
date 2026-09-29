@@ -85,7 +85,7 @@
 
 use std::path::{Path, PathBuf};
 
-use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
+use Disposition::{EpsSensitive, Pass, Refused, RefusedEnding, Wireframe};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
@@ -107,6 +107,10 @@ enum Disposition {
     /// Refuses typed; the string is a distinctive fragment of the
     /// refusal's own message, so the ROW says why, not just that.
     Refused(&'static str),
+    /// Refuses typed, and the message ENDS in the string: the whole
+    /// ending, for a cell whose fragment alone cannot tell two endings
+    /// apart (a fragment matches a lever that a note then follows).
+    RefusedEnding(&'static str),
     /// This file's disposition genuinely MOVES with the ambient ε, and
     /// its cells are pinned one by one in [`EPS_ROWS`] — a marker, not
     /// an outcome, so no cell of it can be satisfied by accident.
@@ -306,16 +310,16 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // at 1e-12 the spans clear and the rim/sphere near-tangency
     // refuses at adoption — `poleguard.rs` holds the route argument.
     (POLEBAND, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEBAND, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
+    (POLEBAND, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
     (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
-    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_ZERO_SPAN)),
-    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
+    (POLEBAND12, 1e-9, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
+    (POLEBAND12, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
     (POLEBAND12, 1e-12, "file", Refused(PARAM_SPAN_ESCALATED)),
     (POLEFRUSTUM, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEFRUSTUM, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
+    (POLEFRUSTUM, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
     (
         POLEFRUSTUM,
         1e-12,
@@ -340,7 +344,9 @@ const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// interval by name — the span's Zero verdict, not a reversed one. The
 /// span is a real edge shorter than the tolerance, a band-decided arm
 /// like every sized decision's, so at adoption it ends in the lever
-/// alone: no ending there names a tolerance.
+/// alone: no ending there names a tolerance. Pinned as the message's
+/// whole ending, because a span of no length ends in the same lever
+/// followed by a note, which a fragment would also match.
 const INTERVAL_ZERO_SPAN: &str = "the stored parameter interval spans no length at this tolerance \
      — a degenerate zero-span interval, which the forward gate refuses. Recourse: move the \
      geometry so this edge is not vanishingly short";
@@ -1002,6 +1008,15 @@ fn every_corpus_import_passes_the_shared_gate() {
                     );
                 }
                 (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
+                (Err(e), RefusedEnding(ending)) => {
+                    let msg = e.to_string();
+                    assert_adoption_reading(&who, &msg);
+                    assert!(
+                        msg.ends_with(ending),
+                        "{who}: refused with a DIFFERENT ending than the table records \
+                         (want a message ending in {ending:?}): {msg}"
+                    );
+                }
                 (Err(e), Refused(fragment)) => {
                     let msg = e.to_string();
                     assert_adoption_reading(&who, &msg);

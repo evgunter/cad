@@ -505,8 +505,8 @@ pyo3::create_exception!(
      A margin that landed in the ambiguity band carries the \
      classifier's diagnostic: `margin` (or `margin_low` / \
      `margin_high` for an enclosure), the band's `zero` and \
-     `escalate`, and the deciding `predicate`. A definite zero \
-     carries none of it. The band arm carries its own word on \
+     `escalate`, and the deciding `predicate`, for error text only \
+     and not a decision input. A definite zero carries none of it. The band arm carries its own word on \
      `inner_variant`, with `field` and `value` beside it."
 );
 

@@ -28,5 +28,6 @@ pub(crate) fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
         margin: MarginDiag::INVALID,
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }

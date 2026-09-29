@@ -661,6 +661,7 @@ fn definite_diag<T: Bounds>(
         margin: geom_core::MarginDiag::value(margin.value().lo()),
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -1140,6 +1141,7 @@ fn carrier_agreement<T: Decide + Bounds>(
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("chart_region_carrier_tilt"),
+            terminal_sliver: false,
         })),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
@@ -1461,6 +1463,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
                 margin: geom_core::MarginDiag::INVALID,
                 band: gate_band,
                 predicate: Some(name),
+                terminal_sliver: false,
             })),
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
@@ -1494,6 +1497,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("chart_region_cyl_axis_sense"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
@@ -3650,6 +3654,7 @@ mod tests {
             margin: geom_core::MarginDiag::value(5e-9),
             band: band(),
             predicate: Some("chart_region_area"),
+            terminal_sliver: false,
         };
         // Every arm, constructed. The list is exhaustive by
         // inspection and the compiler cannot check that for a Vec, so

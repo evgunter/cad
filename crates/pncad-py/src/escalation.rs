@@ -35,11 +35,13 @@ use pncad::geom_core::{ErrorTextReading, Indeterminate};
 /// the arms separate is whether there was a number at all.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Escalation {
-    /// The in-band margin, when the classifier saw a value.
+    /// The in-band margin, when the classifier saw a value. For error
+    /// text only, not a decision input.
     pub margin: Option<f64>,
-    /// The enclosure's lower bound, when it saw an enclosure.
+    /// The enclosure's lower bound, when it saw an enclosure. For
+    /// error text only, not a decision input.
     pub margin_low: Option<f64>,
-    /// Its upper bound.
+    /// Its upper bound. For error text only, not a decision input.
     pub margin_high: Option<f64>,
     /// The band's coincidence threshold.
     pub zero: f64,

@@ -306,6 +306,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("dihedral_wedge"),
+            terminal_sliver: false,
         });
     }
     let mut all_transverse = true;
@@ -331,6 +332,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("dihedral_wedge"),
+            terminal_sliver: false,
         });
     }
 
@@ -387,6 +389,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
                     margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("material_cusp_side"),
+                    terminal_sliver: false,
                 });
             }
         };
@@ -409,6 +412,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
+            terminal_sliver: false,
         }),
     }
 }

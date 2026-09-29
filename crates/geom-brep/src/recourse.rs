@@ -295,18 +295,40 @@ mod tests {
     /// **No offer to tighten is ever unvalued**, over every sized
     /// decision's shape, every reading and every arm with every margin
     /// either lane reports: wherever an ending says "tighten", it names
-    /// the tolerance to tighten below, in metres, and ends there. A
-    /// Negative verdict never offers one (no smaller tolerance passes
-    /// it).
+    /// the tolerance to tighten below, in metres, and ends there; the
+    /// margin is on a side the decision passes on (both ends of an
+    /// enclosure), so a smaller tolerance does decide it passing; and
+    /// the value is its nearer end's `|m|/K`. A Negative verdict never
+    /// offers one (no smaller tolerance passes it).
     #[test]
     fn no_tighten_offer_is_unvalued_and_a_negative_verdict_offers_none() {
         let band = band();
-        let valued = |got: &str| match got.split_once("tighten the tolerance") {
+        let k = band.escalate() / band.zero();
+        // The tolerance a smaller one than which decides `margin`
+        // passing, read through the door this test may use.
+        let passing_below = |passes: SizedPass, margin: MarginDiag| {
+            let on = |v: f64| match passes {
+                SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
+                SizedPass::NonZero => v != 0.0,
+            };
+            match margin.diagnostic_f64_for_error_text() {
+                geom_core::ErrorTextReading::Value(m) => on(m).then(|| m.abs() / k),
+                geom_core::ErrorTextReading::Enclosure { lo, hi } => {
+                    (on(lo) && on(hi) && (lo > 0.0) == (hi > 0.0))
+                        .then(|| lo.abs().min(hi.abs()) / k)
+                }
+                geom_core::ErrorTextReading::Invalid => None,
+            }
+        };
+        let valued = |got: &str, passes, margin| match got.split_once("tighten the tolerance") {
             None => true,
             Some((_, tail)) => tail
                 .strip_prefix(" below ")
                 .and_then(|v| v.strip_suffix(" m"))
-                .is_some_and(|v| v.parse::<f64>().is_ok_and(|v| v > 0.0)),
+                .and_then(|v| v.parse::<f64>().ok())
+                .is_some_and(|v| {
+                    passing_below(passes, margin).is_some_and(|want| v == want && v > 0.0)
+                }),
         };
         for passes in [
             SizedPass::Positive,
@@ -335,10 +357,14 @@ mod tests {
                                 margin,
                                 band,
                                 predicate: None,
+                                terminal_sliver: false,
                             };
                             let undecided = end(RefusedArm::Undecided(&cause));
                             for got in [zero, undecided] {
-                                assert!(valued(&got), "{decision:?} {reading:?} {margin}: {got}");
+                                assert!(
+                                    valued(&got, passes, margin),
+                                    "{decision:?} {reading:?} {margin}: {got}"
+                                );
                             }
                         }
                     }
@@ -368,6 +394,7 @@ mod tests {
             margin,
             band: band(),
             predicate: None,
+            terminal_sliver: false,
         };
         let ends =
             |margin| decision.recourse(RefusedArm::Undecided(&cause(margin)), Reading::Build);

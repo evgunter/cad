@@ -107,6 +107,7 @@ fn seeds() -> Vec<BlendError> {
                 margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_ring_clearance"),
+                terminal_sliver: false,
             },
         },
         BlendError::Escalated {
@@ -115,6 +116,7 @@ fn seeds() -> Vec<BlendError> {
                 margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_radius_headroom"),
+                terminal_sliver: false,
             },
         },
         // The site is the payload one level below the variant, and
@@ -129,6 +131,7 @@ fn seeds() -> Vec<BlendError> {
                 margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_ring_clearance"),
+                terminal_sliver: false,
             },
         },
         BlendError::Escalated {
@@ -139,6 +142,7 @@ fn seeds() -> Vec<BlendError> {
                 margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_chain_g1"),
+                terminal_sliver: false,
             },
         },
         BlendError::RepeatedEdge {

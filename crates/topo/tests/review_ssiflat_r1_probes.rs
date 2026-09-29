@@ -165,6 +165,7 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
                 margin,
                 band,
                 predicate: Some("probe"),
+                terminal_sliver: false,
             },
         }
         .to_string()

@@ -72,6 +72,7 @@ fn diags() -> [Indeterminate; 3] {
         margin,
         band: band(),
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
     };
     [
         with(MarginDiag::value(5e-9)),
@@ -107,6 +108,7 @@ fn contradiction_margin(predicate: &'static str) -> Indeterminate {
         margin: MarginDiag::INVALID,
         band: band(),
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 

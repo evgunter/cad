@@ -2929,6 +2929,7 @@ mod tests {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("split_section_area"),
+                terminal_sliver: false,
             },
         }
         .to_string();

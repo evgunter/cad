@@ -209,6 +209,7 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_parallel"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
@@ -231,6 +232,7 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_orient"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
@@ -248,6 +250,7 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_offset"),
+                terminal_sliver: false,
             },
             relation,
         }),
@@ -280,6 +283,7 @@ fn declared_rung<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_parallel"),
+                terminal_sliver: false,
             }));
         }
         Ok(Sign::Zero) => {}
@@ -288,6 +292,7 @@ fn declared_rung<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_parallel"),
+                terminal_sliver: false,
             }));
         }
         // In-band parallelism does not contradict the declaration —
@@ -307,6 +312,7 @@ fn declared_rung<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_orient"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
@@ -317,6 +323,7 @@ fn declared_rung<T: Decide>(
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
         })),
         // Coincident: the geometry stands on its own.
         Ok(Sign::Zero) => Ok((

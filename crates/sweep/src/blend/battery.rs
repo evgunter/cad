@@ -670,6 +670,7 @@ pub fn convexity_at<T: Decide + Bounds>(
                     margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("fillet3_chain_arm"),
+                    terminal_sliver: false,
                 },
             ));
         }
@@ -734,6 +735,7 @@ pub fn chain_g1<T: Decide + Bounds>(
                     margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("fillet3_chain_arm"),
+                    terminal_sliver: false,
                 },
             ));
         }

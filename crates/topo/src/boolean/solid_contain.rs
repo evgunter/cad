@@ -1155,6 +1155,7 @@ pub(super) fn wall_outline<T: Decide>(
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("bool_wall_trim_period"),
+            terminal_sliver: false,
         }));
     }
     let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
@@ -1615,6 +1616,7 @@ fn cone_nappe<T: Decide>(face: FaceKey, v: (T, T), band: Band) -> Result<bool, P
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
+            terminal_sliver: false,
         })
     };
     match decide(
@@ -2297,6 +2299,7 @@ fn point_on_chart_wall<T: Decide>(
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
+            terminal_sliver: false,
         },
     };
     let r_hat = radial / radial.norm();
@@ -2532,6 +2535,7 @@ fn chart_azimuth_margin<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_wall_trim_period"),
+                terminal_sliver: false,
             },
         });
     }
@@ -3020,6 +3024,7 @@ fn latitude_extremes<T: Decide>(
         margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some("bool_sphere_trim_latitude"),
+        terminal_sliver: false,
     })?;
     let (mut lo, mut hi) = (first, first);
     for e in it {
@@ -4106,6 +4111,7 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
         margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     };
     let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
         + T::from_f64(144.0) * p * q_hat.powi(2) * s

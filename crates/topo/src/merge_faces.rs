@@ -3592,6 +3592,7 @@ mod tests {
                     margin: geom_core::MarginDiag::value(0.0),
                     band: Band::linear(Tol::witness()).expect("the witness band"),
                     predicate: Some("merge_declared_plane_eq"),
+                    terminal_sliver: false,
                 },
             })
             .contains("fix the declaration or the geometry"),

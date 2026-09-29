@@ -209,6 +209,7 @@ mod payloads {
             margin: MarginDiag::value(3.0e-10),
             band: band(),
             predicate: Some("side_of_plane"),
+            terminal_sliver: false,
         }
     }
 
@@ -1014,6 +1015,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             margin,
             band,
             predicate: Some("dihedral_wedge"),
+            terminal_sliver: false,
         },
     };
     let in_band = MarginDiag::value(5.0e-9);
@@ -1142,6 +1144,7 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
                 margin,
                 band,
                 predicate: Some(meter.predicate()),
+                terminal_sliver: false,
             },
         })
     };
@@ -3050,6 +3053,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             margin,
             band,
             predicate: Some("chk_shell_volume_sign"),
+            terminal_sliver: false,
         },
     };
     let render = |source| {

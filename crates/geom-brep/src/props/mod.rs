@@ -729,6 +729,7 @@ mod tests {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("props_face_extent"),
+                terminal_sliver: false,
             },
         }
         .to_string();
@@ -764,6 +765,7 @@ mod tests {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("props_face_extent"),
+                terminal_sliver: false,
             },
         };
         let arms = [

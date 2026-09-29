@@ -1113,6 +1113,7 @@ pub(crate) fn every_euler_op_error_once()
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("split_edge_param_interior"),
+                terminal_sliver: false,
             },
         },
         EulerOpError::PcurveSplit {
@@ -4736,6 +4737,7 @@ mod tests {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("split_edge_param_interior"),
+                terminal_sliver: false,
             },
         };
         let msg = escalated.to_string();

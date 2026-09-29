@@ -810,6 +810,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         margin: MarginDiag::value(2.0e-9),
         band,
         predicate,
+        terminal_sliver: false,
     };
     carries(
         &F::Frame {
@@ -883,6 +884,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
                     margin: MarginDiag::enclosure(-1.0e-9, 3.0e-9),
                     band,
                     predicate: None,
+                    terminal_sliver: false,
                 }),
             },
         },
@@ -908,6 +910,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
                     margin: MarginDiag::INVALID,
                     band,
                     predicate: None,
+                    terminal_sliver: false,
                 }),
             },
         },
@@ -2263,6 +2266,7 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
                 margin: MarginDiag::value(2.0e-9),
                 band,
                 predicate: Some("datum_unit_norm"),
+                terminal_sliver: false,
             }),
             "escalated",
         ),
@@ -3066,6 +3070,7 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
                 margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_radius_headroom"),
+                terminal_sliver: false,
             },
         };
         let text = refused.to_string();
@@ -3768,6 +3773,7 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
                 margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
                 predicate: Some("ring_contact"),
+                terminal_sliver: false,
             },
         })
         .ring_contact_kind,

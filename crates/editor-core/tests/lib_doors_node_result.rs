@@ -424,6 +424,7 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
         margin: geom_core::MarginDiag::value(2e-10),
         band: geom_core::Band::linear(geom_core::Tol::witness()).expect("a witness band forms"),
         predicate: Some("loft_stacking"),
+        terminal_sliver: false,
     };
     let band = geom_core::BandError::Empty {
         zero: 1.0,

@@ -335,6 +335,7 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
+            terminal_sliver: false,
         },
     }
 }
@@ -350,6 +351,7 @@ pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
             margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
             band,
             predicate: Some("bool_sector_bisector_side"),
+            terminal_sliver: false,
         },
     }
 }

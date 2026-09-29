@@ -922,13 +922,16 @@ impl<T: crate::real::Real> InfSpeed<T> {
 ///   number itself through `Display`/`LowerExp`, and the conditional
 ///   tolerance offer of a sized decision through
 ///   [`MarginDiag::sized_recourse`];
-/// - what it does expose carries no number: its [`MarginKind`] (which
-///   scalar lane classified it, or that it was poisoned — the one fact
-///   the subdivision driver and the drivers above it route on).
+/// - what it does expose carries no number: its [`MarginKind`], which
+///   scalar lane classified it or that it was poisoned. Poison is the
+///   one fact read off the margin that routes anything, because a
+///   poisoned question has no number to decide on; whether an
+///   escalation is a terminal sliver is the classifier's own verdict,
+///   recorded when it is minted ([`Indeterminate::terminal_sliver`]).
 ///
 /// The one way to the `f64`s is [`MarginDiag::diagnostic_f64_for_error_text`],
 /// for a payload that must hand the numbers to another renderer (a
-/// Python exception's fields, a drive report). Its call sites in
+/// Python exception's fields). Its call sites in
 /// production code are an allowlist a gate counts
 /// (`scripts/gates/reporting-margin-door.sh`), so a decision taken on
 /// the number is a visibly named call on that list, and a review that
@@ -946,7 +949,7 @@ impl<T: crate::real::Real> InfSpeed<T> {
 /// let e = 5e-9_f64.sign_within(band).unwrap_err();
 /// // Deciding on the reporting margin in passing: it must not compile.
 /// let _sign = match e.margin {
-///     MarginKind::Value(m) if m > 0.0 => Sign::Positive,
+///     MarginDiag::Value(m) if m > 0.0 => Sign::Positive,
 ///     _ => Sign::Zero,
 /// };
 /// ```
@@ -1182,7 +1185,10 @@ impl MarginDiag {
     /// given; a poisoned margin adds [`UNREADABLE_MARGIN_NOTE`].
     ///
     /// The choice is made here, from the number, and only a sentence
-    /// leaves.
+    /// leaves. Because the sentence is chosen from the number, reading
+    /// it is reading the margin: its production callers are the
+    /// sized-decision table alone, counted by
+    /// `scripts/gates/reporting-margin-door.sh`.
     #[must_use]
     pub fn sized_recourse(self, band: Band, words: SizedWords<'_>) -> String {
         let SizedWords {
@@ -1275,6 +1281,18 @@ pub struct Indeterminate {
     /// the margin was invalid — for error reporting only
     /// ([`MarginDiag`]).
     pub margin: MarginDiag,
+    /// **The classifier's verdict on curability**, recorded where the
+    /// escalation is minted, as a definite outcome records its sign:
+    /// `true` when interval classification found the enclosure wholly
+    /// inside one open sliver band, `(zero, escalate)` or its mirror,
+    /// where no subdivision decides it — interval enclosures shrink
+    /// monotonically, so a sub-box's stays inside the band its parent's
+    /// was inside (DESIGN D4's row-1 note; the subdivision driver's
+    /// terminal refusal). `false` for every other escalation: a
+    /// straddling enclosure, a point margin, a poisoned one, and every
+    /// escalation minted outside the classifier. The driver reads this,
+    /// never the margin.
+    pub terminal_sliver: bool,
     /// The band the margin was classified against.
     pub band: Band,
     /// The named predicate being decided, when a caller attached one via
@@ -1503,25 +1521,6 @@ impl Indeterminate {
     pub fn payload(&self) -> IndeterminatePayload<'_> {
         IndeterminatePayload(self)
     }
-
-    /// **The terminal sliver** ([`MarginKind::Enclosure`]'s one terminal
-    /// case): whether this escalation's enclosure lies wholly inside one
-    /// open sliver band, `(zero, escalate)` or its mirror, where
-    /// subdividing cannot decide it — interval enclosures shrink
-    /// monotonically, so a sub-box's stays inside the band its parent's
-    /// was inside. A point margin or a poisoned one says nothing about a
-    /// box and is not one.
-    ///
-    /// The band semantics are this module's, so the question is asked
-    /// here and only its answer leaves.
-    #[must_use]
-    pub fn is_terminal_sliver(&self) -> bool {
-        let Reading::Enclosure { lo, hi } = self.margin.0 else {
-            return false;
-        };
-        let (zero, escalate) = (self.band.zero, self.band.escalate);
-        (zero < lo && hi < escalate) || (-escalate < lo && hi < -zero)
-    }
 }
 
 impl fmt::Display for Indeterminate {
@@ -1626,6 +1625,7 @@ impl Decide for f64 {
                 margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             });
         }
         let margin = MarginDiag::value(self);
@@ -1643,10 +1643,12 @@ impl Decide for f64 {
                 Sign::Negative
             }
         } else {
+            // A point margin says nothing about a box.
             return Err(Indeterminate {
                 margin,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             });
         };
         Ok(Decided { sign, margin })
@@ -1833,29 +1835,39 @@ mod tests {
         assert_eq!(e.kind(), MarginKind::Enclosure);
     }
 
-    /// The terminal sliver: an enclosure wholly inside one open sliver
-    /// band, on either side; touching a threshold, straddling zero, a
-    /// point margin and a poisoned one are not.
+    /// **The terminal sliver is the classifier's verdict**, recorded on
+    /// the escalation it mints: an enclosure wholly inside one open
+    /// sliver band, on either side, is terminal; touching a threshold or
+    /// straddling zero is curable; a point margin and a poisoned one are
+    /// never terminal.
     #[test]
-    fn only_an_enclosure_inside_one_sliver_band_is_terminal() {
+    fn the_classifier_records_whether_an_escalation_is_a_terminal_sliver() {
+        use crate::Interval;
         let band = band_1e9();
-        let at = |margin| Indeterminate {
-            margin,
-            band,
-            predicate: None,
+        let at = |lo: f64, hi: f64| {
+            Interval::hull(Interval::point(lo), Interval::point(hi))
+                .sign_within(band)
+                .unwrap_err()
+                .terminal_sliver
         };
         let rows = [
-            (MarginDiag::enclosure(2e-9, 5e-9), true),
-            (MarginDiag::enclosure(-5e-9, -2e-9), true),
-            (MarginDiag::enclosure(1e-9, 5e-9), false),
-            (MarginDiag::enclosure(2e-9, 1e-8), false),
-            (MarginDiag::enclosure(-2e-9, 5e-9), false),
-            (MarginDiag::value(5e-9), false),
-            (MarginDiag::INVALID, false),
+            (2e-9, 5e-9, true),
+            (-5e-9, -2e-9, true),
+            (1e-9, 5e-9, false),
+            (2e-9, 1e-8, false),
+            (-2e-9, 5e-9, false),
         ];
-        for (margin, want) in rows {
-            assert_eq!(at(margin).is_terminal_sliver(), want, "{margin:e}");
+        for (lo, hi, want) in rows {
+            assert_eq!(at(lo, hi), want, "[{lo:e}, {hi:e}]");
         }
+        assert!(
+            !5e-9.sign_within(band).unwrap_err().terminal_sliver,
+            "a point"
+        );
+        assert!(
+            !f64::NAN.sign_within(band).unwrap_err().terminal_sliver,
+            "poison"
+        );
     }
 
     #[test]
@@ -2150,6 +2162,7 @@ mod tests {
                 margin: MarginDiag::value(m),
                 band,
                 predicate: None,
+                terminal_sliver: false,
             })
         };
 
@@ -2180,7 +2193,7 @@ mod tests {
             (f64::INFINITY,   Ok(Sign::Positive), "an infinite margin is maximally definite"),
             (f64::NEG_INFINITY, Ok(Sign::Negative), "likewise toward -inf"),
             // -- Poison: NaN never takes a branch.
-            (f64::NAN,        Err(Indeterminate { margin: MarginDiag::INVALID, band, predicate: None }), "NaN margin is Invalid, not a near-miss"),
+            (f64::NAN,        Err(Indeterminate { margin: MarginDiag::INVALID, band, predicate: None, terminal_sliver: false }), "NaN margin is Invalid, not a near-miss"),
         ];
 
         for (margin, expected, why) in table {
@@ -2269,6 +2282,7 @@ mod tests {
             margin: MarginDiag::enclosure(-2e-9, 5e-9),
             band,
             predicate: Some("side_of_plane"),
+            terminal_sliver: false,
         };
         assert_eq!(
             enclosure.to_string(),

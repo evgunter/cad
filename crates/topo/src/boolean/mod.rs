@@ -2323,6 +2323,7 @@ fn verify_tangent_declaration<T: Decide>(
                         // enters the K funnel — the
                         // `contact_rest_senses_opposed` precedent.
                         predicate: Some("contact_tangent_conformal"),
+                        terminal_sliver: false,
                     },
                 });
             }
@@ -2381,6 +2382,7 @@ fn verify_tangent_declaration<T: Decide>(
                     margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("tangent_locus_gap"),
+                    terminal_sliver: false,
                 },
             });
         }
@@ -2451,6 +2453,7 @@ fn verify_tangent_declaration<T: Decide>(
                                     rim_wedge::RimRouting::Lamina => "contact_tangent_rim_lamina",
                                     _ => "contact_tangent_rim_transverse",
                                 }),
+                                terminal_sliver: false,
                             },
                         });
                     }
@@ -2692,6 +2695,7 @@ mod tests {
             margin,
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
         };
         // The escalated arm: recourse rides the Indeterminate carrier —
         // for every margin shape, including Invalid (the reachable
@@ -2839,6 +2843,7 @@ mod tests {
             margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
         };
         let face = FaceKey::default();
         let edge = EdgeKey::default();

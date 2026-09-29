@@ -390,6 +390,7 @@ fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
                 margin: geom_core::MarginDiag::value(-5.0 * tol().eps()),
                 band: geom_core::Band::linear(tol()).expect("the run's band forms"),
                 predicate: Some(predicate),
+                terminal_sliver: false,
             },
         };
         carries_its_own_recourse(&err, sentence, predicate);

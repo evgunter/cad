@@ -166,6 +166,7 @@ fn rest_pair_verdict<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("contact_rest_senses_opposed"),
+                terminal_sliver: false,
             },
             steer: None,
         }),
@@ -177,6 +178,7 @@ fn rest_pair_verdict<T: Decide>(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("contact_rest_ladder_invariant"),
+                terminal_sliver: false,
             },
         }),
         Err(CarrierEqError::Contradicted(diag)) => Err(ContactRefusal::Contradicted {
@@ -326,6 +328,7 @@ pub fn tangent_locus_relation<T: Decide>(
                             margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some(name),
+                            terminal_sliver: false,
                         },
                         steer: Some(FIT_DEFERRAL),
                     });
@@ -361,6 +364,7 @@ pub fn tangent_locus_relation<T: Decide>(
                         margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_opposed"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -374,6 +378,7 @@ pub fn tangent_locus_relation<T: Decide>(
                         margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_independent"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -423,6 +428,7 @@ pub fn tangent_locus_relation<T: Decide>(
                         margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_parallel"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -447,6 +453,7 @@ pub fn tangent_locus_relation<T: Decide>(
                             margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some("contact_tangent_second_order"),
+                            terminal_sliver: false,
                         },
                     });
                 }
@@ -638,6 +645,7 @@ mod tests {
             margin: geom_core::MarginDiag::INVALID,
             band: band(),
             predicate: Some(p),
+            terminal_sliver: false,
         };
         assert_eq!(
             fit_steer(&diag("carrier_sphere_radius")),

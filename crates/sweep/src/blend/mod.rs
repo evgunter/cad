@@ -1686,6 +1686,7 @@ mod recourse_tests {
                     margin: MarginDiag::value(0.0),
                     band,
                     predicate: Some("fillet3_ring_clearance"),
+                    terminal_sliver: false,
                 },
             },
             BlendError::Escalated {
@@ -1696,6 +1697,7 @@ mod recourse_tests {
                     margin: MarginDiag::value(0.0),
                     band,
                     predicate: Some("fillet3_radius_headroom"),
+                    terminal_sliver: false,
                 },
             },
             BlendError::Escalated {
@@ -1706,6 +1708,7 @@ mod recourse_tests {
                     margin: MarginDiag::value(0.0),
                     band,
                     predicate: Some("fillet3_chain_g1"),
+                    terminal_sliver: false,
                 },
             },
             BlendError::Escalated {
@@ -1716,6 +1719,7 @@ mod recourse_tests {
                     margin: MarginDiag::value(0.0),
                     band,
                     predicate: Some("tangent_second_order"),
+                    terminal_sliver: false,
                 },
             },
             BlendError::RepeatedEdge {

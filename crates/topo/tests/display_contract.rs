@@ -23,6 +23,7 @@ fn in_band() -> Indeterminate {
         margin: MarginDiag::value(3e-11),
         band: Band::new(1e-12, 1e-9).expect("zero < escalate"),
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
     }
 }
 

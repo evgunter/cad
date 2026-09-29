@@ -696,14 +696,15 @@ pub enum PcurveCheck {
 /// The number a fitted-lane refusal carries, named for what it IS.
 ///
 /// The SSI door's definite refusals each measured something different,
-/// and each had already projected it out of an enclosure before the
-/// error was minted. Flattening the three onto one anonymous `f64` —
-/// or worse, onto an escalation's [`geom_core::MarginDiag`], which additionally
-/// claims the classifier judged it and found it in the band — loses
-/// the only thing a reader needs: what the number means. Naming each
-/// follows `edge_nurbs`' `TubeStraddles` precedent, where the same SSI
-/// errors are translated into that lane's vocabulary and the clearance
-/// rides a named verdict (`recourse::Refused`).
+/// so each rides its own named arm: flattening them onto one anonymous
+/// number loses the only thing a reader needs, what the number means.
+/// The limb residual and the foot distances are quantities the lane
+/// projected out of an enclosure when it refused. The tube's clearance
+/// is the reporting margin its zero verdict was decided on
+/// ([`geom_core::MarginDiag`], for the message only), as `edge_nurbs`'
+/// `TubeStraddles` carries it on its verdict (`recourse::Refused`): a
+/// point at `f64`, and at `Interval` the enclosure, rendered
+/// `[lo, hi] m`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FittedMagnitude {
     /// A certificate limb exceeded ε: the limb's own residual bound in
@@ -842,15 +843,10 @@ pub enum PcurveCertifyError {
         /// The number this refusal measured, named for what it IS —
         /// `None` when the refusal is structural and measured nothing.
         ///
-        /// Deliberately NOT a classified margin. Every value reaching
-        /// here is a definite refusal's own quantity, already projected
-        /// out of an enclosure when the SSI error was minted, so
-        /// dressing it as an escalation's margin would assert
-        /// two false things at once: that it is a margin the classifier
-        /// judged, and that it landed inside the band. Escalations —
-        /// the only refusals that DO carry a classified margin — are a
-        /// separate variant ([`PcurveCertifyError::FittedEscalated`]),
-        /// which carries the classifier's diagnostic whole.
+        /// Never an escalation's diagnostic: every value reaching here
+        /// belongs to a definite refusal. Escalations are a separate
+        /// variant ([`PcurveCertifyError::FittedEscalated`]), which
+        /// carries the classifier's diagnostic whole.
         magnitude: Option<FittedMagnitude>,
     },
     /// A fitted-lane classification ESCALATED — D4 ¶3's
@@ -4983,6 +4979,7 @@ mod tests {
             margin: geom_core::MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("pcurve_azimuth_period"),
+            terminal_sliver: false,
         };
         for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
             assert_eq!(

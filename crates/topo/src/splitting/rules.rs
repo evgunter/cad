@@ -147,6 +147,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("split_sector_extent"),
+                    terminal_sliver: false,
                 }));
             }
             Err(diag) => return Err(sliver(diag)),
@@ -224,6 +225,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("enters_material"),
+                    terminal_sliver: false,
                 }));
             }
             Err(diag) => return Err(sliver(diag)),

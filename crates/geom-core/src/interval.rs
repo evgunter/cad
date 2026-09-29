@@ -894,6 +894,7 @@ impl Decide for Interval {
                 margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             });
         }
         let (lo, hi) = (self.0.lo(), self.0.hi());
@@ -905,10 +906,15 @@ impl Decide for Interval {
         } else if hi <= -band.escalate() {
             Sign::Negative
         } else {
+            // The curability verdict: wholly inside one open sliver
+            // band, no subdivision decides it.
+            let (zero, escalate) = (band.zero(), band.escalate());
+            let terminal_sliver = (zero < lo && hi < escalate) || (-escalate < lo && hi < -zero);
             return Err(Indeterminate {
                 margin,
                 band,
                 predicate: None,
+                terminal_sliver,
             });
         };
         Ok(Decided { sign, margin })
@@ -1404,6 +1410,7 @@ mod tests {
                 margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             })
         );
     }
@@ -1495,6 +1502,7 @@ mod tests {
                     margin: MarginDiag::INVALID,
                     band,
                     predicate: None,
+                    terminal_sliver: false,
                 })
             );
         }
@@ -1517,6 +1525,7 @@ mod tests {
                 margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             })
         );
     }
@@ -1533,12 +1542,24 @@ mod tests {
                 margin: MarginDiag::enclosure(lo, hi),
                 band,
                 predicate: None,
+                terminal_sliver: false,
+            })
+        };
+        // Wholly inside one open sliver band: the classifier records it
+        // terminal.
+        let sliver = |lo: f64, hi: f64| {
+            Err(Indeterminate {
+                margin: MarginDiag::enclosure(lo, hi),
+                band,
+                predicate: None,
+                terminal_sliver: true,
             })
         };
         let invalid = Err(Indeterminate {
             margin: MarginDiag::INVALID,
             band,
             predicate: None,
+            terminal_sliver: false,
         });
 
         // First representable values beyond the thresholds.
@@ -1558,9 +1579,9 @@ mod tests {
             (iv(-2e-9, 2e-9),       indeterminate(-2e-9, 2e-9), "symmetric straddle of the coincidence region"),
             // -- Inside the ambiguity band: indeterminate EVEN FOR POINTS
             //    (the sliver band is semantic — ratified reading (b)).
-            (Interval::from_f64(5e-9), indeterminate(5e-9, 5e-9), "a point in the sliver band stays indeterminate"),
-            (iv(2e-9, 3e-9),        indeterminate(2e-9, 3e-9), "an enclosure wholly inside the band"),
-            (Interval::from_f64(-5e-9), indeterminate(-5e-9, -5e-9), "sliver point, negative side"),
+            (Interval::from_f64(5e-9), sliver(5e-9, 5e-9), "a point in the sliver band stays indeterminate"),
+            (iv(2e-9, 3e-9),        sliver(2e-9, 3e-9), "an enclosure wholly inside the band"),
+            (Interval::from_f64(-5e-9), sliver(-5e-9, -5e-9), "sliver point, negative side"),
             // -- Straddling the escalate threshold: indeterminate.
             (iv(below_escalate, 1.0), indeterminate(below_escalate, 1.0), "lo one ulp short of escalate"),
             (iv(-1.0, -below_escalate), indeterminate(-1.0, -below_escalate), "hi one ulp short of -escalate"),

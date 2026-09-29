@@ -337,6 +337,7 @@ pub fn carrier_eq_verdict<T: Decide>(
                     margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("carrier_kind"),
+                    terminal_sliver: false,
                 }))
             } else {
                 Ok((CarrierRelation::Distinct, ContactVerdict::Definite))
@@ -390,6 +391,7 @@ fn data_rungs<T: Decide>(
                     margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some(name),
+                    terminal_sliver: false,
                 };
                 return if declared {
                     Err(CarrierEqError::Contradicted(diag))
@@ -426,6 +428,7 @@ fn data_rungs<T: Decide>(
             margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(margins[0].0),
+            terminal_sliver: false,
         }),
         // The alignment this traversal was run under: the relation a
         // declaration of this pair would verify with (R3).

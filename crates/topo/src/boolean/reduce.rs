@@ -2239,6 +2239,7 @@ fn vertex_on_curved_face<T: Decide>(
                         margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("bool_contact_vertex"),
+                        terminal_sliver: false,
                     },
                 });
             }

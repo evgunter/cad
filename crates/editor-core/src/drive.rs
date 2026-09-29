@@ -1730,15 +1730,16 @@ fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
 
 /// The predicate name of an escalation whose enclosure sits WHOLLY
 /// inside the ambiguity band `(ε, Kε)` — the ratified terminal-sliver
-/// test ([`geom_core::Indeterminate::is_terminal_sliver`]) — or `None`
-/// when refinement could still decide it.
+/// test, the classifier's own verdict
+/// ([`geom_core::Indeterminate::terminal_sliver`]) — or `None` when
+/// refinement could still decide it.
 ///
 /// **Crate-visible because the clearance engine's inner subdivision
 /// refuses by the same rule** ([`crate::clearance`]): one home, so the
 /// two subdivisions cannot drift apart on what a sliver is.
 pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
     source
-        .is_terminal_sliver()
+        .terminal_sliver
         .then_some(source.predicate.unwrap_or("<unnamed>"))
 }
 

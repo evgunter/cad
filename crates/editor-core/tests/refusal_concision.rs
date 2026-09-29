@@ -138,6 +138,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         margin: MarginDiag::value(3.0e-10),
         band,
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
     };
     let face = FaceKey::default();
     let edge = EdgeKey::default();

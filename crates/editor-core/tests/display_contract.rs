@@ -387,6 +387,7 @@ fn in_band(predicate: &'static str) -> geom_core::Indeterminate {
         margin: geom_core::MarginDiag::value(3e-11),
         band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -2380,6 +2381,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     margin: geom_core::predicate::MarginDiag::INVALID,
                     band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
                     predicate: Some("side_of_plane"),
+                    terminal_sliver: false,
                 },
             },
             vec!["side_of_plane", "escalated"],

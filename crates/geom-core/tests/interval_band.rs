@@ -68,6 +68,7 @@ fn interval_classification_tracks_the_global_tolerance() {
             margin: MarginDiag::enclosure(0.5 * eps, 20.0 * eps),
             band,
             predicate: None,
+            terminal_sliver: false,
         }
     );
 
@@ -89,6 +90,7 @@ fn interval_classification_tracks_the_global_tolerance() {
             margin: MarginDiag::INVALID,
             band,
             predicate: None,
+            terminal_sliver: false,
         })
     );
 

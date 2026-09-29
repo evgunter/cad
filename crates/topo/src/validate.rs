@@ -4728,6 +4728,7 @@ pub(crate) fn material_arm_error(
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some(predicate),
+                terminal_sliver: false,
             },
         }),
         // A settled wedge is legal: the seam and a transverse wedge
@@ -5856,6 +5857,7 @@ pub(crate) fn tier3_local_checks_marked<
                                 margin: geom_core::MarginDiag::INVALID,
                                 band,
                                 predicate: Some("material_cusp_side"),
+                                terminal_sliver: false,
                             },
                         });
                         jet_escalated = true;
@@ -9615,6 +9617,7 @@ mod tests {
             margin,
             band,
             predicate: Some("a_margin"),
+            terminal_sliver: false,
         };
         let in_band = diag(MarginDiag::value(5e-9));
         let straddles = diag(MarginDiag::enclosure(-2e-9, 4e-9));
@@ -12670,6 +12673,7 @@ mod tests {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("pm_census_vv_gap"),
+                terminal_sliver: false,
             },
         };
         let msg = escalated.to_string();
@@ -12954,6 +12958,7 @@ mod offset_fit_door_rows {
                 margin,
                 band,
                 predicate: Some(meter.predicate()),
+                terminal_sliver: false,
             },
         };
         let close = "whether this face can be offset is too close to call at this tolerance";
@@ -13136,6 +13141,7 @@ mod certify_escalation_rows {
                 margin,
                 band: Band::new(1.0e-9, 1.0e-8).unwrap(),
                 predicate: Some("a_probe"),
+                terminal_sliver: false,
             },
         })
     }

@@ -437,6 +437,7 @@ fn classify_gated<T: Decide, R>(
         margin: MarginDiag::INVALID,
         band,
         predicate: Some(name),
+        terminal_sliver: false,
     }))
 }
 
@@ -690,6 +691,7 @@ pub fn gate_measured<T: Real>(
             margin: MarginDiag::INVALID,
             band,
             predicate: Some(name),
+            terminal_sliver: false,
         }));
     }
     Ok(value)

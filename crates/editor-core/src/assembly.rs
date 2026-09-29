@@ -1696,6 +1696,7 @@ mod attribution {
             margin: MarginDiag::value(0.0),
             band: Band::linear(Tol::witness()).expect("the ambient tolerance builds a band"),
             predicate: None,
+            terminal_sliver: false,
         }
     }
 

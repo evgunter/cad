@@ -405,6 +405,7 @@ fn parallel(
             margin: MarginDiag::INVALID,
             band,
             predicate: Some("mate_axes_parallel"),
+            terminal_sliver: false,
         }),
     }
 }

@@ -180,6 +180,7 @@ fn escalation(name: &'static str) -> Indeterminate {
         margin: MarginDiag::value((band.zero() + band.escalate()) / 2.0),
         band,
         predicate: Some(name),
+        terminal_sliver: false,
     }
 }
 

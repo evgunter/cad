@@ -4021,6 +4021,7 @@ mod shell_role_refusal_tests {
             margin,
             band,
             predicate: Some("chk_shell_volume_sign"),
+            terminal_sliver: false,
         };
         let esc = |margin| Err(diag(margin));
         let escalated = |margin| ShellClassifyError::Escalated {

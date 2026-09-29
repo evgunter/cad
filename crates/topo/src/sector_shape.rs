@@ -389,6 +389,7 @@ fn invalid(band: Band, predicate: &'static str) -> SectorFault {
         margin: MarginDiag::INVALID,
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     })
 }
 

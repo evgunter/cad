@@ -2772,6 +2772,7 @@ mod tests {
             margin: MarginDiag::value(0.0),
             band: band(),
             predicate: Some("a_probe"),
+            terminal_sliver: false,
         };
         let not_sampled = CertifyError::Escalated {
             check: CertCheck::ParamSpan,
@@ -3914,6 +3915,7 @@ mod tests {
             margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("a_probe"),
+            terminal_sliver: false,
         };
         let zero = Refused::Zero(Classified {
             margin: MarginDiag::value(5e-10),
@@ -4165,6 +4167,7 @@ mod tests {
             margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("a_probe"),
+            terminal_sliver: false,
         };
         let limb = P::Limb {
             limb: crate::ssi::SsiLimb::OnLocus,
@@ -4232,6 +4235,7 @@ mod tests {
                 margin,
                 band,
                 predicate: Some("a_probe"),
+                terminal_sliver: false,
             };
             recourse(check, RefusedArm::Undecided(&cause), Reading::Build)
         };
@@ -4357,6 +4361,7 @@ mod tests {
                 margin: MarginDiag::value(5e-9),
                 band,
                 predicate: Some("a_probe"),
+                terminal_sliver: false,
             },
         };
         let payload = "the start-endpoint residual at sample 0 escalated: predicate 'a_probe' \
@@ -4391,6 +4396,7 @@ mod tests {
                 margin,
                 band,
                 predicate: Some("a_probe"),
+                terminal_sliver: false,
             });
             let mut endings: Vec<String> = causes
                 .iter()
@@ -4421,6 +4427,7 @@ mod tests {
             margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("a_probe"),
+            terminal_sliver: false,
         };
         assert_eq!(
             recourse(

@@ -94,6 +94,7 @@ pub(super) fn in_plane_frame<T: Decide>(
         margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some("split_join_frame_arm"),
+        terminal_sliver: false,
     }))
 }
 
