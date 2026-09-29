@@ -20,11 +20,19 @@
 //!   across the reduction's annotated bodies: components arrive whole;
 //!   no Euler surgery happens here (the seam zip afterwards uses the
 //!   now-ordinary same-solid `kfmrh` + `loopglue`).
-//! - **Provenance records are transplanted verbatim.** They are
-//!   historical data (their payload keys reference the *source*
-//!   operand's lineage, which the recipe's boolean node names), per
-//!   the provenance module's records-are-historical contract — a
-//!   graft is not a re-birth.
+//! - **Provenance records are transplanted with their payload keys
+//!   forwarded.** A graft is not a re-birth — each entity keeps the
+//!   record of the operation that created it — but a payload key is
+//!   body-lineage-scoped, so a source key carried over would name
+//!   whatever holds that key in `dst`. A key the source still holds
+//!   forwards to its result key; a key the source no longer holds
+//!   (records are historical: a split's parent, a `kemr`'s killed
+//!   halves) forwards to a result key that is dead on arrival —
+//!   minted and removed in `dst`'s arena, so it resolves nowhere and
+//!   slot versioning keeps any later insertion from taking it — one
+//!   per source key, so records that named one dead source entity
+//!   still name one result key. A split lineage therefore chases
+//!   inside `dst` to the root it reached in `src`.
 //! - The returned [`GraftMap`] is the ONLY bridge between source keys
 //!   and result keys; downstream consumers (the seam zip's
 //!   record-keyed correspondence, contact-record remapping) read it
@@ -35,7 +43,9 @@
 //! zip consumes (or, for fallback results — disjoint unions, voids —
 //! the finished multi-shell body itself).
 
-use slotmap::SecondaryMap;
+use std::collections::BTreeMap;
+
+use slotmap::{Key, SecondaryMap, SlotMap};
 
 use super::BooleanError;
 use crate::body::Body;
@@ -56,6 +66,11 @@ pub(crate) struct GraftMap {
     pub faces: SecondaryMap<FaceKey, FaceKey>,
     /// Source edge → result edge (naming emission, M4 PR 3).
     pub edges: SecondaryMap<EdgeKey, EdgeKey>,
+    /// Source edge a transplanted record names but the source no
+    /// longer holds → the dead result key standing for it (module
+    /// docs). The only way from a forwarded record back to an
+    /// ancestor that died before the graft.
+    pub dead_edges: BTreeMap<EdgeKey, EdgeKey>,
     /// Source surface → result surface (M4 PR 5: declared-pair
     /// equivalences ride surfaces — fragments inherit surface keys,
     /// so the surface bridge survives fragment-key churn).
@@ -65,9 +80,75 @@ pub(crate) struct GraftMap {
     pub shells: SecondaryMap<ShellKey, ShellKey>,
 }
 
+/// One key kind's record forwarding (module docs): a key the source
+/// holds goes through the graft's map; any other gets a key of `arena`
+/// that is dead on arrival — minted and removed at once, so it
+/// resolves nowhere and slot versioning keeps any later insertion from
+/// taking it — memoised, one per source key.
+struct KindForward<'g, K: Key, V> {
+    live: &'g SecondaryMap<K, K>,
+    arena: &'g mut SlotMap<K, V>,
+    placeholder: fn() -> V,
+    dead: BTreeMap<K, K>,
+}
+
+impl<'g, K: Key + Ord, V> KindForward<'g, K, V> {
+    fn new(
+        live: &'g SecondaryMap<K, K>,
+        arena: &'g mut SlotMap<K, V>,
+        placeholder: fn() -> V,
+    ) -> Self {
+        Self {
+            live,
+            arena,
+            placeholder,
+            dead: BTreeMap::new(),
+        }
+    }
+
+    fn key(&mut self, k: K) -> K {
+        if let Some(&d) = self.live.get(k) {
+            return d;
+        }
+        let (arena, placeholder) = (&mut *self.arena, self.placeholder);
+        *self.dead.entry(k).or_insert_with(|| {
+            let d = arena.insert(placeholder());
+            arena.remove(d);
+            d
+        })
+    }
+}
+
+/// One graft's record forwarding, every key kind a payload carries.
+struct Forward<'g> {
+    half_edges: KindForward<'g, HalfEdgeKey, crate::entity::HalfEdge>,
+    edges: KindForward<'g, EdgeKey, crate::entity::Edge>,
+    loops: KindForward<'g, LoopKey, crate::entity::Loop>,
+    shells: KindForward<'g, ShellKey, crate::entity::Shell>,
+    solids: KindForward<'g, SolidKey, crate::entity::Solid>,
+}
+
+impl crate::provenance::ForwardKeys for Forward<'_> {
+    fn half_edge(&mut self, k: HalfEdgeKey) -> HalfEdgeKey {
+        self.half_edges.key(k)
+    }
+    fn loop_(&mut self, k: LoopKey) -> LoopKey {
+        self.loops.key(k)
+    }
+    fn edge(&mut self, k: EdgeKey) -> EdgeKey {
+        self.edges.key(k)
+    }
+    fn shell(&mut self, k: ShellKey) -> ShellKey {
+        self.shells.key(k)
+    }
+    fn solid(&mut self, k: SolidKey) -> SolidKey {
+        self.solids.key(k)
+    }
+}
+
 /// Transplants `src`'s single solid into `dst_solid` of `dst`
-/// (module docs). `src` is consumed by value — its arenas are read in
-/// slot order; nothing of it survives as shared state.
+/// (module docs). `src` is only read: its arenas are walked in slot
+/// order, and nothing of it is shared with `dst`.
 pub(crate) fn graft_solid<T: geom_core::Decide>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
@@ -132,6 +213,39 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     bridge: Bridge,
     tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
+    graft_solids_impl(dst, Targets::Existing(dst_solids), src, bridge, tol).map(|(map, _)| map)
+}
+
+/// [`graft_solids_with`] onto destination solids minted here, one per
+/// source solid in source order, each carrying its source solid's
+/// record forwarded like every other record (module docs). Returns the
+/// minted keys beside the map.
+pub(crate) fn graft_solids_minted<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    src: &Body<T>,
+    bridge: Bridge,
+    tol: Tol,
+) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
+    graft_solids_impl(dst, Targets::Minted, src, bridge, tol)
+}
+
+/// Which destination solids a graft's source solids land in.
+#[derive(Clone, Copy)]
+enum Targets<'a> {
+    /// Existing solids, positionally; each keeps its own record.
+    Existing(&'a [SolidKey]),
+    /// Fresh solids minted by the graft, each taking its source
+    /// solid's record.
+    Minted,
+}
+
+fn graft_solids_impl<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    targets: Targets<'_>,
+    src: &Body<T>,
+    bridge: Bridge,
+    tol: Tol,
+) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body",
     };
@@ -146,18 +260,34 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     // is the only thing the shell pass needs.
     let mut solid_map: SecondaryMap<SolidKey, SolidKey> = SecondaryMap::new();
     let mut pairs: Vec<(SolidKey, SolidKey)> = Vec::new();
-    {
-        let mut targets = dst_solids.iter();
-        for (k, _) in src.solids() {
-            let &target = targets.next().ok_or_else(arity)?;
-            solid_map.insert(k, target);
-            pairs.push((k, target));
+    // Minted targets: the source solids and the records they will carry,
+    // read before anything is written.
+    let mut minted: Vec<(SolidKey, &crate::provenance::Provenance)> = Vec::new();
+    match targets {
+        Targets::Existing(dst_solids) => {
+            let mut targets = dst_solids.iter();
+            for (k, _) in src.solids() {
+                let &target = targets.next().ok_or_else(arity)?;
+                solid_map.insert(k, target);
+                pairs.push((k, target));
+            }
+            if targets.next().is_some() {
+                return Err(arity());
+            }
         }
-        if targets.next().is_some() {
-            return Err(arity());
+        Targets::Minted => {
+            for (k, _) in src.solids() {
+                let p = src
+                    .solid_provenance
+                    .get(k)
+                    .ok_or(BooleanError::JoinDesync {
+                        what: "graft source is not a well-formed body: a solid without provenance",
+                    })?;
+                minted.push((k, p));
+            }
         }
     }
-    if pairs.is_empty() {
+    if pairs.is_empty() && minted.is_empty() {
         return Err(corrupt());
     }
 
@@ -210,9 +340,6 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     for (k, v) in src.vertices.iter() {
         let dk = dst.vertices.insert(v.clone());
         vertices.insert(k, dk);
-        if let Some(p) = src.vertex_provenance.get(k) {
-            dst.vertex_provenance.insert(dk, p.clone());
-        }
     }
     // Curves after vertices (a NullScaffold payload holds vertex keys;
     // a certified description may hold SURFACE keys — `Intersection`/
@@ -243,42 +370,112 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     for (k, he) in src.half_edges.iter() {
         let dk = dst.half_edges.insert(he.clone());
         half_edges.insert(k, dk);
-        if let Some(p) = src.half_edge_provenance.get(k) {
-            dst.half_edge_provenance.insert(dk, p.clone());
-        }
     }
     let mut edges: SecondaryMap<EdgeKey, EdgeKey> = SecondaryMap::new();
     for (k, e) in src.edges.iter() {
         let dk = dst.edges.insert(e.clone());
         edges.insert(k, dk);
-        if let Some(p) = src.edge_provenance.get(k) {
-            dst.edge_provenance.insert(dk, p.clone());
-        }
     }
     let mut loops: SecondaryMap<LoopKey, LoopKey> = SecondaryMap::new();
     for (k, l) in src.loops.iter() {
         let dk = dst.loops.insert(l.clone());
         loops.insert(k, dk);
-        if let Some(p) = src.loop_provenance.get(k) {
-            dst.loop_provenance.insert(dk, p.clone());
-        }
     }
     let mut faces: SecondaryMap<FaceKey, FaceKey> = SecondaryMap::new();
     for (k, f) in src.faces.iter() {
         let dk = dst.faces.insert(f.clone());
         faces.insert(k, dk);
-        if let Some(p) = src.face_provenance.get(k) {
-            dst.face_provenance.insert(dk, p.clone());
-        }
     }
     let mut shells: SecondaryMap<ShellKey, ShellKey> = SecondaryMap::new();
     for (k, s) in src.shells.iter() {
         let dk = dst.shells.insert(s.clone());
         shells.insert(k, dk);
-        if let Some(p) = src.shell_provenance.get(k) {
-            dst.shell_provenance.insert(dk, p.clone());
+    }
+
+    // ---- Minted destination solids, in source order. ----
+    for &(k, _) in &minted {
+        let dk = dst
+            .solids
+            .insert(crate::entity::Solid { shells: Vec::new() });
+        solid_map.insert(k, dk);
+        pairs.push((k, dk));
+    }
+
+    // ---- Provenance: every record forwarded into `dst`'s keys. ----
+    //
+    // Three kinds of source row can name a key this graft has no image
+    // for, and each gets the treatment its meaning dictates. A
+    // provenance PAYLOAD is history: it names the entity an operation
+    // acted on, which later surgery may have killed, so a dead payload
+    // key is the normal case and forwards to a dead-on-arrival key. A
+    // pcurve cache row is derived data keyed by the half-edge it
+    // describes; surgery leaves stale rows behind, so a dead key marks
+    // the row stale and it is skipped. A null-face row describes a live
+    // face's current loops and is removed with its face, so a key
+    // missing there means the source is corrupt.
+    let mut fwd = Forward {
+        half_edges: KindForward::new(&half_edges, &mut dst.half_edges, || {
+            crate::entity::HalfEdge {
+                edge: EdgeKey::null(),
+                start: VertexKey::null(),
+                parent_loop: LoopKey::null(),
+                next: HalfEdgeKey::null(),
+                prev: HalfEdgeKey::null(),
+            }
+        }),
+        edges: KindForward::new(&edges, &mut dst.edges, || crate::entity::Edge {
+            he_plus: HalfEdgeKey::null(),
+            he_minus: HalfEdgeKey::null(),
+            curve: CurveKey::null(),
+        }),
+        loops: KindForward::new(&loops, &mut dst.loops, || crate::entity::Loop {
+            boundary: LoopBoundary::Empty {
+                vertex: VertexKey::null(),
+            },
+            face: FaceKey::null(),
+        }),
+        shells: KindForward::new(&shells, &mut dst.shells, || crate::entity::Shell {
+            faces: Vec::new(),
+            solid: SolidKey::null(),
+        }),
+        solids: KindForward::new(&solid_map, &mut dst.solids, || crate::entity::Solid {
+            shells: Vec::new(),
+        }),
+    };
+    for (k, &dk) in vertices.iter() {
+        if let Some(p) = src.vertex_provenance.get(k) {
+            dst.vertex_provenance.insert(dk, p.forwarded(&mut fwd));
         }
     }
+    for (k, &dk) in half_edges.iter() {
+        if let Some(p) = src.half_edge_provenance.get(k) {
+            dst.half_edge_provenance.insert(dk, p.forwarded(&mut fwd));
+        }
+    }
+    for (k, &dk) in edges.iter() {
+        if let Some(p) = src.edge_provenance.get(k) {
+            dst.edge_provenance.insert(dk, p.forwarded(&mut fwd));
+        }
+    }
+    for (k, &dk) in loops.iter() {
+        if let Some(p) = src.loop_provenance.get(k) {
+            dst.loop_provenance.insert(dk, p.forwarded(&mut fwd));
+        }
+    }
+    for (k, &dk) in faces.iter() {
+        if let Some(p) = src.face_provenance.get(k) {
+            dst.face_provenance.insert(dk, p.forwarded(&mut fwd));
+        }
+    }
+    for (k, &dk) in shells.iter() {
+        if let Some(p) = src.shell_provenance.get(k) {
+            dst.shell_provenance.insert(dk, p.forwarded(&mut fwd));
+        }
+    }
+    for (&(_, p), &(_, dk)) in minted.iter().zip(&pairs) {
+        dst.solid_provenance.insert(dk, p.forwarded(&mut fwd));
+    }
+    let dead_edges = fwd.edges.dead;
 
     // ---- Pass 2: patch every cross-reference to result keys. ----
     let map = |m: &SecondaryMap<VertexKey, VertexKey>, k: VertexKey| m.get(k).copied();
@@ -360,16 +557,15 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         dst.null_faces.insert(dk, mapped);
     }
 
-    // ---- Pcurve caches (M5 PR 6): remapped like provenance. Since
-    // M6-3 every curved chart mints, so operands genuinely carry
-    // caches here — including STALE rows: surgery kills half-edges
-    // without clearing the cache map (the module-docs posture in
-    // `topo::pcurves`), so a reduced operand may hold rows keyed by
-    // half-edges that no longer exist. Those rows are skipped, not
-    // treated as corruption: the row's key not being in the graft's
-    // half-edge walk IS the staleness test (the walk covers every
-    // live half-edge of the grafted solid), and the boolean result's
-    // own final mint pass clears and re-derives every cache anyway. ----
+    // ---- Pcurve caches (M5 PR 6), re-keyed to the result half-edges.
+    // Since M6-3 every curved chart mints, so operands genuinely carry
+    // caches here — including STALE rows (the provenance pass above
+    // says why they are skipped): surgery kills half-edges without
+    // clearing the cache map (the module-docs posture in
+    // `topo::pcurves`). The row's key not being in the graft's
+    // half-edge walk IS the staleness test (the walk covers every live
+    // half-edge of the grafted solid), and the boolean result's own
+    // final mint pass clears and re-derives every cache anyway. ----
     for (k, cache) in src.pcurves.iter() {
         let Some(&dk) = half_edges.get(k) else {
             continue;
@@ -476,7 +672,7 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
 
     // ---- Attach the shells to the destination solids (source order,
     // per solid and within each solid). ----
-    for (src_solid, dst_solid) in pairs {
+    for &(src_solid, dst_solid) in &pairs {
         let shell_list: Vec<ShellKey> = src
             .shells_of_solid(src_solid)
             .ok_or_else(corrupt)?
@@ -487,11 +683,13 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         solid.shells.extend(shell_list);
     }
 
-    Ok(GraftMap {
+    let map = GraftMap {
         vertices,
         faces,
         edges,
+        dead_edges,
         surfaces,
         shells,
-    })
+    };
+    Ok((map, pairs.into_iter().map(|(_, dk)| dk).collect()))
 }
