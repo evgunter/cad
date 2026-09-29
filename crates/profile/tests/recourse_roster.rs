@@ -181,7 +181,8 @@ fn every_decided_name_is_routed_or_listed_with_its_reason() {
 fn every_decided_name_has_a_subject_or_a_sentence() {
     for name in &census().names {
         assert!(
-            profile::decision_subject(name).is_some() || fillet_recourse_for(name).is_some(),
+            profile::decision_subject(name).is_some()
+                || profile::fillet_recourse_for(name).is_some(),
             "`{name}` is decided by this crate and has no subject in \
              `validate::decision_subject`"
         );
