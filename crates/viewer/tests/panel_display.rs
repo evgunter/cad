@@ -1005,6 +1005,7 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
         "mint-mm",
         &ParamName::literal("base_r"),
         minted,
+        Tol::witness(),
     ))
     .pop()
     .expect("the declared parameter");
@@ -1023,7 +1024,8 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
         props::param_rows(&common::declared(
             "mint-deg",
             &ParamName::literal("sweep"),
-            angle
+            angle,
+            Tol::witness()
         ))
         .pop()
         .and_then(|row| row.unit)

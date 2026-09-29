@@ -22,19 +22,22 @@
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 
+use crate::Segment;
+
 /// The left normal: `v` rotated +90° counterclockwise, (−y, x).
 pub(crate) fn perp<T: Real>(v: Vec2<T>) -> Vec2<T> {
     Vec2::new(-v.y, v.x)
 }
 
 /// A classified segment of a loop: the chord data plus the carrier
-/// geometry its bulge implies.
+/// geometry of its canonical segment.
 pub(crate) struct Seg<T: Real> {
     /// Start point.
     pub a: Point2<T>,
     /// End point.
     pub b: Point2<T>,
-    /// The stored bulge (tan(θ/4); crate-doc sign convention).
+    /// The bulge the segment was lowered from (tan(θ/4); crate-doc sign
+    /// convention) — the value the sagitta margins are written in.
     pub bulge: T,
     /// The chord vector `b − a`.
     pub chord: Vec2<T>,
@@ -55,13 +58,15 @@ pub(crate) enum SegKind<T: Real> {
     Arc(ArcGeom<T>),
 }
 
-/// Derived arc geometry (closed forms from the crate docs' bulge
-/// identities).
+/// Arc geometry: the canonical segment's carrier and sweep, plus the
+/// apex and span chord the membership margins are written on.
 pub(crate) struct ArcGeom<T: Real> {
     /// The carrier circle's center.
     pub center: Point2<T>,
     /// The carrier circle's radius (positive).
     pub radius: T,
+    /// The signed sweep Δθ (positive counterclockwise).
+    pub sweep: T,
     /// The arc's apex (its midpoint — the point farthest from the
     /// chord).
     pub apex: Point2<T>,
@@ -113,9 +118,9 @@ impl<T: Real> SegIssue<T> {
 /// The chord frame of the segment a → b: its length, chord vector,
 /// unit direction, midpoint and left unit normal — computed ONCE, in
 /// one spelling, for every expression written on it: the segment's
-/// own predicates ([`build_seg`]), the arc carrier ([`arc_carrier`]),
-/// and the validated form's lift, which rebuilds a carried arc's
-/// carrier at the target scalar from the same frame.
+/// own predicates ([`build_seg`]), the arc carrier ([`arc_carrier`])
+/// at the lowering, and the validated form's lift, which rebuilds a
+/// carried arc's carrier at the target scalar from the same frame.
 pub(crate) struct ChordFrame<T: Real> {
     /// |b − a|.
     pub len: T,
@@ -161,12 +166,12 @@ pub(crate) struct ArcCarrier<T: Real> {
 /// The carrier of the arc on `frame` with `bulge`: the center at
 /// apothem L·(1 − b²)/(4b) along the frame's normal from its midpoint,
 /// the radius |L·(1 + b²)/(4b)|. Pure arithmetic over the segment's
-/// stored values — no predicate runs here — and the ONE spelling of
-/// it: [`build_seg`] mints a classified segment's carrier through this,
-/// and the validated form's lift rebuilds a carried arc's carrier
-/// through it, so the carrier at any scalar is one expression of the
-/// endpoints and bulge at that scalar (at a certified scalar, its own
-/// enclosure).
+/// input values — no predicate runs here — and the ONE spelling of
+/// it: the lowering to the canonical form mints an arc's carrier
+/// through this ([`crate::lower_to`]), and the validated
+/// form's lift rebuilds a carried arc's carrier through it, so the
+/// carrier at any scalar is one expression of the endpoints and bulge
+/// at that scalar (at a certified scalar, its own enclosure).
 pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrier<T> {
     let b2 = bulge.powi(2);
     let four_bulge = T::from_f64(4.0) * bulge;
@@ -178,7 +183,10 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
     }
 }
 
-/// Builds and classifies a segment.
+/// Builds and classifies a segment from its endpoints, its canonical
+/// segment and the bulge it was lowered from. An arc's carrier and
+/// sweep are the canonical segment's; the sagitta margins below are
+/// written in the bulge.
 ///
 /// Predicates fired, in order:
 ///
@@ -206,6 +214,7 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
 pub(crate) fn build_seg<T: Decide>(
     a: Point2<T>,
     b: Point2<T>,
+    segment: Segment<T>,
     bulge: T,
     band: Band,
 ) -> Result<Seg<T>, SegIssue<T>> {
@@ -217,16 +226,25 @@ pub(crate) fn build_seg<T: Decide>(
     }
     let half = T::from_f64(0.5);
     let sagitta = len * bulge * half;
-    let kind = match decide(
+    let straightness = decide(
         "segment_straightness",
         Margin::levered(bulge * half, len),
         band,
     )
-    .map_err(SegIssue::Escalated)?
-    {
-        Sign::Zero => SegKind::Line,
-        turn => {
-            let ArcCarrier { center, radius } = arc_carrier(&frame, bulge);
+    .map_err(SegIssue::Escalated)?;
+    // The decision is fired for every segment, since the K stream
+    // records it for every segment, but only an arc's is read: a stored
+    // line's bulge is exactly zero (the lowering rule), so there is no
+    // turn for its margin to report.
+    let kind = match segment {
+        Segment::Line => SegKind::Line,
+        Segment::Arc { .. } if straightness == Sign::Zero => SegKind::Line,
+        Segment::Arc {
+            centre: center,
+            radius,
+            sweep,
+        } => {
+            let turn = straightness;
             let apex = frame.mid - frame.normal * sagitta;
             let span_chord = a.distance(apex);
             let clearance = radius + radius - span_chord;
@@ -241,6 +259,7 @@ pub(crate) fn build_seg<T: Decide>(
             SegKind::Arc(ArcGeom {
                 center,
                 radius,
+                sweep,
                 apex,
                 span_chord,
                 turn,
@@ -378,6 +397,71 @@ fn circles_scale<T: Real>(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> T {
         .max(g2.radius)
         .max(reach(g1.center))
         .max(reach(g2.center))
+}
+
+/// **`path_junction_side`** — whether a junction whose departure is
+/// parallel to its arrival departs along it or REVERSES it (a cusp):
+/// the alignment `cos φ` of the two unit headings, levered by the
+/// arriving leg's arm. The one home of that question: the path door
+/// asks it of a zero-turn junction it is about to refuse or declare,
+/// and validation asks it of every declared tangent joint to record
+/// which are cusps ([`crate::ValidatedLoop::cusp_joints`]).
+///
+/// `true` iff the alignment is definitely negative. A `Zero` reads as
+/// NOT reversed — the arm itself is degenerate (both components
+/// sub-ε), which the path door refuses as the tangent class and which
+/// a validated loop cannot reach (its legs are definitely non-degenerate
+/// and its declared joints verified tangent, so the margin is ± the
+/// arm).
+pub(crate) fn junction_reverses<T: Decide>(
+    arriving: Vec2<T>,
+    departing: Vec2<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    Ok(matches!(
+        decide(
+            "path_junction_side",
+            Margin::levered(arriving.dot(departing), arm),
+            band
+        )?,
+        Sign::Negative
+    ))
+}
+
+/// **An arc leg's lever arm**: the smaller of its carrier's radius and
+/// its chord. The radius is what an angular margin displaces over; the
+/// chord bounds it for an arc shorter than its own radius, where the
+/// radius would overstate how far the leg actually reaches.
+pub(crate) fn arc_lever<T: Real>(radius: T, chord: T) -> T {
+    radius.min(chord)
+}
+
+impl<T: Real> Seg<T> {
+    /// The leg's lever arm at a junction: a line's length, an arc's
+    /// [`arc_lever`].
+    pub(crate) fn arm(&self) -> T {
+        match &self.kind {
+            SegKind::Line => self.len,
+            SegKind::Arc(g) => arc_lever(g.radius, self.len),
+        }
+    }
+
+    /// The unit heading of the traversal at `p`, one of the segment's
+    /// endpoints: a line's chord direction; an arc's counterclockwise
+    /// carrier tangent at `p`, reversed on a clockwise turn.
+    pub(crate) fn heading_at(&self, p: Point2<T>) -> Vec2<T> {
+        match &self.kind {
+            SegKind::Line => self.unit,
+            SegKind::Arc(g) => {
+                let ccw = perp(p - g.center) * (T::one() / g.radius);
+                match g.turn {
+                    Sign::Negative => -ccw,
+                    Sign::Positive | Sign::Zero => ccw,
+                }
+            }
+        }
+    }
 }
 
 /// Classifies the joint between two adjacent segments — `prev` arrives

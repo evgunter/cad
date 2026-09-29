@@ -16,14 +16,14 @@ use crate::fixture;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Datum, Dimension, DocEdit, DocParam,
+    AssertionDir, AssertionVerdict, BooleanOp, CancelToken, Dimension, DocEdit, DocParam,
     DocParamValue, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, StableName, ValuePayload, apply,
-    evaluate,
+    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind,
+    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId,
+    SplitHalf, StableName, ValuePayload, apply, evaluate,
 };
-use fixture::{ang, len, scl};
-use geom_core::Tol;
+use fixture::{ang, frame, len, scl, xy_frame};
+use geom_core::{Point3, Tol};
 
 /// The plate's hole radius, as a document parameter — the thing the
 /// e2e edits to flip the assertion.
@@ -43,7 +43,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -52,7 +52,7 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
 /// Inserts a node and returns the document beside the minted id — the
 /// [`push`] shape for a node whose id the caller needs, which a frame
 /// datum's is: every profile drawn on it names it.
-fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode { node },
@@ -62,15 +62,6 @@ fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNode
     .unwrap_or_else(|e| panic!("edit refused: {e}"));
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
-}
-
-/// The world xy frame as a node — what a profile is drawn on.
-fn xy_frame() -> Node<ProfileProgram> {
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
 }
 
 /// **The two-hole plate**, authored through the public edit door as a
@@ -120,6 +111,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             node: Node::Profile(ProfileProgram {
                 plane: xy,
                 loops: vec![outer],
+                ids: Vec::new(),
             }),
         },
     );
@@ -145,6 +137,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                         centre: [len(cx), len(0.0)],
                         radius: Expr::param(ParamName::literal(HOLE_R), Dimension::Length),
                     }],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -231,14 +224,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     for z in [0.0, 1.0 + SLAB_GAP] {
         // A frame PER SLAB: these are two different planes (the second
         // is lifted in z), so they are two frames, not one shared.
-        let (next, plane) = mint(
-            &doc,
-            Node::Datum(Datum::Frame {
-                origin: [len(0.0), len(0.0), len(z)],
-                u: [scl(1.0), scl(0.0), scl(0.0)],
-                v: [scl(0.0), scl(1.0), scl(0.0)],
-            }),
-        );
+        let (next, plane) = mint(&doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         doc = next;
         doc = push(
             &doc,
@@ -246,6 +232,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 node: Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![square()],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -299,6 +286,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
                     }],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -381,7 +369,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(MIN_WEB, Dimension::Length).expect("finite"),
+                bound: len(MIN_WEB),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -741,7 +729,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     );
     // 13 m / s, with s bound to zero.
     let over_zero = MeasureExpr::div(
-        MeasureExpr::value(Expr::literal(13.0, Dimension::Length).expect("finite")),
+        MeasureExpr::value(len(13.0)),
         MeasureExpr::value(Expr::param(ParamName::literal("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
@@ -757,7 +745,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+                bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -808,6 +796,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -818,7 +807,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
             node: Node::Extrude {
                 profile: disc,
                 distance: Expr::div(
-                    Expr::literal(13.0, Dimension::Length).expect("finite"),
+                    len(13.0),
                     Expr::param(ParamName::literal("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
@@ -867,6 +856,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                     ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
                     ProgramStep::LineTo(ProgramTarget::Start),
                 ])],
+                ids: Vec::new(),
             }),
         },
     );
@@ -935,7 +925,6 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
 
 /// A measure evaluates at `Interval` and its bracket CONTAINS the f64
 /// value — the containment claim, on the measurement channel.
-#[cfg(feature = "interval")]
 #[test]
 fn a_measure_at_interval_contains_the_f64_value() {
     use geom_core::{Bounds, Interval};
@@ -1135,7 +1124,7 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+                bound: len(0.1),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1170,4 +1159,294 @@ fn the_measurement_nodes_carry_no_slots() {
         );
         assert!(node.expr(SlotId::Distance).is_none());
     }
+}
+
+/// The lune: the lip between the internally tangent circles (0,1) r 1
+/// and (0,2) r 2, `ProgramStep::Cusp` at the kiss — a crescent whose
+/// extrude sweeps one strut at material wedge 0.
+fn cusp_lune() -> LoopProgram {
+    LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(4.0)]),
+        ProgramStep::Angle(ang(-std::f64::consts::FRAC_PI_2)),
+        ProgramStep::Line(len(2.0)),
+        ProgramStep::Turn(ang(std::f64::consts::FRAC_PI_2)),
+        ProgramStep::TangentArcTo(ProgramTarget::Point([len(0.0), len(0.0)])),
+        ProgramStep::Cusp,
+        ProgramStep::TangentArcTo(ProgramTarget::Start),
+    ])
+}
+
+/// A document holding one extrude of [`cusp_lune`], unit height, on the
+/// world xy plane — the extrude's id beside it.
+fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = mint(
+        &ProfileDoc::empty(DocumentId::derive(id), Tol::witness()),
+        xy_frame(),
+    );
+    let (doc, profile) = mint(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![cusp_lune()],
+            ids: Vec::new(),
+        }),
+    );
+    mint(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    )
+}
+
+/// The document's product, which must gather: `node` evaluated, and
+/// the aggregate passed the at-rest gate. Returns the gathered body.
+fn gathers(doc: &ProfileDoc, node: RecipeNodeId) -> topo::Body<f64> {
+    let ev = eval(doc);
+    assert!(
+        matches!(ev.result(node), Some(NodeResult::Ok(_))),
+        "{node:?} evaluates: {:?}",
+        ev.result(node)
+    );
+    editor_core::product(doc, &ev, Tol::witness())
+        .unwrap_or_else(|e| panic!("the product gathers: {e:?}"))
+}
+
+/// The edges tier 3's check 4 marks `Tangent` in `body` — a
+/// jet-determinate tangency it JUDGED, rather than exempted — split by
+/// whether both endpoints satisfy `at`, the caller's geometric
+/// description of where the profile's cusp joint swept to. A `Tangent`
+/// mark alone does not say "cusp" (a π seam is marked the same); the
+/// location does, because the fixtures' only tangent joint is the
+/// `.cusp()` one. Returns `(at the cusp, elsewhere)`.
+fn tangent_marks(body: &topo::Body<f64>, at: impl Fn(&Point3<f64>) -> bool) -> (usize, usize) {
+    let marks = topo::contact_marks(body, Tol::witness()).expect("a gathered body is valid");
+    let point = |v| {
+        *body
+            .get_point(body.get_vertex(v).expect("live vertex").point)
+            .expect("live point")
+    };
+    let (mut on, mut off) = (0, 0);
+    for (edge, mark) in &marks {
+        if *mark != topo::ContactMark::Tangent {
+            continue;
+        }
+        let he = body.get_edge(edge).expect("live edge").he_plus;
+        let ends = [
+            point(body.get_half_edge(he).expect("live half-edge").start),
+            point(body.half_edge_end(he).expect("live half-edge")),
+        ];
+        if ends.iter().all(&at) {
+            on += 1;
+        } else {
+            off += 1;
+        }
+    }
+    (on, off)
+}
+
+/// On the lune's kiss line `x = y = 0` — where its cusp strut stands.
+fn on_the_kiss(p: &Point3<f64>) -> bool {
+    p.x.abs() < 1e-9 && p.y.abs() < 1e-9
+}
+
+/// A document whose one root is an extrude of a `.cusp()` lune
+/// evaluates and GATHERS: the strut the cusp joint swept is a
+/// jet-determinate tangency, legal at rest with nothing carried beside
+/// the body (D1's second-order arm, ratified on PR 3317). The red-first
+/// row of
+/// `work/gather/product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares.md`,
+/// which refused `RootInvalid` / `UndeclaredCusp` before.
+#[test]
+fn a_cusp_extrude_document_gathers_at_the_product_gate() {
+    let (doc, ex) = cusp_extrude_doc("cusp-extrude-lune");
+    let body = gathers(&doc, ex);
+    assert_eq!(body.solids().count(), 1);
+    assert_eq!(
+        tangent_marks(&body, on_the_kiss),
+        (1, 0),
+        "the cusp strut, judged legal"
+    );
+}
+
+/// A `.cusp()` crescent REVOLVED gathers: a sphere zone and a cone
+/// meeting at a cusp rim, the revolve's form of the same legal wedge.
+#[test]
+fn a_cusp_revolve_document_gathers_at_the_product_gate() {
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    let crescent = LoopProgram::Chain(vec![
+        ProgramStep::At([len(1.0), len(0.0)]),
+        ProgramStep::Angle(ang(std::f64::consts::FRAC_PI_2)),
+        ProgramStep::TangentArcTo(ProgramTarget::Point([len(h), len(h)])),
+        ProgramStep::Cusp,
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let (doc, plane) = mint(
+        &ProfileDoc::empty(DocumentId::derive("cusp-revolve-crescent"), Tol::witness()),
+        xy_frame(),
+    );
+    let (doc, axis) = mint(&doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, profile) = mint(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![crescent],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, rev) = mint(
+        &doc,
+        Node::Revolve {
+            profile,
+            axis,
+            angle: ang(1.0),
+        },
+    );
+    let body = gathers(&doc, rev);
+    // The cusp joint (h, h) revolves about the sketch's y axis to the
+    // circle of radius h at height h.
+    let on_the_rim = |p: &Point3<f64>| (p.y - h).abs() < 1e-9 && (p.x.hypot(p.z) - h).abs() < 1e-9;
+    assert_eq!(
+        tangent_marks(&body, on_the_rim),
+        (1, 0),
+        "the cusp rim, judged legal"
+    );
+}
+
+/// A `.cusp()` lune LOFTED between two sections gathers — but this row
+/// is **not a validation of the cusp**: loft walls are NURBS, and tier
+/// 3's material arm exempts a NURBS-adjacent edge BY KIND, so the seam
+/// at the cusp joint is unjudged (`Unmarked`) and the product passes
+/// because nothing about that seam was asked.
+#[test]
+fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
+    let mut doc = ProfileDoc::empty(DocumentId::derive("cusp-loft-lune"), Tol::witness());
+    let mut profiles = Vec::new();
+    for z in [0.0, 1.0] {
+        let (d, plane) = mint(&doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (d, p) = mint(
+            &d,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![cusp_lune()],
+                ids: Vec::new(),
+            }),
+        );
+        doc = d;
+        profiles.push(p);
+    }
+    let (doc, loft) = mint(
+        &doc,
+        Node::Loft {
+            profiles,
+            v_degree: Expr::count(1),
+        },
+    );
+    let body = gathers(&doc, loft);
+    assert_eq!(
+        tangent_marks(&body, on_the_kiss),
+        (0, 0),
+        "no loft seam is judged: the NURBS walls exempt it by kind"
+    );
+}
+
+/// A boolean that leaves the cusp strut untouched: a box notch cut out
+/// of the lune's flat wall and top cap, clear of the kiss. The strut
+/// passes through the op unchanged and the result gathers.
+#[test]
+fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
+    let (doc, ex) = cusp_extrude_doc("cusp-extrude-notched");
+    let (doc, tool_plane) = mint(
+        &doc,
+        frame([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, tool_profile) = mint(
+        &doc,
+        Node::Profile(fixture::desc(
+            tool_plane,
+            vec![fixture::square(0.0, 3.0, 0.2)],
+        )),
+    );
+    let (doc, tool) = mint(
+        &doc,
+        Node::Extrude {
+            profile: tool_profile,
+            distance: len(2.0),
+        },
+    );
+    let (doc, cut) = mint(
+        &doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: ex,
+            b: tool,
+            declare: None,
+        },
+    );
+    let body = gathers(&doc, cut);
+    assert_eq!(
+        tangent_marks(&body, on_the_kiss),
+        (1, 0),
+        "the untouched cusp strut"
+    );
+}
+
+/// A PATTERN of the cusp extrude gathers: three copies, each carrying
+/// its own legal strut.
+#[test]
+fn a_pattern_of_a_cusp_extrude_gathers() {
+    let (doc, ex) = cusp_extrude_doc("cusp-extrude-pattern");
+    let (doc, pattern) = mint(
+        &doc,
+        Node::Pattern {
+            input: ex,
+            count: Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(5.0),
+            },
+        },
+    );
+    let body = gathers(&doc, pattern);
+    assert_eq!(body.solids().count(), 3);
+    // Copy k's kiss line is x = 5k, y = 0.
+    let on_a_copys_kiss = |p: &Point3<f64>| {
+        p.y.abs() < 1e-9 && [0.0, 5.0, 10.0].iter().any(|x| (p.x - x).abs() < 1e-9)
+    };
+    assert_eq!(
+        tangent_marks(&body, on_a_copys_kiss),
+        (3, 0),
+        "one legal strut per copy"
+    );
+}
+
+/// A SPLIT of the cusp extrude at mid-height, its upper half selected
+/// by a `Part`: the half keeps a (shorter) cusp strut, and gathers.
+#[test]
+fn a_split_half_of_a_cusp_extrude_gathers() {
+    let (doc, ex) = cusp_extrude_doc("cusp-extrude-split");
+    let (doc, tool) = mint(
+        &doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, split) = mint(&doc, Node::Split { target: ex, tool });
+    let (doc, above) = mint(
+        &doc,
+        Node::Part {
+            of: split,
+            select: PartSelect::SplitHalf(SplitHalf::Above),
+        },
+    );
+    let body = gathers(&doc, above);
+    assert_eq!(body.solids().count(), 1);
+    assert_eq!(
+        tangent_marks(&body, on_the_kiss),
+        (1, 0),
+        "the upper half's cusp strut"
+    );
 }

@@ -10,7 +10,6 @@
 //! scalar), so this file is free of the one-test-per-process funnel
 //! discipline that `geom-core`'s interval band tests observe.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;

@@ -121,6 +121,11 @@
 pub mod aabb;
 pub mod ray;
 pub mod tree;
+// Test fixtures; see the module's docs. `doc(hidden)` because the
+// rustdoc gate runs `--all-features`.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod test_support;
 
 pub use aabb::{Aabb, Axis};
 pub use ray::{Ray, RayCandidate};

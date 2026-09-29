@@ -1054,7 +1054,6 @@ fn the_cylinder_sphere_route_note_names_the_declared_arm() {
 // The interval lane: classification replays and residuals enclose zero
 // ---------------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use crate::shared::interval::{ip, iv3 as iv};
@@ -2102,7 +2101,7 @@ fn plane_torus_ring_guard_and_wrong_lane() {
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
-    assert_eq!(diag.predicate, Some("pt_ring_guard"));
+    assert_eq!(diag.predicate, Some("ring_torus_convention"));
     // Wrong-lane kinds refuse typed, both sides.
     let tor = torus_y(0.75, 0.3);
     for (a, b) in [(&tor, &tor), (&plane, &plane)] {

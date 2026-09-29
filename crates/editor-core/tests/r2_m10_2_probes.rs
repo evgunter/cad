@@ -41,7 +41,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -194,7 +194,7 @@ fn boxed(
 
 /// A sphere of radius `r` centred at (0, 0, cz): a bulge-1 half-disc on
 /// the XZ frame, revolved a full turn about the world Z axis.
-fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
+fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
     let half = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(-r)]),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -227,6 +227,7 @@ fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![half],
+                ids: Vec::new(),
             }),
         },
     );
@@ -271,6 +272,7 @@ fn cylinder(
                     centre: [len(cx), len(cy)],
                     radius: len(r),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -730,6 +732,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.001),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -790,7 +793,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 measure,
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
-                bound: Expr::literal(100.0, Dimension::Length).expect("finite"),
+                bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -887,7 +890,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(100.0, Dimension::Length).expect("finite"),
+                bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -971,7 +974,6 @@ fn r2_a_measure_at_dual64_is_bit_identical_and_untangented() {
 
 /// Interval containment on a `gap` — the SIGNED arm, where a loose
 /// enclosure is easier to get wrong than on a magnitude.
-#[cfg(feature = "interval")]
 #[test]
 fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
     use geom_core::{Bounds, Interval};
@@ -1124,7 +1126,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1168,7 +1170,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Angle).expect("finite"),
+                bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1182,7 +1184,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure: b,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1239,7 +1241,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
             &DocEdit::InsertNode {
                 node: Node::Assertion {
                     measure,
-                    bound: Expr::literal(0.02, Dimension::Length).expect("finite"),
+                    bound: len(0.02),
                     dir: AssertionDir::AtLeast,
                 },
             },
@@ -1316,7 +1318,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1422,7 +1424,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
             node: Node::Extrude {
                 profile: RecipeNodeId(1),
                 distance: Expr::div(
-                    Expr::literal(13.0, Dimension::Length).unwrap(),
+                    len(13.0),
                     Expr::param(ParamName::literal("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
@@ -1486,7 +1488,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+                bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             },
         },

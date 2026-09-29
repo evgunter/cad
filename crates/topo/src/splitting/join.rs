@@ -34,7 +34,10 @@
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
 //! polygon is the one-sided tangency residue PR 2's adjudication
 //! record promised to refuse here, typed
-//! [`SplitJoinError::DegenerateSection`] — and writes the F9 record.
+//! [`SplitJoinError::DegenerateSection`] — refuses a positive-area
+//! polygon carrying a tangent contact as a zero-width spur
+//! ([`SplitJoinError::SectionSpur`], `split_section_spur`;
+//! `Sweep::refuse_section_spur`), and writes the F9 record.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
@@ -384,10 +387,90 @@ impl<T: Decide> Sweep<T> {
         // stay separate, for the reasons written at that site.
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
-            Ok(Sign::Positive) => Ok(()),
+            // A positive NET area can still carry a zero-area spur.
+            Ok(Sign::Positive) => self.refuse_section_spur(body, face, first),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),
             Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
         }
+    }
+}
+
+impl<T: Decide> Sweep<T> {
+    /// Refuse a completed polygon that carries a **spur**: a vertex at
+    /// which the loop runs out along a straight edge and straight back,
+    /// so the vertex before it and the vertex after it coincide
+    /// ([`SplitJoinError::SectionSpur`]).
+    ///
+    /// Where it comes from: a plane tangent to the solid along an edge
+    /// mints null edges along that edge. When the tangent side is the
+    /// run's above side the contact's null edges close a polygon of
+    /// their own, zero-area, and [`Self::certify_section_area`] refuses
+    /// it ([`SplitJoinError::DegenerateSection`]). [`super::split`]
+    /// reads that refusal as a below-side pinch and reruns under the
+    /// mirrored plane; if the plane also cuts the solid somewhere the
+    /// contact reaches, the mirrored run joins the contact's null edges
+    /// into that real section's loop as an out-and-back excursion. Its
+    /// net area is the real section's, positive, and the area test
+    /// passes it — the pinch lane would turn the one-sided-tangency
+    /// refusal into a success whose halves carry a zero-width slit.
+    /// This refuses that excursion, so the tangency stays refused (the
+    /// public `split` then surfaces the direct run's
+    /// `DegenerateSection`).
+    ///
+    /// The margin is the distance between the tip's two neighbours
+    /// (`split_section_spur`, a length through [`Margin::norm3`]).
+    /// **Only straight tips are decided.** A curved out-and-back — the
+    /// loop running out along an arc and back along the same arc — is
+    /// a spur too (its two excesses cancel; it bounds nothing), but
+    /// telling it from two DIFFERENT arcs between one pair of points,
+    /// which do bound area, needs a carrier comparison this check does
+    /// not make. That gap is filed as
+    /// `work/reach/split-section-spur-guard-skips-curved-spurs.md`.
+    ///
+    /// `first` is a half-edge of the below loop's cycle, as
+    /// [`Self::certify_section_area`] resolved it.
+    fn refuse_section_spur(
+        &self,
+        body: &Body<T>,
+        face: FaceKey,
+        first: HalfEdgeKey,
+    ) -> Result<(), SplitJoinError> {
+        let hes: Vec<HalfEdgeKey> = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
+        let n = hes.len();
+        if n < 3 {
+            return Ok(());
+        }
+        let straight = |he: HalfEdgeKey| -> Result<bool, SplitJoinError> {
+            let e = he_edge(body, he)?;
+            let edge = body.get_edge(e).ok_or_else(|| corrupt_edge(e))?;
+            Ok(matches!(
+                body.get_curve_geom(edge.curve),
+                Some(CurveGeom::Certified(c)) if matches!(c.carrier(), geom::Curve3::Line { .. })
+            ))
+        };
+        let start = |he: HalfEdgeKey| -> Result<Point3<T>, SplitJoinError> {
+            vertex_point(
+                body,
+                body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
+            )
+        };
+        for i in 0..n {
+            let (inbound, outbound) = (hes[(i + n - 1) % n], hes[i]);
+            if !(straight(inbound)? && straight(outbound)?) {
+                continue;
+            }
+            let (before, after) = (start(inbound)?, start(hes[(i + 1) % n])?);
+            match decide(
+                "split_section_spur",
+                Margin::norm3(after - before),
+                self.band,
+            ) {
+                Ok(Sign::Zero) => return Err(SplitJoinError::SectionSpur { face }),
+                Ok(_) => {}
+                Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
+            }
+        }
+        Ok(())
     }
 }
 

@@ -14,19 +14,16 @@
 )]
 
 use geom_core::{Affine3, Point2, Point3, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::euler_counts;
 use topo::{
     Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
 
-use crate::verbs_shell::{prism, roles_by_solid, v};
-use sweep::test_support::brick;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::roles_by_solid;
+use sweep::test_support::{brick, corners, prism};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -40,11 +37,7 @@ fn boxy_at(x0: f64, y0: f64, z0: f64, w: f64, d: f64, h: f64) -> Body<f64> {
 /// A meridian polyline revolved a full turn about the sketch's `+y`
 /// axis through `(axis_x, 0)`, on the xy plane translated by `z0`.
 fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(tol())
@@ -52,7 +45,7 @@ fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(axis_x, 0.0),
+            origin: Point2::new(axis_x, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -222,7 +215,7 @@ fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
 #[test]
 fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
     let s_bend = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (1.0, 0.0),
             (1.0, 0.2),
@@ -231,8 +224,9 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
             (0.8, 0.5),
             (0.8, 0.3),
             (0.0, 0.3),
-        ],
+        ]),
         1.0,
+        tol(),
     );
     let (shell, _) = s_bend.shells().next().unwrap();
     let riser_r = face_on(&s_bend, shell, (1.0, 0.0, 0.0), 1.0); // x = 1, y ∈ [0, 0.2]
@@ -334,17 +328,17 @@ fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
 /// R2 built the same fixture at 6×6×4 and measured the same shape).
 #[test]
 fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
-    let outer_loop = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
-        ProfileVertex::new(p2(3.0, 1.0), 0.0),
-        ProfileVertex::new(p2(3.0, 3.0), 0.0),
-        ProfileVertex::new(p2(1.0, 3.0), 0.0),
+    let outer_loop = bulge_loop(vec![
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(3.0, 1.0), 0.0),
+        (Point2::new(3.0, 3.0), 0.0),
+        (Point2::new(1.0, 3.0), 0.0),
     ]);
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.8, 1.8), 0.0),
-        ProfileVertex::new(p2(1.8, 2.2), 0.0),
-        ProfileVertex::new(p2(2.2, 2.2), 0.0),
-        ProfileVertex::new(p2(2.2, 1.8), 0.0),
+    let hole = bulge_loop(vec![
+        (Point2::new(1.8, 1.8), 0.0),
+        (Point2::new(1.8, 2.2), 0.0),
+        (Point2::new(2.2, 2.2), 0.0),
+        (Point2::new(2.2, 1.8), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = match Profile::new(plane, vec![outer_loop, hole]).validate(tol()) {
@@ -509,10 +503,10 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     // V(1.9,2.9,3.9)] and [V(1.6,2.6,3.6) hollowed to V(1.5,2.5,3.5)]
     // — each thicken every boundary at `t = 0.01`, giving four thin
     // solids, and the designated ceiling's wall loses its lid.
-    let want = (v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98))
-        + (v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9))
-        + (v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58))
-        + (v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5))
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.98, 2.98, 3.98))
+        + (box_volume(1.92, 2.92, 3.92) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.58, 2.58, 3.58))
+        + (box_volume(1.52, 2.52, 3.52) - box_volume(1.5, 2.5, 3.5))
         - 1.52 * 2.52 * 0.01;
     assert!(
         (props.volume - want).abs() < 1e-12,
@@ -536,7 +530,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let counts: Vec<usize> = three.body.solids().map(|(_, s)| s.shells.len()).collect();
     assert_eq!(counts.iter().filter(|&&n| n == 1).count(), 1, "{counts:?}");
     assert_eq!(
-        three.body.get_solid(opened_solid).unwrap().shells.len(),
+        three.body.shells_of_solid(opened_solid).unwrap().len(),
         1,
         "the designated ceiling's wall is the cup"
     );
@@ -552,7 +546,8 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         roles_by_solid(out)
     );
     let props = topo::mass_properties(out, tol()).expect("props");
-    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5))
+    let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
+        + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
         - 1.6 * 2.6 * 0.05;
     println!(
         "[e2e] opened volume={} want={want} rim={:?} ring_edges={}",

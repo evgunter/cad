@@ -22,36 +22,8 @@ use crate::common;
 use common::asm;
 use pncad::document::MateSide;
 use pncad::geom_core::Tol;
-use pncad::select::{EntityKind, Ray};
+use pncad::select::EntityKind;
 use viewer::matetool::{MateTool, MateToolError};
-use viewer::session::{DocSession, FaceSelection};
-
-fn pick_at(session: &DocSession, ray: &Ray) -> FaceSelection {
-    let index = asm::index_of(session);
-    let (_, eval) = session.landed_pair().expect("landed");
-    index
-        .face_at_for(eval, ray, &session.display_view())
-        .expect("the pick answers")
-        .expect("the ray hits")
-}
-
-fn two_picks(session: &DocSession) -> (FaceSelection, FaceSelection) {
-    let a = pick_at(
-        session,
-        &asm::down_at(
-            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-        ),
-    );
-    let b = pick_at(
-        session,
-        &asm::up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    );
-    (a, b)
-}
 
 /// **An edge-named selection is refused, not asserted against.** The
 /// tool's own public doors take a `FaceSelection` by value, and
@@ -64,7 +36,7 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
     let tol = Tol::witness();
     let bench = asm::bench("rv-matehead", tol);
     let session = asm::open_bench(&bench, tol);
-    let (mut a, b) = two_picks(&session);
+    let (mut a, b) = asm::seat_picks(&session, &bench);
     assert_eq!(a.name.kind, EntityKind::Face);
     // The one field the picking door's rule lives in, and nothing but
     // that rule keeps it a face.
@@ -73,7 +45,7 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
     tool.pick(a);
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat()) {
+    match tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()) {
         Err(MateToolError::PickIsNotAFace { side, refusal }) => {
             assert_eq!(side, MateSide::A);
             assert_eq!(refusal.found, EntityKind::Edge);

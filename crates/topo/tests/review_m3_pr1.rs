@@ -19,10 +19,6 @@ use crate::common;
 use common::{describe_as_intersections, geometric_cube, line, plane};
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 /// Public-API deep dump (independent of the crate's pub(crate)
 /// deep_snapshot): whole-body Debug is derive-generated over every
 /// arena, and f64's Debug is shortest-roundtrip (bit-faithful modulo
@@ -120,7 +116,7 @@ fn plant_detached_box(
         };
         first
     };
-    let q = |dx: f64, dy: f64, dz: f64| pt(base.x + dx, base.y + dy, base.z + dz);
+    let q = |dx: f64, dy: f64, dz: f64| Point3::new(base.x + dx, base.y + dy, base.z + dz);
     let strut = body
         .mev_line(
             MevSite::Fan {
@@ -202,8 +198,8 @@ fn declined_cube_and_seed() -> (Body<f64>, topo::MvfsCreated) {
 fn movefac_three_component_partition_matches_pass11() {
     let build = || {
         let (mut body, seed) = declined_cube_and_seed();
-        let inner1 = plant_detached_box(&mut body, seed.face, pt(0.2, 0.2, 1.3));
-        let inner2 = plant_detached_box(&mut body, seed.face, pt(0.6, 0.6, 1.3));
+        let inner1 = plant_detached_box(&mut body, seed.face, Point3::new(0.2, 0.2, 1.3));
+        let inner2 = plant_detached_box(&mut body, seed.face, Point3::new(0.6, 0.6, 1.3));
         (body, seed, inner1, inner2)
     };
     let (mut body, seed, inner1, inner2) = build();
@@ -274,7 +270,7 @@ fn movefac_empty_outer_face_is_own_component() {
                 he1: first,
                 he2: first,
             },
-            pt(0.5, 0.5, 1.5),
+            Point3::new(0.5, 0.5, 1.5),
             Tol::witness(),
         )
         .unwrap();
@@ -308,7 +304,7 @@ fn movefac_empty_outer_face_is_own_component() {
 #[test]
 fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
     let (mut body, seed) = declined_cube_and_seed();
-    let inner = plant_detached_box(&mut body, seed.face, pt(0.2, 0.2, 1.3));
+    let inner = plant_detached_box(&mut body, seed.face, Point3::new(0.2, 0.2, 1.3));
     let shells = body.movefac(seed.shell).unwrap();
     assert_eq!(shells.len(), 2);
     assert_eq!(validate_closed(&body), Ok(()));
@@ -358,7 +354,7 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
     assert_eq!(validate(&body), Ok(()));
     // Genus addition: plant + distribute + fuse a second genus-0
     // component onto the genus-1 body; genus must stay 1 (chi 0 again).
-    let inner2 = plant_detached_box(&mut body, seed.face, pt(0.6, 0.6, 1.3));
+    let inner2 = plant_detached_box(&mut body, seed.face, Point3::new(0.6, 0.6, 1.3));
     let shells2 = body.movefac(seed.shell).unwrap();
     assert_eq!(shells2.len(), 2);
     assert_eq!(chi(&body), 2); // genus-1 (chi 0) + genus-0 (chi 2)
@@ -647,7 +643,7 @@ fn revert_on_split_body_involution_and_posture() {
 #[test]
 fn ring_move_laringmv_roundtrip_and_noop() {
     let (mut body, seed) = declined_cube_and_seed();
-    let inner = plant_detached_box(&mut body, seed.face, pt(0.3, 0.3, 1.4));
+    let inner = plant_detached_box(&mut body, seed.face, Point3::new(0.3, 0.3, 1.4));
     body.movefac(seed.shell).unwrap();
     let fused = body.kfmrh(seed.face, inner).unwrap();
     let ring = fused.ring;
@@ -695,10 +691,10 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
     let top = cube.seed.face;
     let top_plane = plane(
         &[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
         ],
         Tol::witness(),
     );
@@ -723,10 +719,10 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
         |body: &Body<f64>, v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     // Radial strut a1 -> p, then the interior chain p -> q -> r -> s.
     let (pp, pq, pr, ps) = (
-        pt(0.25, 0.25, 1.0),
-        pt(0.75, 0.25, 1.0),
-        pt(0.75, 0.75, 1.0),
-        pt(0.25, 0.75, 1.0),
+        Point3::new(0.25, 0.25, 1.0),
+        Point3::new(0.75, 0.25, 1.0),
+        Point3::new(0.75, 0.75, 1.0),
+        Point3::new(0.25, 0.75, 1.0),
     );
     let he_a1 = he_at(&cube.body, top, a1);
     let e_ap = cube
@@ -815,9 +811,9 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
     // The center face gets a NUMERICALLY coplanar but descriptively
     // different plane (another on-plane origin) - the round-8 teeth.
     let numeric_plane = geom::Surface::Plane {
-        origin: pt(0.5, 0.5, 1.0),
-        normal: pt(0.0, 0.0, 1.0) - pt(0.0, 0.0, 0.0),
-        u_ref: pt(1.0, 0.0, 0.0) - pt(0.0, 0.0, 0.0),
+        origin: Point3::new(0.5, 0.5, 1.0),
+        normal: Point3::new(0.0, 0.0, 1.0) - Point3::new(0.0, 0.0, 0.0),
+        u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
     };
     cube.body
         .set_face_surface(center, FaceSurface::New(numeric_plane))
@@ -842,10 +838,10 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
 fn stamp_top_sources(body: &mut topo::Body<f64>) {
     let canon = plane(
         &[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
         ],
         Tol::witness(),
     );
@@ -1130,7 +1126,7 @@ fn merge_coplanar_nan_payload_debug_collision() {
         .get_point(cube.body.get_vertex(c1).unwrap().point)
         .unwrap();
     let nan_plane = |payload: u64| geom::Surface::Plane {
-        origin: pt(0.5, 0.5, 1.0),
+        origin: Point3::new(0.5, 0.5, 1.0),
         normal: geom_core::Vec3::new(f64::from_bits(payload), 0.0, 1.0),
         u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
     };
@@ -1171,10 +1167,10 @@ fn merge_coplanar_full_plateau_atomicity() {
     let (mut cube, center, _) = annulus_top_cube();
     let top_plane = plane(
         &[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
         ],
         Tol::witness(),
     );
@@ -1211,7 +1207,6 @@ fn merge_coplanar_full_plateau_atomicity() {
 /// decoration). If two different enclosures print alike, the merge op's
 /// declared-equality (and every D9 dump comparison) is blind to the
 /// difference in the interval lane.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_debug_channel_faithfulness_probe() {
     use geom_core::{Interval, Real};
@@ -1240,7 +1235,6 @@ fn interval_debug_channel_faithfulness_probe() {
 /// singleton parameter splits and re-certifies; an enclosure straddling
 /// the interiority band escalates typed (never silently splits); the
 /// interval cube replays deterministically through the split.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_split_edge_lane() {
     use geom_core::{Interval, Real};
@@ -1302,7 +1296,7 @@ fn null_edge_cannot_be_laundered_through_set_edge_curve() {
         .body
         .set_edge_curve(
             created.edge,
-            line(p, pt(p.x + 1.0, p.y, p.z)),
+            line(p, Point3::new(p.x + 1.0, p.y, p.z)),
             Tol::witness(),
         )
         .unwrap_err();
@@ -1314,7 +1308,7 @@ fn null_edge_cannot_be_laundered_through_set_edge_curve() {
     cube.body.kev(created.he_plus).unwrap();
     // mfkrh Inherit = same surface key as the demoting face.
     let (mut body, seed) = declined_cube_and_seed();
-    let inner = plant_detached_box(&mut body, seed.face, pt(0.3, 0.3, 1.4));
+    let inner = plant_detached_box(&mut body, seed.face, Point3::new(0.3, 0.3, 1.4));
     body.movefac(seed.shell).unwrap();
     let fused = body.kfmrh(seed.face, inner).unwrap();
     let promoted = body.mfkrh(fused.ring, FaceSurface::Inherit).unwrap();

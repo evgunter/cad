@@ -2,7 +2,7 @@
 id: encl
 kind: program
 title: ENCL — certified enclosures: what a certificate claims, and what it is worth
-status: ready
+status: active
 opened: 2026-09-20
 area: kernel
 prefix: encl/

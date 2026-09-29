@@ -54,13 +54,13 @@ test_utils::gated_to![
     "crates/geom/src/curves.rs",
     "crates/sweep/src/skin.rs",
     "crates/sweep/src/loft.rs",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
 ];
 
 use geom::NurbsCurve3;
 use geom_core::spline::compose::{CurveRingData, linear_composite};
 use geom_core::spline::{KnotVector, SplineError};
-use geom_core::{Point3, RingInterval};
+use geom_core::{Interval, Point3};
 use test_utils::fuzz;
 
 // ---------------------------------------------------------------------
@@ -186,14 +186,14 @@ fn the_ring_bezier_decomposition_still_breaks_where_the_structure_says() {
     for (name, kv) in structures(&mut rng) {
         let n = kv.control_count();
         let weights: Vec<f64> = (0..n).map(|i| 1.0 + 0.125 * (i % 4) as f64).collect();
-        let coords: Vec<Vec<RingInterval>> = (0..3)
+        let coords: Vec<Vec<Interval>> = (0..3)
             .map(|c| {
                 (0..n)
-                    .map(|i| RingInterval::point((i as f64) * (1.0 + c as f64) - 2.0))
+                    .map(|i| Interval::point((i as f64) * (1.0 + c as f64) - 2.0))
                     .collect()
             })
             .collect();
-        let data = CurveRingData::new(&kv, &weights, &coords).expect("valid ring data");
+        let data = CurveRingData::new(&kv, &weights, &coords).expect("valid enclosure data");
         let form = linear_composite(&data, &[1.0, -2.0, 0.5], 0.75).expect("3 channels");
 
         let (lo, hi) = kv.domain();

@@ -2,9 +2,8 @@
 //! of the E6 driver, and the same engine run at `c = 0⁺` as the global
 //! parametric self-intersection check.
 //!
-//! Gated on `interval` for the driver's own reason: the inner
-//! subdivision excludes by interval enclosure, and without that scalar
-//! there is nothing to exclude WITH.
+//! The inner subdivision excludes by interval enclosure: the certified
+//! scalar is what it excludes WITH.
 //!
 //! Two nested subdivisions. The OUTER one is [`mod@crate::drive`]'s: it
 //! hands this module a leaf whose topology is provably the witness
@@ -158,7 +157,7 @@ use bvh::{Aabb, Bvh};
 use geom::Surface;
 use geom_core::interval::Interval;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Bounds, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Margin, Point3, Real, Sign, Tol, Vec3};
 use topo::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
 use topo::{Body, MetredBound, MetredRect, chart_boundary};
 
@@ -581,7 +580,7 @@ pub enum ClearanceRefusal {
     /// The selection itself could not be read.
     Selection(SelectionRefusal),
     /// A carrier enclosure that did not evaluate: the margin came back
-    /// [`geom_core::MarginDiag::Invalid`] (NaI, or an empty enclosure),
+    /// [`geom_core::MarginKind::Invalid`] (NaI, or an empty enclosure),
     /// which is neither an indeterminacy refinement could settle nor a
     /// budget. Its own class so a reader is not sent looking for a
     /// bigger dial.
@@ -2989,7 +2988,7 @@ impl Sweep {
                             receipt.abandoned += (level - n - 1) + next.len();
                             break 'sweep;
                         }
-                        if matches!(source.margin, MarginDiag::Invalid) {
+                        if source.margin.is_invalid() {
                             // A poison enclosure is not an indeterminacy
                             // refinement could settle, and it is not a
                             // budget: it is geometry that did not

@@ -128,6 +128,10 @@ pub(super) fn sector_face<T: Decide>(
             face: resolved.face,
             kind: geom_brep::SurfaceKind::Sphere,
         }),
+        SectorCarrier::Torus => Err(SplitReduceError::CurvedBooleanUnsupported {
+            face: resolved.face,
+            kind: geom_brep::SurfaceKind::Torus,
+        }),
     }
 }
 

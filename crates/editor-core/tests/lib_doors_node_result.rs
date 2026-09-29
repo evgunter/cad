@@ -11,6 +11,7 @@
 
 use crate::fixture;
 
+use crate::fixture::len;
 use editor_core::{
     BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Expr, LoopProgram, Node, NodeResult,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
@@ -19,16 +20,16 @@ use geom_core::Tol;
 
 /// A square profile `[0,s]²` on `plane`, as a loop program.
 fn square(plane: RecipeNodeId, s: f64) -> Node<ProfileProgram> {
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At([lit(0.0), lit(0.0)]),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(0.0)])),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(s)])),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(s)])),
+            ProgramStep::At([len(0.0), len(0.0)]),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     })
 }
 
@@ -37,7 +38,6 @@ fn square(plane: RecipeNodeId, s: f64) -> Node<ProfileProgram> {
 /// node FAILS — and a node downstream of it is POISONED. Returns the
 /// document plus the failing and poisoned ids.
 fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let mut doc = ProfileDoc::empty_derived("lib_doors_node_result", Tol::witness());
     let insert = |doc: &mut ProfileDoc, node| {
         let applied = doc
@@ -58,7 +58,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &mut doc,
         Node::Extrude {
             profile: outer_profile,
-            distance: lit(2.0),
+            distance: len(2.0),
         },
     );
     let inner_profile = insert(&mut doc, square(plane, 1.0));
@@ -66,7 +66,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &mut doc,
         Node::Extrude {
             profile: inner_profile,
-            distance: lit(1.0),
+            distance: len(1.0),
         },
     );
     let cut = insert(
@@ -421,9 +421,10 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
         expected: 4,
     };
     let escalation = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::Value(2e-10),
+        margin: geom_core::MarginDiag::value(2e-10),
         band: geom_core::Band::linear(geom_core::Tol::witness()).expect("a witness band forms"),
         predicate: Some("loft_stacking"),
+        terminal_sliver: false,
     };
     let band = geom_core::BandError::Empty {
         zero: 1.0,

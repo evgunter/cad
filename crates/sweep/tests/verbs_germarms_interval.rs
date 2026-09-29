@@ -1,5 +1,4 @@
-//! The curved pierce RING lane at the CERTIFIED scalar (feature
-//! `interval`) — the two-arm pattern for the lane's new decide sites.
+//! The curved pierce RING lane at the CERTIFIED scalar — the two-arm pattern for the lane's new decide sites.
 //!
 //! Three predicates are new or newly reached here and all three are
 //! metered as LENGTHS (the root-span gaps and the chart certificate;
@@ -18,24 +17,16 @@
 //! enclosure that contains the truth and spans a metre would pass a
 //! containment check while saying nothing.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tol, Vec3};
+use crate::common::interval::{iv, p2, v3};
+use geom_core::{Affine3, Bounds, Interval, Tol};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
 
 /// The `f64` suite's pipe at the certified scalar: radius 1 about `z`,
 /// `z ∈ [−2, 2]`, built through the same public doors so the two
@@ -45,7 +36,7 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
 fn pipe() -> Body<Interval> {
     let tol = Tol::witness();
     let lp = profile::circle(p2(0.0, 0.0), iv(1.0), tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(-2.0))));
+    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -2.0)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&vp, Extrusion::Distance(iv(4.0)), tol)
         .unwrap()

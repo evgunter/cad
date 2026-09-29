@@ -21,7 +21,7 @@
 //!
 //! Rows marked **EVIDENCE** assert nothing about the subject and exist
 //! to print what the review measured; they are not gates
-//! (`memories/test-suite-cost.md`) and should be dropped or given
+//! (implementer-discipline §8) and should be dropped or given
 //! assertions if they survive a fix pass.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -33,7 +33,9 @@ test_utils::gated_to![
     "crates/pncad/src/",
     "crates/bvh/src/",
     "crates/viewer/tests/common/",
-    "crates/viewer/tests/gallery_ring.pncad"
+    "crates/viewer/tests/gallery_ring.pncad",
+    "crates/viewer/src/test_support.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::sync::{Arc, Mutex};
@@ -42,7 +44,7 @@ use crate::common;
 use crate::common::{ang, len, scl, xy_frame};
 
 use pncad::document::{Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
@@ -66,8 +68,9 @@ fn delta() -> DisplayTolerance {
     DisplayTolerance::new(3.0e-4).expect("a positive delta")
 }
 
-/// One node into `doc` at this suite's tolerance.
-fn insert(
+/// `common::inserted` at this suite's tolerance: one node into `doc`
+/// through the document's door, no session.
+fn inserted(
     doc: &Doc<ProfileProgram>,
     node: Node<ProfileProgram>,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
@@ -88,9 +91,9 @@ fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfilePro
 /// below are not tuned to the fixture the unit was written against.
 fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol());
-    let (doc, plane) = insert(&doc, xy_frame());
-    let (doc, profile) = insert(&doc, common::rectangle(plane, [0.0, 0.0], w, h));
-    let (doc, extrude) = insert(
+    let (doc, plane) = inserted(&doc, xy_frame());
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], w, h));
+    let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -109,8 +112,8 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
 /// carry the extrude's names.
 fn two_placements() -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (doc, extrude) = slab(0.03, 0.02, 0.01, "r2-two-placements");
-    let (doc, left) = insert(&doc, translated(extrude, 0.0, 0.0, 0.0));
-    let (doc, right) = insert(&doc, translated(extrude, 0.10, 0.0, 0.0));
+    let (doc, left) = inserted(&doc, translated(extrude, 0.0, 0.0, 0.0));
+    let (doc, right) = inserted(&doc, translated(extrude, 0.10, 0.0, 0.0));
     (doc, left, right)
 }
 
@@ -118,7 +121,7 @@ fn two_placements() -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 /// node, and a structural slot that can consume one of them.
 fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, extrude) = slab(0.015, 0.015, 0.010, "r2-pattern");
-    let (doc, pattern) = insert(
+    let (doc, pattern) = inserted(
         &doc,
         Node::Pattern {
             input: extrude,
@@ -692,7 +695,7 @@ fn the_ray_path_and_the_id_map_invert_each_other_patch_included() {
 /// answers a name that is drawn under some id, and every such id
 /// inverts to a patch whose own name is that answer.
 ///
-/// A counterexample search (`memories/test-suite-cost`'s first shape):
+/// A counterexample search (implementer-discipline §8's first shape):
 /// the seed varies, the count rides the EFFORT dial, and cutting it
 /// loses detection power rather than correctness. The anti-vacuity
 /// witness is NOT drawn from the same sample — it is a static list of
@@ -951,13 +954,7 @@ fn picking_again_replaces_rather_than_accumulates() {
         .expect("no refusal")
         .expect("the top face");
     let side = index
-        .face_at(
-            eval,
-            &Ray {
-                origin: Point3::new(-1.0, 0.010, 0.005),
-                dir: Vec3::new(1.0, 0.0, 0.0),
-            },
-        )
+        .face_at(eval, &common::along_x(1.0, 0.010, 0.005))
         .expect("no refusal")
         .expect("a wall");
     assert_ne!(top.name, side.name, "the fixture offers two distinct faces");

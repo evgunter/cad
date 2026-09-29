@@ -6,13 +6,16 @@
 
 use core::fmt;
 
+use geom_brep::recourse::Reading;
+
 /// One rung of the D7 edge-adoption ladder, as data: which intensional
 /// interpretation was attempted, and the kernel gate's typed refusal.
 #[derive(Debug)]
 pub struct AdoptionAttempt {
     /// The interpretation attempted.
     pub candidate: AdoptionCandidate,
-    /// The certification/attachment gate's refusal, verbatim.
+    /// The certification/attachment gate's refusal, rendered at the
+    /// adoption reading (`geom_brep::recourse::Reading::Adopt`).
     pub refusal: topo::EulerOpError,
 }
 
@@ -339,10 +342,13 @@ pub enum StepImportError {
     TierInvalid {
         /// The `MANIFOLD_SOLID_BREP` id of the solid asked about on its
         /// own, or `None` when the verdict is about the whole assembled
-        /// body (which for a one-solid file is the same body — see
-        /// [`crate::import_step`]).
+        /// body. A one-instance file is only ever asked as the whole
+        /// body ([`topo::per_part_gate_owed`]), so its refusals carry
+        /// `None`.
         solid: Option<u64>,
-        /// The tier-1/2/3 verdicts, verbatim.
+        /// The verdicts, verbatim: tiers 1–3 for a solid asked on its
+        /// own, tiers 1–3′ (the declared-contact census) for the
+        /// assembled body.
         errors: Vec<topo::ValidationError>,
     },
 }
@@ -417,9 +423,11 @@ impl fmt::Display for StepImportError {
             Self::Topology { id, what } => {
                 write!(f, "step import: entity #{id}: {what}")
             }
-            Self::Assembly { id, source } => {
-                write!(f, "step import: assembling entity #{id}: {source}")
-            }
+            Self::Assembly { id, source } => write!(
+                f,
+                "step import: assembling entity #{id}: {}",
+                source.render(Reading::Adopt)
+            ),
             Self::Adoption { id, attempts } => {
                 write!(
                     f,
@@ -429,7 +437,12 @@ impl fmt::Display for StepImportError {
                     if i > 0 {
                         write!(f, "; ")?;
                     }
-                    write!(f, "{}: {}", attempt.candidate, attempt.refusal)?;
+                    write!(
+                        f,
+                        "{}: {}",
+                        attempt.candidate,
+                        attempt.refusal.render(Reading::Adopt)
+                    )?;
                 }
                 Ok(())
             }

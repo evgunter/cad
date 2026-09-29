@@ -132,7 +132,9 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // distinction is the type's own. What the escalation contract forbids
 // is recovering the margin to make the sign decision the classifier
 // refused; what the three arms separate is whether there was a number
-// at all. A value says the margin landed in the band and tightening ε
+// at all, and `MarginDiag::kind` reads them as a `MarginKind`, which
+// carries none (the numbers leave only through the type's one named
+// error-text door). A value says the margin landed in the band and tightening ε
 // may help; an enclosure says a certified bracket straddles, which is
 // the subdivision driver's lever; a poisoned margin says the question
 // was never validly posed, and it is the one arm none of
@@ -141,8 +143,9 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 //
 // So the rung under a carried struct is carried too: a caller holding
 // an `Escalated` arm out of any of the twelve reads `band`,
-// `predicate` and `margin` by bare name in one import. `Indeterminate`,
-// `MarginDiag` and `Band` sit at ONE root together
+// `predicate` and `margin` — and the margin's kind — by bare name in
+// one import. `Indeterminate`, `MarginDiag`, `MarginKind` and `Band`
+// sit at ONE root together
 // (`pncad::geom_core`) for anyone who prefers the module path — a
 // longer path, never a second crate.
 //
@@ -151,8 +154,8 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // margin out of the kernel's prose again: then the type is telemetry
 // with no consumer, which is what a curated list does not publish.
 pub use geom_core::{
-    Affine3, Band, BandError, Indeterminate, MarginDiag, Mat3, OrthoFrame, Point2, Point3, Real,
-    Tol, Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, OrthoFrame, Point2,
+    Point3, Real, Tol, Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
@@ -178,8 +181,8 @@ pub use quantity::{
 
 // --- 2. Profile authoring -------------------------------------
 // NAMEABLE, NOT MINTABLE:
-// `ProfileLoop` and `ProfileVertex` stay here because read-back hands
-// them back, `ProfileError` payloads point into them, and `validated`
+// `ProfileLoop` stays here because read-back hands it back,
+// `ProfileError` payloads point into it, and `validated`
 // takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
 // the ladder passes around. What left is the raw MINTING tier:
 // `ProfileLoop::new`/`polygon` live on `profile::RawLoop`, which is a
@@ -188,8 +191,8 @@ pub use quantity::{
 // authored through the lattice below, and a table that already exists
 // crosses scalars through `ProfileLoop::map_scalar`.
 pub use ::profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
-    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind, SketchPlane,
+    ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra: `circle` (the one-step closed-carrier
 // program form) and the
@@ -464,8 +467,8 @@ pub use geom_brep::SurfaceKind;
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
-    GeomRef, LoopKey, Operand, PlaneRelation, Surface, TransformError, VertexKey, intersect,
-    intersect_with, subtract, subtract_with, transform_rigid, union, union_with,
+    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, Surface, TransformError, VertexKey,
+    intersect, intersect_with, subtract, subtract_with, transform_rigid, union, union_with,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -486,7 +489,8 @@ pub use topo::{
 // - `StaleDeclaration` is `StaleContactDeclaration`'s: which record
 //   lost its witness, so which record to withdraw.
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
-//   vertex-on-edge, or edge-along-edge.
+//   vertex-on-edge (either loop's vertex), edge-along-edge, two edges
+//   meeting at a point, or two whole circles crossing or touching.
 // - `CensusSubject` is what `CensusUnsupported` and
 //   `CensusLaneUnsupported` are ABOUT, and it is the sharpest of the
 //   four because both of its payload types are already on this list.
@@ -535,7 +539,12 @@ pub use topo::{
 };
 
 // --- 6. Mass properties ---------------------------------------
-pub use topo::{MassProperties, MassPropsError, mass_properties};
+// `TargetUnreached` and the `VolumeEnclosure` it carries are
+// `StepImport::Solid::enclosure`'s other arm: an admitted body whose
+// volume is not measurable at this ε imports with that refusal, and
+// the curated-type rule (the `coherence` note below) says a caller
+// able to hold the answer must be able to spell its vocabulary.
+pub use topo::{MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, mass_properties};
 
 // --- 7. Tessellation and export -------------------------------
 pub use mesh::{Mesh, TessellateError, tessellate};
@@ -621,9 +630,11 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `PromotedCurveKind` as `kind` words beside their payload fields,
 // `PlacedInstance::placement` as the `Frame` the surface already has.
 // `enclosure` is why the value shape matters rather than only the
-// spelling: it is the gate's own certified `MassProperties`, so a
-// Python caller who reads it measures the import once instead of
-// twice.
+// spelling: it is the gate's own certificate continued to the number,
+// so a Python caller who reads it measures the import once instead of
+// twice — and on an admitted body whose volume is not measurable at
+// this ε, reading it raises the measurement refusal with the
+// bracket the measurement held (`ImportReport.enclosure`).
 //
 // **`StepImport::Solid::coherence` is the one field whose type is not
 // step-import's**, and the curated-type rule reaches through it
@@ -730,12 +741,13 @@ pub use crate::select::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal,
     ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact,
     Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, Pose,
-    ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet,
-    TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare, declare_all,
-    declare_node, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
-    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
+    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
+    Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
+    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
+    StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, edge_name,
+    face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
+    vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

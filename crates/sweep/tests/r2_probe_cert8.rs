@@ -11,7 +11,7 @@
 //! `cert8_r1_probes::probe_loft_wall_digits_and_sampled_soundness` on
 //! the same two walls.
 //!
-//! The randomised half is SPLIT in two, per `memories/test-suite-cost.md`:
+//! The randomised half is SPLIT in two, per implementer-discipline §8:
 //! `probe_written_charts_never_break_the_certified_arms` is the witness
 //! set — five charts written down, each of which must enter the mode
 //! every run — and `probe_random_charts_never_break_the_certified_arms`
@@ -22,7 +22,7 @@
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use topo::{Body, FaceKey};
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
@@ -113,9 +113,9 @@ fn sample_check(tag: &str, s: &Surface<f64>) {
 
 #[test]
 fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     let bulged = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(0.0, 0.0, 0.0),
             v(2.0, 0.0, 0.4),
             v(2.0, 2.0, 0.0),
@@ -144,9 +144,9 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
         }
     }
     // The bowed IsoLine wall too.
-    let sq = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let sq = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let square = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             sq(-1.0, -1.0),
             sq(1.0, -1.0),
             sq(1.0, 1.0),
@@ -261,7 +261,7 @@ fn check_certified_arms(ctl: &[[f64; 3]; 9], w: &[f64; 9], note: &str) -> Option
 ///
 /// This is the anti-vacuity half of the old single sweep, and it is
 /// written out rather than searched for because
-/// `memories/test-suite-cost.md` says so: *at least K of class C*, with
+/// implementer-discipline §8 says so: *at least K of class C*, with
 /// C concisely constructible, is a witness you can WRITE DOWN, and
 /// bolting such a floor onto a counterexample search makes one row
 /// carry two obligations of which only one is safe to cut. So the floor
@@ -372,7 +372,7 @@ fn probe_written_charts_never_break_the_certified_arms() {
 /// # A counterexample search, and nothing else
 ///
 /// The shape is *for all sampled charts, P(chart)*
-/// (`memories/test-suite-cost.md`'s first shape), so the seed VARIES
+/// (implementer-discipline §8's first shape), so the seed VARIES
 /// and is logged unconditionally by `fuzz::start`, `CAD_FUZZ_SEED`
 /// replays an exact draw, and the replay line is in every message. The
 /// count is a multiple of the workspace `CAD_FUZZ_EFFORT` dial rather

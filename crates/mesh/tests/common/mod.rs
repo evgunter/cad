@@ -18,7 +18,7 @@ use geom_core::{Point2, Point3, Vec2};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -59,10 +59,6 @@ pub fn quad(pts: [(f64, f64); 4]) -> sweep::Section {
     )]
 }
 
-pub fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -71,7 +67,7 @@ pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 
 pub fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     }
 }
@@ -96,8 +92,18 @@ pub fn l_prism() -> Body<f64> {
 
 /// Holed prism: 3×3 square with a centered 1×1 square hole, height 1.
 pub fn holed_prism() -> Body<f64> {
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(3.0, 0.0), p2(3.0, 3.0), p2(0.0, 3.0)]);
-    let hole = ProfileLoop::polygon([p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 2.0), p2(1.0, 2.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(3.0, 0.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(0.0, 3.0),
+    ]);
+    let hole = ProfileLoop::polygon([
+        Point2::new(1.0, 1.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(1.0, 2.0),
+    ]);
     sweep::test_support::extruded(SketchPlane::xy(), vec![outer, hole], 1.0, Tol::witness())
 }
 
@@ -106,16 +112,16 @@ pub fn holed_prism() -> Body<f64> {
 pub fn rounded_prism() -> Body<f64> {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let r = 0.5;
-    let v = |pos: Point2<f64>, bulge: f64| ProfileVertex::new(pos, bulge);
-    let mut lp = ProfileLoop::new(vec![
-        v(p2(r, 0.0), 0.0),
-        v(p2(2.0 - r, 0.0), b),
-        v(p2(2.0, r), 0.0),
-        v(p2(2.0, 2.0 - r), b),
-        v(p2(2.0 - r, 2.0), 0.0),
-        v(p2(r, 2.0), b),
-        v(p2(0.0, 2.0 - r), 0.0),
-        v(p2(0.0, r), b),
+    let v = |pos: Point2<f64>, bulge: f64| (pos, bulge);
+    let mut lp = bulge_loop(vec![
+        v(Point2::new(r, 0.0), 0.0),
+        v(Point2::new(2.0 - r, 0.0), b),
+        v(Point2::new(2.0, r), 0.0),
+        v(Point2::new(2.0, 2.0 - r), b),
+        v(Point2::new(2.0 - r, 2.0), 0.0),
+        v(Point2::new(r, 2.0), b),
+        v(Point2::new(0.0, 2.0 - r), 0.0),
+        v(Point2::new(0.0, r), b),
     ]);
     // Every joint is an exact quarter-arc/side tangency -- declared
     // (the #101 discipline).
@@ -126,9 +132,9 @@ pub fn rounded_prism() -> Body<f64> {
 
 /// The ball: unit half-disc revolved fully (two-band sphere, poles).
 pub fn ball() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -143,7 +149,11 @@ pub fn ball() -> Body<f64> {
 /// The cone: right triangle (base radius 1, height 1) revolved fully
 /// (apex fan + base disc).
 pub fn cone() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -160,7 +170,11 @@ pub fn cone() -> Body<f64> {
 /// both variables that reach `nu == 2` (a tiny `s`, which saturates
 /// the sagitta cap at every δ, and a narrow `theta`) live here.
 pub fn cone_wedge(s: f64, theta: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(s, 0.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(s, 0.0),
+        Point2::new(0.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -177,9 +191,9 @@ pub fn cone_wedge(s: f64, theta: f64) -> Body<f64> {
 /// [`cone_wedge`], and the shape that reaches `curved::pole_columns`'s
 /// sphere arm.
 pub fn sphere_wedge(theta: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -194,7 +208,12 @@ pub fn sphere_wedge(theta: f64) -> Body<f64> {
 /// The washer: rectangle [1,2]×[0,1] revolved fully (genus 1, slit
 /// annuli + full-2π cylinder walls).
 pub fn washer() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -209,9 +228,9 @@ pub fn washer() -> Body<f64> {
 /// segments) revolved fully — a single torus surface, both meridians
 /// `Seam`.
 pub fn donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.0, -0.5), 1.0),
-        ProfileVertex::new(p2(2.0, 0.5), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -225,7 +244,12 @@ pub fn donut() -> Body<f64> {
 
 /// Partial wedge: rectangle [1,2]×[0,1] revolved by +π/2.
 pub fn wedge() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -240,7 +264,12 @@ pub fn wedge() -> Body<f64> {
 /// +π/2 (the axis edge is an ordinary boundary edge shared by the two
 /// wedge caps).
 pub fn axis_wedge() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),

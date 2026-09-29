@@ -21,7 +21,7 @@
 //!
 //! ```sh
 //! CAD_TOLERANCE_EPS=1e-9 CAD_K_REPORT_OUT=/tmp/driver-eps-1e-9.csv \
-//!   cargo test -p editor-core --features probe,interval --test all -- \
+//!   cargo test -p editor-core --features probe --test all -- \
 //!   m10_3_driver_k_probe_interval:: --ignored --nocapture
 //! ```
 //!
@@ -40,13 +40,11 @@
 //! is a K conversation and not a coverage one. The funnel row is the
 //! deliverable here; the K verdict is not.
 //!
-//! Both features are needed, and that is inherent: `Probe` is the
-//! `probe` feature's scalar and the driver is the `interval` feature's
-//! service. The k-lint gate's probe-gated build row DOES build this
-//! pair on every hosted run (`--features probe,interval --no-run`), so
-//! a compile break here reds every PR — the row below also runs
-//! locally and under `local-scripts/ci-local.sh`.
-#![cfg(all(feature = "probe", feature = "interval"))]
+//! The `probe` feature is needed, and that is inherent: `Probe` is its
+//! scalar. The nightly's k-lint probe row builds this file
+//! (`--features probe --no-run`), so a compile break here reds the
+//! nightly; the PR gate does not build it.
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -62,7 +60,7 @@ use editor_core::{
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
 
-use fixture::Recorder;
+use fixture::{Recorder, xy_frame};
 
 /// The fixture: a square extruded by a document-parameter depth, over a
 /// box narrow enough that the driver certifies most of it. Deliberately
@@ -82,20 +80,14 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
             }),
         },
     });
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite square corners"),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -229,7 +221,7 @@ fn run_doc(doc: &ProfileDoc) -> Population {
 /// tolerance where the ε-relative fixtures stop certifying (they do
 /// not: the fixtures scale with ε, which is why the original defect
 /// was a budget and not a tolerance).
-fn run_doc_with(doc: &ProfileDoc, config: &DriveConfig) -> Population {
+fn run_doc_with(doc: &editor_core::ProfileDoc, config: &DriveConfig) -> Population {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     k_stats::start_recording();
     let v = drive(doc, &analyzed, config, Tol::witness()).expect("the fixture's nominal builds");

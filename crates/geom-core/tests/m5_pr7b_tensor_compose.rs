@@ -25,7 +25,7 @@
 //!    bit (D9).
 //! 6. Typed refusals at the entry points (closed `ComposeError`).
 //!
-//! These rows are ε-independent (pure ring arithmetic; no `Tolerance`
+//! These rows are ε-independent (pure certification arithmetic; no `Tolerance`
 //! read), so the battery's ε sweep changes nothing here by design —
 //! and every ratio below was confirmed BIT-IDENTICAL across the
 //! battery's three ε legs (`ci-filter.py`'s `EPS_ROWS`: default,
@@ -37,7 +37,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
 use geom_core::spline::compose::{ComposeError, CurveRingData};
 use geom_core::spline::{KnotVector, basis};
@@ -94,10 +95,10 @@ fn surf_eval(
     [num[0] / den, num[1] / den, num[2] / den]
 }
 
-fn lift(coords: &[Vec<f64>]) -> Vec<Vec<RingInterval>> {
+fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
     coords
         .iter()
-        .map(|ch| ch.iter().map(|x| RingInterval::point(*x)).collect())
+        .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
         .collect()
 }
 
@@ -449,7 +450,7 @@ fn a_sign_changing_weight_extension_poisons_the_bound() {
     // w(u,·) = 1 + 99u; the pcurve runs u from −0.5 to 1, so the
     // boundary cell's polynomial extension (the documented domain
     // posture) sees the weight change sign inside the reachable
-    // window. The ring refuses the zero-touching divisor: the bound is
+    // window. Interval arithmetic refuses the zero-touching divisor: the bound is
     // NaN — poisoned, not panicked, and it fails any ≤ ε comparison.
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -524,7 +525,7 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
     // has almost nothing to be tight about and the whole-object box
     // admits only 1.757x. 1.6 sits 11% over the healthy reading and 12%
     // under the degraded one — narrow, but the whole computation is
-    // pure ring arithmetic and bit-identical across the battery, so the
+    // pure certification arithmetic and bit-identical across the battery, so the
     // margin is real rather than noise budget. If a legitimate change
     // moves it, this row reds with both numbers in the message and the
     // literal is re-measured rather than widened.
@@ -665,7 +666,7 @@ fn the_entry_points_refuse_typed() {
 
     // A carrier on a different knot domain refuses (the OQ4 identity).
     let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
-    let cx4: Vec<Vec<RingInterval>> = cx.iter().map(|ch| ch[..4].to_vec()).collect();
+    let cx4: Vec<Vec<Interval>> = cx.iter().map(|ch| ch[..4].to_vec()).collect();
     let cd2 = CurveRingData::new(&kv2, &c.1[..4], &cx4).unwrap();
     match surface_curve_residual(&s, &pd, &cd2, &[]) {
         Err(ComposeError::DomainMismatch { .. }) => {}

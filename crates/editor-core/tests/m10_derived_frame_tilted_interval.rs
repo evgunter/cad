@@ -28,7 +28,6 @@
 //! `failures`, the `budget()` constants — is copied across the `m10_*`
 //! family; the class is
 //! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
@@ -65,7 +64,7 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-fn opts(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> EvalOptions {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
@@ -74,7 +73,7 @@ fn opts(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
     }
 }
 
-fn plain(doc: &ProfileDoc, lift: ProfileLift) -> Vec<String> {
+fn plain(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<String> {
     let ev: Evaluation<Interval> = evaluate(
         doc,
         None,
@@ -135,6 +134,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
             [w, len(0.5)],
             [neg_w, len(0.5)],
         ])],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: p,
@@ -1110,7 +1110,7 @@ fn m10_the_tilt_u_derived_boss_stops_on_the_newell_residual_and_names_it() {
         let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
         let shapes = take_shape_report();
         let split = crate::m10_8_harness::split(&shapes);
-        let row = |p: &str| split.get(p).copied().unwrap_or([0; 4]);
+        let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 4]);
         println!(
             "tiltU derived Guided 1e-3 {label}: {counts:?}\n  carrier_endpoint_end {:?} \
              newell_plane_residual {:?}\n  fails {} {}",
@@ -1323,7 +1323,7 @@ fn m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm() {
             let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
             let shapes = take_shape_report();
             let split = crate::m10_8_harness::split(&shapes);
-            let row = |p: &str| split.get(p).copied().unwrap_or([0; 4]);
+            let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 4]);
             println!(
                 "{name} Guided 1e-3 {label}: {counts:?}\n  carrier_endpoint_end {:?} \
                  newell_plane_residual {:?}\n  fails {} {}",
@@ -1413,7 +1413,7 @@ fn sym12_a_negative_nz_the_arm_folds_and_does_not_reach() {
         start_shape_report();
         let _ = sym(doc, lift, rules, budget());
         let split = crate::m10_8_harness::split(&take_shape_report());
-        let row = |p: &str| split.get(p).copied().unwrap_or([0; 4]);
+        let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 4]);
         (row("carrier_endpoint_end"), row("newell_plane_residual"))
     };
     // FlipX: reached.

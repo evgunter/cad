@@ -22,10 +22,6 @@ use geom_core::Point2;
 use geom_core::Tol;
 use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A corner where two circular carriers cross, authored through the
 /// public arc→fillet→arc door. `a_in` / `a_out` are the corner's angle
 /// about each carrier centre; the anchors sit `delta` radians back
@@ -42,15 +38,15 @@ fn arc_arc_corner(
     delta: f64,
     fillet: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let c_in = p2(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
-    let c_out = p2(
+    let c_in = Point2::new(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
+    let c_out = Point2::new(
         corner.x - r_out * a_out.cos(),
         corner.y - r_out * a_out.sin(),
     );
     let head_a = a_in - tau_in * delta;
     let next_a = a_out + tau_out * delta;
-    let head = p2(c_in.x + r_in * head_a.cos(), c_in.y + r_in * head_a.sin());
-    let next = p2(
+    let head = Point2::new(c_in.x + r_in * head_a.cos(), c_in.y + r_in * head_a.sin());
+    let next = Point2::new(
         c_out.x + r_out * next_a.cos(),
         c_out.y + r_out * next_a.sin(),
     );
@@ -192,12 +188,13 @@ fn fillet_endpoints(lp: &ProfileLoop<f64>, r: f64) -> Option<(Point2<f64>, Point
     for i in 0..n {
         let a = lp.vertices()[i];
         let b = lp.vertices()[(i + 1) % n];
-        if a.bulge() == 0.0 {
+        let bulge = lp.bulges()[i];
+        if bulge == 0.0 {
             continue;
         }
-        let (_, rf) = circle_from_bulge(a.pos(), b.pos(), a.bulge());
+        let (_, rf) = circle_from_bulge(a, b, bulge);
         if (rf - r).abs() < 1e-6 * r.max(1.0) {
-            return Some((a.pos(), b.pos()));
+            return Some((a, b));
         }
     }
     None
@@ -230,7 +227,7 @@ fn label(res: &Result<ProfileLoop<f64>, PathError<f64>>) -> String {
 /// This probe asks whether that sentence names radii that BUILD.
 #[test]
 fn p1_the_recourse_bound_against_the_measured_existence_gap() {
-    let corner = p2(0.0, 0.0);
+    let corner = Point2::new(0.0, 0.0);
     let big = 0.5;
     let refusal = arc_arc_corner(
         corner,
@@ -321,9 +318,9 @@ fn p2_the_gate_fires_only_where_a_crossing_of_the_pair_is_enclosing() {
                         let a_out = 0.4 + 0.7 * f64::from(k);
                         for m in 0..9 {
                             let fillet = 0.05 + 0.35 * f64::from(m);
-                            let corner = p2(0.3 * i as f64, -0.2);
-                            let o1 = p2(corner.x - r_in, corner.y);
-                            let o2 = p2(
+                            let corner = Point2::new(0.3 * i as f64, -0.2);
+                            let o1 = Point2::new(corner.x - r_in, corner.y);
+                            let o2 = Point2::new(
                                 corner.x - r_out * a_out.cos(),
                                 corner.y - r_out * a_out.sin(),
                             );
@@ -427,12 +424,17 @@ fn p3_no_emitted_fillet_swallows_a_carrier_off_the_prs_grid() {
     let mut checked = 0_u32;
     // (label, corner, r_in, r_out)
     let scenes: [(&str, Point2<f64>, f64, f64); 6] = [
-        ("far from origin", p2(1400.0, -930.0), 0.2, 0.2),
-        ("very far from origin", p2(85000.0, 40000.0), 0.5, 0.7),
-        ("scale ratio 40x", p2(0.0, 0.0), 0.05, 2.0),
-        ("scale ratio 200x", p2(0.0, 0.0), 0.01, 2.0),
-        ("large absolute scale", p2(0.0, 0.0), 120.0, 300.0),
-        ("tiny absolute scale", p2(0.0, 0.0), 1e-3, 3e-3),
+        ("far from origin", Point2::new(1400.0, -930.0), 0.2, 0.2),
+        (
+            "very far from origin",
+            Point2::new(85000.0, 40000.0),
+            0.5,
+            0.7,
+        ),
+        ("scale ratio 40x", Point2::new(0.0, 0.0), 0.05, 2.0),
+        ("scale ratio 200x", Point2::new(0.0, 0.0), 0.01, 2.0),
+        ("large absolute scale", Point2::new(0.0, 0.0), 120.0, 300.0),
+        ("tiny absolute scale", Point2::new(0.0, 0.0), 1e-3, 3e-3),
     ];
     for (name, corner, r_in, r_out) in scenes {
         for &tau_in in &[1.0_f64, -1.0] {
@@ -444,8 +446,8 @@ fn p3_no_emitted_fillet_swallows_a_carrier_off_the_prs_grid() {
                     for m in 0..13 {
                         let fillet = r_in.min(r_out) * 0.2 * f64::from(m + 1);
                         for &delta in &[0.35_f64, 1.2, 3.0] {
-                            let o1 = p2(corner.x - r_in, corner.y);
-                            let o2 = p2(
+                            let o1 = Point2::new(corner.x - r_in, corner.y);
+                            let o2 = Point2::new(
                                 corner.x - r_out * a_out.cos(),
                                 corner.y - r_out * a_out.sin(),
                             );
@@ -511,14 +513,14 @@ fn p3_no_emitted_fillet_swallows_a_carrier_off_the_prs_grid() {
 /// the public line-partner door and reports what comes back.
 #[test]
 fn p4_a_line_partner_corner_with_a_negative_rho_arc_leg() {
-    let corner = p2(0.0, 0.0);
+    let corner = Point2::new(0.0, 0.0);
     let r_arc = 0.25;
-    let c_arc = p2(corner.x - r_arc, corner.y);
+    let c_arc = Point2::new(corner.x - r_arc, corner.y);
     // Incoming along the arc (ccw, tau = +1), leaving along a straight
     // leg. The fillet radius is far above the carrier radius.
     for &fillet in &[0.05_f64, 0.2, 0.6, 1.5] {
         let head_a = -1.0_f64;
-        let head = p2(
+        let head = Point2::new(
             c_arc.x + r_arc * head_a.cos(),
             c_arc.y + r_arc * head_a.sin(),
         );
@@ -533,7 +535,7 @@ fn p4_a_line_partner_corner_with_a_negative_rho_arc_leg() {
                     fillet,
                     Tol::witness(),
                 )
-                .and_then(|b| b.at(p2(dx, dy), Tol::witness()))
+                .and_then(|b| b.at(Point2::new(dx, dy), Tol::witness()))
                 .and_then(|b| b.toward(dx, dy, Tol::witness()))
                 .and_then(|b| b.line(0.25, Tol::witness()))
                 .and_then(|b| b.line_to(Start, Tol::witness()))
@@ -566,14 +568,14 @@ fn p6_hunt_a_surviving_no_corner_side_candidate_witness() {
                     let ang = -3.0 + 0.26 * f64::from(ld);
                     for &fillet in &[0.02_f64, 0.07, 0.2, 0.5, 0.9, 1.6] {
                         for &reach in &[0.3_f64, 1.0, 2.5] {
-                            let corner = p2(0.0, 0.0);
-                            let c_arc = p2(corner.x - r_arc, corner.y);
-                            let head = p2(
+                            let corner = Point2::new(0.0, 0.0);
+                            let c_arc = Point2::new(corner.x - r_arc, corner.y);
+                            let head = Point2::new(
                                 c_arc.x + r_arc * head_a.cos(),
                                 c_arc.y + r_arc * head_a.sin(),
                             );
                             let (dx, dy) = (ang.cos(), ang.sin());
-                            let away = p2(corner.x + reach * dx, corner.y + reach * dy);
+                            let away = Point2::new(corner.x + reach * dx, corner.y + reach * dy);
                             tried += 1;
                             let res = Open
                                 .arc_fillet(
@@ -637,19 +639,20 @@ fn p6_hunt_a_surviving_no_corner_side_candidate_witness() {
 /// endorses.
 #[test]
 fn p7_the_named_bound_on_a_corner_whose_carriers_differ() {
-    let along =
-        |cx: f64, cy: f64, r: f64, delta: f64| p2(cx + r * delta.cos(), cy + r * delta.sin());
+    let along = |cx: f64, cy: f64, r: f64, delta: f64| {
+        Point2::new(cx + r * delta.cos(), cy + r * delta.sin())
+    };
     // Anchors one radian along each carrier, as the fixture draws them.
     let build = |r: f64| {
         Open.arc_fillet_arc(
             Center {
-                c: p2(0.0, -1.0),
+                c: Point2::new(0.0, -1.0),
                 winding: ArcSweep::Ccw,
                 p: along(0.0, -1.0, 1.0, core::f64::consts::FRAC_PI_2 - 1.0),
             },
             r,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: along(0.5, 0.0, 0.5, core::f64::consts::PI + 1.0),
             },
@@ -687,11 +690,11 @@ fn e2e_a_rounded_slot_authored_through_the_public_doors() {
     // Two lobes of radius 8 mm whose centres sit 10 mm apart: they
     // cross, and the crossings are the corners a fillet would round.
     let (r_lobe, sep) = (0.008_f64, 0.010);
-    let o1 = p2(-sep / 2.0, 0.0);
-    let o2 = p2(sep / 2.0, 0.0);
+    let o1 = Point2::new(-sep / 2.0, 0.0);
+    let o2 = Point2::new(sep / 2.0, 0.0);
     // The upper crossing, by symmetry.
     let y = (r_lobe * r_lobe - (sep / 2.0) * (sep / 2.0)).sqrt();
-    let corner = p2(0.0, y);
+    let corner = Point2::new(0.0, y);
     println!("E2E lobes R = {r_lobe} m, centres {sep} m apart; upper crossing at {corner:?}");
     for &fillet in &[0.0005_f64, 0.001, 0.002, 0.004, 0.008, 0.012, 0.02] {
         let a1 = (corner.y - o1.y).atan2(corner.x - o1.x);
@@ -701,7 +704,7 @@ fn e2e_a_rounded_slot_authored_through_the_public_doors() {
                 Center {
                     c: o1,
                     winding: ArcSweep::Ccw,
-                    p: p2(
+                    p: Point2::new(
                         o1.x + r_lobe * (a1 - 1.0).cos(),
                         o1.y + r_lobe * (a1 - 1.0).sin(),
                     ),
@@ -710,7 +713,7 @@ fn e2e_a_rounded_slot_authored_through_the_public_doors() {
                 Center {
                     c: o2,
                     winding: ArcSweep::Ccw,
-                    p: p2(
+                    p: Point2::new(
                         o2.x + r_lobe * (a2 + 1.0).cos(),
                         o2.y + r_lobe * (a2 + 1.0).sin(),
                     ),

@@ -2,7 +2,7 @@
 //! `Sym<Interval>` in a `probe` build calls `retag_symbolic_zero` on a
 //! symbolic Zero, but `Interval::sign_within` pushes no sample, so the
 //! re-tag lands on whatever sample is LAST in the sink.
-#![cfg(all(feature = "probe", feature = "interval"))]
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::k_stats::{SampleOutcome, decide, start_recording, take_samples};

@@ -21,10 +21,6 @@ use geom_core::Point2;
 use geom_core::Tol;
 use profile::{Open, PathError, ProfileError, ProfileLoop, RawLoop, Start};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The bracket chain hand-authored WITHOUT declarations: exact
 /// line/arc tangency at (1.5, 1) and (1, 1.5) (the #100 constants).
 fn undeclared_bracket() -> ProfileLoop<f64> {
@@ -238,12 +234,12 @@ fn internal_arc_arc_tangency_must_be_declared() {
 fn fillet_computes_exact_tangent_points_and_declares() {
     let lp = bracket();
     // Right-angle corner, dyadic legs: T1/T2 are bit-exact.
-    assert_eq!(lp.vertices()[3].pos().x.to_bits(), 1.5f64.to_bits());
-    assert_eq!(lp.vertices()[3].pos().y.to_bits(), 1.0f64.to_bits());
-    assert_eq!(lp.vertices()[4].pos().x.to_bits(), 1.0f64.to_bits());
-    assert_eq!(lp.vertices()[4].pos().y.to_bits(), 1.5f64.to_bits());
+    assert_eq!(lp.vertices()[3].x.to_bits(), 1.5f64.to_bits());
+    assert_eq!(lp.vertices()[3].y.to_bits(), 1.0f64.to_bits());
+    assert_eq!(lp.vertices()[4].x.to_bits(), 1.0f64.to_bits());
+    assert_eq!(lp.vertices()[4].y.to_bits(), 1.5f64.to_bits());
     // The arc bulge is tan(-pi/8) to rounding.
-    assert!((lp.vertices()[3].bulge() + quarter_bulge()).abs() < 1e-15);
+    assert!((lp.bulges()[3] + quarter_bulge()).abs() < 1e-15);
     // Declares by construction, and the declarations verify.
     assert_eq!(lp.tangent_joints(), vec![3, 4]);
     let vp = profile(vec![lp])
@@ -284,16 +280,16 @@ fn fillet_of_an_acute_corner_validates_at_run_eps() {
     // side runs toward (3, √3) and ends at its own anchor there.
     let sqrt3 = 3.0f64.sqrt();
     let lp = pinned(
-        Open.at(p2(0.0, 0.0))
+        Open.at(Point2::new(0.0, 0.0))
             .toward(1.0, 0.0, Tol::witness())
             .expect("the incoming ray runs +x")
             .fillet(0.25, Tol::witness())
             .expect("positive radius")
             .toward(1.0, sqrt3, Tol::witness())
             .expect("the arrival side runs toward (3, √3)")
-            .to(p2(3.0, sqrt3), Tol::witness())
+            .to(Point2::new(3.0, sqrt3), Tol::witness())
             .expect("acute fillet fits")
-            .line_to(p2(0.0, 2.5), Tol::witness())
+            .line_to(Point2::new(0.0, 2.5), Tol::witness())
             .expect("the far side")
             .line_to(Start, Tol::witness())
             .expect("the straight seam closes"),
@@ -314,8 +310,8 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
     // two extents are the ray's origin (3, 0) and the arrival's own
     // anchor (0, 2).
     let err = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(3.0, 0.0), Tol::witness())
         .expect("bottom side")
         .toward(0.0, 1.0, Tol::witness())
         .expect("the incoming ray runs +y")
@@ -323,7 +319,7 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
         .expect("positive radius")
         .toward(-1.0, 0.0, Tol::witness())
         .expect("the arrival side runs −x")
-        .to(p2(0.0, 2.0), Tol::witness())
+        .to(Point2::new(0.0, 2.0), Tol::witness())
         .expect_err("oversized radius must refuse");
     // A straight carrier pair derives ONE corner, so the envelope
     // carries one entry and it is the fit refusal.
@@ -348,14 +344,14 @@ fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
     // Incoming side (3) fits; the arrival side (2) overruns at
     // r = 2.5, so the refusal names the outgoing anchor.
     let err = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .expect("the incoming ray runs +x")
         .fillet(2.5, Tol::witness())
         .expect("positive radius")
         .toward(0.0, 1.0, Tol::witness())
         .expect("the arrival side runs +y")
-        .to(p2(3.0, 2.0), Tol::witness())
+        .to(Point2::new(3.0, 2.0), Tol::witness())
         .expect_err("outgoing overrun must refuse");
     assert_eq!(
         common::corners(&err).len(),
@@ -380,8 +376,8 @@ fn largest_fitting_radius_succeeds_with_exact_tangency() {
     // corner), and the strictly-interior outgoing tangent point is
     // declared and verifies.
     let lp = pinned(
-        Open.at(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0), Tol::witness())
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(3.0, 0.0), Tol::witness())
             .expect("bottom side")
             .toward(0.0, 1.0, Tol::witness())
             .expect("the incoming ray runs +y")
@@ -389,7 +385,7 @@ fn largest_fitting_radius_succeeds_with_exact_tangency() {
             .expect("positive radius")
             .toward(-1.0, 0.0, Tol::witness())
             .expect("the arrival side runs −x")
-            .to(p2(0.0, 2.0), Tol::witness())
+            .to(Point2::new(0.0, 2.0), Tol::witness())
             .expect("exact-fit radius must succeed")
             .line_to(Start, Tol::witness())
             .expect("the straight seam closes"),
@@ -410,14 +406,14 @@ fn doubled_back_fillet_corner_refuses_as_parallel_carriers() {
     // gate says so structurally — before any closed form is asked to
     // divide by a vanishing turn.
     match Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .expect("the incoming ray runs +x")
         .fillet(0.5, Tol::witness())
         .expect("positive radius")
         .toward(-1.0, 0.0, Tol::witness())
         .expect("the arrival side runs back along it")
-        .to(p2(1.0, 0.0), Tol::witness())
+        .to(Point2::new(1.0, 0.0), Tol::witness())
         .expect_err("doubled-back corner must refuse")
     {
         PathError::NoCornerForFillet {
@@ -436,14 +432,14 @@ fn doubled_back_fillet_corner_refuses_as_parallel_carriers() {
 /// is authored by `.cusp()` — `.tangent()`'s mirror, departing along
 /// the negated incoming ray — and every other corner is a right angle.
 fn lune() -> profile::ClosedLoop<f64> {
-    Open.at(p2(0.0, 4.0))
+    Open.at(Point2::new(0.0, 4.0))
         .angle(-std::f64::consts::FRAC_PI_2, tol())
         .unwrap()
         .line(2.0, tol())
         .unwrap()
         .turn(std::f64::consts::FRAC_PI_2, tol())
         .unwrap()
-        .tangent_arc_to(p2(0.0, 0.0), tol())
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol())
         .unwrap()
         .cusp()
         .tangent_arc_to(Start, tol())
@@ -483,10 +479,10 @@ fn the_cusp_verb_declares_a_joint_the_data_gate_already_accepts() {
 fn the_cusp_junction_is_exact_and_the_two_carriers_oppose() {
     let lp = pinned(lune());
     let v = lp.vertices();
-    assert_eq!(v[2].pos().x.to_bits(), 0.0f64.to_bits());
-    assert_eq!(v[2].pos().y.to_bits(), 0.0f64.to_bits());
-    let inner = v[1].bulge();
-    let outer = v[2].bulge();
+    assert_eq!(v[2].x.to_bits(), 0.0f64.to_bits());
+    assert_eq!(v[2].y.to_bits(), 0.0f64.to_bits());
+    let inner = lp.bulges()[1];
+    let outer = lp.bulges()[2];
     assert!(
         inner * outer < 0.0,
         "the lune's two arcs must wind opposite ways: {inner} vs {outer}"

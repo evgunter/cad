@@ -1,6 +1,6 @@
 //! Evaluator behavior (spec D4): scalar-generic over `Real`, units
 //! erased at the boundary (GQ5), typed environment errors, and the
-//! pinned Interval instantiation (feature `interval`).
+//! pinned Interval instantiation.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it tests (TCOST-1). The claim is the evaluator's: a
@@ -11,15 +11,18 @@
 // on `geom-core`'s two scalar implementations — a change to `real.rs` or
 // `interval.rs` moves what the enclosure row asserts without touching
 // `editor-core/`. `quantity/src/` carries the unit table the erasure is
-// against.
+// against, and `src/test_support.rs` the literal doors the rows write
+// their operands with.
 test_utils::gated_to![
     "crates/editor-core/src/eval/",
     "crates/editor-core/src/expr.rs",
     "crates/geom-core/src/real.rs",
     "crates/geom-core/src/interval.rs",
     "crates/quantity/src/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
+use editor_core::test_support::{ang, len, scl};
 use editor_core::{Dimension, EvalError, Expr, ParamEnv, ParamName, ParamValue, eval, eval_count};
 
 fn env_with(name: &'static str, v: ParamValue<f64>) -> ParamEnv<f64> {
@@ -104,16 +107,8 @@ fn arithmetic_matches_f64_semantics() {
     // (2 m + 3 m) * 0.5 - 1 m = 1.5 m — plain f64 arithmetic, units
     // erased (GQ5: eval returns raw kernel units).
     let e = Expr::sub(
-        Expr::mul(
-            Expr::add(
-                Expr::literal(2.0, Dimension::Length).unwrap(),
-                Expr::literal(3.0, Dimension::Length).unwrap(),
-            )
-            .unwrap(),
-            Expr::literal(0.5, Dimension::Scalar).unwrap(),
-        )
-        .unwrap(),
-        Expr::literal(1.0, Dimension::Length).unwrap(),
+        Expr::mul(Expr::add(len(2.0), len(3.0)).unwrap(), scl(0.5)).unwrap(),
+        len(1.0),
     )
     .unwrap();
     assert_eq!(eval(&e, &ParamEnv::<f64>::default()).unwrap(), 1.5);
@@ -135,11 +130,11 @@ mod props {
         ) {
             let e = Expr::mul(
                 Expr::add(
-                    Expr::literal(a, Dimension::Length).unwrap(),
-                    Expr::literal(b, Dimension::Length).unwrap(),
+                    len(a),
+                    len(b),
                 )
                 .unwrap(),
-                Expr::literal(k, Dimension::Scalar).unwrap(),
+                scl(k),
             )
             .unwrap();
             let got = eval(&e, &ParamEnv::<f64>::default()).unwrap();
@@ -161,7 +156,6 @@ mod props {
 /// The pinned Interval instantiation (spec D4/D8): the evaluator is
 /// generic over `Real` with no branches, so the certified scalar runs
 /// the SAME code path and must enclose the f64 result.
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
     use geom_core::Interval;
@@ -172,9 +166,8 @@ mod interval_lane {
         // sin(τ/8) * 2 — exercises literal embedding, trig, and
         // arithmetic through the one generic evaluator.
         let e = Expr::mul(
-            Expr::sin(Expr::literal(std::f64::consts::FRAC_PI_4, Dimension::Angle).unwrap())
-                .unwrap(),
-            Expr::literal(2.0, Dimension::Scalar).unwrap(),
+            Expr::sin(ang(std::f64::consts::FRAC_PI_4)).unwrap(),
+            scl(2.0),
         )
         .unwrap();
         let at_f64 = eval::<f64>(&e, &ParamEnv::default()).unwrap();

@@ -13,6 +13,7 @@
 //! its frame at node 0 and read the profile at node 1.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{ang, len, len2, scl, xy_frame};
 use editor_core::{
     CancelToken, ContentKey, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
     ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
@@ -44,6 +45,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
                 node: Node::Profile(ProfileProgram {
                     plane: PLANE,
                     loops,
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -58,25 +60,12 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
 /// two of these documents can only have come from their programs.
 fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
-        &DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Frame {
-                origin: [lit_len(0.0), lit_len(0.0), lit_len(0.0)],
-                u: [lit_scl(1.0), lit_scl(0.0), lit_scl(0.0)],
-                v: [lit_scl(0.0), lit_scl(1.0), lit_scl(0.0)],
-            }),
-        },
+        &DocEdit::InsertNode { node: xy_frame() },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
     .expect("the frame inserts")
     .doc
-}
-
-fn lit_len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite")
-}
-fn lit_scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite")
 }
 
 /// Authored program ORDER is structure: the same hole wound the other
@@ -148,12 +137,10 @@ fn resolved_values_feed_the_key() {
                     node: Node::Profile(ProfileProgram {
                         plane: PLANE,
                         loops: vec![LoopProgram::Circle {
-                            centre: [
-                                Expr::literal(0.0, Dimension::Length).unwrap(),
-                                Expr::literal(0.0, Dimension::Length).unwrap(),
-                            ],
+                            centre: [len(0.0), len(0.0)],
                             radius: Expr::param(ParamName::literal("r"), Dimension::Length),
                         }],
+                        ids: Vec::new(),
                     }),
                 },
                 Tol::witness(),
@@ -204,10 +191,11 @@ fn a_carrier_centre_respelled_keys_identically() {
                     loops: vec![LoopProgram::Circle {
                         centre: [
                             Expr::param(ParamName::literal("cx"), Dimension::Length),
-                            Expr::literal(0.0, Dimension::Length).unwrap(),
+                            len(0.0),
                         ],
-                        radius: Expr::literal(0.5, Dimension::Length).unwrap(),
+                        radius: len(0.5),
                     }],
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -228,17 +216,17 @@ fn a_carrier_centre_respelled_keys_identically() {
 /// leg.
 fn one_arc_chain(radius: Expr) -> LoopProgram {
     LoopProgram::Chain(vec![
-        ProgramStep::At([lit_len(0.0), lit_len(0.0)]),
+        ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::Toward {
-            dx: lit_scl(1.0),
-            dy: lit_scl(0.0),
+            dx: scl(1.0),
+            dy: scl(0.0),
         },
-        ProgramStep::Line(lit_len(4.0)),
+        ProgramStep::Line(len(4.0)),
         ProgramStep::Tangent,
         ProgramStep::ArcTo(ProgramArcData::Sweep {
             r: radius,
             side: profile::ArcSide::Left,
-            angle: Expr::literal(core::f64::consts::FRAC_PI_2, Dimension::Angle).unwrap(),
+            angle: ang(core::f64::consts::FRAC_PI_2),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
@@ -264,6 +252,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
                 node: Node::Profile(ProfileProgram {
                     plane: PLANE,
                     loops,
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -293,7 +282,7 @@ fn a_chain_arcs_radius_feeds_the_key() {
             Dimension::Length,
         ))],
     );
-    let literal = doc_with_r(0.5, vec![one_arc_chain(lit_len(0.5))]);
+    let literal = doc_with_r(0.5, vec![one_arc_chain(len(0.5))]);
     assert_ne!(
         key_of(&parameterized),
         key_of(&literal),
@@ -314,13 +303,13 @@ fn a_chain_arcs_radius_feeds_the_key() {
 fn a_straight_chain_respelled_keys_identically() {
     let straight = |length: Expr| {
         LoopProgram::Chain(vec![
-            ProgramStep::At([lit_len(0.0), lit_len(0.0)]),
+            ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::Toward {
-                dx: lit_scl(1.0),
-                dy: lit_scl(0.0),
+                dx: scl(1.0),
+                dy: scl(0.0),
             },
             ProgramStep::Line(length),
-            ProgramStep::LineTo(ProgramTarget::Point([lit_len(2.0), lit_len(3.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(3.0)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])
     };
@@ -331,7 +320,7 @@ fn a_straight_chain_respelled_keys_identically() {
             Dimension::Length,
         ))],
     );
-    let literal = doc_with_r(4.0, vec![straight(lit_len(4.0))]);
+    let literal = doc_with_r(4.0, vec![straight(len(4.0))]);
     assert_eq!(
         key_of(&parameterized),
         key_of(&literal),
@@ -346,13 +335,10 @@ fn display_units_never_enter_the_key() {
     let params = std::collections::BTreeMap::new();
     let mm = parse_expr("500 mm", &params).unwrap();
     let m = parse_expr("0.5 m", &params).unwrap();
-    let canonical = Expr::literal(0.5, Dimension::Length).unwrap();
+    let canonical = len(0.5);
     let make = |r: Expr| {
         doc_with(vec![LoopProgram::Circle {
-            centre: [
-                Expr::literal(0.0, Dimension::Length).unwrap(),
-                Expr::literal(0.0, Dimension::Length).unwrap(),
-            ],
+            centre: [len(0.0), len(0.0)],
             radius: r,
         }])
     };
@@ -365,23 +351,17 @@ fn display_units_never_enter_the_key() {
 /// coincide: appending a step re-tags the stream.
 #[test]
 fn step_structure_moves_the_key() {
-    let lpt = |x: f64, y: f64| {
-        [
-            Expr::literal(x, Dimension::Length).unwrap(),
-            Expr::literal(y, Dimension::Length).unwrap(),
-        ]
-    };
     let tri = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 2.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 2.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let quad = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 2.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 2.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     assert_ne!(key_of(&doc_with(vec![tri])), key_of(&doc_with(vec![quad])));

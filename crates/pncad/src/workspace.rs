@@ -689,6 +689,7 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         | PersistError::IdMismatch { .. }
         | PersistError::Parse { .. }
         | PersistError::Unreadable { .. }
+        | PersistError::Dimension { .. }
         | PersistError::EditReplay { .. }
         | PersistError::MaintenanceFrame { .. }
         | PersistError::Snapshot(_)

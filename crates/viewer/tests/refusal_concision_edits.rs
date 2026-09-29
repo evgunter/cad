@@ -594,9 +594,10 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             MateFault::Indeterminate {
                 mate: n(9),
                 diag: Box::new(Indeterminate {
-                    margin: MarginDiag::Value(3.0e-10),
+                    margin: MarginDiag::value(3.0e-10),
                     band,
                     predicate: Some("mate_coaxial"),
+                    terminal_sliver: false,
                 }),
             },
         ),

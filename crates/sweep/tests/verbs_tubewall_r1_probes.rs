@@ -332,16 +332,13 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
 /// forms inside the enclosure — and the enclosure held TIGHT (pads
 /// bounded relative to the quantity), which is the direction the unit
 /// suite's own containment rows cannot pin.
-#[cfg(feature = "interval")]
 mod certified {
+    use geom_core::Bounds;
     use geom_core::interval::Interval;
-    use geom_core::{Bounds, Real};
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        <Interval as Real>::from_f64(x)
-    }
+    use crate::common::interval::{iv, p3, v3};
 
     /// MEASURED (this review, interval + ε = 1e-12): BOTH km-scale
     /// cases (R = 1300) refuse typed in shared machinery — the
@@ -366,9 +363,9 @@ mod certified {
             };
             let built = tube_along_arc_hollow::<Interval>(
                 tube_frame(
-                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    p3(0.0, 0.0, 0.0),
+                    v3(0.0, 0.0, 1.0),
+                    v3(1.0, 0.0, 0.0),
                     Tol::witness(),
                 ),
                 iv(major),
@@ -386,9 +383,9 @@ mod certified {
                 Err(TubeError::Revolve(_)) if major >= 1000.0 && eps <= 1e-12 => {
                     let solid = tube_along_arc::<Interval>(
                         tube_frame(
-                            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                            p3(0.0, 0.0, 0.0),
+                            v3(0.0, 0.0, 1.0),
+                            v3(1.0, 0.0, 0.0),
                             Tol::witness(),
                         ),
                         iv(major),

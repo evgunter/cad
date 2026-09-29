@@ -690,13 +690,10 @@ mod tests {
 
     use super::*;
     use crate::doc::ParamName;
+    use crate::test_support::len;
 
     fn p(name: &'static str) -> Expr {
         Expr::param(ParamName::literal(name), Dimension::Length)
-    }
-
-    fn lit(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Length).unwrap()
     }
 
     fn root() -> ParamScope {
@@ -758,7 +755,7 @@ mod tests {
     /// naming its row.
     #[test]
     fn the_alphabet_covers_the_encoder() {
-        let arms = match ExprKind::Neg(Box::new(lit(0.0))) {
+        let arms = match ExprKind::Neg(Box::new(len(0.0))) {
             ExprKind::Literal(_)
             | ExprKind::CountLiteral(_)
             | ExprKind::Param(_)
@@ -828,9 +825,9 @@ mod tests {
             p("c"),
             p("bc"),
             Expr::param(ParamName::literal("a"), Dimension::Angle),
-            lit(0.0),
-            lit(-0.0),
-            lit(1.0),
+            len(0.0),
+            len(-0.0),
+            len(1.0),
             count.clone(),
             Expr::count_to_scalar(count).unwrap(),
         ];

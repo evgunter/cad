@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::float_cmp)]
 
+use crate::fixture::{ang, len, scl};
 use editor_core::{
     Dimension, DocEdit, DocParam, EditError, Expr, ParamEnv, ParamName, RecipeNodeId, SitedRef,
     SlotId, eval, eval_count,
@@ -18,16 +19,6 @@ struct Fake(&'static str);
 impl editor_core::ProfilePayload for Fake {}
 type Doc = editor_core::Doc<Fake>;
 type Edit = DocEdit<Fake>;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 
 /// Insert a datum point whose x-component is `x` (bit-exact carrier).
 fn point_edit(x: Expr) -> Edit {
@@ -783,7 +774,6 @@ fn r6_nonfinite_doors_closed() {
 /// confident finite enclosure. (Source sweep: editor-core contains no
 /// `x*x` self-multiplication anywhere — checked by grep, noted in the
 /// review report; powi discipline is geom-core's.)
-#[cfg(feature = "interval")]
 #[test]
 fn r8_interval_lane_representative_and_zero_divisor() {
     use editor_core::eval;

@@ -47,7 +47,6 @@
 //! while this table does not. (It used to print a note and return
 //! green, which is a row that reports nothing and passes — the shape
 //! this tree refuses everywhere else.)
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -64,7 +63,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// **The committed accounting goldens, ONE PER ε ROW** (row 2).
 ///
@@ -239,7 +238,7 @@ fn distributed_plate() -> ProfileDoc {
             },
         });
     }
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -251,6 +250,7 @@ fn distributed_plate() -> ProfileDoc {
             ])
             .expect("finite plate corners"),
         ],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_p,
@@ -263,6 +263,7 @@ fn distributed_plate() -> ProfileDoc {
             centre: [Expr::neg(hs.clone()), len(0.0)],
             radius: Expr::param(name("hole_a_r"), Dimension::Length),
         }],
+        ids: Vec::new(),
     }));
     let hole_a = r.insert(Node::Extrude {
         profile: hole_a_p,
@@ -274,6 +275,7 @@ fn distributed_plate() -> ProfileDoc {
             centre: [hs, len(0.0)],
             radius: Expr::param(name("hole_b_r"), Dimension::Length),
         }],
+        ids: Vec::new(),
     }));
     let hole_b = r.insert(Node::Extrude {
         profile: hole_b_p,
@@ -320,11 +322,7 @@ fn distributed_plate() -> ProfileDoc {
     // verdict being taken and holding, not about the band.
     r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(
-            SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps(),
-            Dimension::Length,
-        )
-        .expect("finite"),
+        bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
         dir: AssertionDir::AtLeast,
     });
     r.doc
@@ -391,7 +389,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             distribution: Some(distribution),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -411,6 +409,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             ])
             .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,
@@ -423,26 +422,28 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             len(0.0),
             len(0.0),
         ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     });
     let measure = r.insert(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(9))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                ),
             ],
         )
         .expect("both indices in range"),
     );
     r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(0.3, Dimension::Length).expect("finite"),
+        bound: len(0.3),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure)
@@ -855,13 +856,14 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
 /// reaches every assertion-carrying document in the tree.
 fn plain_distance_doc() -> ProfileDoc {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,
@@ -871,15 +873,15 @@ fn plain_distance_doc() -> ProfileDoc {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(0))),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(2))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
             ],
         )
         .expect("indices in range"),
     );
     r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+        bound: len(0.5),
         dir: AssertionDir::AtLeast,
     });
     r.doc

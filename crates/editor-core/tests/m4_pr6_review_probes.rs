@@ -15,7 +15,7 @@ use editor_core::{
     ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
-use fixture::{desc, insert, len, on_frame};
+use fixture::{desc, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 fn small() -> (ProfileDoc, String) {
@@ -372,11 +372,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
                 input: boole,
                 count: Expr::count(2),
                 kind: editor_core::PatternKind::Linear {
-                    direction: [
-                        Expr::literal(1.0, Dimension::Scalar).unwrap(),
-                        Expr::literal(0.0, Dimension::Scalar).unwrap(),
-                        Expr::literal(0.0, Dimension::Scalar).unwrap(),
-                    ],
+                    direction: [scl(1.0), scl(0.0), scl(0.0)],
                     spacing: len(4.0),
                 },
             },

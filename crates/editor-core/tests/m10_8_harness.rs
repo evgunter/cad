@@ -4,7 +4,6 @@
 //! reviews found these re-derived five times over (their Q1); a copy
 //! per suite is a copy per suite of whatever a future change to the
 //! drive's whole-box shape has to be made in.
-#![cfg(feature = "interval")]
 #![allow(dead_code)]
 
 use std::time::Instant;
@@ -27,7 +26,11 @@ pub(crate) fn dials(rules: SymRules) -> SymbolicDials {
 
 /// Whether `doc` certifies its WHOLE analyzed box in one leaf under
 /// `dials` — `max_depth = 0`, one leaf, the receipt's `certified == 1`.
-pub(crate) fn certifies_whole_with(doc: &ProfileDoc, dials: SymbolicDials, tol: Tol) -> bool {
+pub(crate) fn certifies_whole_with(
+    doc: &editor_core::ProfileDoc,
+    dials: SymbolicDials,
+    tol: Tol,
+) -> bool {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     drive(
         doc,
@@ -44,7 +47,7 @@ pub(crate) fn certifies_whole_with(doc: &ProfileDoc, dials: SymbolicDials, tol: 
 }
 
 /// [`certifies_whole_with`] at the shipped budget under `rules`.
-pub(crate) fn certifies_whole(doc: &ProfileDoc, rules: SymRules, tol: Tol) -> bool {
+pub(crate) fn certifies_whole(doc: &editor_core::ProfileDoc, rules: SymRules, tol: Tol) -> bool {
     certifies_whole_with(doc, dials(rules), tol)
 }
 

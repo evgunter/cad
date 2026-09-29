@@ -24,18 +24,11 @@ use crate::common;
 use common::*;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use geom_core::{Point3, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use topo::{Body, CoherenceCondition, FaceSurface, MefSite, MevSite};
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
 
 /// The byte instrument's own `band(rho)` body, re-derived here because
 /// `r2_bytes.rs` keeps it private.
@@ -43,11 +36,11 @@ fn band(rho: f64) -> Body<f64> {
     let (hh, rc) = (0.5f64.sin(), 0.5f64.cos());
     let yt = (1.0 - rho * rho).sqrt();
     let bulge = ((yt.atan2(rho) - hh.atan2(rc)) / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(rc, hh), bulge),
-        ProfileVertex::new(p2(rho, yt), 0.0),
-        ProfileVertex::new(p2(0.3, 1.3), 0.0),
-        ProfileVertex::new(p2(1.1, 0.9), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(rc, hh), bulge),
+        (Point2::new(rho, yt), 0.0),
+        (Point2::new(0.3, 1.3), 0.0),
+        (Point2::new(1.1, 0.9), 0.0),
     ]);
     sweep::revolve(
         &validated(vec![lp]),
@@ -130,23 +123,23 @@ fn pole_crossing_half_cap() -> Body<f64> {
     let tol = Tol::witness();
     let z = 0.5_f64;
     let r = (1.0 - z * z).sqrt();
-    let a = p3(r, 0.0, z);
-    let b = p3(-r, 0.0, z);
+    let a = Point3::new(r, 0.0, z);
+    let b = Point3::new(-r, 0.0, z);
     let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis,
         radius: 1.0,
-        u_ref: v3(-r, 0.0, z),
+        u_ref: Vec3::new(-r, 0.0, z),
     };
-    let mut g = great(v3(0.0, 1.0, 0.0));
+    let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < z {
-        g = great(v3(0.0, -1.0, 0.0));
+        g = great(Vec3::new(0.0, -1.0, 0.0));
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
@@ -154,10 +147,10 @@ fn pole_crossing_half_cap() -> Body<f64> {
     body.set_face_surface(
         seed.face,
         FaceSurface::New(Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
+            center: Point3::new(0.0, 0.0, 0.0),
             radius: 1.0,
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }),
     )
     .unwrap();
@@ -269,26 +262,26 @@ fn the_pole_crossing_body_at_delta_half_is_not_announced_by_the_deleted_assertio
 /// certifies at any band, and the gap is set by `phi` alone.
 fn tilted_meridian_sliver(phi: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let on = |theta: f64, z: f64| p3(theta.cos(), theta.sin(), z);
+    let on = |theta: f64, z: f64| Point3::new(theta.cos(), theta.sin(), z);
     let rim = |z: f64| Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let rim_back = |z: f64| Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, -1.0),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, -1.0),
         radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let th = 0.8_f64;
     let (v0, v1, v2, v3_) = (on(0.0, 0.0), on(th, 0.0), on(th, 1.0), on(0.0, 1.0));
     // The tilted circle: centre one unit inward from the segment's
     // midpoint along `w`, a horizontal direction `phi` off the
     // outward radial; radius sqrt(1 + 0.25).
-    let w = v3(phi.cos(), phi.sin(), 0.0);
-    let m = p3(1.0, 0.0, 0.5);
+    let w = Vec3::new(phi.cos(), phi.sin(), 0.0);
+    let m = Point3::new(1.0, 0.0, 0.5);
     let c = m - w * 1.0;
     let rr = 1.25_f64.sqrt();
     let u_ref = (v3_ - c) * (1.0 / rr);
@@ -298,7 +291,7 @@ fn tilted_meridian_sliver(phi: f64) -> Body<f64> {
         radius: rr,
         u_ref,
     };
-    let n = v3(0.0, 0.0, 1.0).cross(w);
+    let n = Vec3::new(0.0, 0.0, 1.0).cross(w);
     let mut circ = make(n);
     let mut t0 = circ.param_near(v0, 0.0).unwrap();
     if t0 < 0.0 {
@@ -311,10 +304,10 @@ fn tilted_meridian_sliver(phi: f64) -> Body<f64> {
     body.set_face_surface(
         seed.face,
         FaceSurface::New(Surface::Cylinder {
-            origin: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
             radius: 1.0,
-            u_ref: v3(1.0, 0.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }),
     )
     .unwrap();

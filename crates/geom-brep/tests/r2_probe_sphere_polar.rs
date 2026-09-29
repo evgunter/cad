@@ -280,10 +280,9 @@ fn probe_near_polar_separation_sweep() {
 // --- Claim 4: the shipped form AT INTERVAL ----------------------------
 //
 // The new suite `cert1_sphere_polar.rs` is f64-only: it has no
-// Interval row at all, so `--features interval` re-runs it as f64.
+// Interval row at all.
 // These rows drive the SAME geometry through the certified Interval
 // decision scalar and compare outcomes.
-#[cfg(feature = "interval")]
 mod interval_lane {
     use crate::shared::surf;
     use crate::shared::tol::band;

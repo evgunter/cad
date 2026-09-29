@@ -97,3 +97,11 @@ the unit row's `## Built` and `DocEdit::SetProgram`'s doc are
 re-worded to say it is ratified; on a different ruling the change is
 confined to `SegmentMap::retired` and `already_retired`
 (`edit.rs`) and the rows named above.
+
+## EMIT note (2026-09-25)
+
+EMIT's PR 3223 deletes `RETIRED_FLOOR` and the `SegmentMap` rewrite
+this row describes. Under minted step ids, a dropped step's id is never
+minted again, so a stranded name keeps its spelling and vanishes. No
+floor or tombstone is needed. Whether this row is closed is EDIT's
+call.

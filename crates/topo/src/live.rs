@@ -20,7 +20,8 @@
 //! resolves again and a stale token fails at the splice. What no lookup
 //! catches is a token proven against one body and spliced into another,
 //! where the key may resolve to an unrelated half-edge — live-but-wrong,
-//! which is the validator's business and not liveness.
+//! which is foreignness and not liveness: the hazard [`crate::body`]'s
+//! module docs record as unprotected.
 //!
 //! # Guarding
 //!
@@ -151,7 +152,7 @@ mod tests {
     use crate::body::Body;
     use crate::entity::{EdgeKey, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
     use crate::fixtures::pillow;
-    use crate::source_walk::{CodeOnly, crate_sources, src_root};
+    use crate::source_walk::{CodeOnly, crate_sources, src_root, tokens};
     use geom_core::Tol;
     use test_utils::source::{ItemBody, balanced_end, item_body};
 
@@ -227,8 +228,9 @@ mod tests {
 
     /// Every spelling that builds a `Live` from a bare key. `Live` and
     /// `Self` both, because inside `impl Live` the constructor answers
-    /// to either name.
-    const CONSTRUCTIONS: [&str; 4] = ["Live::new(", "Self::new(", "Live(", "Self("];
+    /// to either name. The `new` paths carry no `(`, so a constructor
+    /// named point-free — `.map(Live::new)` — is a construction too.
+    const CONSTRUCTIONS: [&str; 4] = ["Live::new", "Self::new", "Live(", "Self("];
 
     /// The doors that hand a `Live` out, in source order. **This is the
     /// list** — the module header points at this row rather than
@@ -250,57 +252,42 @@ mod tests {
         src[..at].bytes().filter(|c| *c == b'\n').count() + 1
     }
 
-    /// Whether `text` names `name` as a whole token — `Live` in
-    /// `-> Option<Live>`, and not the tail of some `NotLive`.
+    /// Whether `text` names `name` as a whole token.
     fn mentions(text: &str, name: &str) -> bool {
-        let identish = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
-        let b = text.as_bytes();
-        text.match_indices(name).any(|(at, _)| {
-            (at == 0 || !identish(b[at - 1]))
-                && b.get(at + name.len()).is_none_or(|c| !identish(*c))
-        })
+        tokens(text, name).next().is_some()
     }
 
-    /// The text inside the parentheses that the call `needle` opens.
-    /// Every needle in [`LOOKUPS`] and [`CONSTRUCTIONS`] ends with its
-    /// own `(`, so the carve starts at the last byte of the match.
+    /// The text inside the parentheses of the call `needle` makes at its
+    /// first occurrence in `body` — `None` when that occurrence makes no
+    /// call, as a constructor named point-free does not.
     fn argument<'a>(body: &'a str, needle: &str) -> Option<&'a str> {
-        let at = body.find(needle)?;
-        let open = at + needle.len() - 1;
+        let at = tokens(body, needle).next()? + needle.len();
+        let open = if needle.ends_with('(') {
+            at - 1
+        } else {
+            at + body[at..].find(|c: char| !c.is_whitespace())?
+        };
+        if body.as_bytes()[open] != b'(' {
+            return None;
+        }
         Some(body[open + 1..balanced_end(body, open)?].trim())
     }
 
-    /// **The guard the module header names.** The claim is stated
-    /// there; this is how it is checked, and what a red says.
-    ///
-    /// The reader is the shared lexer's code-only view of this file, in
-    /// which every comment and every literal is spaces — so a match is
-    /// code, and the needles above, being literals, cannot answer for
-    /// the row that spells them. The items come from `source_walk`'s
-    /// item scan; `balanced_end` carves the field list and each call's
-    /// arguments; `item_body` carves the `impl Live` block, which is
-    /// what separates a `-> Self` that means a `Live` from one that
-    /// means a `Body`.
-    ///
-    /// Every violation is collected before any is reported and each
-    /// names the item it is about, so a red says which door and what it
-    /// did rather than which assertion happened to fire first.
-    ///
-    /// **What it cannot see**, all of it inherited from reading text:
-    /// a lookup reached one hop away through a helper reads as no
-    /// lookup (a red, which is the safe direction); an item declared
-    /// INSIDE a door's body is not scanned as a door of its own, and
-    /// reds through the construction census under its host's name; the
-    /// argument check compares SPELLINGS, so a rebinding between the
-    /// lookup and the construction defeats it, as does a lookup in a
-    /// half-edge arena belonging to some other body; a construction
-    /// inside a `macro_rules!` body is text like any other; and `cfg`
-    /// is not evaluated.
-    #[test]
-    fn every_door_that_hands_out_a_live_looks_up_first() {
-        let path = src_root().join("live.rs");
-        let text = std::fs::read_to_string(&path).expect("this module's own source reads back");
-        let code = CodeOnly::of(&text);
+    /// What parts 1–3 of the guard below read off one file's code.
+    struct Reading<'a> {
+        /// Each names the item it is about, in backticks, first.
+        violations: Vec<String>,
+        /// The items handing a `Live` out, in source order.
+        doors: Vec<&'a str>,
+        /// The item holding each construction site, in source order.
+        builders: Vec<&'a str>,
+    }
+
+    /// Parts 1–3 of the guard below, over any file's code: the live
+    /// tree's `live.rs` there, and synthetic text in the rows after it,
+    /// which is where the attribution and the blanking have a nested
+    /// item to be wrong about.
+    fn read_live_guard(code: &CodeOnly) -> Reading<'_> {
         let src = code.as_str();
         let items = code.fns();
         let mut violations: Vec<String> = Vec::new();
@@ -312,7 +299,7 @@ mod tests {
         let field = src[open + 1..close].trim();
         if field.contains("pub") {
             violations.push(format!(
-                "the `Live` field is `{field}`: a public field is a constructor, and every \
+                "`Live`'s field is `{field}`: a public field is a constructor, and every \
                  crate that can name the type could then forge a proof"
             ));
         }
@@ -322,8 +309,8 @@ mod tests {
             .expect("`Live::new`, the one place a `Live` is built from a bare key");
         if new.lead.contains("pub") {
             violations.push(format!(
-                "`Live::new` is declared `{}`: a caller outside this module could then \
-                 build a `Live` from a key nothing resolved",
+                "`new` is declared `{}`: a caller outside this module could then build a \
+                 `Live` from a key nothing resolved",
                 new.lead.trim()
             ));
         }
@@ -331,7 +318,9 @@ mod tests {
         // 2. Every door looks up before it builds, and wraps what it
         //    looked up. `Self` in a return type names whichever impl the
         //    item sits in, so only inside `impl Live` does it mean a
-        //    `Live`; `Live` itself means one anywhere.
+        //    `Live`; `Live` itself means one anywhere. Each door is read
+        //    by its own body, so what an item nested in it does is that
+        //    item's row and not the door's.
         let impl_live = match item_body(src, src.find("impl Live").expect("the `impl Live` block"))
         {
             ItemBody::Body(body) => body,
@@ -340,6 +329,7 @@ mod tests {
         let mut doors: Vec<&str> = Vec::new();
         for item in &items {
             let name = item.name;
+            let body = item.own_body();
             let hands_out = mentions(item.returns, "Live")
                 || (mentions(item.returns, "Self") && impl_live.contains(&item.span.start));
             if name == "new" || !hands_out {
@@ -349,7 +339,7 @@ mod tests {
             let first = |needles: &[&'static str]| {
                 needles
                     .iter()
-                    .filter_map(|n| item.body.find(*n).map(|at| (at, *n)))
+                    .filter_map(|n| tokens(body, n).next().map(|at| (at, *n)))
                     .min()
             };
             match (first(&LOOKUPS), first(&CONSTRUCTIONS)) {
@@ -368,8 +358,7 @@ mod tests {
                     ));
                 }
                 (Some((_, looked)), Some((_, built))) => {
-                    let (resolved, wrapped) =
-                        (argument(item.body, looked), argument(item.body, built));
+                    let (resolved, wrapped) = (argument(body, looked), argument(body, built));
                     if resolved != wrapped {
                         violations.push(format!(
                             "`{name}` looks up `{}` and wraps `{}`: the proof it hands \
@@ -383,16 +372,18 @@ mod tests {
             }
         }
 
-        // 3. The doors and the construction sites are the listed ones.
+        // 3. Every construction site, credited to the item it stands in.
         let mut sites: Vec<(usize, &str)> = Vec::new();
         for needle in CONSTRUCTIONS {
-            for (at, _) in src.match_indices(needle) {
-                match items.iter().find(|item| item.span.contains(&at)) {
+            for at in tokens(src, needle) {
+                // The innermost item holding the site: the scan yields
+                // a host before the items declared inside it.
+                match items.iter().rfind(|item| item.span.contains(&at)) {
                     Some(item) => sites.push((at, item.name)),
                     // The declaration itself, which part 1 reads.
                     None if src[..at].trim_end().ends_with("struct") => {}
                     None => violations.push(format!(
-                        "a `Live` is built at line {} of live.rs, outside every item the \
+                        "`<no item>`: a `Live` is built at line {}, outside every item the \
                          scan read — nothing here can say which door it belongs to",
                         line_of(src, at)
                     )),
@@ -400,7 +391,64 @@ mod tests {
             }
         }
         sites.sort_unstable();
-        let builders: Vec<&str> = sites.into_iter().map(|(_, name)| name).collect();
+        let builders = sites.into_iter().map(|(_, name)| name).collect();
+        Reading {
+            violations,
+            doors,
+            builders,
+        }
+    }
+
+    /// **The guard the module header names.** The claim is stated
+    /// there; this is how it is checked, and what a red says.
+    ///
+    /// The reader is the shared lexer's code-only view of this file, in
+    /// which every comment and every literal is spaces — so a match is
+    /// code, and the needles above, being literals, cannot answer for
+    /// the row that spells them. The items come from `source_walk`'s
+    /// item scan; `balanced_end` carves the field list and each call's
+    /// arguments; `item_body` carves the `impl Live` block, which is
+    /// what separates a `-> Self` that means a `Live` from one that
+    /// means a `Body`.
+    ///
+    /// Every violation is collected before any is reported and each
+    /// names the item it is about, so a red says which door and what it
+    /// did rather than which assertion happened to fire first. An item
+    /// declared inside a door's body is a row of its own, read apart
+    /// from its host (`FnItem::own_body`), so a red names the item that
+    /// did the thing.
+    ///
+    /// **What it cannot see**, all of it inherited from reading text:
+    /// a lookup reached one hop away through a helper reads as no
+    /// lookup (a red, which is the safe direction); the argument check
+    /// compares SPELLINGS, so a rebinding between the lookup and the
+    /// construction defeats it; a construction whose path no needle
+    /// spells defeats every part — the type under another name
+    /// (`type L = Live;` or `use … as L`, then `L::new(k)`), the tuple
+    /// constructor named point-free (`.map(Self)`, which no spelling
+    /// tells from the type), and a path a `macro_rules!` body assembles
+    /// from fragments (`$t::new(k)` invoked with `Live`), where only a
+    /// construction spelled whole is read; and `cfg` is not evaluated.
+    ///
+    /// **Which body the lookup read is not this guard's to know, and
+    /// nothing catches it.** That `other.half_edges.get(he)` reads the
+    /// body the `Live` is spliced into is a data-flow question, which
+    /// `source_walk`'s module header rules out; a key proven against
+    /// one body and spliced into another is the foreign-key hazard
+    /// [`crate::body`]'s module docs record as unprotected, and no
+    /// validator row pins that a splice of one is reported.
+    #[test]
+    fn every_door_that_hands_out_a_live_looks_up_first() {
+        let path = src_root().join("live.rs");
+        let text = std::fs::read_to_string(&path).expect("this module's own source reads back");
+        let code = CodeOnly::of(&text);
+        let Reading {
+            mut violations,
+            doors,
+            builders,
+        } = read_live_guard(&code);
+
+        // 3. The doors and the construction sites are the listed ones.
         if doors != DOORS {
             violations.push(format!(
                 "the items handing out a `Live` are {doors:?}, not {DOORS:?} — each owes a \
@@ -424,8 +472,8 @@ mod tests {
             }
             let other =
                 CodeOnly::of(&std::fs::read_to_string(&file).expect("a readable source file"));
-            for needle in ["Live(", "Live::new("] {
-                if other.as_str().contains(needle) {
+            for needle in ["Live(", "Live::new"] {
+                if tokens(other.as_str(), needle).next().is_some() {
                     violations.push(format!(
                         "{} builds a `Live` (`{needle}`): construction lives in live.rs \
                          alone, where every site stands beside the lookup that earns it",
@@ -439,5 +487,65 @@ mod tests {
             "the crate walk did not reach live.rs — the guard read nothing"
         );
         assert!(violations.is_empty(), "\n{}", violations.join("\n"));
+    }
+
+    /// **The guard's reading, on text that has something to get wrong.**
+    /// `live.rs` holds no nested item and no point-free construction, so
+    /// the guard's own row is green whichever way it reads them; this
+    /// one is not.
+    ///
+    /// `door` looks its key up and hands a proof out through `of`, but
+    /// hosts `forge`, which hosts `deeper`, which builds a `Live` from a
+    /// bare key. Read by its whole text, `door` would build before it
+    /// looks up; read by its own, it is clean, and the forgery reds
+    /// under the name of the item two levels down that commits it — the
+    /// innermost item holding the site, not the outermost. `point_free`
+    /// looks up and then wraps through `.map(Live::new)`, which a
+    /// needle ending in `(` never sees.
+    #[test]
+    fn the_guard_credits_each_act_to_the_innermost_item_that_commits_it() {
+        let src = "
+struct Live(K);
+impl Live {
+    const fn new(he: K) -> Self { Self(he) }
+    fn of(body: &B, he: K) -> Option<Self> { body.half_edges.contains_key(he).then(|| Self::new(he)) }
+}
+fn door(body: &B, he: K) -> Option<Live> {
+    fn forge(k: K) -> Live {
+        fn deeper(k: K) -> Live { Live::new(k) }
+        deeper(k)
+    }
+    body.half_edges.get(he)?;
+    Live::of(body, he)
+}
+fn point_free(body: &B, he: K) -> Option<Live> {
+    body.half_edges.get(he).map(|_| he).map(Live::new)
+}
+";
+        let code = CodeOnly::of(src);
+        let reading = read_live_guard(&code);
+        let named: Vec<&str> = reading
+            .violations
+            .iter()
+            .map(|v| v.split('`').nth(1).unwrap_or(v))
+            .collect();
+        assert_eq!(
+            named,
+            vec!["forge", "deeper", "point_free"],
+            "the violations are misattributed, or a nested item's act was read as its \
+             host's, or the point-free construction went unseen: {:#?}",
+            reading.violations
+        );
+        assert_eq!(
+            reading.doors,
+            vec!["of", "door", "forge", "deeper", "point_free"],
+            "a nested item was not read as a door of its own"
+        );
+        assert_eq!(
+            reading.builders,
+            vec!["new", "of", "deeper", "point_free"],
+            "a construction site was credited to an item other than the innermost one \
+             holding it"
+        );
     }
 }

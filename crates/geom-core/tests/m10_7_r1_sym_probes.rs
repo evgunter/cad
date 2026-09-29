@@ -2,7 +2,7 @@
 //! attacking review claims 2, 3 and 5 at the scalar itself, through the
 //! public doors (`Sym`, `with_session`, `k_stats::decide`).
 //!
-//! Sweep shape ([[test-suite-cost]]): every row is a witness that can be
+//! Sweep shape (implementer-discipline §8): every row is a witness that can be
 //! written down, so all are static fixtures and no seed appears. Rows
 //! marked EVIDENCE-ONLY print and assert nothing that gates.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -194,7 +194,7 @@ fn r1_reciprocal_of_the_zero_form_freezes_and_never_certifies() {
 ///
 /// `atan(1/(x−x))` at `f64` is `atan(+inf) = π/2`, a finite value with
 /// no real behind it, and the difference of two of them is numerically
-/// `0.0` rather than NaN. So `MarginDiag::Invalid` never fires: clause
+/// `0.0` rather than NaN. So `MarginKind::Invalid` never fires: clause
 /// 1's VALUE side is structurally blind here, and at an earlier head the
 /// reciprocal of the zero form FROZE, the two `atan` atoms shared the
 /// frozen key, and the tier answered `Zero` as a theorem.

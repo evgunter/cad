@@ -89,7 +89,6 @@ impl ValueChannelBits for Dual64 {
     }
 }
 
-#[cfg(feature = "interval")]
 impl ValueChannelBits for geom_core::Interval {
     fn feed(self, d: &mut Digest) {
         let (lo, hi, dec) = self.repr_bits();
@@ -99,7 +98,6 @@ impl ValueChannelBits for geom_core::Interval {
     }
 }
 
-#[cfg(feature = "interval")]
 impl ValueChannelBits for geom_core::DualInterval {
     fn feed(self, d: &mut Digest) {
         self.value.feed(d);
@@ -237,10 +235,10 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.u64(13);
                     for lp in p.validated.loops() {
                         d.u64(lp.vertices().len() as u64);
-                        for v in lp.vertices() {
-                            d.scalar(v.pos().x);
-                            d.scalar(v.pos().y);
-                            d.scalar(v.bulge());
+                        for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                            d.scalar(v.x);
+                            d.scalar(v.y);
+                            d.scalar(s.bulge);
                         }
                     }
                 }

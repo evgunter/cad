@@ -2,12 +2,13 @@
 id: patch-bound-offset-fit-recentring-origins
 kind: issue
 title: patch_bound and offset_fit recentre the same homogeneous nets against different origins — unifying the two centres needs a measurement
-status: open
+status: parked
 opened: 2026-09-01
 github: 1532
 refs: [1403, 1006]
 priority: P1
 cost: D
+blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites]
 ---
 
 ## From GitHub issue 1532

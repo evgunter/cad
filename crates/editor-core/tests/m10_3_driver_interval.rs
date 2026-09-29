@@ -45,13 +45,6 @@
 //! this file consumes it. The by-shape sweep for its siblings, its
 //! commands and its blind spots are in M10-3's PR and re-run in M10-7's,
 //! where the 57 names it published are classified.
-//!
-//! The file's basename carries `interval` deliberately: the driver is
-//! gated on that feature (there is no leaf to certify without the
-//! certified scalar) and `scripts/ci-filter.py` pins the hosted lane on
-//! exactly that name, so this unit's own axis is never left to the
-//! sampling draw.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -74,7 +67,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl, xy_frame};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -82,10 +75,6 @@ fn eps() -> f64 {
 
 fn name(n: &'static str) -> ParamName {
     ParamName::literal(n)
-}
-
-fn lit(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length literal")
 }
 
 fn param(n: &'static str) -> Expr {
@@ -134,17 +123,11 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
             distribution: Some(uniform(half)),
         },
     });
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -181,24 +164,18 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             distribution: Some(depth),
         },
     });
-    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite plate corners"),
             LoopProgram::Circle {
-                centre: [lit(1.0), lit(1.0)],
+                centre: [len(1.0), len(1.0)],
                 radius: param("hole_r"),
             },
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -219,7 +196,6 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
 /// refuse it rather than refine it.
 /// Crate-visible for the same reason [`slab`] is.
 pub(crate) fn sliver_axis() -> ProfileDoc {
-    let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("axis"),
@@ -230,17 +206,11 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
             distribution: Some(uniform(15.0 * eps())),
         },
     });
-    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_2 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: p,
@@ -248,13 +218,13 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     });
     r.insert(Node::Transform {
         input: block,
-        translation: [lit(0.0), lit(0.0), lit(0.0)],
+        translation: [len(0.0), len(0.0), len(0.0)],
         rotation_axis: [
-            scalar(0.0),
-            scalar(0.0),
+            scl(0.0),
+            scl(0.0),
             Expr::param(name("axis"), Dimension::Scalar),
         ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_angle: ang(0.0),
     });
     r.doc
 }
@@ -548,7 +518,7 @@ fn ceiling_at(eps: f64) -> (f64, f64) {
 /// split leaves no trace of what the unsplit box could not decide. This
 /// reads the unsplit evaluation directly, which is the question the
 /// ceiling is about.
-fn node_failures(doc: &ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
+fn node_failures(doc: &editor_core::ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(std::sync::Arc::new(ParamBox::of(analyzed))),
         profile_lift: ProfileLift::Guided,

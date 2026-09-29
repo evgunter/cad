@@ -24,7 +24,6 @@
 //!   NaN, indistinguishable from NaI. The certification test below
 //!   asserts the *fixed* behavior.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The laundering table's closure type is the review artifact's shape; the
 // negated `hi() <= eps` IS the certification check under test (its NaN
@@ -52,9 +51,9 @@ fn iv(lo: f64, hi: f64) -> Interval {
 
 fn refuses_as_invalid(x: Interval) -> bool {
     matches!(
-        x.sign_within(band()),
+        x.sign_within(band()).map(|d| d.sign),
         Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             ..
         })
     )
@@ -85,7 +84,7 @@ struct DriverStats {
 /// at Interval over a parameter box, bisecting on Indeterminate.
 fn subdivide(lo: f64, hi: f64, b: Band, depth: usize, stats: &mut DriverStats) {
     let t = Interval::from_bounds(lo, hi);
-    match circle_line_margin(t).sign_within(b) {
+    match circle_line_margin(t).sign_within(b).map(|d| d.sign) {
         Ok(Sign::Positive) => stats.positive += 1,
         Ok(Sign::Negative) => stats.negative += 1,
         Ok(Sign::Zero) => stats.zero += 1,
@@ -107,7 +106,7 @@ fn q1_replay_loop_in_miniature() {
 
     // Step 1: f64 evaluation + decision at a healthy point.
     assert_eq!(
-        circle_line_margin(2.0f64).sign_within(b),
+        circle_line_margin(2.0f64).sign_within(b).map(|d| d.sign),
         Ok(Sign::Positive)
     );
 
@@ -140,8 +139,13 @@ fn q1_replay_loop_in_miniature() {
     for k in 0..64u32 {
         let lo = 1.0 + 2.0 * (f64::from(k) / 64.0);
         let hi = 1.0 + 2.0 * (f64::from(k + 1) / 64.0);
-        if let Ok(sign) = circle_line_margin(Interval::from_bounds(lo, hi)).sign_within(b) {
-            let f = circle_line_margin(0.5 * (lo + hi)).sign_within(b);
+        if let Ok(sign) = circle_line_margin(Interval::from_bounds(lo, hi))
+            .sign_within(b)
+            .map(|d| d.sign)
+        {
+            let f = circle_line_margin(0.5 * (lo + hi))
+                .sign_within(b)
+                .map(|d| d.sign);
             assert_eq!(
                 f,
                 Ok(sign),
@@ -233,7 +237,7 @@ fn poison_laundering_hunt() {
             "source '{sname}' did not refuse: bounds [{:e}, {:e}] -> {:?}",
             p.lo(),
             p.hi(),
-            p.sign_within(band())
+            p.sign_within(band()).map(|d| d.sign)
         );
         for (aname, f) in &attempts {
             let r = f(*p);
@@ -248,7 +252,7 @@ fn poison_laundering_hunt() {
                 r.hi(),
                 probe.lo(),
                 probe.hi(),
-                probe.sign_within(band())
+                probe.sign_within(band()).map(|d| d.sign)
             );
         }
     }

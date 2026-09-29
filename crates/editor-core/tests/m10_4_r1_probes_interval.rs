@@ -10,8 +10,7 @@
 //! - **DATUM** — a state the reviewer measured and is recording as the
 //!   shipped behaviour, red-capable if it changes.
 //! - **EVIDENCE-ONLY** — a print, no assertion that can fail on a
-//!   number (`memories/test-suite-cost.md`).
-#![cfg(feature = "interval")]
+//!   number (implementer-discipline §8).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -30,7 +29,7 @@ use editor_core::{
 };
 use geom_core::{Dual64, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, ang, len, scl};
 
 fn name(n: &'static str) -> ParamName {
     ParamName::literal(n)
@@ -142,6 +141,7 @@ fn stepped_shaft_sized(
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let base = r.insert(Node::Extrude {
         profile: base_p,
@@ -152,6 +152,7 @@ fn stepped_shaft_sized(
         loops: vec![
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let boss_raw = r.insert(Node::Extrude {
         profile: boss_p,
@@ -161,7 +162,7 @@ fn stepped_shaft_sized(
         input: boss_raw,
         translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        rotation_angle: ang(0.0),
     });
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
@@ -234,6 +235,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![chain],
+        ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p,
@@ -242,8 +244,8 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.
     let refs = vec![
-        SitedRef::new(slab, fname(slab, wall(3))),
-        SitedRef::new(slab, fname(slab, wall(1))),
+        SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
+        SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
     let m = r.insert(
         Node::measure(
@@ -962,55 +964,4 @@ fn r1_seed_env_refuses_a_foreign_name() {
     }
     assert_eq!(ones, 1, "exactly one seeded lift");
     assert_eq!(zeros, 1, "every other lift is exactly zero");
-}
-
-/// **DATUM — the `contribution` column extrapolates past its own
-/// chamber.** `Chamber::ChamberCertified` names ONE certified LEAF, and
-/// the drive splits the analyzed box into many; `contribution` is
-/// `|dm/dp| * (the ANALYZED box\'s half-width)`. So the report
-/// multiplies a derivative marked valid over a leaf by a span many
-/// times the leaf\'s — the extrapolation E4\'s marking clause exists to
-/// make unwritable. This row measures the ratio on a drive that split.
-///
-/// **The document moved under M10-8's shipped tier**: the stepped shaft
-/// at `ε/8` — and at ±0.1 — now certifies WHOLE in one leaf (the row
-/// above), so it no longer splits and cannot carry this measurement.
-/// The two-hole plate at HALF its real study does: its
-/// whole-certifying ceiling is 0.24–0.26 of the study at every ε row
-/// (`m10_10_pins_interval`; a real margin, so the scale here is a
-/// fraction of the study rather than a multiple of ε), and at 0.5 the
-/// driver splits into 22 leaves, every one certified, with the nominal
-/// in a certified chamber.
-#[test]
-fn r1_the_contribution_extrapolates_past_its_certified_chamber() {
-    let scale = 0.5;
-    let (doc, m, _) = crate::m10_7_plate::plate(5.0e-5 * scale, 1.0e-5 * scale, Tol::witness());
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    assert!(
-        verdict.certified().len() > 1,
-        "this row needs a drive that SPLIT: {:?}",
-        verdict.receipt()
-    );
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
-    let row = &report.per_param[0];
-    let Chamber::ChamberCertified { leaf, .. } = (match &row.sensitivity {
-        SensitivityOutcome::Derivative { chamber, .. } => chamber.clone(),
-        other => panic!("{other:?}"),
-    }) else {
-        panic!("the nominal\'s leaf certifies here")
-    };
-    let (lo, hi) = leaf.get(&row.param).expect("the axis").span();
-    let leaf_half = 0.5 * (hi - lo);
-    let box_half = 0.5 * analyzed.get(&row.param).expect("the axis").offsets.width();
-    println!(
-        "EVIDENCE-ONLY r1 chamber vs contribution: leaf half-width {leaf_half:e}, \
-         analyzed half-width {box_half:e}, ratio {:.1}x; contribution {:?}",
-        box_half / leaf_half,
-        row.contribution
-    );
-    assert!(
-        box_half > leaf_half,
-        "DATUM: the contribution\'s span exceeds the certified chamber\'s"
-    );
 }

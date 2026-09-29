@@ -557,10 +557,22 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
             }
             undeclared += 1;
             let rendered = format!("{:?}", finding.error);
+            // The penetrating seat's two cubes pass into each other
+            // where they touch, and the census's instance arm refuses
+            // that pair as a mixed touch: no declaration answers for a
+            // placement either.
             assert!(
-                ["UndeclaredContact", "UndeclaredCusp", "CensusEscalated"]
+                ["UndeclaredContact", "CensusEscalated"]
                     .iter()
-                    .any(|arm| rendered.contains(arm)),
+                    .any(|arm| rendered.contains(arm))
+                    || matches!(
+                        finding.error,
+                        topo::ValidationError::CensusUndecidable {
+                            a: topo::EntityId::Solid(_),
+                            b: topo::EntityId::Solid(_),
+                            what,
+                        } if what.starts_with("one passes into the other where they touch")
+                    ),
                 "an unattributed finding is one no declaration answers for: {rendered}"
             );
         }

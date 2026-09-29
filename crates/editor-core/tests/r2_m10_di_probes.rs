@@ -32,13 +32,14 @@
 //! current facts a reviewer needed visible, and may be retired with
 //! the review per the standing reviewer-suite policy. No fuzzing: every
 //! row is a static-fixture enumeration over the committed corpus
-//! (test-suite-cost: a witness you can write down is not a search).
+//! (implementer-discipline §8: a witness you can write down is not a search).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
 use crate::fixture;
 
+use crate::fixture::xy_frame;
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
@@ -313,10 +314,10 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(13);
                         for lp in p.validated.loops() {
                             d.u64(lp.vertices().len() as u64);
-                            for v in lp.vertices() {
-                                d.s(v.pos().x);
-                                d.s(v.pos().y);
-                                d.s(v.bulge());
+                            for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                                d.s(v.x);
+                                d.s(v.y);
+                                d.s(s.bulge);
                             }
                         }
                     }
@@ -420,7 +421,6 @@ fn deep_value_channel_identity_f64_vs_dual64_including_carrier_arenas() {
 
 /// Instrument 1 at `Dual<Interval>`, one closed-form and one
 /// NURBS-walled document (mirrors the unit's own draw).
-#[cfg(feature = "interval")]
 #[test]
 fn deep_value_channel_identity_interval_vs_dual_interval() {
     use geom_core::{DualInterval, Interval};
@@ -538,17 +538,11 @@ fn assemble_census_door_matches_f64_at_dual64() {
 fn own_document_builds_at_dual64_with_f64_value_channel() {
     let mut r = fixture::Recorder::new();
     let disc = LoopProgram::circle(0.0, 0.0, 0.75).unwrap();
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![disc],
+        ids: Vec::new(),
     }));
     let puck = r.insert(Node::Extrude {
         profile,
@@ -578,7 +572,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let p_f = product_recorded(&doc, &ev_f, tol);
     let p_d = product_recorded(&doc, &ev_d, tol);
     // The two arms agree EXCEPT where the certified at-rest gate
-    // decides: `SolidInvalid` is minted only by `gate_at_rest`, which
+    // decides: `RootInvalid` is minted only by `gate_at_rest`, which
     // is structurally absent at `Dual` (DUAL-DESIGN DL3), so an f64
     // gate refusal — which this document produces at tight ε, where
     // `props_quad_converged` escalates on the arc-walled split — is
@@ -591,7 +585,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             "f64 gathered but Dual64 refused: {:?}",
             p_d.as_ref().err()
         ),
-        Err(ProductError::SolidInvalid { .. }) => assert!(
+        Err(ProductError::RootInvalid { .. }) => assert!(
             p_d.is_ok(),
             "the at-rest gate is structurally absent at Dual64 (DL3), so an \
              f64 gate refusal must leave the Dual64 gather Ok; got {:?}",
@@ -626,7 +620,7 @@ fn direct_validation_door_behavior_at_dual64() {
     let body = corpus::body_of(&ev, planar.result.unwrap());
     // `die` carries filleted (cylindrical/spherical) faces — curved but
     // closed-form; what matters here is that the door a dual CAN take
-    // runs and answers. That door is the structural half: the composed
+    // runs and answers. That door is the `_structural` twin: the composed
     // entry carries the +V invariant's certified bound and cannot be
     // called at a dual at all.
     let direct = topo::validate_geometric_structural(body, tol);
@@ -641,19 +635,20 @@ fn direct_validation_door_behavior_at_dual64() {
     {
         let ev_n = eval::<Dual64>(&nurbs.doc);
         let body_n = corpus::body_of(&ev_n, result);
-        // MEASURED, and the reverse of what this row asserted before the
-        // validator split: a NURBS-walled body PASSES the structural
-        // half at a dual. Its refusal was the +V invariant's
-        // `VolumeUncomputable`, raised by the dual's refusing quadrature
-        // arm, and the split moved that invariant WHOLE — closed form
-        // included — into the certified half, so the structural door
-        // reports no orientation verdict of any kind. Nothing else the
-        // structural checks consult refuses this body.
-        assert_eq!(
-            topo::validate_geometric_structural(body_n, tol),
-            Ok(()),
-            "a NURBS-walled body passes the door a dual can take; its refusal was \
-             the certified half's"
+        // A NURBS-walled body is refused TYPED at the door a dual can
+        // take, and by nothing else: the `_structural` door makes check 7
+        // through the closed form, which has no flux for a described
+        // NURBS wall and says so as `VolumeUncomputable` rather than
+        // passing it unbounded. Nothing else the battery consults refuses
+        // this body.
+        let verdict = topo::validate_geometric_structural(body_n, tol);
+        assert!(
+            matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
+                e,
+                topo::ValidationError::VolumeUncomputable { .. }
+            ))),
+            "a NURBS-walled body is refused typed by the closed form's check 7, and \
+             only there: {verdict:?}"
         );
     }
     // Record the die outcome either way — the row's value is the pair

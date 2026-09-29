@@ -133,12 +133,11 @@ the fence gets a row under implementer-discipline §6.
 
 Hosted CI is the verification of record. §2 no longer states a job
 count — it names the matrix, so confirm a code-tier run gates every
-point of {default features, `interval`} x {default eps, 1e-6, 1e-12}
-and every `k-lint (gate, <row>)` unification. **Count job names by
-SUBSTRING, not prefix**: the interval lane now arrives as
-`interval / test (interval, eps = …)`, and a prefix match reads six
-rows on a fully green run. Confirm the run's head SHA equals your
-branch head before reading anything.
+eps row (default, 1e-6, 1e-12; one compile mode, which carries the
+certified interval lane) and every `k-lint (gate, <row>)` unification,
+from the `change filter` log rather than by counting job names.
+Confirm the run's head SHA equals your branch head before reading
+anything.
 
 Locally: `cargo fmt --all --check`, `cargo clippy --workspace
 --all-targets -- -D warnings` and again `--features viewer/app`,

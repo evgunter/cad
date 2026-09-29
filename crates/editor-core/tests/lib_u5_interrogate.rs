@@ -52,16 +52,13 @@
 
 use crate::fixture;
 
+use crate::fixture::len;
 use editor_core::{
-    CancelToken, Dimension, EntityKind, EvalOptions, Expr, InterrogateError, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, all_edges, all_faces, all_vertices, denotation,
-    edge_carrier_kind, edge_frame, evaluate, face_carrier_kind, face_frame, vertex_position,
+    CancelToken, EntityKind, EvalOptions, InterrogateError, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, all_edges, all_faces, all_vertices, denotation, edge_carrier_kind,
+    edge_frame, evaluate, face_carrier_kind, face_frame, vertex_position,
 };
 use geom_core::Tol;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length literal")
-}
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(

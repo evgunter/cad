@@ -86,7 +86,7 @@ const A_STENCIL: [(f64, f64); 15] = [
 fn lp<T: Decide>(poly: &[(f64, f64)]) -> ProfileLoop<T> {
     ProfileLoop::polygon(
         poly.iter()
-            .map(|&(x, y)| Point2::new(T::from_f64(x), T::from_f64(y)))
+            .map(|&(x, y)| Point2::new(x, y).map(T::from_f64))
             .collect::<Vec<_>>(),
     )
 }
@@ -290,7 +290,6 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
 /// Interval lane: conservatism acceptable, wrongness never (the
 /// demo_tripwires pattern). A success must pass tier 2 and enclose
 /// the exact oracle.
-#[cfg(feature = "interval")]
 #[test]
 fn az_plain_interval_refuses_or_encloses() {
     use geom_core::{Bounds, Interval};

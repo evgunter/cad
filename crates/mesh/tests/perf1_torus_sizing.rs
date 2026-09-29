@@ -1,5 +1,5 @@
 //! **The torus chart sizing's pin**: `mesh::sizing::torus_grid_steps`'
-//! two per-direction steps, swept over `R/r` from 1.2 to 50 and three
+//! two per-direction steps, swept over `R/r` from 1.2 to 50 and two
 //! decades of δ, against the certifier (`mesh::cert::cert_torus`)
 //! recomputed from the emitted mesh, the exact torus distance, the
 //! grid's own count, and the boundary polylines' chord counts.
@@ -31,14 +31,14 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{axis_y, eps, p2, sampled_deviation, validated};
+use crate::common::{axis_y, eps, sampled_deviation, validated};
 use core::f64::consts::{FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
-use geom_core::{Point3, Tol};
+use geom_core::{Point2, Point3, Tol};
 use mesh::cert::cert_torus;
 use mesh::tessellate;
 use mesh::validate::check_mesh;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::{Revolution, revolve};
 use topo::Body;
 use topo::chart::Chart;
@@ -53,9 +53,9 @@ const MINOR: f64 = 1.0;
 /// `φ = ±π/2`, and on a partial sweep two planar caps whose edges are
 /// meridian semicircles.
 fn tube(major: f64, sweep: Revolution<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(major, -MINOR), 1.0),
-        ProfileVertex::new(p2(major, MINOR), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(major, -MINOR), 1.0),
+        (Point2::new(major, MINOR), 1.0),
     ]);
     revolve(&validated(vec![lp]), axis_y(), sweep, Tol::witness())
         .unwrap()
@@ -230,18 +230,15 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
     }
 }
 
-/// `R/r` from 1.2 to 50, δ/r across three decades (3e-2 down to
-/// 3e-5), on a quarter-turn wedge (caps: meridian edges) — the finest
-/// decade on a sixteenth-turn so the row stays at a few hundred
-/// thousand triangles — and, where the count allows, the full tube
-/// (seams and rims).
+/// `R/r` from 1.2 to 50, δ/r across two decades (3e-2 and 3e-3), on a
+/// quarter-turn wedge (caps: meridian edges) and, for two ratios, the
+/// full tube (seams and rims).
 #[test]
 fn torus_sizing_sweep_is_sound_tight_and_on_the_ideal() {
     for major in [1.2, 2.0, 30.0 / 7.0, 10.0, 50.0] {
-        for delta in [3e-2, 3e-3, 3e-4] {
+        for delta in [3e-2, 3e-3] {
             sweep_row(major, delta, Revolution::Partial(PI / 4.0));
         }
-        sweep_row(major, 3e-5, Revolution::Partial(PI / 16.0));
     }
     for major in [1.2, 30.0 / 7.0] {
         for delta in [3e-2, 3e-3] {

@@ -31,7 +31,7 @@ use core::f64::consts::FRAC_PI_8;
 
 use geom_core::Point2;
 use geom_core::Tol;
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use step_export::{StepOptions, step_string};
 use sweep::{Extrusion, extrude};
 
@@ -90,11 +90,11 @@ fn notched_body_exports_with_exactly_one_reversed_cylinder_wall() {
     let b = FRAC_PI_8.tan();
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(Point2::new(0.0, 0.0), b),
-        ProfileVertex::new(Point2::new(2.0, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(2.0, 1.5), -b),
-        ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), b),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.5), -b),
+        (Point2::new(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
