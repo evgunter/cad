@@ -1415,8 +1415,17 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             .ok_or(ShellError::Corrupt {
                 key: EntityId::Solid(lift_solid),
             })?;
-        let lift_charts =
-            ChartGroups::within(&out, lift_scope.faces_in_scope()).map_err(corrupt_face)?;
+        // The partition predates this loop's surgery, so the faces an
+        // earlier rim retired — each recorded in `dead` at the call —
+        // are not the lift's.
+        let lift_charts = ChartGroups::within(
+            &out,
+            lift_scope
+                .faces_in_scope()
+                .into_iter()
+                .filter(|f| !naming.dead.faces.contains(f)),
+        )
+        .map_err(corrupt_face)?;
         let lift_door = offset_door(&out, &lift_scope, band).map_err(|error| ShellError::Lift {
             face: designated,
             error: Box::new(error),
