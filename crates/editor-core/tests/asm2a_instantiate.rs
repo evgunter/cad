@@ -918,15 +918,20 @@ fn the_named_gather_agrees_with_the_plain_one() {
 
 // ---- Review fixes (R1): the seam's diagnosis, and its guards ----
 
-/// The innermost cause of a chained seam fault — what the author has
-/// to be told, however many documents down it lies.
-fn root_cause(fault: &PartFault) -> &PartFault {
-    match fault {
-        PartFault::PartRootFailed {
-            cause: Some(inner), ..
-        } => root_cause(inner),
-        other => other,
+/// The innermost seam fault of a chain of part-root failures — what the
+/// author has to be told, however many documents down it lies — and the
+/// line its node's own tree draws for it.
+fn root_cause(fault: &PartFault) -> (&PartFault, Option<String>) {
+    let mut fault = fault;
+    let mut line = None;
+    while let PartFault::PartRootFailed { node, refusal } = fault {
+        line = Some(refusal.line_at(*node));
+        match refusal.kind() {
+            NodeErrorKind::Part { fault: inner, .. } => fault = inner,
+            _ => break,
+        }
     }
+    (fault, line)
 }
 
 /// A deliberately MISBEHAVING resolver: it answers each of a pair of
@@ -979,7 +984,8 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
     // Terminates at the FIRST revisit — the guard is structural, not a
     // depth counter waiting 1024 levels out.
     let fault = part_fault(&run(&doc, &opts), ids[0]);
-    match root_cause(&fault) {
+    let (cause, line) = root_cause(&fault);
+    match cause {
         PartFault::ReferenceCycle { cycle } => {
             assert_eq!(
                 cycle,
@@ -989,9 +995,9 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
         }
         other => panic!("expected a named cycle, got {other:?}"),
     }
-    // The DIAGNOSIS reaches the top: the rendering names the loop, not
-    // an evaluation the caller cannot reach.
-    let rendered = fault.to_string();
+    // The DIAGNOSIS reaches the caller: the chain's last line names the
+    // loop, not an evaluation the caller cannot reach.
+    let rendered = line.expect("the cycle is reached through a failed root");
     assert!(
         rendered.contains("returns to a document it already entered"),
         "the top-level message names the cycle: {rendered}"
@@ -1026,17 +1032,20 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let (doc, ids) = assembly("asm2a-broken-asm", &[doc_ref]);
     let fault = part_fault(&run(&doc, &opts), ids[0]);
     match &fault {
-        PartFault::PartRootFailed { node, cause, .. } => {
+        PartFault::PartRootFailed { node, refusal } => {
             assert_eq!(*node, inner_root, "the failing ROOT is named");
             assert!(
                 matches!(
-                    cause.as_deref(),
-                    Some(PartFault::Unresolved {
-                        fault: ResolveFault::Unresolved,
-                        ..
-                    })
+                    refusal.kind(),
+                    NodeErrorKind::Part {
+                        doc_ref,
+                        fault: PartFault::Unresolved {
+                            fault: ResolveFault::Unresolved,
+                            ..
+                        },
+                    } if *doc_ref == missing
                 ),
-                "the cause travels typed, not as prose: {cause:?}"
+                "the root's refusal travels typed, with the reference it crossed: {refusal:?}"
             );
         }
         other => panic!("expected PartRootFailed, got {other:?}"),
@@ -1047,8 +1056,14 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         "the message never points at an object the caller cannot reach: {rendered}"
     );
     assert!(
-        rendered.contains("product root") && rendered.contains("did not resolve"),
-        "it names the root AND the reason: {rendered}"
+        rendered.contains(&format!("node {}", inner_root.0))
+            && !rendered.contains("did not resolve"),
+        "it names the root and points, never quoting the root's own refusal: {rendered}"
+    );
+    let (_, line) = root_cause(&fault);
+    assert!(
+        line.is_some_and(|line| line.contains("did not resolve")),
+        "the reason is the carried line's"
     );
 }
 

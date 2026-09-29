@@ -219,6 +219,16 @@ class EvaluationError(PncadError):
     `Evaluation.find_flush_candidates` answers with, ready for
     `Node.declare` / `Doc.declare`. The menu has exactly two arms:
     declare that finding, or move the geometry.
+
+    A refusal that CARRIES another node's refusal — `part_root_failed`,
+    a part whose product root failed, and `mate_placer_refused`, a
+    mate whose placer could not derive its pose — names that
+    node and points at it, and never quotes it. The carried refusal is
+    `__cause__`: an `EvaluationError` raised for that node as its own
+    evaluation raises it, whose `node` is in the id space of the
+    document it failed in (the part's, for a part's root). A part
+    inside a part is a chain of causes, one per document, ending at the
+    node that refused.
     """
 
     reason: str
@@ -5201,7 +5211,12 @@ class MateFault:
     `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`
     and `predicate` are spelled here exactly as `FrameError` spells
     them, because an escalation a mate reports and one a frame
-    constructor reports are the same value."""
+    constructor reports are the same value.
+
+    `cause` is the refusal the fault CARRIES, typed: on
+    `mate_placer_refused`, the `EvaluationError` the placer's own
+    evaluation raises, which `str(fault)` points at and never quotes. A
+    raised `MateError` carries the same as its `__cause__`."""
 
     @property
     def variant(self) -> str: ...
@@ -5215,6 +5230,8 @@ class MateFault:
     def placer(self) -> Optional[NodeId]: ...
     @property
     def error(self) -> Optional[str]: ...
+    @property
+    def cause(self) -> Optional[EvaluationError]: ...
     @property
     def instance(self) -> Optional[NodeId]: ...
     @property

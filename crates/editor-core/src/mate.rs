@@ -886,7 +886,10 @@ pub enum MateFault {
     /// Carrying it is what makes the refusal readable at all. A mate
     /// fault POISONS the document, so the placer node never evaluates
     /// and never gets to state its own cause: this fault is the only
-    /// place that cause appears.
+    /// place that cause appears. The sentence names the placer and
+    /// never renders `error`, which is the placer's refusal with its
+    /// own recourse; a surface draws it as its own line
+    /// ([`crate::NodeErrorKind::carried`]).
     PlacerRefused {
         /// The mate.
         mate: RecipeNodeId,
@@ -968,6 +971,34 @@ impl From<crate::ident::Mispaired> for MateFault {
         Self::PosesOfAnotherDocument {
             expected: m.expected,
             found: m.found,
+        }
+    }
+}
+
+impl MateFault {
+    /// **The refusal this fault carries, when it carries one**: the
+    /// node that raised it and the refusal, which the sentence points
+    /// at and never renders ([`crate::NodeErrorKind::carried`]).
+    ///
+    /// Exhaustive, so an arm that comes to carry another node's
+    /// refusal says so here rather than being drawn as though it did
+    /// not.
+    #[must_use]
+    pub fn carried(&self) -> Option<(RecipeNodeId, &NodeRefusal)> {
+        match self {
+            Self::PlacerRefused { placer, error, .. } => Some((*placer, error)),
+            Self::PosesOfAnotherDocument { .. }
+            | Self::Frame { .. }
+            | Self::ClassNotAdmitted { .. }
+            | Self::TableLacks { .. }
+            | Self::Indeterminate { .. }
+            | Self::Band { .. }
+            | Self::Contradictory { .. }
+            | Self::Under { .. }
+            | Self::DanglingHead { .. }
+            | Self::PartSelectsAnotherCopy { .. }
+            | Self::SelfMate { .. }
+            | Self::Unleverable { .. } => None,
         }
     }
 }
@@ -1092,17 +1123,18 @@ impl core::fmt::Display for MateFault {
                 side.name(),
                 head.0
             ),
+            // `error` is the placer's own refusal, drawn as its own line
+            // (the carried-refusal exception over `NodeErrorKind`'s
+            // `Display`), so this sentence names the placer and points.
             Self::PlacerRefused {
-                mate,
-                side,
-                placer,
-                error,
+                mate, side, placer, ..
             } => write!(
                 f,
-                "mate {}'s {} reference has no derived pose: node {} refuses — {error}",
+                "mate {}'s {} reference has no derived pose: node {p}, which places it, refuses — \
+                 repair node {p}",
                 mate.0,
                 side.name(),
-                placer.0
+                p = placer.0
             ),
             Self::PartSelectsAnotherCopy {
                 mate,

@@ -5000,6 +5000,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_product",
             "part_reference_cycle",
             "part_root_failed",
+            "part_root_failure_unrecorded",
         ],
         delegates: &["resolve_fault_tag"],
     },

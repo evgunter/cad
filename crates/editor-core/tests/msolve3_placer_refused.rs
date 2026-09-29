@@ -236,9 +236,14 @@ fn a1_a_non_finite_pattern_direction_names_the_direction() {
         kind.contains("NonFiniteDirection") && kind.contains("pattern direction"),
         "and it is the direction door's own: {kind}"
     );
+    let MateFault::PlacerRefused { error, .. } = &f else {
+        panic!("expected PlacerRefused, got {f:?}");
+    };
+    let line = error.line_at(placer);
     assert!(
-        f.to_string().contains("pattern direction"),
-        "the prose says which vector: {f}"
+        line.contains("pattern direction") && !f.to_string().contains("pattern direction"),
+        "the carried line says which vector, and the mate's own sentence points at it: \
+         {line} / {f}"
     );
     assert!(
         scene.placer_row().contains("Poisoned"),

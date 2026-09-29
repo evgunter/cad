@@ -33,10 +33,11 @@
 //! the chooser needs from a session arrives as [`PartCensus`], which
 //! the session mints.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use pncad::document::DocumentId;
-use pncad::workspace::WorkspaceError;
+use pncad::workspace::{Workspace, WorkspaceError};
 
 use crate::docio::DirResolver;
 use crate::frame::Tone;
@@ -78,11 +79,17 @@ impl PartEntry {
     /// when the path names no file (which the scan cannot produce, and
     /// which is shown rather than hidden if it ever does).
     pub fn file_name(&self) -> String {
-        self.path.file_name().map_or_else(
-            || self.path.display().to_string(),
-            |n| n.to_string_lossy().into_owned(),
-        )
+        file_name(&self.path)
     }
+}
+
+/// A path's file name, as the chrome names a document — the whole path
+/// when it names no file.
+fn file_name(path: &Path) -> String {
+    path.file_name().map_or_else(
+        || path.display().to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    )
 }
 
 /// The documents the resolver's directory offers as parts, with the
@@ -214,5 +221,54 @@ impl PartChooser {
             Ok(entries) if !entries.is_empty() => Tone::Advisory,
             Ok(_) | Err(_) => Tone::Actionable,
         }
+    }
+}
+
+/// **Which file each document in the session's directory is**, by file
+/// name: how the feature tree names a part, where the document layer
+/// can only name it by its id.
+///
+/// A snapshot of one scan, like [`PartCensus`], and for the same
+/// reason: the tree is drawn every frame and a scan reads every file's
+/// header. The session takes it when a run lands, the moment its
+/// resolver has just read the same directory.
+///
+/// A document it does not name is one the scan did not find, or one a
+/// session with no directory cannot look for; a surface says so in
+/// words ([`PartFiles::NO_FILE`]) and never prints the id.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PartFiles(BTreeMap<DocumentId, String>);
+
+impl PartFiles {
+    /// What a surface names a document this value has no file for.
+    pub const NO_FILE: &str = "a part with no file in this directory";
+
+    /// The file names one scan of `workspace` found.
+    #[must_use]
+    pub fn of(workspace: &Workspace) -> Self {
+        Self(
+            workspace
+                .documents()
+                .iter()
+                .map(|(&id, path)| (id, file_name(path)))
+                .collect(),
+        )
+    }
+
+    /// One scan of `resolver`'s directory, or no names at all when
+    /// there is no directory or the scan refuses. The refusal is not
+    /// lost: the same scan refuses every resolution through that
+    /// directory, typed, on the instance rows it reaches.
+    #[must_use]
+    pub fn scanned(resolver: Option<&DirResolver>) -> Self {
+        resolver
+            .and_then(|r| r.workspace().ok())
+            .map_or_else(Self::default, |workspace| Self::of(&workspace))
+    }
+
+    /// The file `id` lives in, by name, or [`PartFiles::NO_FILE`].
+    #[must_use]
+    pub fn name(&self, id: DocumentId) -> &str {
+        self.0.get(&id).map_or(Self::NO_FILE, String::as_str)
     }
 }

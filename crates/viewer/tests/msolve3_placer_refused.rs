@@ -99,7 +99,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
 
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
-    let rows = tree::rows(&doc, Some(&ev));
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
     let row = rows
         .iter()
         .find(|r| r.id == mate)
@@ -115,19 +115,32 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     );
     // The WHOLE rendered cause, not a substring of it: a wrong role
     // word, a wrong refusal kind (a zero length instead of an
-    // unmeasurable one), or a wrong node all fail here.
+    // unmeasurable one), or a wrong node all fail here. The mate's own
+    // line names the placer and points; the placer's refusal is the
+    // line under it, as the placer's own row would draw it.
     assert_eq!(
         message,
         format!(
             "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
-             node {} refuses — the pattern direction has no finite length (a component \
-             overflows the norm or is not a number). Recourse: {}",
+             node {p}, which places it, refuses — repair node {p}",
             mate.0,
             mate.0,
+            p = pattern.0,
+        ),
+        "the row names the placer the evaluation typed"
+    );
+    let RowStatus::Failed { carried, .. } = &row.status else {
+        panic!("asserted Failed above");
+    };
+    assert_eq!(
+        carried,
+        &vec![format!(
+            "node {} failed: the pattern direction has no finite length (a component overflows \
+             the norm or is not a number). Recourse: {}",
             pattern.0,
             geom_core::RANGE_RECOURSE
-        ),
-        "the row states the cause the evaluation typed"
+        )],
+        "the row carries the cause the evaluation typed, as its own line"
     );
 
     // The compensation the old design rested on, measured: the
@@ -294,7 +307,7 @@ fn assert_the_mate_is_blamed(
     mate: RecipeNodeId,
     named: RecipeNodeId,
 ) {
-    let rows = tree::rows(doc, Some(ev));
+    let rows = tree::rows(doc, Some(ev), &viewer::parts::PartFiles::default());
     let mate_row = common::status_of(&rows, mate);
     let Some(NodeResult::Failed(error)) = ev.result(mate) else {
         panic!("the mate must be Failed in the evaluation");
@@ -302,7 +315,8 @@ fn assert_the_mate_is_blamed(
     assert_eq!(
         mate_row,
         RowStatus::Failed {
-            message: error.to_string()
+            message: error.to_string(),
+            carried: Vec::new(),
         },
         "the mate's row is the cause and carries the payload's own words"
     );
@@ -392,7 +406,7 @@ fn assert_both_loud(
     mate: RecipeNodeId,
     named: RecipeNodeId,
 ) {
-    let rows = tree::rows(doc, Some(ev));
+    let rows = tree::rows(doc, Some(ev), &viewer::parts::PartFiles::default());
     for id in [mate, named] {
         let Some(NodeResult::Failed(error)) = ev.result(id) else {
             panic!("{id:?} must be Failed in the evaluation");
@@ -400,7 +414,8 @@ fn assert_both_loud(
         assert_eq!(
             common::status_of(&rows, id),
             RowStatus::Failed {
-                message: error.to_string()
+                message: error.to_string(),
+                carried: Vec::new(),
             },
             "{id:?} carries its own words"
         );
@@ -493,7 +508,7 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
         matches!(fault, MateFault::PlacerRefused { placer, .. } if placer == s.pattern),
         "the fixture reaches the arm, naming the pattern: {fault:?}"
     );
-    let rows = tree::rows(&doc, Some(&ev));
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
     assert!(
         matches!(
             common::status_of(&rows, s.pattern),

@@ -38,7 +38,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
         .iter()
         .find(|row| row.id == extrude)
         .expect("the extrude has a row");
-    let RowStatus::Failed { message } = &failed.status else {
+    let RowStatus::Failed { message, .. } = &failed.status else {
         panic!("expected Failed, got {:?}", failed.status);
     };
     assert_eq!(failed.status.badge(), "FAILED");
@@ -172,7 +172,11 @@ fn a_canceled_runs_missing_tail_reads_as_unevaluated() {
     let cancel = CancelToken::new();
     cancel.cancel();
     let evaluation = evaluate::<f64>(&doc, None, &cancel, &EvalOptions::default(), tol);
-    let rows = tree::rows(&doc, Some(&evaluation));
+    let rows = tree::rows(
+        &doc,
+        Some(&evaluation),
+        &viewer::parts::PartFiles::default(),
+    );
     assert!(!rows.is_empty());
     assert!(rows.iter().all(|row| row.status == RowStatus::Unevaluated));
     assert!(!tree::has_faults(&rows));
@@ -182,7 +186,7 @@ fn a_canceled_runs_missing_tail_reads_as_unevaluated() {
 fn the_tree_marks_the_documents_product_roots() {
     let tol = Tol::witness();
     let (doc, profile, extrude) = common::parametric_plate(tol);
-    let rows = tree::rows(&doc, None);
+    let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
     let root_ids: Vec<_> = rows
         .iter()
         .filter(|row| row.root)
@@ -253,7 +257,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     let status_of = |id| common::status_of(&rows, id);
 
     // The offending mate is the cause, and the only row that is.
-    let RowStatus::Failed { message } = status_of(offender) else {
+    let RowStatus::Failed { message, .. } = status_of(offender) else {
         panic!(
             "the offending mate carries the cause: {:?}",
             status_of(offender)
@@ -650,7 +654,11 @@ fn child_band_refusal_rows() {
         &EvalOptions::default(),
         tol,
     );
-    let rows = tree::rows(&asm, Some(&evaluation));
+    let rows = tree::rows(
+        &asm,
+        Some(&evaluation),
+        &viewer::parts::PartFiles::default(),
+    );
     assert!(tree::has_faults(&rows), "the run refused: {rows:?}");
 
     // DOOR 3 — the fault is the MATE arm, not the evaluator's own

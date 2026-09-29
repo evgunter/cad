@@ -74,11 +74,30 @@ pub fn debug_struct(text: &str) -> bool {
     })
 }
 
-/// Whether `text` names an arena key (`FaceKey(3v1)`, `EdgeKey(null)`).
+/// Whether `text` names an arena key (`FaceKey(3v1)`, `EdgeKey(null)`)
+/// or a document by its hex id (`3f9a…c2@81be…`, a `DocRef` or a
+/// `DocumentId`'s `Display`).
+///
+/// A hex id is read by shape: a word of at least [`HEX_ID_MIN`] hex
+/// digits holding both a decimal digit and a letter. A decimal number
+/// has no letter and an English word has no digit, so neither reads as
+/// one.
 #[must_use]
 pub fn arena_key(text: &str) -> bool {
     text.contains("Key(")
+        || text
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .any(|word| {
+                word.len() >= HEX_ID_MIN
+                    && word.chars().all(|c| c.is_ascii_hexdigit())
+                    && word.chars().any(|c| c.is_ascii_digit())
+                    && word.chars().any(|c| c.is_ascii_alphabetic())
+            })
 }
+
+/// The shortest run of hex digits [`arena_key`] reads as a document id:
+/// a `DocRef`'s pin prefix, the shorter of its two halves.
+pub const HEX_ID_MIN: usize = 12;
 
 /// How many recourse markers `text` carries: each `Recourse:`, and each
 /// `There is no way through` (the marker a refusal with no recourse
@@ -160,6 +179,14 @@ mod tests {
         ));
         assert!(!debug_struct("a set {1, 2}"));
         assert!(arena_key("face FaceKey(null) is gone"));
+        assert!(arena_key(
+            "instantiating 3f9a0c41d2e87b6a5f10c9d8e7b6a5f1@81be0c2d4f6a: gone"
+        ));
+        assert!(arena_key(
+            "the document 3f9a0c41d2e87b6a5f10c9d8e7b6a5f1 is gone"
+        ));
+        assert!(!arena_key("the offset is 0.30000000000000004 mm"));
+        assert!(!arena_key("a deadbeef-like word, and 123456789012 items"));
         assert_eq!(
             recourse_markers("x. Recourse: a. There is no way through yet"),
             2

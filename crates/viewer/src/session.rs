@@ -77,7 +77,7 @@ use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
-use crate::parts;
+use crate::parts::{self, PartFiles};
 use crate::pickcache;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::sketch;
@@ -502,6 +502,12 @@ struct LandedRun {
     /// changing the shape; do not trust the figures to have stayed
     /// true.
     body: Option<Arc<Body<f64>>>,
+    /// **The part files the run's resolver could name** — one scan of
+    /// the session's directory, taken at landing ([`PartFiles`]'s doc
+    /// says why then): the file names the tree names this pair's
+    /// instances and their carried lines by. Empty for a document that
+    /// instantiates nothing, which never asks.
+    files: PartFiles,
 }
 
 /// Exhaustive by destructuring; the shared rule is
@@ -526,11 +532,13 @@ impl core::fmt::Debug for LandedRun {
             at_rest,
             checks,
             body,
+            files,
         } = self;
         let mut out = f.debug_struct("LandedRun");
         out.field("generation", generation)
             .field("fault", fault)
-            .field("at_rest", at_rest);
+            .field("at_rest", at_rest)
+            .field("files", files);
         match checks {
             Some(report) => out.field(
                 "checks",
@@ -976,11 +984,12 @@ impl DocSession {
         // one function away from the fix that introduced it. While a
         // run is outstanding the tree therefore shows the picture's
         // document, which is what the viewport shows too.
-        match self.landed_pair() {
-            Some((doc, eval)) => tree::rows(doc, Some(eval)),
+        match &self.derived.landed {
+            Some(run) => tree::rows(&run.doc, Some(&run.evaluation), &run.files),
             // Nothing has landed: the shown document with no
-            // evaluation, which renders every row `Unevaluated`.
-            None => tree::rows(self.doc(), None),
+            // evaluation, which renders every row `Unevaluated` — and
+            // names no part file, since no run has read the directory.
+            None => tree::rows(self.doc(), None, &PartFiles::default()),
         }
     }
 
@@ -1124,6 +1133,13 @@ impl DocSession {
                 (Some(fault), checks, at_rest, None)
             }
         };
+        // Only a document that instantiates a part has a part to name,
+        // so only it pays the scan.
+        let files = if assembly_shaped {
+            PartFiles::scanned(self.resolver.as_deref())
+        } else {
+            PartFiles::default()
+        };
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
@@ -1134,6 +1150,7 @@ impl DocSession {
             at_rest,
             checks,
             body,
+            files,
         });
         Landing::Landed
     }

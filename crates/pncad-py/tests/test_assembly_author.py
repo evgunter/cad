@@ -941,7 +941,15 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(fault.placer, lifted)
         self.assertEqual(fault.error, "non_finite_direction")
         self.assertIsNone(fault.head)
-        self.assertIn("transform rotation axis", str(fault))
+        # The fault names the placer and points; the placer's own
+        # refusal is its typed cause, in the placer's own words.
+        self.assertIn(f"repair node {repr(lifted)[7:-1]}", str(fault))
+        self.assertNotIn("transform rotation axis", str(fault))
+        cause = fault.cause
+        self.assertIsInstance(cause, pncad.EvaluationError)
+        self.assertEqual(cause.node, lifted)
+        self.assertEqual(cause.kind, "non_finite_direction")
+        self.assertIn("transform rotation axis", str(cause))
 
     def test_a_non_finite_frame_still_refuses_at_the_edit_door(self):
         """The axis is decided at the constructor now, so the frame a

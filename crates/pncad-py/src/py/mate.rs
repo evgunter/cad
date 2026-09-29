@@ -560,8 +560,9 @@ impl Subgroup {
 /// `predicate`, `clash`, `part`, `named`, `selected`, `what`,
 /// `expected_document`, `found_document`, `inner_variant`, `margin`,
 /// `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`,
-/// `lever_tilt`, `lever_residual`, `lever_arm`. The human message is
-/// the kernel's own prose, available as `str(fault)`.
+/// `lever_tilt`, `lever_residual`, `lever_arm`, `cause`. The human
+/// message is the kernel's own prose, available as `str(fault)`; the
+/// refusal it carries and does not quote is `cause`.
 ///
 /// **The classifier's words are the frame door's words.** `margin` /
 /// `margin_low` / `margin_high`, `zero` / `escalate`, `field` /
@@ -620,10 +621,25 @@ impl MateFault {
     /// every node failure crosses with (`EvaluationError.kind`) — the
     /// same vocabulary, so a caller branches on one set of words
     /// whether the refusal reached them from the node or from the
-    /// mate that placed it. `str(fault)` carries its prose.
+    /// mate that placed it. [`MateFault::cause`] carries its prose.
     #[getter]
     fn error(&self) -> Option<&'static str> {
         self.payload().error
+    }
+
+    /// **The refusal this fault carries, typed** — the placer's own,
+    /// on `mate_placer_refused`: the `EvaluationError` the placer's
+    /// own evaluation raises, which `str(fault)` points at and never
+    /// quotes. The same value a raised `MateError` carries as its
+    /// `__cause__`. `None` on every other arm.
+    #[getter]
+    fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        let (node, refusal) = self.0.carried()?;
+        Some(
+            super::value::carried_err(py, node, refusal)
+                .into_value(py)
+                .into_any(),
+        )
     }
 
     /// The instance a self-mate names twice.
@@ -854,7 +870,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
     let value = Py::new(py, MateFault(fault.clone()))
         .map(|v| v.into_any())
         .unwrap_or_else(|_| py.None());
-    typed_err(
+    let err = typed_err(
         py,
         ErrorClass::Mate,
         fault.to_string(),
@@ -865,7 +881,13 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
             ),
             ("fault", value),
         ],
-    )
+    );
+    // The refusal the fault carries, typed, as the cause — the value's
+    // own `cause`, and what a node failure does with one.
+    if let Some((node, refusal)) = fault.carried() {
+        err.set_cause(py, Some(super::value::carried_err(py, node, refusal)));
+    }
+    err
 }
 
 /// The document's solved poses: each instance's pose relative to its

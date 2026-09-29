@@ -44,6 +44,12 @@ use topo::{ContactClass, FaceKey, ValidationError};
 /// names, as the viewer writes them.
 const LABELS: &[&str] = &["at rest", "product"];
 
+/// The routes whose attribution names the carrying document by its hex
+/// id (`Route`'s `Display`), which `arena_key` reads as a key; filed,
+/// EDIT's: work/edit/part-refusals-name-documents-by-hex-id.md. Admits
+/// that one problem on these routes and nothing else.
+const FILED_HEX_ROUTES: &[&str] = &["refuted, carried", "declined, carried"];
+
 /// The tier-1/2 structure arms: each reports a damaged body, where the
 /// arena key is what the bug report needs. Every other arm names what
 /// it is about in words.
@@ -172,7 +178,15 @@ fn every_at_rest_finding_renders_to_the_standard() {
         for (route, text) in renderings(&error) {
             let name = format!("{label} ({route})");
             eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-            problems.extend(test_utils::refusal::problems(&name, &text, LABELS, keyed));
+            // The admission is for the hex id alone: an arena key proper
+            // on the same route is still red.
+            let hex_filed = FILED_HEX_ROUTES.contains(&route) && !text.contains("Key(");
+            let key_problem = format!("{name} dumps an arena key");
+            problems.extend(
+                test_utils::refusal::problems(&name, &text, LABELS, keyed)
+                    .into_iter()
+                    .filter(|p| !(hex_filed && p.starts_with(&key_problem))),
+            );
             if test_utils::refusal::recourse_markers(&text) == 0 {
                 problems.push(format!("{name} states no recourse: {text}"));
             }

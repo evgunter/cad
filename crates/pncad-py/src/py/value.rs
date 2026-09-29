@@ -100,7 +100,18 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 /// is the arm of the kernel refusal that door holds, `None` where that
 /// refusal has no arms. Two enums, two discriminants, each projected
 /// where it lives.
+///
+/// A refusal that CARRIES another node's ([`d::NodeErrorKind::carried`]
+/// — a part whose root failed, a mate whose placer refused) never
+/// quotes it in its message; the carried refusal crosses typed, as
+/// this exception's `__cause__` ([`with_carried`]).
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
+    refused(py, node, &error.kind, error.to_string())
+}
+
+/// [`node_failure`] over a kind and its rendering, which is what a
+/// carried refusal is: it has no `NodeError` of its own.
+fn refused(py: Python<'_>, node: NodeId, kind: &d::NodeErrorKind, message: String) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
@@ -110,7 +121,7 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     // `FlushFinding` on the exception — the same value shape
     // `Evaluation.find_flush_candidates` answers with, ready for
     // `Node.declare`/`Doc.declare`. `None` on every other kind.
-    let finding = match &error.kind {
+    let finding = match kind {
         d::NodeErrorKind::UndeclaredContact { finding, .. } => {
             match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
                 Ok(bound) => bound.unbind().into_any(),
@@ -119,29 +130,55 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
         }
         _ => py.None().into_any(),
     };
-    typed_err(
+    let err = typed_err(
         py,
         ErrorClass::Evaluation(EvalReason::NodeFailed),
-        error.to_string(),
+        message,
         &[
             ("node", node_obj),
             (
                 "kind",
-                PyString::new(py, node_error_tag(&error.kind))
-                    .unbind()
-                    .into_any(),
+                PyString::new(py, node_error_tag(kind)).unbind().into_any(),
             ),
-            ("inner_kind", inner_kind(py, &error.kind)),
+            ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
             ("finding", finding),
         ],
-    )
+    );
+    with_carried(py, err, kind)
+}
+
+/// **The refusal `kind` carries, as `err`'s `__cause__`**: an
+/// `EvaluationError` raised for the carried node exactly as
+/// [`node_failure`] raises one, so its own `__cause__` is the next
+/// level's and a part inside a part is a chain of causes, one per
+/// document. Its `node` is in the id space of the document that
+/// raised it — the part's, for a part's root.
+fn with_carried(py: Python<'_>, err: PyErr, kind: &d::NodeErrorKind) -> PyErr {
+    if let Some((node, refusal)) = kind.carried() {
+        err.set_cause(py, Some(carried_err(py, node, refusal)));
+    }
+    err
+}
+
+/// **A carried refusal, typed**: the `EvaluationError` `node`'s own
+/// evaluation raises for `refusal`, its own carried refusal as its
+/// `__cause__` — what every surface that holds one hands a Python
+/// caller.
+pub(crate) fn carried_err(
+    py: Python<'_>,
+    node: d::RecipeNodeId,
+    refusal: &d::NodeRefusal,
+) -> PyErr {
+    refused(py, NodeId(node), refusal.kind(), refusal.line_at(node))
 }
 
 /// Raise `EvaluationError` for a POISONED node: `through` names the
 /// nearest failed ancestor, `kind` tags its root cause (present
 /// whenever the evaluation's own invariant holds — fail-honest, so a
-/// broken hop yields no `kind` rather than a wrong one).
+/// broken hop yields no `kind` rather than a wrong one). A root cause
+/// that carries a refusal hands it on as `__cause__`, as
+/// [`node_failure`] does.
 fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::NodeError>) -> PyErr {
     let objs = (node.into_pyobject(py), through.into_pyobject(py));
     let (node_obj, through_obj) = match objs {
@@ -172,12 +209,16 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
             format!("never ran — poisoned through node {}", through.0.0)
         }
     };
-    typed_err(
+    let err = typed_err(
         py,
         ErrorClass::Evaluation(EvalReason::Poisoned),
         message,
         &fields,
-    )
+    );
+    match root {
+        Some(error) => with_carried(py, err, &error.kind),
+        None => err,
+    }
 }
 
 /// Bulk mass properties of a body, in canonical units.

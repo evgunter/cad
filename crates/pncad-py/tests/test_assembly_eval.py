@@ -286,12 +286,14 @@ class TestTheResolutionRefusals(CorpusCase):
     """The seam's refusal family, each reached THROUGH `resolver=`.
 
     THREE arms are exercised here — `part_no_resolver` (the class
-    above), `part_pin_mismatch` and `part_unresolved`. The rest of the
-    family is typed and tagged but UNREACHED from Python today, each
+    above), `part_pin_mismatch` and `part_unresolved` — and a fourth,
+    `part_root_failed`, by `TestAPartWhoseRootFails` below. The rest of
+    the family is typed and tagged but UNREACHED from Python today, each
     for its own reason, and none of them is singled out:
     `part_epsilon_seam` needs a stored document recording a different
-    ε; `part_root_failed` and `part_product` need a part whose own
-    product is broken; `part_reference_cycle` needs an instantiate node
+    ε; `part_product` needs a part whose own product is broken for a
+    reason other than a failed root; `part_root_failure_unrecorded` is
+    a kernel bug no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
     containing its own hash, and with invalid pins `part_pin_mismatch`
@@ -338,6 +340,65 @@ class TestTheResolutionRefusals(CorpusCase):
         self.assertEqual(
             sorted(r.reason for r in refusals.values()), ["node_failed", "poisoned"]
         )
+
+
+class TestAPartWhoseRootFails(unittest.TestCase):
+    """`part_root_failed`, reached: a part whose own product root
+    refuses, one document down and two.
+
+    The instance's message is its own short sentence: it names the
+    part's failed node and points at it, and never quotes that node's
+    refusal. The refusal crosses TYPED instead, as the exception's
+    `__cause__` — an `EvaluationError` for the part's node, raised the
+    way that node's own evaluation raises it — so a part inside a part
+    is a chain of causes, one per document.
+    """
+
+    #: The word budget a refusal the viewer draws is held to
+    #: (`test_utils::refusal::BUDGET`).
+    BUDGET = 75
+
+    def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        store = Workspace(str(directory))
+        # The boss: its one root, an extrude, has no length to extrude.
+        boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.0)
+        store.create(boss)
+        # The bracket: its one root instantiates the boss.
+        bracket = pncad.Doc("pncad-partroot-bracket")
+        bracket_root = bracket.insert(
+            Node.instantiate_part(DocRef(boss.id, pncad.content_pin(boss)))
+        )
+        store.create(bracket)
+        assembly = pncad.Doc("pncad-partroot-assembly")
+        instance = assembly.insert(
+            Node.instantiate_part(DocRef(bracket.id, pncad.content_pin(bracket)))
+        )
+
+        refusal = failures(evaluate(assembly, resolver=store))[instance]
+        self.assertEqual(refusal.kind, "part_root_failed")
+        text = str(refusal)
+        self.assertLessEqual(len(text.split()), self.BUDGET, text)
+        self.assertIn(f"repair node {repr(bracket_root)[7:-1]}", text)
+
+        # One level down: the bracket's root, itself a part whose root
+        # failed — in the bracket's own id space.
+        bracket_refusal = refusal.__cause__
+        self.assertIsInstance(bracket_refusal, pncad.EvaluationError)
+        self.assertEqual(bracket_refusal.kind, "part_root_failed")
+        self.assertEqual(bracket_refusal.node, bracket_root)
+        self.assertNotIn(str(bracket_refusal), text, "the instance never quotes it")
+
+        # Two levels down: the boss's extrude, as its own tree draws it.
+        boss_refusal = bracket_refusal.__cause__
+        self.assertIsInstance(boss_refusal, pncad.EvaluationError)
+        self.assertEqual(boss_refusal.kind, "extrude")
+        self.assertIsNone(boss_refusal.__cause__, "the chain ends at the refusing node")
+        for level in (refusal, bracket_refusal, boss_refusal):
+            with self.subTest(level=str(level)):
+                self.assertLessEqual(len(str(level).split()), self.BUDGET)
+        self.assertNotIn(str(boss_refusal), str(bracket_refusal))
 
 
 class TestTheMemoIsObservable(CorpusCase):

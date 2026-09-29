@@ -12,6 +12,15 @@
 //! and a failed row's link to the node to repair
 //! ([`repair_wording`]), and both say only WHERE to go.
 //!
+//! A failure that CARRIES another node's refusal — a part whose root
+//! failed, a mate whose placer refused — points at that node and never
+//! quotes it, so the carried refusal is drawn under the row as a line
+//! of its own, and so on down, one line per document level
+//! ([`carried_lines`]). Each is the kernel's own rendering of that
+//! node's failure; the one word this module adds is WHICH document a
+//! line's node number belongs to, by file name, since the kernel knows
+//! a part only by its id.
+//!
 //! What it does write, and what the rule above does not reach, is what
 //! a node IS: [`node_kind`]'s vocabulary spelling, [`node_number`]'s
 //! `feature 3`, and [`frame_pose`]'s statement of which frame a datum
@@ -146,6 +155,7 @@ use pncad::document::{
 use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
+use crate::parts::PartFiles;
 use crate::props::{in_written, render_number};
 
 /// A node's status, as the tree draws it.
@@ -154,10 +164,16 @@ pub enum RowStatus {
     /// The node produced a value.
     Ok,
     /// The node's own operation failed. `message` is the typed
-    /// error's own rendering.
+    /// error's own rendering, and `carried` the refusals it carries.
     Failed {
         /// `NodeError`'s `Display`.
         message: String,
+        /// **The refusals `message` points at and does not quote**, one
+        /// line per level ([`carried_lines`]): another node's refusal,
+        /// with its own recourse, drawn under this row exactly as that
+        /// node's own tree draws it. Empty for a failure that carries
+        /// none.
+        carried: Vec<String>,
     },
     /// The failure this row shows is not its own: it is downstream of
     /// a failure at `through`.
@@ -228,7 +244,7 @@ impl RowStatus {
     pub fn message(&self) -> Option<&str> {
         match self {
             Self::Ok | Self::Unevaluated => None,
-            Self::Failed { message } => Some(message),
+            Self::Failed { message, .. } => Some(message),
             Self::Poisoned { message, .. } => message.as_deref(),
         }
     }
@@ -261,9 +277,9 @@ pub struct TreeRow {
     /// The node's kind, as the vocabulary spells it.
     pub kind: &'static str,
     /// **Which one of its kind this node is**, when the node itself can
-    /// say — today a datum frame's pose ([`frame_pose`]). `None` is a
-    /// node kind that has no such sentence, not a sentence that came
-    /// out empty.
+    /// say — a datum frame's pose ([`frame_pose`]), and an instance's
+    /// part by its file name ([`part_file`]). `None` is a node kind
+    /// that has no such sentence, not a sentence that came out empty.
     pub pose: Option<String>,
     /// How far the node sits below the document's sources.
     pub depth: usize,
@@ -510,7 +526,14 @@ fn written_point(origin: &[Expr; 3]) -> Option<String> {
 /// `evaluation` is optional because a session shows a tree before its
 /// first result lands: every row is then [`RowStatus::Unevaluated`],
 /// which is the honest reading rather than an optimistic `ok`.
-pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> Vec<TreeRow> {
+///
+/// `files` names the parts the document instantiates: an instance row
+/// and a part's carried lines name their document by file name.
+pub fn rows(
+    doc: &Doc<ProfileProgram>,
+    evaluation: Option<&Evaluation<f64>>,
+    files: &PartFiles,
+) -> Vec<TreeRow> {
     let order: Vec<RecipeNodeId> = match evaluation {
         Some(ev) => ev.order.clone(),
         None => doc.order().to_vec(),
@@ -524,7 +547,7 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
         };
         let depth = depth_of(&node.inputs(), &depths);
         depths.insert(id, depth);
-        let status = status_of(id, evaluation);
+        let status = status_of(id, evaluation, files);
         let repair_at = match status {
             RowStatus::Failed { .. } => evaluation.and_then(|ev| repair_of(id, ev)),
             RowStatus::Ok | RowStatus::Poisoned { .. } | RowStatus::Unevaluated => None,
@@ -532,7 +555,7 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
         rows.push(TreeRow {
             id,
             kind: node_kind(node),
-            pose: frame_pose(node),
+            pose: frame_pose(node).or_else(|| part_file(node, files)),
             depth,
             root: roots.contains(&id),
             status,
@@ -598,8 +621,45 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
     }
 }
 
+/// **Which part an instance row is**: the file its reference names, by
+/// file name, or [`PartFiles::NO_FILE`] — never the id. `None` for
+/// every node that is not an instance.
+pub fn part_file(node: &Node<ProfileProgram>, files: &PartFiles) -> Option<String> {
+    match node {
+        Node::InstantiatePart { doc_ref, .. } => Some(files.name(doc_ref.id).to_owned()),
+        _ => None,
+    }
+}
+
+/// **The lines a failure draws under its own**: each refusal it carries
+/// ([`NodeErrorKind::carried`]), then each that one carries, one line
+/// per level — a part inside a part reads one line per document, and
+/// the last line is the failing node's own refusal.
+///
+/// Each line is that node's refusal exactly as its own tree draws it.
+/// A line from another document opens with that document's file name
+/// ([`PartFiles::name`]), since the node number it states is that
+/// document's and not this one's.
+pub fn carried_lines(kind: &NodeErrorKind, files: &PartFiles) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut at = kind;
+    while let Some((node, refusal)) = at.carried() {
+        let line = refusal.line_at(node);
+        lines.push(match at {
+            NodeErrorKind::Part { doc_ref, .. } => format!("in {}, {line}", files.name(doc_ref.id)),
+            _ => line,
+        });
+        at = refusal.kind();
+    }
+    lines
+}
+
 /// One node's status, read out of the result DAG.
-fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatus {
+fn status_of(
+    id: RecipeNodeId,
+    evaluation: Option<&Evaluation<f64>>,
+    files: &PartFiles,
+) -> RowStatus {
     let Some(ev) = evaluation else {
         return RowStatus::Unevaluated;
     };
@@ -609,6 +669,7 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
         Some(NodeResult::Failed(error)) => {
             downstream_of_mate(id, error).unwrap_or_else(|| RowStatus::Failed {
                 message: error.to_string(),
+                carried: carried_lines(&error.kind, files),
             })
         }
         Some(NodeResult::Poisoned { through }) => poisoned_through(*through, ev),
@@ -635,7 +696,8 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
 /// and it is refused rather than assumed for the same reason the tree
 /// reports it as absence.
 pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<RecipeNodeId> {
-    match status_of(id, Some(evaluation)) {
+    // Which row, not what it says: no file is named here.
+    match status_of(id, Some(evaluation), &PartFiles::default()) {
         RowStatus::Failed { .. } => Some(id),
         RowStatus::Poisoned {
             through,

@@ -62,3 +62,30 @@ split (`SplitJoinError::Section`), a plane×cylinder section at a
 near-circular tilt reaches it, and a split takes no declaration. The
 chain test admits exactly this on `Split/Join/Section(Carrier)` and
 `Boolean/Join/Section(Carrier)` (`FILED`, `FILED_DECLARE`).
+
+## A ninth: a refusal with no recourse is never flagged (2026-09-29)
+
+`test_utils::refusal::problems` (`crates/test-utils/src/refusal.rs`)
+flags a message with MORE than one recourse marker and never one with
+none, so a refusal that states no recourse at all, and no "There is no
+way through" either, stays green in
+`crates/editor-core/tests/refusal_concision_chains.rs`. Live instances,
+all `PartFault` arms (`crates/editor-core/src/eval/parts.rs`,
+`impl core::fmt::Display for PartFault`), each rendered through
+`NodeErrorKind::Part`:
+
+- `NoResolver` ("this evaluation carries no part resolver, so a
+  referenced document cannot be reached");
+- `DepthExceeded`;
+- `ReferenceCycle`;
+- `PartProduct` (the gather's own sentence, whose recourse is
+  whatever the product door's arm states).
+
+`refusal_concision_at_rest.rs` already holds its rows to at least one
+marker (`every_at_rest_finding_renders_to_the_standard`); the chain
+test does not. Found by `edit/part-root-carried-refusal` (the designer
+pair's seam list,
+`work/edit/part-root-failure-nests-a-whole-refusal-past-the-budget.md`).
+
+The same unit closed one blind spot this row did not list: `arena_key`
+now flags a hex document id as well as `Key(`.

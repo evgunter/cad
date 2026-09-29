@@ -691,11 +691,14 @@ BOUND_AS = {
     # `PartFault`'s arms and the `ResolveFault` classification inside
     # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
-    # `part_root_failed`, `part_product`, `part_reference_cycle`,
-    # `part_depth_exceeded` — the same flattening `NodeErrorKind` gets
-    # above. They left the `gap` roster at LIB-G18a, when the resolver
-    # parameter made them reachable: the tags existed before it, and
-    # `part_no_resolver` was the only one an evaluation could produce.
+    # `part_root_failed`, `part_root_failure_unrecorded`,
+    # `part_product`, `part_reference_cycle`, `part_depth_exceeded` —
+    # the same flattening `NodeErrorKind` gets above. They left the
+    # `gap` roster at LIB-G18a, when the resolver parameter made them
+    # reachable: the tags existed before it, and `part_no_resolver` was
+    # the only one an evaluation could produce. The refusal a failed
+    # part root CARRIES crosses as the exception's `__cause__`, an
+    # `EvaluationError` of its own.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
     # The read-back doors, which hang off the evaluation because a
