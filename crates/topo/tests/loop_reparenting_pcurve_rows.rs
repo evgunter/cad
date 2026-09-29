@@ -1717,38 +1717,57 @@ fn sense_of(body: &Body<f64>, face: FaceKey) -> bool {
     body.get_face(face).unwrap().sense
 }
 
-/// A spec read off the fixture's body and its three keys.
-type Spec = fn(&Body<f64>, &[topo::SurfaceKey; 3]) -> FaceSurface<f64>;
+type Keys = [topo::SurfaceKey; 3];
 
-/// `New` holding `key`'s own payload `Arc`.
-fn new_on_payload_of(body: &Body<f64>, key: topo::SurfaceKey) -> FaceSurface<f64> {
-    match body.get_surface(key) {
-        Some(Surface::Nurbs(x)) => FaceSurface::New(Surface::Nurbs(x.clone())),
-        _ => panic!("every face was put on the patch"),
+/// One `sense` row's spec, read off the fixture and its keys.
+type Spec = fn(&Body<f64>, &Keys) -> FaceSurface<f64>;
+
+/// Each spec the `sense` rows split the reversed lower panel onto: its
+/// name, whether the fixture's keys share one payload `Arc`, the spec,
+/// and the new face's `sense`.
+fn sense_cases() -> [(&'static str, bool, Spec, bool); 5] {
+    fn own_key(_: &Body<f64>, k: &Keys) -> FaceSurface<f64> {
+        FaceSurface::Shared(k[0])
     }
+    fn plane_key(_: &Body<f64>, k: &Keys) -> FaceSurface<f64> {
+        FaceSurface::Shared(k[2])
+    }
+    fn own_payload(body: &Body<f64>, k: &Keys) -> FaceSurface<f64> {
+        match body.get_surface(k[0]) {
+            Some(Surface::Nurbs(x)) => FaceSurface::New(Surface::Nurbs(x.clone())),
+            _ => panic!("every face was put on the patch"),
+        }
+    }
+    fn another_patch(_: &Body<f64>, _: &Keys) -> FaceSurface<f64> {
+        FaceSurface::New(Surface::Nurbs(patch()))
+    }
+    [
+        ("Shared(own key)", true, own_key, false),
+        ("Shared(one payload)", true, plane_key, false),
+        ("Shared(deep copy)", false, plane_key, true),
+        ("New(own payload)", true, own_payload, false),
+        ("New(another patch)", true, another_patch, true),
+    ]
 }
 
 /// **A face minted on the parent's chart takes the parent's `sense`.**
 /// The lower panel is reversed, then split by `mef` (half-minted, as
 /// above) with each spec. Where the rows say the fragment is on the
-/// parent's chart — its own key, or a second key sharing its payload
-/// `Arc` — the bit says so too; everywhere else the mint's `true`
-/// stands.
+/// parent's chart — its own key, or any key holding its payload `Arc`,
+/// a `New` one included — the bit says so too; everywhere else the
+/// mint's `true` stands.
 #[test]
 fn mef_onto_the_parents_chart_inherits_its_sense() {
-    let cases: [(&str, bool, Spec, bool); 5] = [
-        ("Shared(own key)", true, |_, k| FaceSurface::Shared(k[0]), false),
-        ("Shared(one payload)", true, |_, k| FaceSurface::Shared(k[2]), false),
-        ("Shared(deep copy)", false, |_, k| FaceSurface::Shared(k[2]), true),
-        ("New(own payload)", true, |b, k| new_on_payload_of(b, k[0]), false),
-        ("New(another patch)", true, |_, _| FaceSurface::New(Surface::Nurbs(patch())), true),
-    ];
-    for (name, tied, spec, want) in cases {
+    for (name, tied, spec, want) in sense_cases() {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body.set_face_sense(s.low, false).unwrap();
         let (a, c) = (at(U0, V0), at(U1, VM));
         let (he1, he2) = (he_at(&s.body, s.low, a), he_at(&s.body, s.low, c));
-        assert!(s.body.detach_pcurve(he_at(&s.body, s.low, at(U0, VM))).is_some());
+        assert!(
+            s.body
+                .detach_pcurve(he_at(&s.body, s.low, at(U0, VM)))
+                .is_some()
+        );
         let spec = spec(&s.body, &keys);
         let made = s
             .body
@@ -1760,7 +1779,15 @@ fn mef_onto_the_parents_chart_inherits_its_sense() {
             )
             .unwrap();
         assert_eq!(sense_of(&s.body, made.face), want, "mef {name}: new face");
-        assert!(!sense_of(&s.body, s.low), "mef {name}: the parent keeps its bit");
+        assert_eq!(
+            rows_of(&s.body, made.face) == (2, 1),
+            !want,
+            "mef {name}: the run's rows carried exactly where the bit is inherited"
+        );
+        assert!(
+            !sense_of(&s.body, s.low),
+            "mef {name}: the parent keeps its bit"
+        );
     }
 }
 
@@ -1768,14 +1795,7 @@ fn mef_onto_the_parents_chart_inherits_its_sense() {
 /// lower panel is promoted back onto each spec.
 #[test]
 fn mfkrh_onto_the_parents_chart_inherits_its_sense() {
-    let cases: [(&str, bool, Spec, bool); 5] = [
-        ("Shared(own key)", true, |_, k| FaceSurface::Shared(k[0]), false),
-        ("Shared(one payload)", true, |_, k| FaceSurface::Shared(k[2]), false),
-        ("Shared(deep copy)", false, |_, k| FaceSurface::Shared(k[2]), true),
-        ("New(own payload)", true, |b, k| new_on_payload_of(b, k[0]), false),
-        ("New(another patch)", true, |_, _| FaceSurface::New(Surface::Nurbs(patch())), true),
-    ];
-    for (name, tied, spec, want) in cases {
+    for (name, tied, spec, want) in sense_cases() {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body
             .set_face_surface(s.up, FaceSurface::Shared(keys[0]))
