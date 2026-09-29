@@ -270,7 +270,10 @@ mod tests {
             assert!(x.contains(0.0), "[{}, {}] contains 0", x.lo(), x.hi());
         }
         for p in [f64::MAX, -f64::MAX] {
-            assert!(DInterval::entire().contains(p), "entire contains the finite {p}");
+            assert!(
+                DInterval::entire().contains(p),
+                "entire contains the finite {p}"
+            );
         }
     }
 

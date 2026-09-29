@@ -141,11 +141,7 @@ fn corpus() -> Vec<Operand> {
                 back.with_dec_capped(Decoration::Def),
                 real,
             ));
-            out.push(operand(
-                ring + trv_zero.ring,
-                back + trv_zero.back,
-                false,
-            ));
+            out.push(operand(ring + trv_zero.ring, back + trv_zero.back, false));
             if lo.is_finite() && hi.is_finite() {
                 out.push(operand(
                     Interval::from_bounds(lo, f64::INFINITY).clamped_to(lo, hi),
@@ -407,12 +403,7 @@ fn contains_is_its_reference_over_every_operand_and_probe() {
     }
     // Every certifying operand holds a finite probe (an endpoint, or 0
     // on `entire`); every operand is probed with NaN.
-    assert_verdict_floors(
-        "contains",
-        inside,
-        outside,
-        (certifying(&ops), ops.len()),
-    );
+    assert_verdict_floors("contains", inside, outside, (certifying(&ops), ops.len()));
 }
 
 /// `x` exactly, in units of the least subnormal `2^-1074`.
