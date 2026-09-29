@@ -32,18 +32,23 @@ refusals.
 
 ## Closed (2026-09-29, `chrome/viewer-small`)
 
-`PickIndexError::valueless_root` (`crates/viewer/src/pickindex.rs`) is
-the one home of "this refusal is a root with no value": a `match` naming
-every `NodePickError` and every `PickIndexError`. The `Node` arm's
-`Display` reads it and says *"root N has nothing to index: {standing}"*,
-keeping *"could not be tessellated or indexed"* for the arms where
-something was. `frame::downstream_root`, which asked the same question
-in its own nested match, now calls it; `frame::index_refusal_as_drawn`
-is untouched and still re-reads the standing through the tree before
-the sentence is written.
+The `Node` arm now claims only what is true of every payload: *"root N
+could not be indexed: {error}"*. Why (no value, not a body, no such
+body, a tessellation or indexing refusal) is the payload's own sentence.
+Splitting the standing out alone would have left the `NotABody` arm
+saying *"could not be tessellated or indexed: … so there is nothing to
+tessellate and index"*.
 
-Pinned: `tests/frame_policy.rs`, the failed-root tooltip
-(*"pick index: root 5 has nothing to index: node 5 failed, so it has no
-value — fix the node's own failure"*) and the never-ran label, word for
-word; `tests/error_display.rs`,
-`pick_index_error_says_a_root_with_no_value_has_nothing_to_index`.
+"Which node has no value" has one home, `PickIndexError::standing`
+(`crates/viewer/src/pickindex.rs`), over `PickIndexError::restated`: a
+match naming every variant of `PickIndexError`, `NodePickError` and
+`NameLookupError`. It covers the name doors' `NameLookupError::Standing`
+as well as the build's. `frame::downstream_root` and
+`frame::index_refusal_as_drawn` both read it and no longer carry nested
+matches of their own. That also makes a name-door standing badge as
+downstream of its cause, as the build's already did.
+
+Pinned word for word in `tests/frame_policy.rs`: the failed-root tooltip
+and the never-ran label. `tests/error_display.rs`,
+`pick_index_error_says_only_that_its_root_was_not_indexed` (every arm)
+and `pick_index_error_reads_a_standing_at_the_build_and_at_the_name_doors`.

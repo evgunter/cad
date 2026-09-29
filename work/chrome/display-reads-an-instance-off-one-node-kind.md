@@ -46,24 +46,24 @@ claim it.
 
 ## Closed (2026-09-29, `chrome/viewer-small`)
 
-**Ruled identity; the code stays.** Both `display` sites ask "is this
-node the instance G3's display state is keyed on", and that is the
-`InstantiatePart` variant itself, not `session::puts_an_instance`'s
-policy:
+**Ruled identity.** Both `display` sites ask "is this node the instance
+that G3's display state is keyed on", and that is the `InstantiatePart`
+variant itself, not `session::puts_an_instance`'s policy:
 
 - **The state is defined on that node.** Hide and free-move are G3's
-  per-instance display state; `mates_naming` scans `Node::Mate`
-  references to it, and `instance_check`'s doc names the reason a
-  sibling kind is out (a `Pattern` draws several copies, so it has no
-  single pose to probe or body to hide). Admitting another kind is a
-  change to G3's state, not an arm.
+  per-instance display state, and `mates_naming` scans `Node::Mate`
+  references to it. `instance_check`'s doc names the reason a sibling
+  kind is out: a `Pattern` draws several copies, so it has no single
+  pose to probe or body to hide. Admitting another kind is a change to
+  G3's state, not a new match arm.
 - **`puts_an_instance` answers a different question, for different
   reasons.** Its arms say why a node does or does not put another
-  document's part in for the A5 badge ("the rest between them is the
-  placement rule's"). The answers coincide today; a new kind that put
-  several instances in at once would be `true` there and still have no
-  single pose here, so sharing the home would admit it to display
-  state on A5's reasoning.
-- **A new kind correctly answers no, and loudly.** It is refused at
-  the door as `AdmissionFault::NotAnInstance`, a typed refusal, until
-  someone designs its display state.
+  document's part in for the A5 badge. The answers coincide today, but
+  a new kind that put in several instances at once would be `true`
+  there and still have no single pose here.
+- **A new kind correctly answers no, and loudly.** It is refused as
+  `AdmissionFault::NotAnInstance`.
+
+`instances_by_root` now calls `instance_check` rather than spelling the
+test a second time. The site carries a one-line comment giving the
+ruling, and `crates/viewer/README.md`'s *Identity* examples list it.

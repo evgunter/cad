@@ -35,20 +35,23 @@ only runs inside the pane under test.
 ## Closed (2026-09-29, `chrome/viewer-small`)
 
 The harness settles before its quiet frame (`crate::app`'s
-`properties_pane_tests`, `Driven::settle`/`Driven::settled`):
+`properties_pane_tests`, `Driven::settle` and `Driven::settled`):
 `ViewerApp::progress` (the toolbar's read, now one method the harness
-calls too) is `None` AND the pick cache holds an answer for the picture
-on screen (an index or a refusal). Every input to that moves only
-inside a frame — the session's `pump`, the fit's `poll`, the cache's
-`pump` and `sync` — so read after a frame it holds until something
-submits, and only an op or a new δ does; the hover is neither. The
-"answered" half is what `progress` alone misses: on the frame an
-evaluation lands and before `sync` asks, nothing is in flight and the
-label is off, and the next frame's submit is the flake.
+also calls) is `None`, and the pick cache holds an answer for the
+picture on screen. Every input to that check changes only inside a
+frame, so once it holds after a frame it keeps holding until something
+submits, and only an op or a new δ does. The "answered" half catches
+what `progress` alone misses: the frame where an evaluation lands
+before `sync` has asked for an index.
 
-Reproduced deterministically:
-`a_hover_diff_waits_for_the_index_build_it_would_count` hands the app a
-fresh `PickCache` over a seam that holds its answer behind a gate,
-between a quiet frame and the hovered one. The diff is exactly
-`["indexing…"]`, and `settled()` reads false both before the first
-submit and while the build is held.
+`painted_with`, the other whole-app comparison in the module (used by
+`an_undeclared_parameter_is_said_once_in_the_pane`), now reads
+`Driven::quiet` too. The toolbar harness (`toolbar_driven`) never pumps
+the session, so its progress state cannot move between frames.
+
+Reproduced deterministically by
+`a_hover_diff_waits_for_a_run_that_lands_between_its_frames`. The
+startup evaluation is held through the frame `Driven::with` draws and
+the two quiet frames, and lands on the first hovered frame; the index
+build is held one frame more. With `settle()` removed from `quiet()`,
+the row fails with the diff `["indexing…"]`, which is this flake.

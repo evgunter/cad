@@ -3472,22 +3472,14 @@ mod properties_pane_tests {
         crate::pane::headless::landed_in(&output.shapes)
     }
 
-    /// Every text the app painted on the second of two frames with
-    /// `selection` made, in paint order.
+    /// Every text the app painted with `selection` made, once it has
+    /// settled ([`Driven::quiet`]), in paint order.
     fn painted_with(selection: Selection) -> Vec<String> {
-        let ctx = egui::Context::default();
-        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
-            .expect("startup that needs no graphics device");
-        app.perform_batch(vec![SessionOp::Select(selection)]);
-        let mut frame = eframe::Frame::_new_kittest();
-        let mut texts = Vec::new();
-        for _ in 0..2 {
-            texts = app_frame(&ctx, &mut app, &mut frame, None, Vec::new())
-                .into_iter()
-                .map(|landed| landed.text)
-                .collect();
-        }
-        texts
+        Driven::with(vec![SessionOp::Select(selection)])
+            .quiet()
+            .into_iter()
+            .map(|(text, _)| text)
+            .collect()
     }
 
     /// Every text the app painted once the startup document has
@@ -3651,12 +3643,18 @@ mod properties_pane_tests {
         /// The startup document with `ops` performed, a node selected
         /// among them, and one frame drawn.
         fn with(ops: Vec<SessionOp>) -> Self {
+            Self::with_seams(ops, |_| {})
+        }
+
+        /// [`Self::with`], over the seams `seams` puts in first.
+        fn with_seams(ops: Vec<SessionOp>, seams: impl FnOnce(&mut ViewerApp)) -> Self {
             let ctx = egui::Context::default();
             // A tooltip this row waited for would be a row about
             // `tooltip_delay`.
             ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
             let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
                 .expect("startup that needs no graphics device");
+            seams(&mut app);
             app.perform_batch(ops);
             let mut driven = Self {
                 ctx,
@@ -3704,7 +3702,13 @@ mod properties_pane_tests {
                 }
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
-            panic!("the startup document's evaluation, fit and index build finish");
+            let picks = &self.app.picks;
+            panic!(
+                "the app did not settle in 30 s: progress {:?}, index held {}, refusal held {}",
+                self.app.progress(),
+                picks.index().is_some(),
+                picks.error().is_some(),
+            );
         }
 
         /// The app once [`Self::settled`], in two frames with the
@@ -3875,22 +3879,46 @@ mod properties_pane_tests {
         assert_eq!(pane.row(EXTRUDE, SlotId::Distance), before);
     }
 
-    /// An index seam whose answers wait behind a gate the row opens.
-    struct Gated {
-        inner: crate::evalseam::InlineIndexer,
-        open: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// A seam that answers a request only on the poll after
+    /// `hold` polls have come back empty: a run that lands a known
+    /// number of frames late.
+    struct Late<S> {
+        inner: S,
+        hold: usize,
+        polls: usize,
     }
 
-    impl crate::evalseam::IndexService for Gated {
-        fn submit(&mut self, request: crate::evalseam::IndexRequest) {
+    impl<S> Late<S> {
+        fn new(inner: S, hold: usize) -> Self {
+            Self {
+                inner,
+                hold,
+                polls: 0,
+            }
+        }
+
+        /// Whether this poll is one the seam holds back.
+        fn holds(&mut self) -> bool {
+            self.polls += 1;
+            self.polls <= self.hold
+        }
+    }
+
+    impl crate::evalseam::EvalService for Late<crate::evalseam::InlineEvaluator> {
+        fn submit(&mut self, request: crate::evalseam::EvalRequest) {
+            self.polls = 0;
             self.inner.submit(request);
         }
 
-        fn poll(&mut self) -> Option<crate::evalseam::IndexDone> {
-            if self.open.load(std::sync::atomic::Ordering::Relaxed) {
-                self.inner.poll()
-            } else {
+        fn cancel(&mut self) {
+            self.inner.cancel();
+        }
+
+        fn poll(&mut self) -> Option<crate::evalseam::EvalDone> {
+            if self.holds() {
                 None
+            } else {
+                self.inner.poll()
             }
         }
 
@@ -3899,36 +3927,59 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The hover diff settles the index seam first.** The diff is of
-    /// the whole app, so a build that starts between its quiet frame
-    /// and its hovered one paints the toolbar's `indexing…` into it as
-    /// the hover's; forced here by handing the app a cache that has
-    /// asked for nothing and a seam that holds the answer.
+    impl crate::evalseam::IndexService for Late<crate::evalseam::InlineIndexer> {
+        fn submit(&mut self, request: crate::evalseam::IndexRequest) {
+            self.polls = 0;
+            self.inner.submit(request);
+        }
+
+        fn poll(&mut self) -> Option<crate::evalseam::IndexDone> {
+            if self.holds() {
+                None
+            } else {
+                self.inner.poll()
+            }
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// **The hover diff settles the app first.** The diff is of the
+    /// whole app, so a run that lands between its quiet frame and its
+    /// hovered one turns the toolbar's `evaluating…` into `indexing…`,
+    /// and the new label reads as the hover's.
+    ///
+    /// Forced here: the startup evaluation is held for the frame
+    /// [`Driven::with`] draws and the two a quiet read draws unsettled,
+    /// and lands on the first hovered frame; the index build it asks
+    /// for is held a frame more, so the second hovered frame is
+    /// still indexing. Only [`Driven::quiet`]'s settle keeps it out.
     #[test]
-    fn a_hover_diff_waits_for_the_index_build_it_would_count() {
-        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(EXTRUDE))]);
-        let quiet = pane.quiet();
-        let at = Driven::only(&quiet, "m");
-        let open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        pane.app.picks = crate::pickcache::PickCache::new(Box::new(Gated {
-            inner: crate::evalseam::InlineIndexer::new(),
-            open: std::sync::Arc::clone(&open),
-        }));
-        assert!(
-            !pane.settled(),
-            "a picture nothing has asked to index is not settled, though no wait is outstanding"
-        );
-        let hovered = pane.hovered(at);
+    fn a_hover_diff_waits_for_a_run_that_lands_between_its_frames() {
+        let mut pane =
+            Driven::with_seams(vec![SessionOp::Select(Selection::Node(EXTRUDE))], |app| {
+                let tol = pncad::tolerance::witness();
+                app.session = crate::session::DocSession::new(
+                    app.session.doc().clone(),
+                    tol,
+                    Box::new(Late::new(crate::evalseam::InlineEvaluator::new(), 3)),
+                );
+                app.picks = crate::pickcache::PickCache::new(Box::new(Late::new(
+                    crate::evalseam::InlineIndexer::new(),
+                    1,
+                )));
+            });
         assert_eq!(
-            Driven::gained(&quiet, hovered),
-            vec!["indexing…".to_owned()],
-            "a build that starts between the two frames reads as the hover's"
+            pane.app.session.outstanding(),
+            crate::session::Outstanding::Evaluating,
+            "the startup run is still held after the first frame"
         );
-        assert!(!pane.settled(), "a build with no answer is not settled");
-        open.store(true, std::sync::atomic::Ordering::Relaxed);
+        let gained = pane.gained_hovering("m");
         assert!(
-            pane.gained_hovering("m").is_empty(),
-            "once the build answers the harness settles, and the diff is the hover's"
+            gained.is_empty(),
+            "the diff holds only what the hover drew: {gained:?}"
         );
     }
 
