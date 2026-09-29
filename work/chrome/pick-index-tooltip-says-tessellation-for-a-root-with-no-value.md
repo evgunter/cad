@@ -4,6 +4,7 @@ kind: issue
 title: The pick-index tooltip says a root's bodies could not be tessellated or indexed when the root has no value at all
 status: closed
 closed: 2026-09-29
+pr: 3487
 branch: chrome/viewer-small
 opened: 2026-09-29
 priority: P3

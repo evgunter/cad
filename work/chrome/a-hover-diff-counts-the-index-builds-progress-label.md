@@ -4,6 +4,7 @@ kind: issue
 title: app's whole-app hover diff counts the toolbar's indexing label when the index build changes state between its two frames
 status: closed
 closed: 2026-09-29
+pr: 3487
 branch: chrome/viewer-small
 opened: 2026-09-29
 priority: P3

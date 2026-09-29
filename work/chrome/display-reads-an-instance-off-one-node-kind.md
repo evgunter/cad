@@ -4,6 +4,7 @@ kind: issue
 title: display::instances_by_root asks which nodes are instances with a matches! over one Node kind, beside session's exhaustive answer
 status: closed
 closed: 2026-09-29
+pr: 3487
 branch: chrome/viewer-small
 opened: 2026-09-29
 priority: P3
