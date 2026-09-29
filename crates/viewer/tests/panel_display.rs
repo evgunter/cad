@@ -528,11 +528,17 @@ fn the_field_shows_a_driven_slots_value_and_edits_its_source() {
         .as_ref()
         .expect("the expression evaluates")
         .as_f64();
+    let shown = props::field_text(&row);
     assert_eq!(
-        props::field_text(&row),
-        format!("{} {}", props::DRIVEN, props::render_number(value)),
+        shown,
+        format!(
+            "{} {}",
+            props::DRIVEN,
+            props::computed_text(Dimension::Length, value)
+        ),
         "the field shows the value, in the canonical notation a driven row is written in"
     );
+    assert!(shown.ends_with(" m"), "and names that notation: {shown}");
     assert_eq!(
         props::field_source(&row).as_deref(),
         Some("thickness * 2.0 + 1 mm"),

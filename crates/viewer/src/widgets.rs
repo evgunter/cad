@@ -738,6 +738,27 @@ pub(crate) struct FieldShowing {
 #[derive(Clone, PartialEq)]
 struct HandedOver(String);
 
+/// **The text a field's open keyboard edit was seeded with**, kept
+/// from the frame the field took focus ([`seed_edit`]).
+///
+/// A named type for [`HandedOver`]'s reason. It is what makes an
+/// untouched edit an echo when the document moved under the field
+/// while the edit was open: the render and the source compared at
+/// the parse are the document's NEW ones, and the buffer still holds
+/// the old — without this, clicking away would write the old text
+/// back over the change.
+#[derive(Clone, PartialEq)]
+struct Seeded(String);
+
+/// **The open edit's buffer as of the end of the last frame**, for a
+/// field showing fixed text — so an arrow key, which makes
+/// `egui::DragValue` step its number and discard the buffer
+/// (`drag_value.rs`, `change != 0.0`), does not throw away the text
+/// the user is editing. A field showing text is not stepped by a key:
+/// the number under it is not what it shows.
+#[derive(Clone, PartialEq)]
+struct EditCopy(String);
+
 /// **A panel value field: one number, two doors and a gesture** — the
 /// whole of what `pane::properties`' slot row and parameter row draw,
 /// spelled once.
@@ -773,7 +794,9 @@ struct HandedOver(String);
 /// opinion about what a number means, and the same rule for a field
 /// showing a number and a field showing an expression. A field whose
 /// edit was seeded with a source it does not show produced that
-/// source too, so it is compared against both.
+/// source too, and the text the edit was seeded with at focus is the
+/// field's own even after the document has moved under it
+/// ([`Seeded`]) — so a typed text is compared against all three.
 ///
 /// **Whether the edit CHANGES anything is not this question.** A user
 /// who re-types a number the document already holds has still typed
@@ -862,6 +885,20 @@ pub(crate) fn value_field_ops(
     // below is recognised by.
     let typed: core::cell::RefCell<Option<(String, props::FieldEdit)>> =
         core::cell::RefCell::new(None);
+    // Read before the widget consumes it ([`EditCopy`]).
+    let arrowed = fixed.is_some()
+        && ui.input(|input| {
+            input.events.iter().any(|event| {
+                matches!(
+                    event,
+                    egui::Event::Key {
+                        key: egui::Key::ArrowUp | egui::Key::ArrowDown,
+                        pressed: true,
+                        ..
+                    }
+                )
+            })
+        });
     let widget = ui.add(
         number_field(&mut number, writing.tick)
             .update_while_editing(false)
@@ -891,15 +928,7 @@ pub(crate) fn value_field_ops(
                     // until the document answers.
                     _ => None,
                 };
-                // The source the edit was seeded with is the field's
-                // own text as much as its render is.
-                let own = props::echoed(text, &rendered.borrow())
-                    || source
-                        .as_deref()
-                        .is_some_and(|source| props::echoed(text, source));
-                if !own {
-                    typed.replace(Some((text.trim().to_owned(), edit)));
-                }
+                typed.replace(Some((text.to_owned(), edit)));
                 number
             }),
     );
@@ -914,13 +943,36 @@ pub(crate) fn value_field_ops(
         // this one's repeat, so the same characters typed again are an
         // act.
         ui.data_mut(|data| data.remove::<HandedOver>(widget.id));
-        if let Some(source) = &source {
-            seed_edit(ui, widget.id, source);
+        let seed = source.clone().unwrap_or_else(|| rendered.borrow().clone());
+        seed_edit(ui, widget.id, &seed);
+        ui.data_mut(|data| data.insert_temp(widget.id, Seeded(seed)));
+    }
+    if fixed.is_some() && widget.has_focus() {
+        if arrowed && let Some(EditCopy(before)) = ui.data(|data| data.get_temp(widget.id)) {
+            ui.data_mut(|data| data.insert_temp(widget.id, before));
+        }
+        if let Some(now) = ui.data(|data| data.get_temp::<String>(widget.id)) {
+            ui.data_mut(|data| data.insert_temp(widget.id, EditCopy(now)));
         }
     }
+    let seeded = ui.data(|data| data.get_temp::<Seeded>(widget.id));
+    // Text the field itself produced: this frame's render, the source
+    // a driven slot's edit opens on, and whatever the edit was seeded
+    // with when it opened.
+    let own = |text: &str| {
+        props::echoed(text, &rendered.borrow())
+            || source
+                .as_deref()
+                .is_some_and(|source| props::echoed(text, source))
+            || seeded
+                .as_ref()
+                .is_some_and(|Seeded(seed)| props::echoed(text, seed))
+    };
     let handed = match typed.into_inner() {
         None => None,
+        Some((text, _)) if own(&text) => None,
         Some((text, edit)) => {
+            let text = text.trim().to_owned();
             let repeat = ui.data(|data| data.get_temp::<HandedOver>(widget.id))
                 == Some(HandedOver(text.clone()));
             if repeat {
@@ -971,10 +1023,11 @@ pub(crate) fn value_field_ops(
 /// The widget keeps the open edit's buffer under its own id as a
 /// `String` ([`HandedOver`] says why that type is taken) and reads it
 /// back on the frames it edits, so a buffer written here the frame the
-/// field takes focus is the one the edit opens on. The selection is
-/// the widget's `select_all_text`, restated over the public
-/// `egui::TextEdit` state because the widget selected the length of
-/// its render and the buffer is now a different text.
+/// field takes focus is the one the edit opens on — every field's
+/// edit, so what it opened on is known exactly ([`Seeded`]). The
+/// selection is the widget's `select_all_text`, restated over the
+/// public `egui::TextEdit` state because the widget selected the
+/// length of its render and the buffer may be a different text.
 fn seed_edit(ui: &mut egui::Ui, id: egui::Id, text: &str) {
     ui.data_mut(|data| data.insert_temp(id, text.to_owned()));
     let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
@@ -3423,8 +3476,7 @@ mod value_field_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use super::{FieldVocabulary, number_text, value_field_ops, value_gesture};
-    use crate::forms::FieldWriting;
+    use super::{number_text, value_field_ops, value_gesture};
     use crate::frame::{self, RankedVerdict};
     use crate::props;
     use crate::session::ValueGestureName;
@@ -3592,24 +3644,12 @@ mod value_field_tests {
             }
         }
 
-        /// **What `FieldShowing` carries**, read off the document the
-        /// way the panel's own row reads it: a parameter row never has
-        /// a fixed text, and a slot row's is `slot_showing`'s — the
-        /// panel's own rule, minus the in-flight draft this harness
-        /// has no draft store for.
+        /// **What `FieldShowing` carries**, by the panel's own two
+        /// functions — minus the in-flight draft this harness has no
+        /// draft store for.
         fn field(&self) -> super::FieldShowing {
             match &self.subject {
-                Subject::Param(_) => {
-                    let row = self.row();
-                    let writing = FieldWriting::of(row.dimension, row.unit);
-                    super::FieldShowing {
-                        writing,
-                        dimension: row.dimension,
-                        number: props::shown_value(writing.unit, row.value.as_f64()),
-                        text: None,
-                        source: None,
-                    }
-                }
+                Subject::Param(_) => crate::pane::properties::param_showing(&self.row()),
                 Subject::Slot { .. } => crate::pane::properties::slot_showing(&self.slot(), None),
             }
         }
@@ -3676,16 +3716,7 @@ mod value_field_tests {
                         ui,
                         showing,
                         value_gesture(ValueGestureName::Param(name.clone())),
-                        FieldVocabulary {
-                            number: |value| SessionOp::SetParam {
-                                name: name.clone(),
-                                value,
-                            },
-                            text: |text| SessionOp::SetParamText {
-                                name: name.clone(),
-                                text,
-                            },
-                        },
+                        crate::pane::properties::param_doors(name),
                         &mut ops,
                         &mut notices,
                     ),
@@ -3696,18 +3727,7 @@ mod value_field_tests {
                             node: *node,
                             slot: *slot,
                         }),
-                        FieldVocabulary {
-                            number: |value| SessionOp::SetSlot {
-                                node: *node,
-                                slot: *slot,
-                                value,
-                            },
-                            text: |text| SessionOp::SetSlotExpression {
-                                node: *node,
-                                slot: *slot,
-                                text,
-                            },
-                        },
+                        crate::pane::properties::slot_doors(*node, *slot),
                         &mut ops,
                         &mut notices,
                     ),
@@ -4149,7 +4169,7 @@ mod value_field_tests {
             Some(format!(
                 "{} {}",
                 props::DRIVEN,
-                props::render_number(0.004 * 1e308)
+                props::computed_text(Dimension::Length, 0.004 * 1e308)
             )),
             "and the field shows the value it equals, not a no-reading marker"
         );
@@ -4329,11 +4349,11 @@ mod value_field_tests {
     /// **A driven field shows its value, and its keyboard edit opens on
     /// the whole source, all of it selected.**
     ///
-    /// The field's rest text is `= 0.008`, seven characters; the
+    /// The field's rest text is `= 0.008 m`, nine characters; the
     /// source is twelve. The widget selects the length of what it
     /// rendered, so an edit seeded without re-selecting would replace
-    /// the first seven characters of the source and keep the rest —
-    /// typing `base_r * 3.0` would land `base_r * 3.0* 2.0`, which
+    /// the first nine characters of the source and keep the rest —
+    /// typing `base_r * 3.0` would land `base_r * 3.02.0`, which
     /// the exact text below refuses. And clicking in and away hands
     /// the source back untouched, which is not an edit.
     #[test]
@@ -4341,9 +4361,8 @@ mod value_field_tests {
         let mut row = Row::driven_distance("chrome-driven-seed", "base_r * 2.0");
         let (_, render) = row.showing();
         assert_eq!(
-            render,
-            format!("{} 0.008", props::DRIVEN),
-            "a driven slot shows the value its expression equals"
+            render, "= 0.008 m",
+            "a driven slot shows the value its expression equals, and its unit"
         );
         row.click_in();
         assert!(
@@ -4368,6 +4387,91 @@ mod value_field_tests {
                 [SessionOp::SetSlotExpression { text, .. }] if text == "base_r * 3.0"
             ),
             "the typed text replaced the whole source: {landed:?}"
+        );
+    }
+
+    /// **An open edit the document moved under is still the field's
+    /// own text**, at a driven slot and at a parameter.
+    ///
+    /// The field is focused, the value under it changes elsewhere (an
+    /// undo, another pane), and the user clicks away without typing.
+    /// The buffer still holds what the edit opened on; the render and
+    /// the source are the NEW ones. Compared only against those, the
+    /// old text reads as typed and is written back over the change —
+    /// an edit nobody made, reverting one somebody did.
+    #[test]
+    fn an_untouched_edit_does_not_write_back_over_a_change_made_elsewhere() {
+        let mut row = Row::driven_distance("chrome-stale-slot", "base_r * 2.0");
+        let Subject::Slot { node, slot } = row.subject.clone() else {
+            panic!("the fixture is a slot row");
+        };
+        row.click_in();
+        let outcome = row.session.perform(SessionOp::SetSlotExpression {
+            node,
+            slot,
+            text: "base_r * 3.0".to_owned(),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        row.click_away();
+        let emitted = row.taken();
+        assert!(
+            emitted.is_empty(),
+            "the untouched edit emits nothing: {emitted:?}"
+        );
+        assert_eq!(
+            row.slot().source.as_deref(),
+            Some("base_r * 3.0"),
+            "and the change made elsewhere stands"
+        );
+
+        let mut param = Row::millimetres("chrome-stale-param", 0.01);
+        let Subject::Param(name) = param.subject.clone() else {
+            panic!("the fixture is a parameter row");
+        };
+        param.click_in();
+        let outcome = param.session.perform(SessionOp::SetParam {
+            name,
+            value: props::SlotValue::Continuous(0.02),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        param.click_away();
+        let emitted = param.taken();
+        assert!(
+            emitted.is_empty(),
+            "the untouched parameter edit emits nothing: {emitted:?}"
+        );
+        assert_eq!(
+            param.showing().0,
+            20.0,
+            "and the 20 mm set elsewhere stands"
+        );
+    }
+
+    /// **An arrow key does not throw away a driven field's open edit.**
+    /// `egui::DragValue` steps its number on Up and Down and discards
+    /// the buffer; a field showing text is not stepped, so the text
+    /// being edited survives the key and is what lands.
+    #[test]
+    fn an_arrow_key_keeps_a_driven_fields_open_edit() {
+        let mut row = Row::driven_distance("chrome-arrow", "base_r * 2.0");
+        row.click_in();
+        row.frame(vec![egui::Event::Text("base_r * 5.0".to_owned())]);
+        row.frame(vec![egui::Event::Key {
+            key: egui::Key::ArrowUp,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }]);
+        row.frame(Vec::new());
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(
+                landed.as_slice(),
+                [SessionOp::SetSlotExpression { text, .. }] if text == "base_r * 5.0"
+            ),
+            "the edit typed before the key is what lands: {landed:?}"
         );
     }
 

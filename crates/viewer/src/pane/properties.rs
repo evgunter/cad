@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId};
+use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId, SlotId};
 use pncad::quantity::{self, UnitDef};
 use pncad::select::Resolution;
 
@@ -99,48 +99,12 @@ impl ViewerBehavior<'_> {
                         ui,
                         format!("parameter {} ({})", row.name.as_str(), row.dimension),
                     );
-                    // Shown, scrubbed and authored in the unit the
-                    // parameter was DECLARED in, through the same
-                    // value a slot field is written by — a parameter
-                    // written in millimetres reads in millimetres.
-                    let field = FieldWriting::of(row.dimension, row.unit);
                     ui.horizontal(|ui| {
-                        // **The two doors a parameter's field has.** A
-                        // bare number is a value in the notation the
-                        // field is written in and nothing else moves;
-                        // anything else is text for
-                        // `SessionOp::SetParamText`, which reads a
-                        // number and its notation through the one
-                        // parser and refuses what is neither. The
-                        // panel parses nothing, and the field itself
-                        // is the slot row's — one function, because
-                        // the two rows differ only in which operation
-                        // each door spells.
-                        //
-                        // **A parameter always shows its number.** It
-                        // is never driven by anything, so there is no
-                        // source for the field to show instead and no
-                        // fixed text to pin over it.
                         value_field_ops(
                             ui,
-                            FieldShowing {
-                                writing: field,
-                                dimension: row.dimension,
-                                number: props::shown_value(field.unit, row.value.as_f64()),
-                                text: None,
-                                source: None,
-                            },
+                            param_showing(&row),
                             value_gesture(ValueGestureName::Param(name.clone())),
-                            FieldVocabulary {
-                                number: |value| SessionOp::SetParam {
-                                    name: name.clone(),
-                                    value,
-                                },
-                                text: |text| SessionOp::SetParamText {
-                                    name: name.clone(),
-                                    text,
-                                },
-                            },
+                            param_doors(&name),
                             self.ops,
                             self.notices,
                         );
@@ -675,18 +639,7 @@ impl ViewerBehavior<'_> {
                 node,
                 slot: row.slot,
             }),
-            FieldVocabulary {
-                number: |value| SessionOp::SetSlot {
-                    node,
-                    slot: row.slot,
-                    value,
-                },
-                text: |text| SessionOp::SetSlotExpression {
-                    node,
-                    slot: row.slot,
-                    text,
-                },
-            },
+            slot_doors(node, row.slot),
             self.ops,
             self.notices,
         );
@@ -1058,28 +1011,13 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: 
 
 /// **What a slot's value field shows, and what its keyboard edit
 /// opens on** — `draft` is the refused text the field holds for a
-/// re-type, when it holds one.
+/// re-type, when it holds one, and it is shown as typed.
 ///
-/// The number is shown in the unit the slot is WRITTEN in
-/// ([`FieldWriting`]). A slot that did not evaluate still has SOURCE
-/// to edit — it is the slot most likely to need it — so the field is
-/// drawn for it too, over the one number it does not have: zero is
-/// what the widget holds for it, under the text the row shows
-/// instead. **The conversion is where the refusal is asked**: a slot
-/// the notation cannot name has no number for the field to show
-/// ([`props::shown_value`]).
-///
-/// What the field says, when that is not the dragged number: the
-/// draft, else [`props::field_text`] for a driven slot or one that did
-/// not evaluate. A LITERAL slot with a value shows no fixed text at
-/// all — egui formats the number it is dragging, and a text pinned
-/// from the row would freeze the field mid-gesture.
-///
-/// **A driven slot's field shows its value, and its edit opens on its
-/// source** ([`props::field_source`]). The row does not wrap, and a
-/// source is as wide as the parameter names in it; the source is said
-/// whole under the row ([`slot_notes`]). A draft is shown as typed:
-/// it is what the edit opens on, so there is nothing to seed.
+/// The number is in the unit the slot is WRITTEN in ([`FieldWriting`]).
+/// A slot that did not evaluate is still drawn, since its source is
+/// what there is to fix, over a zero it does not show. A literal that
+/// evaluated shows no fixed text: egui formats the number it is
+/// dragging, and a pinned text would freeze the field mid-gesture.
 pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit);
     let number = props::shown_value(
@@ -1102,6 +1040,54 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>) -> FieldShowing {
         number,
         text,
         source,
+    }
+}
+
+/// **A document parameter's value field**: its number, in the unit
+/// it was DECLARED in. A parameter is never driven, so there is no
+/// text to show over it and no source to seed its edit with.
+pub(crate) fn param_showing(row: &ParamRow) -> FieldShowing {
+    let writing = FieldWriting::of(row.dimension, row.unit);
+    FieldShowing {
+        writing,
+        dimension: row.dimension,
+        number: props::shown_value(writing.unit, row.value.as_f64()),
+        text: None,
+        source: None,
+    }
+}
+
+/// **The two doors a parameter's field has**: a bare number is a
+/// value in the field's notation and nothing else moves; anything
+/// else is text for `SessionOp::SetParamText`, which reads a number
+/// and its notation through the one parser and refuses what is
+/// neither.
+pub(crate) fn param_doors(
+    name: &ParamName,
+) -> FieldVocabulary<impl Fn(SlotValue) -> SessionOp, impl Fn(String) -> SessionOp> {
+    let (by_number, by_text) = (name.clone(), name.clone());
+    FieldVocabulary {
+        number: move |value| SessionOp::SetParam {
+            name: by_number.clone(),
+            value,
+        },
+        text: move |text| SessionOp::SetParamText {
+            name: by_text.clone(),
+            text,
+        },
+    }
+}
+
+/// **The two doors a slot's field has**: a bare number through
+/// `SessionOp::SetSlot` (refused on a driven slot, with the
+/// affordance), anything else through `SessionOp::SetSlotExpression`.
+pub(crate) fn slot_doors(
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> FieldVocabulary<impl Fn(SlotValue) -> SessionOp, impl Fn(String) -> SessionOp> {
+    FieldVocabulary {
+        number: move |value| SessionOp::SetSlot { node, slot, value },
+        text: move |text| SessionOp::SetSlotExpression { node, slot, text },
     }
 }
 
@@ -1156,7 +1142,7 @@ fn slot_notes(
             format!(
                 "{}: {}",
                 row.slot.label(),
-                Refusal::affordance(params, row.value.as_ref().ok().copied())
+                Refusal::affordance(params, row.dimension, row.value.as_ref().ok().copied())
             ),
             theme,
             Tone::Advisory,
@@ -1251,15 +1237,13 @@ mod layout_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
+    use pncad::document::{Dimension, ParamName, SlotId};
 
     use super::{bounds_notes, exists_notice, slot_notes, slot_showing};
     use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
     use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::Refusal;
-    use crate::session::{SessionOp, ValueGestureName};
     use crate::theme::Theme;
-    use crate::widgets::{FieldVocabulary, value_field_ops, value_gesture};
 
     /// A narrow pane, and wider than `crate::widgets::message_floor`,
     /// so these rows read the region and not the floor.
@@ -1324,7 +1308,7 @@ mod layout_tests {
             &format!(
                 "{}: {}",
                 SlotId::Distance.label(),
-                Refusal::affordance(&params, Some(value))
+                Refusal::affordance(&params, Dimension::Length, Some(value))
             ),
         );
         assert_own_lines(region, affordance);
@@ -1335,57 +1319,25 @@ mod layout_tests {
         }
     }
 
-    /// **A driven slot's row stays inside the pane however long its
-    /// expression**: the field shows the value, and the source is said
-    /// whole under the row, wrapping there.
-    ///
-    /// The row is drawn as `slot_group_ui` draws it — label and field
-    /// in a `ui.horizontal`, over [`slot_showing`] — and the notes
-    /// under it as `slot_notes` draws them.
+    /// **A driven slot's source is said under its row, whole and
+    /// inside the pane** — the field does not show it
+    /// (`app::properties_pane_tests` holds the row itself).
     #[test]
-    fn a_long_driven_source_stays_inside_the_pane() {
-        let params = vec![
-            param("outer_enclosure_wall_thickness"),
-            param("gasket_compression_allowance"),
-        ];
+    fn a_driven_slots_source_is_said_under_its_row_inside_the_pane() {
         let source = "outer_enclosure_wall_thickness * 2 + gasket_compression_allowance";
         let value = SlotValue::of(Dimension::Length, 0.004).expect("a finite length");
         let row = SlotRow {
             source: Some(source.to_owned()),
-            ..distance_row(SlotDriver::Expression { params }, Ok(value))
+            ..distance_row(
+                SlotDriver::Expression {
+                    params: vec![param("outer_enclosure_wall_thickness")],
+                },
+                Ok(value),
+            )
         };
-        let node = RecipeNodeId(4);
         let (region, painted) = drawn_in(REGION, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(row.slot.label());
-                value_field_ops(
-                    ui,
-                    slot_showing(&row, None),
-                    value_gesture(ValueGestureName::Slot {
-                        node,
-                        slot: row.slot,
-                    }),
-                    FieldVocabulary {
-                        number: |value| SessionOp::SetSlot {
-                            node,
-                            slot: row.slot,
-                            value,
-                        },
-                        text: |text| SessionOp::SetSlotExpression {
-                            node,
-                            slot: row.slot,
-                            text,
-                        },
-                    },
-                    &mut Vec::new(),
-                    &mut Vec::new(),
-                );
-            });
             slot_notes(ui, &Theme::DEFAULT, &row, None);
         });
-        for landed in &painted {
-            assert_inside(region, landed);
-        }
         let quoted = find(
             &painted,
             &format!(
@@ -1395,6 +1347,43 @@ mod layout_tests {
             ),
         );
         assert_own_lines(region, quoted);
+    }
+
+    /// **What a slot field shows, arm by arm**: a driven slot its value
+    /// with its edit opening on the source; a held draft the draft, as
+    /// typed, with nothing to seed — over a driven slot and a literal
+    /// alike.
+    #[test]
+    fn a_slot_field_shows_its_reading_or_its_draft() {
+        let value = SlotValue::of(Dimension::Length, 0.004).expect("a finite length");
+        let driven = SlotRow {
+            source: Some("thickness * 2".to_owned()),
+            ..distance_row(
+                SlotDriver::Expression {
+                    params: vec![param("thickness")],
+                },
+                Ok(value),
+            )
+        };
+        let showing = slot_showing(&driven, None);
+        assert_eq!(showing.text.as_deref(), Some("= 0.004 m"));
+        assert_eq!(showing.source.as_deref(), Some("thickness * 2"));
+
+        let literal = SlotRow {
+            unit: Some(pncad::quantity::MM.def()),
+            source: Some("4 mm".to_owned()),
+            ..distance_row(SlotDriver::Literal, Ok(value))
+        };
+        assert_eq!(slot_showing(&literal, None).text, None, "egui formats it");
+        for row in [&driven, &literal] {
+            let showing = slot_showing(row, Some("thickness * undeclared"));
+            assert_eq!(
+                showing.text.as_deref(),
+                Some("thickness * undeclared"),
+                "the draft is shown as typed"
+            );
+            assert_eq!(showing.source, None, "and is what the edit opens on");
+        }
     }
 
     #[test]
@@ -1497,7 +1486,7 @@ mod tests {
             .to_string();
         assert_eq!(
             rendered,
-            Refusal::affordance(&[thickness()], Some(current)),
+            Refusal::affordance(&[thickness()], Dimension::Length, Some(current)),
             "and it renders as the ratified affordance, from its one home"
         );
         // The mapping itself, planted: the words a reader gets for this
@@ -1505,7 +1494,7 @@ mod tests {
         // home; this line does not.
         assert_eq!(
             rendered,
-            "driven by an expression over thickness (currently 0.004) — edit the expression?"
+            "driven by an expression over thickness (currently 0.004 m) — edit the expression?"
         );
     }
 
@@ -1601,7 +1590,7 @@ mod tests {
         );
         assert_eq!(
             refusal.to_string(),
-            Refusal::affordance(&[thickness()], None)
+            Refusal::affordance(&[thickness()], Dimension::Length, None)
         );
         assert!(refusal.to_string().contains("thickness"));
     }

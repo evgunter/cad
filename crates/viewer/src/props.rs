@@ -116,10 +116,11 @@
 //! `SessionOp::SetParamText`, which takes a number and its notation
 //! (`50 mm`) and refuses every other expression by name.
 //!
-//! What a slot field SHOWS is [`field_text`]: a bare literal shows its
-//! number alone (the unit is the picker's to say, not the field's),
-//! and a driven slot shows the value its expression equals, with the
-//! source said under the row and seeding the field's keyboard edit
+//! A slot field that evaluated to a literal shows its number, which
+//! the widget formats (`crate::widgets::number_text`); the unit is the
+//! picker's to say, not the field's. Every other slot field shows
+//! [`field_text`] in its number's place: a driven slot the value its
+//! expression equals, with its keyboard edit opening on the source
 //! ([`field_source`]). A parameter's always shows its number, because
 //! a parameter is never driven by anything.
 //!
@@ -557,31 +558,18 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
     }
 }
 
-/// What the value field SHOWS for one row.
+/// What a slot's value field shows in its number's place.
 ///
-/// **The unit is the picker's to say, not the field's.** A bare
-/// literal therefore shows its number ALONE, in the unit the row is
-/// written in — the same number [`in_written`] gives and the combo box
-/// beside it names, said once instead of twice.
-///
-/// **A driven slot shows [`DRIVEN`] and its value**, and not its
-/// source. The field sits in a row that does not wrap, beside its
-/// unit picker and, in a vector, beside two more fields; a source is
-/// as long as the parameter names the user wrote into it, so a field
-/// showing one is as wide as that. The value is bounded by its type,
-/// the source by nothing. The source is said whole UNDER the row
-/// (`crate::pane::properties`'s `slot_notes`), where it wraps, and a
-/// keyboard edit to the field starts from it ([`field_source`]) —
-/// it is still the text an edit revises. A driven slot that did not
-/// evaluate has no value, and shows [`NO_VALUE`] after the mark; its
-/// fault is said under the row too.
+/// **A driven slot shows [`DRIVEN`] and the value its expression
+/// equals** ([`computed_text`]), not its source: the value is bounded
+/// and carries its unit, and the source is said under the row and
+/// opens the field's keyboard edit ([`field_source`]). A driven slot
+/// that did not evaluate shows [`NO_VALUE`] after the mark.
 ///
 /// A literal whose value did not evaluate shows its source, which is
-/// a literal's and so a number and its unit.
-///
-/// **A literal whose value the notation cannot name shows
-/// [`no_reading`]** rather than a number, because there is no number
-/// to show ([`written`]).
+/// a literal's and so a number and its unit. A literal that evaluated
+/// shows its number ALONE, in the unit the row is written in, or
+/// [`no_reading`] where that notation cannot name it ([`written`]).
 pub fn field_text(row: &SlotRow) -> String {
     match (&row.driver, &row.value) {
         (SlotDriver::Literal, Ok(value)) => match row.unit {
@@ -610,15 +598,26 @@ pub fn field_text(row: &SlotRow) -> String {
             ),
         },
         (SlotDriver::Expression { .. }, Ok(value)) => {
-            let shown = shown_value(rendering_unit(row.dimension, row.unit), value.as_f64());
-            match shown {
-                Ok(shown) => format!("{DRIVEN} {}", render_number(shown)),
-                Err(unit) => no_reading(unit),
-            }
+            format!("{DRIVEN} {}", computed_text(row.dimension, value.as_f64()))
         }
         (SlotDriver::Expression { .. }, Err(_)) => format!("{DRIVEN} {NO_VALUE}"),
         (SlotDriver::Literal, Err(_)) => row.source.clone().unwrap_or_default(),
     }
+}
+
+/// **A COMPUTED value as the chrome says it**: in the notation a
+/// computed value is rendered in ([`rendering_unit`]'s canonical one,
+/// which remembers no unit of its own) and carrying that unit's
+/// symbol, through [`shown_text`] — so bounded by
+/// [`crate::readout::MAX_CHARS`] and a symbol.
+///
+/// One spelling for the two places a driven slot's value is said: its
+/// field ([`field_text`]) and the refusal's affordance
+/// (`crate::session::Refusal::affordance`), so a row never shows one
+/// number two ways. The symbol is carried because nothing else on the
+/// row names the unit: a computed slot's picker says `computed`.
+pub fn computed_text(dimension: Dimension, canonical: f64) -> String {
+    shown_text(rendering_unit(dimension, None), canonical)
 }
 
 /// The mark a driven slot's field wears in front of its value: the
