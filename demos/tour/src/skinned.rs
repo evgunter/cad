@@ -60,7 +60,8 @@
 use pncad::authoring::polygon;
 use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
-use pncad::prelude::{Open, Start, Via};
+use pncad::prelude::{Bulge, Open, Start, Via};
+use pncad::profile::{ProfileLoop, Segment};
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
 use pncad::topo::readback::euler_counts;
@@ -166,12 +167,32 @@ pub fn narration(tol: Tol) {
     );
 
     // ---- The sweep: the same profile carried along an arc path. ----
+    // The path is the arc from (0, 0) to (3, 3) with bulge 0.4, authored
+    // through the lattice like any other arc and read back as the
+    // canonical segment the lowering stores (its carrier and sweep).
+    let (a, b) = (Point2::new(0.0, 0.0), Point2::new(3.0, 3.0));
+    let lp: ProfileLoop<f64> = Open
+        .at(a)
+        .arc_to(Bulge { p: b, b: 0.4 }, tol)
+        .and_then(|t| t.line_to(Start, tol))
+        .expect("the arc-and-chord loop authors")
+        .into();
+    let Segment::Arc {
+        centre,
+        radius,
+        sweep,
+    } = lp.segments()[0]
+    else {
+        unreachable!("a bulge of 0.4 lowers to an arc");
+    };
     let path = segment_curve(
         0,
         SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(3.0, 3.0),
-            bulge: 0.4,
+            a,
+            b,
+            centre,
+            radius,
+            sweep,
         },
         Affine3::identity(),
     )

@@ -31,7 +31,8 @@ use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use sweep::skin::{segment_curve, sweep_places};
-use sweep::{Lofted, SketchSegment, sweep_body};
+use sweep::test_support::bulge_arc;
+use sweep::{Lofted, sweep_body};
 
 use crate::common;
 use common::orient::ring_centroid;
@@ -126,16 +127,15 @@ fn lily_spine() -> NurbsCurve3<f64> {
     NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap()
 }
 
-/// The tour's sweep-cell path: one arc converted through the sketch
-/// door, which is how a user gets a path from a sketch segment.
+/// The tour's sweep-cell path: the arc from (0, 0) to (3, 3) with
+/// bulge 0.4, converted through the sketch door. `bulge_arc` lowers it
+/// through the same `arc_to(Bulge)` lowering the tour's lattice-authored
+/// loop does (`demos/tour/src/skinned.rs`), so it is the tour's
+/// segment bit for bit.
 fn tour_arc_path() -> NurbsCurve3<f64> {
     segment_curve(
         0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(3.0, 3.0),
-            bulge: 0.4,
-        },
+        bulge_arc(Point2::new(0.0, 0.0), Point2::new(3.0, 3.0), 0.4),
         Affine3::identity(),
     )
     .unwrap()
