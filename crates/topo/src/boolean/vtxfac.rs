@@ -302,8 +302,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // material sides, so rung 1's syntactic Same± verdict has to
         // see the face senses as well as the surfaces' `orient` tags.
         let (g1, g2) = (
-            super::reduce::face_plane_source(piercing_body, s.face),
-            super::reduce::face_plane_source(pierced_body, contact.face),
+            super::reduce::face_oriented_source(piercing_body, s.face),
+            super::reduce::face_oriented_source(pierced_body, contact.face),
         );
         let id = super::PlaneIdentity {
             s1: g1.as_ref(),
