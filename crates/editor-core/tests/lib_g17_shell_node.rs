@@ -631,7 +631,10 @@ fn a_dual_evaluation_refuses_the_shell_typed() {
         match ev.nodes.get(&shell) {
             Some(NodeResult::Failed(e)) => {
                 assert!(
-                    matches!(e.kind, NodeErrorKind::ShellLaneUnsupported { lane: "Dual" }),
+                    matches!(
+                        e.kind,
+                        NodeErrorKind::ShellLaneUnsupported { scalar: "dual" }
+                    ),
                     "{}: expected the lane refusal, got {:?}",
                     d.name,
                     e.kind

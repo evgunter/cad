@@ -298,7 +298,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
     let mut v = vec![
         PcurveCertifyError::UnsupportedChart { chart: "torus" },
         PcurveCertifyError::UnsupportedCarrier,
-        PcurveCertifyError::FittedLaneUnsupported { scalar: "Dual64" },
+        PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::IsoUnsupported {
             what: "a rational NURBS surface",
@@ -759,7 +759,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         // Tier 3 arms that carry nothing nested.
         ValidationError::UncertifiableSurface { face },
         ValidationError::PoisonedSurfaceDescription { face },
-        ValidationError::ApproxLaneUnsupported { face },
+        ValidationError::ApproxLaneUnsupported {
+            face,
+            scalar: "interval",
+        },
         ValidationError::DegenerateTorus {
             face,
             verdict: zero_verdict(5e-10),

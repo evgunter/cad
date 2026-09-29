@@ -2157,3 +2157,34 @@ Head `e14f763548` is green (run 36568174959). Main was merged forward
 at close; that merge was clean. The DR-23 row rides as this PR's last
 commit. The pair has no MAJOR, so it advances neither the tally nor
 the found-a-MAJOR count under the 2026-09-28 readout rule.
+
+## `kev`'s two doors merged: PR 3161 closes `kevs-fan-merge-…` and `S93` (2026-09-29)
+
+The fix pass (447,998 tokens / 79 min, harness) took all nine
+adjudicated items and refuted none, declining one sub-part with a
+reason.
+- **The MAJOR is closed at its root.** `kev_plan` proves every
+  merged-fan half starts at the dying vertex, so the killed edge is
+  out of its own members by construction and a torn orbit refuses
+  `OrbitBroken` in both doors. The orchestrator read the proof.
+- Rowed: the reproduction, and the seeded search's first
+  counterexample pinned deterministically.
+- The release selection is clean at five fuzz seeds.
+- `kev_merged_members` is the public read door, and the callers'
+  re-derivations route through it.
+- The generator now asks the keys-only refusal and the unlisted-member
+  gate on clones before each kill.
+- One home each for the null arm, run order and the curve write.
+- The lane-door variant was declined: `mev` takes none, and no kill
+  caller has a plane × NURBS member.
+
+Head `06413b6ed` is green (run 36572774874).
+
+The lane disclosed that `mev_fan_plan` trusts the orbit's start
+vertices the same way. It carries the corruption rather than
+panicking, and is filed now (`mev-fan-plan-trusts-the-orbits-start-vertices`,
+P2), since a PR-body disclosure is not a slate row. The ruling as
+built (plain `kev` refuses every certified fan merge, forced by Ev's
+standing rulings) is written onto the item. `S93` closes with PROBE's
+log noted. The DR-24 row rides as this PR's last commit: **one tally
+candidate**, and the pair advances both counts.
