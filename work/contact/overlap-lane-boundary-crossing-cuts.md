@@ -2,12 +2,13 @@
 id: overlap-lane-boundary-crossing-cuts
 kind: issue
 title: The overlap lane cuts only at coincident boundary vertices: boundary-crossing cuts (the D3 reach gap blocking the ef_bound_backed migration)
-status: open
+status: dispatched
 opened: 2026-09-01
 github: 1500
 refs: [1496, 969, 1063]
 priority: P0
 cost: H
+parent: CONTACT-12
 ---
 
 ## From GitHub issue 1500

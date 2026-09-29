@@ -814,3 +814,19 @@ Signed: (CONTACT orchestrator)
   both.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — Ev: finish the two P0s, then close CONTACT; CONTACT-12 dispatched
+
+- **Ev asked for this in chat:** finish both P0s, then close the program,
+  moving every remaining row to two or three successor programs.
+- **CONTACT-12** carries `overlap-lane-boundary-crossing-cuts` (P0, H).
+  - The overlap lane cuts at boundary crossings, decided metrically.
+  - `ef_bound_backed` re-attempts region confinement under Ev's
+    measured-migration ruling of 2026-09-01.
+  - Every cell of an overlap is read.
+  - Review: dual.
+- **The declared-only P0** starts when Ev answers #3422.
+- A container restart stopped both lanes' fix passes. Their clones
+  survived with uncommitted work, and both lanes are resumed.
+
+Signed: (CONTACT orchestrator)
