@@ -807,3 +807,78 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         "a row showing someone else's failure still says the document is not building: {rows:?}"
     );
 }
+
+/// **A profile refused for its frame's direction links to the frame.**
+///
+/// The frame's own direction slot is what refused, at the nominal the
+/// profile reads, while the frame lands at the box's lane value — so
+/// the frame's row reads `Ok` and only the link gets a reader from the
+/// profile's words to the node they say to fix.
+#[test]
+fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
+    use std::collections::BTreeMap;
+
+    use pncad::analysis::{BoxAxis, ParamBox};
+    use pncad::document::{Datum, Dimension, DocParam, Expr, Node, NodeErrorKind, ParamName};
+
+    let tol = Tol::witness();
+    let span = ParamName::from_static("span");
+    let doc = common::declared(
+        "tree-frame-direction",
+        &span,
+        DocParam::continuous(Dimension::Scalar, 0.0),
+        tol,
+    );
+    let (doc, frame) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Frame {
+            origin: common::len3([0.0; 3]),
+            u: [
+                Expr::param(span.clone(), Dimension::Scalar),
+                common::scl(0.0),
+                common::scl(0.0),
+            ],
+            v: common::scl3([0.0, 1.0, 0.0]),
+        }),
+        tol,
+    );
+    let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
+    let mut axes = BTreeMap::new();
+    axes.insert(span, BoxAxis::Varying { lo: 1.0, hi: 1.0 });
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(axes))),
+            ..EvalOptions::default()
+        },
+        tol,
+    );
+    assert!(
+        matches!(
+            ev.node_error(profile).map(|e| &e.kind),
+            Some(NodeErrorKind::FrameDirection { frame: named, .. }) if *named == frame
+        ),
+        "the fixture raises the arm under test: {:?}",
+        ev.result(profile)
+    );
+
+    let rows = tree::rows(&doc, Some(&ev));
+    let row = |id| {
+        rows.iter()
+            .find(|row| row.id == id)
+            .expect("every node has a row")
+    };
+    assert!(matches!(row(frame).status, RowStatus::Ok), "{rows:?}");
+    assert!(
+        matches!(row(profile).status, RowStatus::Failed { .. }),
+        "{rows:?}"
+    );
+    assert_eq!(
+        row(profile).repair_at,
+        Some(frame),
+        "the profile's row links to the frame whose slot refused"
+    );
+    assert_eq!(row(frame).repair_at, None, "an `Ok` row links nowhere");
+}

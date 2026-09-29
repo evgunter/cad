@@ -2511,8 +2511,15 @@ class Expr:
     def __eq__(self, other: object) -> bool: ...
 
 class ParamName:
-    """A document-level parameter name (guide §3.2). NOT an arena
-    key: the same plain name the recipe's expressions reference."""
+    """A document-level parameter name (guide §3.2): one identifier,
+    the same name the recipe's expressions reference. NOT an arena
+    key.
+
+    A name must be one an expression can read back as this parameter,
+    and that IS refused here: text that is blank, padded with
+    whitespace, or not exactly one identifier raises `EditError` with
+    `variant == "param_name_not_an_identifier"` at this call rather
+    than reaching a document."""
 
     def __init__(self, name: str) -> None: ...
     @property

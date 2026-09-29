@@ -46,8 +46,8 @@ use crate::fixture::{Recorder, len, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// M10-9's tier with the door shut — M10-8's. The rows here are
@@ -89,9 +89,9 @@ const BORE: f64 = 0.6e-3;
 /// ask for (±20 µm on the half-width, σ = 10 µm on the bores).
 pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,
@@ -834,7 +834,7 @@ fn r2_evidence_plate_enclosure_vs_scale() {
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
             let table = envelopes(&shapes);
-            let pick = |p: &str| {
+            let pick = |p: &'static str| {
                 table
                     .get(p)
                     .map_or("-".to_owned(), |w| format!("[{:.4e},{:.4e}]", w.lo, w.hi))

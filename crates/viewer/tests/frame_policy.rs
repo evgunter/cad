@@ -2909,7 +2909,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     }
     assert_eq!(
         frame::creation_offer(refusal.as_ref()),
-        Some(ParamName::new("margin")),
+        Some(ParamName::from_static("margin")),
         "the offer is the undeclared name"
     );
     assert_eq!(

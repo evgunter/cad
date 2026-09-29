@@ -219,7 +219,7 @@ fn main() {
     // The seam recovers: an edit resubmits and the run completes.
     let params = viewer::props::param_rows(session.doc());
     if let Some(param) = params.first() {
-        println!("   nudging parameter {} to resubmit", param.name.0);
+        println!("   nudging parameter {} to resubmit", param.name.as_str());
         session.perform(SessionOp::SetParam {
             name: param.name.clone(),
             value: param.value,

@@ -1268,10 +1268,8 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 /// this instead.
 ///
 /// The array is `ToolKind::ALL`-wide and its position per kind is the
-/// kind's position in `ALL`, stated by an exhaustive match rather than
-/// left to the reader's eye — so a tool added to the set widens the
-/// array, has to be answered for here, and the exclusivity row keeps
-/// covering every pair with no count and no order written out twice.
+/// kind's position in `ALL`, so the exclusivity row covers every pair
+/// with no count and no order written out twice.
 fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
     ToolKind::ALL.map(|kind| match kind {
         ToolKind::Mate => tools.mate().is_some(),

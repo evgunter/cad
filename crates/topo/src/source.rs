@@ -637,158 +637,77 @@ impl core::fmt::Display for AxisAttachError {
 impl std::error::Error for AxisAttachError {}
 
 #[cfg(test)]
+#[allow(clippy::panic)]
 mod tests {
     use geom::{Surface, SurfaceDatum as D};
     use geom_core::{Point3, Vec3};
 
-    /// One analytic kind: a builder over a flat scalar list, the list,
-    /// and which scalars each datum owns — written against the
-    /// variant's fields, not read off the walk under test.
-    type Kind = (
-        fn(&[f64]) -> Surface<f64>,
-        Vec<f64>,
-        Vec<(D, core::ops::Range<usize>)>,
-    );
-
-    fn kinds() -> Vec<Kind> {
-        fn pt(x: &[f64]) -> Point3<f64> {
-            Point3::new(x[0], x[1], x[2])
-        }
-        fn dir(x: &[f64]) -> Vec3<f64> {
-            Vec3::new(x[0], x[1], x[2])
-        }
-        vec![
-            (
-                |x| Surface::Plane {
-                    origin: pt(&x[0..3]),
-                    normal: dir(&x[3..6]),
-                    u_ref: dir(&x[6..9]),
-                },
-                vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
-                vec![(D::Origin, 0..3), (D::Normal, 3..6), (D::URef, 6..9)],
-            ),
-            (
-                |x| Surface::Cylinder {
-                    origin: pt(&x[0..3]),
-                    axis: dir(&x[3..6]),
-                    radius: x[6],
-                    u_ref: dir(&x[7..10]),
-                },
-                vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 2.0, 1.0, 0.0, 0.0],
-                vec![
-                    (D::Origin, 0..3),
-                    (D::Axis, 3..6),
-                    (D::Radius, 6..7),
-                    (D::URef, 7..10),
-                ],
-            ),
-            (
-                |x| Surface::Cone {
-                    apex: pt(&x[0..3]),
-                    axis: dir(&x[3..6]),
-                    half_angle: x[6],
-                    u_ref: dir(&x[7..10]),
-                },
-                vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 0.5, 1.0, 0.0, 0.0],
-                vec![
-                    (D::Apex, 0..3),
-                    (D::Axis, 3..6),
-                    (D::HalfAngle, 6..7),
-                    (D::URef, 7..10),
-                ],
-            ),
-            (
-                |x| Surface::Sphere {
-                    center: pt(&x[0..3]),
-                    radius: x[3],
-                    axis: dir(&x[4..7]),
-                    u_ref: dir(&x[7..10]),
-                },
-                vec![1.0, 2.0, 3.0, 2.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
-                vec![
-                    (D::Center, 0..3),
-                    (D::Radius, 3..4),
-                    (D::Axis, 4..7),
-                    (D::URef, 7..10),
-                ],
-            ),
-            (
-                |x| Surface::Torus {
-                    center: pt(&x[0..3]),
-                    axis: dir(&x[3..6]),
-                    major_radius: x[6],
-                    minor_radius: x[7],
-                    u_ref: dir(&x[8..11]),
-                },
-                vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 3.0, 1.0, 1.0, 0.0, 0.0],
-                vec![
-                    (D::Center, 0..3),
-                    (D::Axis, 3..6),
-                    (D::MajorRadius, 6..7),
-                    (D::MinorRadius, 7..8),
-                    (D::URef, 8..11),
-                ],
-            ),
-        ]
-    }
-
     /// Every field-by-field reader of a surface reads every scalar:
-    /// each scalar of each analytic kind, changed alone, is a
+    /// each scalar of each analytic kind
+    /// ([`geom::test_support::analytic_surfaces`]), changed alone, is a
     /// difference to both comparators (the assertion build's bit
     /// witness and chart-region's bracketed read), and made NaN alone,
-    /// is named by check 1's poison read. A walk that skips a field, at
-    /// any of them, leaves that field's rows green where they must be
-    /// red.
+    /// is named by check 1's poison read as the datum the walk
+    /// ([`Surface::data`]) says owns it. The walk's scalars must be
+    /// exactly the builder's, so a walk that drops a field reds on the
+    /// count, and a reader that skips one reds on that field's rows.
     #[test]
     fn every_surface_reader_reads_every_scalar() {
-        for (build, base, fields) in kinds() {
+        let base = geom::test_support::scalar_base();
+        for kind in geom::test_support::analytic_surfaces() {
+            let build = kind.build;
             let at_rest = build(&base);
-            let kind = format!("{at_rest:?}");
+            let name = format!("{at_rest:?}");
             assert!(
                 crate::chart_region::surface_bits_equal(&at_rest, &build(&base)),
-                "{kind}: a surface must read bit-equal to its own copy"
+                "{name}: a surface must read bit-equal to its own copy"
             );
             #[cfg(debug_assertions)]
             assert_eq!(
                 super::surface_bits_witness(&at_rest, &build(&base)),
                 Some(true),
-                "{kind}: the witness must read a copy as agreeing"
+                "{name}: the witness must read a copy as agreeing"
             );
             assert!(
                 crate::validate::poisoned_datums(&at_rest).is_empty(),
-                "{kind}: a finite surface has no poisoned datum"
+                "{name}: a finite surface has no poisoned datum"
             );
+            let geom::SurfaceData::Analytic(data) = at_rest.data() else {
+                panic!("{name}: an analytic kind reads as analytic data")
+            };
+            let walked: Vec<(D, f64)> = data
+                .into_iter()
+                .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+                .collect();
             assert_eq!(
-                fields.last().map(|(_, r)| r.end),
-                Some(base.len()),
-                "{kind}: the fixture's fields cover its scalars"
+                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+                base[..kind.scalars],
+                "{name}: the walk yields the builder's scalars, in its order"
             );
-            for (datum, scalars) in fields {
-                for i in scalars {
-                    let mut moved = base.clone();
-                    moved[i] += 0.5;
-                    let moved = build(&moved);
-                    assert!(
-                        !crate::chart_region::surface_bits_equal(&at_rest, &moved),
-                        "{kind}: chart-region's read missed a change to {} (scalar {i})",
-                        datum.name()
-                    );
-                    #[cfg(debug_assertions)]
-                    assert_eq!(
-                        super::surface_bits_witness(&at_rest, &moved),
-                        Some(false),
-                        "{kind}: the bit witness missed a change to {} (scalar {i})",
-                        datum.name()
-                    );
-                    let mut poisoned = base.clone();
-                    poisoned[i] = f64::NAN;
-                    assert_eq!(
-                        crate::validate::poisoned_datums(&build(&poisoned)),
-                        vec![datum],
-                        "{kind}: check 1 missed a NaN in {} (scalar {i})",
-                        datum.name()
-                    );
-                }
+            for (i, &(datum, _)) in walked.iter().enumerate() {
+                let mut moved = base.clone();
+                moved[i] += 0.5;
+                let moved = build(&moved);
+                assert!(
+                    !crate::chart_region::surface_bits_equal(&at_rest, &moved),
+                    "{name}: chart-region's read missed a change to {} (scalar {i})",
+                    datum.name()
+                );
+                #[cfg(debug_assertions)]
+                assert_eq!(
+                    super::surface_bits_witness(&at_rest, &moved),
+                    Some(false),
+                    "{name}: the bit witness missed a change to {} (scalar {i})",
+                    datum.name()
+                );
+                let mut poisoned = base.clone();
+                poisoned[i] = f64::NAN;
+                assert_eq!(
+                    crate::validate::poisoned_datums(&build(&poisoned)),
+                    vec![datum],
+                    "{name}: check 1 missed a NaN in {} (scalar {i})",
+                    datum.name()
+                );
             }
         }
     }

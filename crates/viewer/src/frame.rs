@@ -2674,8 +2674,10 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
     match refusal.and_then(Refusal::parse_error)? {
         // The parse error carries the identifier as text (it is a
         // fact about the SOURCE); the offer mints the name the create
-        // door would declare.
-        ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
+        // door would declare. The text is a token the lexer read, so
+        // the constructor admits it; its answer is folded rather than
+        // trusted.
+        ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
         ParseError::UnexpectedChar { .. }
         | ParseError::UnexpectedEnd { .. }
         | ParseError::UnexpectedToken { .. }

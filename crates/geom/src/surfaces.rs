@@ -69,6 +69,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::convention::{ConventionEnd, RepresentabilityMargin};
+use crate::datum::{AnalyticData, DatumValue};
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
@@ -90,6 +91,14 @@ pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
+// The variant roster the analytic-kind fixtures read
+// ([`crate::test_support`]; this crate's `test-support` feature,
+// test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(SurfaceVariant), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
     /// `v_ref = normal × u_ref`.
@@ -562,72 +571,12 @@ impl SurfaceDatum {
     }
 }
 
-/// One stored datum's value, by shape — what an [`AnalyticData`]
-/// yields beside the datum's name.
-#[derive(Clone, Copy, Debug)]
-pub enum DatumValue<T: Real> {
-    /// A location: an `origin`, `apex` or `center`.
-    Point(Point3<T>),
-    /// A direction: a `normal`, `axis` or `u_ref`.
-    Direction(Vec3<T>),
-    /// A number: a radius or a `half_angle`.
-    Scalar(T),
-}
-
-impl<T: Real> DatumValue<T> {
-    /// The datum's scalars: a point's or direction's `x`, `y`, `z`, or
-    /// the number alone.
-    pub fn scalars(self) -> impl Iterator<Item = T> {
-        match self {
-            Self::Point(p) => [Some(p.x), Some(p.y), Some(p.z)],
-            Self::Direction(v) => [Some(v.x), Some(v.y), Some(v.z)],
-            Self::Scalar(s) => [Some(s), None, None],
-        }
-        .into_iter()
-        .flatten()
-    }
-}
-
-/// The most data any analytic kind stores (a torus's five).
-const ANALYTIC_DATA_MAX: usize = 5;
-
-/// **Every stored datum of an analytic surface**, in the variant's
-/// field order, read by iterating it.
-#[derive(Clone, Copy, Debug)]
-pub struct AnalyticData<T: Real>([Option<(SurfaceDatum, DatumValue<T>)>; ANALYTIC_DATA_MAX]);
-
-impl<T: Real> AnalyticData<T> {
-    fn new<const N: usize>(data: [(SurfaceDatum, DatumValue<T>); N]) -> Self {
-        const {
-            assert!(
-                N <= ANALYTIC_DATA_MAX,
-                "an analytic kind outgrew ANALYTIC_DATA_MAX"
-            )
-        };
-        let mut slots = [None; ANALYTIC_DATA_MAX];
-        for (slot, datum) in slots.iter_mut().zip(data) {
-            *slot = Some(datum);
-        }
-        Self(slots)
-    }
-}
-
-impl<T: Real> IntoIterator for AnalyticData<T> {
-    type Item = (SurfaceDatum, DatumValue<T>);
-    type IntoIter = core::iter::Flatten<
-        core::array::IntoIter<Option<(SurfaceDatum, DatumValue<T>)>, ANALYTIC_DATA_MAX>,
-    >;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter().flatten()
-    }
-}
-
 /// A surface's stored data, by what kind of datum it stores
 /// ([`Surface::data`]).
 #[derive(Debug)]
 pub enum SurfaceData<'a, T: Real> {
     /// An analytic kind's fields.
-    Analytic(AnalyticData<T>),
+    Analytic(AnalyticData<T, SurfaceDatum>),
     /// A spline net, unread.
     Nurbs(&'a Arc<NurbsSurface<T>>),
     /// A fitted surface, unread.
@@ -651,7 +600,7 @@ pub enum SurfacePairing<'a, T: Real> {
 /// Two surfaces of one analytic kind, datum against datum
 /// ([`SurfacePairing::Analytic`]).
 #[derive(Clone, Copy, Debug)]
-pub struct AnalyticPairs<T: Real>(AnalyticData<T>, AnalyticData<T>);
+pub struct AnalyticPairs<T: Real>(AnalyticData<T, SurfaceDatum>, AnalyticData<T, SurfaceDatum>);
 
 impl<T: Real> AnalyticPairs<T> {
     /// Each stored datum with its two values, in field order.
@@ -673,7 +622,10 @@ impl<T: Real> Surface<T> {
     /// The variants are destructured without `..`, so a field a variant
     /// gains is a compile error here rather than a datum every reader
     /// silently skips; a kind that is not read as fields is a new
-    /// [`SurfaceData`] arm, which every reader matches exhaustively.
+    /// [`SurfaceData`] arm, which every reader matches exhaustively. A field
+    /// that takes a kind past the walk's width is caught later, by the
+    /// build that first instantiates the walk (`AnalyticData::new`'s
+    /// bound), which `cargo check` does not reach.
     pub fn data(&self) -> SurfaceData<'_, T> {
         use DatumValue::{Direction, Point, Scalar};
         use SurfaceDatum as D;

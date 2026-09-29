@@ -500,7 +500,7 @@ fn first_slot_param_ref_fault(
 /// and [`crate::node::payload_exprs`] together do NOT reach every
 /// `Expr` a node can hold: a `Node::Pattern`'s or `Node::PlacedUnion`'s
 /// COUNT expression under an `Explicit` rule is addressed by no slot
-/// (`node::rule_slots` gives a count slot only under a STEPPED rule)
+/// (`node::rule_rows` gives a count slot only under a STEPPED rule)
 /// and is no payload either. Such a file is still refused — by
 /// [`Walk::Snapshot`], as `PlacementRule` with
 /// `PlacementRuleFault::CountSpelling`, because a count expression and
@@ -1720,22 +1720,22 @@ mod tests {
             SnapshotError::SlotUnknownDocParam {
                 node,
                 slot: SlotId::Radius,
-                name: ParamName::new("fillet"),
+                name: ParamName::from_static("fillet"),
             },
             SnapshotError::SlotDocParamDimension {
                 node,
                 slot: SlotId::Distance,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::PayloadUnknownDocParam {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
             },
             SnapshotError::PayloadDocParamDimension {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },

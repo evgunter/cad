@@ -100,10 +100,10 @@ use crate::theme::Theme;
 /// still be broken where epaint's own rule breaks it.
 ///
 /// A message that reaches the floor is a finding about the layout that
-/// put it there; `crate::pane::features`'s `message_indent` is the one
-/// this chrome answered. The toolbar is not in a scroll area, so a
-/// window narrower than the floor draws its status line past the panel
-/// (`work/chrome/the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window.md`).
+/// put it there; `crate::pane::features`'s `message_indent` is one this
+/// chrome answered. The toolbar's status line is another: the panel it
+/// is in does not scroll, so the line has a row of its own that does
+/// (`crate::app`'s `toolbar_ui`).
 ///
 /// # Characters or width: the rule
 ///
@@ -3443,7 +3443,7 @@ mod value_field_tests {
         /// `canonical` metres.
         fn millimetres(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
-            let name = ParamName::new("base_r");
+            let name = ParamName::from_static("base_r");
             let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
             let mut session = DocSession::inline(doc, tol);
             let outcome = session.perform(SessionOp::CreateParam {
@@ -3474,7 +3474,7 @@ mod value_field_tests {
             let tol = Tol::witness();
             let doc = declared(
                 label,
-                &ParamName::new("base_r"),
+                &ParamName::from_static("base_r"),
                 DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
                 tol,
             );
