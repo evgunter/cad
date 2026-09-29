@@ -14,10 +14,10 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
     Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
-    ExprPath, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
-    SplitHalf, StepArg, TubeWindow, ValuePayload, evaluate,
+    ExprPath, Frame, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, Placement, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SlotId, SplitHalf, Step, StepArg, TubeWindow, ValuePayload, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -693,6 +693,27 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             [scl(0.0), scl(0.0), scl(1.0)],
             ang(0.0),
         ),
+        // A chain: rigid, literal, rigid — the literal takes no slot and
+        // its index is skipped, so the second rigid step is step 2.
+        Node::Transform {
+            input: nid(1),
+            placement: Placement::rigid(
+                [len(1.0), len(0.0), len(0.0)],
+                [scl(0.0), scl(0.0), scl(1.0)],
+                ang(0.0),
+            )
+            .then(Step::Matrix(Frame::translation([0.0, 1.0, 0.0])))
+            .then(Step::Rigid {
+                translation: [len(0.0), len(0.0), len(1.0)],
+                axis: [scl(1.0), scl(0.0), scl(0.0)],
+                angle: ang(0.5),
+            }),
+        },
+        // A literal alone: no slot at all.
+        Node::Transform {
+            input: nid(1),
+            placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
+        },
     ]);
     for kind in [
         PatternKind::Linear {
