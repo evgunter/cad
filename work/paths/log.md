@@ -363,3 +363,20 @@ is fixed forward on main at once.
 - **Next:** `store-constructed-carriers` (unit 5). It moved ahead of
   unit 3 so that re-lowering carries the stored carrier before any
   one-segment loop is admitted.
+
+## 2026-09-29 — unit 5 is a design fork; two designers dispatched
+
+`store-constructed-carriers` has to decide three things that #3218's
+ruling leaves open:
+- what "consistency is verified at validate" means for a carrier that
+  is stored, not derived;
+- how the certified lifts (`ValidatedSegment::lift`, `map_scalar`,
+  `lift_onto`) treat a stored carrier;
+- what `profile::lift` writes when no bulge is stored.
+
+These have several viable answers, so the unit is treated as a fork
+(`memories/orchestration-model.md`). Two designers were given the same
+problem statement, with no candidate solutions. The statement's sha256
+is 42ef1359…612c. The labels were drawn by /dev/urandom byte 55; the
+mapping is held for `analysis/design-fork/`. The unit waits for the
+`[ev]` PR that follows. Units 3 and 4 stay blocked behind it.
