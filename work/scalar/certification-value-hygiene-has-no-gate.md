@@ -2,10 +2,11 @@
 id: certification-value-hygiene-has-no-gate
 kind: issue
 title: nothing mechanical keeps certification values to certification spellings once Real is in scope, and the one type still speaks three dialects of refusal, hull and ring
-status: open
+status: closed
 priority: P3
 cost: D
 opened: 2026-09-24
+closed: 2026-09-29
 rides_with: ring-5-certification-doors-as-a-trait
 refs: [ring-3-ring-dissolves-into-interval, ring-3-residue-outside-its-fence, H5, public-ring-names-spell-the-retired-type, certification-doors-have-no-differential, certification-gate-gaps-3-and-5-have-no-follow-up, certification-refusal-still-called-poison-outside-the-importers, rustc-suggests-importing-real-in-a-certification-file]
 ---
