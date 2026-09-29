@@ -94,3 +94,31 @@ and sphere pairs certified on the no-crossings path".
 
 - **`reduce.rs` `curved_face_arm`, the "both endpoints inside" arm (about `:1519` on `2ba90bced`).** It rests on the carrier's convexity, which holds for a cylinder or a sphere. A cone's is not the same: a nappe pair is not convex, and the apex breaks it. Unreachable today only through the roster.
 - **The section certificate's cone arms (its spec's Q3):** the crossings-path half, AND the no-crossings arm that replaces the extent gates. These land with this item.
+
+**2026-09-29, U1 and U2: the root lanes** (the PR titled "germ: certified
+root lanes for line and circle edges against a cone face (VERBS-CONE
+U1+U2)"). The silent arm above is closed: `curved_face_arm`'s same-side
+roots arm is guarded `Torus | Cone`, so a cone takes the exact roots for
+every endpoint-sign pattern and the convexity arms never see it.
+
+- **Line × cone** (`crates/topo/src/boolean/line_cone.rs`): the ray
+  lane's quadratic, factored into `solid_contain::line_cone_roots` and
+  shared bit-identically, wrapped in an `f64` noise meter. The
+  discriminant is decided again with its evaluation error charged, and
+  each root's slack is held to the band unless the root is farther from
+  the span than its slack. A generator-parallel line, a tangency and a
+  line through the apex keep the door (Q3).
+- **Circle × cone** (`crates/topo/src/boolean/circle_cone.rs`): the
+  half-angle quartic through `half_angle_roots`, with the cone's
+  harmonics, the apex's distance as the noise meter's floor, and the
+  carrier's own `2ρ` as the lever; the coaxial pose decided in closed
+  form at the circle rung (a parallel ON the cone is the door); the
+  parallel-axes pose in closed form on the elevation, its admitted tilt
+  charged to the margins and to the root positions.
+- **P3 measured:** the apex pin's four crossings, recorded as none with
+  the guard reverted, are recorded now (`sweep_past_the_cone_roster`,
+  a `topo::test_support` door that lets the cone past the roster and
+  keeps every other gate). The roster is untouched; the flip is U7's.
+- **Filed:** `ray-cone-quadratic-is-unmetered-for-f64-noise` (P3); the
+  cone lanes' far-origin and large-radius answer rates are recorded on
+  `circle-torus-roots-refuse-large-circles-for-want-of-recentering`.

@@ -38,6 +38,21 @@ is no longer a finite trigonometric polynomial in the shifted
 parameter, so this needs its own certificate for the truncation, or an
 exact re-expression that keeps the magnitudes small.
 
+## The cone lanes, the same shape (VERBS-CONE U1+U2)
+
+- **Line × cone** (`crates/topo/src/boolean/line_cone.rs`): the
+  quadratic is built about the carrier's parameter origin, so an edge
+  whose `Line` origin is far from the apex carries `|w|²`-sized terms.
+  Grazing lines at the default band answer 24, 16, 12 and 8 of 32 with
+  the origin 0, 1e2, 1e3 and 1e4 m back along the line, and none from
+  1e5 m (test `a_far_origin_does_not_certify_noise`). Recentering the
+  parameter at the foot nearest the apex is exact for a line, with no
+  truncation certificate.
+- **Circle × cone** (`crates/topo/src/boolean/circle_cone.rs`): `Q`'s
+  terms grow as `ρ²`, not `ρ⁴`. Grazing circles answer every depth up to
+  `ρ = 1`, 24 of 32 at 30 m, 7 at 300 m and none from 3 km (test
+  `no_wrong_certified_answer_across_circle_radii`).
+
 ## Home
 
 GERM, beside the circle × torus root lane.
