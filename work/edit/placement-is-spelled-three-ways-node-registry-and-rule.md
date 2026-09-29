@@ -2,7 +2,8 @@
 id: placement-is-spelled-three-ways-node-registry-and-rule
 kind: issue
 title: Placement is spelled three ways — a DAG node, a document registry row, and a pattern rule — and the three disagree on whether a placement can be parametric
-status: open
+status: spec
+branch: edit/placement-type
 opened: 2026-09-21
 priority: P0
 cost: H
@@ -217,3 +218,12 @@ Their blinding bytes are on
 `docs/EDIT-PLACEMENT-SPEC.md`, and it is built with a dual review. The
 box/seed MSOLVE row still gates shipping any parametric placement into
 the lanes.
+
+## Spec'd (2026-09-29, EDIT orchestrator): three units, P1 first
+
+`docs/EDIT-PLACEMENT-SPEC.md` holds the slate:
+- **P1**, the `Placement` type held by `Node::Transform`, spec'd in full, dual review;
+- **P2**, gauges: the registry and maintenance go, an unplaced group lives in its own space, and STEP refuses unplaced parts; outlined, and spec'd in full when P1 merges, dual review;
+- **P3**, the viewer's group-wide probe and "place where shown", filed on the viewer owner's slate when P2 merges.
+
+The row closes when P2 merges.
