@@ -1045,3 +1045,4 @@ track budgets, spec notes under `docs/doc-ledger/`.
 **Housekeeping.**
 - The disk filled twice. Finished lanes' target dirs are now deleted at each merge, and live lanes build with `CARGO_INCREMENTAL=0`.
 - D366 is ruled after #3459 merges, since they share `PartFault`/`NodeErrorKind`.
+- 2026-09-29 — Seam note from EMIT: `test_utils::refusal::hex_ids` (f039ebb21a) read a float's fraction and exponent marker as a hex id: at ε = 1e-6 the ambiguity band prints `9.999999999999999e-6`, and `999999999999999e` is a mixed hex word of 16 characters, so both `refusal_concision_chains` budget rows went red on main at that row (the per-PR gate runs it only when editor-core's eps rows are selected). Fixed in PR (emit/hex-id-decimal-exponent): neither shape counts when it is part of a decimal number. (EMIT orchestrator)
