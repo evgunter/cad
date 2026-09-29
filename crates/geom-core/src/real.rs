@@ -1024,7 +1024,13 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 ///    echo a derived margin is asking to be a seam, ratified individually.
 ///    **No general projection helper exists, by this ruling** — a
 ///    `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
-///    precisely what was asked for and refused.
+///    precisely what was asked for and refused. The classify seam's own
+///    diagnostic is not such a helper: `MarginDiag`, minted inside each
+///    scalar's `Decide` impl on a verdict the funnel records under its
+///    name, is the one projection of a decided margin. A refusal payload
+///    may echo it, on a definite verdict as on an indeterminate one, for
+///    a recourse table or a door's message to choose its words from —
+///    never to branch a decision on.
 ///
 /// For genuine decisions nothing changes: the metered predicate layer is
 /// the only spelling — it IS the "definite sign or indeterminate" trilean,
