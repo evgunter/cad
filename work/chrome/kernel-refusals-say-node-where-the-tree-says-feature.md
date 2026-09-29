@@ -5,7 +5,8 @@ title: chrome: kernel refusals the tree draws verbatim say 'node N' where the tr
 status: open
 opened: 2026-09-29
 priority: P3
-cost: D
+cost: E
+design: true
 ---
 
 
