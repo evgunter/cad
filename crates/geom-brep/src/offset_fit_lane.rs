@@ -81,6 +81,35 @@ pub struct OffsetFitLane<T: Real> {
     ) -> Result<geom::OffsetCertificate, OffsetFitError>,
 }
 
+/// The scalars that hold an [`OffsetFitLane`], by their
+/// [`Real::NAME`]s — the replay list the offset-fit refusals render.
+/// Membership is the policy's answer, which this crate cannot read, so
+/// topo pins it against `AtRestPolicy::offset_fit_lane` at every scalar
+/// (`lane0_r2_probes.rs`).
+pub const OFFSET_FIT_DOOR_HOLDERS: &[&str] = &[<f64 as Real>::NAME];
+
+/// A list of scalar names rendered as one noun phrase — `the f64
+/// scalar`, `the f64, interval or symbolic scalar` — for a refusal
+/// that says where a door is held.
+#[derive(Clone, Copy, Debug)]
+pub struct ScalarList(pub &'static [&'static str]);
+
+impl core::fmt::Display for ScalarList {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("the ")?;
+        let n = self.0.len();
+        for (i, name) in self.0.iter().enumerate() {
+            let sep = match (i, n - i) {
+                (0, _) => "",
+                (_, 1) => " or ",
+                _ => ", ",
+            };
+            write!(f, "{sep}{name}")?;
+        }
+        f.write_str(" scalar")
+    }
+}
+
 impl OffsetFitLane<f64> {
     /// The `f64` fit — the whole inventory of this door, and the only
     /// constructor there is.

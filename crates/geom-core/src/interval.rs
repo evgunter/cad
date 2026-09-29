@@ -358,6 +358,8 @@ impl Real for Interval {
     /// theorem-vs-numeric contradiction is ASSERTED at.
     const WITNESS: crate::real::Witness = crate::real::Witness::Exact;
 
+    const NAME: &'static str = "interval";
+
     /// The point enclosure `[x, x]` with decoration `Com` — an exact
     /// embedding for every *finite* `f64`. NaN and ±∞ are not real
     /// numbers and have no enclosure: they map to NaI, explicitly —

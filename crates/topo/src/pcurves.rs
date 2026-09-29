@@ -1119,7 +1119,7 @@ fn derive_general_image<T: AtRestPolicy>(
     };
     let Some(lane) = T::fitted_lane() else {
         return Err(certify(PcurveCertifyError::FittedLaneUnsupported {
-            scalar: T::scalar_name(),
+            scalar: T::NAME,
         }));
     };
     lane.general_image(spline, wall).map_err(certify)
@@ -2026,7 +2026,6 @@ fn mint_face<T: AtRestPolicy>(
             window,
             band,
             T::fitted_lane(),
-            T::scalar_name(),
         )
     };
     let rows = certify_walked(walked, &surface, band, Some(&general))
@@ -2952,7 +2951,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
     // read off the scalar's policy once: the certified and the
     // structural validation doors reach this pass alike, so neither
     // moves a verdict at any scalar.
-    let (lane, scalar) = (T::fitted_lane(), T::scalar_name());
+    let lane = T::fitted_lane();
     for (face_key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
             continue;
@@ -3003,15 +3002,9 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     }
                 };
                 let mate = mate_surface(body, he);
-                if let Err(error) = cache.recertify(
-                    &carrier,
-                    &surface,
-                    mate.as_ref(),
-                    window,
-                    band,
-                    lane,
-                    scalar,
-                ) {
+                if let Err(error) =
+                    cache.recertify(&carrier, &surface, mate.as_ref(), window, band, lane)
+                {
                     findings.push(PcurveMintError::Certify {
                         half_edge: he,
                         error,
@@ -3943,5 +3936,72 @@ mod recourse_tests {
                 }
             }
         }
+    }
+}
+
+/// **The fitted refusal raised before any check.** The mint's
+/// general-image derivation meets an absent door before an image
+/// exists, so the refusal it carries must not claim a check ran.
+///
+/// Called directly, not through a body: the one arm that reaches it is
+/// an `Intersection` seam on a spline chart, and attaching that edge
+/// needs the plane × NURBS lane, which only a certifying scalar holds
+/// (`Body::set_edge_curve_nurbs_lane`'s `CertifiedBounds` block), so no
+/// `Dual64` body carries one.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod derive_without_a_door {
+    use super::{PcurveMintError, derive_general_image};
+    use crate::entity::HalfEdgeKey;
+    use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+    use geom_brep::PcurveCertifyError;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Dual64, Point3, Real};
+    use std::sync::Arc;
+
+    #[test]
+    fn a_dual_general_image_refuses_before_any_check_and_says_only_that() {
+        let lift = Dual64::from_f64;
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let chart = NurbsSurface::new(
+            kv.clone(),
+            kv.clone(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap()
+        .map_scalar(lift);
+        let carrier = NurbsCurve3::new(
+            kv,
+            vec![Point3::new(0.5, 0.0, 0.0), Point3::new(0.5, 1.0, 0.0)],
+            vec![1.0; 2],
+        )
+        .unwrap()
+        .map_scalar(lift);
+        let err = derive_general_image(
+            &Curve3::Nurbs(Arc::new(carrier)),
+            &Surface::Nurbs(Arc::new(chart)),
+            HalfEdgeKey::default(),
+        )
+        .unwrap_err();
+        let PcurveMintError::Certify {
+            error: PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
+            ..
+        } = err
+        else {
+            panic!("a dual derives no general image, and says so by name: {err:?}");
+        };
+        let text = err.to_string();
+        assert!(
+            text.contains("dual scalar")
+                && text.contains("certification rights")
+                && !text.contains("check"),
+            "the refusal names the dual and who holds the door, and claims no check ran: {text}"
+        );
     }
 }
