@@ -2,12 +2,12 @@
 id: sweep-family-homes-sit-outside-the-tests-common-routing-list
 kind: issue
 title: sweep tests: shell7_common, shell8_common and mate2_common are shared homes the tests/common routing list does not name
-status: open
+status: closed
+closed: 2026-09-29
+pr: 3385
 opened: 2026-09-28
 priority: P4
 cost: M
-design: true
-needs_ev: true
 ---
 
 
@@ -77,3 +77,13 @@ Two designers weighed it independently and recommend the same end state: **no fa
 Two of the headers name readers that do not read them. `shell7_common.rs` and `shell8_common.rs` are also registered as `#[path]` suites with no tests.
 
 **What is changed.** The `revolve_common` bullet and the list's framing are lane text, not a ruling (their commits are agent-written). Ev's 2026-09-27 ruling settled only that the narrowest-home rule governs, and this applies it. The follow-up is a mechanical fold, sequenced with the open `revolved`, planar-cap-finder and solid-walk rows that own several of these items.
+
+## Closed
+
+Ev accepted the recommendation on PR 3385 (2026-09-29): *"yep. lean
+Tol::witness rather than the helper but it's not a strong opinion"*.
+There are no family homes. The fold and the one-tree rule are
+`work/reroute/sweep-family-homes-fold-into-tests-common.md`. The
+`tol()` copies are inlined as `Tol::witness()`, per
+`work/reroute/sweep-suites-wrap-tol-witness-in-a-private-tol.md`. The
+design-fork record is row 7 of `docs/DESIGN-FORK-LOG.md`.
