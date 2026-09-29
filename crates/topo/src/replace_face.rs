@@ -1365,12 +1365,15 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     // description that names the replaced surface is re-pointed at it
     // before it is attached — the same re-description step the stale-key
     // rule forces on any surface replacement.
+    // The offset is a statement about the surface (module docs), so
+    // every face keeps the side its material lies on.
+    let sense = work.get_face(face).ok_or(ReplaceFaceError::Corrupt)?.sense;
     let new_key = work
         .set_face_surface(
             face,
             FaceSurface::New {
                 surface: new_surface,
-                sense: true,
+                sense,
             },
         )
         .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
@@ -1378,11 +1381,15 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     // one surface before and wears one after, which is what keeps their
     // shared seams describable.
     for &member in &faces[1..] {
+        let sense = work
+            .get_face(member)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .sense;
         work.set_face_surface(
             member,
             FaceSurface::Shared {
                 key: new_key,
-                sense: true,
+                sense,
             },
         )
         .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;

@@ -15,9 +15,8 @@
 //! Shared`), restoring the writer-side sharing that the per-face
 //! record emission flattened — this is what makes a seam edge's
 //! same-surface-both-sides state visible to the ladder. `same_sense`
-//! lands via [`topo::Body::set_face_sense`] exactly as read (the
-//! corpus's reversed faces are deliberate kernel output — honored,
-//! never healed).
+//! is stated beside the surface exactly as read (the corpus's reversed
+//! faces are deliberate kernel output — honored, never healed).
 //!
 //! # Phase C — the edge ladder (D7 stage 2)
 //!

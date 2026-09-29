@@ -29,8 +29,8 @@
 //!   extent-certified fallback re-cut.
 //!
 //! **Tolerance shape.** Everything this unit adds is exact structure:
-//! the sense flip is a `bool` negation, the inheritance rule is a
-//! surface-KEY equality, and the front door is an arena scan of surface
+//! the sense flip is a `bool` negation, the inheritance rule is chart
+//! identity (`Body::same_chart`), and the front door is an arena scan of surface
 //! kinds. None of the three has an in-band twin, none moves with ε, and
 //! the involution/determinism rows are compared BITWISE. The volume
 //! assertions are ordinary metric checks against closed forms and are

@@ -82,9 +82,9 @@ fn first_ringed(body: &Body<f64>) -> (FaceKey, LoopKey, Vec<LoopKey>) {
 /// The inverted glue, through the doors: promote the ring to a face on
 /// the same chart (`mfkrh`), then glue the ORIGINAL face into it
 /// (`kfmrh`) so the larger boundary becomes a ring of the smaller
-/// face. The new face's sense is flipped, which is what makes both
-/// loops role-correct in the inverted assignment — and therefore what
-/// keeps check 6 silent.
+/// face. On the same chart `mfkrh` gives the new face the old face's
+/// sense negated, which is what makes both loops role-correct in the
+/// inverted assignment — and therefore what keeps check 6 silent.
 fn invert_the_glue(body: &Body<f64>) -> (Body<f64>, FaceKey, LoopKey) {
     let mut out = body.clone();
     let (face, outer, rings) = first_ringed(&out);
@@ -99,18 +99,18 @@ fn invert_the_glue(body: &Body<f64>) -> (Body<f64>, FaceKey, LoopKey) {
                 extra,
                 FaceSurface::Shared {
                     key: surface,
-                    sense: true,
+                    sense: !sense,
                 },
             )
             .expect("the extra ring promotes");
-        out.set_face_sense(made.face, !sense).expect("its sense");
+        assert_eq!(out.get_face(made.face).unwrap().sense, !sense);
     }
     let made = out
         .mfkrh(
             rings[0],
             FaceSurface::Shared {
                 key: surface,
-                sense: true,
+                sense: !sense,
             },
         )
         .expect("the ring promotes to a face");
@@ -122,14 +122,13 @@ fn invert_the_glue(body: &Body<f64>) -> (Body<f64>, FaceKey, LoopKey) {
             made.face,
             FaceSurface::Shared {
                 key: surface,
-                sense: true,
+                sense: !sense,
             },
         )
         .expect("the promoted face shares the chart");
     }
     let glued = out.kfmrh(made.face, face).expect("the inverted glue");
     assert_eq!(glued.ring, outer, "the old outer loop is now the ring");
-    out.set_face_sense(made.face, !sense).expect("the flip");
     (out, made.face, outer)
 }
 

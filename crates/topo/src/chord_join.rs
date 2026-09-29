@@ -2227,14 +2227,9 @@ impl ChordJoiner {
                     start_of(body, h1)?,
                     start_of(body, outside)?,
                 )?;
-                // The fragment INHERITS `oldf`'s orientation bit.
-                // Both arms hand `mef` the parent's surface, and
-                // `mint_face_surface_and_sense` returns the parent's
-                // sense whenever the fragment lands on it: a piece of
-                // a reversed wall is the same surface region with the
-                // same material side, so stamping `true` here would
-                // mint a silently inside-out fragment. Guard: sweep's
-                // `m5_s12_curved_ops.rs`, the row named
+                // Both arms hand `mef` the parent's surface, so the
+                // fragment takes `oldf`'s bit (`Body::resolve_face_surface`).
+                // Guard: sweep's `m5_s12_curved_ops.rs`, the row named
                 // `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
                 let created = match spec {
                     None => body.mef_chord(site, tol)?,

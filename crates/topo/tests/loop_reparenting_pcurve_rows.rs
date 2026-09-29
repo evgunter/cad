@@ -16,11 +16,11 @@
 //! place: no loop moves and no key changes, and every row the face
 //! stores is a curve stated in the chart the face LEFT. Each is rowed
 //! on this same fixture, and each takes the same answer — carried
-//! across one chart, dropped across two. The last two headings row the
-//! one tie between two keys the doors read (a shared payload `Arc`) and
-//! the stamp door whose assertion keeps a recipe stamp to one
-//! description; the first of them also rows the new face's `sense`,
-//! which `mef` and `mfkrh` inherit on the same answer.
+//! across one chart, dropped across two. The last three headings row
+//! the one tie between two keys the doors read (a shared payload
+//! `Arc`), the `sense` a minted or re-charted face takes on the same
+//! chart answer (D1), and the stamp door whose assertion keeps a
+//! recipe stamp to one description.
 //!
 //! The fixture is a minted cylinder-wall sheet split at mid-height into
 //! two curved faces, with the sheet's other side put on a PLANE: three

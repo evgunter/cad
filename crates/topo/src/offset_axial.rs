@@ -616,21 +616,28 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
             Ok(_) => {}
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
         }
+        // An offset moves the chart along its own normal, so every face
+        // keeps the side its material lies on.
+        let sense = work.get_face(first).ok_or(ReplaceFaceError::Corrupt)?.sense;
         let new_key = work
             .set_face_surface(
                 first,
                 FaceSurface::New {
                     surface: c.new.clone(),
-                    sense: true,
+                    sense,
                 },
             )
             .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
         for &member in &m.faces[1..] {
+            let sense = work
+                .get_face(member)
+                .ok_or(ReplaceFaceError::Corrupt)?
+                .sense;
             work.set_face_surface(
                 member,
                 FaceSurface::Shared {
                     key: new_key,
-                    sense: true,
+                    sense,
                 },
             )
             .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
