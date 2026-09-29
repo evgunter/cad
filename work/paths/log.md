@@ -390,3 +390,22 @@ half). Unit 5 stays `needs_ev` until Ev answers. If Ev agrees, it lands
 as 5a (tables carry carriers: the bulge retires, the checks and the
 exactness witness land, carriers still derived) and then 5b
 (constructions store their own carriers).
+
+## 2026-09-29 — Ev on #3453
+
+- **q1 (the three consistency checks, range included):** settled.
+- **q2 (pinned lifts copy, guided constructs):** accepted on condition
+  that it reuses the arc types rather than adding special cases.
+- **q4 (writer emits `Center`):** settled.
+- **q3 → round 2.** Ev asked whether the symbolic tier should operate
+  on the data the user provided, not on a witness.
+- **q5 → round 2.** Ev is not sure of the current state and suggests
+  rethinking `Arc` broadly for harmony.
+
+Round 2 is dispatched to both designers. #3453 is updated in place when
+they report.
+
+New PATHS issues from other programs (queued behind unit 5):
+- `a-short-run-outs-stored-chord-reads-a-declared-fillet-joint-transversal`
+  (EMIT, design);
+- `paths-refusals-short-of-the-shape-guard` (CHROME).
