@@ -1131,10 +1131,12 @@ Standing outcomes that still bind:
 - **Production bit-identity coincidence checking is RETIRED** (Ev, #53;
   #102). The ratified mechanism is NAMING-DESIGN N6 recipe-source
   identity — `GeomSource`: same source ⇒ same bits by D9, converse
-  deliberately unclaimed. `geom_core::bit_identity`'s consumers are
-  debug-only with an EMPTY production allowlist (CI tripwires stay
-  armed; a new consumer must be allowlisted and carry a
-  retirement-scheduled note). Undeclared value-equal flush booleans
+  deliberately unclaimed. `geom_core::bit_identity` never decides a
+  coincidence: its consumers are debug-only except one production
+  reader, the description comparator that decides a certified cache
+  survives a surface-key change (NAMING-DESIGN N6); CI tripwires stay
+  armed, and any further consumer must be allowlisted and carry a
+  retirement-scheduled note. Undeclared value-equal flush booleans
   refuse typed at the coincidence door — declared intent is the
   supported road.
 - **K = 10 is the permanent ratified default** (#89 CLOSED,
