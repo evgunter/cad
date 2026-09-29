@@ -974,6 +974,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartEpsilonSeam => resolve_fault_tag(&ResolveFault::EpsilonSeam),
         C::PartUnresolved => resolve_fault_tag(&ResolveFault::Unresolved),
         C::PartRootFailed => "part_root_failed",
+        C::PartRootPoisoned => "part_root_poisoned",
         C::PartRootFailureUnrecorded => "part_root_failure_unrecorded",
         C::PartProduct => "part_product",
         C::PartReferenceCycle => "part_reference_cycle",
@@ -2007,19 +2008,19 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
 /// The stable tag for a whole-document product refusal
 /// (`editor_core::product`'s error).
 pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
-    use pncad::document::ProductError as E;
-    match err {
-        E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
-        E::UnknownNode { .. } => "unknown_node",
-        E::PlacedUnderTwoRoots { .. } => "placed_under_two_roots",
-        E::RootFailed { .. } => "root_failed",
-        E::RootPoisoned { .. } => "root_poisoned",
-        E::NoBodyRoots => "no_body_roots",
-        E::Graft { .. } => "graft_refused",
-        E::RootInvalid { .. } => "root_invalid",
-        E::ProductInvalid { .. } => "product_invalid",
-        E::Naming { .. } => "product_naming",
-        E::ContactLineage { .. } => "contact_lineage",
+    use pncad::document::ProductErrorKind as K;
+    match err.kind() {
+        K::EvaluationOfAnotherDocument => "evaluation_of_another_document",
+        K::UnknownNode => "unknown_node",
+        K::RootFailed => "root_failed",
+        K::RootPoisoned => "root_poisoned",
+        K::PlacedUnderTwoRoots => "placed_under_two_roots",
+        K::NoBodyRoots => "no_body_roots",
+        K::Graft => "graft_refused",
+        K::RootInvalid => "root_invalid",
+        K::ProductInvalid => "product_invalid",
+        K::Naming => "product_naming",
+        K::ContactLineage => "contact_lineage",
     }
 }
 
