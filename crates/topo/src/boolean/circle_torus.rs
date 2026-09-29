@@ -74,22 +74,38 @@
 //! small. At `f64` their rounding is therefore an error in `F` of about
 //! `u·T` (`T` the sum of the terms' magnitudes, [`NOISE_ULPS`] of them
 //! charged), which is a residual error of `u·T / (2r(R² − r²))` metres
-//! everywhere on the carrier (`F = 2r·res·Q` with `Q ≥ R² − r²`). The
-//! ladder certifies the count of the COMPUTED `F`; it agrees in sign
-//! with the true one wherever `|residual|` exceeds that error, so the
-//! two counts can differ only at an extremum within it of zero. The
-//! door refuses when that error is DEFINITELY past the band's
+//! everywhere on the carrier (`F = 2r·res·Q` with `Q ≥ R² − r²`).
+//! The door refuses when that error is DEFINITELY past the band's
 //! escalation threshold (`bool_circle_torus_noise` deciding
 //! `Positive`): the representation cannot resolve what the band asks
-//! of it. Below that threshold, every extremum the answer could get
-//! wrong is within the escalation threshold of zero — inside the gap
-//! where the band itself declines to call a sign, and where every other
-//! `f64` door of the kernel lives with its own rounding. So the
-//! guarantee is: **no wrong answer about any crossing or clearance
-//! deeper than the escalation threshold.** The same error moves each
-//! root by `error/|F′|` radians; that arc length is held to the same
-//! threshold (`bool_circle_torus_root_slack`), or a caller's span and
-//! trim decisions would be made on the wrong point.
+//! of it. The same error moves each root by `error/|F′|` radians; that
+//! arc length is held to the same threshold
+//! (`bool_circle_torus_root_slack`), or a caller's span and trim
+//! decisions would be made on the wrong point.
+//!
+//! **What the meter covers, and what it does not.** It bounds ONE
+//! stage: the evaluation of the harmonics from the geometry. It does
+//! not certify "the count of the computed `F`": everything downstream —
+//! the anchor rotation, the division by `F(pole)`, the monic `(2ρ)^k`
+//! rescale, the depression and the discriminant — rounds again, and
+//! those errors are covered only by the ladder's own band decisions,
+//! as they are for the line lane. The conditioning guard bounds the
+//! monic coefficients by `6/κ` in units of `2ρ`, which keeps that
+//! amplification a fixed multiple of the circle's scale, but no bound
+//! on it is computed here. So the premise is: **the downstream stages'
+//! rounding stays within what the ladder's band margins absorb** — the
+//! same premise every `f64` ladder in the kernel rests on. Under it,
+//! the harmonics' error below the threshold changes the answer only at
+//! an extremum within that threshold of zero, inside the gap where the
+//! band declines to call a sign.
+//!
+//! What supports the premise is measurement, not proof: the delta
+//! review's fuzz — about 12k cases around the refusal threshold, some
+//! 50k in all — found no wrong answer from the metered door, and a
+//! maximum root error of 4.8e-10 m on the parallel arm. That supports
+//! the premise at the poses it drew; it does not bound the
+//! amplification. The `Interval` lane needs no premise: every
+//! stage there is an enclosure.
 //!
 //! **What that costs, measured.** Against a torus `R = 1, r = 0.25` at
 //! the default band, grazing circles at `ρ = 10` are answered (the
@@ -426,16 +442,13 @@ pub(super) fn half_angle_roots<T: Decide>(
         noise,
         f_per_metre,
     } = frame;
-    // **The noise meter.** `F`'s harmonics are sums of terms as large as
-    // `ρ⁴` for a large circle, while the crossings live where `F` is
-    // small; their `f64` rounding, `noise`, is then a residual error of
-    // up to `noise / f_per_metre` metres everywhere on the carrier. The
-    // count below is certified for the COMPUTED `F`, which agrees with
-    // the true one in sign wherever `|residual|` exceeds that, so the
-    // two can differ only at an extremum within it of zero — which is a
-    // graze inside the band, and the band's to call, ONLY when that
-    // error is itself inside the band. Otherwise the representation
-    // cannot resolve what the band asks, and the door refuses.
+    // **The noise meter** (module docs): it bounds the harmonics'
+    // evaluation error, `noise`, a residual error of up to
+    // `noise / f_per_metre` metres everywhere on the carrier, and refuses
+    // when that is definitely past the band's escalation threshold. The
+    // stages after it (rotation, pole division, rescale, depression,
+    // discriminant) round again; those are left to the ladder's own band
+    // decisions, which is the premise the module docs state.
     match decide(rows.noise, Margin::of(noise / f_per_metre), band) {
         Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
@@ -1456,21 +1469,19 @@ mod tests {
     /// along the outward normal (`depth < 0` dips into the tube), in the
     /// plane of the normal and the tube's vertical tangent — so near `P`
     /// it bends away from the torus and its extremum there IS `depth`.
-    fn grazing(rho: f64, alpha: f64, depth: f64) -> (Pose, f64) {
+    /// `P` is the carrier's `θ = 0`.
+    fn grazing(rho: f64, alpha: f64, depth: f64) -> Pose {
         let (s, c) = alpha.sin_cos();
-        let normal = [c, s, 0.0];
-        let tangent = [0.0, 0.0, 1.0];
         let p = [(R + RT) * c, (R + RT) * s, 0.0];
         let k = rho + depth;
-        let pose = Pose {
-            c: [p[0] + k * normal[0], p[1] + k * normal[1], p[2]],
-            // n = u × v with u = −normal (θ = 0 at P), v = tangent.
+        // `u = −normal` (so `C(0) = P + depth·normal`), `v = +z` (the
+        // tube's vertical tangent at `P`), `n = u × v`.
+        Pose {
+            c: [p[0] + k * c, p[1] + k * s, p[2]],
             n: [-s, c, 0.0],
             rho,
-            u: [-normal[0], -normal[1], 0.0],
-        };
-        let _ = tangent;
-        (pose, 0.0)
+            u: [-c, -s, 0.0],
+        }
     }
 
     /// **The ρ-sweep: no wrong certified answer at any radius** (delta
@@ -1489,8 +1500,8 @@ mod tests {
         for (i, rho) in [10.0_f64, 30.0, 100.0, 300.0].into_iter().enumerate() {
             for alpha in [0.3_f64, 1.9, 3.4, 5.1] {
                 for depth in [-1e-5, -1e-6, -1e-7, -1.6e-8, 1.6e-8, 1e-7, 1e-6, 1e-5] {
-                    let (pose, theta_p) = grazing(rho, alpha, depth);
-                    let (t0, t1) = (theta_p - 0.4, theta_p + 0.6);
+                    let pose = grazing(rho, alpha, depth);
+                    let (t0, t1) = (-0.4, 0.6);
                     let truth = direct_roots(pose, t0, t1, 200_000);
                     assert_eq!(
                         truth.len(),
