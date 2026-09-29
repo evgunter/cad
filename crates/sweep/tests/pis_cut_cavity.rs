@@ -325,7 +325,7 @@ fn section_faces(half: &Body<f64>, cut: Cut) -> Vec<topo::FaceKey> {
 /// a typed refusal and not an answer.
 fn in_the_band(diag: &geom_core::Indeterminate) -> bool {
     let (eps, k) = (tol().eps(), tol().k());
-    matches!(diag.margin, geom_core::MarginDiag::Value(v) if v.abs() > eps && v.abs() < k * eps)
+    matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
 }
 
 /// **Every cut through a bore reads its truth at every pose.** Every

@@ -132,7 +132,9 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // distinction is the type's own. What the escalation contract forbids
 // is recovering the margin to make the sign decision the classifier
 // refused; what the three arms separate is whether there was a number
-// at all. A value says the margin landed in the band and tightening ε
+// at all, and `MarginDiag::kind` reads them as a `MarginKind`, which
+// carries none (the numbers leave only through the type's one named
+// error-text door). A value says the margin landed in the band and tightening ε
 // may help; an enclosure says a certified bracket straddles, which is
 // the subdivision driver's lever; a poisoned margin says the question
 // was never validly posed, and it is the one arm none of
@@ -141,8 +143,9 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 //
 // So the rung under a carried struct is carried too: a caller holding
 // an `Escalated` arm out of any of the twelve reads `band`,
-// `predicate` and `margin` by bare name in one import. `Indeterminate`,
-// `MarginDiag` and `Band` sit at ONE root together
+// `predicate` and `margin` — and the margin's kind — by bare name in
+// one import. `Indeterminate`, `MarginDiag`, `MarginKind` and `Band`
+// sit at ONE root together
 // (`pncad::geom_core`) for anyone who prefers the module path — a
 // longer path, never a second crate.
 //
@@ -151,8 +154,8 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // margin out of the kernel's prose again: then the type is telemetry
 // with no consumer, which is what a curated list does not publish.
 pub use geom_core::{
-    Affine3, Band, BandError, Indeterminate, MarginDiag, Mat3, OrthoFrame, Point2, Point3, Real,
-    Tol, Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, OrthoFrame, Point2,
+    Point3, Real, Tol, Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this

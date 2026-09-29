@@ -198,7 +198,10 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
 pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
     matches!(
         surface,
-        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+        geom::Surface::Plane { .. }
+            | geom::Surface::Cylinder { .. }
+            | geom::Surface::Sphere { .. }
+            | geom::Surface::Torus { .. }
     )
 }
 
@@ -2236,9 +2239,10 @@ fn vertex_on_curved_face<T: Decide>(
             Ok(Sign::Negative) => {
                 return Err(BooleanError::Escalated {
                     diag: geom_core::Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("bool_contact_vertex"),
+                        terminal_sliver: false,
                     },
                 });
             }

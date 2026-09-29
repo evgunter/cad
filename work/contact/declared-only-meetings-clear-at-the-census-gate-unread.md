@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-26
 priority: P0
 cost: H
-needs_ev: true
 ---
 
 Filed by CONTACT-5 and re-scoped by its fix pass. Arm 2 of
@@ -104,3 +103,18 @@ pair backs, read strictly through `TouchSite::verdict`, reads Rest
 (topo, sweep and editor-core unchanged).
 
 The design fork is on its `[ev]` PR.
+
+## Ev's ruling (PR 3422, 2026-09-29)
+
+"For 1, nice find! Sounds good. For 2, the recommendation makes
+sense."
+
+- **Decision 1:** a declaration licenses a coincidence, never a side.
+  Every meeting is read by the one touch analysis, and only a Rest
+  clears.
+- **Decision 2:** C1. A curved face in a touch's star is read through
+  its certified reach box, which can certify a Rest or refuse but never
+  decides a crossing. This keeps the M9-2 boss.
+- **Later:** reading curved cones would be tighter than the box, so it
+  is filed as a row:
+  `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box`.

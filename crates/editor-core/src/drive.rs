@@ -92,7 +92,7 @@ use std::sync::Arc;
 
 use geom_core::interval::Interval;
 use geom_core::sym;
-use geom_core::{MarginDiag, Sym, SymCounts, Tol};
+use geom_core::{Sym, SymCounts, Tol};
 
 #[cfg(feature = "probe")]
 use crate::analysis::BoxAxis;
@@ -1730,30 +1730,17 @@ fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
 
 /// The predicate name of an escalation whose enclosure sits WHOLLY
 /// inside the ambiguity band `(ε, Kε)` — the ratified terminal-sliver
-/// test — or `None` when refinement could still decide it.
+/// test, the classifier's own verdict
+/// ([`geom_core::Indeterminate::terminal_sliver`]) — or `None` when
+/// refinement could still decide it.
 ///
-/// The test is on the enclosure, both ends: an enclosure that reaches
-/// the coincidence threshold might enclose a genuine coincidence, and
-/// one that reaches past `escalate` might enclose a definite sign, so
-/// either way there is something narrowing could still resolve. Only an
-/// enclosure strictly between the two thresholds, on one side of zero,
-/// describes a quantity that IS in the band.
 /// **Crate-visible because the clearance engine's inner subdivision
-/// refuses by the same rule** ([`crate::clearance`]): a cell pair whose
-/// separation margin sits wholly inside the band is terminal for
-/// exactly this reason — interval enclosures shrink monotonically under
-/// subdivision, so a sub-cell's enclosure stays inside the band its
-/// parent's was inside. One home, so the two subdivisions cannot drift
-/// apart on what a sliver is.
+/// refuses by the same rule** ([`crate::clearance`]): one home, so the
+/// two subdivisions cannot drift apart on what a sliver is.
 pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
-    let MarginDiag::Enclosure { lo, hi } = source.margin else {
-        // A point margin (an `f64` lane) or an invalid one says nothing
-        // about a box.
-        return None;
-    };
-    let (zero, escalate) = (source.band.zero(), source.band.escalate());
-    let inside = (zero < lo && hi < escalate) || (-escalate < lo && hi < -zero);
-    inside.then_some(source.predicate.unwrap_or("<unnamed>"))
+    source
+        .terminal_sliver
+        .then_some(source.predicate.unwrap_or("<unnamed>"))
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the

@@ -145,7 +145,11 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
     };
     assert_eq!(margin.predicate, "fillet3_ring_clearance");
     assert!(
-        margin.value().is_some_and(|m| m < 0.0 && m > -0.01),
+        margin
+            .reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .is_some_and(|m| m < 0.0 && m > -0.01),
         "the ring sits 0.7172 from the edge and the setback is 0.72: {margin}"
     );
     assert!(

@@ -288,7 +288,9 @@ pub enum Surface<T: Real> {
 /// constructor in this crate, the offset door and the plane×torus
 /// section in `geom_brep`, and in `topo` tier 3, the trim door's
 /// meridian frame and the regular outward normal. Each maps a
-/// non-`Positive` answer into its own refusal.
+/// non-`Positive` answer into its own refusal; the verdict keeps the
+/// reporting margin for a refusal that quotes it (tier 3's
+/// `DegenerateTorus`).
 ///
 /// The tube half `r > 0` is a separate datum and is not decided here:
 /// `R − r` alone passes a nonpositive tube radius whenever the
@@ -307,8 +309,8 @@ pub fn ring_torus<T: geom_core::Decide>(
     major_radius: T,
     minor_radius: T,
     band: Band,
-) -> Result<geom_core::Sign, geom_core::Indeterminate> {
-    geom_core::k_stats::decide(
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(
         "ring_torus_convention",
         geom_core::Margin::of(major_radius - minor_radius),
         band,

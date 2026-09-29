@@ -52,7 +52,7 @@ fn lit(x: f64) -> Sym<Interval> {
 
 /// The decision the funnel would make about `m`.
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 /// Runs `f` with every buildable rule ON — the configuration the unit

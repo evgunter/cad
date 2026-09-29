@@ -133,3 +133,82 @@ pinning the re-mint, the mover's doc loses "every key kept". The
 disconnecting subtract's one-solid filing stays S-BOOL's. Kernel
 answer: draws a block slot (TOPO-B6 or the next cut); the row is now
 a unit with the scope paragraph above as its brief's spine.
+
+## The ruling's premise measured false (2026-09-29, ORIGIN)
+
+Building the unit (branch `origin/chart-spans-solids-remint`, head
+`fb0725b9b`, not for merge) confirmed the originating shape on main
+(subtract files both fragments under one solid; after the move the
+shell door refuses `ChartSpansSolids`), then put the tier-1 pass in
+and reddened 13 D1 postconditions across `census`, `chart_region` and
+`rim_of` rows. The proposal's "a state no other producer builds" is
+false: `mvfs` sheets are solids of their own, and `mef(.., Shared)` /
+`set_face_surface(.., Shared)` give a face a key another solid's face
+wears, through public doors. The contact design relies on exactly
+that: `crates/topo/README.md`'s coincidence ladder names a shared key
+as the structural contact rung, and `census.rs`'s conformal arm is
+"curved faces sharing one `SurfaceKey` with OPPOSED senses". Ruling
+(A)'s invariant therefore contradicts a ratified section, and a
+re-mint severs the structural tie between a moved shell and a stayer
+in opposed contact unless both carry a recipe source. Also measured:
+"curves need none" is false — curve descriptions name surface keys
+(`Intersection`/`TangentIntersection` s1/s2, `Chart.surface`), so
+moved edges must be re-pointed. Back to open with `design: true`; a
+designer pair weighs it before it returns to Ev.
+
+## The question back to Ev (2026-09-29)
+
+Re-rule to (B): a chart is body-wide. A `SurfaceKey` is one
+description object; solids partition shells, not descriptions; two
+faces wearing one key lie on one locus by construction, whichever
+solid each is filed under. So:
+
+- `move_shells_to_new_solid` re-partitions ownership only and keeps
+  every key (its present doc is right); no re-mint, no curve re-point.
+- Tier 1 gains no chart pass; `Body` carries no chart-per-solid
+  invariant.
+- Every door with a face scope groups THAT scope's faces by key, never
+  the body's: the shell door (`chart_groups`, `ChartSpansSolids`
+  retires; `ChartSenseMixed` narrows to one solid),
+  `replace_faces_offset`'s whole-group check (`SharedSurfaceKey`
+  scoped to the group's solid, i.e. no edge between a re-keyed wearer
+  and a left-behind one), and `boolean/solid_contain.rs`
+  (`SurfaceSharedOutsideSolid` retires). Each guards a coherence that
+  is per-solid by construction — no edge crosses solids.
+- The contact census and `crates/topo/README.md` C1–C8 stand as
+  written: the shared-key structural rung keeps firing across solids,
+  which is the only class it exists for.
+- The disconnecting subtract's one-solid filing stays ZIP's defect
+  (`work/zip/subtract-of-a-hollow-operand-…`); fixed, it files two
+  solids wearing the operand's charts, with nothing to re-mint.
+- A door that changes a chart's geometry for part of its wearers
+  re-keys the ones in its scope at that door, where geometry changes
+  (as `offset_axial` already does).
+
+The alternative is (A) as ruled, extended to what it turned out to
+need: `mef`/`mfkrh`/`set_face_surface` refuse a `Shared` key another
+solid wears, the mover mints surface and curve copies and re-points
+edge descriptions, and the structural contact rung across solids
+shrinks to "same `GeomSource`", which `sweep` and `step-import` bodies
+do not carry. Once a key is re-minted, the fact that the two were one
+chart is gone, so (A) is hard to reverse; (B) can gain (A)'s invariant
+later.
+
+## Re-ruled (2026-09-29, PR 3412)
+
+Ev: "sounds good!" to (B). A chart is body-wide: `move_shells_to_new_solid`
+re-partitions ownership and keeps every key; tier 1 gains no chart
+pass; each door with a face scope groups its OWN scope's faces by key.
+This supersedes the 2026-09-14 ruling (A), whose premise measured
+false. The unit: the shell door (`chart_groups`; `ChartSpansSolids`
+retires; `ChartSenseMixed` narrows to one solid), `replace_faces_offset`'s
+whole-group check (scoped to the group's solid — no edge between a
+re-keyed wearer and a left-behind one), and `boolean/solid_contain.rs`
+(`SurfaceSharedOutsideSolid` retires), through one grouping primitive
+the scoped doors share. Red-first on SHELL-8's subtract-then-move slab
+(`crates/sweep/tests/shell8_r2_probes.rs`), which should then thicken
+as two solids; the reshaped probe on `origin/chart-spans-solids-remint`
+(`r2_move_shells_to_new_solid_remints_the_charts_it_splits`) is kept
+under the opposite claim (no re-mint, surface count unchanged by the
+move). The disconnecting subtract's one-solid filing stays ZIP's
+(`work/zip/subtract-of-a-hollow-operand-…`).

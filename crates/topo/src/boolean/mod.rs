@@ -690,7 +690,7 @@ pub enum BooleanError {
     /// containment, and the fitted-chord join lane — even where
     /// `geom_brep::intersect::route` already implements the pair at the
     /// INTERSECTION layer (plane×NURBS). One raising site is the
-    /// germ-pair JOIN dispatch's catch-all (`join::join_germ_pair`), so
+    /// germ-pair JOIN dispatch's catch-all (`join::bool_connect`), so
     /// a `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ reaches it too,
     /// not only a cone or torus one; the pairs that dispatch does wire
     /// are stated once, at `meeting_recourse`. The pair-general
@@ -1016,16 +1016,20 @@ pub enum BooleanError {
     /// **What refuses, per class, and why it refuses HERE.** The
     /// blocker left is a JOIN lane, not `revert`:
     ///
-    /// - **Sphere**: LIVE since M5 S13 — the `(Plane, Sphere)` germ
-    ///   arm (exact C5 Circle) plus the extent-certified fallback
-    ///   re-cut; no longer gated here.
-    /// - **Cone / torus**: the germ-pair JOIN dispatch —
-    ///   `join::join_germ_pair`'s match on the two germ faces'
+    /// - **Sphere**: not gated here — the `(Plane, Sphere)` germ arm
+    ///   (exact C5 Circle) plus the extent-certified fallback re-cut.
+    /// - **Torus**: not gated up front — its pairs meet the same typed
+    ///   doors under ∖ and ∩ as under ∪: the crossing layer's, the
+    ///   no-crossings section pass, the join catch-all below, and this
+    ///   variant at [`PairRefusalSite::InteriorLoopGuard`] for a torus
+    ///   pair the section certificate cannot clear.
+    /// - **Cone**: the germ-pair JOIN dispatch —
+    ///   `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names, and
     ///   no cone or torus pair. Its catch-all raises
     ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
-    ///   and a `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ lands
-    ///   there too.
+    ///   and a torus, `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ
+    ///   lands there too.
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general
@@ -1519,7 +1523,7 @@ fn kind_word(kind: geom_brep::SurfaceKind) -> &'static str {
 /// The recourse every "these faces cannot meet yet" refusal ends on.
 ///
 /// **This is the one statement of the pairs the Boolean can join**: the
-/// germ-pair JOIN dispatch (`join::join_germ_pair`) wires a plane face
+/// germ-pair JOIN dispatch (`join::bool_connect`) wires a plane face
 /// against a plane, cylinder or sphere face, mirrors included, and
 /// nothing else. The rustdoc that needs the set points here. The
 /// operand gate's box test is conservative (a box overlap is a MAY),
@@ -1709,13 +1713,13 @@ impl core::fmt::Display for BooleanError {
                     f.write_str("a face of the first operand and a face of the second")?;
                 }
                 f.write_str(" coincide, or nearly (")?;
-                // The rung-4 definite arm synthesizes `MarginDiag::Invalid`
+                // The rung-4 definite arm synthesizes `MarginKind::Invalid`
                 // for a decided-zero offset (plane_eq keeps the decision
                 // machinery); rendering that payload verbatim would claim a
                 // poisoned margin on clean geometry. Say the honest thing
                 // instead: the measure is definitely zero (S6 review,
                 // MAJOR-1).
-                if matches!(diag.margin, MarginDiag::Invalid) {
+                if diag.margin.is_invalid() {
                     match diag.predicate {
                         Some(name) => write!(
                             f,
@@ -2315,7 +2319,7 @@ fn verify_tangent_declaration<T: Decide>(
                     declaration,
                     steer: None,
                     margin: Indeterminate {
-                        margin: MarginDiag::Invalid,
+                        margin: MarginDiag::INVALID,
                         band,
                         // Display-only by design: no `decide` ran here
                         // (the sameness was STRUCTURAL), so this label
@@ -2323,6 +2327,7 @@ fn verify_tangent_declaration<T: Decide>(
                         // enters the K funnel — the
                         // `contact_rest_senses_opposed` precedent.
                         predicate: Some("contact_tangent_conformal"),
+                        terminal_sliver: false,
                     },
                 });
             }
@@ -2378,9 +2383,10 @@ fn verify_tangent_declaration<T: Decide>(
                 declaration,
                 steer: None,
                 margin: Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("tangent_locus_gap"),
+                    terminal_sliver: false,
                 },
             });
         }
@@ -2438,7 +2444,7 @@ fn verify_tangent_declaration<T: Decide>(
                             declaration,
                             steer: None,
                             margin: Indeterminate {
-                                margin: MarginDiag::Invalid,
+                                margin: MarginDiag::INVALID,
                                 band,
                                 // Display-only, the `contact_tangent_
                                 // conformal` precedent: the deciding
@@ -2451,6 +2457,7 @@ fn verify_tangent_declaration<T: Decide>(
                                     rim_wedge::RimRouting::Lamina => "contact_tangent_rim_lamina",
                                     _ => "contact_tangent_rim_transverse",
                                 }),
+                                terminal_sliver: false,
                             },
                         });
                     }
@@ -2692,12 +2699,13 @@ mod tests {
             margin,
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
         };
         // The escalated arm: recourse rides the Indeterminate carrier —
         // for every margin shape, including Invalid (the reachable
         // bool_plane_orient Zero path synthesizes one; S6 review,
         // MINOR-1).
-        for margin in [MarginDiag::Value(5e-9), MarginDiag::Invalid] {
+        for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
             let msg = BooleanError::Escalated { diag: diag(margin) }.to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
@@ -2711,7 +2719,7 @@ mod tests {
             (Operand::A, FaceKey::default()),
             (Operand::B, FaceKey::default()),
         ];
-        for margin in [MarginDiag::Invalid, MarginDiag::Value(5e-9)] {
+        for margin in [MarginDiag::INVALID, MarginDiag::value(5e-9)] {
             let msg = BooleanError::UndeclaredCoincidence {
                 diag: diag(margin),
                 pair,
@@ -2724,7 +2732,7 @@ mod tests {
         // statement, never the poisoned-margin text (S6 review,
         // MAJOR-1).
         let msg = BooleanError::UndeclaredCoincidence {
-            diag: diag(MarginDiag::Invalid),
+            diag: diag(MarginDiag::INVALID),
             pair,
             relation: PlaneRelation::SameOpposite,
         }
@@ -2836,9 +2844,10 @@ mod tests {
     fn sample_errors() -> Vec<BooleanError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let diag = Indeterminate {
-            margin: MarginDiag::Value(5e-9),
+            margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
         };
         let face = FaceKey::default();
         let edge = EdgeKey::default();

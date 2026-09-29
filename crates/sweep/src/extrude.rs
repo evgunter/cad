@@ -1296,9 +1296,10 @@ mod tests {
 
         let msg = ExtrudeError::ExtrusionEscalated {
             source: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("extrusion_normal_component"),
+                terminal_sliver: false,
             },
         }
         .to_string();

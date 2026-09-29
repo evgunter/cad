@@ -1,7 +1,8 @@
 //! The public classification doors write ONE recording stream.
 //!
-//! `decide`, `decide_flagged` and `decide_invariant` share a private
-//! `classify`, and the gate doors (`decide_positive`, `decide_nonzero`,
+//! `decide`, `decide_reported`, `decide_flagged` and `decide_invariant`
+//! share a private `classify` (`decide_reported` hands back the verdict
+//! whole, its reporting margin beside the sign), and the gate doors (`decide_positive`, `decide_nonzero`,
 //! `gate_measured`) share the one write to the escalation channel with
 //! it, so the predicate-name channel and both verdict channels are
 //! written in one place. These suites pin the observable consequence:
@@ -40,9 +41,9 @@
 use geom_core::Tol;
 use geom_core::k_stats::{
     Bracket, Escalation, NonzeroSign, Verdict, decide, decide_flagged, decide_invariant,
-    decide_nonzero, decide_positive, gate_measured,
+    decide_nonzero, decide_positive, decide_reported, gate_measured,
 };
-use geom_core::{Band, Margin, MarginDiag, Sign};
+use geom_core::{Band, Decided, Margin, MarginDiag, Sign};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -51,7 +52,7 @@ fn band() -> Band {
 /// The fixture interleaves the doors deliberately — a run that grouped
 /// them would pass under any per-door ordering.
 #[test]
-fn the_three_doors_share_one_verdict_stream_in_decision_order() {
+fn the_four_doors_share_one_verdict_stream_in_decision_order() {
     let b = band();
     let mid = f64::midpoint(b.zero(), b.escalate());
     let bracket = Bracket::open();
@@ -61,12 +62,21 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
         decide_flagged("door_c", 1.0f64, b, "test fixture: door interleaving"),
         Ok(Sign::Positive)
     );
+    let half = b.zero() / 2.0;
+    assert_eq!(
+        decide_reported("door_r", Margin::of(half), b),
+        Ok(Decided {
+            sign: Sign::Zero,
+            margin: MarginDiag::value(half),
+        })
+    );
     // One indeterminate per door: escalated outcomes are not verdicts,
     // so none of these may appear or shift the positions after them —
     // they are the frame's OTHER channel, in their own decision order.
     let d = decide("door_d", Margin::of(mid), b).unwrap_err();
     let e = decide_flagged("door_e", mid, b, "test fixture: door interleaving").unwrap_err();
     let f = decide_invariant("door_f", mid, b).unwrap_err();
+    let s = decide_reported("door_s", Margin::of(mid), b).unwrap_err();
     assert_eq!(
         decide_flagged("door_g", 0.0f64, b, "test fixture: door interleaving"),
         Ok(Sign::Zero)
@@ -89,6 +99,10 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
                 sign: Sign::Positive
             },
             Verdict {
+                predicate: "door_r",
+                sign: Sign::Zero
+            },
+            Verdict {
                 predicate: "door_g",
                 sign: Sign::Zero
             },
@@ -104,6 +118,7 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
             Escalation { source: d },
             Escalation { source: e },
             Escalation { source: f },
+            Escalation { source: s },
         ]
     );
     assert_eq!(
@@ -112,7 +127,7 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
             .iter()
             .map(Escalation::predicate)
             .collect::<Vec<_>>(),
-        ["door_d", "door_e", "door_f"]
+        ["door_d", "door_e", "door_f", "door_s"]
     );
 }
 
@@ -130,8 +145,9 @@ fn every_door_names_its_own_sample_for_the_recording_scalar() {
     decide("name_a", Margin::of(Probe(1.0)), b).unwrap();
     decide_invariant("name_b", Probe(-1.0), b).unwrap();
     decide_flagged("name_c", Probe(1.0), b, "test fixture: name channel").unwrap();
+    decide_reported("name_d", Margin::of(Probe(1.0)), b).unwrap();
     let names: Vec<&str> = take_samples().iter().map(|s| s.predicate).collect();
-    assert_eq!(names, vec!["name_a", "name_b", "name_c"]);
+    assert_eq!(names, vec!["name_a", "name_b", "name_c", "name_d"]);
 }
 
 /// **A gate's rejection is the funnel's escalation, on the frame.**
@@ -156,9 +172,9 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
     let zeroed = decide_nonzero("gate_d", Margin::of(0.0f64), b).unwrap_err();
     let recorded = bracket.finish();
 
-    assert_eq!(rejected.margin, MarginDiag::Invalid);
+    assert_eq!(rejected.margin, MarginDiag::INVALID);
     assert_eq!(rejected.predicate, Some("gate_b"));
-    assert_eq!(zeroed.margin, MarginDiag::Invalid);
+    assert_eq!(zeroed.margin, MarginDiag::INVALID);
     assert_eq!(zeroed.predicate, Some("gate_d"));
     assert_eq!(
         recorded.verdicts,
@@ -202,7 +218,7 @@ fn a_gate_over_an_in_band_margin_records_one_escalation_with_its_margin() {
     let bracket = Bracket::open();
     let escalated = decide_positive("gate_in_band", Margin::of(mid), b).unwrap_err();
     let recorded = bracket.finish();
-    assert_eq!(escalated.margin, MarginDiag::Value(mid));
+    assert_eq!(escalated.margin, MarginDiag::value(mid));
     assert!(recorded.verdicts.is_empty());
     assert_eq!(
         recorded.escalations,
@@ -221,7 +237,7 @@ fn the_measurement_gate_records_only_its_escalation() {
     assert_eq!(gate_measured("measured", 0.5f64, b), Ok(0.5f64));
     let poisoned = gate_measured("measured", f64::NAN, b).unwrap_err();
     let recorded = bracket.finish();
-    assert_eq!(poisoned.margin, MarginDiag::Invalid);
+    assert_eq!(poisoned.margin, MarginDiag::INVALID);
     assert_eq!(poisoned.predicate, Some("measured"));
     assert!(
         recorded.verdicts.is_empty(),

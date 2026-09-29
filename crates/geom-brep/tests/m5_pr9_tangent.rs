@@ -13,11 +13,12 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceKey;
+use geom_brep::recourse::{Classified, Refused};
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
     PlaneCylinderSection,
 };
-use geom_core::{Interval, Point3, Real, Vec3};
+use geom_core::{Interval, MarginDiag, Point3, Real, Vec3};
 
 /// The authored tangent pair: the unit cylinder about z and the plane
 /// x = 1, tangent along the ruling {(1, 0, z)}.
@@ -160,14 +161,16 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
         panic!("the zero-side margin is the definite refusal: {err}");
     };
     // The two-tolerance shape (D4 ¶1 (iv)): the definite arm ends in the
-    // second-order decision's one recourse, the one its in-band sibling
-    // ends in, and certification takes no declaration.
+    // second-order decision's lever, as its in-band sibling does, and
+    // certification takes no declaration. Its margin is exactly zero,
+    // which no smaller tolerance decides passing, so no tolerance is
+    // offered.
     let msg = err.render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("agree to second order"), "{msg}");
     assert!(
         msg.ends_with(
             "Recourse: move the geometry so the faces curve apart more clearly where they \
-             touch, or, if this curvature difference is intended, tighten the tolerance"
+             touch"
         ),
         "{msg}"
     );
@@ -614,15 +617,22 @@ fn plane_through_line(x: f64, tilt: f64) -> Surface<f64> {
 fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm() {
     let (zero, escalate) = (band().zero(), band().escalate());
     let length = 1.0;
-    let osculating = CertifyError::NotSecondOrderSeparated {
-        sample: 1,
-        band: band(),
+    // The zero verdict at sample 1, whatever its sub-ε margin reads.
+    let osculating = |e: CertifyError| {
+        matches!(
+            e,
+            CertifyError::NotSecondOrderSeparated {
+                sample: 1,
+                verdict: Refused::Zero(c),
+            } if c.band == band()
+        )
     };
 
     let in_band = ((zero * escalate).sqrt() / length).asin();
-    assert_eq!(
-        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, in_band)).unwrap_err(),
-        osculating,
+    assert!(
+        osculating(
+            certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, in_band)).unwrap_err()
+        ),
         "an in-band first-order reading does not rename the refusal"
     );
 
@@ -648,9 +658,8 @@ fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm
         tilt.sin() * length >= escalate && tilt.sin() * radius <= zero,
         "the cell separates the folded arm from the extent"
     );
-    assert_eq!(
-        certify_line_at(radius, tiny, plane_through_line(radius, tilt)).unwrap_err(),
-        osculating,
+    assert!(
+        osculating(certify_line_at(radius, tiny, plane_through_line(radius, tilt)).unwrap_err()),
         "the defect is levered at the folded arm R, not the extent L"
     );
 }
@@ -746,7 +755,9 @@ fn a_renamed_refusal_leaves_no_second_order_escalation_on_the_log() {
     let Err(cause) = so.verdict else {
         panic!("the sagitta R/2 is in band: {:?}", so.verdict);
     };
-    let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+    let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+        cause.margin.diagnostic_f64_for_error_text()
+    else {
         panic!("an Interval margin is an enclosure: {cause:?}");
     };
     assert!(
@@ -794,7 +805,10 @@ fn a_definite_second_order_refusal_leaves_the_naming_escalation_off_the_log() {
         out.err(),
         Some(CertifyError::NotSecondOrderSeparated {
             sample: 1,
-            band: band(),
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::enclosure(0.0, 0.0),
+                band: band(),
+            }),
         })
     );
     assert_eq!(

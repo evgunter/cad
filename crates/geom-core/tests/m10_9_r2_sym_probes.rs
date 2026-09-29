@@ -52,7 +52,9 @@ fn lit(x: f64) -> Sym<Interval> {
 }
 
 fn sign_of(m: Sym<Interval>) -> Result<Sign, String> {
-    m.sign_within(band()).map_err(|e| format!("{e:?}"))
+    m.sign_within(band())
+        .map(|d| d.sign)
+        .map_err(|e| format!("{e:?}"))
 }
 
 fn shipped<R>(f: impl FnOnce() -> R) -> (R, SymCounts) {

@@ -95,9 +95,9 @@ fn the_trv_fixture_is_nonempty_with_finite_endpoints() {
     );
     assert_eq!((lo, hi), (0.0, 2.0), "fixture is not the clamped sqrt");
     assert!(matches!(
-        x.sign_within(band()),
+        x.sign_within(band()).map(|d| d.sign),
         Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             ..
         })
     ));

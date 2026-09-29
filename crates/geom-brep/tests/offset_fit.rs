@@ -38,6 +38,7 @@ use geom_brep::patch_bound::patch_cells_refined;
 use geom_brep::recourse::Refused;
 use geom_core::Bounds;
 use geom_core::KERNEL_LIMIT_LAST_RESORT;
+use geom_core::MarginDiag;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
 
@@ -468,7 +469,7 @@ fn a_collapsed_control_row_refuses_at_the_regularity_floor() {
             // passes it: the lever, and the report clause for a face with
             // no degeneracy to split off.
             assert!(
-                matches!(verdict, Refused::Zero(c) if c.margin == 0.0),
+                matches!(verdict, Refused::Zero(c) if c.margin == MarginDiag::value(0.0)),
                 "{verdict:?}"
             );
             let text = e.to_string();
@@ -493,8 +494,11 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     // the centre.
     match fit_offset_at(&base, -1.2 * r, 1e-4, band()) {
         Err(e @ OffsetFitError::Meter(MeterError::CurvatureHeadroom { reach, verdict, .. })) => {
-            let headroom = verdict.margin();
-            assert!(headroom <= 0.0, "headroom {headroom} is not a refusal");
+            let headroom = verdict.margin().diagnostic_f64_for_error_text().value();
+            assert!(
+                headroom.is_some_and(|h| h <= 0.0),
+                "headroom {headroom:?} is not a refusal"
+            );
             assert!(reach <= r * 1.01, "reach {reach} exceeds r = {r}");
             // Folding by a fifth of the radius is sign-certain: the
             // lever alone, no tolerance.
