@@ -641,3 +641,12 @@ Nothing new is dispatched. Lanes already running finish on their own and push th
 - **The backstop's own cause** (no ellipse arc in the closed-form mass lane) is REACH's existing P0 on a tilted-cylinder boss; a control box shows it without any torus.
 - **A classifier denial:** the lane's throwaway patch letting the body past the backstop was denied. It did not work around the denial, so the internal body on current main is unmeasured; the 09-28 measurement is the latest.
 - **On resume:** an orchestrator read or single review, then merge. Expect a trivial item-file conflict with this branch's 09-28 section.
+
+**Paused-state update (all agents stopped, per Ev):**
+- The PR 3423 fix-pass lane was STOPPED mid-work.
+  - Its branch `germ/cone-roots` is still at `a661f48a5`, with nothing pushed from the fix pass.
+  - An uncommitted edit to `crates/topo/src/boolean/circle_cone.rs` sits in the local clone `/root/.local/share/cad-work/germ-coneroots/cad`. It is lost if the container is reclaimed.
+- **The lane's last words** were: "With the corrected oracle, 9 of the 24 are real old-code failures", mid-classification of count vs position errors.
+  - It is unknown whether "old code" means circle × torus on MAIN (a possible later escape of DR-16, and a live defect) or the cone lane at `a661f48a5`.
+  - **The first thing on resume:** re-run the circle × torus measurement on main against an exact oracle.
+- **No agents are running. No check-ins are scheduled.**
