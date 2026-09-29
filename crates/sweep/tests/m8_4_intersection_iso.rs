@@ -527,6 +527,8 @@ fn an_interior_column_intersection_mints_a_general_image() {
         Some(&mate),
         window,
         band(),
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
+        <f64 as topo::AtRestPolicy>::scalar_name(),
     )
     .expect("the interior column's image certifies against its operand pair");
     let cert = cache.certificate();
