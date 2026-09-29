@@ -78,7 +78,7 @@ mod hit;
 mod pick;
 mod vdiff;
 
-pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex_name};
+pub use hit::{HitTestError, UnnamedEntity, body_name, edge_name, entity_name, face_name, vertex_name};
 pub use pick::{
     Answer, Crossing, FaceAnswer, MeshPick, MeshPickError, NodePick, NodePickError, PickHit,
     PickMemo, PickTarget, TSpan, answer_of, crossing, pick_face, ray_triangle,
