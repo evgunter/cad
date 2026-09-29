@@ -49,6 +49,16 @@
 //! is [`RowStatus::Poisoned`] through the blamed mate — the only thing
 //! read being which node the kernel's own words point at.
 //!
+//! **This is the viewer's one answer to which row a node's failure
+//! is.** Every other surface that says why a node has no value reads
+//! it off [`cause_row`]: a picked face's verdict, a tool's refusal and
+//! the pick index's tooltip hold the kernel's `NodeStanding` re-read by
+//! [`standing_as_drawn`], and the at-rest badge draws the product
+//! gather's refusal in [`product_refusal_wording`]. So no panel names
+//! a different row from the tree's. Every kernel door under
+//! `crates/viewer/src` that hands back a standing is censused by
+//! `tree_badges::every_standing_door_in_the_viewer_reads_the_trees_answer`.
+//!
 //! **The blamed node is the row that carries the fault's words, and
 //! it need not be the node an author edits.** This is the one
 //! statement of why; [`blamed_mates`] points here. Several arms name a
@@ -157,11 +167,13 @@
 
 use std::collections::BTreeMap;
 
+use pncad::document::AssemblyError;
 use pncad::document::{
     CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, Node, NodeError, NodeErrorKind, NodeResult,
-    ProfileProgram, RecipeNodeId,
+    NodeStanding, ProductError, ProfileProgram, RecipeNodeId,
 };
 use pncad::quantity::UnitDef;
+use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
@@ -742,6 +754,105 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
         Standing::Status(
             RowStatus::Poisoned { message: None, .. } | RowStatus::Ok | RowStatus::Unevaluated,
         ) => None,
+    }
+}
+
+/// **A kernel standing, re-read as this tree draws its node** (the
+/// module header's second section).
+///
+/// The kernel reports a node a cluster refusal reached as its own
+/// `Failed`, and a node poisoned through such a node as poisoned
+/// through it; the tree draws both as downstream of the mate the fault
+/// blames. Answered off [`cause_row`]: a node whose cause is another
+/// row reads `Poisoned` through that row, a node that is its own cause
+/// reads `Failed`. A standing [`cause_row`] has no row for — no
+/// evaluation entry, not in the document, a chain that ends at no
+/// failure — is the kernel's, unchanged.
+///
+/// **The `Poisoned` this answers is not the kernel's contract.**
+/// `NodeStanding::Poisoned`'s `through` is documented as the nearest
+/// failed DAG ancestor; here it may be a mate, which is no node's
+/// ancestor, and its `Display` then calls the repair "upstream". The
+/// kernel question is
+/// `work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`.
+pub fn standing_as_drawn(standing: NodeStanding, evaluation: &Evaluation<f64>) -> NodeStanding {
+    match standing {
+        NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. } => {
+            match cause_row(node, evaluation) {
+                Some(cause) if cause == node => NodeStanding::Failed { node },
+                Some(through) => NodeStanding::Poisoned { node, through },
+                None => standing,
+            }
+        }
+        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => standing,
+    }
+}
+
+/// A name's [`Resolution`], its indeterminate standing re-read by
+/// [`standing_as_drawn`]; every other verdict is the resolution
+/// machinery's, unchanged.
+pub fn resolution_as_drawn(resolution: Resolution, evaluation: &Evaluation<f64>) -> Resolution {
+    match resolution {
+        Resolution::Indeterminate(ResolveIndeterminate { standing }) => {
+            Resolution::Indeterminate(ResolveIndeterminate {
+                standing: standing_as_drawn(standing, evaluation),
+            })
+        }
+        Resolution::Resolved(_) | Resolution::Failed(_) => resolution,
+    }
+}
+
+/// **The words a product-gather refusal is shown in**: the gather's
+/// own, except for a root this tree draws downstream of a row the
+/// refusal does not name. That root gets the tree's pointer
+/// ([`downstream_wording`]), because the gather's sentence would name
+/// the wrong row, or call a mate a failed ancestor.
+///
+/// Words and not a re-attributed [`ProductError`]: the refusal's own
+/// value stays the gather's, and only what is drawn from it is the
+/// tree's.
+pub fn product_refusal_wording(fault: &ProductError, evaluation: &Evaluation<f64>) -> String {
+    let (root, named) = match fault {
+        ProductError::RootFailed { node } => (*node, *node),
+        ProductError::RootPoisoned { node, through } => (*node, *through),
+        ProductError::EvaluationOfAnotherDocument { .. }
+        | ProductError::UnknownNode { .. }
+        | ProductError::PlacedUnderTwoRoots { .. }
+        | ProductError::Naming { .. }
+        | ProductError::NoBodyRoots
+        | ProductError::Graft { .. }
+        | ProductError::RootInvalid { .. }
+        | ProductError::ProductInvalid { .. }
+        | ProductError::ContactLineage { .. } => return AssemblyError::product_refusal(fault),
+    };
+    match cause_row(root, evaluation) {
+        Some(cause) if cause != named => format!(
+            "product: {} is a root with no value: {}",
+            node_number(root),
+            downstream_wording(cause)
+        ),
+        Some(_) | None => AssemblyError::product_refusal(fault),
+    }
+}
+
+/// An interrogation refusal, its standing re-read by
+/// [`standing_as_drawn`]; every other refusal is the door's,
+/// unchanged.
+pub fn interrogation_as_drawn(
+    error: InterrogateError,
+    evaluation: &Evaluation<f64>,
+) -> InterrogateError {
+    match error {
+        InterrogateError::Standing(standing) => {
+            InterrogateError::Standing(standing_as_drawn(standing, evaluation))
+        }
+        InterrogateError::NoSuchName
+        | InterrogateError::Ambiguous { .. }
+        | InterrogateError::WrongKind { .. }
+        | InterrogateError::WholeBody
+        | InterrogateError::NoBodies { .. }
+        | InterrogateError::NoSuchBody { .. }
+        | InterrogateError::Readback(_) => error,
     }
 }
 

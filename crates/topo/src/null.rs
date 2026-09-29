@@ -206,10 +206,14 @@ impl<T: geom_core::Decide> Body<T> {
     /// so the vertex must exist first), edge, `he_plus`, `he_minus`.
     /// Emanating rule and splice positions: as [`Body::mev`].
     ///
+    /// # Precondition check order
+    ///
+    /// [`Body::mev`]'s site list, and nothing after it.
+    ///
     /// # Errors
     ///
-    /// The site preconditions, exactly as [`Body::mev`] minus the
-    /// certification gate; the body is untouched on `Err`.
+    /// The first failing precondition above; the body is untouched on
+    /// `Err`.
     pub fn mev_null(
         &mut self,
         site: MevSite,

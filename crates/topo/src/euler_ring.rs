@@ -1698,7 +1698,7 @@ mod tests {
     use super::*;
     use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, SolidKey, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-    use crate::fixtures::{deep_snapshot, mvfs_state, pillow, prov};
+    use crate::fixtures::{assert_err_deep_unchanged, deep_snapshot, mvfs_state, pillow, prov};
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
@@ -1714,21 +1714,6 @@ mod tests {
             .into_iter()
             .map(|member| body.get_half_edge(member).unwrap().start)
             .collect()
-    }
-
-    /// Runs `op` on `body`, asserts it fails with exactly `expected`,
-    /// and asserts the body is DEEPLY untouched (every arena entry,
-    /// payload, and provenance record — counts alone are too weak for
-    /// kill-direction atomicity).
-    fn assert_err_deep_unchanged(
-        body: &mut Body<f64>,
-        expected: &EulerOpError,
-        op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
-    ) {
-        let before = deep_snapshot(body);
-        let err = op(body);
-        assert_eq!(&err, expected);
-        assert_eq!(deep_snapshot(body), before, "body changed on Err");
     }
 
     /// mvfs + mev(Lone): the segment body (v0 —e0— v1, one loop
