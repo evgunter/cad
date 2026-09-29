@@ -174,3 +174,25 @@ The sweep is as of `f4e9aa68b`.
 - The sphere row is rewritten to point at the linear side test, or at
   its own level count.
 - The STEP issue is filed on EXCH's slate.
+
+## Verification (local; hosted CI is the verification of record)
+
+Every check ran on `989be02c1`. The commits after it change only this
+file.
+
+| check | result |
+|---|---|
+| `topo`, default ε / 1e-6 / 1e-12 | 1673 passed at each |
+| `sweep`, default ε / 1e-6 / 1e-12 | 1761 passed at each |
+| `editor-core`, all (slow set included) | 2274 passed |
+| `test-utils` | 79 passed |
+| Python suite (maturin wheel, unittest) | 857 OK |
+| `cargo fmt --all --check` | clean |
+| clippy `--workspace --exclude viewer --all-targets --all-features` | clean |
+| clippy `pncad-py --features python` | clean |
+| `scripts/gates/*.sh` + `payload-rung-sweep.py --check` | pass |
+| `work.py lint` | ok |
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01HkgsMyrV52i5fDxhA2ojxL
