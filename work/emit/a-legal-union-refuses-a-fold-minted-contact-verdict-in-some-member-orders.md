@@ -64,3 +64,27 @@ accumulation that already holds `s`.
 refusal guards, and the pairwise pre-pass it trusts, are EMIT's
 `union-contact-is-judged-pairwise-before-the-fold` (#3213), so it is
 filed here.
+
+## Root cause (EMIT, 2026-09-29): neither pairwise nor the union's
+
+Neither of the two readings above holds. At `b4e425801a` (the first
+parent of #3377) every refusing order's fold step refused
+`UndeclaredCoincidence` on a pair of faces that are **both operand A**:
+two same-oriented coplanar faces inside the accumulation, e.g.
+`[s,a,big]` step 1, `[(A, 3v1), (A, 4v3)]`. No member pair has such a
+contact. The step that had just joined `a` to an accumulation holding
+`s` glued nothing. The declared y-walls overlap in area, not flush, so
+the step left the two faces as separate rows, and the next boolean's
+census refused them. That is
+`area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step`,
+which CONTACT-8 carried. `fold_step_refusal` then reported it as a
+fold-minted contact verdict.
+
+CONTACT-8 (#3377) fixed it at the merge: `merge_coplanar_faces` now
+prunes the dangling seam and glues the group. A first-parent bisect
+from #3143's merge to `f207b7e118` puts the change at #3377's merge
+`e056f1affb`. On main no order of any of the three fixtures refuses
+this way. The rows are
+`wire_legal_union_refusals::no_order_of_…_refuses_a_fold_contact`, which
+cover every order of all three fixtures. Each one is red at `b4e425801a`
+on this refusal.

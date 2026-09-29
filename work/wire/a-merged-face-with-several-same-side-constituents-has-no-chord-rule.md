@@ -46,3 +46,23 @@ corpus reaches that arm (`emit_topo`'s `([_], [], _, _)` in the seam
 vertex pass); only `display_contract` and the concision rows pin its
 sentence. A search over seven variants of the split fixture found none.
 Whether the arm is still reachable is part of this row.
+
+## The arm is reachable (EMIT, 2026-09-29, on origin/main `f207b7e118`)
+
+`NamingError::SeamVertexParentage` has live end-to-end witnesses again:
+the three `wire_legal_union_refusals::no_order_of_…_refuses_a_fold_contact`
+rows reach it. Each row puts a block covering `a`'s top cap over the
+split fixture's area-overlap declaration (`a` against `s` on the two
+y-walls), and pins every member order:
+- `{a, s, big}`: 2 of 6 orders, `[a,big,s]` and `[big,a,s]`;
+- `{a, s, big, p}`: 8 of 24, every order that folds `big` into `a`
+  before `s` joins;
+- the split fixture plus `big`: 18 of 24.
+
+Before CONTACT-8, 25 of those 28 orders already refused
+`SeamVertexParentage`, so the merge's glue did not reach them. The
+other three (`[s,a,big,c]`, `[s,big,a,c]` and `[big,s,a,c]` of the
+split fixture) refused at an earlier step, a fold step's contact
+verdict (`work/emit/a-legal-union-refuses-a-fold-minted-contact-verdict-in-some-member-orders`).
+The rows name this row as the owner, and a fix flips their entries to
+`Fused`.
