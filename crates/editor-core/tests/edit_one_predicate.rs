@@ -48,9 +48,12 @@ use editor_core::{
     MatePrimitive, MeasureExpr, Node, ParamName, PersistError, ProfileDoc, ProfileProgram,
     RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load, save,
 };
+use editor_core::{LoggedEdit, ParamNameReason, parse_expr};
 use fixture::resolver::{PART_BODY, PartStore};
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
+use std::collections::BTreeMap;
+use test_utils::fuzz;
 
 // ---- The assertion's bound ----
 
@@ -931,7 +934,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
     use editor_core::{Distribution, DistributionField, DocParamField, persist::NonFiniteSite};
 
     let (doc, _) = with_measure();
-    let name = ParamName::new("wall");
+    let name = ParamName::from_static("wall");
     let annotated = |sigma: f64| {
         let mut value = DocParam::continuous(Dimension::Length, 1.0);
         if let DocParam::Continuous { distribution, .. } = &mut value {
@@ -1006,7 +1009,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 #[test]
 fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words() {
     let (doc, _) = with_measure();
-    let name = ParamName::new("n");
+    let name = ParamName::from_static("n");
     match apply(
         &doc,
         &DocEdit::SetDocParam {
@@ -1032,7 +1035,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        let dim = &mut wire["snapshot"]["params"][&name.0]["Continuous"]["dim"];
+        let dim = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"]["dim"];
         assert_eq!(
             *dim,
             serde_json::json!("Length"),
@@ -1048,4 +1051,350 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
         }) => assert_eq!(n, name),
         other => panic!("a count-dimensioned continuous param must refuse at load, got {other:?}"),
     }
+}
+
+// ---- The parameter name ----
+//
+// The rule one rung up again: a parameter name is admissible exactly
+// when the expression parser reads it back as a reference to that
+// parameter, and `ParamName` holds that by construction. The edit door
+// therefore has no name check to drift — an inadmissible name cannot
+// be spelled into a `DocEdit` — and the load door refuses at the
+// token, through the same constructor. The rows pair the constructor's
+// answer against the load door's for every shape the rule refuses, and
+// pin the constructor's rule to the parser's own reading.
+
+/// The texts the lexer does not read as one identifier, each with the
+/// finding `ParamName::new` answers for it: blank, whitespace, a
+/// leading digit, an embedded operator, a call's bracket, a character
+/// outside the alphabet, and padding.
+fn inadmissible_names() -> Vec<(&'static str, ParamNameReason)> {
+    let s = str::to_string;
+    vec![
+        ("", ParamNameReason::Blank),
+        ("   ", ParamNameReason::Blank),
+        (
+            "1 2",
+            ParamNameReason::NotAnIdentifier {
+                pos: 0,
+                found: s("1"),
+            },
+        ),
+        (
+            "2width",
+            ParamNameReason::NotAnIdentifier {
+                pos: 0,
+                found: s("2"),
+            },
+        ),
+        (
+            "a+b",
+            ParamNameReason::NotOneToken {
+                pos: 1,
+                found: s("+"),
+            },
+        ),
+        (
+            "hole r",
+            ParamNameReason::NotOneToken {
+                pos: 5,
+                found: s("r"),
+            },
+        ),
+        (
+            "sin(",
+            ParamNameReason::NotOneToken {
+                pos: 3,
+                found: s("("),
+            },
+        ),
+        (
+            "width#",
+            ParamNameReason::OutsideAlphabet { pos: 5, ch: '#' },
+        ),
+        (" width ", ParamNameReason::Padded),
+    ]
+}
+
+/// A document declaring one legal parameter, `width`, and its saved
+/// text — the load-door rows re-key that declaration to a refused
+/// spelling.
+fn saved_with_width() -> (ProfileDoc, String) {
+    let doc = ProfileDoc::empty(DocumentId::derive("param-name-door"), Tol::witness());
+    let applied = apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::from_static("width"),
+            value: DocParam::continuous(Dimension::Length, 1.0),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a legal name declares");
+    let text = save(&applied.doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    (applied.doc, text)
+}
+
+/// Re-keys the snapshot's `width` declaration under `spelling`.
+fn rekey_width(text: &str, spelling: &str) -> String {
+    doctored(text, |wire| {
+        let params = wire["snapshot"]["params"]
+            .as_object_mut()
+            .expect("the param table is an object");
+        let decl = params.remove("width").expect("the fixture declares width");
+        params.insert(spelling.to_string(), decl);
+    })
+}
+
+#[test]
+fn a_name_the_parser_cannot_read_back_is_refused_at_the_constructor() {
+    for (text, reason) in inadmissible_names() {
+        let fault = ParamName::new(text).expect_err(text);
+        assert_eq!(fault.offered, text, "the fault carries the text verbatim");
+        assert_eq!(fault.reason, reason, "{text:?}");
+        let shown = fault.to_string();
+        assert!(
+            shown.starts_with(&format!("parameter name {text:?} ")),
+            "the sentence quotes the bytes offered, as the parse door does: {shown}"
+        );
+    }
+}
+
+#[test]
+fn a_name_the_parser_cannot_read_back_is_refused_at_the_load_door() {
+    let (_, text) = saved_with_width();
+    for (spelling, reason) in inadmissible_names() {
+        let fault = ParamName::new(spelling).expect_err(spelling);
+        assert_eq!(fault.reason, reason);
+        let corrupt = rekey_width(&text, spelling);
+        match load(&corrupt, Tol::witness()) {
+            // At the token, as an off-table unit symbol refuses: this
+            // build's types rejected the key, and the detail is the
+            // constructor's own sentence.
+            Err(PersistError::Unreadable { detail, .. }) => assert!(
+                detail.contains(&fault.to_string()),
+                "{spelling:?}: the load door's detail is the constructor's sentence, got {detail}"
+            ),
+            other => panic!("{spelling:?} must refuse at the token, got {other:?}"),
+        }
+    }
+}
+
+/// The edit LOG carries names too, and the same constructor reads
+/// them: a logged declaration under a refused spelling is refused
+/// before replay is asked.
+#[test]
+fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
+    let (doc, _) = saved_with_width();
+    let log = vec![LoggedEdit::bare(DocEdit::SetDocParam {
+        name: ParamName::from_static("depth"),
+        value: DocParam::continuous(Dimension::Length, 2.0),
+    })];
+    let text = save(&doc, &log, Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    let fault = ParamName::new("1 2").expect_err("a spaced number is not a name");
+    let corrupt = doctored(&text, |wire| {
+        let name = &mut wire["edits"][0]["edit"]["SetDocParam"]["name"];
+        assert_eq!(
+            *name,
+            serde_json::json!("depth"),
+            "aimed at the logged name"
+        );
+        *name = serde_json::json!("1 2");
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Unreadable { detail, .. }) => assert!(
+            detail.contains(&fault.to_string()),
+            "the log's refusal is the same sentence: {detail}"
+        ),
+        other => panic!("a logged name must refuse at the token, got {other:?}"),
+    }
+}
+
+/// The constructor admits exactly what the parser reads back, both
+/// ways. The oracle is the parser asked with nothing declared: the
+/// whole text is one unresolved reference to exactly that text. An
+/// admitted text is also asked the second reading — declared, it
+/// parses to `Param(name)` — so an admitted name is one an expression
+/// can refer to.
+fn agrees(text: &str, replay: &str) {
+    let shown = if text.chars().count() > 40 {
+        let head: String = text.chars().take(40).collect();
+        format!("{head:?}… ({} bytes)", text.len())
+    } else {
+        format!("{text:?}")
+    };
+    let read_back = matches!(
+        parse_expr(text, &BTreeMap::new()),
+        Err(editor_core::ParseError::UnknownParam { ref name, .. }) if name == text
+    );
+    match ParamName::new(text) {
+        Ok(name) => {
+            assert!(read_back, "{shown} is admitted but not read back{replay}");
+            let table = BTreeMap::from([(name.clone(), Dimension::Scalar)]);
+            assert!(
+                parse_expr(text, &table) == Ok(Expr::param(name, Dimension::Scalar)),
+                "{shown} is admitted, but declared it does not read back as itself{replay}"
+            );
+        }
+        Err(fault) => {
+            assert!(
+                !read_back,
+                "{shown} is read back but refused: {fault}{replay}"
+            );
+            assert!(
+                fault.offered == text,
+                "{shown}: the fault carries the text verbatim"
+            );
+        }
+    }
+}
+
+/// **The rule is the parser's**, over a table of edge spellings. A
+/// function word and a unit symbol are admitted because the grammar
+/// has no reserved words (`sin` is a call only when `(` follows it) and
+/// no constants.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back() {
+    for text in ["width", "hole_r", "_", "x1", "sin", "mm", "pi", "δ"] {
+        assert!(ParamName::new(text).is_ok(), "{text:?} is admitted");
+    }
+    let long = "a".repeat(100_000);
+    let long_bad = format!("{}-", "a".repeat(10_000));
+    let table = [
+        "",
+        " ",
+        "\t",
+        "\n",
+        "   ",
+        "\u{a0}",
+        "\u{2003}",
+        "\u{200b}",
+        "\u{feff}",
+        "1",
+        "1a",
+        "2width",
+        "1e3",
+        "1e",
+        "0x",
+        "_",
+        "__",
+        "_1",
+        "a_",
+        "_a_b_",
+        "δ",
+        "Δx",
+        "ñ",
+        "日本",
+        "ß",
+        "Ⅷ",
+        "x²",
+        "x٣",
+        "٣x",
+        "a\u{301}",
+        "\u{301}a",
+        "é",
+        "e\u{0345}",
+        "sin",
+        "cos",
+        "atan2",
+        "scalar",
+        "pi",
+        "mm",
+        "rad",
+        "deg",
+        "e",
+        "E",
+        "inf",
+        "nan",
+        "NaN",
+        "Infinity",
+        &long,
+        &long_bad,
+        "a\0",
+        "\0",
+        "a\0b",
+        "width\n",
+        "\nwidth",
+        "width\r\n",
+        " width",
+        "width ",
+        "a b",
+        "a+b",
+        "a-b",
+        "a.b",
+        "a,b",
+        "a(",
+        "a)",
+        "(a)",
+        "-a",
+        "a#",
+        "a:b",
+        "query:certified-range:1:distance",
+        "query_certified_range_1",
+        "a·b",
+        "·",
+        "sin(x)",
+        "pi rad",
+        "a\u{2028}",
+    ];
+    for text in table {
+        agrees(text, "");
+    }
+    for (text, _) in inadmissible_names() {
+        agrees(text, "");
+    }
+}
+
+/// The same equivalence as a counterexample search over an alphabet
+/// chosen to sit on the lexer's edges: identifier characters, digits,
+/// every operator, whitespace of three kinds, characters outside the
+/// alphabet, a combining mark, and non-ASCII letters and digits.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back_over_edge_characters() {
+    const ALPHABET: &[char] = &[
+        'a', 'Z', 'e', 'E', '_', '0', '9', ' ', '\t', '\n', '\u{a0}', '+', '-', '*', '/', '(', ')',
+        ',', '.', '#', ':', '·', 'δ', '\u{301}', '\0', 'é', '²', '٣',
+    ];
+    let mut rng = fuzz::start("param name vs parser read-back (edge characters)");
+    for _ in 0..fuzz::scaled(4096) {
+        let len = rng.below(9);
+        let text: String = (0..len)
+            .map(|_| ALPHABET[rng.below(ALPHABET.len())])
+            .collect();
+        agrees(&text, &format!(" — {}", fuzz::replay()));
+    }
+}
+
+/// The same equivalence over any Unicode scalar value, half the draws
+/// from ASCII so short texts mix the two.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back_over_any_scalar() {
+    let mut rng = fuzz::start("param name vs parser read-back (any scalar)");
+    for _ in 0..fuzz::scaled(4096) {
+        let len = rng.below(7);
+        let text: String = (0..len)
+            .map(|_| {
+                loop {
+                    let bound = if rng.below(2) == 0 { 0x80 } else { 0x11_0000 };
+                    if let Some(c) = u32::try_from(rng.below(bound))
+                        .ok()
+                        .and_then(char::from_u32)
+                    {
+                        break c;
+                    }
+                }
+            })
+            .collect();
+        agrees(&text, &format!(" — {}", fuzz::replay()));
+    }
+}
+
+/// The `from_static` door is the panicking one, and it panics with the
+/// same sentence the fallible door answers.
+#[test]
+#[should_panic(expected = "parameter name \"1 2\" opens with \"1\" at byte 0")]
+fn an_inadmissible_static_name_panics_with_the_faults_sentence() {
+    let _ = ParamName::from_static("1 2");
 }

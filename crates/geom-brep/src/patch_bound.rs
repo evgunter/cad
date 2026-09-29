@@ -121,7 +121,7 @@ use geom_core::spline::{CurvePlan, KnotVector};
 /// affine combination, and the count therefore also sets how much
 /// outward rounding the refined net carries. That width grows with the
 /// NUMBER of insertions rather than by a factor per insertion, which is
-/// what makes 16 affordable ([`geom_core::spline::CurvePlan::apply_ring`]
+/// what makes 16 affordable ([`geom_core::spline::CurvePlan::apply_certified`]
 /// argues the form that buys it).
 pub const RATIONAL_CERT_SPLITS: usize = 16;
 

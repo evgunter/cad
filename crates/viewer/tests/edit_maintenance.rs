@@ -527,7 +527,7 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
 #[test]
 fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let tol = Tol::witness();
-    let hole_r = ParamName::new("hole_r");
+    let hole_r = ParamName::from_static("hole_r");
     let doc = common::declared(
         "maint-param-strand",
         &hole_r,
