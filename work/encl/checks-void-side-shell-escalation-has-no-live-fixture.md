@@ -4,6 +4,8 @@ kind: issue
 title: editor-core: no live fixture reaches the checks window's void-side (negative-margin) shell escalation
 status: open
 opened: 2026-09-28
+priority: P3
+cost: E
 ---
 
 
