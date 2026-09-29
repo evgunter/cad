@@ -5838,7 +5838,11 @@ mod tests {
             },
             unnamed.clone(),
         ));
-        rows.push(("the door's exhausted schedule".to_owned(), E::RayExhausted, unnamed));
+        rows.push((
+            "the door's exhausted schedule".to_owned(),
+            E::RayExhausted,
+            unnamed,
+        ));
         for (row, refusal, ending) in rows {
             let what = Undecided::of_point_in_solid(&refusal).what();
             assert_eq!(what, format!("{WITNESS_LEAD}{ending}"), "{row}");

@@ -161,7 +161,9 @@ impl LoopDecision {
     pub const fn lever(self) -> &'static str {
         match self {
             Self::Boundary => "move the point exactly onto the boundary or clearly off it",
-            Self::Ray => "move the point slightly, so that no corner of the boundary lines up with it",
+            Self::Ray => {
+                "move the point slightly, so that no corner of the boundary lines up with it"
+            }
             Self::ArcSpan => "move the geometry so this arc stays clearly short of a full turn",
         }
     }
@@ -1795,6 +1797,56 @@ mod tests {
             ConicArc::of(&circle, (0.0, tau + 30.0 * eps), WALK_ROWS.conic, band),
             Err(ConicArcError::WoundPastPeriod)
         ));
+    }
+
+    /// **The span rule tags what it can raise**: an elliptic window
+    /// over-wound by less than the band on the smaller lever, and
+    /// definitely on the larger, escalates on its in-band margin — always
+    /// negative, the refused side, so its ending is the lever alone; one
+    /// whose smaller lever reads zero while the larger reads definitely
+    /// negative is a straddle of the two bounds, which also ends in the
+    /// lever alone and carries no unreadable-margin note. Driven through
+    /// `ConicArc::of`, the walk's `carrier_loop` site maps both to
+    /// `LoopDecision::ArcSpan` unchanged; a body with such an edge is not
+    /// cheap to build here.
+    #[test]
+    fn the_span_rule_tags_an_over_wound_margin_and_a_straddle() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = band.zero();
+        let ellipse = |a: f64| geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: a,
+            minor: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        // Centred at the minor vertex, where the edge's speed is `a`.
+        let over = |dt: f64| {
+            let at = core::f64::consts::FRAC_PI_2;
+            (at - 0.5 * dt, at - 0.5 * dt + core::f64::consts::TAU + dt)
+        };
+        let m = 0.5 * (band.zero() + band.escalate());
+        let lever = LoopDecision::ArcSpan.lever();
+        match ConicArc::of(&ellipse(100.0), over(m), WALK_ROWS.conic, band) {
+            Err(ConicArcError::Escalated((Escalation::Margin, diag))) => {
+                let geom_core::MarginDiag::Value(v) = diag.margin else {
+                    panic!("an in-band margin: {diag:?}");
+                };
+                assert!(v < 0.0, "over-wound: {v:e}");
+                assert_eq!(
+                    LoopDecision::ArcSpan.ending(Escalation::Margin, &diag, Reading::AtRest),
+                    format!("Recourse: {lever}")
+                );
+            }
+            _ => panic!("expected an in-band span"),
+        }
+        match ConicArc::of(&ellipse(100.0), over(0.5 * eps), WALK_ROWS.conic, band) {
+            Err(ConicArcError::Escalated((Escalation::Straddle, diag))) => assert_eq!(
+                LoopDecision::ArcSpan.ending(Escalation::Straddle, &diag, Reading::AtRest),
+                format!("Recourse: {lever}")
+            ),
+            _ => panic!("expected a straddle"),
+        }
     }
 
     /// **The centre of an ellipse** is `b` from it, exactly the lower

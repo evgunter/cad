@@ -133,17 +133,26 @@ Signed: (CONTACT orchestrator)
 
 ## 2026-09-29 — seam note from CONTACT-10 (branch `contact/10-contain-endings`)
 
-`splitting/containment.rs`: `PointInLoopError::Escalated` gains
-`decision: ContainDecision` (the closed type lives in
-`boolean::contain`). Its rows map as follows:
+`splitting/containment.rs` now owns the loop walk's closed decision
+type, `LoopDecision { Boundary, Ray, ArcSpan }`, and `Escalation
+{ Margin, Straddle, Decided }`, which records how an escalation's reading
+stands. Both are re-exported at `topo`'s root.
+`PointInLoopError::Escalated` gains `decision` and `escalation`, and the
+sites map as follows:
 
 - the boundary rows of `point_in_loop` and `carrier_walk` map to `Boundary`;
 - `polygon_walk`'s side, advance and arm rows map to `Ray`;
 - `carrier_loop`'s span escalation maps to `ArcSpan`.
 
-Its `Display` now renders the payload and the decision's ending in
-place of `Indeterminate`'s coincidence menu. `boolean/ops.rs` and
-`boolean/reduce.rs` only change their `ContainError::Escalated` patterns
-to the struct shape. No verdict changes.
+`ConicArc::hit`, `LoopEdge::contact` and `ConicArcError::Escalated` now
+return `(Escalation, Indeterminate)`, so the ellipse straddles are tagged
+`Straddle` rather than passing as a poisoned margin.
+`boolean::contain::ContainDecision` wraps `LoopDecision`, so the
+dependency runs one way, from boolean to splitting.
+
+`PointInLoopError`'s `Display` now renders the payload and the
+decision's ending, in place of `Indeterminate`'s coincidence menu.
+`boolean/ops.rs` and `boolean/reduce.rs` change only their
+`ContainError::Escalated` patterns. No verdict changes.
 
 Signed: (CONTACT-10 implementer)

@@ -30,5 +30,5 @@ period (`WindowPeriod`) or a ray of the schedule (`Ray`).
 
 Carry the decision on `BooleanError::Escalated` (or a sibling variant
 for containment), and end the containment decisions through
-`ContainDecision::ending(diag, Reading::Build)`. Keep the menu only where
+`ContainError::ending(Reading::Build)`. Keep the menu only where
 the refused side is a declarable coincidence.

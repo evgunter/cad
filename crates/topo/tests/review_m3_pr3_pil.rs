@@ -354,3 +354,60 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     );
     assert_eq!(shape(&up), shape(&down));
 }
+
+/// **Each site tags its own question.** A point in band of a square's
+/// edge escalates in the pre-pass on `Boundary`; a point clear of a
+/// dart whose tip sits in band of the first schedule ray's line
+/// escalates in the ray walk on `Ray`. Both carry their margin, and each
+/// refusal ends in its decision's ending: the valued tighten for the
+/// boundary's length, the lever alone for the ray.
+#[test]
+fn each_walk_site_tags_its_decision() {
+    use geom_brep::recourse::Reading;
+    use topo::{Escalation, LoopDecision};
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let m = 0.5 * (band.zero() + band.escalate());
+    let tagged = |profile: &[(f64, f64)], x: f64, y: f64| {
+        let fx = prism::<f64>(profile, 1.0, Tol::witness());
+        let top = fx.body.get_face(fx.top_face).unwrap();
+        match point_in_loop(&fx.body, top.outer, n_z(), Point3::new(x, y, 1.0), band) {
+            Err(e @ PointInLoopError::Escalated { .. }) => e,
+            other => panic!("expected an escalation, got {other:?}"),
+        }
+    };
+    let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+    let dart = [
+        (0.0, 0.0),
+        (4.0, 0.0),
+        (3.0, 1.0 + m),
+        (4.0, 2.0),
+        (0.0, 2.0),
+    ];
+    for (row, e, want) in [
+        ("edge", tagged(&square, 1.0, m), LoopDecision::Boundary),
+        ("dart", tagged(&dart, 1.0, 1.0), LoopDecision::Ray),
+    ] {
+        let PointInLoopError::Escalated {
+            decision,
+            escalation,
+            diag,
+            ..
+        } = &e
+        else {
+            unreachable!()
+        };
+        assert_eq!(*decision, want, "{row}");
+        assert_eq!(*escalation, Escalation::Margin, "{row}");
+        assert!(
+            matches!(diag.margin, geom_core::MarginDiag::Value(_)),
+            "{row}: {diag:?}"
+        );
+        let ending = want.ending(Escalation::Margin, diag, Reading::Build);
+        assert!(e.to_string().ends_with(&ending), "{row}: {e}");
+        assert_eq!(
+            ending.contains("tighten the tolerance below"),
+            want == LoopDecision::Boundary,
+            "{row}: {ending}"
+        );
+    }
+}

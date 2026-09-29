@@ -22,10 +22,10 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey, VertexKey};
 use crate::ray_parity::ParityRows;
 use crate::splitting::PointInLoopError;
-use crate::splitting::containment::{Escalation, LoopDecision};
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
+use crate::splitting::containment::{Escalation, LoopDecision};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -550,7 +550,10 @@ fn boundary_pre_pass<T: Decide>(
                 Ok(Sign::Zero) => return Ok(PrePass::On(FaceContainment::OnVertex(*v))),
                 Ok(Sign::Positive) => {}
                 Ok(Sign::Negative) => {
-                    return Err(ContainError::on(LoopDecision::Boundary, crate::invalid_margin::invalid(band, "bool_contact_vertex")));
+                    return Err(ContainError::on(
+                        LoopDecision::Boundary,
+                        crate::invalid_margin::invalid(band, "bool_contact_vertex"),
+                    ));
                 }
                 Err(diag) => {
                     return Err(ContainError::on(LoopDecision::Boundary, diag));
@@ -1266,6 +1269,328 @@ mod tests {
             got,
             FaceContainment::OnVertex(ring_vertex),
             "the ring vertex must win over the outer edge's interior"
+        );
+    }
+
+    /// Each escalation ends as its decision and its reading give it (D4
+    /// ¶1 (i)), pinned over the arms each site can raise: a sized
+    /// decision's lever with the tolerance its in-band margin gives on a
+    /// side it passes, its lever alone on a side it refuses or a straddle
+    /// of two bounds, a lever-only decision's lever on every arm, and the
+    /// unreadable-margin note on a poisoned margin alone. A build and a
+    /// read at rest end alike on every one of these arms.
+    #[test]
+    fn an_escalation_ends_as_its_decision_gives_it() {
+        use geom_brep::recourse::Reading;
+        use geom_core::MarginDiag;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let diag = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("a_margin"),
+        };
+        let above = diag(MarginDiag::Value(5e-9));
+        let below = diag(MarginDiag::Value(-5e-9));
+        let poisoned = diag(MarginDiag::Invalid);
+        const NOTE: &str =
+            "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
+        const BOUNDARY: &str =
+            "Recourse: move the point exactly onto the boundary or clearly off it";
+        const RAY: &str =
+            "Recourse: move the point slightly, so that no corner of the boundary lines up with it";
+        const ARC: &str = "Recourse: move the geometry so this arc stays clearly short of a full \
+                           turn";
+        const END: &str = "Recourse: move the point clear of the arc's end";
+        const WALL: &str =
+            "Recourse: move the geometry so the wall sweeps clearly less than a full turn";
+        const UNNAMED: &str = "Recourse: move the geometry clear of the boundary";
+        let loop_ = |d| Some(ContainDecision::Loop(d));
+        let tighten = |lever: &str, size: &str| {
+            format!("{lever}, or, if this {size} is intended, tighten the tolerance below 5e-10 m")
+        };
+        use Escalation::{Decided, Margin, Straddle};
+        let rows = [
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                above,
+                tighten(BOUNDARY, "length"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                below,
+                tighten(BOUNDARY, "length"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                poisoned,
+                format!("{BOUNDARY}; {NOTE}"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Straddle,
+                poisoned,
+                BOUNDARY.to_owned(),
+            ),
+            (loop_(LoopDecision::Ray), Margin, above, RAY.to_owned()),
+            (
+                loop_(LoopDecision::Ray),
+                Margin,
+                poisoned,
+                format!("{RAY}; {NOTE}"),
+            ),
+            (loop_(LoopDecision::ArcSpan), Margin, below, ARC.to_owned()),
+            (
+                loop_(LoopDecision::ArcSpan),
+                Straddle,
+                poisoned,
+                ARC.to_owned(),
+            ),
+            (Some(ContainDecision::ArcEnd), Margin, above, END.to_owned()),
+            (
+                Some(ContainDecision::ArcEnd),
+                Decided,
+                poisoned,
+                END.to_owned(),
+            ),
+            (
+                Some(ContainDecision::ArcEnd),
+                Margin,
+                poisoned,
+                format!("{END}; {NOTE}"),
+            ),
+            (
+                Some(ContainDecision::OneCircle),
+                Margin,
+                above,
+                tighten(
+                    "Recourse: move the geometry so the loop's arcs lie on one circle or on \
+                     clearly different circles",
+                    "gap between the circles",
+                ),
+            ),
+            (
+                Some(ContainDecision::Carrier),
+                Margin,
+                below,
+                tighten(
+                    "Recourse: move the point exactly onto the face's surface or clearly off it",
+                    "distance",
+                ),
+            ),
+            (
+                Some(ContainDecision::WindowPeriod),
+                Margin,
+                above,
+                tighten(WALL, "sweep"),
+            ),
+            (
+                Some(ContainDecision::WindowPeriod),
+                Margin,
+                below,
+                WALL.to_owned(),
+            ),
+            (None, Margin, above, UNNAMED.to_owned()),
+            (None, Margin, poisoned, format!("{UNNAMED}; {NOTE}")),
+        ];
+        for decision in ContainDecision::ALL {
+            assert!(
+                rows.iter().any(|(d, ..)| *d == Some(decision)),
+                "{decision:?} has no pinned ending"
+            );
+        }
+        for (decision, escalation, cause, ending) in rows {
+            let row = format!("{decision:?} {escalation:?} {:?}", cause.margin);
+            let refusal = ContainError::Escalated {
+                decision,
+                escalation,
+                diag: cause,
+            };
+            for reading in [Reading::Build, Reading::AtRest] {
+                assert_eq!(refusal.ending(reading), ending, "{row} ({reading:?})");
+            }
+            // One lever source: the ending opens with the decision's lever.
+            assert!(
+                ending.starts_with(&format!("Recourse: {}", placement_lever(decision))),
+                "{row}"
+            );
+            assert_eq!(
+                refusal.to_string(),
+                format!("contfp: {}. {ending}", cause.payload()),
+                "{row}: the refusal renders its payload and the one ending"
+            );
+            if let Some(ContainDecision::Loop(decision)) = decision {
+                let walk = PointInLoopError::Escalated {
+                    r#loop: LoopKey::default(),
+                    decision,
+                    escalation,
+                    diag: cause,
+                }
+                .to_string();
+                assert!(walk.ends_with(&format!(". {ending}")), "{row}: {walk}");
+            }
+            let at_rest = crate::ValidationError::RingNestingUndecided {
+                face: FaceKey::default(),
+                ring: LoopKey::default(),
+                source: refusal,
+            }
+            .to_string();
+            assert!(
+                at_rest.ends_with(&format!(
+                    "a point of it lies too close to a boundary to place at this tolerance. \
+                     {ending}"
+                )),
+                "{row}: {at_rest}"
+            );
+        }
+    }
+
+    /// The refusals that carry no margin end as their decision gives
+    /// them, the same at a build and at rest: an exhausted schedule (every
+    /// ray grazed, a zero on the ray's own decision) in its lever,
+    /// unwalkable topology in the defect ending, an unexpressible loop in
+    /// its remodelling.
+    #[test]
+    fn the_marginless_refusals_end_in_one_sentence_each() {
+        use geom_brep::recourse::Reading;
+        let rows = [
+            (
+                ContainError::RayExhausted,
+                "contfp: every direction of the parity schedule grazed the face's boundary, so \
+                 no ray read a definite crossing count at this tolerance. Recourse: move the \
+                 point slightly, so that no corner of the boundary lines up with it"
+                    .to_owned(),
+            ),
+            (
+                ContainError::Corrupt,
+                format!(
+                    "contfp: the face's topology is not a walkable cycle of resolvable geometry \
+                     — a loop, half-edge, vertex or point reference does not resolve. {}",
+                    geom_core::KERNEL_DEFECT_ENDING
+                ),
+            ),
+            (
+                ContainError::ArcLoopUnsupported {
+                    r#loop: LoopKey::default(),
+                },
+                format!(
+                    "contfp: loop {:?} has an edge on a spiric or spline carrier, which the \
+                     in-plane walk cannot cross, and the point lies within that edge's reach, \
+                     so no available walk expresses the region there. Recourse: model the \
+                     boundary with lines, circles or ellipses",
+                    LoopKey::default()
+                ),
+            ),
+        ];
+        for (refusal, text) in rows {
+            assert_eq!(refusal.to_string(), text);
+        }
+        let at_rest = crate::ValidationError::RingNestingUndecided {
+            face: FaceKey::default(),
+            ring: LoopKey::default(),
+            source: ContainError::RayExhausted,
+        }
+        .to_string();
+        assert!(
+            at_rest.ends_with(&ContainError::RayExhausted.ending(Reading::AtRest)),
+            "{at_rest}"
+        );
+    }
+
+    /// The band's midpoint, in band at every ε row.
+    fn in_band(band: Band) -> f64 {
+        0.5 * (band.zero() + band.escalate())
+    }
+
+    /// **The pre-pass tags the boundary question**: a point in band of a
+    /// straight outer edge of the holed box's top face, clear of its
+    /// corners, escalates on the loop walk's `Boundary` decision with its
+    /// margin, and the refusal ends in its valued tighten.
+    #[test]
+    fn contfp_tags_a_point_in_band_of_an_edge_as_the_boundary_question() {
+        use geom_brep::recourse::Reading;
+        let body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let band = Band::linear(Tol::witness()).unwrap();
+        // The ringed face whose outer loop lies at z = 1, as the
+        // shadowing row above finds it; its outer edge (0,0,1)–(1,0,1)
+        // is the one the point is in band of.
+        let got = body
+            .faces
+            .iter()
+            .filter(|(_, f)| !f.rings.is_empty())
+            .map(|(k, _)| {
+                contfp(
+                    &body,
+                    k,
+                    geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    geom_core::Point3::new(0.5, in_band(band), 1.0),
+                    band,
+                )
+            })
+            .find(|got| matches!(got, Err(ContainError::Escalated { .. })))
+            .expect("the top face escalates at its edge");
+        let Err(
+            refusal @ ContainError::Escalated {
+                decision,
+                escalation,
+                diag,
+            },
+        ) = got
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            decision,
+            Some(ContainDecision::Loop(LoopDecision::Boundary))
+        );
+        assert_eq!(escalation, Escalation::Margin);
+        assert!(
+            matches!(diag.margin, geom_core::MarginDiag::Value(_)),
+            "{diag:?}"
+        );
+        assert!(
+            refusal
+                .ending(Reading::AtRest)
+                .contains("if this length is intended, tighten the tolerance below"),
+            "{refusal}"
+        );
+    }
+
+    /// **The sphere arm tags the carrier question**: a point in band of a
+    /// sphere carrier, far from the face's boundary, escalates on
+    /// `Carrier` with its margin. The face is a prism side relabelled a
+    /// sphere far from it, as the torus landing rows relabel one.
+    #[test]
+    fn the_sphere_arm_tags_a_point_in_band_of_its_carrier() {
+        let prism = crate::fixtures::raw_prism(3, Tol::witness());
+        let face = prism.face_side[0];
+        let mut body = prism.body;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let center = geom_core::Point3::new(50.0, 50.0, 50.0);
+        body.set_face_surface(
+            face,
+            crate::euler::FaceSurface::New(geom::Surface::Sphere {
+                center,
+                radius: 1.0,
+                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+        let q = center + geom_core::Vec3::new(1.0 + in_band(band), 0.0, 0.0);
+        let got = curved_face_placement(&body, face, q, band);
+        assert!(
+            matches!(
+                got,
+                Err(ContainError::Escalated {
+                    decision: Some(ContainDecision::Carrier),
+                    escalation: Escalation::Margin,
+                    ..
+                })
+            ),
+            "{got:?}"
         );
     }
 

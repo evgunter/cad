@@ -191,8 +191,14 @@ fn contain_errors() -> Vec<ContainError> {
     // The readings a site knows without a margin: two bounds straddling
     // the band, and a row decided and still refused.
     for (decision, escalation) in [
-        (ContainDecision::Loop(LoopDecision::Boundary), Escalation::Straddle),
-        (ContainDecision::Loop(LoopDecision::ArcSpan), Escalation::Straddle),
+        (
+            ContainDecision::Loop(LoopDecision::Boundary),
+            Escalation::Straddle,
+        ),
+        (
+            ContainDecision::Loop(LoopDecision::ArcSpan),
+            Escalation::Straddle,
+        ),
         (ContainDecision::ArcEnd, Escalation::Decided),
     ] {
         v.push(ContainError::Escalated {
