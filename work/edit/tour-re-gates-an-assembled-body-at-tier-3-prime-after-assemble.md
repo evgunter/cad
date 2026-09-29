@@ -2,7 +2,8 @@
 id: tour-re-gates-an-assembled-body-at-tier-3-prime-after-assemble
 kind: issue
 title: the tour re-runs tier 3′ over a body assemble already passed, because Assembly hands back no certificate
-status: open
+status: closed
+closed: 2026-09-29
 opened: 2026-09-28
 priority: P4
 cost: M
@@ -35,3 +36,16 @@ and drops it. `SignCertificate` borrows the body, so an owned
 `validate_geometric_certificate` has) or accepting the double in a
 demo. That is a design question for the owner. The cost is the
 tour's alone today: no production caller measures an assembly.
+
+## Closed by design (2026-09-29, EDIT orchestrator)
+
+Two answers are offered: an `Assembly` door that measures through the
+gate's walk, or accepting the double in a demo. The cost is the tour's
+alone, since no production caller measures an assembly, and the first
+answer changes kernel code for a demo's measurement. The discipline
+every designer and implementer lane works under says non-test code
+does not change for a demo or a test (`docs/prompts/designer.md` §4).
+So the tour keeps paying the second pass.
+
+If a production caller ever needs an assembly's certificate, that
+caller is the reason to add the door. File it then, citing this row.

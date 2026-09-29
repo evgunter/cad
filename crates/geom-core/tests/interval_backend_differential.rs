@@ -25,9 +25,9 @@
 //! association introduced on top of the backend reds here. It is not
 //! evidence about the certification doors that are more than a
 //! delegate — `hull`, `clamped_to`, `contains`, `width` and `mag` each
-//! add a refusal or a reading of their own, and none of them is compared
-//! here or anywhere differentially; their rows are
-//! `certified_door.rs`'s and the doors' own unit rows.
+//! add a refusal or a reading of their own, and
+//! `certification_door_differential.rs` compares them, each against a
+//! reference spelled from its contract.
 //!
 //! # What is asserted
 //!
@@ -111,8 +111,9 @@ fn moderate(rng: &mut fuzz::Rng) -> f64 {
 /// `EDGE_MAGNITUDES` (which adds the 2Prod witness floor, and sits in
 /// another workspace). Each is chosen for the property its lane
 /// asserts; adding a value here is a reason to read the other two, not
-/// a reason to assume they follow.
-const CORNERS: [f64; 16] = [
+/// a reason to assume they follow. `certification_door_differential.rs`
+/// reads this list itself, beside its own `EXTRAS`.
+pub(crate) const CORNERS: [f64; 16] = [
     f64::NEG_INFINITY,
     -f64::MAX,
     -1e300,
