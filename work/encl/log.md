@@ -1203,3 +1203,19 @@ class of 65 sites is PRED's row.
   - "zero at this tolerance";
   - `lean()` reads only decided signs;
   - `recourse` unit tests.
+- 2026-09-29 — PR 3390 merged (`719ef596a1`, head `a8f2106e3e`, hosted green). Row `checks-escalated-evidence-…` closed.
+  - **Style review:** REQUEST-CHANGES (C1: the shell volume sign is a sized decision under D4 ¶1 (i)).
+  - **Fix round 1:** routed through `SizedDecision` with `SizedPass::NonZero`; ending on the Display.
+  - **Delta re-review:** the straddle is ε-decided; "zero at this tolerance"; lean only on decided signs.
+  - **Fix round 2:** all taken, and merged with 3392.
+  - **Filed:** `checks-void-side-shell-escalation-has-no-live-fixture` (P3/E).
+  - Seam notes posted.
+- 2026-09-29 — PR 3398 (validate own-close) opened. CI was red on the payload-rung gate (`WedgeCheck`); fixed (argued non-carriage, and a LIB row filed). Full review running.
+- 2026-09-29 — Ev answered `[ev]` PR 3380: "the real fix should be filed as p1 … as a stopgap for the message it seems reasonable to suggest setting eps to eps_in".
+  - D4 ¶1 now carries the stopgap clause, and the fork-log second half is filled in. It is row 7, since main added a row 6.
+  - I answered the program question on the PR: EXCH.
+  - **Filed:**
+    - `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation` (P1/H), the D7 rebuild stage;
+    - `work/encl/adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` (P2/M), the follow-through. It is held until PR 3398 lands, since both touch `recourse.rs`.
+  - Closed `adoption-certification-has-no-eps-in-lever`.
+  - **Orchestrator slip:** committing the main merge on the `[ev]` branch left a conflict block in the fork log (`08eba8f88c`). I fixed it forward in `5bb3585ded`. Check `git merge`'s exit before editing, not only before committing.
