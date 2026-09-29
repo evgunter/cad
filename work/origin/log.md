@@ -171,3 +171,13 @@ business" claim had no validator row behind it) and
 `point-free-surgery-openers-read-as-no-scope` (a disclosed blind spot,
 scheduled). The lane's `window-site-scan-reads-items-by-line` moved to
 CONTACT with a seam note.
+
+## 2026-09-29 — PR 3425 lands (point-free needles)
+
+Orchestrator's read (mechanical: one whole-token matcher, `use`
+blanking; zero doors reclassified on the tree; both plants red).
+`point-free-surgery-openers-…` closed. The sweep's four other silent
+needles filed where they land: `live-tuple-constructor-point-free-is-unseen`
+(here), `census-touch-guard-needles-miss-a-point-free-call` and evidence
+on `window-site-scan-…` (CONTACT), `box-door-census-misses-a-point-free-read`
+(BOXES), with seam notes.

@@ -432,9 +432,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// blind-spot list; this guard does not restate either.
 ///
 /// **"Declares the postcondition" is a read of code, not of prose.**
-/// The needle is `assert_euler_postcondition(`, with the paren, over a
-/// body whose comments and literals are blanked — a bare name would be
-/// satisfied by a `use` line. This guard used a raw `body.contains`,
+/// The needle is `assert_euler_postcondition` as a name the door
+/// reaches ([`crate::source_walk::MutationDoor::names`]), over a body
+/// whose comments, literals and `use` declarations are blanked. This
+/// guard used a raw `body.contains`,
 /// and a planted door whose body only *mentioned* the call in a
 /// comment was counted as asserting it, in both this guard and the
 /// pcurve one, both green.
@@ -484,7 +485,7 @@ fn every_public_mutation_path_preserves_tier1() {
                 scoped.push(door.site());
             }
             SurgeryPosture::NoScope => {
-                if door.code_contains("assert_euler_postcondition(") {
+                if door.names("assert_euler_postcondition") {
                     asserting.push(door.site());
                 } else if ALLOWED.iter().any(|(n, _)| *n == door.name) {
                     listed.push(door.name);
@@ -541,9 +542,9 @@ fn every_public_mutation_path_preserves_tier1() {
          stopped asserting — a finding — or the source read lost the call.",
     );
     // The second needle's own pin, for the same reason: a lexing gap
-    // that erased `sweep_and_close(` from every scoped door would move
+    // that erased `sweep_and_close` from every scoped door would move
     // them all to `unlisted` and red — but one that erased
-    // `begin_surgery(` too would move them to `asserting`/`unlisted`
+    // `begin_surgery` too would move them to `asserting`/`unlisted`
     // silently. This names a door the walk must see as scoped.
     assert!(
         scoped
