@@ -873,6 +873,10 @@ pub enum FaceFrameFault {
     Unresolved {
         /// The interrogation door's refusal, read as the feature tree
         /// reads it ([`crate::tree::interrogation_as_drawn`]).
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         error: InterrogateError,
     },
     /// The face's carrier is not a plane, and a sketch frame wants

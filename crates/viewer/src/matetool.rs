@@ -268,6 +268,10 @@ pub enum MateToolError {
     /// face with no canonical frame), with a node that has no value
     /// named as the feature tree names it
     /// ([`crate::tree::interrogation_as_drawn`]).
+    ///
+    /// Its `through` may be a mate, which is not the DAG ancestor
+    /// `NodeStanding` documents
+    /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
     Frame {
         /// Which pick.
         side: MateSide,
@@ -431,6 +435,10 @@ pub enum MateToolEvent {
         /// The resolution machinery's own verdict, read as the feature
         /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
         /// for the same width reason `Standing` boxes it.
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         resolution: Box<Resolution>,
     },
 }

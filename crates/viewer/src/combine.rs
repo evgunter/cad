@@ -715,6 +715,10 @@ pub enum DuplicateFault {
     /// holds no value for the input, and the input's standing, as the
     /// feature tree draws it ([`crate::tree::standing_as_drawn`]), says
     /// why and where the repair is.
+    ///
+    /// Its `through` may be a mate, which is not the DAG ancestor
+    /// `NodeStanding` documents
+    /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
     NoValue(NodeStanding),
     /// The input's VALUE is several bodies. A pattern of two over it
     /// would index the flat list of those bodies, so its two

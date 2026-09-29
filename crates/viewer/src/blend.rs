@@ -248,6 +248,10 @@ pub enum BlendEvent {
         target: BlendTarget,
         /// Its node's standing, as the feature tree draws it
         /// ([`crate::tree::standing_as_drawn`]).
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         standing: NodeStanding,
     },
     /// The target node is no longer in the document, so every held

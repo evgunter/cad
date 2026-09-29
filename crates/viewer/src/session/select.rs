@@ -310,6 +310,10 @@ pub enum Standing {
         /// carrying a diagnosis and a tombstone is an order of
         /// magnitude wider than the other arms here, and this value is
         /// returned by value on every frame.
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         resolution: Option<Box<Resolution>>,
     },
     /// An edge selection, and the resolution verdict its name got.

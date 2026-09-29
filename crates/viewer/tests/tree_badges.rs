@@ -719,25 +719,40 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
 /// node's standing reads it through the tree's answer**, or is admitted
 /// below by name with the reason it need not.
 ///
-/// A source census. A door call counts as read when `_as_drawn` or
-/// `product_refusal_wording` appears within [`DRAWN_WINDOW`] lines of
-/// it. What it cannot see: a kernel door missing from [`STANDING_DOORS`],
-/// and a door reached through a helper in another crate.
+/// A source census over the code view. A door call counts as read when
+/// it sits inside the argument list of a re-read (`*_as_drawn(…)`,
+/// `product_refusal_wording(…)`), or when a re-read appears in the rest
+/// of its own statement: from the call to the first `;` at the call's
+/// own brace depth, or to the end of the enclosing block. What it cannot
+/// see: a kernel door missing from `STANDING_DOORS`, and a door reached
+/// through a helper in another crate.
 #[test]
 fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
+    use test_utils::source::{balanced_end, boundary_before, code_only, rust_sources};
+
     /// The kernel doors whose refusal carries a `NodeStanding`.
     const STANDING_DOORS: &[&str] = &[
         ".usable(",
         "resolve(RunCtx",
-        "face_frame(eval",
+        "face_frame(",
         "face_carrier_kind(",
         "NodePick::build_all",
-        "patch_names(eval",
-        "boundary_names(eval",
+        "patch_names(",
+        "boundary_names(",
         "product_recorded(",
+        "product(",
+        "pick_face(",
+        "run_checks_on(",
     ];
-    /// Lines either side of a door call that may hold its re-read.
-    const DRAWN_WINDOW: usize = 5;
+    /// The re-reads a door call may sit inside, or share a statement
+    /// with.
+    const REREADS: &[&str] = &[
+        "standing_as_drawn(",
+        "resolution_as_drawn(",
+        "interrogation_as_drawn(",
+        "index_refusal_as_drawn(",
+        "product_refusal_wording(",
+    ];
     /// `(file, door, reason)`: each admits exactly one unread call.
     const ADMITTED: &[(&str, &str, &str)] = &[
         (
@@ -757,54 +772,106 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         ),
         (
             "pickindex.rs",
-            "patch_names(eval",
+            "patch_names(",
             "a `PickIndexError::Names`, re-read by `frame::index_badge`",
         ),
         (
             "pickindex.rs",
-            "boundary_names(eval",
+            "boundary_names(",
             "a `PickIndexError::Names`, re-read by `frame::index_badge`",
         ),
         (
+            "pickindex.rs",
+            "pick_face(",
+            "`HitTestError::Standing` cannot arise: the parts are built from the evaluation \
+             the ray is asked of",
+        ),
+        (
+            "pickindex.rs",
+            "pick_face(",
+            "the moved instances' pass; the same argument as the one above",
+        ),
+        (
+            "scene.rs",
+            "product(",
+            "`scene_of`'s headless path; no chrome surface draws its refusal",
+        ),
+        (
+            "scene.rs",
+            "product(",
+            "runs only over a pair whose gather already succeeded (the A5 gate ate the \
+             body), so no root refusal reaches it",
+        ),
+        (
             "session.rs",
-            "product_recorded(",
-            "the fault stays the gather's value; the at-rest badge draws it in \
-             `tree::product_refusal_wording`, and `frame::badge_site` routes root faults \
-             to the tree",
+            "run_checks_on(",
+            "the registry's refusal is dropped (`.ok()`), never drawn",
+        ),
+        (
+            "session.rs",
+            "run_checks_on(",
+            "the no-body subject's registry run; dropped the same way",
         ),
     ];
+
+    /// The end of the statement a call at `at` belongs to: the first
+    /// `;` at its own brace depth, or the close of its enclosing block.
+    fn statement_end(code: &str, at: usize) -> usize {
+        let mut depth = 0i32;
+        for (off, c) in code[at..].char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => {
+                    depth -= 1;
+                    if depth < 0 {
+                        return at + off;
+                    }
+                }
+                ';' if depth == 0 => return at + off,
+                _ => {}
+            }
+        }
+        code.len()
+    }
 
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut unread: Vec<(String, &str, String)> = Vec::new();
     let mut calls = 0;
-    for path in test_utils::source::rust_sources(&root) {
+    for path in rust_sources(&root) {
         let text = std::fs::read_to_string(&path).expect("a source file reads");
-        let code = test_utils::source::code_only(&text);
-        let lines: Vec<&str> = code.lines().collect();
+        let code = code_only(&text);
         let file = path
             .file_name()
             .expect("a file name")
             .to_string_lossy()
             .into_owned();
-        for (at, line) in lines.iter().enumerate() {
-            for door in STANDING_DOORS {
-                if !line.contains(door) {
+        // Every re-read's argument span, as byte ranges of `code`.
+        let spans: Vec<std::ops::Range<usize>> = REREADS
+            .iter()
+            .flat_map(|reread| {
+                code.match_indices(reread)
+                    .map(|(at, _)| at + reread.len() - 1)
+            })
+            .map(|open| open..balanced_end(&code, open).expect("a re-read's call closes"))
+            .collect();
+        for door in STANDING_DOORS {
+            for (at, _) in code.match_indices(door) {
+                if door.starts_with(|c: char| c.is_alphabetic()) && !boundary_before(&code, at) {
                     continue;
                 }
                 calls += 1;
-                let window = &lines
-                    [at.saturating_sub(DRAWN_WINDOW)..(at + DRAWN_WINDOW + 1).min(lines.len())];
-                if !window
-                    .iter()
-                    .any(|l| l.contains("_as_drawn") || l.contains("product_refusal_wording"))
-                {
-                    unread.push((file.clone(), door, format!("{}:{}", path.display(), at + 1)));
+                let inside = spans.iter().any(|span| span.contains(&at));
+                let rest = &code[at..statement_end(&code, at)];
+                let shares = REREADS.iter().any(|reread| rest.contains(reread));
+                if !inside && !shares {
+                    let line = test_utils::source::line(&code, at);
+                    unread.push((file.clone(), door, format!("{}:{line}", path.display())));
                 }
             }
         }
     }
     assert!(
-        calls >= 10,
+        calls >= 16,
         "the census found the doors it names ({calls} calls)"
     );
 
@@ -816,6 +883,69 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         found, admitted,
         "every standing door reads through the tree's answer or is admitted by name; \
          unread calls: {unread:#?}"
+    );
+}
+
+/// **A root the tree does NOT redraw keeps the gather's own words** —
+/// the fallback of `tree::product_refusal_wording`, pinned by its
+/// literal text so the guard that picks the tree's pointer cannot widen
+/// to a root that is its own cause, or one poisoned through a real DAG
+/// ancestor.
+#[test]
+fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
+    use pncad::document::{Node, ProductError, RecipeNodeId};
+
+    let tol = Tol::witness();
+
+    // A failed root: the extrude alone.
+    let doc = pncad::document::Doc::empty_derived("gather-words-failed", tol);
+    let (mut doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let extrude = common::insert_into(
+        &mut doc,
+        Node::Extrude {
+            profile,
+            distance: pncad::document::Expr::div(common::len(0.008), common::scl(0.0))
+                .expect("length / scalar is a length"),
+        },
+        tol,
+    );
+    assert_eq!(extrude, RecipeNodeId(2), "the literal below names this id");
+    let ev = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let failed = ProductError::RootFailed { node: extrude };
+    assert_eq!(
+        tree::product_refusal_wording(&failed, &ev),
+        "product: root 2 failed to evaluate (ask `Evaluation::node_error` for the typed cause)",
+        "a root that is its own cause keeps the gather's sentence"
+    );
+
+    // A root poisoned through a real DAG ancestor.
+    let (doc, extrude, moved) = common::broken_document(tol);
+    assert_eq!(
+        (extrude, moved),
+        (RecipeNodeId(2), RecipeNodeId(3)),
+        "the literal below names these ids"
+    );
+    let ev = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let poisoned = ProductError::RootPoisoned {
+        node: moved,
+        through: extrude,
+    };
+    assert_eq!(
+        tree::product_refusal_wording(&poisoned, &ev),
+        "product: root 3 never ran — poisoned through failed ancestor 2",
+        "a root poisoned through the row the tree names keeps the gather's sentence"
     );
 }
 

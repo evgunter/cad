@@ -768,6 +768,13 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
 /// reads `Failed`. A standing [`cause_row`] has no row for — no
 /// evaluation entry, not in the document, a chain that ends at no
 /// failure — is the kernel's, unchanged.
+///
+/// **The `Poisoned` this answers is not the kernel's contract.**
+/// `NodeStanding::Poisoned`'s `through` is documented as the nearest
+/// failed DAG ancestor; here it may be a mate, which is no node's
+/// ancestor, and its `Display` then calls the repair "upstream". The
+/// kernel question is
+/// `work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`.
 pub fn standing_as_drawn(standing: NodeStanding, evaluation: &Evaluation<f64>) -> NodeStanding {
     match standing {
         NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. } => {
