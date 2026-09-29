@@ -50,11 +50,14 @@
 //! read being which node the kernel's own words point at.
 //!
 //! **This is the viewer's one answer to which row a node's failure
-//! is.** Every other surface that says why a node has no value — a
-//! picked face's verdict, a tool's refusal, the product's gather —
-//! holds the kernel's `NodeStanding` and reads it through
-//! [`standing_as_drawn`], so no panel names a different row from the
-//! tree's.
+//! is.** Every other surface that says why a node has no value reads
+//! it off [`cause_row`]: a picked face's verdict, a tool's refusal and
+//! the pick index's tooltip hold the kernel's `NodeStanding` re-read by
+//! [`standing_as_drawn`], and the at-rest badge draws the product
+//! gather's refusal in [`product_refusal_wording`]. So no panel names
+//! a different row from the tree's. Every kernel door under
+//! `crates/viewer/src` that hands back a standing is censused by
+//! `tree_badges::every_standing_door_in_the_viewer_reads_the_trees_answer`.
 //!
 //! **The blamed node is the row that carries the fault's words, and
 //! it need not be the node an author edits.** This is the one
@@ -164,6 +167,7 @@
 
 use std::collections::BTreeMap;
 
+use pncad::document::AssemblyError;
 use pncad::document::{
     CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, Node, NodeError, NodeErrorKind, NodeResult,
     NodeStanding, ProductError, ProfileProgram, RecipeNodeId,
@@ -791,16 +795,37 @@ pub fn resolution_as_drawn(resolution: Resolution, evaluation: &Evaluation<f64>)
     }
 }
 
-/// A product-gather refusal, a root's standing re-read by
-/// [`standing_as_drawn`]; every other refusal is the gather's,
-/// unchanged.
-pub fn product_fault_as_drawn(fault: ProductError, evaluation: &Evaluation<f64>) -> ProductError {
-    let standing = match fault {
-        ProductError::RootFailed { node } => NodeStanding::Failed { node },
-        ProductError::RootPoisoned { node, through } => NodeStanding::Poisoned { node, through },
-        other => return other,
+/// **The words a product-gather refusal is shown in**: the gather's
+/// own, except for a root this tree draws downstream of a row the
+/// refusal does not name. That root gets the tree's pointer
+/// ([`downstream_wording`]), because the gather's sentence would name
+/// the wrong row, or call a mate a failed ancestor.
+///
+/// Words and not a re-attributed [`ProductError`]: the refusal's own
+/// value stays the gather's, and only what is drawn from it is the
+/// tree's.
+pub fn product_refusal_wording(fault: &ProductError, evaluation: &Evaluation<f64>) -> String {
+    let (root, named) = match fault {
+        ProductError::RootFailed { node } => (*node, *node),
+        ProductError::RootPoisoned { node, through } => (*node, *through),
+        ProductError::EvaluationOfAnotherDocument { .. }
+        | ProductError::UnknownNode { .. }
+        | ProductError::PlacedUnderTwoRoots { .. }
+        | ProductError::Naming { .. }
+        | ProductError::NoBodyRoots
+        | ProductError::Graft { .. }
+        | ProductError::RootInvalid { .. }
+        | ProductError::ProductInvalid { .. }
+        | ProductError::ContactLineage { .. } => return AssemblyError::product_refusal(fault),
     };
-    ProductError::from(standing_as_drawn(standing, evaluation))
+    match cause_row(root, evaluation) {
+        Some(cause) if cause != named => format!(
+            "product: {} is a root with no value: {}",
+            node_number(root),
+            downstream_wording(cause)
+        ),
+        Some(_) | None => AssemblyError::product_refusal(fault),
+    }
 }
 
 /// An interrogation refusal, its standing re-read by
@@ -814,7 +839,13 @@ pub fn interrogation_as_drawn(
         InterrogateError::Standing(standing) => {
             InterrogateError::Standing(standing_as_drawn(standing, evaluation))
         }
-        other => other,
+        InterrogateError::NoSuchName
+        | InterrogateError::Ambiguous { .. }
+        | InterrogateError::WrongKind { .. }
+        | InterrogateError::WholeBody
+        | InterrogateError::NoBodies { .. }
+        | InterrogateError::NoSuchBody { .. }
+        | InterrogateError::Readback(_) => error,
     }
 }
 

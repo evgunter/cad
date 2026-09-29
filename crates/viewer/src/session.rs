@@ -578,9 +578,11 @@ pub enum AtRestBadge {
         minted: usize,
     },
     /// The gate refused — its own rendering, never a sentence composed
-    /// here.
+    /// here, except that a gather refusal about a root the feature tree
+    /// draws downstream of another row carries the tree's pointer
+    /// ([`crate::tree::product_refusal_wording`]).
     Refused {
-        /// The typed refusal's `Display`.
+        /// The typed refusal's `Display`, or that pointer.
         message: String,
     },
 }
@@ -807,9 +809,7 @@ impl DocSession {
 
     /// Why the landed evaluation's product does not gather, if it does
     /// not — every class, whichever channel reports it
-    /// (`frame::badge_site` decides that), a root with no value named
-    /// as the feature tree names it
-    /// ([`crate::tree::product_fault_as_drawn`]).
+    /// (`frame::badge_site` decides that).
     ///
     /// `None` both when the product is well formed and when nothing
     /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
@@ -1115,7 +1115,6 @@ impl DocSession {
                 (None, checks, at_rest, body)
             }
             Err(fault) => {
-                let fault = crate::tree::product_fault_as_drawn(fault, &done.evaluation);
                 // **The product's own verdict.** The gather is the only
                 // thing that answers "is this document's product well
                 // formed", so every class of refusal is kept here; which
@@ -1136,7 +1135,7 @@ impl DocSession {
                     })
                     .flatten();
                 let at_rest = (assembly_shaped && !no_body).then(|| AtRestBadge::Refused {
-                    message: AssemblyError::product_refusal(&fault),
+                    message: crate::tree::product_refusal_wording(&fault, &done.evaluation),
                 });
                 (Some(fault), checks, at_rest, None)
             }

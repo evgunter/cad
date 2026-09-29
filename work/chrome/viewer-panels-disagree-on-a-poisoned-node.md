@@ -61,19 +61,31 @@ merge conflict by design.
 ## Closed (2026-09-29)
 
 The tree's attribution lives in `viewer::tree` (`standing`, read by
-`status_of` and `cause_row`). `tree::standing_as_drawn` re-reads a
-kernel `NodeStanding` through `cause_row`, and three wrappers apply it
-to `Resolution`, `InterrogateError` and `ProductError`. Every viewer
-surface that says why a node has no value now reads one of these: the
-properties panel's picked-entity verdict (`DocSession::standing`), the
-mate tool's dropped pick, the mate tool's frame refusal, the
-sketch-on-face seat, `combine::DuplicateFault::NoValue`,
-`BlendEvent::TargetHasNoValue`, and the product gather that feeds
-`product_fault` and the at-rest badge. The pick-index badge already read
-`cause_row`. `display::DisplayFault` reads no evaluation, and the viewer
-does not surface `AppearanceLossCause`.
-`tree_badges::every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node`
-pins the agreement; it is red against the unchanged sources.
+`status_of` and `cause_row`). Every other surface that says why a node
+has no value reads `cause_row`:
+
+- `tree::standing_as_drawn` re-reads a kernel `NodeStanding`. Its
+  wrappers (`resolution_as_drawn`, `interrogation_as_drawn`, and
+  `frame::index_refusal_as_drawn`) carry that re-read to:
+  - the properties panel's picked-entity verdict (`DocSession::standing`);
+  - the mate tool's dropped pick and its frame read;
+  - the sketch-on-face seat;
+  - `combine::DuplicateFault::NoValue`;
+  - `BlendEvent::TargetHasNoValue`;
+  - the pick-index tooltip.
+- `tree::product_refusal_wording` draws the at-rest badge's gather
+  refusal with the tree's pointer. `product_fault()` stays the gather's
+  own value.
+
+`display::DisplayFault` reads no evaluation. The viewer does not surface
+`AppearanceLossCause`.
+
+Two tests pin this:
+- `tree_badges::every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node`
+  holds one fixture over every surface. It is red against the unchanged
+  sources.
+- `tree_badges::every_standing_door_in_the_viewer_reads_the_trees_answer`
+  is a source census of the kernel doors that hand back a standing.
 
 Residue for the kernel's own vocabulary:
 `work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`.

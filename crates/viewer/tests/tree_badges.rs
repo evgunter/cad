@@ -516,7 +516,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
     use viewer::combine::DuplicateFault;
-    use viewer::matetool::{MateTool, MateToolEvent};
+    use viewer::matetool::{MateTool, MateToolError, MateToolEvent};
     use viewer::session::{FaceFrameFault, FaceSelection, Selection, Standing};
 
     let tol = Tol::witness();
@@ -652,25 +652,188 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
         }
         other => panic!("the blend loader refuses post_a, got {other:?}"),
     }
-    let product = match session.product_fault() {
-        Some(ProductError::RootFailed { node }) => NodeStanding::Failed { node: *node },
-        Some(ProductError::RootPoisoned { node, through }) => NodeStanding::Poisoned {
-            node: *node,
-            through: *through,
-        },
+    // The mate tool's frame read, on a pick of post_a and one of post_b.
+    let mut both = MateTool::new();
+    both.pick(face.clone());
+    both.pick(FaceSelection {
+        name: common::asm::in_part(bench.post_b, &bench.post_top),
+        node: bench.post_b,
+        body: 0,
+    });
+    match both.proposal(
+        doc,
+        ev,
+        &session.eval_options(),
+        tol,
+        common::asm::seat_choice(),
+    ) {
+        Err(MateToolError::Frame {
+            error: InterrogateError::Standing(standing),
+            ..
+        }) => assert_eq!(standing, post_a, "the mate tool's frame read"),
+        other => panic!("the mate tool refuses the frame read, got {other:?}"),
+    }
+
+    // The pick index refuses on a root with no value; its tooltip
+    // carries that root's standing as the tree draws it.
+    let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
+        panic!("the index does not build over a root with no value");
+    };
+    let badge = viewer::frame::index_badge(Some(&refusal), Some(ev)).expect("a refusal badges");
+    let detail = badge
+        .detail()
+        .expect("the badge defers its words to the tooltip");
+    assert!(
+        detail.contains(&format!("failure at node {}", offender.0)) && !detail.contains("ancestor"),
+        "the pick index's tooltip names the offending mate: {detail}"
+    );
+
+    // The product gather: its value is the kernel's, and the at-rest
+    // badge draws it with the tree's pointer, never "ancestor" for a
+    // mate.
+    let root = match session.product_fault() {
+        Some(ProductError::RootFailed { node } | ProductError::RootPoisoned { node, .. }) => *node,
         other => panic!("the gather refuses on a root, got {other:?}"),
     };
-    assert_eq!(product, drawn(product.node()), "the gather's refusal");
+    assert!(
+        matches!(common::status_of(&rows, root), RowStatus::Poisoned { through, .. } if through == offender),
+        "the refused root is drawn downstream of the offending mate"
+    );
     match session.at_rest() {
         Some(viewer::session::AtRestBadge::Refused { message }) => assert_eq!(
-            Some(message.as_str()),
-            session.product_fault().map(ToString::to_string).as_deref(),
-            "the at-rest badge carries the gather's refusal"
+            *message,
+            format!(
+                "product: {} is a root with no value: {}",
+                tree::node_number(root),
+                tree::downstream_wording(offender)
+            ),
+            "the at-rest badge points where the tree points"
         ),
         other => panic!("the at-rest badge refuses, got {other:?}"),
     }
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
+/// **Every kernel door under `crates/viewer/src` that hands back a
+/// node's standing reads it through the tree's answer**, or is admitted
+/// below by name with the reason it need not.
+///
+/// A source census. A door call counts as read when `_as_drawn` or
+/// `product_refusal_wording` appears within [`DRAWN_WINDOW`] lines of
+/// it. What it cannot see: a kernel door missing from [`STANDING_DOORS`],
+/// and a door reached through a helper in another crate.
+#[test]
+fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
+    /// The kernel doors whose refusal carries a `NodeStanding`.
+    const STANDING_DOORS: &[&str] = &[
+        ".usable(",
+        "resolve(RunCtx",
+        "face_frame(eval",
+        "face_carrier_kind(",
+        "NodePick::build_all",
+        "patch_names(eval",
+        "boundary_names(eval",
+        "product_recorded(",
+    ];
+    /// Lines either side of a door call that may hold its re-read.
+    const DRAWN_WINDOW: usize = 5;
+    /// `(file, door, reason)`: each admits exactly one unread call.
+    const ADMITTED: &[(&str, &str, &str)] = &[
+        (
+            "blend.rs",
+            ".usable(",
+            "asks only `is_err()` and draws nothing; the node's row carries it",
+        ),
+        (
+            "pickindex.rs",
+            "NodePick::build_all",
+            "reaches the chrome only through `frame::index_badge`, which re-reads it",
+        ),
+        (
+            "pickindex.rs",
+            "NodePick::build_all",
+            "the memoised build; the same route as the one above",
+        ),
+        (
+            "pickindex.rs",
+            "patch_names(eval",
+            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+        ),
+        (
+            "pickindex.rs",
+            "boundary_names(eval",
+            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+        ),
+        (
+            "session.rs",
+            "product_recorded(",
+            "the fault stays the gather's value; the at-rest badge draws it in \
+             `tree::product_refusal_wording`, and `frame::badge_site` routes root faults \
+             to the tree",
+        ),
+    ];
+
+    fn sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("the source directory reads") {
+            let path = entry.expect("a directory entry").path();
+            if path.is_dir() {
+                sources(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                out.push(path);
+            }
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    sources(&root, &mut files);
+    files.sort();
+
+    let mut unread: Vec<(String, &str, String)> = Vec::new();
+    let mut calls = 0;
+    for path in &files {
+        let text = std::fs::read_to_string(path).expect("a source file reads");
+        let lines: Vec<&str> = text.lines().collect();
+        let file = path
+            .file_name()
+            .expect("a file name")
+            .to_string_lossy()
+            .into_owned();
+        for (at, line) in lines.iter().enumerate() {
+            let code = line.trim_start();
+            if code.starts_with("//") {
+                continue;
+            }
+            for door in STANDING_DOORS {
+                if !code.contains(door) {
+                    continue;
+                }
+                calls += 1;
+                let window = &lines
+                    [at.saturating_sub(DRAWN_WINDOW)..(at + DRAWN_WINDOW + 1).min(lines.len())];
+                if !window
+                    .iter()
+                    .any(|l| l.contains("_as_drawn") || l.contains("product_refusal_wording"))
+                {
+                    unread.push((file.clone(), door, format!("{}:{}", path.display(), at + 1)));
+                }
+            }
+        }
+    }
+    assert!(
+        calls >= 10,
+        "the census found the doors it names ({calls} calls)"
+    );
+
+    let mut admitted: Vec<(&str, &str)> = ADMITTED.iter().map(|(f, d, _)| (*f, *d)).collect();
+    admitted.sort_unstable();
+    let mut found: Vec<(&str, &str)> = unread.iter().map(|(f, d, _)| (f.as_str(), *d)).collect();
+    found.sort_unstable();
+    assert_eq!(
+        found, admitted,
+        "every standing door reads through the tree's answer or is admitted by name; \
+         unread calls: {unread:#?}"
+    );
 }
 
 // ---- The refusal that names no row ----

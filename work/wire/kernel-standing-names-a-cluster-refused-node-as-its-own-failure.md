@@ -42,17 +42,29 @@ consumer that is not the viewer:
   `names::geompred`'s `NodeHasNoValue`/`DatumHasNoValue`;
 - `product::ProductError::RootFailed`, through `From<NodeStanding>`.
 
-One wording defect follows from the viewer's re-read.
-`ProductError::RootPoisoned`'s `Display` says *"poisoned through failed
-ancestor M"* (`crates/editor-core/src/product.rs`). After
-`viewer::tree::product_fault_as_drawn`, M can be a mate, which is not
-a DAG ancestor of the root. The viewer's at-rest badge
-(`viewer::frame::at_rest_badge`) shows that sentence. `NodeStanding`'s
-own wording ("poisoned by the failure at node M … the repair is
-upstream") reads correctly for a mate.
+**The viewer builds kernel values that break their own field docs.**
+`viewer::tree::standing_as_drawn` answers `NodeStanding::Poisoned
+{ node, through: mate }` for a cluster-refused node. `NodeStanding`'s
+docs say `through` is the node's *"nearest failed ancestor"*, and a mate
+is not a DAG ancestor of anything. The re-read value reaches
+`ResolveIndeterminate` (the properties panel), `InterrogateError` (the
+mate tool, the sketch-on-face seat), `NodePickError`/`NameLookupError`
+(the pick-index tooltip), and the viewer's `DuplicateFault::NoValue` and
+`BlendEvent::TargetHasNoValue`. `NodeStanding`'s `Display` then says
+*"poisoned by the failure at node M … the repair is upstream, at node
+M"*. A mate is not upstream in the DAG. Only the tree's own pointer
+(*"upstream failure at feature M"*) uses the word the same loose way.
+A viewer-owned standing type was not taken, because the standing rides
+inside kernel containers (`Resolution`, `InterrogateError`) that the
+viewer's selection and tool values hold. The product gather is not
+re-attributed: `session.product_fault()` hands out the gather's own
+value, and only the at-rest badge's words are the tree's
+(`viewer::tree::product_refusal_wording`).
 
-The question is a design one: should `NodeStanding` (or a sibling
-reading on `Evaluation`) carry cross-placement blame, so that the rule
-lives in the kernel and the viewer's `blamed_mates` /
-`downstream_of_mate` become a read of it? Doing that would retire
-`standing_as_drawn` and its three wrappers in `viewer::tree`.
+The question is a design one. Should `NodeStanding`, or a sibling
+reading on `Evaluation`, carry cross-placement blame, with its own
+wording (not "ancestor", not "upstream") for a mate? The rule would then
+live in the kernel, and the viewer's `blamed_mates` /
+`downstream_of_mate` would become a read of it. That would retire
+`standing_as_drawn` and its wrappers in `viewer::tree`, and the
+`frame::index_refusal_as_drawn` wrapper.
