@@ -776,9 +776,9 @@ pub(crate) fn face_name_from_text(
 /// carry is a different question and belongs to the kernel, which
 /// answers it as `unknown_slot` naming the slot the node lacks.
 ///
-/// `profile` is a word of the alphabet with no slot to read back:
-/// the rest of its address is two integers and an argument role that
-/// the word does not carry, so it refuses in its own sentence rather
+/// `profile` and `placement_step` are words of the alphabet with no
+/// slot to read back: the rest of each address holds an integer the
+/// word does not carry, so each refuses in its own sentence rather
 /// than as a misspelling.
 fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
     if let Some(slot) = crate::slot_word::slot_from_word(word) {
@@ -789,6 +789,11 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
             "`profile` addresses one expression inside a profile program, and the rest of \
          that address — a loop index, a step index and which argument — is not carried \
          by the word: a profile's numbers are re-authored, not edited at a slot"
+                .to_owned()
+        } else if word == "placement_step" {
+            "`placement_step` addresses one expression of a transform's placement past its \
+         first step, and the rest of that address — the step index and which component — \
+         is not carried by the word: such a step is re-authored, not edited at a slot"
                 .to_owned()
         } else {
             format!(
@@ -2564,13 +2569,21 @@ impl Node {
         let rotation_axis = direction_expr(py, d::VectorSlot::RotationAxis, &rotation_axis)?;
         let rotation_angle = slot_expr(py, d::SlotId::RotationAngle, rotation_angle)?;
         Ok(Self {
+            inner: d::Node::transform(input.0, translation, rotation_axis, rotation_angle),
+        })
+    }
+
+    /// A placement of an upstream body by a `Placement` chain — rigid
+    /// steps a parameter can drive, literal frames, or both.
+    /// `Node.transform` is this with one rigid step.
+    #[staticmethod]
+    fn transform_by(input: &NodeId, placement: &super::place::Placement) -> Self {
+        Self {
             inner: d::Node::Transform {
                 input: input.0,
-                translation,
-                rotation_axis,
-                rotation_angle,
+                placement: placement.0.clone(),
             },
-        })
+        }
     }
 
     /// A Boolean of two upstream solids.

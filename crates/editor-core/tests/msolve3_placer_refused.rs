@@ -359,8 +359,8 @@ fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
 fn a1_two_faults_on_one_placer_pick_the_same_winner() {
     let (scene, _) = build("msolve3-two-faults", |doc, legs| {
         let mut t = xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.5);
-        if let Node::Transform { rotation_angle, .. } = &mut t {
-            *rotation_angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
+        if let Some(angle) = t.expr_mut(SlotId::RotationAngle) {
+            *angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
         }
         let (doc, moved) = insert(doc, t);
         (doc, moved, in_part(legs, CapEnd::End), Vec::new())

@@ -190,12 +190,12 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::Transform {
-            input: extrude,
-            translation: [len(0.01), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            extrude,
+            [len(0.01), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
         tol,
     );
     (doc, extrude, moved)

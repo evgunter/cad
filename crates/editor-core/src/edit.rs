@@ -28,6 +28,7 @@ use crate::node::{
     AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
     StableName, StepId,
 };
+use crate::placement::FrameFault;
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
@@ -4009,6 +4010,17 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 return Err(EditError::NonFinitePlacement { node });
             }
             Some(PlacementRuleFault::ImproperFrame { determinant, .. }) => {
+                return Err(EditError::ImproperPlacement { node, determinant });
+            }
+        }
+        // A transform's literal frames meet the same A6 bar, by the
+        // same predicate (`Frame::admission_fault`).
+        match n.placement_frame_fault() {
+            None => {}
+            Some((_, FrameFault::NonFinite)) => {
+                return Err(EditError::NonFinitePlacement { node });
+            }
+            Some((_, FrameFault::Improper { determinant })) => {
                 return Err(EditError::ImproperPlacement { node, determinant });
             }
         }

@@ -246,12 +246,12 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
     );
     let bracket_root = common::insert_into(
         &mut bracket,
-        Node::Transform {
-            input: inner,
-            translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
-            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            inner,
+            [common::len(0.01), common::len(0.0), common::len(0.0)],
+            [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+            common::ang(0.0),
+        ),
         tol,
     );
     store

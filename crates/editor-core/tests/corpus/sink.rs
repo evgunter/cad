@@ -162,12 +162,12 @@ pub fn document() -> CorpusDoc {
 
     // A transformed copy, patterned linearly; a lone block patterned
     // circularly about the shared axis.
-    let moved = r.insert(Node::Transform {
-        input: union,
-        translation: [len(0.0), len(4.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(std::f64::consts::FRAC_PI_3),
-    });
+    let moved = r.insert(Node::transform(
+        union,
+        [len(0.0), len(4.0), len(0.0)],
+        [scl(0.0), scl(0.0), scl(1.0)],
+        ang(std::f64::consts::FRAC_PI_3),
+    ));
     let linear = r.insert(Node::Pattern {
         input: moved,
         count: Expr::count(2),

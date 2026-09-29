@@ -812,20 +812,22 @@ pub enum SnapshotError {
         /// The offending key.
         node: RecipeNodeId,
     },
-    /// A placement frame carrying a non-finite coordinate. The edit
-    /// door refuses it, so a file holding one is corrupt — refused,
-    /// never repaired.
+    /// A placement frame carrying a non-finite coordinate — a
+    /// registry row's, or a literal step of a transform's placement.
+    /// The edit door refuses it, so a file holding one is corrupt —
+    /// refused, never repaired.
     PlacementNonFinite {
-        /// The offending key.
+        /// The registry key, or the transform.
         node: RecipeNodeId,
     },
     /// An IMPROPER placement frame — determinant ≤ 0, the A6 mirror
     /// case R4 gates. Its own arm rather than
     /// [`SnapshotError::PlacementNonFinite`]: a mirror is authored data
     /// this build declines to admit, a non-finite coordinate is data no
-    /// predicate can read, and the repairs differ.
+    /// predicate can read, and the repairs differ. A registry row's
+    /// frame, or a literal step of a transform's placement.
     PlacementImproper {
-        /// The offending key.
+        /// The registry key, or the transform.
         node: RecipeNodeId,
         /// The linear part's determinant.
         determinant: f64,
@@ -1281,6 +1283,21 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // placement, and frames that are finite and proper.
         if let Some(fault) = node.placement_rule_fault() {
             return Err(SnapshotError::PlacementRule { node: id, fault });
+        }
+        // A transform's literal frames, held to A6 by the predicate the
+        // edit door asks, for the rule's reason: the snapshot is the
+        // one road to a document that does not pass `apply`.
+        match node.placement_frame_fault() {
+            None => {}
+            Some((_, crate::placement::FrameFault::NonFinite)) => {
+                return Err(SnapshotError::PlacementNonFinite { node: id });
+            }
+            Some((_, crate::placement::FrameFault::Improper { determinant })) => {
+                return Err(SnapshotError::PlacementImproper {
+                    node: id,
+                    determinant,
+                });
+            }
         }
         // DM5's third caller, for the reason the placement rule above
         // has one: a saved file is DATA, and a SNAPSHOT is the one way

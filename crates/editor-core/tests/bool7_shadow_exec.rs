@@ -100,12 +100,12 @@ fn slot() -> Slot {
     let (doc, b0) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     let (doc, cut) = insert(
         doc,
@@ -964,12 +964,12 @@ fn a_partner_behind_a_pattern_and_a_part_is_probed_at_the_operand() {
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: bar,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bar,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     let (doc, pat) = insert(
         doc,

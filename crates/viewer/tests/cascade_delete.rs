@@ -68,16 +68,16 @@ fn die_shaped(tol: Tol) -> Die {
     for i in 0..PIPS {
         let (next, placed) = common::inserted(
             &doc,
-            Node::Transform {
-                input: pip,
-                translation: [
+            Node::transform(
+                pip,
+                [
                     common::len(0.001 * f64::from(u32::try_from(i).expect("a small index"))),
                     common::len(0.0),
                     common::len(0.0),
                 ],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+                [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                common::ang(0.0),
+            ),
             tol,
         );
         let (next, cut) = common::inserted(

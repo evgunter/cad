@@ -4073,12 +4073,13 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                 *word,
                 "`{word}` reads back as a slot the forward map spells otherwise"
             ),
-            // The one word an address is not completed by: a profile
+            // The two words an address is not completed by: a profile
             // program's expression is reached by a loop index, a step
-            // index and an argument role, none of which the word
+            // index and an argument role, and a later placement step's
+            // by a step index and a component, none of which the word
             // carries.
-            None => assert_eq!(
-                *word, "profile",
+            None => assert!(
+                matches!(*word, "profile" | "placement_step"),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
         }
@@ -5591,6 +5592,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "origin_x",
             "origin_y",
             "origin_z",
+            "placement_step",
             "profile",
             "radius",
             "revolve_angle",

@@ -362,12 +362,12 @@ fn transform_pass_through_carries_the_attribute_downstream() {
     );
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: ext,
-            translation: [len(4.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            ext,
+            [len(4.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            fixture::ang(0.0),
+        ),
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
@@ -672,12 +672,12 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     let (doc, sub) = tie_fixture();
     let (doc, _moved) = insert(
         doc,
-        Node::Transform {
-            input: sub,
-            translation: [len(10.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            sub,
+            [len(10.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            fixture::ang(0.0),
+        ),
     );
     let ev = run(&doc);
     let tied = tied_name(&ev, sub);

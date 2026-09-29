@@ -183,12 +183,12 @@ fn rotational_transform_wires_and_preserves_volume() {
     let (doc, cube) = unit_cube(doc, 2.0, 0.0);
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: cube,
-            translation: [len(0.25), len(-1.5), len(3.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(FRAC_PI_2),
-        },
+        Node::transform(
+            cube,
+            [len(0.25), len(-1.5), len(3.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(FRAC_PI_2),
+        ),
     );
     let ev = run(&doc);
     let ValuePayload::Body(body) = &ev.value(moved).unwrap().payload else {
@@ -711,12 +711,12 @@ fn non_finite_transform_axis_refuses_at_the_direction_door() {
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: cube,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(1e200), scl(0.0)],
-            rotation_angle: ang(FRAC_PI_2),
-        },
+        Node::transform(
+            cube,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(1e200), scl(0.0)],
+            ang(FRAC_PI_2),
+        ),
     );
     let ev = run(&doc);
     match ev.nodes.get(&moved) {
@@ -823,12 +823,12 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: cube,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(0.0)],
-            rotation_angle: ang(FRAC_PI_2),
-        },
+        Node::transform(
+            cube,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(0.0)],
+            ang(FRAC_PI_2),
+        ),
     );
     let ev = run(&doc);
     match ev.nodes.get(&moved) {

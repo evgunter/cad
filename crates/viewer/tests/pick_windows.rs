@@ -83,11 +83,13 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         },
         tol,
     );
-    let placed = |at: f64| Node::Transform {
-        input: twinned,
-        translation: [common::len(at), common::len(0.2), common::len(0.0)],
-        rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        rotation_angle: common::ang(0.0),
+    let placed = |at: f64| {
+        Node::transform(
+            twinned,
+            [common::len(at), common::len(0.2), common::len(0.0)],
+            [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+            common::ang(0.0),
+        )
     };
     let (doc, _first) = common::inserted(&doc, placed(0.0), tol);
     let (doc, _second) = common::inserted(&doc, placed(0.1), tol);

@@ -830,12 +830,12 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
             (
                 "transform",
-                Node::Transform {
-                    input: victim,
-                    translation: [len(1.0), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                },
+                Node::transform(
+                    victim,
+                    [len(1.0), len(0.0), len(0.0)],
+                    [scl(0.0), scl(0.0), scl(1.0)],
+                    ang(0.0),
+                ),
             ),
             (
                 "extrude-profile",
@@ -1042,12 +1042,12 @@ fn r2_a_transform_has_no_emission_to_measure() {
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Transform {
-                input: b,
-                translation: [len(100.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            node: Node::transform(
+                b,
+                [len(100.0), len(0.0), len(0.0)],
+                [scl(0.0), scl(0.0), scl(1.0)],
+                ang(0.0),
+            ),
         },
     );
     let ev = eval(&d3);

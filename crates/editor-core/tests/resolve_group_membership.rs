@@ -160,12 +160,12 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (doc, bar) = block(doc, (2.9, 3.1), (0.5, 3.5), 0.5, 3.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: bar,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bar,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     let (doc, cut) = insert(
         doc,
@@ -356,12 +356,12 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
         let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
         let (doc, tr) = insert(
             doc,
-            Node::Transform {
-                input: bar,
-                translation: [len(0.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                bar,
+                [len(0.0), len(0.0), len(0.0)],
+                [scl(0.0), scl(0.0), scl(1.0)],
+                ang(0.0),
+            ),
         );
         let (doc, far) = block(doc, (10.0, 11.0), (0.0, 1.0), 0.0, 1.0);
         let m = [plate, tr, far];
@@ -490,12 +490,12 @@ fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
         let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
         let (doc, tr) = insert(
             doc,
-            Node::Transform {
-                input: bar,
-                translation: [len(0.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                bar,
+                [len(0.0), len(0.0), len(0.0)],
+                [scl(0.0), scl(0.0), scl(1.0)],
+                ang(0.0),
+            ),
         );
         let (doc, cblock) = block(doc, c.0, c.1, c.2, c.3);
         let (doc, u) = insert(
@@ -613,12 +613,12 @@ fn plate_and_bar() -> (
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: bar,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bar,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     let (doc, u) = insert(
         doc,
@@ -772,12 +772,12 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
         let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
         let (doc, tr) = insert(
             doc,
-            Node::Transform {
-                input: bar,
-                translation: [len(0.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                bar,
+                [len(0.0), len(0.0), len(0.0)],
+                [scl(0.0), scl(0.0), scl(1.0)],
+                ang(0.0),
+            ),
         );
         let (doc, c) = block(doc, (0.5, 1.5), (-0.8, -0.5), 0.0, 2.0);
         let m = [tr, c];

@@ -434,12 +434,12 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 /// slots and a caller branching on it could not tell which expression
 /// refused.
 ///
-/// `profile` is the one arm that stops one level, and it stops for the
-/// reason [`profile_error_tag`]'s family does: what is left below it —
-/// the loop index, the step index and which of the step's arguments —
-/// is two integers and a third enum, and no `&'static str` carries an
-/// integer. The address is in the refusal's prose; the word says the
-/// slot is a profile program's.
+/// `profile` and `placement_step` are the two arms that stop one level,
+/// and they stop for the reason [`profile_error_tag`]'s family does:
+/// what is left below them — a profile's loop index, step index and
+/// argument role; a later placement step's index and component — holds
+/// an integer, and no `&'static str` carries one. The address is in the
+/// refusal's prose; the word says which kind of slot it is.
 pub fn slot_id_tag(slot: &SlotId) -> &'static str {
     match slot {
         SlotId::Origin(axis) => match axis {
@@ -496,6 +496,7 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::VDegree => "v_degree",
         SlotId::Stations => "stations",
         SlotId::Profile { .. } => "profile",
+        SlotId::PlacementStep { .. } => "placement_step",
     }
 }
 

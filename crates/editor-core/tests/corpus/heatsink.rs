@@ -94,12 +94,12 @@ pub fn document() -> CorpusDoc {
     // fin overlaps the base by 1/16, so no union has a coincidence.
     let mut acc = base;
     for i in 0..FINS {
-        let tr = r.insert(Node::Transform {
-            input: fin,
-            translation: [len(i as f64 * PITCH), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        });
+        let tr = r.insert(Node::transform(
+            fin,
+            [len(i as f64 * PITCH), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ));
         acc = r.insert(Node::Boolean {
             op: BooleanOp::Union,
             a: acc,

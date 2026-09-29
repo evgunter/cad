@@ -2457,6 +2457,13 @@ NOT_BOUND = {
     # into the word (`origin_x`), so a family and its axis read off
     # one string rather than off a type Python would have to hold.
     "VectorSlot": SHAPE,
+    # A rigid step's component, the index `SlotId::rigid` maps onto a
+    # slot at any step: `VectorSlot`'s argument, one level in.
+    "RigidArg": SHAPE,
+    # A placement's step: Python builds each as a one-step `Placement`
+    # (`Placement.rigid`, `Placement.literal`) and chains them with
+    # `Placement.then`, so no value of the step type crosses.
+    "Step": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
     "bulge_from_center": SHAPE,
@@ -3843,6 +3850,10 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # The chain is authored through `Placement`'s constructors and
+    # `then`, and read back only as its length: the steps are the
+    # `Step` entry's `different-shape` argument, one level in.
+    "Placement::steps": SHAPE,
     # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
     # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
     # and nothing reads one back: the spec is consumed by the verb it is

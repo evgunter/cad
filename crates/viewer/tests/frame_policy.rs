@@ -2074,12 +2074,12 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
     let place = |doc: &Doc<ProfileProgram>, x: f64| {
         common::inserted(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [common::len(x), common::len(0.0), common::len(0.0)],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                [common::len(x), common::len(0.0), common::len(0.0)],
+                [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                common::ang(0.0),
+            ),
             tol,
         )
     };

@@ -687,12 +687,12 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             members: vec![nid(1), nid(2)],
             declare: None,
         },
-        Node::Transform {
-            input: nid(1),
-            translation: [len(1.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            nid(1),
+            [len(1.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     ]);
     for kind in [
         PatternKind::Linear {

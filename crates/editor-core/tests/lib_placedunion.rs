@@ -116,12 +116,12 @@ fn the_fin_group_equals_the_transform_union_chain() {
         let tr = apply(
             &chain,
             &DocEdit::InsertNode {
-                node: Node::Transform {
-                    input: fin,
-                    translation: [len(f64::from(i) * PITCH), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                },
+                node: Node::transform(
+                    fin,
+                    [len(f64::from(i) * PITCH), len(0.0), len(0.0)],
+                    [scl(0.0), scl(0.0), scl(1.0)],
+                    ang(0.0),
+                ),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -726,12 +726,12 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
         let tr = apply(
             &cdoc,
             &DocEdit::InsertNode {
-                node: Node::Transform {
-                    input: csolid,
-                    translation: [len(t[0]), len(t[1]), len(t[2])],
-                    rotation_axis: [scl(ax[0]), scl(ax[1]), scl(ax[2])],
-                    rotation_angle: ang(an),
-                },
+                node: Node::transform(
+                    csolid,
+                    [len(t[0]), len(t[1]), len(t[2])],
+                    [scl(ax[0]), scl(ax[1]), scl(ax[2])],
+                    ang(an),
+                ),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

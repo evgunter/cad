@@ -1441,16 +1441,9 @@ fn remap_node(
             members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
             declare: declare.map(id).transpose()?,
         },
-        Node::Transform {
-            input,
-            translation,
-            rotation_axis,
-            rotation_angle,
-        } => Node::Transform {
+        Node::Transform { input, placement } => Node::Transform {
             input: id(*input)?,
-            translation: translation.clone(),
-            rotation_axis: rotation_axis.clone(),
-            rotation_angle: rotation_angle.clone(),
+            placement: placement.clone(),
         },
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: id(*input)?,

@@ -35,12 +35,12 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
     let shelf = insert_into(&mut asm, Node::instantiate_part(bench.shelf), tol);
     let lifted = insert_into(
         &mut asm,
-        Node::Transform {
-            input: shelf,
-            translation: [len(0.0), len(0.0), len(0.05)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            shelf,
+            [len(0.0), len(0.0), len(0.05)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
         tol,
     );
     // The second copy clears the post and the first copy.

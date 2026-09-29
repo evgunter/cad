@@ -50,12 +50,12 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     );
     let (doc, placed) = insert(
         doc,
-        Node::Transform {
-            input: pip,
-            translation: [len(1.0), len(1.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pip,
+            [len(1.0), len(1.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     // The pip's outer cap lies ON the cube's top — declared (M4 PR 5).
     // The B side is read at the TRANSFORM, the subtract's operand,

@@ -241,12 +241,12 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     // One more hop: a transform downstream of the poisoned join.
     let (doc, tail) = insert(
         doc,
-        Node::Transform {
-            input: join,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            join,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     for parallel in [false, true] {
         let ev = run(&doc, None, parallel);
@@ -369,11 +369,13 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     // NAMES on both sides, so flush planes here could not even be
     // declared by name pair — the stressor shears all three axes so
     // no plane coincides and no declaration is needed.
-    let tr = |dx: f64, dy: f64, dz: f64| Node::Transform {
-        input: base,
-        translation: [len(dx), len(dy), len(dz)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
+    let tr = |dx: f64, dy: f64, dz: f64| {
+        Node::transform(
+            base,
+            [len(dx), len(dy), len(dz)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        )
     };
     let (doc, t1) = insert(doc, tr(0.25, 0.125, 0.0625));
     let (doc, t2) = insert(doc, tr(-0.25, -0.125, -0.0625));
@@ -712,19 +714,19 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 // onto itself — same pocket — but through inexact
                 // sin/cos bits: the resulting subtract is the honest
                 // non-dyadic bracket of the same oracle.
-                Node::Transform {
-                    input: pip,
-                    translation: [len(1.0), len(1.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(std::f64::consts::FRAC_PI_2),
-                }
+                Node::transform(
+                    pip,
+                    [len(1.0), len(1.0), len(0.0)],
+                    [scl(0.0), scl(0.0), scl(1.0)],
+                    ang(std::f64::consts::FRAC_PI_2),
+                )
             } else {
-                Node::Transform {
-                    input: pip,
-                    translation: [len(1.0), len(1.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                }
+                Node::transform(
+                    pip,
+                    [len(1.0), len(1.0), len(0.0)],
+                    [scl(0.0), scl(0.0), scl(1.0)],
+                    ang(0.0),
+                )
             },
         );
         // M4 PR 5: the pip's outer cap lies ON the cube's top —

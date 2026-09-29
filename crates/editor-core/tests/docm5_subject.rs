@@ -663,12 +663,12 @@ fn one_body_under_two_roots(id: &str) -> ProfileDoc {
     let moved = |doc, dx: f64| {
         insert(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                [len(dx), len(0.0), len(0.0)],
+                [scl(0.0), scl(0.0), scl(1.0)],
+                ang(0.0),
+            ),
         )
     };
     let (doc, _) = moved(doc, 3.0);

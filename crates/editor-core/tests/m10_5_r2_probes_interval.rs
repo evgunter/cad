@@ -93,12 +93,12 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
 }
 
 fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: [dx, dy, dz],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    }
+        [dx, dy, dz],
+        [scl(0.0), scl(0.0), scl(1.0)],
+        ang(0.0),
+    )
 }
 
 /// The xy sketch frame, as the `Datum::Frame` node a profile now names.

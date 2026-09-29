@@ -13,9 +13,12 @@
 //! because the registry holds at most one frame per cluster.
 
 use geom_core::predicate::Band;
-use geom_core::{Affine3, Mat3, Real, Vec3};
+use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
 
+use crate::eval::slots::{SlotVal, SlotValues};
 use crate::eval::{NodeErrorKind, NodeRefusal};
+use crate::expr::{Expr, ParamEnv};
+use crate::node::{Axis3, RigidArg, SlotId};
 
 /// **A placement axis with no definite direction** — the ONE thing
 /// [`Frame::rotate_then_translate`] refuses, and the only thing
@@ -374,6 +377,251 @@ impl core::fmt::Display for FrameFault {
 impl Default for Frame {
     fn default() -> Self {
         Self::IDENTITY
+    }
+}
+
+/// **A placement: an ordered chain of steps**, the one placement type
+/// [`crate::Node::Transform`] holds (ASSEMBLY-DESIGN A11 (2)).
+///
+/// The chain composes LEFT TO RIGHT as a product: `[s0, s1, …, sn]`
+/// denotes `s0 ∘ s1 ∘ … ∘ sn`, so each step is expressed in the frame
+/// the steps before it build, and the last step is the first to act on
+/// the placed body — a `point_at` frame followed by a rigid step spins
+/// the body inside the aimed frame. The empty chain is the identity.
+///
+/// A rigid step is parametric: its components are slot expressions,
+/// addressed per step ([`crate::SlotId::rigid`]). A matrix step is a
+/// literal and carries no slot.
+///
+/// # Exactness
+///
+/// [`Placement::eval`] builds a rigid step by the construction the
+/// transform node has always used, so a one-step rigid placement moves
+/// a body by exactly the bits it did before the chain existed; a
+/// matrix step is read through [`Frame::affine`], so a one-step
+/// literal placement IS its frame, bit for bit
+/// ([`Placement::literal`]). A chain of two or more steps is the
+/// left-to-right [`Affine3`] product, which rounds as that product
+/// does.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Placement {
+    /// The steps, composed left to right.
+    pub steps: Vec<Step>,
+}
+
+/// One step of a [`Placement`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum Step {
+    /// Rotate by `angle` about the axis through the ORIGIN with
+    /// direction `axis`, then translate by `translation` — proper by
+    /// construction. The axis is decided at evaluation by the
+    /// evaluation layer's direction door, which refuses one of no
+    /// definite direction.
+    Rigid {
+        /// Translation components, Length.
+        translation: [Expr; 3],
+        /// Rotation-axis components, Scalar.
+        axis: [Expr; 3],
+        /// Rotation angle, Angle.
+        angle: Expr,
+    },
+    /// A literal proper frame, held to A6 ([`Frame::admission_fault`])
+    /// at every door that writes one and at load.
+    Matrix(Frame),
+}
+
+/// The slot table of a placement: every rigid step's expressions,
+/// step by step, each at its per-step address.
+macro_rules! placement_rows {
+    ($steps:expr, $out:expr) => {{
+        for (k, step) in $steps.enumerate() {
+            match step {
+                Step::Rigid {
+                    translation,
+                    axis,
+                    angle,
+                } => {
+                    for (ax, e) in Axis3::ALL.into_iter().zip(translation) {
+                        $out.push((SlotId::rigid(k, RigidArg::Translation(ax)), e));
+                    }
+                    for (ax, e) in Axis3::ALL.into_iter().zip(axis) {
+                        $out.push((SlotId::rigid(k, RigidArg::RotationAxis(ax)), e));
+                    }
+                    $out.push((SlotId::rigid(k, RigidArg::RotationAngle), angle));
+                }
+                Step::Matrix(_) => {}
+            }
+        }
+    }};
+}
+
+impl Placement {
+    /// The one-step rigid placement — the three components the
+    /// transform node was always authored by.
+    #[must_use]
+    pub fn rigid(translation: [Expr; 3], axis: [Expr; 3], angle: Expr) -> Self {
+        Self {
+            steps: vec![Step::Rigid {
+                translation,
+                axis,
+                angle,
+            }],
+        }
+    }
+
+    /// **The one bit-exact `Frame` → `Placement` door**: the one-step
+    /// literal placement, which evaluates to `frame` bit for bit at
+    /// `f64`. The frame is carried, not checked: A6 is the doors'
+    /// ([`Placement::frame_fault`]).
+    #[must_use]
+    pub fn literal(frame: &Frame) -> Self {
+        Self {
+            steps: vec![Step::Matrix(*frame)],
+        }
+    }
+
+    /// This placement followed by `step`, which acts on the body first.
+    #[must_use]
+    pub fn then(mut self, step: Step) -> Self {
+        self.steps.push(step);
+        self
+    }
+
+    /// Every expression of the chain at its slot address, shared.
+    pub(crate) fn rows(&self) -> Vec<(SlotId, &Expr)> {
+        let mut out = Vec::new();
+        placement_rows!(self.steps.iter(), out);
+        out
+    }
+
+    /// Every expression of the chain at its slot address, exclusive.
+    pub(crate) fn rows_mut(&mut self) -> Vec<(SlotId, &mut Expr)> {
+        let mut out = Vec::new();
+        placement_rows!(self.steps.iter_mut(), out);
+        out
+    }
+
+    /// The first matrix step A6 refuses, with its index in the chain —
+    /// [`Frame::admission_fault`] asked of every literal the chain
+    /// holds.
+    #[must_use]
+    pub fn frame_fault(&self) -> Option<(usize, FrameFault)> {
+        self.steps
+            .iter()
+            .enumerate()
+            .find_map(|(k, step)| match step {
+                Step::Matrix(frame) => Some((k, frame.admission_fault()?)),
+                Step::Rigid { .. } => None,
+            })
+    }
+
+    /// Bit-semantic equality (D7): a rigid step's expressions through
+    /// [`Expr::bit_eq`], a matrix step's coordinates through
+    /// [`Frame::bit_eq`], so `0.0` and `-0.0` are different
+    /// placements.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        self.steps.len() == other.steps.len()
+            && self
+                .steps
+                .iter()
+                .zip(&other.steps)
+                .all(|(a, b)| match (a, b) {
+                    (
+                        Step::Rigid {
+                            translation: ta,
+                            axis: aa,
+                            angle: ga,
+                        },
+                        Step::Rigid {
+                            translation: tb,
+                            axis: ab,
+                            angle: gb,
+                        },
+                    ) => {
+                        ta.iter()
+                            .chain(aa)
+                            .zip(tb.iter().chain(ab))
+                            .all(|(x, y)| x.bit_eq(y))
+                            && ga.bit_eq(gb)
+                    }
+                    (Step::Matrix(fa), Step::Matrix(fb)) => fa.bit_eq(fb),
+                    (Step::Rigid { .. }, Step::Matrix(_))
+                    | (Step::Matrix(_), Step::Rigid { .. }) => false,
+                })
+    }
+
+    /// **The rigid motion this placement denotes, at `env`** — every
+    /// rigid step's expressions evaluated through the evaluation
+    /// layer's own slot door, then [`Placement::motion`].
+    ///
+    /// # Errors
+    ///
+    /// [`NodeErrorKind::Expr`] naming the first slot that does not
+    /// evaluate, then whatever [`Placement::motion`] refuses.
+    pub fn eval<T: Decide>(
+        &self,
+        env: &ParamEnv<T>,
+        band: Band,
+    ) -> Result<Affine3<T>, NodeErrorKind> {
+        let mut vals: SlotValues<T> = Vec::new();
+        for (slot, expr) in self.rows() {
+            let value = crate::expr::eval(expr, env)
+                .map_err(|source| NodeErrorKind::Expr { slot, source })?;
+            vals.push((slot, SlotVal::Scalar(value)));
+        }
+        self.motion(&vals, band)
+    }
+
+    /// **The one construction of a placement's motion**, from its
+    /// slots already evaluated — what the transform node's evaluation
+    /// reads, having evaluated every node's slots through one door, and
+    /// what [`Placement::eval`] reads after evaluating them itself.
+    ///
+    /// A rigid step is [`crate::eval::transform_map`] over its axis
+    /// decided under [`crate::eval::TRANSFORM_AXIS_ROLE`]; a matrix
+    /// step is its frame's [`Frame::affine`]. The chain folds left to
+    /// right with no identity seeded, so a one-step chain is its step's
+    /// map unmultiplied.
+    ///
+    /// # Errors
+    ///
+    /// [`NodeErrorKind::MissingSlot`] when a rigid step's slot is not
+    /// among `vals`, and the direction door's own refusal for an axis
+    /// of no definite direction.
+    pub(crate) fn motion<T: Decide>(
+        &self,
+        vals: &SlotValues<T>,
+        band: Band,
+    ) -> Result<Affine3<T>, NodeErrorKind> {
+        let mut composed: Option<Affine3<T>> = None;
+        for (k, step) in self.steps.iter().enumerate() {
+            let map = match step {
+                Step::Rigid { .. } => {
+                    let translation = crate::eval::need_vec3(vals, |ax| {
+                        SlotId::rigid(k, RigidArg::Translation(ax))
+                    })?;
+                    let axis = crate::eval::unit_direction(
+                        crate::eval::need_vec3(vals, |ax| {
+                            SlotId::rigid(k, RigidArg::RotationAxis(ax))
+                        })?,
+                        crate::eval::TRANSFORM_AXIS_ROLE,
+                        band,
+                    )?;
+                    let angle =
+                        crate::eval::need_scalar(vals, SlotId::rigid(k, RigidArg::RotationAngle))?;
+                    crate::eval::transform_map(translation, axis, angle)
+                }
+                Step::Matrix(frame) => frame.affine::<T>(),
+            };
+            composed = Some(match composed {
+                None => map,
+                Some(held) => held * map,
+            });
+        }
+        Ok(composed.unwrap_or_else(Affine3::identity))
     }
 }
 

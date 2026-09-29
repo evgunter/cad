@@ -81,12 +81,12 @@ where
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(0.5), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            [len(0.5), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     // M4 PR 5: the sliding overlap's flush planes are DECLARED (the
     // recipe intent; the retired bit rung no longer infers them). The

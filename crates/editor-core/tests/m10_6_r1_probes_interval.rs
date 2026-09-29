@@ -140,12 +140,12 @@ fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distributio
 }
 
 fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Expr; 3]) -> RecipeNodeId {
-    r.insert(Node::Transform {
+    r.insert(Node::transform(
         input,
-        translation: t,
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    })
+        t,
+        [scl(0.0), scl(0.0), scl(1.0)],
+        ang(0.0),
+    ))
 }
 
 fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64) -> RecipeNodeId {

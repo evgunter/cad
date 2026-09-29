@@ -421,12 +421,12 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
     );
     let (doc, placed) = inserted(
         &doc,
-        Node::Transform {
-            input: pattern,
-            translation: common::len3([0.0, 0.0, 0.001]),
-            rotation_axis: common::scl3([0.0, 0.0, 1.0]),
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            pattern,
+            common::len3([0.0, 0.0, 0.001]),
+            common::scl3([0.0, 0.0, 1.0]),
+            common::ang(0.0),
+        ),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);

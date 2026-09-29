@@ -1939,6 +1939,57 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
+class Placement:
+    """Where `Node.transform_by` puts its input: a chain of steps, each
+    a rigid step of expressions or a literal frame.
+
+    The chain composes left to right as a product: `a.then(b)` is
+    `a ∘ b`, so `b` acts on the body first, in the frame `a` builds.
+    A rigid step's components are slot expressions a parameter can
+    drive; a literal frame is held to the placement bar (finite and
+    proper) at the edit door.
+    """
+
+    @staticmethod
+    def rigid(
+        translation: tuple[Expr, Expr, Expr],
+        axis: tuple[Expr, Expr, Expr],
+        angle: Expr,
+    ) -> Placement:
+        """One rigid step: rotate by `angle` about the axis through the
+        origin with direction `axis`, then translate — `Node.transform`'s
+        convention."""
+
+    @staticmethod
+    def literal(frame: Frame) -> Placement:
+        """One literal step: exactly `frame`, bit for bit."""
+
+    @staticmethod
+    def point_at(
+        eye: tuple[Length, Length, Length],
+        target: tuple[Length, Length, Length],
+        roll_reference: tuple[float, float, float],
+    ) -> Placement:
+        """One literal step: `Frame.point_at`'s frame. Refuses as that
+        constructor does (FrameError)."""
+
+    @staticmethod
+    def path_start_frame(
+        origin: tuple[Length, Length, Length],
+        tangent: tuple[float, float, float],
+    ) -> Placement:
+        """One literal step: `Frame.path_start_frame`'s frame. Refuses
+        as that constructor does (FrameError)."""
+
+    def then(self, inner: Placement) -> Placement:
+        """This chain followed by `inner`'s steps: `self ∘ inner`."""
+
+    def __len__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+
+    # Equality is BIT-exact over every step, `Frame.__eq__`'s rule. No
+    # `__hash__`, as `Frame` has none.
+
 class PatternKind:
     """A pattern's replication rule: how a prototype's placements are
     generated.
@@ -2362,6 +2413,11 @@ class Node:
         translation passes any non-degenerate axis and a zero angle;
         a zero-length axis refuses rather than meaning "no rotation".
         """
+
+    @staticmethod
+    def transform_by(input: NodeId, placement: Placement) -> Node:
+        """A placement of an upstream body by a `Placement` chain.
+        `Node.transform` is this with one rigid step."""
 
     @staticmethod
     def boolean(

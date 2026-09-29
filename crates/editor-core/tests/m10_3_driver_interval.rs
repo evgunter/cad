@@ -216,16 +216,16 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
         profile: p,
         distance: len(1.0),
     });
-    r.insert(Node::Transform {
-        input: block,
-        translation: [len(0.0), len(0.0), len(0.0)],
-        rotation_axis: [
+    r.insert(Node::transform(
+        block,
+        [len(0.0), len(0.0), len(0.0)],
+        [
             scl(0.0),
             scl(0.0),
             Expr::param(name("axis"), Dimension::Scalar),
         ],
-        rotation_angle: ang(0.0),
-    });
+        ang(0.0),
+    ));
     r.doc
 }
 

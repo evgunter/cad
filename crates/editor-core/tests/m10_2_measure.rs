@@ -880,12 +880,12 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Transform {
-                input: solid,
-                translation: [len(SHIFT), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            node: Node::transform(
+                solid,
+                [len(SHIFT), len(0.0), len(0.0)],
+                [scl(0.0), scl(0.0), scl(1.0)],
+                ang(0.0),
+            ),
         },
     );
 

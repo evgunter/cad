@@ -381,12 +381,12 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     let (doc, _slab, rib) = slab_rib(doc);
     let (doc, turned) = insert(
         doc,
-        Node::Transform {
-            input: rib,
-            translation: [len(0.1), len(1.5), len(0.3)],
-            rotation_axis: [scl(1.0), scl(0.0), scl(0.0)],
-            rotation_angle: ang(std::f64::consts::FRAC_PI_2),
-        },
+        Node::transform(
+            rib,
+            [len(0.1), len(1.5), len(0.3)],
+            [scl(1.0), scl(0.0), scl(0.0)],
+            ang(std::f64::consts::FRAC_PI_2),
+        ),
     );
     let mut doc = doc;
     let mut ids = Vec::new();

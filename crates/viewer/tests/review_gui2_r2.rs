@@ -78,12 +78,12 @@ fn inserted(
 }
 
 fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: [len(dx), len(dy), len(dz)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    }
+        [len(dx), len(dy), len(dz)],
+        [scl(0.0), scl(0.0), scl(1.0)],
+        ang(0.0),
+    )
 }
 
 /// One extruded slab, `w` × `h` × `t`, its own document. Deliberately

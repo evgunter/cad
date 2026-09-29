@@ -169,8 +169,8 @@ pub use names::{
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
-    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SitedFace, SitedRef, SlotId,
-    StepArg, StepId, TubeWindow, VectorSlot,
+    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef,
+    SlotId, StepArg, StepId, TubeWindow, VectorSlot,
 };
 pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
@@ -179,7 +179,7 @@ pub use persist::{
     load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
-pub use placement::{AxisRefusal, Frame, FrameFault};
+pub use placement::{AxisRefusal, Frame, FrameFault, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{

@@ -448,11 +448,13 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
         },
         tol,
     );
-    let transform = |input| Node::Transform {
-        input,
-        translation: [len(0.001), len(0.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
+    let transform = |input| {
+        Node::transform(
+            input,
+            [len(0.001), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        )
     };
     let (doc, child) = inserted(&doc, transform(extrude), tol);
     let (doc, grandchild) = inserted(&doc, transform(child), tol);

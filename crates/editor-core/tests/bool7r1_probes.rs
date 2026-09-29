@@ -70,12 +70,12 @@ fn slot() -> Slot {
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: bar,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bar,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     let (doc, cut) = insert(
         doc,
@@ -811,12 +811,12 @@ fn a_second_pair_at_the_node_keeps_the_rung_out_of_a_pruned_one() {
     let (doc, b2) = block(doc, (4.0, 5.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: b1,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b1,
+            [len(0.0), len(0.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.0),
+        ),
     );
     let (doc, tool) = insert(
         doc,

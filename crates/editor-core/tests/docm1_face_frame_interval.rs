@@ -162,16 +162,16 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
         profile,
         distance: len(1.0),
     });
-    let lifted = r.insert(Node::Transform {
-        input: cube,
-        translation: [
+    let lifted = r.insert(Node::transform(
+        cube,
+        [
             len(0.0),
             len(0.0),
             Expr::param(ParamName::from_static("lift"), Dimension::Length),
         ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+        [scl(0.0), scl(0.0), scl(1.0)],
+        ang(0.0),
+    ));
     // A rigid transform keeps its input's name table verbatim, so the
     // cap is still named by the extrude that minted it.
     let frame = r.insert(Node::Datum(Datum::FaceFrame {

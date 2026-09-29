@@ -85,12 +85,12 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     );
     let (doc, placed) = insert(
         doc,
-        Node::Transform {
-            input: cut,
-            translation: [len(1.0), len(1.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.5),
-        },
+        Node::transform(
+            cut,
+            [len(1.0), len(1.0), len(0.0)],
+            [scl(0.0), scl(0.0), scl(1.0)],
+            ang(0.5),
+        ),
     );
     let (doc, sub) = insert(
         doc,

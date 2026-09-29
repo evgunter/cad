@@ -492,9 +492,111 @@ impl PatternKind {
     }
 }
 
+/// Where a `Node.transform_by` puts its input: a CHAIN of steps, each
+/// a rigid step of expressions or a literal frame (`Placement`,
+/// crossing whole).
+///
+/// The chain composes left to right as a product: `a.then(b)` is
+/// `a ∘ b`, so `b` is expressed in the frame `a` builds and acts on the
+/// body first — a `point_at` placement followed by a rigid spin turns
+/// the body inside the aimed frame.
+///
+/// A rigid step's three components are slot expressions a parameter
+/// can drive; a literal frame is a number, held to the same bar a
+/// placement frame is (finite and proper) at the edit door.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Placement(pub(crate) d::Placement);
+
+#[pymethods]
+impl Placement {
+    /// One rigid step: rotate by `angle` about the axis through the
+    /// ORIGIN with direction `axis`, then translate by `translation` —
+    /// `Node.transform`'s own convention.
+    ///
+    /// `translation`'s components are `Length`s, the axis's
+    /// dimensionless and the angle an `Angle`.
+    #[staticmethod]
+    fn rigid(
+        py: Python<'_>,
+        translation: (Expr, Expr, Expr),
+        axis: (Expr, Expr, Expr),
+        angle: &Expr,
+    ) -> PyResult<Self> {
+        Ok(Self(d::Placement::rigid(
+            super::doc::direction_expr(py, d::VectorSlot::Translation, &translation)?,
+            super::doc::direction_expr(py, d::VectorSlot::RotationAxis, &axis)?,
+            super::doc::slot_expr(py, d::SlotId::RotationAngle, angle)?,
+        )))
+    }
+
+    /// One literal step: exactly `frame`, bit for bit.
+    #[staticmethod]
+    fn literal(frame: &Frame) -> Self {
+        Self(d::Placement::literal(&frame.0))
+    }
+
+    /// One literal step: `Frame.point_at`'s frame, whose local +Z aims
+    /// from `eye` at `target`, rolled by `roll_reference`.
+    #[staticmethod]
+    fn point_at(
+        py: Python<'_>,
+        eye: (Length, Length, Length),
+        target: (Length, Length, Length),
+        roll_reference: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        Frame::point_at(py, eye, target, roll_reference).map(|f| Self(d::Placement::literal(&f.0)))
+    }
+
+    /// One literal step: `Frame.path_start_frame`'s frame, whose local
+    /// +Z is the path `tangent` at `origin`.
+    #[staticmethod]
+    fn path_start_frame(
+        py: Python<'_>,
+        origin: (Length, Length, Length),
+        tangent: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        Frame::path_start_frame(py, origin, tangent).map(|f| Self(d::Placement::literal(&f.0)))
+    }
+
+    /// This chain followed by `inner`'s steps: `self ∘ inner`, so
+    /// `inner` acts on the body first.
+    fn then(&self, inner: &Self) -> Self {
+        let mut steps = self.0.steps.clone();
+        steps.extend(inner.0.steps.iter().cloned());
+        Self(d::Placement { steps })
+    }
+
+    /// How many steps the chain holds.
+    fn __len__(&self) -> usize {
+        self.0.steps.len()
+    }
+
+    /// BIT-exact equality, `Frame.__eq__`'s rule over every step: a
+    /// rigid step's expressions and a literal's coordinates compare by
+    /// bits, so `0.0` and `-0.0` are different placements.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0.bit_eq(&other.0)
+    }
+
+    fn __repr__(&self) -> String {
+        let steps: Vec<&str> = self
+            .0
+            .steps
+            .iter()
+            .map(|step| match step {
+                d::Step::Rigid { .. } => "rigid",
+                d::Step::Matrix(_) => "literal",
+            })
+            .collect();
+        format!("Placement([{}])", steps.join(", "))
+    }
+}
+
 /// Register the placement vocabulary on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Frame>()?;
     m.add_class::<PatternKind>()?;
+    m.add_class::<Placement>()?;
     Ok(())
 }

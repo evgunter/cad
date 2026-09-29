@@ -487,12 +487,7 @@ pub fn transform_node(
     rotation_axis: [Expr; 3],
     rotation_angle: Expr,
 ) -> Node<ProfileProgram> {
-    Node::Transform {
-        input,
-        translation,
-        rotation_axis,
-        rotation_angle,
-    }
+    Node::transform(input, translation, rotation_axis, rotation_angle)
 }
 
 /// **The part tool**: one pick of a multi-body value, committing one
