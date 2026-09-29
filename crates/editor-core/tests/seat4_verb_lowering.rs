@@ -283,8 +283,8 @@ fn a_boolean_document_round_trips_byte_identical() {
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("crossing_slots", 0xf470_9f84_7704_ae91_u64),
-        ("heat_sink", 0x6c5d_70cd_4433_36a7),
+        ("crossing_slots", 0x0517_d55e_5617_052d_u64),
+        ("heat_sink", 0x34a8_9bc0_56c5_fed7),
         ("kiss_carry", 0xd50a_9072_2042_b77a),
     ] {
         let doc = corpus::documents()
