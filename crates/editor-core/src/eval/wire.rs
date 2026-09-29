@@ -942,8 +942,11 @@ impl DirectionRefusal {
     /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
     /// spelling** from a carried or raised refusal to a
-    /// [`NodeErrorKind`]; `pub` because [`NodeErrorKind::FrameDirection`]'s
-    /// `Display` and tag spell through it too.
+    /// [`NodeErrorKind`]: [`NodeErrorKind::FrameDirection`]'s `Display`
+    /// and its class ([`NodeErrorKind::class`]) read through it, so the
+    /// carried refusal says and is what the frame's own raise says and
+    /// is. `pub` because the carried refusal is: a consumer holding one
+    /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
         refusal(self.error, self.role, DATUM_UNIT_NORM)
     }

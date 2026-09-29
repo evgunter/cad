@@ -633,6 +633,10 @@ BOUND_AS = {
     # survivable, not why it did not happen.
     "DimensionError": "ParseError.kind",
     "NodeErrorKind": "EvaluationError.kind",
+    # `NodeErrorKind`'s class, which is exactly what that tag is: the
+    # map reads the word off the class, so the fieldless mirror asks
+    # the Python caller no new question.
+    "NodeErrorClass": "EvaluationError.kind",
     "NodeValue": "Value",
     # The gather's refusal class, flattened to the tag its carrier
     # already publishes — the `NodeErrorKind` row's shape exactly.
