@@ -1395,6 +1395,169 @@ fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
     );
 }
 
+/// The point at chart `(u, t)` on [`donut`]: major angle `u` from `x`,
+/// minor angle `t` from the outer equator towards `+z`.
+fn donut_at(u: f64, t: f64) -> Point3<f64> {
+    let rho = 2.0 + 0.5 * t.cos();
+    p(rho * u.cos(), rho * u.sin(), 0.5 * t.sin())
+}
+
+/// The iso arc of [`donut`] from chart point `a` to chart point `b`,
+/// which share a coordinate: a parallel (a horizontal section) when they
+/// share `t`, a meridian (an axial section) when they share `u`. Either
+/// runs forward from `a` on the carrier whose `u_ref` points at `a`.
+fn donut_iso(
+    body: &mut Body<f64>,
+    torus: crate::geometry::SurfaceKey,
+    a: (f64, f64),
+    b: (f64, f64),
+) -> EdgeCurveSpec<f64> {
+    let mid = (0.5 * (a.0 + b.0), 0.5 * (a.1 + b.1));
+    let (center, axis, radius, u_ref, sweep, cut) = if a.1 == b.1 {
+        let h = 0.5 * a.1.sin();
+        let axis = if b.0 > a.0 {
+            Vec3::unit_z()
+        } else {
+            -Vec3::unit_z()
+        };
+        (
+            p(0.0, 0.0, h),
+            axis,
+            2.0 + 0.5 * a.1.cos(),
+            v(a.0.cos(), a.0.sin(), 0.0),
+            (b.0 - a.0).abs(),
+            plane(p(0.0, 0.0, h), Vec3::unit_z()),
+        )
+    } else {
+        assert_eq!(a.0, b.0, "an iso arc shares a coordinate");
+        let r_hat = v(a.0.cos(), a.0.sin(), 0.0);
+        let n = r_hat.cross(Vec3::unit_z());
+        (
+            p(0.0, 0.0, 0.0) + r_hat * 2.0,
+            if b.1 > a.1 { n } else { -n },
+            0.5,
+            r_hat * a.1.cos() + Vec3::unit_z() * a.1.sin(),
+            (b.1 - a.1).abs(),
+            plane(p(0.0, 0.0, 0.0), n),
+        )
+    };
+    let cut = body.add_surface(cut);
+    EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1: torus,
+            s2: cut,
+            witness: donut_at(mid.0, mid.1),
+        },
+        carrier: Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        },
+        param_start: 0.0,
+        param_end: sweep,
+    }
+}
+
+/// **One face of [`donut`] bounded by iso arcs through the chart
+/// corners**, in order, closed back to the first by `mef`: the torus
+/// face a boolean mints where parallels and meridians cut the tube.
+fn donut_sheet(corners: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(donut_at(corners[0].0, corners[0].1)).unwrap();
+    let torus = body
+        .set_face_surface(seed.face, FaceSurface::New(donut()))
+        .unwrap();
+    let mut edges: Vec<crate::MevCreated> = Vec::new();
+    for pair in corners.windows(2) {
+        let site = match edges.last() {
+            None => MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Some(e) => MevSite::Fan {
+                he1: e.he_minus,
+                he2: e.he_minus,
+            },
+        };
+        let spec = donut_iso(&mut body, torus, pair[0], pair[1]);
+        edges.push(
+            body.mev(site, donut_at(pair[1].0, pair[1].1), spec, tol)
+                .unwrap(),
+        );
+    }
+    let (first, last) = (edges[0], edges[edges.len() - 1]);
+    let spec = donut_iso(&mut body, torus, corners[0], corners[corners.len() - 1]);
+    let face = body
+        .mef(
+            MefSite::Chords {
+                he1: first.he_plus,
+                he2: last.he_minus,
+            },
+            spec,
+            FaceSurface::Shared(torus),
+            tol,
+        )
+        .unwrap()
+        .face;
+    (body, face)
+}
+
+/// **An L-shaped torus face refuses, never trims by its hull.** The face
+/// covers `t ∈ [−a, 0]` over `u ∈ [0, a]` and `t ∈ [−a, a]` over
+/// `u ∈ [a, 2a]`; the notch `t ∈ (0, a)` over `u ∈ (0, a)` has the same
+/// hull. The L is monotone in both channels, so a variation-to-span
+/// comparison passes it; `bool_torus_chart_box` compares areas and sees
+/// the notch, and the face door answers `None`. The U (two notches'
+/// worth, not monotone) refuses too, and the rectangle trims.
+#[test]
+fn an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull() {
+    let a = PI / 4.0;
+    let l = [
+        (0.0, -a),
+        (2.0 * a, -a),
+        (2.0 * a, a),
+        (a, a),
+        (a, 0.0),
+        (0.0, 0.0),
+    ];
+    let notch = donut_at(0.5 * a, 0.5 * a);
+    let (body, face) = donut_sheet(&l);
+    assert_eq!(
+        contain_at(&body, face, donut_at(1.5 * a, 0.5 * a)),
+        Some(FaceContainment::In),
+        "the L holds its arm"
+    );
+    assert_eq!(contain_at(&body, face, notch), None, "the L's notch");
+    let u = [
+        (0.0, -a),
+        (3.0 * a, -a),
+        (3.0 * a, a),
+        (2.0 * a, a),
+        (2.0 * a, 0.0),
+        (a, 0.0),
+        (a, a),
+        (0.0, a),
+    ];
+    let (body, face) = donut_sheet(&u);
+    assert_eq!(
+        contain_at(&body, face, donut_at(1.5 * a, 0.5 * a)),
+        None,
+        "the U's notch"
+    );
+    let (body, face) = donut_sheet(&[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
+    assert_eq!(
+        contain_at(&body, face, notch),
+        Some(FaceContainment::In),
+        "the rectangle holds the point"
+    );
+    assert_eq!(
+        contain_at(&body, face, donut_at(2.5 * a, 0.5 * a)),
+        Some(FaceContainment::Out),
+        "the rectangle trims past its window"
+    );
+}
+
 /// **A ringed apex-closed face has no single lift.** The quarter sector
 /// with a lone-vertex ring closes `Open`; without the ring it closes.
 #[test]
