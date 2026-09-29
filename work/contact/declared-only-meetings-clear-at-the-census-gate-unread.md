@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-26
 priority: P0
 cost: H
+needs_ev: true
 ---
 
 Filed by CONTACT-5 and re-scoped by its fix pass. Arm 2 of
@@ -85,3 +86,21 @@ Results:
 - **Declared as sixteen `VfContact`s:** `Ok(())`. The vertex stars are saddles, so they read `Unanalysed`, and the declared-only path refuses only on `MixedTouch`.
 
 This confirms CONTACT-7's designers' note: the Crossing verdict is incomplete, so "refuse only a decided crossing" is unsound even for vertex records. The repair lane commits the three poses as rows.
+
+A second designer lane built a curved wrong clear on the same branch.
+- **The pose:** a wall, `brick((0,4),(0,1),(0,4))`, and a horizontal
+  log, `extruded(sketch_at(1.0), [bulge_loop([(1.6,1),(2.4,1),(2,1.8)])
+  with bulge(·,·,(2,1.3)) on each arc], 2.0)`. The log's lower arc lies
+  0.2 m inside the wall.
+- **Declared** with four v-on-f records at (1.6|2.4, 1, 1|3), it returns
+  `Ok(())`. A true rest (the same log with a flat bottom) also returns
+  `Ok(())`, and the records cannot tell the two apart.
+- **Arm 1 skips the log's curved wall** against the wall face because a
+  v-on-f record names that face, so one point's record clears a whole
+  curved face.
+
+The same lane measured the nineteen planar seats: every event a face
+pair backs, read strictly through `TouchSite::verdict`, reads Rest
+(topo, sweep and editor-core unchanged).
+
+The design fork is on its `[ev]` PR.
