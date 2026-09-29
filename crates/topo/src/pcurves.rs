@@ -3349,9 +3349,10 @@ mod recourse_tests {
             "read", "repair", "re-mint", "ask", "hold", "describe", "report",
         ];
         let cause = Indeterminate {
-            margin: MarginDiag::Value(5e-9),
+            margin: MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("pcurve_recourse_probe"),
+            terminal_sliver: false,
         };
         let band_error = BandError::Empty {
             zero: 1e-8,

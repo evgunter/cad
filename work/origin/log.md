@@ -203,3 +203,8 @@ doors) led to "if nothing needs this then it should not be done". The
 N6 and DESIGN.md edits reverted; `two-provenance-free-keys-…` closed as
 the accepted re-mint; `set-surface-source-…` and
 `surface-field-walks-…` carry the answer. Fork row 11 completed.
+
+## 2026-09-29 — PR 3412 ruled: charts are body-wide
+
+Ev took (B) ("sounds good!"). `a-chart-spans-solids-…` is a unit at
+`spec` again, now for the scoped-grouping change; fork row 12 completed.

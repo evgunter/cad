@@ -1,5 +1,5 @@
 //! **An escalation whose margin the band cannot place** — the one home
-//! of the `MarginDiag::Invalid` diagnostic a topology door raises by
+//! of the `MarginKind::Invalid` diagnostic a topology door raises by
 //! itself rather than receiving from `decide`.
 //!
 //! A door reaches for it when it has a question it must refuse and no
@@ -25,8 +25,9 @@ use geom_core::{Band, Indeterminate, MarginDiag};
 /// the module docs for the three things a caller may mean by it.
 pub(crate) fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
     Indeterminate {
-        margin: MarginDiag::Invalid,
+        margin: MarginDiag::INVALID,
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }

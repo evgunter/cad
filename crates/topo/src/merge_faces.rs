@@ -3564,9 +3564,10 @@ mod tests {
         assert!(
             rendered(&MergeCoplanarError::DeclarationContradicted {
                 diag: Indeterminate {
-                    margin: geom_core::MarginDiag::Value(0.0),
+                    margin: geom_core::MarginDiag::value(0.0),
                     band: Band::linear(Tol::witness()).expect("the witness band"),
                     predicate: Some("merge_declared_plane_eq"),
+                    terminal_sliver: false,
                 },
             })
             .contains("fix the declaration or the geometry"),
@@ -3869,7 +3870,7 @@ mod winding_arm_tests {
     /// scalar.** `loop_winding` hands back a [`Sign`] and nothing else
     /// when it decides, so `2A/P` is unobservable from outside on the
     /// deciding path — but an IN-BAND margin escalates typed, and
-    /// [`geom_core::MarginDiag::Value`] then carries the exact quantity
+    /// [`geom_core::MarginKind::Value`] then carries the exact quantity
     /// that was classified. The two rows below aim their fixtures into
     /// that band deliberately: it is the only place the numerator and
     /// the DENOMINATOR can both be pinned, and the denominator — the
@@ -3877,10 +3878,12 @@ mod winding_arm_tests {
     /// sign assertion, because scaling a lever cannot change a sign.
     fn escalated_margin(r: Result<Option<Sign>, MergeCoplanarError>) -> f64 {
         match r {
-            Err(MergeCoplanarError::Escalated { diag }) => match diag.margin {
-                geom_core::MarginDiag::Value(v) => v,
-                other => panic!("expected a classified f64 margin, got {other:?}"),
-            },
+            Err(MergeCoplanarError::Escalated { diag }) => {
+                match diag.margin.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Value(v) => v,
+                    other => panic!("expected a classified f64 margin, got {other:?}"),
+                }
+            }
             other => panic!("expected an in-band escalation carrying its margin, got {other:?}"),
         }
     }

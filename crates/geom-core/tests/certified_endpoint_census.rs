@@ -86,9 +86,8 @@
 //! 7. **A read spelled as a path** — `Bounds::lo(x)`, or `Bounds::lo`
 //!    handed on as a function — carries no `.lo()` and is not counted.
 //!    The production ones in the population are `Bounds` reads on the
-//!    evaluation scalar (`ssi/certify.rs`'s tube-transversality refusal,
-//!    `ssi.rs`'s `TubeScale::uniform`) or the type's own body
-//!    (`interval.rs`'s `from_certified` and span locator).
+//!    evaluation scalar (`ssi.rs`'s `TubeScale::uniform`) or the type's
+//!    own body (`interval.rs`'s `from_certified` and span locator).
 //!
 //! # Where it lives, and why here
 //!

@@ -942,11 +942,11 @@ swallowed.
   row below applies.
 - *Row 1 absorbs the terminal indeterminates*, but the axis is
   curable-vs-terminal, not bug-vs-invalid: an `Indeterminate` whose
-  `MarginDiag` is `Value` or an `Enclosure` wholly inside a sliver band
-  is a statement about the input and reaches the user through
-  `COINCIDENCE_RECOURSE`; a straddling `Enclosure` is generally curable
-  by subdivision, and a `MarginDiag::Invalid` from a domain clamp may
-  cure as the violating sub-box shrinks (a NaI never does). The
+  `MarginDiag` is of kind `Value`, or an `Enclosure` wholly inside a
+  sliver band, is a statement about the input and reaches the user
+  through `COINCIDENCE_RECOURSE`; a straddling `Enclosure` is generally
+  curable by subdivision, and an `Invalid` margin from a domain clamp
+  may cure as the violating sub-box shrinks (a NaI never does). The
   subdivision driver exists (`editor_core::drive`, ERROR-DESIGN E6): a
   curable indeterminate unwinds to it and is not reported as invalid
   input.

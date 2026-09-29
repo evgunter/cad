@@ -135,7 +135,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use interval_transcendentals::{DInterval, Decoration};
 
 use crate::dual::KinkJacobian;
-use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
+use crate::predicate::{Band, Decide, Decided, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedBounds, Real};
 use crate::tolerance::Tol;
 
@@ -784,7 +784,7 @@ impl Real for Interval {
 /// through `Bounds`, on purpose: failing certification outranks
 /// IEEE 1788 representational honesty. (Code that needs to tell them
 /// apart is driver/diagnostic code, which sees the decoration through
-/// [`Decide::sign_within`]'s [`MarginDiag::Invalid`], not through this
+/// [`Decide::sign_within`]'s [`MarginKind::Invalid`](crate::MarginKind::Invalid), not through this
 /// trait.)
 impl Bounds for Interval {
     fn lo(self) -> f64 {
@@ -845,7 +845,7 @@ impl crate::spline::SpanLocate for Interval {
 /// to decisions.
 ///
 /// **Poison first**: a decoration below [`Decoration::Def`] refuses to
-/// classify at all, yielding [`MarginDiag::Invalid`]. This covers NaI
+/// classify at all, yielding [`MarginKind::Invalid`](crate::MarginKind::Invalid). This covers NaI
 /// (`Ill`), the empty enclosure (`Trv`), and — the crucial case — a
 /// *plausible-looking* enclosure whose computation violated a domain
 /// somewhere (`Trv` via clamping, e.g. `sqrt([-1, 4]) = [0, 2]`). The
@@ -862,7 +862,7 @@ impl crate::spline::SpanLocate for Interval {
 /// - `lo ≥ escalate` — every enclosed value has full clearance —
 ///   [`Sign::Positive`]; mirrored for [`Sign::Negative`];
 /// - anything else is [`Indeterminate`] with
-///   [`MarginDiag::Enclosure`] carrying the exact bounds.
+///   [`MarginKind::Enclosure`](crate::MarginKind::Enclosure) carrying the exact bounds.
 ///
 /// Consequences, both deliberate: an enclosure *straddling* a region
 /// boundary is indeterminate (subdivide and re-run — Q1's driver), and a
@@ -873,12 +873,12 @@ impl crate::spline::SpanLocate for Interval {
 /// changes nothing.
 ///
 /// **Driver termination rule.** The second consequence generalizes: an
-/// [`MarginDiag::Enclosure`] lying **wholly inside one open sliver band**
+/// [`MarginKind::Enclosure`](crate::MarginKind::Enclosure) lying **wholly inside one open sliver band**
 /// `(zero, escalate)` — or its mirror `(-escalate, -zero)` — is
 /// **terminal**. No subdivision refines it: the band is semantically
 /// indeterminate at *any* width, down to a point, so the driver escalates
 /// it as a genuine D4 ¶3 sliver, never retries it as a resolution
-/// failure. [`MarginDiag::Invalid`] outcomes split for the driver too: a
+/// failure. [`MarginKind::Invalid`](crate::MarginKind::Invalid) outcomes split for the driver too: a
 /// domain-clamp `Invalid` (`Trv` from partial clamping) may cure under
 /// subdivision — the violating sub-box shrinks away — while a NaI
 /// `Invalid` never cures.
@@ -888,28 +888,36 @@ impl Decide for Interval {
         self.certified_bracket()
     }
 
-    fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
+    fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         if !self.is_certified() {
             return Err(Indeterminate {
-                margin: MarginDiag::Invalid,
+                margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             });
         }
         let (lo, hi) = (self.0.lo(), self.0.hi());
-        if -band.zero() <= lo && hi <= band.zero() {
-            Ok(Sign::Zero)
+        let margin = MarginDiag::enclosure(lo, hi);
+        let sign = if -band.zero() <= lo && hi <= band.zero() {
+            Sign::Zero
         } else if lo >= band.escalate() {
-            Ok(Sign::Positive)
+            Sign::Positive
         } else if hi <= -band.escalate() {
-            Ok(Sign::Negative)
+            Sign::Negative
         } else {
-            Err(Indeterminate {
-                margin: MarginDiag::Enclosure { lo, hi },
+            // The curability verdict: wholly inside one open sliver
+            // band, no subdivision decides it.
+            let (zero, escalate) = (band.zero(), band.escalate());
+            let terminal_sliver = (zero < lo && hi < escalate) || (-escalate < lo && hi < -zero);
+            return Err(Indeterminate {
+                margin,
                 band,
                 predicate: None,
-            })
-        }
+                terminal_sliver,
+            });
+        };
+        Ok(Decided { sign, margin })
     }
 }
 
@@ -1397,11 +1405,12 @@ mod tests {
 
         let band = band_1e9();
         assert_eq!(
-            x.sign_within(band),
+            x.sign_within(band).map(|d| d.sign),
             Err(Indeterminate {
-                margin: MarginDiag::Invalid,
+                margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             })
         );
     }
@@ -1488,11 +1497,12 @@ mod tests {
         // and a poisoned computation never takes a branch.
         for poisoned in [clamped, shifted] {
             assert_eq!(
-                poisoned.sign_within(band),
+                poisoned.sign_within(band).map(|d| d.sign),
                 Err(Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: None,
+                    terminal_sliver: false,
                 })
             );
         }
@@ -1510,11 +1520,12 @@ mod tests {
 
         // ...and the decision refuses, with the poison diagnostic.
         assert_eq!(
-            downstream.sign_within(band),
+            downstream.sign_within(band).map(|d| d.sign),
             Err(Indeterminate {
-                margin: MarginDiag::Invalid,
+                margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             })
         );
     }
@@ -1528,15 +1539,27 @@ mod tests {
         let band = band_1e9();
         let indeterminate = |lo: f64, hi: f64| {
             Err(Indeterminate {
-                margin: MarginDiag::Enclosure { lo, hi },
+                margin: MarginDiag::enclosure(lo, hi),
                 band,
                 predicate: None,
+                terminal_sliver: false,
+            })
+        };
+        // Wholly inside one open sliver band: the classifier records it
+        // terminal.
+        let sliver = |lo: f64, hi: f64| {
+            Err(Indeterminate {
+                margin: MarginDiag::enclosure(lo, hi),
+                band,
+                predicate: None,
+                terminal_sliver: true,
             })
         };
         let invalid = Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band,
             predicate: None,
+            terminal_sliver: false,
         });
 
         // First representable values beyond the thresholds.
@@ -1556,9 +1579,9 @@ mod tests {
             (iv(-2e-9, 2e-9),       indeterminate(-2e-9, 2e-9), "symmetric straddle of the coincidence region"),
             // -- Inside the ambiguity band: indeterminate EVEN FOR POINTS
             //    (the sliver band is semantic — ratified reading (b)).
-            (Interval::from_f64(5e-9), indeterminate(5e-9, 5e-9), "a point in the sliver band stays indeterminate"),
-            (iv(2e-9, 3e-9),        indeterminate(2e-9, 3e-9), "an enclosure wholly inside the band"),
-            (Interval::from_f64(-5e-9), indeterminate(-5e-9, -5e-9), "sliver point, negative side"),
+            (Interval::from_f64(5e-9), sliver(5e-9, 5e-9), "a point in the sliver band stays indeterminate"),
+            (iv(2e-9, 3e-9),        sliver(2e-9, 3e-9), "an enclosure wholly inside the band"),
+            (Interval::from_f64(-5e-9), sliver(-5e-9, -5e-9), "sliver point, negative side"),
             // -- Straddling the escalate threshold: indeterminate.
             (iv(below_escalate, 1.0), indeterminate(below_escalate, 1.0), "lo one ulp short of escalate"),
             (iv(-1.0, -below_escalate), indeterminate(-1.0, -below_escalate), "hi one ulp short of -escalate"),
@@ -1582,7 +1605,7 @@ mod tests {
 
         for (x, expected, why) in table {
             assert_eq!(
-                x.sign_within(band),
+                x.sign_within(band).map(|d| d.sign),
                 *expected,
                 "enclosure [{:e}, {:e}]: {why}",
                 x.lo(),
@@ -1720,7 +1743,10 @@ mod tests {
         assert_eq!(stepped.0.decoration(), Decoration::Def);
         // Def still classifies: a stepped floor is honest discreteness,
         // not a domain violation.
-        assert_eq!(stepped.sign_within(band_1e9()), Ok(Sign::Positive));
+        assert_eq!(
+            stepped.sign_within(band_1e9()).map(|d| d.sign),
+            Ok(Sign::Positive)
+        );
         // Negative side.
         let negative = iv(-2.3, -2.1).floor();
         assert_eq!((negative.lo(), negative.hi()), (-3.0, -3.0));
@@ -1980,13 +2006,13 @@ mod tests {
         ) {
             let band = Band::new(zero, zero * ratio).unwrap();
             let m = t * band.escalate();
-            let at_f64 = m.sign_within(band);
-            let at_interval = Interval::from_f64(m).sign_within(band);
+            let at_f64 = m.sign_within(band).map(|d| d.sign);
+            let at_interval = Interval::from_f64(m).sign_within(band).map(|d| d.sign);
             match (at_f64, at_interval) {
                 (Ok(a), Ok(b)) => prop_assert_eq!(a, b),
                 (Err(e_f), Err(e_i)) => {
-                    prop_assert_eq!(e_f.margin, MarginDiag::Value(m));
-                    prop_assert_eq!(e_i.margin, MarginDiag::Enclosure { lo: m, hi: m });
+                    prop_assert_eq!(e_f.margin, MarginDiag::value(m));
+                    prop_assert_eq!(e_i.margin, MarginDiag::enclosure(m, m));
                     prop_assert_eq!(e_i.band, band);
                 }
                 (a, b) => prop_assert!(

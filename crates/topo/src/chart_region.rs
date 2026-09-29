@@ -649,7 +649,7 @@ mod wiring_rows {
 
 /// The diagnostic for a DEFINITE margin whose outcome is nevertheless
 /// uncertifiable (the conservative-deduction escalations): the margin
-/// was validly posed and classified — `MarginDiag::Invalid` would
+/// was validly posed and classified — `MarginKind::Invalid` would
 /// claim otherwise — so the diag echoes the classified value itself
 /// (its conservative bracket end), named to its row.
 fn definite_diag<T: Bounds>(
@@ -658,9 +658,10 @@ fn definite_diag<T: Bounds>(
     margin: Margin<T>,
 ) -> Indeterminate {
     Indeterminate {
-        margin: geom_core::MarginDiag::Value(margin.value().lo()),
+        margin: geom_core::MarginDiag::value(margin.value().lo()),
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -1137,9 +1138,10 @@ fn carrier_agreement<T: Decide + Bounds>(
         Ok(Sign::Zero) => Ok(()),
         Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
         Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("chart_region_carrier_tilt"),
+            terminal_sliver: false,
         })),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
@@ -1458,9 +1460,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             Ok(Sign::Zero) => Ok(()),
             Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
             Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band: gate_band,
                 predicate: Some(name),
+                terminal_sliver: false,
             })),
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
@@ -1491,9 +1494,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         // dot of near-parallel units is near ±1): poisoned input.
         Ok(Sign::Zero) => {
             return Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("chart_region_cyl_axis_sense"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
@@ -3462,7 +3466,7 @@ fn overlap_of_regions<T: Decide + Bounds>(
     match decide("chart_region_area", area_margin, band) {
         Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
         // A definite Zero/Negative here is NOT an invalid question
-        // (union fix U5: `MarginDiag::Invalid` means never-posed —
+        // (union fix U5: `MarginKind::Invalid` means never-posed —
         // NaN/poison — which this is not): the margin was posed and
         // answered; the conservative ring deduction just leaves no
         // certifiable direction. Echo the classified margin itself.
@@ -3549,9 +3553,10 @@ mod tests {
             "declare",
         ];
         let diag = Indeterminate {
-            margin: geom_core::MarginDiag::Value(5e-9),
+            margin: geom_core::MarginDiag::value(5e-9),
             band: band(),
             predicate: Some("chart_region_area"),
+            terminal_sliver: false,
         };
         // Every arm, constructed. The list is exhaustive by
         // inspection and the compiler cannot check that for a Vec, so

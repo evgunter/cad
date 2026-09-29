@@ -54,7 +54,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeDescription, MustCarryVerdict, SurfaceKind, must_carry_over_edge};
-use geom_core::{Band, MarginDiag, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
@@ -230,8 +230,8 @@ fn assert_in_band_payload(source: geom_core::Indeterminate) {
         "the escalation must name the must-carry rule's one metered predicate"
     );
     let b = band();
-    match source.margin {
-        MarginDiag::Value(m) => assert!(
+    match source.margin.diagnostic_f64_for_error_text() {
+        ErrorTextReading::Value(m) => assert!(
             m.abs() > b.zero() && m.abs() < b.escalate(),
             "the row's derived geometry must put the margin strictly inside \
              the band: margin {m:e} against ({:e}, {:e})",
@@ -617,7 +617,10 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
                 "{order}, extent {extent:e}: the escalation is the first-order arm's"
             );
             assert_eq!(
-                matches!(source.margin, MarginDiag::Value(_)),
+                matches!(
+                    source.margin.diagnostic_f64_for_error_text(),
+                    ErrorTextReading::Value(_)
+                ),
                 in_band,
                 "{order}, extent {extent:e}: an in-band arm carries its margin, a \
                  definitely-zero arm is Invalid; got {:?}",
