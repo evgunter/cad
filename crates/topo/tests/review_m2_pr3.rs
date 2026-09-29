@@ -949,7 +949,7 @@ mod interval_lane {
     /// scalar — the very first non-axis-aligned rim mint was refused
     /// because `norm`'s old `sqrt(dot(v,v))` squared a zero-straddling
     /// difference enclosure through plain interval `Mul` (negative
-    /// lo), the sqrt clamped, and the decoration poisoned every
+    /// lo), the sqrt clamped, and the decoration refused every
     /// decision. With `norm_squared` computing tight per-component
     /// squares, the FULL mini-extrude e2e now runs at `Interval`:
     /// non-dyadic rims, Newell side planes, the seed-cap setter, the

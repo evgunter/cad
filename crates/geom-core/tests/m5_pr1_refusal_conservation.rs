@@ -1,11 +1,11 @@
-//! **Poison conservation across the M5 PR 1 backend swap.**
+//! **Refusal conservation across the M5 PR 1 backend swap.**
 //!
 //! The `Interval` scalar's transcendental backend moved from `inari` to
 //! the in-repo `interval-transcendentals` crate. Endpoint VALUES were
 //! allowed to move (outward pads instead of MPFR-tight rounding); the
-//! poison channel was not. This file is the enumerated pin for that: for
+//! refusal channel was not. This file is the enumerated pin for that: for
 //! every operation on the scalar's surface, at a domain-violating or
-//! otherwise poisoned input, the wrapper must classify exactly as the
+//! otherwise refused input, the wrapper must classify exactly as the
 //! inari-backed wrapper did — `Indeterminate` with [`MarginKind::Invalid`](crate::MarginKind::Invalid)
 //! wherever the decoration falls below `Def`, and a *definite* verdict
 //! wherever the pre-swap kernel produced one.
@@ -13,11 +13,11 @@
 //! Three properties are pinned per function, because the contract has
 //! three parts (M0 PR 4, `src/interval.rs` module docs):
 //!
-//! 1. **Partial domain miss clamps and poisons**: the value stays a
+//! 1. **Partial domain miss clamps and refuses**: the value stays a
 //!    plausible enclosure, and the decoration alone records the
 //!    violation, so the result refuses to decide.
-//! 2. **Full domain miss goes empty**, which is also poison.
-//! 3. **NaI and Empty propagate through every entry point** — poison
+//! 2. **Full domain miss goes empty**, which is also a refusal.
+//! 3. **NaI and Empty propagate through every entry point** — a refusal
 //!    never gets laundered by an operation, including the ones (`powi`
 //!    with `n == 0`, `abs`, `floor`) whose value would otherwise be
 //!    independent of the input.
@@ -28,26 +28,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign};
+use crate::refusal::assert_refused;
+use geom_core::{Band, Bounds, Decide, Interval, Real, Sign};
 
 /// The fixed pure band used throughout (identical to `interval.rs`'s
 /// `band_1e9`): built via `Band::new`, so this file never touches the
 /// global tolerance and may hold many `#[test]`s.
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
-}
-
-/// Asserts that `x` refuses to classify *because it is poisoned* — the
-/// `Invalid` margin, not merely a straddling enclosure.
-#[track_caller]
-fn assert_poisoned(name: &str, x: Interval) {
-    match x.sign_within(band()).map(|d| d.sign) {
-        Err(Indeterminate {
-            margin: MarginDiag::INVALID,
-            ..
-        }) => {}
-        other => panic!("{name}: expected poison-refusal, got {other:?}"),
-    }
 }
 
 /// Asserts that `x` classifies definitely — the pre-swap verdict for
@@ -69,7 +57,7 @@ fn empty() -> Interval {
     Interval::from_bounds(-4.0, -1.0).sqrt()
 }
 
-/// A `Trv`-poisoned but perfectly plausible-looking enclosure — the
+/// A `Trv`-refused but perfectly plausible-looking enclosure — the
 /// dangerous case the decoration channel exists for. `sqrt([-1, 4])`
 /// clamps to `[0, 2]`, whose bounds betray nothing.
 fn clamped() -> Interval {
@@ -77,15 +65,15 @@ fn clamped() -> Interval {
 }
 
 #[test]
-fn the_poison_fixtures_are_what_they_claim_to_be() {
+fn the_refusal_fixtures_are_what_they_claim_to_be() {
     assert!(nai().lo().is_nan() && nai().hi().is_nan());
     assert!(empty().lo().is_nan() && empty().hi().is_nan());
     // The clamped one is the interesting fixture: healthy-looking bounds,
-    // poisoned decoration.
+    // refusing decoration.
     assert_eq!((clamped().lo(), clamped().hi()), (0.0, 2.0));
-    assert_poisoned("sqrt([-1, 4]) clamp", clamped());
-    assert_poisoned("NaI", nai());
-    assert_poisoned("Empty", empty());
+    assert_refused("sqrt([-1, 4]) clamp", clamped());
+    assert_refused("NaI", nai());
+    assert_refused("Empty", empty());
 }
 
 /// Partial domain misses: the value clamps to the domain, and the
@@ -118,11 +106,11 @@ fn partial_domain_misses_clamp_and_refuse_to_decide() {
         ),
     ];
     for (name, x) in cases {
-        assert_poisoned(name, x);
+        assert_refused(name, x);
     }
 }
 
-/// Full domain misses are empty, and empty is poison.
+/// Full domain misses are empty, and empty is a refusal.
 #[test]
 fn full_domain_misses_are_empty_and_refuse_to_decide() {
     let cases: Vec<(&str, Interval)> = vec![
@@ -137,15 +125,15 @@ fn full_domain_misses_are_empty_and_refuse_to_decide() {
     ];
     for (name, x) in cases {
         assert!(x.lo().is_nan() && x.hi().is_nan(), "{name}: not empty");
-        assert_poisoned(name, x);
+        assert_refused(name, x);
     }
 }
 
 /// Every entry point propagates NaI, Empty, and a clamped-`Trv` input —
 /// the exhaustive sweep. Unary operations first; each is applied to all
-/// three poison fixtures.
+/// three refusal fixtures.
 #[test]
-fn every_unary_operation_conserves_poison() {
+fn every_unary_operation_conserves_the_refusal() {
     type UnaryOp = fn(Interval) -> Interval;
     let ops: Vec<(&str, UnaryOp)> = vec![
         ("sqrt", Real::sqrt),
@@ -174,14 +162,14 @@ fn every_unary_operation_conserves_poison() {
             ("Empty", empty()),
             ("clamped Trv", clamped()),
         ] {
-            assert_poisoned(&format!("{name} of {label}"), op(fixture));
+            assert_refused(&format!("{name} of {label}"), op(fixture));
         }
     }
 }
 
-/// Binary operations conserve poison from EITHER side.
+/// Binary operations conserve the refusal from EITHER side.
 #[test]
-fn every_binary_operation_conserves_poison_from_either_side() {
+fn every_binary_operation_conserves_the_refusal_from_either_side() {
     type BinaryOp = fn(Interval, Interval) -> Interval;
     let ops: Vec<(&str, BinaryOp)> = vec![
         ("add", |a, b| a + b),
@@ -194,7 +182,7 @@ fn every_binary_operation_conserves_poison_from_either_side() {
         ("copysign", Real::copysign),
         ("reduce_periodic", Real::reduce_periodic),
     ];
-    // A healthy operand to pair each poison fixture against.
+    // A healthy operand to pair each refusal fixture against.
     let healthy = Interval::from_bounds(1.0, 2.0);
     for (name, op) in ops {
         for (label, fixture) in [
@@ -202,14 +190,14 @@ fn every_binary_operation_conserves_poison_from_either_side() {
             ("Empty", empty()),
             ("clamped Trv", clamped()),
         ] {
-            assert_poisoned(&format!("{name}({label}, healthy)"), op(fixture, healthy));
-            assert_poisoned(&format!("{name}(healthy, {label})"), op(healthy, fixture));
+            assert_refused(&format!("{name}({label}, healthy)"), op(fixture, healthy));
+            assert_refused(&format!("{name}(healthy, {label})"), op(healthy, fixture));
         }
     }
 }
 
 /// The other half of conservation: healthy inputs must still DECIDE.
-/// A poison channel that poisons everything conserves poison trivially
+/// A refusal channel that refuses everything conserves the refusal trivially
 /// and is worthless — this is the pin that the swap did not simply make
 /// the scalar more pessimistic. Every case here decided definitely under
 /// the inari backend and must still.

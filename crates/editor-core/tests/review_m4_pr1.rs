@@ -802,7 +802,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
         );
     }
     // Zero-containing divisor (fix pass): the certified lane's
-    // empty/Trv poison is REFUSED at the eval boundary — the same
+    // empty/Trv refusal is REFUSED at the eval boundary — the same
     // typed door as the f64 lane's inf/NaN, never a confident (or
     // any) enclosure.
     let div0 = Expr::div(len(1.0), scl(0.0)).unwrap();
