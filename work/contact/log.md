@@ -638,7 +638,7 @@ Signed: (CONTACT orchestrator)
   1e-12 locally before merging (3,303 of 3,303 at each), because the
   hosted `test` job's tolerances could not be confirmed.
 - **CONTACT-7 lands** with **DR-17**: no tally candidate, the one MAJOR
-  bilateral. The found-a-MAJOR count goes to 6 (DR-15 was GERM's).
+  bilateral. The found-a-MAJOR count goes to 7 (DR-15 and DR-16 are GERM's).
   Recorded under protocol `cb47d67c4`; dispatched under `c3129311b`,
   whose only difference is rule 9's readout point.
 - **Process notes.**
