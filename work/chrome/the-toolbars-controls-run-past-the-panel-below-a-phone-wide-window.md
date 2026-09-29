@@ -33,9 +33,10 @@ fit. Measured (the startup fixture, which is evaluating):
 
 It also widens the panel's `Ui`: its `max_rect` grows to take in the
 overrun, so anything laid out after the row sees the wider width.
-`toolbar_ui` now reads the panel's width before the row, so the
-status line's row is not affected. Nothing else placed after the row
-reads that width.
+`toolbar_ui` reads the panel's width before the row and bounds the
+status row to it, separator included. The panel's own bottom border
+still spans the widened rect: at a 120-point window it ends at
+x = 184 against a panel ending at 112.
 
 ## The canceled line
 

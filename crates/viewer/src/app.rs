@@ -1466,7 +1466,8 @@ impl ViewerApp {
     /// [`Refusal::GestureInFlight`]: crate::session::Refusal::GestureInFlight
     fn toolbar_ui(&mut self, ui: &mut egui::Ui, ops: &mut Vec<SessionOp>, chosen: &mut Theme) {
         // Read before the controls: a control laid out past the
-        // panel widens this `Ui`, and the status row must not follow.
+        // panel widens this `Ui`, and the status row (its separator
+        // included) must not follow.
         let panel_width = ui.available_width();
         ui.horizontal_wrapped(|ui| {
             // What is OPEN, not what the program is called: the
@@ -1773,11 +1774,13 @@ impl ViewerApp {
             }
         });
         if let Some(status) = &self.status {
-            ui.separator();
-            egui::ScrollArea::horizontal()
-                .id_salt("viewer_status_line")
-                .max_width(panel_width)
-                .show(ui, |ui| crate::widgets::message(ui, status.text()));
+            ui.scope(|ui| {
+                ui.set_max_width(panel_width);
+                ui.separator();
+                egui::ScrollArea::horizontal()
+                    .id_salt("viewer_status_line")
+                    .show(ui, |ui| crate::widgets::message(ui, status.text()));
+            });
         }
     }
 }
@@ -2581,6 +2584,14 @@ mod tests {
         /// The clip rect that sentence was painted under: the part of
         /// a line outside it is not on screen.
         status_clip: egui::Rect,
+        /// The right-hand end of the widest HORIZONTAL rule that
+        /// starts inside the panel: the status row's separator, the
+        /// only one the toolbar draws (the controls' separators are
+        /// vertical, and the panel's own border starts at the
+        /// window's edge). `-inf` for none.
+        rule_right: f32,
+        /// [`crate::widgets::message_floor`] in the panel.
+        floor: f32,
     }
 
     /// A status line longer than a narrow window's toolbar row, in the
@@ -2651,6 +2662,8 @@ mod tests {
             panel: egui::Rect::NOTHING,
             status: Vec::new(),
             status_clip: egui::Rect::NOTHING,
+            rule_right: f32::NEG_INFINITY,
+            floor: f32::NAN,
         };
         let mut frame = 0;
         loop {
@@ -2675,6 +2688,7 @@ mod tests {
                     let mut chosen = Theme::ALL[0];
                     row.available = ui.available_width();
                     row.panel = ui.max_rect();
+                    row.floor = crate::widgets::message_floor(ui);
                     // The row's OWN rect, through a scope: a panel's
                     // `Ui` is expanded to the panel's width whatever
                     // it holds, so its `min_rect` answers the window
@@ -2685,38 +2699,34 @@ mod tests {
                     row.occupied = laid_out.response.rect.width();
                 });
             });
-            row.status = sentence
-                .and_then(|text| {
-                    crate::pane::headless::landed_in(&output.shapes)
-                        .into_iter()
-                        .find(|landed| landed.text == text)
+            let landed = sentence.and_then(|text| {
+                crate::pane::headless::landed_in(&output.shapes)
+                    .into_iter()
+                    .find(|landed| landed.text == text)
+            });
+            let panel = row.panel;
+            row.rule_right = output
+                .shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::LineSegment { points: [a, b], .. }
+                        if a.y == b.y && a.x.min(b.x) >= panel.left() - SLACK =>
+                    {
+                        Some(a.x.max(b.x))
+                    }
+                    _ => None,
                 })
-                .map(|landed| landed.rows)
-                .unwrap_or_default();
-            row.status_clip = sentence
-                .and_then(|text| clip_of(&output.shapes, text))
-                .unwrap_or(egui::Rect::NOTHING);
+                .fold(f32::NEG_INFINITY, f32::max);
+            (row.status, row.status_clip) = landed.map_or_else(
+                || (Vec::new(), egui::Rect::NOTHING),
+                |landed| (landed.rows, landed.clip),
+            );
             // Nothing here paints, so the frame's texture delta is
             // dropped rather than uploaded, and epaint refuses a drop
             // it did not see taken.
             output.textures_delta.clear();
         }
         row
-    }
-
-    /// The clip rect the text run `text` was painted under.
-    fn clip_of(shapes: &[egui::epaint::ClippedShape], text: &str) -> Option<egui::Rect> {
-        fn holds(shape: &egui::Shape, text: &str) -> bool {
-            match shape {
-                egui::Shape::Text(run) => run.galley.text() == text,
-                egui::Shape::Vec(shapes) => shapes.iter().any(|shape| holds(shape, text)),
-                _ => false,
-            }
-        }
-        shapes
-            .iter()
-            .find(|clipped| holds(&clipped.shape, text))
-            .map(|clipped| clipped.clip_rect)
     }
 
     /// Where the toolbar's canceled line landed in a window `width`
@@ -3146,7 +3156,10 @@ mod tests {
     }
 
     /// **What of the status line is on screen lies inside the panel, at
-    /// every width**, the ones below the message floor included.
+    /// every width**, the ones below the message floor included; where
+    /// the panel is as wide as the floor, the whole line does, so the
+    /// row scrolls only below the floor. The separator above the line
+    /// spans the panel and no further.
     ///
     /// The sweep runs from below the floor to past a half-tiled
     /// desktop, in steps fine enough to put the controls' last line at
@@ -3175,13 +3188,33 @@ mod tests {
                     row.status_clip,
                     row.panel
                 );
+                // Unclipped: a line laid out past the panel and hidden
+                // by the scroll area's clip passes the reading above.
+                if row.panel.width() >= row.floor {
+                    assert!(
+                        line.right() <= row.panel.right() + SLACK,
+                        "at a {width}-point window, as wide as the floor ({}), the status \
+                         line is laid out {} points past the panel, so it scrolls where it \
+                         could wrap ({line:?}, panel {:?})",
+                        row.floor,
+                        line.right() - row.panel.right(),
+                        row.panel
+                    );
+                }
             }
+            assert!(
+                row.rule_right.is_finite() && row.rule_right <= row.panel.right() + SLACK,
+                "at a {width}-point window the status row's separator ends at {} against a \
+                 panel ending at {}",
+                row.rule_right,
+                row.panel.right()
+            );
         }
     }
 
     /// **Below the floor the status line scrolls**: it is laid out at
-    /// the floor, wider than the panel, and scrolling it brings the
-    /// rest into the panel.
+    /// the floor, wider than the panel, and scrolling it to its end
+    /// brings that end on screen.
     #[test]
     fn below_the_floor_the_toolbars_status_line_scrolls_to_the_rest() {
         let width = 150.0;
@@ -3221,7 +3254,7 @@ mod tests {
                         egui::Event::PointerMoved(over),
                         egui::Event::MouseWheel {
                             unit: egui::MouseWheelUnit::Point,
-                            delta: egui::vec2(-60.0, 0.0),
+                            delta: egui::vec2(-400.0, 0.0),
                             phase: egui::TouchPhase::Move,
                             modifiers: egui::Modifiers::NONE,
                         },
@@ -3231,11 +3264,16 @@ mod tests {
                 }
             },
         );
-        let moved = at_rest.status[0].left() - scrolled.status[0].left();
+        let end = scrolled
+            .status
+            .iter()
+            .map(|line| line.right())
+            .fold(f32::NEG_INFINITY, f32::max);
         assert!(
-            moved > SLACK,
-            "a sideways scroll over the status line moves it ({moved} points; at rest {:?}, \
-             scrolled {:?})",
+            end <= scrolled.status_clip.right() + SLACK,
+            "scrolled to its end, the status line's end is on screen ({end} against a clip \
+             ending at {}; at rest {:?}, scrolled {:?})",
+            scrolled.status_clip.right(),
             at_rest.status,
             scrolled.status
         );
@@ -3252,11 +3290,14 @@ mod tests {
             NARROW,
             |app| {
                 let outcome = app.session.perform(SessionOp::Save(path.clone()));
+                // The name is read off the session's path, not the
+                // file, so the file goes before anything can fail.
+                let removed = std::fs::remove_file(&path);
                 assert!(outcome.refusal.is_none(), "the fixture saves: {outcome:?}");
+                removed.expect("the fixture removes the document it saved");
             },
             Some(&shown),
         );
-        std::fs::remove_file(&path).expect("the fixture removes the document it saved");
         assert_eq!(
             row.status.len(),
             1,
