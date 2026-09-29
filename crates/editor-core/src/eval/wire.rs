@@ -523,9 +523,10 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
 }
 
 /// Re-stamps `placed`'s descriptions with `input`'s sources wrapped
-/// by placing node `by` at `instance` (N6). Keys are stable across
-/// `transform_rigid`, so the input's rows map key-for-key. Unsourced
-/// input descriptions stay unsourced.
+/// by placing node `by` at `instance` (N6), and its surfaces' axis
+/// rows the same way ([`topo::AxisSource::placed`]). Keys are stable
+/// across `transform_rigid`, so the input's rows map key-for-key.
+/// Unsourced input descriptions stay unsourced.
 ///
 /// **The ordinal.** `instance` is the body's OUTPUT index in the
 /// placing node's value (a pattern's flat index is `j·M + i`). A
@@ -563,6 +564,19 @@ fn compose_placed<T: Decide>(
         .collect();
     for (k, src) in points {
         let _ = placed.set_point_source(k, src);
+    }
+    // The axis rows compose the same way; a row the input already held
+    // `Cleared` stays so, since there is no source left to place.
+    let axes: Vec<_> = input
+        .surfaces()
+        .filter_map(|(k, _)| {
+            input
+                .surface_axis_source(k)
+                .map(|s| (k, s.placed(by.0, instance)))
+        })
+        .collect();
+    for (k, src) in axes {
+        let _ = placed.set_surface_axis_source(k, src);
     }
 }
 
@@ -5294,5 +5308,64 @@ mod loop_coordinates_tests {
             ),
             "one loop past u32::MAX is refused"
         );
+    }
+}
+
+#[cfg(test)]
+mod place_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::place;
+    use crate::node::RecipeNodeId;
+    use geom_core::{Affine3, Point3, Tol, Vec3};
+    use topo::{AxisRecord, AxisSource, Body, FaceSurface, SurfaceKey};
+
+    /// The unit brick with one face on a cylinder, its axis stamped `D`,
+    /// and a second cylinder face whose axis row is already `Cleared`.
+    fn fixture() -> (Body<f64>, SurfaceKey, SurfaceKey, AxisSource) {
+        let tol = Tol::witness();
+        let mut b = topo::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
+        let cylinder = |r: f64| {
+            FaceSurface::New(geom::Surface::Cylinder {
+                origin: Point3::new(0.5, 0.5, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: r,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            })
+        };
+        let stamped = b.set_face_surface(faces[0], cylinder(0.25)).unwrap();
+        let pending = b.set_face_surface(faces[1], cylinder(0.3)).unwrap();
+        let axis = AxisSource::from_lowered(b"D");
+        b.set_surface_axis_source(stamped, axis.clone()).unwrap();
+        b.set_surface_axis_source(pending, axis.clone()).unwrap();
+        let aside = Affine3::translation(Vec3::new(3.0, 0.0, 0.0));
+        let mut b = topo::transform::transform_rigid(&b, &aside, tol).unwrap();
+        b.set_surface_axis_source(stamped, axis.clone()).unwrap();
+        (b, stamped, pending, axis)
+    }
+
+    /// **A placement composes the axis row** — the kernel clears it and
+    /// `place` re-stamps the input's token wrapped by the placing node
+    /// and instance, at a real map and at the identity clone alike. A
+    /// row the input held `Cleared` has no source to place and stays
+    /// `Cleared`.
+    #[test]
+    fn a_placement_composes_the_axis_row() {
+        let (b, stamped, pending, axis) = fixture();
+        let map = Affine3::translation(Vec3::new(0.0, 5.0, 0.0));
+        for m in [Some(&map), None] {
+            let placed = place(&b, m, RecipeNodeId(41), 2, Tol::witness()).unwrap();
+            assert_eq!(
+                placed.surface_axis_source(stamped),
+                Some(&axis.placed(41, 2)),
+                "map {m:?}"
+            );
+            assert_eq!(
+                placed.surface_axis_record(pending),
+                Some(&AxisRecord::Cleared),
+                "map {m:?}"
+            );
+        }
     }
 }

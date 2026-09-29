@@ -83,7 +83,9 @@ use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
 use crate::provenance::Provenance;
-use crate::source::{GeomOrigin, GeomSource, SourceAttachError};
+use crate::source::{
+    AxisAttachError, AxisRecord, AxisSource, GeomOrigin, GeomSource, SourceAttachError,
+};
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
 /// wrappers collapse the failure cases to `None`).
@@ -212,6 +214,11 @@ pub struct Body<T: Real> {
     // channel is opt-in and every kernel-direct construction leaves it
     // empty. See `crate::param_source`.
     pub(crate) surface_field_sources: SecondaryMap<SurfaceKey, FieldSources>,
+    // The axis channel (`crate::AxisSource`): the recipe-level axis a
+    // surface's AXIS COMPONENT came from, composed through placement.
+    // Opt-in like the field rows, but placement data — so, unlike
+    // them, `clear_geom_sources` marks these `Cleared`.
+    pub(crate) surface_axis_sources: SecondaryMap<SurfaceKey, AxisRecord>,
     // D1's tier-1 debug postcondition is paid ONCE PER PUBLIC DOOR
     // (the ruling on `work/perf/d1-per-op-tier1-sweep-price`), and
     // this is how an operator knows whether it is inside one: the
@@ -253,6 +260,7 @@ impl<T: Real> Body<T> {
             curve_origins: SecondaryMap::new(),
             surface_origins: SecondaryMap::new(),
             surface_field_sources: SecondaryMap::new(),
+            surface_axis_sources: SecondaryMap::new(),
             #[cfg(debug_assertions)]
             surgery: crate::surgery::SurgeryDepth::default(),
         }
@@ -518,6 +526,7 @@ impl<T: Real> Body<T> {
         if removed {
             self.surface_origins.remove(surface);
             self.surface_field_sources.remove(surface);
+            self.surface_axis_sources.remove(surface);
         }
         removed
     }
@@ -812,6 +821,53 @@ impl<T: Real> Body<T> {
         Ok(())
     }
 
+    // ------------------------------------------------------------------
+    // The axis channel — see `crate::AxisSource`.
+    // ------------------------------------------------------------------
+
+    /// The source of a surface's axis component, if the recipe layer
+    /// stamped one and no placement has cleared it since. `None` never
+    /// certifies anything; [`Body::surface_axis_record`] says which
+    /// `None` it is.
+    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
+    pub fn surface_axis_source(&self, key: SurfaceKey) -> Option<&AxisSource> {
+        self.surface_axis_sources.get(key)?.source()
+    }
+
+    /// A surface's axis-channel row: `None` where nothing was attached,
+    /// [`AxisRecord::Cleared`] where a placement moved the axis and the
+    /// re-stamp has not run.
+    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
+    pub fn surface_axis_record(&self, key: SurfaceKey) -> Option<&AxisRecord> {
+        self.surface_axis_sources.get(key)
+    }
+
+    /// Stamps (or replaces) the source of a surface's axis component —
+    /// the recipe layer's attachment door, and its re-stamp after a
+    /// placement ([`AxisSource::placed`]), which discharges an
+    /// [`AxisRecord::Cleared`] row.
+    ///
+    /// # Errors
+    ///
+    /// [`AxisAttachError::StaleKey`] if the key does not resolve;
+    /// [`AxisAttachError::NoAxisOnKind`] if the surface stores no axis
+    /// ([`crate::has_axis`]).
+    pub fn set_surface_axis_source(
+        &mut self,
+        key: SurfaceKey,
+        source: AxisSource,
+    ) -> Result<(), AxisAttachError> {
+        let Some(surface) = self.surfaces.get(key) else {
+            return Err(AxisAttachError::StaleKey);
+        };
+        if !crate::source::has_axis(surface) {
+            return Err(AxisAttachError::NoAxisOnKind);
+        }
+        self.surface_axis_sources
+            .insert(key, AxisRecord::Source(source));
+        Ok(())
+    }
+
     /// Clears every GeomSource record — the honest posture after a
     /// kernel-level geometric rewrite without recipe context
     /// (`transform_rigid`): the old sources' bit-identity claim no
@@ -824,16 +880,20 @@ impl<T: Real> Body<T> {
     /// cleared here, and that is the whole difference between the two
     /// channels: a rigid map rewrites a description's bits but cannot
     /// change a radius, so a field's identity survives the placement
-    /// verbatim (`crate::param_source`).
+    /// verbatim (`crate::param_source`). The axis rows ARE cleared: an
+    /// axis is placement data, and a placement moves it.
     ///
     /// **The clear leaves a trace the re-stamp overwrites.** Every
     /// description that held a source reads [`GeomOrigin::Cleared`]
-    /// afterwards ([`Body::surface_origin`]), so a lost re-stamp is a
-    /// state a reader can NAME rather than a silence it cannot tell
-    /// from a hand-built body's. Descriptions that held no source are
-    /// untouched: their origin did not change, because nothing was
-    /// dropped.
+    /// afterwards ([`Body::surface_origin`]), and every axis row
+    /// [`AxisRecord::Cleared`], so a lost re-stamp is a state a reader
+    /// can NAME rather than a silence it cannot tell from a hand-built
+    /// body's. Descriptions that held no source are untouched: their
+    /// origin did not change, because nothing was dropped.
     pub fn clear_geom_sources(&mut self) {
+        for (_, row) in self.surface_axis_sources.iter_mut() {
+            *row = AxisRecord::Cleared;
+        }
         for (_, origin) in self.point_origins.iter_mut() {
             if matches!(origin, GeomOrigin::Recipe(_)) {
                 *origin = GeomOrigin::Cleared;

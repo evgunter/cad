@@ -41,6 +41,13 @@
 //! unrelated imported surfaces would glue. N6 decides on `GeomSource`
 //! and only on `GeomSource`; the other three arms decide nothing.
 //!
+//! **One level finer, for axes.** [`AxisSource`] is the same
+//! discipline at the granularity of one COMPONENT of a description —
+//! its axis line — kept in its own opt-in rows ([`AxisRecord`]) beside
+//! the origin record rather than inside it: an axis is shared across
+//! descriptions a `GeomSource` tells apart, and an imported axis can
+//! have an identity no recipe gave it.
+//!
 //! **Scope of the identity claim (PR 1 review ruling, binding)**:
 //! ExprPath same-slot ancestor replacement silently re-points stale
 //! paths, so a `GeomSource` must NOT be assumed re-point-detectable —
@@ -495,3 +502,163 @@ impl GeomOrigin {
         }
     }
 }
+
+/// **The recipe-level axis a description's AXIS COMPONENT came from**,
+/// composed through every rigid placement applied to it since — the
+/// per-component token of the axis channel
+/// (`docs/AXIS-DECLARATION-DESIGN.md`).
+///
+/// A [`GeomSource`] identifies a whole description, so two cylinders
+/// sharing one axis carry two different sources and the shared axis is
+/// not derivable from them. This token identifies the axis alone: two
+/// descriptions carry equal tokens exactly when the recipe layer
+/// derived both axes from one recipe-level axis AND the same chain of
+/// placements has moved both since. Equality is the whole reading —
+/// token comparison, zero numerics.
+///
+/// **What it claims is the axis LINE**, not the stored anchor point on
+/// it: two coaxial cylinders may store different `origin`s along the
+/// line, and a sphere's `center` is one point of its axis. So no bit
+/// agreement follows from equal tokens, and none is asserted.
+///
+/// **Two halves, two readabilities.** The base is an opaque byte string
+/// the recipe layer lowered: the recipe vocabulary stays above the
+/// layering line, as [`crate::ParamSource`]'s does, and this crate has
+/// no decoder. The placement chain is readable, and has to be: a
+/// declaration made stale by a placement applied to one carrier and not
+/// the other refuses NAMING that placement. The chain is the
+/// `(node, instance)` spelling [`SourceExpr::Placed`] composes with,
+/// not a second one.
+///
+/// It is placement data, so — unlike a `ParamSource`, whose stored
+/// scalar is motion-invariant — rigid placement composes it:
+/// `transform_rigid` marks the row [`AxisRecord::Cleared`] and the
+/// recipe layer re-stamps [`AxisSource::placed`].
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AxisSource {
+    base: std::sync::Arc<[u8]>,
+    placements: Vec<SourcePlacement>,
+}
+
+/// One rigid placement in an [`AxisSource`]'s chain: the placing
+/// recipe node (lowered id) and the pattern instance (0 for a plain
+/// transform) — the pair [`SourceExpr::Placed`] wraps with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SourcePlacement {
+    /// The placing recipe node (Transform or Pattern), lowered id.
+    pub node: u64,
+    /// The pattern instance index (0 for a plain Transform).
+    pub instance: u32,
+}
+
+/// The base's bytes stay out of every print — `Body` derives `Debug`,
+/// and a derived impl here would spell them into every body dump. The
+/// chain is printed: it is the readable half.
+impl core::fmt::Debug for AxisSource {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "AxisSource(<{} bytes>, placed {:?})",
+            self.base.len(),
+            self.placements
+        )
+    }
+}
+
+impl AxisSource {
+    /// The token for an already-lowered recipe-level axis, unplaced.
+    #[must_use]
+    pub fn from_lowered(lowered: &[u8]) -> Self {
+        Self {
+            base: std::sync::Arc::from(lowered),
+            placements: Vec::new(),
+        }
+    }
+
+    /// This axis placed by rigid-transform node `node` (instance
+    /// `instance` for patterns): the new outermost placement, as
+    /// [`GeomSource::placed`] composes.
+    #[must_use]
+    pub fn placed(&self, node: u64, instance: u32) -> Self {
+        let mut placements = self.placements.clone();
+        placements.push(SourcePlacement { node, instance });
+        Self {
+            base: self.base.clone(),
+            placements,
+        }
+    }
+
+    /// The placements applied since the axis was lowered, innermost
+    /// first.
+    #[must_use]
+    pub fn placements(&self) -> &[SourcePlacement] {
+        &self.placements
+    }
+
+    /// Same recipe-level axis, whatever has placed it since. Between
+    /// unequal tokens this separates the stale case — one axis moved by
+    /// different chains — from two unrelated axes.
+    #[must_use]
+    pub fn same_base(&self, other: &Self) -> bool {
+        self.base == other.base
+    }
+}
+
+/// **A surface's axis-channel row.** Opt-in: a surface the recipe layer
+/// attached no axis to has no row, and which origin it has is
+/// [`GeomOrigin`]'s answer. A row that exists is one of two states, so
+/// a re-stamp that never ran is nameable rather than a silence.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AxisRecord {
+    /// The axis component's source.
+    Source(AxisSource),
+    /// [`crate::Body::clear_geom_sources`] moved the axis this row
+    /// named and the recipe layer's re-stamp has not run — the defect
+    /// arm, as [`GeomOrigin::Cleared`] is.
+    Cleared,
+}
+
+impl AxisRecord {
+    /// The source this row carries, unless it is cleared.
+    pub fn source(&self) -> Option<&AxisSource> {
+        match self {
+            Self::Source(source) => Some(source),
+            Self::Cleared => None,
+        }
+    }
+}
+
+/// Whether `surface` stores an axis the channel can name: the four
+/// analytic kinds of revolution. A plane stores a normal and a point on
+/// itself, not a line; the spline arms store a net.
+pub fn has_axis<T: geom_core::Real>(surface: &geom::Surface<T>) -> bool {
+    use geom::Surface as S;
+    match surface {
+        S::Cylinder { .. } | S::Cone { .. } | S::Sphere { .. } | S::Torus { .. } => true,
+        S::Plane { .. } | S::Nurbs(_) | S::Approx(_) => false,
+    }
+}
+
+/// A refused axis attachment (closed enum, D3 style). Both are caller
+/// bugs, refused rather than recorded where nothing reads them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AxisAttachError {
+    /// The key does not resolve in the surface arena.
+    StaleKey,
+    /// The surface at the key stores no axis ([`has_axis`]).
+    NoAxisOnKind,
+}
+
+impl core::fmt::Display for AxisAttachError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::StaleKey => write!(f, "axis-source attachment: stale surface key"),
+            Self::NoAxisOnKind => write!(
+                f,
+                "axis-source attachment: the surface stores no axis (a plane or a spline)"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for AxisAttachError {}

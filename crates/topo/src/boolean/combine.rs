@@ -197,6 +197,11 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         if let Some(fields) = src.surface_field_sources.get(k) {
             dst.surface_field_sources.insert(dk, fields.clone());
         }
+        // So does the axis row, `Cleared` included: a graft moves no
+        // axis, and a pending re-stamp stays nameable across it.
+        if let Some(axis) = src.surface_axis_sources.get(k) {
+            dst.surface_axis_sources.insert(dk, axis.clone());
+        }
     }
 
     // ---- Topology arenas, pass 1: clone with source-internal keys

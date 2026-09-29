@@ -2893,6 +2893,11 @@ pub(crate) mod staleness_posture {
                 "ParamSource metadata: a per-field side record beside the surface",
             ),
             (
+                "set_surface_axis_source",
+                Neither,
+                "axis-channel metadata: a per-component side record beside the surface",
+            ),
+            (
                 "begin_surgery",
                 Neither,
                 "opens a debug-only surgery scope: no arena key, no pcurve row",

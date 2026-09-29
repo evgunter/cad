@@ -971,6 +971,7 @@ pub(crate) fn carve<T: Decide>(
         // split door in `sweep`'s `seat6_germ_channel`.
         body.surface_origins.remove(k);
         body.surface_field_sources.remove(k);
+        body.surface_axis_sources.remove(k);
     }
     Ok(body)
 }

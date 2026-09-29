@@ -395,7 +395,9 @@ impl<T: Real> Body<T> {
         // EXPRESSION a stored scalar came from, and a radius is the
         // same number whichever side of the surface the material is on.
         // The channel carries no orientation to flip
-        // (`crate::param_source`).
+        // (`crate::param_source`). The axis rows are untouched for the
+        // same reason one level over: a reversal negates planes only,
+        // which store no axis, so every axis line is where it was.
         for (_, origin) in out.surface_origins.iter_mut() {
             if let crate::GeomOrigin::Recipe(gs) = origin {
                 *gs = gs.reverted();
