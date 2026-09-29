@@ -1995,7 +1995,9 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
     use pncad::export::ExportError as E;
     match err {
         E::Standing(standing) => match standing {
-            NodeStanding::NotEvaluated { .. } => "unknown_node",
+            NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+                "unknown_node"
+            }
             NodeStanding::Failed { .. } => "node_failed",
             NodeStanding::Poisoned { .. } => "poisoned",
         },
@@ -2415,31 +2417,27 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
 /// `tests::the_whole_tag_table_matches_its_committed_inventory` reds
 /// on an addition and on a rename.
 ///
-/// [`EvalReason::NodeNotEvaluated`] is the standing ladder's first
-/// rung, spelled identically to the read-back and picking doors'
-/// ([`interrogate_error_tag`], [`hit_test_error_tag`]) and pinned
-/// against both by `tests::the_evaluation_door_speaks_the_standing_ladder`,
-/// in both directions. (Named as text rather than as an intra-doc
-/// link: `tests` is `#[cfg(test)]`, so a link would not render.)
+/// A node with no value answers through [`node_standing_tag`], except
+/// the two words this door shipped before the ladder had one:
+/// `unknown_node` for an id the document does not have, and
+/// `poisoned`.
 pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
     match reason {
-        EvalReason::UnknownNode => "unknown_node",
         EvalReason::WrongKind => "wrong_kind",
         EvalReason::EmptyBoolean => "empty_boolean",
-        EvalReason::NodeNotEvaluated => "node_not_evaluated",
-        EvalReason::NodeFailed => "node_failed",
-        EvalReason::Poisoned => "poisoned",
+        EvalReason::Standing(standing) => match standing {
+            NodeStanding::NotInDocument { .. } => "unknown_node",
+            NodeStanding::Poisoned { .. } => "poisoned",
+            NodeStanding::NotEvaluated { .. } | NodeStanding::Failed { .. } => {
+                node_standing_tag(&standing)
+            }
+        },
     }
 }
 
 /// The stable tag for a hit-test refusal — the ray door's own.
 ///
-/// The three standing arms are the SAME vocabulary
-/// [`interrogate_error_tag`] speaks for the read-back doors, spelled
-/// identically on purpose: "node 7 has no result in this evaluation"
-/// is one fact about the run, and a caller that already branches on
-/// `node_not_evaluated` from a frame read should not have to learn a
-/// second word for it at the pick.
+/// A standing answers [`node_standing_tag`]'s word.
 ///
 /// `evaluation_of_another_document` is DI3's pairing refusal, the
 /// same word the gather, the checks and the name-level edit door
@@ -2481,9 +2479,16 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// export, resolution and product doors keep the words they shipped
 /// with (`unknown_node`/`node_failed`/`poisoned`, `target_*`,
 /// `unknown_node`/`root_*`) and map the same standing onto them.
+///
+/// `node_not_evaluated` covers both of the ladder's absent arms, the
+/// run stopping before the node and an id not in the document: these
+/// doors answered that one word for both before the standing split
+/// them.
 pub fn node_standing_tag(standing: &NodeStanding) -> &'static str {
     match standing {
-        NodeStanding::NotEvaluated { .. } => "node_not_evaluated",
+        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+            "node_not_evaluated"
+        }
         NodeStanding::Failed { .. } => "node_failed",
         NodeStanding::Poisoned { .. } => "node_poisoned",
     }
@@ -2625,7 +2630,9 @@ pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
     match cause.standing {
         NodeStanding::Failed { .. } => "target_failed",
         NodeStanding::Poisoned { .. } => "target_poisoned",
-        NodeStanding::NotEvaluated { .. } => "target_not_evaluated",
+        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+            "target_not_evaluated"
+        }
     }
 }
 

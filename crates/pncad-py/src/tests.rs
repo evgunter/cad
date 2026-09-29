@@ -246,7 +246,7 @@ fn error_classes_name_the_python_hierarchy() {
         // The two classes with a payload: the word is the same for
         // every reason, and `eval_reason_tag` and
         // `validation_refusal_tag` are what pin the reasons themselves.
-        ErrorClass::Evaluation(crate::errors::EvalReason::NodeFailed),
+        ErrorClass::Evaluation(crate::errors::EvalReason::WrongKind),
         ErrorClass::Validation(crate::errors::ValidationRefusal::Validate),
         ErrorClass::QuantityOp,
         ErrorClass::FmtQuantity,
@@ -1247,42 +1247,81 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
 }
 
-/// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
-/// says so against the doors that already speak it.
+/// **Each door keeps its word for each standing**, the two absent
+/// arms included.
 ///
-/// A canceled run holds the completed PREFIX, so `Evaluation.value`
-/// on a node past it has to answer "this run has no result for that
-/// node" — the ladder's first rung, the same fact `ReadbackError` and
-/// `HitTestError` report. Those two reach the word through a `match`
-/// on a kernel arm; the evaluation door cannot, because
-/// `Evaluation::result` answers a bare `None` and the reason tag is
-/// this crate's own — [`crate::errors::EvalReason`], mapped by
-/// [`crate::tags::eval_reason_tag`]. Three maps, one word between
-/// them, and this is the pin that keeps them saying it.
-///
-/// It runs in BOTH directions on purpose: renaming the kernel arms'
-/// tag fails here, and so does editing this door's arm away from
-/// them. That is the property `picking_refusal_tags_are_stable`
-/// protects for the pick, one door further out.
+/// The standing tells "a canceled run stopped before the node" from
+/// "the id is not in this document"; a door's tag words are frozen, so
+/// each new arm answers the word that door gave the state before. The
+/// evaluation door already told the two apart (`node_not_evaluated`,
+/// `unknown_node`) and keeps both; every other door answered one word
+/// for both, and still does. A row per door and arm, so a word that
+/// moves reds by name.
 #[test]
-fn the_evaluation_door_speaks_the_standing_ladder() {
+fn every_door_keeps_its_word_for_each_standing() {
     use crate::errors::EvalReason;
-    use crate::tags::{eval_reason_tag, hit_test_error_tag, interrogate_error_tag};
-    use pncad::document::{NodeStanding, RecipeNodeId};
-    use pncad::select::{HitTestError as H, InterrogateError as I};
-
-    let standing = NodeStanding::NotEvaluated {
-        node: RecipeNodeId(0),
+    use crate::tags::{
+        checks_error_tag, eval_reason_tag, export_error_tag, hit_test_error_tag,
+        interrogate_error_tag, name_lookup_error_tag, node_pick_error_tag, product_error_tag,
+        resolve_indeterminate_tag,
     };
-    let rung = eval_reason_tag(EvalReason::NodeNotEvaluated);
-    assert_eq!(rung, hit_test_error_tag(&H::Standing(standing)));
-    assert_eq!(rung, interrogate_error_tag(&I::Standing(standing)));
+    use pncad::document::{ChecksError, NodeStanding as S, ProductError, RecipeNodeId};
+    use pncad::export::ExportError;
+    use pncad::select::{
+        HitTestError, InterrogateError, NameLookupError, NodePickError, ResolveIndeterminate,
+    };
 
-    // And it is NOT the other no-entry fact. "The document has no such
-    // node" and "this run never reached it" are two states the door
-    // kept collapsed while only one of them could arise, and the whole
-    // of what B-CANCEL changed at this door is that both now can.
-    assert_ne!(rung, eval_reason_tag(EvalReason::UnknownNode));
+    let node = RecipeNodeId(0);
+    let through = RecipeNodeId(1);
+    let arms = [
+        S::NotEvaluated { node },
+        S::NotInDocument { node },
+        S::Failed { node },
+        S::Poisoned { node, through },
+    ];
+    type Door = (&'static str, fn(S) -> &'static str, [&'static str; 4]);
+    let ladder = ["node_not_evaluated", "node_not_evaluated", "node_failed", "node_poisoned"];
+    let doors: [Door; 9] = [
+        ("hit test", |s| hit_test_error_tag(&HitTestError::Standing(s)), ladder),
+        ("pick", |s| node_pick_error_tag(&NodePickError::Standing(s)), ladder),
+        ("name lookup", |s| name_lookup_error_tag(&NameLookupError::Standing(s)), ladder),
+        ("read-back", |s| interrogate_error_tag(&InterrogateError::Standing(s)), ladder),
+        (
+            "evaluation",
+            |s| eval_reason_tag(EvalReason::Standing(s)),
+            ["node_not_evaluated", "unknown_node", "node_failed", "poisoned"],
+        ),
+        (
+            "export",
+            |s| export_error_tag(&ExportError::Standing(s)),
+            ["unknown_node", "unknown_node", "node_failed", "poisoned"],
+        ),
+        (
+            "resolution",
+            |s| resolve_indeterminate_tag(&ResolveIndeterminate { standing: s }),
+            [
+                "target_not_evaluated",
+                "target_not_evaluated",
+                "target_failed",
+                "target_poisoned",
+            ],
+        ),
+        (
+            "product",
+            |s| product_error_tag(&ProductError::from(s)),
+            ["unknown_node", "unknown_node", "root_failed", "root_poisoned"],
+        ),
+        (
+            "checks",
+            |s| checks_error_tag(&ChecksError::Root(s)),
+            ["root_without_value"; 4],
+        ),
+    ];
+    for (door, tag, words) in doors {
+        for (standing, word) in arms.into_iter().zip(words) {
+            assert_eq!(tag(standing), word, "the {door} door's word for {standing:?}");
+        }
+    }
 }
 
 /// LIB-B-RESOLVE: the three resolution states, pinned word by word —
@@ -3300,9 +3339,9 @@ fn check_registry_tags_are_stable() {
     use pncad::document::{CheckEvidence, ChecksError, RecipeNodeId, ShellClassifyError};
 
     assert_eq!(
-        checks_error_tag(&ChecksError::Root {
+        checks_error_tag(&ChecksError::Root(pncad::document::NodeStanding::Failed {
             node: RecipeNodeId(3)
-        }),
+        })),
         "root_without_value"
     );
     assert_eq!(

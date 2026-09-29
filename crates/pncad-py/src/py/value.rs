@@ -148,7 +148,7 @@ fn refused(
     };
     typed_err(
         py,
-        ErrorClass::Evaluation(EvalReason::NodeFailed),
+        ErrorClass::Evaluation(EvalReason::Standing(d::NodeStanding::Failed { node: node.0 })),
         message,
         &[
             ("node", node_obj),
@@ -206,8 +206,14 @@ pub(crate) fn carried_cause(py: Python<'_>, chain: d::CarriedChain<'_>) -> Optio
 /// broken hop yields no `kind` rather than a wrong one). A root cause
 /// that carries a refusal hands it on as `__cause__`, as
 /// [`node_failure`] does.
-fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::NodeError>) -> PyErr {
-    let objs = (node.into_pyobject(py), through.into_pyobject(py));
+fn poisoning(
+    py: Python<'_>,
+    node: d::RecipeNodeId,
+    through: d::RecipeNodeId,
+    root: Option<&d::NodeError>,
+) -> PyErr {
+    let standing = d::NodeStanding::Poisoned { node, through };
+    let objs = (NodeId(node).into_pyobject(py), NodeId(through).into_pyobject(py));
     let (node_obj, through_obj) = match objs {
         (Ok(n), Ok(t)) => (n.unbind().into_any(), t.unbind().into_any()),
         (Err(failed), _) | (_, Err(failed)) => return failed,
@@ -218,8 +224,8 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("finding", py.None().into_any()),
         ("document", py.None().into_any()),
     ];
-    // The message is the root cause's `Display` prose: the node
-    // never ran, so the honest sentence names the ancestor's problem.
+    // The node never ran, so the standing's sentence is followed by
+    // the ancestor's own problem.
     let message = match root {
         Some(error) => {
             fields.push((
@@ -229,17 +235,17 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
                     .into_any(),
             ));
             fields.push(("inner_kind", inner_kind(py, &error.kind)));
-            format!("never ran — poisoned by failed ancestor: {error}")
+            format!("{standing}; the failure there: {error}")
         }
         None => {
             fields.push(("kind", py.None().into_any()));
             fields.push(("inner_kind", py.None().into_any()));
-            format!("never ran — poisoned through node {}", through.0.0)
+            standing.to_string()
         }
     };
     let err = typed_err(
         py,
-        ErrorClass::Evaluation(EvalReason::Poisoned),
+        ErrorClass::Evaluation(EvalReason::Standing(standing)),
         message,
         &fields,
     );
@@ -1196,49 +1202,47 @@ impl Evaluation {
 impl Evaluation {
     /// The node's successful value.
     ///
-    /// A node that produced NO value raises with the REAL typed cause
-    /// — never a placeholder:
-    /// `reason` is `"node_failed"` or `"poisoned"`, `kind` is the
-    /// `NodeErrorKind`'s stable tag, a poisoning carries `through`,
-    /// and the message renders the kernel's own `NodeError`.
+    /// A node that produced NO value raises under its standing, with
+    /// the REAL typed cause — never a placeholder: `reason` is
+    /// `"node_failed"` or `"poisoned"`, `kind` is the `NodeErrorKind`'s
+    /// stable tag, a poisoning carries `through`, and the message is
+    /// the kernel's own `NodeError` (a failed node) or the standing's
+    /// sentence followed by it (a poisoned one).
     ///
-    /// A node with no ENTRY at all is two different states and they
-    /// are kept apart: `unknown_node` for an id this document does
-    /// not have, and `node_not_evaluated` — the standing ladder's own
-    /// spelling, shared with `ReadbackError` and `HitTestError` — for
-    /// a live node that this run never reached. The second arm exists
-    /// because [`super::value::evaluate`]'s `cancel=` made it
-    /// reachable: a canceled run holds the completed PREFIX, and every
-    /// node past it is in [`Self::order`] with no result. Before that
-    /// keyword the arm was unreachable and the door said "no such
-    /// node" for both, which was true only because the false case
-    /// could not arise.
+    /// A node with no ENTRY at all is two states, kept apart:
+    /// `unknown_node` for an id this document does not have, and
+    /// `node_not_evaluated` for a node a canceled run never reached.
     fn value(&self, py: Python<'_>, node: &NodeId) -> PyResult<Value> {
-        match self.inner.result(node.0) {
-            Some(d::NodeResult::Ok(node_value)) => Ok(Value {
-                payload: node_value.payload.clone(),
-                contacts: Arc::clone(&node_value.contacts),
-                node: *node,
-            }),
-            Some(d::NodeResult::Failed(error)) => Err(node_failure(py, *node, error)),
-            Some(d::NodeResult::Poisoned { through }) => {
-                let root = self.inner.node_error(node.0);
-                Err(poisoning(py, *node, NodeId(*through), root))
+        let standing = match self.inner.usable(node.0) {
+            Ok(node_value) => {
+                return Ok(Value {
+                    payload: node_value.payload.clone(),
+                    contacts: Arc::clone(&node_value.contacts),
+                    node: *node,
+                });
             }
-            None if self.inner.order.contains(&node.0) => Err(eval_err(
+            Err(standing) => standing,
+        };
+        // `node_error` answers a failed node's own error and a poisoned
+        // one's nearest failed ancestor's.
+        let root = self.inner.node_error(node.0);
+        Err(match (standing, root) {
+            (d::NodeStanding::Failed { .. }, Some(error)) => node_failure(py, *node, error),
+            (d::NodeStanding::Poisoned { node, through }, root) => {
+                poisoning(py, node, through, root)
+            }
+            (
+                d::NodeStanding::Failed { .. }
+                | d::NodeStanding::NotEvaluated { .. }
+                | d::NodeStanding::NotInDocument { .. },
+                _,
+            ) => eval_err(
                 py,
-                "this evaluation never reached the node: it was canceled first, \
-                 and holds the completed prefix only",
-                EvalReason::NodeNotEvaluated,
+                standing.to_string(),
+                EvalReason::Standing(standing),
                 *node,
-            )),
-            None => Err(eval_err(
-                py,
-                "no such node in the evaluated document",
-                EvalReason::UnknownNode,
-                *node,
-            )),
-        }
+            ),
+        })
     }
 
     /// **Whether this run was CANCELED** — the Python shape of the

@@ -623,25 +623,14 @@ impl ErrorClass {
 /// arrangement for the same reason.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EvalReason {
-    /// The document holds no node under that id.
-    UnknownNode,
     /// The node evaluated to a value of a kind this door cannot read.
     WrongKind,
     /// A Boolean that succeeded and produced nothing to hand back.
     EmptyBoolean,
-    /// The run was canceled before it reached the node, so this
-    /// evaluation holds the completed prefix only. The same rung the
-    /// read-back and picking doors speak
-    /// ([`crate::tags::hit_test_error_tag`],
-    /// [`crate::tags::interrogate_error_tag`]), spelled identically on
-    /// purpose and pinned against both by
-    /// `tests::the_evaluation_door_speaks_the_standing_ladder`.
-    NodeNotEvaluated,
-    /// The node ITSELF failed; `kind` carries the refusal's own tag.
-    NodeFailed,
-    /// An ancestor failed, so the node never ran; `through` names the
-    /// nearest failed one.
-    Poisoned,
+    /// The node has no value, and its standing says why. A failed
+    /// node's `kind` carries its refusal's own tag; a poisoned one's
+    /// `through` names the nearest failed ancestor.
+    Standing(pncad::document::NodeStanding),
 }
 
 impl EvalReason {

@@ -3463,6 +3463,14 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { target }),
             frame::Retold::Again,
         ),
+        (
+            "blend: the all-edges door's target has no value",
+            ToolNotice::Blend(BlendEvent::TargetHasNoValue {
+                target,
+                standing: NodeStanding::Failed { node: target.node },
+            }),
+            frame::Retold::Again,
+        ),
     ];
     for (what, notice, retold) in cases {
         assert_eq!(frame::tool_notice(&notice).retold(), retold, "{what}");
