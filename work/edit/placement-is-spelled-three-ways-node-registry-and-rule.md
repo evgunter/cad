@@ -2,7 +2,8 @@
 id: placement-is-spelled-three-ways-node-registry-and-rule
 kind: issue
 title: Placement is spelled three ways — a DAG node, a document registry row, and a pattern rule — and the three disagree on whether a placement can be parametric
-status: open
+status: spec
+branch: edit/placement-type
 opened: 2026-09-21
 priority: P0
 cost: H
@@ -123,3 +124,23 @@ MSOLVE's ground. Whether `Transform` stops being a node and becomes an
 edited slot is not decided. It stays this row's later question, with
 the two obstacles recorded above (`roots` as the sink set, and names as
 role paths through the node).
+
+## Ruled and spec'd (2026-09-29, EDIT orchestrator) — kernel unit, dual review (DUAL-REVIEW-PROTOCOL), branch `edit/placement-type`
+
+Spec: `docs/EDIT-PLACEMENT-SPEC.md` (deleted at merge, noted under
+`docs/doc-ledger/`). One `Placement` type beside `Frame`, held by
+`Node::Transform` and `Doc::placements`, and evaluated by one evaluator.
+Its rotation is either `AxisAngle` expressions or literal-only `Columns`,
+because maintenance mints and the Python constructors are general
+matrices whose bits must survive. A slot address lets `SetParam` reach a
+cluster placement's components, keyed by instance. A non-literal cluster
+placement refuses typed in lane T until MSOLVE decides how a parametric
+frame enters the solve (filed on MSOLVE's slate by the unit). A
+maintenance re-mint or an inline compose that drops a parametric drive
+reports it. The survey that grounds the spec's premises is summarized
+there. Tier: dual review, because the unit changes the persisted
+registry format and the solver's composition point at once. Two of the
+spec's rulings are design forks and go through the designer pair
+(`docs/DESIGN-FORK-PROTOCOL.md`) before the unit is dispatched: where a
+non-literal cluster placement refuses (lane T or MSOLVE), and whether
+`Doc::placement` becomes fallible.

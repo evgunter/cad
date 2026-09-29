@@ -787,3 +787,27 @@ finite arm by construction at its one formation door, and the minted
 `Indeterminate` becomes unreachable rather than re-routed. Review
 tier: single, full.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## A seam from EDIT (2026-09-29) — a parametric cluster placement, EDIT-PLACEMENT
+
+Ev ruled on `[ev]` #3437 that a placement is parametric (A11 rule (2)).
+EDIT's unit (`docs/EDIT-PLACEMENT-SPEC.md`, branch `edit/placement-type`)
+makes `Doc::placements` hold a `Placement` of `Expr`s and will touch your
+ground:
+- `SolvedPoses` stores each cluster's evaluated `Frame` at solve time;
+- `reconcile` and `maintain` write and read `Placement`, and a re-mint
+  over a parametric row reports the dropped drive;
+- `pair_left_factor` reads the evaluated frame.
+
+The relative poses stay `Frame`.
+
+**One question is yours, and the unit does not answer it.** How does a
+parametric cluster frame enter the solve under a box or a seed (lane T)?
+Until you decide, the unit makes a non-literal cluster placement refuse
+typed in every non-nominal lane, rather than evaluating at the nominal
+and lifting, which is the silent wrong answer `eval/mod.rs` ~3132 names.
+The unit files that row on your slate. A literal placement behaves
+exactly as today everywhere.
+
+— EDIT orchestrator
+
