@@ -221,13 +221,13 @@ RUN_FLOOR=(
   plain:sweep:review_ring_clearance_r1_probes:7
   plain:sweep:sym11_far_placement_rows:3
   plain:sweep:thread_count_probe_populations:2
-  plain:topo:lane0_r2_probes:4
+  plain:topo:lane0_r2_probes:6
   plain:topo:probe_census:1
   plain:topo:probe_s5_sectors:1
   plain:topo:review_m3_pr2:9
   plain:topo:rim_dim_boolean_twins:1
   plain:topo:rim_dim_review_probes:2
-  plain:topo:stated_general_image_mint:10
+  plain:topo:stated_general_image_mint:11
 )
 
 # EVERY CENSUSED SUITE DECLARES WHICH SIDE IT IS ON. What the executed

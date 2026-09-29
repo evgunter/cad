@@ -178,24 +178,19 @@ fn a_line_carrier_leaves_the_face_uncached<T: AtRestPolicy>() {
         Ok(0),
         "a stated General image over a line carrier is outside every route: the \
          faces are left uncached, at {}",
-        T::scalar_name()
+        T::NAME
     );
     assert_eq!(
         topo::mint_pcurves(&mut body, tol),
         Ok(()),
         "the whole-body mint answers as the per-face one, at {}",
-        T::scalar_name()
+        T::NAME
     );
     let rows = body
         .half_edges()
         .filter(|(he, _)| body.pcurve(*he).is_some())
         .count();
-    assert_eq!(
-        rows,
-        0,
-        "no half-edge carries a row, at {}",
-        T::scalar_name()
-    );
+    assert_eq!(rows, 0, "no half-edge carries a row, at {}", T::NAME);
 }
 
 /// A spline carrier passes check 1 and refuses on its missing mate —
@@ -215,7 +210,7 @@ fn a_spline_carrier_without_a_mate_refuses_on_the_pair<T: AtRestPolicy>() {
             ),
             "{door}: a stated General image over a spline carrier with no mate \
              refuses on the pair, at {}: {got:?}",
-            T::scalar_name()
+            T::NAME
         );
     };
     missing(
@@ -255,3 +250,34 @@ rows_at!(
 // scalars' verdicts, because both rows fail a check that runs before
 // the door is asked for.
 rows_at!(at_dual64, geom_core::Dual64);
+
+/// **The fitted refusal's replay list is the policy's answer.**
+/// `geom_brep::FITTED_DOOR_HOLDERS` is what the refusal renders, and
+/// geom-brep cannot read the policy, so its membership is pinned here:
+/// exactly the scalars whose `fitted_lane()` answers `Some`, the probe
+/// among them in a build that has it.
+#[test]
+fn the_fitted_replay_list_is_the_policys_holders() {
+    fn holds<T: AtRestPolicy>(held: &mut Vec<&'static str>) {
+        if T::fitted_lane().is_some() {
+            held.push(T::NAME);
+        }
+    }
+    let mut held = Vec::new();
+    holds::<f64>(&mut held);
+    holds::<geom_core::Interval>(&mut held);
+    holds::<geom_core::Sym<f64>>(&mut held);
+    holds::<geom_core::Sym<geom_core::Interval>>(&mut held);
+    holds::<geom_core::Dual64>(&mut held);
+    #[cfg(feature = "probe")]
+    holds::<geom_core::Probe>(&mut held);
+    held.sort_unstable();
+    held.dedup();
+    let mut listed = geom_brep::FITTED_DOOR_HOLDERS.to_vec();
+    listed.sort_unstable();
+    assert_eq!(
+        listed, held,
+        "the fitted refusal's replay list must name exactly the scalars whose policy holds \
+         the door"
+    );
+}
