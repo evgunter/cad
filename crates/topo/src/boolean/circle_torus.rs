@@ -1496,7 +1496,15 @@ mod tests {
                             got.sort_by(f64::total_cmp);
                             assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
                             for (a, b) in got.iter().zip(&truth) {
-                                assert!((a - b).abs() * rho < 1e-6, "{label}: root {a} vs {b}");
+                                // A certified root must be the truth's
+                                // point to within the band (1e-9 m at the
+                                // default ε, with the escalation gap's
+                                // room): span and trim decide on it.
+                                assert!(
+                                    (a - b).abs() * rho < 1e-8,
+                                    "{label}: root {a} vs {b}, {} m apart",
+                                    (a - b).abs() * rho
+                                );
                             }
                             answered[i] += 1;
                         }
