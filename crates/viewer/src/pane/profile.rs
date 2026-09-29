@@ -90,9 +90,9 @@ impl ViewerBehavior<'_> {
             );
         }
         let refused = preview_verdict(ui, self.theme, self.profile_previews.edit.as_ref());
-        let moved = edit.moved();
+        let differs = edit.differs_from_base();
         ui.horizontal(|ui| {
-            let (apply, revert) = apply_and_revert(ui, moved, refused);
+            let (apply, revert) = apply_and_revert(ui, differs, refused);
             if apply {
                 match edit.programs(notation) {
                     Ok(loops) => self.ops.push(SessionOp::EditProfile {
@@ -387,9 +387,9 @@ fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&s
 /// draft.
 const UNTOUCHED: &str = "the numbers are the committed profile's";
 
-/// **The edit door's Apply and Revert**, both live only once the held
-/// numbers have `moved` off the committed profile's; Apply also waits
-/// on the preview not having `refused`.
+/// **The edit door's Apply and Revert**, both live only while the held
+/// state `differs` from the committed profile (it edits it, or cannot
+/// be read as it); Apply also waits on the preview not having `refused`.
 ///
 /// **Apply only what moved.** Untouched, there is nothing to write,
 /// and the door itself also writes nothing for an untouched program,
@@ -401,15 +401,15 @@ const UNTOUCHED: &str = "the numbers are the committed profile's";
 ///
 /// Answers whether each was clicked — Apply, then Revert — which a
 /// disabled button never is.
-fn apply_and_revert(ui: &mut egui::Ui, moved: bool, refused: bool) -> (bool, bool) {
-    let apply = ui.add_enabled(moved && !refused, egui::Button::new("Apply"));
-    let apply = if moved {
+fn apply_and_revert(ui: &mut egui::Ui, differs: bool, refused: bool) -> (bool, bool) {
+    let apply = ui.add_enabled(differs && !refused, egui::Button::new("Apply"));
+    let apply = if differs {
         apply
     } else {
         apply.on_disabled_hover_text(format!("nothing to apply: {UNTOUCHED}"))
     };
-    let revert = ui.add_enabled(moved, egui::Button::new("Revert"));
-    let revert = if moved {
+    let revert = ui.add_enabled(differs, egui::Button::new("Revert"));
+    let revert = if differs {
         revert.on_hover_text("put the numbers back to the committed profile's")
     } else {
         revert.on_disabled_hover_text(format!("nothing to revert: {UNTOUCHED}"))
@@ -565,7 +565,7 @@ mod tests {
             .expect("the document admits a split circle above the form's cap");
         let mut drafts = Drafts::default();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        assert!(!edit.moved(), "fresh load");
+        assert!(!edit.differs_from_base(), "fresh load");
         let ctx = egui::Context::default();
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
             super::path_steps_ui(
@@ -583,7 +583,7 @@ mod tests {
             _ => panic!("a split circle"),
         };
         assert_eq!(held_n, n, "drawing the locked editor rewrote the count");
-        assert!(!edit.moved(), "drawing alone made Apply live");
+        assert!(!edit.differs_from_base(), "drawing alone made Apply live");
     }
 
     /// What a pointer resting on the `nth` painting of `glyph` reads,
