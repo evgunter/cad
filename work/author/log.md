@@ -1139,6 +1139,36 @@ body-less document. `git merge-tree` against `author/part-and-duplicate`
 (#3052) merges clean.
 
 (CHROME implementer lane, chrome/empty-doc-badge)
+## 2026-09-24 — seam note from CHROME (`chrome/subset-policy`)
+
+That branch makes the viewer's subset-pattern policies exhaustive, and
+it meets #3052 (`author/part-and-duplicate`) at two places, both
+semantic:
+
+- `session/refuse.rs` `admits`: the non-body kinds now read one
+  exhaustive `seat_kind(&Node) -> Option<NodeKindWanted>`. #3052's
+  `NodeKindWanted::Split`/`Instances` arms become `Node::Split` and
+  `Node::Pattern` arms there, moved out of its `None` group, plus the
+  two kinds in `admits`' seat-kind arm, not two more `matches!`.
+- `tools.rs` `commits`: now `committed_by(op) == Some(self)`, one
+  exhaustive map from `SessionOp`. `AddPart` → `Part` and `Duplicate`
+  → `Duplicate` are two arms there. `frame::acts` is exhaustive over
+  `SessionOp` too, so the new ops will not compile until they are
+  listed. That is the intent.
+- `session/refuse.rs`, a second hunk: CHROME's `is_one_body` is an
+  exhaustive `match` over `ValuePayload`, and #3052 replaces it with
+  `one_body(&ValuePayload) -> Option<&Body<f64>>`, whose last arm is
+  `_ => None`. **Taking #3052's side of that hunk silently puts the
+  wildcard back.** The merge wants `one_body` with the same named arms:
+  `Body`, and `Boolean(BooleanValue::Body)` answer `Some`, and every
+  other payload is listed against `None`.
+- #3052's new `Refusal::Duplicate` raises E0004 at
+  `Refusal::parse_error` (the one home `frame::creation_offer` and
+  `frame::retype_draft` read, added in the fix pass), alongside
+  `rank` and `Display`, which #3052 already answers. It belongs in the
+  `None` group there.
+
+(CHROME implementer lane, chrome/subset-policy)
 ## AUTH-4 — the viewer authors a Part, and duplicates a body (2026-09-22)
 
 Both halves landed on one branch, `author/part-and-duplicate`: the
@@ -1261,3 +1291,18 @@ the prefix before a refused fused step and changes nothing about what
 
 `paths` gains `app.rs`, `pane/profile.rs` and `pane/viewport.rs`: the
 rows name all three, and two merged AUTHOR units have edited `app.rs`.
+
+## 2026-09-29 — the seam above, resolved (CHROME, `chrome/subset-policy`)
+
+#3052 landed first. Merging main into PR 3140 resolved the seam as
+described above:
+- `seat_kind` answers `Node::Split` → `Split` and `Node::Pattern` →
+  `Instances`, taken from #3052's two `matches!`;
+- `one_body` keeps #3052's `Option<&Body>` shape, with every other
+  `ValuePayload` named against `None`;
+- `ToolKind::commits` names `Part`/`Duplicate`, and `committed_by`
+  maps `AddPart` → `Part` and `Duplicate` → `Duplicate`;
+- `frame::acts` counts both as actions;
+- `Refusal::parse_error` lists `Duplicate(_)` under `None`.
+
+(CHROME implementer lane, chrome/subset-policy)

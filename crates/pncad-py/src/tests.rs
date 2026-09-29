@@ -604,10 +604,10 @@ fn readback_refusal_tags_are_stable() {
 ///
 /// ONE arm has no façade constructor and so no line here — the
 /// `select_refusal_tags_are_stable` caveat, for a different reason.
-/// `HitTestError::Unnamed`'s payload is an `EntityRef`, an arena key
-/// beside a body index, and the façade deliberately does not name that
-/// type; its tag is covered by the match itself, which is exhaustive
-/// and would stop compiling if the arm moved.
+/// `HitTestError::Unnamed`'s payload carries an `EntityRef`, an arena
+/// key beside a body index, and the façade deliberately does not name
+/// that type; its tag is covered by the match itself, which is
+/// exhaustive and would stop compiling if the arm moved.
 ///
 /// The index arm HAS one, and the pin below is what that buys: the
 /// payload rides on the curated surface beside the refusal that
@@ -5279,7 +5279,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "chart_sense_mixed",
-            "chart_spans_solids",
             "corrupt",
             "escalated",
             "face",

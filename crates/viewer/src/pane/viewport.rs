@@ -178,7 +178,11 @@ fn skips_the_ray(action: PickAction, step: IdStep) -> bool {
 fn ray_asked_at(actions: &[PickAction], step: IdStep, cursor: [f64; 2]) -> bool {
     actions.iter().any(|&action| {
         !skips_the_ray(action, step)
-            && matches!(action, PickAction::Hover(at) | PickAction::Select(at) if at == cursor)
+            && match action {
+                PickAction::Hover(at) | PickAction::Select(at) => at == cursor,
+                // Clearing the hover asks the ray nothing.
+                PickAction::ClearHover => false,
+            }
     })
 }
 

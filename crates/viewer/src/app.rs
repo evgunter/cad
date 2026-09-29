@@ -141,11 +141,9 @@ const MODEL_TAB_TITLE: &str = "Model";
 /// A container's tab title, in words.
 ///
 /// A tab title is prose a person reads, so the layout vocabulary is
-/// spelled here rather than taken from `ContainerKind`'s `Debug`. The
-/// match is exhaustive over a foreign enum on purpose: a kind added
-/// upstream breaks this build instead of quietly reaching a user as a
-/// type identifier, which is the guarantee `Debug` cannot give whether
-/// or not the new kind carries a field.
+/// spelled here rather than taken from `ContainerKind`'s `Debug`,
+/// which would show a user a kind added upstream as a type
+/// identifier.
 fn container_kind_title(kind: ContainerKind) -> &'static str {
     match kind {
         ContainerKind::Tabs => "Tabs",
