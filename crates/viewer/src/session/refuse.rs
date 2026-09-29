@@ -864,7 +864,8 @@ pub enum FaceFrameFault {
     /// [`crate::drafts::CommitFault`]'s reason.
     ///
     /// **A pick whose node an undo took away arrives here**, as
-    /// [`InterrogateError::NodeNotEvaluated`] — the door's own word
+    /// [`InterrogateError::Standing`] carrying
+    /// [`pncad::document::NodeStanding::NotEvaluated`] — the door's own word
     /// for a node id this evaluation has no result for. It is not
     /// [`Self::NotOneBody`]: "several bodies" is a claim about a value
     /// that exists, and telling an author to project the one they mean

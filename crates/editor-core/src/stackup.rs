@@ -557,13 +557,13 @@ fn nominal_of(
     ev: &Evaluation<f64>,
     id: RecipeNodeId,
 ) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (RecipeNodeId, String)> {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
+    match ev.usable(id) {
+        Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
             ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
             other => Err((id, format!("node is a {}", other.kind_name()))),
         },
-        other => Err((id, format!("the measure did not evaluate: {other:?}"))),
+        Err(standing) => Err((id, format!("the measure did not evaluate: {standing}"))),
     }
 }
 
@@ -571,8 +571,8 @@ fn measure_of<T: geom_core::Decide + Copy>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Result<T, (RecipeNodeId, String)> {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
+    match ev.usable(id) {
+        Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(*value),
             // **A measure with no value at this scalar reads as a
             // refusal HERE**, carrying its own reason, and that is the
@@ -593,8 +593,8 @@ fn measure_of<T: geom_core::Decide + Copy>(
                 format!("node evaluated to a {}, not a measure", other.kind_name()),
             )),
         },
-        _ => Err(ev.node_error(id).map_or_else(
-            || (id, "not evaluated".to_owned()),
+        Err(standing) => Err(ev.node_error(id).map_or_else(
+            || (id, standing.to_string()),
             |e| (e.node, e.kind.to_string()),
         )),
     }

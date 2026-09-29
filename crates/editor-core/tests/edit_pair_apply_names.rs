@@ -39,9 +39,10 @@ use crate::fixture;
 
 use std::collections::BTreeSet;
 
+use editor_core::NodeStanding;
 use editor_core::{
     CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, HitTestError,
-    Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
+    NameLookupError, Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
 };
 use fixture::{ename, insert, len, on_frame};
 use geom_core::Tol;
@@ -388,13 +389,13 @@ fn the_name_doors_refuse_a_twins_evaluation() {
          refusal here buys something"
     );
 
-    let expected = HitTestError::EvaluationOfAnotherDocument {
+    let expected = NameLookupError::EvaluationOfAnotherDocument {
         expected: t.square.id(),
         found: t.triangle.id(),
     };
     assert_eq!(
         pick.patch_names(&t.ev_triangle),
-        Err(expected.clone()),
+        Err(expected),
         "the finding: a foreign evaluation used to answer out of the \
          twin's tables, in patch order"
     );
@@ -545,13 +546,17 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
     let broken = later(0.0);
     assert_eq!(
         pick.patch_names(&broken),
-        Err(HitTestError::NodeFailed { node: ext }),
+        Err(NameLookupError::Standing(NodeStanding::Failed {
+            node: ext
+        })),
         "a stale index over a node that has since failed announces \
          itself once, for the call, rather than answering a plausible name"
     );
     assert_eq!(
         pick.boundary_names(&broken),
-        Err(HitTestError::NodeFailed { node: ext }),
+        Err(NameLookupError::Standing(NodeStanding::Failed {
+            node: ext
+        })),
         "the edge door refuses the same way"
     );
 }
@@ -613,7 +618,7 @@ fn the_memo_refuses_a_prior_of_another_document() {
         second
             .patch_names(&ev_a)
             .expect_err("a is the other document"),
-        HitTestError::EvaluationOfAnotherDocument {
+        NameLookupError::EvaluationOfAnotherDocument {
             expected: b.id(),
             found: a.id(),
         },

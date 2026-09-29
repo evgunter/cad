@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::NodeStanding;
 use editor_core::ParamNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
@@ -166,11 +167,12 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
             NodePickError::NoSuchBody { node, body: 2 },
             vec!["node 4", "index 2"],
         ),
-        // The wrapped standing/kernel refusals are forwarded in their
-        // own doors' words, not paraphrased — prefix included.
+        // The standing speaks under this door's prefix; the wrapped
+        // kernel refusals are forwarded in their own doors' words, not
+        // paraphrased — prefix included.
         (
-            NodePickError::Standing(HitTestError::NodeFailed { node }),
-            vec!["hit test:", "node 4", "failed"],
+            NodePickError::Standing(NodeStanding::Failed { node }),
+            vec!["pick:", "node 4", "failed"],
         ),
         (
             NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance {
@@ -226,34 +228,71 @@ fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
 }
 
 test_utils::f6_variants! {
-    /// `ResolveIndeterminate`'s census — see [`NODE_PICK_ERROR`].
-    const RESOLVE_INDETERMINATE: ResolveIndeterminate =
-        [TargetFailed, TargetPoisoned, TargetNotEvaluated];
+    /// `NodeStanding`'s census — see [`NODE_PICK_ERROR`].
+    const NODE_STANDING: NodeStanding = [NotEvaluated, Failed, Poisoned];
+}
+
+/// The standing names itself — the node, its state, where the repair
+/// is — and no door: every door that carries it puts its own subject
+/// in front (`node_standing`'s rows hold that half).
+#[test]
+fn node_standing_display_names_its_content_and_no_door() {
+    let node = RecipeNodeId(6);
+    let cases = [
+        (
+            NodeStanding::NotEvaluated { node },
+            vec!["node 6", "no result", "canceled"],
+        ),
+        (
+            NodeStanding::Failed { node },
+            vec!["node 6", "failed", "own failure"],
+        ),
+        (
+            NodeStanding::Poisoned {
+                node,
+                through: RecipeNodeId(2),
+            },
+            vec!["node 6", "poisoned", "node 2", "upstream"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &NODE_STANDING, &[]);
+    for (standing, _) in &cases {
+        let text = standing.to_string();
+        for door in [
+            "hit test",
+            "pick",
+            "lookup",
+            "export",
+            "select",
+            "reference",
+        ] {
+            assert!(
+                !text.contains(door),
+                "the standing names no door ({door}): {text}"
+            );
+        }
+    }
 }
 
 #[test]
 fn resolve_indeterminate_display_names_its_content_not_its_struct() {
-    let cases = [
-        (
-            ResolveIndeterminate::TargetFailed {
+    assert_f6(
+        &ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
                 node: RecipeNodeId(6),
-            },
-            vec!["minting node 6", "failed"],
-        ),
-        (
-            ResolveIndeterminate::TargetPoisoned {
                 through: RecipeNodeId(2),
             },
-            vec!["poisoned", "node 2", "upstream"],
-        ),
-        (
-            ResolveIndeterminate::TargetNotEvaluated {
-                node: RecipeNodeId(6),
-            },
-            vec!["minting node 6", "no result"],
-        ),
-    ];
-    assert_f6_every_variant(&cases, &RESOLVE_INDETERMINATE, &[]);
+        },
+        &[
+            "indeterminate",
+            "minting node",
+            "node 6",
+            "poisoned",
+            "node 2",
+            "upstream",
+        ],
+        &["ResolveIndeterminate", "Poisoned", "standing:"],
+    );
 }
 
 test_utils::f6_variants! {
@@ -299,9 +338,7 @@ test_utils::f6_variants! {
     /// keeps both in step, so they could not drift, but the enum has
     /// one roster in this binary and this is it.
     pub(crate) const INTERROGATE_ERROR: InterrogateError = [
-        NodeNotEvaluated,
-        NodeFailed,
-        NodePoisoned,
+        Standing,
         NoSuchName,
         Ambiguous,
         WrongKind,
@@ -318,15 +355,7 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
     let through = RecipeNodeId(3);
     let cases = [
         (
-            InterrogateError::NodeNotEvaluated { node },
-            vec!["node 7", "no result"],
-        ),
-        (
-            InterrogateError::NodeFailed { node },
-            vec!["node 7", "failed"],
-        ),
-        (
-            InterrogateError::NodePoisoned { node, through },
+            InterrogateError::Standing(NodeStanding::Poisoned { node, through }),
             vec!["node 7", "node 3", "poisoned"],
         ),
         (InterrogateError::NoSuchName, vec!["stale", "another node"]),

@@ -91,17 +91,18 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::{Decide, Sign};
 
-use crate::eval::{Evaluation, KeyHasher, NodeResult};
+use crate::eval::{Evaluation, KeyHasher, NodeStanding};
 use crate::names::StableName;
 use crate::node::RecipeNodeId;
 
 use super::derivation_nodes;
 
-/// A node's standing in one run — the outcome tag BOTH derived forms
-/// carry: the population form's [`NodeVerdicts::status`] and the strict
-/// form's [`VerdictRow::outcome`]. One enum, read off the `NodeResult`
-/// discriminants by [`status`], so the two forms cannot disagree about
-/// a node's standing.
+/// A node's outcome in one run — the tag BOTH derived forms carry: the
+/// population form's [`NodeVerdicts::status`] and the strict form's
+/// [`VerdictRow::outcome`]. `Ok`, or the kind of the node's
+/// [`NodeStanding`] (`Absent` is its `NotEvaluated`), read off
+/// [`Evaluation::usable`] by [`status`], so the two forms cannot
+/// disagree about a node's standing.
 ///
 /// Serializable: it rides in [`VerdictSummary`], the cross-process ε
 /// audit's persist-grade seam. Its key tag bytes are chosen at
@@ -225,11 +226,11 @@ impl FlipSet {
 }
 
 fn status<T: Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
-    match run.nodes.get(&id) {
-        Some(NodeResult::Ok(_)) => RunStatus::Ok,
-        Some(NodeResult::Failed(_)) => RunStatus::Failed,
-        Some(NodeResult::Poisoned { .. }) => RunStatus::Poisoned,
-        None => RunStatus::Absent,
+    match run.usable(id) {
+        Ok(_) => RunStatus::Ok,
+        Err(NodeStanding::Failed { .. }) => RunStatus::Failed,
+        Err(NodeStanding::Poisoned { .. }) => RunStatus::Poisoned,
+        Err(NodeStanding::NotEvaluated { .. }) => RunStatus::Absent,
     }
 }
 

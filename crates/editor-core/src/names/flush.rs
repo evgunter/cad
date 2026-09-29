@@ -109,7 +109,7 @@ use topo::{Body, FaceKey, PlaneRelation};
 
 use crate::doc::Doc;
 use crate::edit::{Applied, DocEdit, EditError, apply};
-use crate::eval::{Evaluation, NodeResult, NodeValue};
+use crate::eval::{Evaluation, NodeValue};
 use crate::names::geompred::SelectRefusal;
 use crate::names::interrogate;
 use crate::names::interrogate::InterrogateError;
@@ -195,8 +195,8 @@ pub fn find_flush_candidates<T: Decide>(
     b: RecipeNodeId,
     tol: Tol,
 ) -> Result<Vec<FlushFinding>, SelectRefusal> {
-    let (Some(NodeResult::Ok(va)), Some(NodeResult::Ok(vb))) = (ev.nodes.get(&a), ev.nodes.get(&b))
-    else {
+    // No value, no faces to pair: `select`'s doc.
+    let (Some(va), Some(vb)) = (ev.value(a), ev.value(b)) else {
         return Ok(Vec::new());
     };
     let band = Band::linear(tol)?;

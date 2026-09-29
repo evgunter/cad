@@ -1665,10 +1665,14 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         ("kind", py.None().into_any()),
     ];
     match err {
-        E::Poisoned { through, .. } => match NodeId(*through).into_pyobject(py) {
-            Ok(bound) => fields[2] = ("through", bound.unbind().into_any()),
-            Err(failed) => return failed,
-        },
+        E::Standing(standing) => {
+            if let Some(through) = standing.through() {
+                match NodeId(through).into_pyobject(py) {
+                    Ok(bound) => fields[2] = ("through", bound.unbind().into_any()),
+                    Err(failed) => return failed,
+                }
+            }
+        }
         E::NotABody { kind, .. } => {
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
@@ -1676,11 +1680,7 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         // product roots, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
-        E::UnknownNode { .. }
-        | E::NodeFailed { .. }
-        | E::EmptyBoolean { .. }
-        | E::Step(_)
-        | E::Product(_) => {}
+        E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.to_string(), &fields)
 }

@@ -634,12 +634,10 @@ fn value_of<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<&super::NodeValue<T>, NodeErrorKind> {
-    match results.get(&input) {
-        Some(NodeResult::Ok(v)) => Ok(v),
-        // Failed/Poisoned inputs never reach run_op; an absent entry
-        // is a dangling reference.
-        _ => Err(NodeErrorKind::MissingInput { input }),
-    }
+    // Failed/Poisoned inputs never reach run_op (the node is poisoned
+    // first), so the one standing that arrives is an absent entry: a
+    // dangling reference.
+    super::usable_in(results, input).map_err(|_| NodeErrorKind::MissingInput { input })
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's

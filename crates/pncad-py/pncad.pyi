@@ -597,12 +597,13 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `not_a_length`, `pair_in_band`, `bad_value`, or
-    `band`. The other attributes are the refusing arm's payload,
-    always present and `None` where inapplicable: `name` (the
-    candidate's opaque name text), `predicate` (the funnel site),
-    `matched`/`candidates` (a tied name's disagreement counts),
-    `datum` (the non-datum reference), `found` (what it evaluated to),
+    `not_a_datum`, `datum_has_no_value`, `not_a_length`,
+    `pair_in_band`, `bad_value`, or `band`. The other attributes are
+    the refusing arm's payload, always present and `None` where
+    inapplicable: `name` (the candidate's opaque name text),
+    `predicate` (the funnel site), `matched`/`candidates` (a tied
+    name's disagreement counts), `datum` (the non-datum reference, or
+    the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
 
     reason: str
@@ -769,6 +770,11 @@ class HitTestError(PncadError):
     `node_poisoned`): a mesh displayed for a node this evaluation did
     not produce cannot belong to it, so the pick refuses up front
     rather than inverting against a table that is not there.
+
+    `NodePick.patch_names` and `NodePick.boundary_names` raise this
+    class too when they refuse the whole call — the pairing below, or
+    one of those three — under the same words and fields; their
+    message says a name lookup refused, because no hit test ran.
 
     `evaluation_of_another_document` is the pairing refusal, the same
     word `Doc.product`, the checks and the name-level edit door already

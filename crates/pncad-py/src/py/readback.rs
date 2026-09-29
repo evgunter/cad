@@ -233,19 +233,9 @@ pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
     // added kernel-side arrives here as a compile error rather than
     // as a silently unprojected payload.
     let (which, through, candidates, wanted, found, index, payload, carrier) = match err {
-        E::NodeNotEvaluated { node: n } | E::NodeFailed { node: n } => (
-            node(*n),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::NodePoisoned { node: n, through } => (
-            node(*n),
-            node(*through),
+        E::Standing(standing) => (
+            node(standing.node()),
+            standing.through().map_or_else(none, node),
             none(),
             none(),
             none(),

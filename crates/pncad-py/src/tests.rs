@@ -542,18 +542,21 @@ fn the_assertion_directions_keep_their_symbols() {
 #[test]
 fn readback_refusal_tags_are_stable() {
     use crate::tags::interrogate_error_tag as tag;
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{NodeStanding as S, RecipeNodeId};
     use pncad::select::{DanglingRef, EntityKind, InterrogateError as E, ReadbackError as R};
     use pncad::topo::{EntityId, GeomRef, SurfaceKey, VertexKey};
 
     let node = RecipeNodeId(0);
-    assert_eq!(tag(&E::NodeNotEvaluated { node }), "node_not_evaluated");
-    assert_eq!(tag(&E::NodeFailed { node }), "node_failed");
     assert_eq!(
-        tag(&E::NodePoisoned {
+        tag(&E::Standing(S::NotEvaluated { node })),
+        "node_not_evaluated"
+    );
+    assert_eq!(tag(&E::Standing(S::Failed { node })), "node_failed");
+    assert_eq!(
+        tag(&E::Standing(S::Poisoned {
             node,
             through: node
-        }),
+        })),
         "node_poisoned"
     );
     assert_eq!(tag(&E::NoSuchName), "no_such_name");
@@ -615,24 +618,30 @@ fn readback_refusal_tags_are_stable() {
 /// words — the carrier's `mesh_index` and the payload's own.
 #[test]
 fn picking_refusal_tags_are_stable() {
-    use crate::tags::{hit_test_error_tag, mesh_pick_error_tag, node_pick_error_tag};
-    use pncad::document::RecipeNodeId;
+    use crate::tags::{
+        hit_test_error_tag, mesh_pick_error_tag, name_lookup_error_tag, node_pick_error_tag,
+    };
+    use pncad::document::{NodeStanding as S, RecipeNodeId};
     use pncad::mesh::TessellateError;
-    use pncad::select::{HitTestError as H, MeshPickError as M, NodePickError as N};
+    use pncad::select::{
+        HitTestError as H, MeshPickError as M, NameLookupError as L, NodePickError as N,
+    };
 
     let node = RecipeNodeId(0);
-    assert_eq!(
-        hit_test_error_tag(&H::NodeNotEvaluated { node }),
-        "node_not_evaluated"
-    );
-    assert_eq!(hit_test_error_tag(&H::NodeFailed { node }), "node_failed");
-    assert_eq!(
-        hit_test_error_tag(&H::NodePoisoned {
-            node,
-            through: node
-        }),
-        "node_poisoned"
-    );
+    let standings = [
+        (S::NotEvaluated { node }, "node_not_evaluated"),
+        (S::Failed { node }, "node_failed"),
+        (
+            S::Poisoned {
+                node,
+                through: node,
+            },
+            "node_poisoned",
+        ),
+    ];
+    for (standing, word) in standings {
+        assert_eq!(hit_test_error_tag(&H::Standing(standing)), word);
+    }
 
     // DI3's pairing refusal, under the word the gather, the checks and
     // the name-level edit door already answer with: one fact, one tag,
@@ -662,20 +671,19 @@ fn picking_refusal_tags_are_stable() {
     );
 
     // The standing arm FORWARDS: no `standing` wrapper tag exists, and
-    // a caller reads the same three words at either door.
-    for standing in [
-        H::NodeNotEvaluated { node },
-        H::NodeFailed { node },
-        H::NodePoisoned {
-            node,
-            through: node,
-        },
-    ] {
-        assert_eq!(
-            node_pick_error_tag(&N::Standing(standing.clone())),
-            hit_test_error_tag(&standing)
-        );
+    // a caller reads the same three words at every door that carries
+    // it — the name lookup's included.
+    for (standing, word) in standings {
+        assert_eq!(node_pick_error_tag(&N::Standing(standing)), word);
+        assert_eq!(name_lookup_error_tag(&L::Standing(standing)), word);
     }
+    assert_eq!(
+        name_lookup_error_tag(&L::EvaluationOfAnotherDocument {
+            expected: pncad::document::DocumentId::derive("tag-expected"),
+            found: pncad::document::DocumentId::derive("tag-found"),
+        }),
+        "evaluation_of_another_document"
+    );
 
     // ...and so does the tessellation arm, under the tessellator's own
     // word rather than a `tessellate` wrapper.
@@ -718,9 +726,9 @@ fn picking_refusal_tags_are_stable() {
 #[test]
 fn every_pick_arm_projects_the_index_numbers_it_carries() {
     use crate::pick_payload::index_payload;
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{NodeStanding, RecipeNodeId};
     use pncad::mesh::TessellateError;
-    use pncad::select::{HitTestError as H, MeshPickError as M, NodePickError as N};
+    use pncad::select::{MeshPickError as M, NodePickError as N};
 
     let node = RecipeNodeId(0);
     // The one arm that carries them, at numbers no two of which are
@@ -739,7 +747,7 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 
     // Every other arm answers all three by name, not by wildcard.
     for other in [
-        N::Standing(H::NodeNotEvaluated { node }),
+        N::Standing(NodeStanding::NotEvaluated { node }),
         N::NotABody { node },
         N::NoSuchBody { node, body: 1 },
         N::Tessellate(TessellateError::InvalidChordalTolerance { value: 0.0 }),
@@ -1258,13 +1266,15 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
 fn the_evaluation_door_speaks_the_standing_ladder() {
     use crate::errors::EvalReason;
     use crate::tags::{eval_reason_tag, hit_test_error_tag, interrogate_error_tag};
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{NodeStanding, RecipeNodeId};
     use pncad::select::{HitTestError as H, InterrogateError as I};
 
-    let node = RecipeNodeId(0);
+    let standing = NodeStanding::NotEvaluated {
+        node: RecipeNodeId(0),
+    };
     let rung = eval_reason_tag(EvalReason::NodeNotEvaluated);
-    assert_eq!(rung, hit_test_error_tag(&H::NodeNotEvaluated { node }));
-    assert_eq!(rung, interrogate_error_tag(&I::NodeNotEvaluated { node }));
+    assert_eq!(rung, hit_test_error_tag(&H::Standing(standing)));
+    assert_eq!(rung, interrogate_error_tag(&I::Standing(standing)));
 
     // And it is NOT the other no-entry fact. "The document has no such
     // node" and "this run never reached it" are two states the door
@@ -1297,8 +1307,9 @@ fn the_evaluation_door_speaks_the_standing_ladder() {
 /// **The per-arm words are pinned wherever this fixture reaches the
 /// arm**, which is two of six: `node_gone` on the deleted node and
 /// `target_not_evaluated` on the canceled run. `ResolveIndeterminate`
-/// is constructible — its arms carry a `RecipeNodeId` and nothing
-/// else — so the other two of ITS three are pinned as literals below.
+/// is constructible — it carries a `NodeStanding`, which carries
+/// `RecipeNodeId`s and nothing else — so the other two of ITS three
+/// are pinned as literals below.
 /// `vanished` needs two runs of two documents, which
 /// `tests/test_resolve.py` already builds, so it is pinned there
 /// rather than duplicated here. `ambiguous` is reached by no test on
@@ -1316,22 +1327,27 @@ fn resolution_status_tags_are_stable() {
     };
     use pncad::select::{Resolution, ResolveIndeterminate, RunCtx, all_faces, resolve};
 
-    // The indeterminate arms carry a node id and nothing else, so all
-    // three are spellable here; the failure arms are not (this
+    // The indeterminate standings carry node ids and nothing else, so
+    // all three are spellable here; the failure arms are not (this
     // function's own doc comment says why).
+    use pncad::document::NodeStanding;
     let node = pncad::document::RecipeNodeId(0);
-    assert_eq!(
-        resolve_indeterminate_tag(&ResolveIndeterminate::TargetFailed { node }),
-        "target_failed"
-    );
-    assert_eq!(
-        resolve_indeterminate_tag(&ResolveIndeterminate::TargetPoisoned { through: node }),
-        "target_poisoned"
-    );
-    assert_eq!(
-        resolve_indeterminate_tag(&ResolveIndeterminate::TargetNotEvaluated { node }),
-        "target_not_evaluated"
-    );
+    for (standing, word) in [
+        (NodeStanding::Failed { node }, "target_failed"),
+        (
+            NodeStanding::Poisoned {
+                node,
+                through: node,
+            },
+            "target_poisoned",
+        ),
+        (NodeStanding::NotEvaluated { node }, "target_not_evaluated"),
+    ] {
+        assert_eq!(
+            resolve_indeterminate_tag(&ResolveIndeterminate { standing }),
+            word
+        );
+    }
 
     let tol = Tol::witness();
     let doc: ProfileDoc = crate::identity::derived("resolution-status-probe", tol);
@@ -1477,6 +1493,14 @@ fn select_refusal_tags_are_stable() {
             found: "body",
         }),
         "not_a_datum"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::DatumHasNoValue(
+            pncad::document::NodeStanding::Failed {
+                node: RecipeNodeId(0)
+            }
+        )),
+        "datum_has_no_value"
     );
     assert_eq!(
         select_refusal_tag(&SelectRefusal::NotALength {
@@ -4652,15 +4676,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "hit_test_error_tag",
-        values: &[
-            "ambiguous",
-            "evaluation_of_another_document",
-            "node_failed",
-            "node_not_evaluated",
-            "node_poisoned",
-            "unnamed",
-        ],
-        delegates: &[],
+        values: &["ambiguous", "evaluation_of_another_document", "unnamed"],
+        delegates: &["node_standing_tag"],
     },
     TagEntry {
         function: "inline_error_tag",
@@ -4693,13 +4710,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "no_bodies",
             "no_such_body",
             "no_such_name",
-            "node_failed",
-            "node_not_evaluated",
-            "node_poisoned",
             "whole_body",
             "wrong_kind",
         ],
-        delegates: &["readback_error_tag"],
+        delegates: &["node_standing_tag", "readback_error_tag"],
     },
     TagEntry {
         function: "lever_refusal_tag",
@@ -4800,6 +4814,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "mint_refusal_tag",
         values: &["mate_reference_refused", "no_at_rest_record"],
         delegates: &[],
+    },
+    TagEntry {
+        function: "name_lookup_error_tag",
+        values: &["evaluation_of_another_document"],
+        delegates: &["node_standing_tag"],
     },
     TagEntry {
         function: "naming_error_tag",
@@ -4943,7 +4962,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "node_pick_error_tag",
         values: &["mesh_index", "no_such_body", "not_a_body"],
-        delegates: &["hit_test_error_tag", "tessellate_error_tag"],
+        delegates: &["node_standing_tag", "tessellate_error_tag"],
+    },
+    TagEntry {
+        function: "node_standing_tag",
+        values: &["node_failed", "node_not_evaluated", "node_poisoned"],
+        delegates: &[],
     },
     TagEntry {
         function: "normalization_kind_tag",
@@ -5264,6 +5288,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "select_refusal_tag",
         values: &[
             "bad_value",
+            "datum_has_no_value",
             "in_band",
             "not_a_datum",
             "not_a_length",
@@ -5754,7 +5779,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_placement_list", 2),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 4),
+    ("evaluation_of_another_document", 5),
     ("face", 3),
     ("improper_placement", 2),
     ("indeterminate", 2),
@@ -5767,9 +5792,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("name_on_dropped_step", 2),
     ("no_at_rest_record", 2),
     ("no_such_body", 2),
-    ("node_failed", 4),
-    ("node_not_evaluated", 3),
-    ("node_poisoned", 2),
+    ("node_failed", 3),
+    ("node_not_evaluated", 2),
     ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
