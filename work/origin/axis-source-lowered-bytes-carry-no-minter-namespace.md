@@ -2,12 +2,13 @@
 id: axis-source-lowered-bytes-carry-no-minter-namespace
 kind: issue
 title: AxisSource's opaque lowered base carries no minter tag, so a recipe encoding and an import encoding can collide
-status: open
+status: parked
 opened: 2026-09-29
 priority: P2
 cost: M
 design: true
 refs: [axis-per-component-source-beside-geom-source]
+blocked_on: [step-import-discards-the-entity-ids-that-are-its-identity-channel]
 ---
 
 
@@ -25,3 +26,10 @@ namespace disjointness load-bearing. Decide the tag (an enum over
 minters, or a minter prefix the lowering owns) before step 2 stamps
 anything; until then only the recipe layer mints, so the collision is
 latent.
+
+## Parked (2026-09-29, ORIGIN orchestrator)
+
+On step 2 (EXCH's import adoption). Until an importer stamps axis
+rows, the recipe layer is the only minter, so a tag has one value and
+nothing to disambiguate; the decision belongs to the unit that adds the
+second minter, and has to land no later than it.

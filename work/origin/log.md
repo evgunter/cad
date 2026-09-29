@@ -181,3 +181,15 @@ needles filed where they land: `live-tuple-constructor-point-free-is-unseen`
 (here), `census-touch-guard-needles-miss-a-point-free-call` and evidence
 on `window-site-scan-…` (CONTACT), `box-door-census-misses-a-point-free-read`
 (BOXES), with seam notes.
+
+## 2026-09-29 — dispatchable work exhausted short of Ev
+
+`axis-source-lowered-bytes-…` parked on EXCH's step 2 (a one-minter tag
+is building for an imagined case). What remains is design: the two
+`needs_ev` rows (PRs 3410, 3412), the rows whose answer follows 3410
+(`surface-field-walks-…`, `three-spellings-…`, `set-surface-source-…`),
+and three design rows with no consumer pressing
+(`a-live-spliced-…`, `axis-channel-serves-only-the-line-reading`,
+`live-tuple-constructor-…`). The track stays `active` while Ev's
+answers are hours away; if they are not, the blocked rows are cut into a
+program of their own per `work/README.md` rather than held here.
