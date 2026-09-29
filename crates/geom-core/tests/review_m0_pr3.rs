@@ -520,7 +520,8 @@ fn sliver_band_user_experience() {
     assert_eq!(e.band.zero(), 1e-9);
     assert_eq!(e.band.escalate(), 1e-8);
     let msg = e.to_string();
-    assert!(msg.contains("face_gap_classification"), "got: {msg}");
+    // The predicate's name is routing: carried on the error, not read.
+    assert!(!msg.contains("face_gap_classification"), "got: {msg}");
     // The unified sub-ε_input recourse (two-tolerance principle, D4 ¶1
     // addendum): pinned as a fragment of the shared carrier const.
     assert_eq!(

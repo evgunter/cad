@@ -2870,7 +2870,6 @@ mod tests {
         for msg in [definite.to_string(), escalated.to_string()] {
             assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
             assert!(!msg.contains("declare"), "{msg}");
-            assert!(msg.contains("split_arc_window"), "{msg}");
             assert!(msg.contains("1e-9") && msg.contains("1e-8"), "{msg}");
         }
         // The sub-case that classified nothing must NOT carry the

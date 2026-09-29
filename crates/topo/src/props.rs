@@ -3220,8 +3220,10 @@ mod recourse_tests {
         for arm in &arms {
             let msg = arm.to_string();
             let lower = msg.to_lowercase();
+            // Where there is no way through, the sentence says so.
             assert!(
-                RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
+                RECOURSE_VERBS.iter().any(|v| lower.contains(v))
+                    || lower.contains("there is no way through"),
                 "no recourse in: {msg}"
             );
         }

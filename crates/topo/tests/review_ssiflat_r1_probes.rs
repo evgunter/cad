@@ -275,6 +275,9 @@ mod interval_lane {
         }
         // The refusal itself, then the refusal as the tier-3 pass
         // reports it (the consumer's actual seam).
+        // The escalating predicate is named on the typed refusal; the
+        // sentence leaves routing out.
+        assert!(format!("{err:?}").contains("ssi_hull_sup"), "{err:?}");
         let direct = err.to_string();
         let wrapped = topo::pcurves::PcurveMintError::Certify {
             half_edge: topo::HalfEdgeKey::default(),
@@ -282,10 +285,6 @@ mod interval_lane {
         }
         .to_string();
         for text in [&direct, &wrapped] {
-            assert!(
-                text.contains("ssi_hull_sup"),
-                "the escalating predicate's name is the actionable part: {text}"
-            );
             // AMENDED (fix pass): escalations now render through
             // `IndeterminatePayload`, the classifier's own renderer, so
             // the wording is "enclosure [lo, hi] cannot be classified
