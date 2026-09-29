@@ -35,8 +35,9 @@ there. The node path already has this guard:
 `app::properties_pane_tests::a_deleted_node_is_not_said_to_carry_no_parameters`
 pins it, because a node's `present` reads the committed document.
 
-The fixture that reaches it is
-`app::properties_pane_tests::a_face_of_the_body(true)`.
+This is read off the code rather than driven. The fixture that reaches
+it is `app::properties_pane_tests::a_face_of_the_body(true)`, and a row
+asserting the line's absence there is the test to write first.
 
 ## Fix
 
