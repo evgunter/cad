@@ -117,3 +117,14 @@ Review tier: single FULL — a new identity record that every
 transplanting door must carry is more than reading can believe; raised
 to dual if the diff shows a representation decision the doc did not
 make.
+## 2026-09-29 — PR 3413 lands (graft forwards provenance)
+
+`graft-copies-provenance-keys-verbatim` closed. Dual review DR-18 on
+`034006190`: both APPROVE-WITH-FIXES, no MAJOR, every claim held under
+execution (including two independent corpus name-table diffs: versions
+only). The union's fix pass (`7ce78a41b`) added the two test rows each
+review showed missing (a shared-dead-key mutant and a swapped-slot
+mutant each red exactly one new row), collapsed five copies of the
+forwarding body into one, and removed the verbatim-then-overwrite solid
+step. Main merged in before landing, so the gate ran on the combined
+tree.

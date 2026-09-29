@@ -108,21 +108,15 @@ pub enum NamingError {
     /// [`Self::Emission`], carrying the one thing the repair needs
     /// that a sentence cannot supply: WHICH edge.
     ///
-    /// **Raised from two chases, one guarded and one not, and the
-    /// dividing line is WRITER ACCESS.** `emit_topo`'s `chase_b` is
-    /// guarded (`a_cycling_graft_map_refuses_in_the_b_lane`): it hops
-    /// through a graft map the CALLER supplies between provenance
-    /// reads, so a loop closes from outside `topo`.
-    /// `chase_edge_to_table` is not, because it advances only on
-    /// `Body::edge_provenance`, which is `pub(crate)` to `topo` and is
-    /// written by one door — `Body::split_edge`, recording the parent
-    /// on a child it has just minted, so a chain is strictly
-    /// decreasing in age and no caller can close it. That a cycling
-    /// lineage exists at all is real: `topo::props`' carrier-identity
-    /// fold documents it as what a graft aliases, and
-    /// `work/bool/graft-copies-provenance-keys-verbatim.md` records
-    /// `Body::split_root`'s cycle arm firing on real assembly
-    /// products — `topo`-internally, where this crate has no door.
+    /// **Unguardable from this crate, and the reason is WRITER
+    /// ACCESS.** Both chases (`emit_topo`'s `chase_edge_to_table` and
+    /// `chase_b`) advance only on `Body::edge_provenance`, which is
+    /// `pub(crate)` to `topo`: `Body::split_edge` records the parent on
+    /// a child it has just minted, so a chain is strictly decreasing in
+    /// age in the arena that wrote it; a graft forwards it injectively
+    /// (each source key to its own result key, live or dead on
+    /// arrival), which maps an acyclic chain to an acyclic one. No
+    /// caller can close it.
     SplitLineage(SplitLineageCycle),
     /// A face's FRAGMENT lineage cycles, caught where an emitter
     /// chased it to its root through a split's or a boolean's
