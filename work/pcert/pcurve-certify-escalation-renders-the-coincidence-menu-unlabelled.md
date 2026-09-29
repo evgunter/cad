@@ -40,3 +40,11 @@ As `geom_brep::offset_meters::MeterError::Escalated` now does: render
 `cause.payload()` and append one labelled `Recourse:` (the lever
 `classify_pcurve` names), or `geom_core::KERNEL_DEFECT_ENDING` on
 `MarginDiag::Invalid`, with the lever in one home both surfaces read.
+
+**The one home exists now (ENCL, 2026-09-29).** `PcurveCertifyError::ending(reading)`
+and `PcurveCheck::recourse` (`crates/geom-brep/src/pcurve_cache.rs`)
+route each check to its decision's ending: the span and azimuth checks
+through the edge certifier's `ParamSpan` and `ParamWinding`, the chart
+winding as an exact form selection, the map residual, envelope, trim box
+and the fitted certificate as the last resort. `classify_pcurve` reads it
+at rest; this `Display` can append it at the reading its door knows.

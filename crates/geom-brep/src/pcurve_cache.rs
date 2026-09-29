@@ -167,7 +167,8 @@ use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
 
-use crate::certify::CERT_SAMPLES;
+use crate::certify::{CERT_SAMPLES, CertCheck};
+use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
@@ -1026,6 +1027,63 @@ impl core::fmt::Display for PcurveCertifyError {
 }
 
 impl std::error::Error for PcurveCertifyError {}
+
+impl PcurveCertifyError {
+    /// The ending this refusal's decision gives it, read at `reading`
+    /// ([`PcurveCheck::recourse`]), or `None` for a refusal that is no
+    /// decision's refused arm (an unsupported class, a missing operand,
+    /// a band the tolerance cannot form, a fitted certificate's own
+    /// refusal), or whose definite arm is a winding the lane cannot map
+    /// rather than a stored contradiction
+    /// ([`PcurveCertifyError::AzimuthPeriodExceeded`]).
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        let (check, arm) = match self {
+            Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
+            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
+            Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain),
+            Self::TrimEscape => (PcurveCheck::TrimContainment, RefusedArm::SignCertain),
+            // The fitted lane's SSI certificate is an approximation's, as
+            // the plane × NURBS lane's rung-3 certificate is
+            // (`CertCheck::PlaneNurbsCertificate`).
+            Self::FittedEscalated { cause } => {
+                return Some(Unsized::LastResort.recourse(RefusedArm::Undecided(cause), reading));
+            }
+            Self::UnsupportedChart { .. }
+            | Self::UnsupportedCarrier
+            | Self::FittedLaneUnsupported { .. }
+            | Self::FittedMateMissing
+            | Self::IsoUnsupported { .. }
+            | Self::ChartRow { .. }
+            | Self::FittedCertificate { .. }
+            | Self::ChartWindingUnsupported
+            | Self::AzimuthPeriodExceeded
+            | Self::Band(_) => return None,
+        };
+        Some(check.recourse(arm, reading))
+    }
+}
+
+impl PcurveCheck {
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `reading` (D4 ¶1 (i)): the edge certifier's own decision where
+    /// this check restates it, otherwise a decision with no size.
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+        match self {
+            Self::ParamSpan => crate::certify::recourse(CertCheck::ParamSpan, arm, reading),
+            Self::AzimuthPeriod => crate::certify::recourse(CertCheck::ParamWinding, arm, reading),
+            // The winding the kernel stores exactly: a form selection.
+            Self::ChartWinding => Unsized::Defect.recourse(arm, reading),
+            // A map residual, its between-samples envelope and the trim
+            // box are bounds on a fitted image as well as an exact one,
+            // and the routing reads the check alone.
+            Self::MapResidual | Self::Envelope | Self::TrimContainment => {
+                Unsized::LastResort.recourse(arm, reading)
+            }
+        }
+    }
+}
 
 /// **Which sup-norm a certificate's envelope bounds.** The pcurve lanes
 /// discharge C2.2 by different mechanisms over different quantities,

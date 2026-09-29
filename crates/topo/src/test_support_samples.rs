@@ -58,7 +58,7 @@ use crate::pcurves::PcurveMintError;
 use crate::props::MassPropsError;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, StaleDeclaration,
-    ValidationError,
+    ValidationError, WedgeCheck,
 };
 
 fn band() -> Band {
@@ -858,10 +858,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 ValidationError::PlanarBoundaryEscalated { face, edge, cause },
             ),
             (
-                "SliverDihedral",
-                ValidationError::SliverDihedral { edge, cause },
-            ),
-            (
                 "RingContactEscalated",
                 ValidationError::RingContactEscalated {
                     face,
@@ -875,6 +871,16 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ),
         ] {
             s.push((format!("{arm}{m}"), e));
+        }
+        for check in [
+            WedgeCheck::Dihedral,
+            WedgeCheck::SecondOrder,
+            WedgeCheck::MaterialSide,
+        ] {
+            s.push((
+                format!("SliverDihedral/{check:?}{m}"),
+                ValidationError::SliverDihedral { edge, check, cause },
+            ));
         }
     }
     for source in mass_props_errors() {

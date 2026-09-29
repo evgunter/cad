@@ -1820,6 +1820,7 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
         in_band.iter().all(|e| matches!(
             e,
             ValidationError::SliverDihedral {
+                check: crate::validate::WedgeCheck::SecondOrder,
                 cause: Indeterminate {
                     predicate: Some("tangent_second_order"),
                     ..
