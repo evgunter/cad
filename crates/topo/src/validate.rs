@@ -2376,8 +2376,11 @@ fn classify_offset_fit(
 ) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::OffsetFitError as O;
     use geom_brep::offset_meters::MeterError as M;
-    // Each recourse is the one the fit's own message names for the same
-    // arm (`geom_brep::OffsetFitError`'s `Display`), without its numbers.
+    // Each recourse is written for the at-rest reading. It is the fit's
+    // own (`geom_brep::OffsetFitError`'s `Display`, without its numbers)
+    // where the lever is the same at rest, and differs where it is not:
+    // a request or sample the fit rejects is a stored defect here, not a
+    // distance the caller can re-supply.
     const DRIFT: &str =
         "the fitted surface does not stay within the tolerance of the one it stands for";
     let (why, recourse) = match e {
