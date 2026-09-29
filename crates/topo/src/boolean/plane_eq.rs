@@ -206,9 +206,10 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         Ok(Sign::Negative) => {
             // A norm cannot be definitely negative — poisoned input.
             return Err(PlaneEqError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_parallel"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
@@ -228,9 +229,10 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         Ok(Sign::Negative) => (-T::one(), PlaneRelation::SameOpposite),
         Ok(Sign::Zero) => {
             return Err(PlaneEqError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_orient"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
@@ -245,9 +247,10 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         // equality never glues).
         Ok(Sign::Zero) => Err(PlaneEqError::Undeclared {
             diag: Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_offset"),
+                terminal_sliver: false,
             },
             relation,
         }),
@@ -277,17 +280,19 @@ fn declared_rung<T: Decide>(
     match decide("bool_plane_parallel", parallel_margin, band) {
         Ok(Sign::Positive) => {
             return Err(PlaneEqError::Contradicted(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_parallel"),
+                terminal_sliver: false,
             }));
         }
         Ok(Sign::Zero) => {}
         Ok(Sign::Negative) => {
             return Err(PlaneEqError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_parallel"),
+                terminal_sliver: false,
             }));
         }
         // In-band parallelism does not contradict the declaration —
@@ -304,9 +309,10 @@ fn declared_rung<T: Decide>(
         Ok(Sign::Negative) => false,
         Ok(Sign::Zero) => {
             return Err(PlaneEqError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_plane_orient"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
@@ -314,9 +320,10 @@ fn declared_rung<T: Decide>(
     let sigma = if same_orient { T::one() } else { -T::one() };
     match decide("bool_plane_offset", Margin::of(d1 - sigma * d2), band) {
         Ok(Sign::Positive | Sign::Negative) => Err(PlaneEqError::Contradicted(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
         })),
         // Coincident: the geometry stands on its own.
         Ok(Sign::Zero) => Ok((

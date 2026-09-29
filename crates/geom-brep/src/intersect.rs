@@ -1984,7 +1984,10 @@ pub fn plane_torus_section<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
-    match geom::ring_torus(big_r, r, band).map_err(SectionError::Escalated)? {
+    match geom::ring_torus(big_r, r, band)
+        .map_err(SectionError::Escalated)?
+        .sign
+    {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }

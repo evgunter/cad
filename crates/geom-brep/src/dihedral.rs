@@ -80,7 +80,7 @@
 //! wrong answer, worse than no answer. The classifier therefore decides
 //! the arm first (predicate `"dihedral_arm"`): definitely positive
 //! proceeds; coincident-with-zero **escalates** with
-//! [`geom_core::MarginDiag::Invalid`] (with no displacement scale the
+//! [`geom_core::MarginKind::Invalid`] (with no displacement scale the
 //! wedge question is not validly posed at this site — the same honest
 //! refusal as the poison gradient exactly *at* the apex); in-band or
 //! poisoned arms escalate through the ordinary decide door. "Arm too
@@ -88,7 +88,7 @@
 
 use geom::Surface;
 use geom_core::k_stats::NonzeroSign;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
 
@@ -125,6 +125,17 @@ pub(crate) fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
+}
+
+/// [`decide`], keeping the reporting margin
+/// ([`geom_core::k_stats::decide_reported`]): for a sized decision
+/// whose refusal quotes the tolerance that would decide it.
+pub(crate) fn decide_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    geom_core::k_stats::decide_reported(name, margin, band)
 }
 
 /// The crate's **collapsed-arm gate**, the same wrapper one door over
@@ -181,6 +192,19 @@ pub fn classify_dihedral<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<DihedralClass, Indeterminate> {
+    wedge_decided(s1, s2, p, extent, band).map(|(class, _)| class)
+}
+
+/// [`classify_dihedral`], keeping the wedge decision's reporting
+/// margin for a refusal that quotes it (certification's
+/// `NotTransverse`).
+pub(crate) fn wedge_decided<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    extent: T,
+    band: Band,
+) -> Result<(DihedralClass, geom_core::MarginDiag), Indeterminate> {
     let n1 = implicit_gradient(s1, p);
     let n2 = implicit_gradient(s2, p);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
@@ -192,7 +216,8 @@ pub fn classify_dihedral<T: Decide>(
     // poisoned arm escalates through `decide` itself via `?`.
     decide_positive("dihedral_arm", Margin::of(arm), band)?;
     let margin = Margin::levered(sin_theta, arm);
-    Ok(match decide("dihedral_wedge", margin, band)? {
+    let Decided { sign, margin } = decide_reported("dihedral_wedge", margin, band)?;
+    let class = match sign {
         Sign::Positive => DihedralClass::Transverse,
         Sign::Zero => DihedralClass::Smooth,
         // Unreachable for a true magnitude (sin θ ≥ 0, arm ≥ 0): a
@@ -201,7 +226,8 @@ pub fn classify_dihedral<T: Decide>(
         // conservative: a definitely-negative "magnitude" still means
         // "definitely not coincident".
         Sign::Negative => DihedralClass::Transverse,
-    })
+    };
+    Ok((class, margin))
 }
 
 /// **The folded lever arm** of a surface pair at `p` (module docs):
@@ -284,7 +310,7 @@ pub fn tangent_second_order<T: Decide>(
 ) -> SecondOrder<T> {
     let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
     let arm = folded_lever_arm(s1, s2, p, extent);
-    let verdict = decide(
+    let verdict = decide_reported(
         "tangent_second_order",
         Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
@@ -303,8 +329,8 @@ pub struct SecondOrder<T: geom_core::Real> {
     pub arm: T,
     /// The classified sagitta — `Positive` jet-determinate,
     /// `Zero`/`Negative` under-determined, `Err` in-band (predicate
-    /// `"tangent_second_order"`).
-    pub verdict: Result<Sign, Indeterminate>,
+    /// `"tangent_second_order"`) — with its reporting margin.
+    pub verdict: Result<Decided, Indeterminate>,
 }
 
 /// **The must-carry rule over an EDGE** — [`tangent_second_order`]'s
@@ -433,7 +459,7 @@ pub fn must_carry_over_edge<T: Decide>(
             continue;
         }
         let reading = tangent_second_order(s1, s2, p, tau, extent, band);
-        match reading.verdict {
+        match reading.verdict.map(|d| d.sign) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return MustCarryVerdict::UnderDetermined,
             Err(source) => return MustCarryVerdict::InBand(source),
@@ -575,7 +601,7 @@ pub enum MaterialPairing {
 ///
 /// [`Indeterminate`]: predicate `"material_wedge_side"` — the margin
 /// landed in the band or was poisoned, or (as
-/// [`geom_core::MarginDiag::Invalid`]) classified `Zero`, which on a
+/// [`geom_core::MarginKind::Invalid`]) classified `Zero`, which on a
 /// definitely-smooth sample means the two encodings contradict each
 /// other: unit normals whose tangent planes coincide cannot be
 /// perpendicular, so the pairing question is not validly posed at this
@@ -761,7 +787,7 @@ mod tests {
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
-        assert_eq!(err.margin, geom_core::MarginDiag::Invalid);
+        assert_eq!(err.margin, geom_core::MarginDiag::INVALID);
     }
 
     /// Two coplanar faces on one tangent plane: material sides agree
@@ -889,7 +915,7 @@ mod tests {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_material_pairing(&cone, true, &s1, true, Point3::origin(), 1.0, band())
             .unwrap_err();
-        assert_eq!(err.margin, geom_core::MarginDiag::Invalid);
+        assert_eq!(err.margin, geom_core::MarginDiag::INVALID);
     }
 
     /// Nurbs (representable-unimplemented) escalates as poison too.
@@ -904,6 +930,6 @@ mod tests {
             band(),
         )
         .unwrap_err();
-        assert_eq!(err.margin, geom_core::MarginDiag::Invalid);
+        assert_eq!(err.margin, geom_core::MarginDiag::INVALID);
     }
 }

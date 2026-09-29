@@ -132,6 +132,8 @@ pub enum PlaneNurbsRefusal {
     NotTransverse {
         /// The interior sample index.
         sample: u32,
+        /// The verdict on the levered angle, with its reporting margin.
+        verdict: Refused,
     },
     /// The chart image could not be interpolated through the schedule's
     /// foot points (a degenerate parameterization — coincident feet, a
@@ -197,35 +199,32 @@ impl PlaneNurbsRefusal {
     /// the certificate's ending.
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
-        match self {
-            Self::NotTransverse { .. } => Some(recourse(
-                CertCheck::Transversality,
-                RefusedArm::Zero(None),
-                reading,
-            )),
-            Self::TransversalityEscalated { cause, .. } => Some(recourse(
-                CertCheck::Transversality,
-                RefusedArm::Undecided(cause),
-                reading,
-            )),
-            Self::Limb { .. } => Some(recourse(
-                CertCheck::PlaneNurbsCertificate,
-                RefusedArm::SignCertain,
-                reading,
-            )),
+        self.decision()
+            .map(|(check, arm)| recourse(check, arm, reading))
+    }
+
+    /// The decision this refusal is a refused arm of, and which arm
+    /// ([`crate::CertifyError::decision`]'s structure).
+    #[must_use]
+    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
+        Some(match self {
+            Self::NotTransverse { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            Self::TransversalityEscalated { cause, .. } => {
+                (CertCheck::Transversality, RefusedArm::Undecided(cause))
+            }
+            Self::Limb { .. } => (CertCheck::PlaneNurbsCertificate, RefusedArm::SignCertain),
             // The tube's margin is the lane's transversality over the
             // chain (`ssi_tube_transversality`), and this refusal is its
             // decided verdict.
-            Self::TubeStraddles { verdict, .. } => {
-                Some(recourse(CertCheck::Transversality, verdict.arm(), reading))
-            }
-            Self::Escalated(diag) => Some(recourse(
+            Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            Self::Escalated(diag) => (
                 CertCheck::PlaneNurbsCertificate,
                 RefusedArm::Undecided(diag),
-                reading,
-            )),
-            Self::FootPointInconclusive { .. } | Self::PcurveFit | Self::Unsupported { .. } => None,
-        }
+            ),
+            Self::FootPointInconclusive { .. } | Self::PcurveFit | Self::Unsupported { .. } => {
+                return None;
+            }
+        })
     }
 }
 
@@ -240,7 +239,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 "the foot-point projection did not converge at schedule sample {sample} \
                  (last distance {last_distance:e} m)"
             ),
-            Self::NotTransverse { sample } => write!(
+            Self::NotTransverse { sample, .. } => write!(
                 f,
                 "the plane and the NURBS wall have coincident tangent planes at interior \
                  sample {sample}, where the edge's description says they cross"
@@ -391,10 +390,11 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // edge's spatial extent — the same meter the analytic
         // `Intersection` arm hands `classify_dihedral`.
         let margin = geom_core::Margin::levered(sin_theta, extent);
-        match crate::dihedral::decide("plane_nurbs_transversality", margin, band) {
-            Ok(geom_core::Sign::Positive) => {}
-            Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
-                return Err(PlaneNurbsRefusal::NotTransverse { sample: i });
+        match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(PlaneNurbsRefusal::NotTransverse { sample: i, verdict });
+                }
             }
             Err(cause) => {
                 return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });

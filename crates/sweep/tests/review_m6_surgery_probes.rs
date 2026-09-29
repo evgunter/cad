@@ -518,7 +518,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
             sweep::blend::BlendError::TangentialEdge { margin, .. } => {
                 assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     Some(0.0),
                     "radius {r}: {margin} is not structural zero"
                 );

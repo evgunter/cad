@@ -1097,7 +1097,7 @@ fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
     matches!(
         diag.predicate,
         Some("bool_wall_trim" | "point_in_arc_loop_conic_window")
-    ) && matches!(diag.margin, geom_core::MarginDiag::Value(v) if v.abs() > eps && v.abs() < k * eps)
+    ) && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
 }
 
 /// Each shape's answered-count floor and escalation cap. The floor is

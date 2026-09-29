@@ -36,3 +36,7 @@ verdict, and nothing states or tests that argument today. It also
 helps only one-source products, since an aggregate of several sources
 is a body no source was gated as. It is a cost row, not a correctness
 one: no measurement has been taken, and a shell is not the common root.
+
+## Re-homed
+
+Moved from `work/gather/` with GATHER's close (2026-09-29), id kept. PERF's charter is the cost owed; the double gate is a cost row, and the product gate it touches (`crates/editor-core/src/product.rs`) has no other live owner besides WIRE.
