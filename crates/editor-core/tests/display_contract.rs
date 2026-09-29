@@ -22,7 +22,7 @@ use editor_core::{
     MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
     PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef,
     ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
+    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
 use geom_core::BandError;
 
@@ -187,6 +187,41 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
         ),
     ];
     assert_f6_every_variant(&cases, &NODE_PICK_ERROR, &[]);
+}
+
+/// The name doors' per-entity refusal is a LOOKUP's, and its sentence
+/// says so: it names the lookup, the entity by kind and body, and the
+/// bug it is — and it names no hit test, because none ran.
+/// `NodePick::patch_names` and `boundary_names` build their index by
+/// a table read, and the viewer forwards this sentence whole into a
+/// status line about a drawn patch or edge, so a "hit test:" here
+/// would be a claim about an event that did not happen. The hit-test
+/// door's own arm forwards this sentence under its own prefix
+/// (`m4_pr4_hit`'s row), which is the one place that prefix is true.
+#[test]
+fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
+    let unnamed = UnnamedEntity {
+        node: RecipeNodeId(2),
+        entity: editor_core::EntityRef {
+            body: 0,
+            key: editor_core::EntityKey::Edge(topo::EdgeKey::default()),
+        },
+    };
+    assert_f6(
+        &unnamed,
+        &["name lookup:", "node 2", "edge", "body 0", "kernel bug"],
+        &["UnnamedEntity", "Unnamed"],
+    );
+    let text = unnamed.to_string();
+    assert!(
+        !text.contains("hit test"),
+        "the lookup's sentence claims no hit test: {text}"
+    );
+    assert_eq!(
+        HitTestError::from(unnamed).to_string(),
+        format!("hit test: {text}"),
+        "the hit-test door forwards the lookup's sentence whole, under its own prefix"
+    );
 }
 
 test_utils::f6_variants! {

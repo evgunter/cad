@@ -33,6 +33,7 @@ use std::time::Instant;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, DEFAULT_K};
 
