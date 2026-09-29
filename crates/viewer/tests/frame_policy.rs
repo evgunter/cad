@@ -913,8 +913,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     assert_eq!(
         badge.label(),
         "pick index: root 99's bodies could not be tessellated or indexed: pick: node 99 has \
-         no result in this evaluation (a canceled run's suffix, or a node of another document) \
-         — evaluate the document to completion, or ask about one of its own nodes"
+         no result in this evaluation: the run was canceled before it reached the node — \
+         re-evaluate the document to completion"
     );
 }
 

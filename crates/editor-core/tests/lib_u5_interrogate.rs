@@ -186,7 +186,7 @@ fn an_unknown_name_refuses_typed() {
     );
 }
 
-/// **A node with no result in this evaluation is `NodeNotEvaluated`**
+/// **An id this document does not have is `NotInDocument`**
 /// — distinguishable from "the node evaluated and has no such name",
 /// which is the distinction a caller recovers differently from.
 #[test]
@@ -198,11 +198,11 @@ fn a_foreign_node_id_refuses_typed_and_differs_from_an_unknown_name() {
 
     assert_eq!(
         face_frame(&ev, foreign, &name).unwrap_err(),
-        InterrogateError::Standing(NodeStanding::NotEvaluated { node: foreign })
+        InterrogateError::Standing(NodeStanding::NotInDocument { node: foreign })
     );
     assert_eq!(
         denotation(&ev, foreign, &name).unwrap_err(),
-        InterrogateError::Standing(NodeStanding::NotEvaluated { node: foreign })
+        InterrogateError::Standing(NodeStanding::NotInDocument { node: foreign })
     );
     // The two failures are NOT the same value: the ladder's rungs stay
     // apart.
@@ -601,8 +601,8 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
     // what it actually answered.
     let driven = [
         (
-            "a node id this run did not produce",
-            InterrogateError::Standing(NodeStanding::NotEvaluated { node: foreign }),
+            "a node id this document does not have",
+            InterrogateError::Standing(NodeStanding::NotInDocument { node: foreign }),
             face_frame(&ev, foreign, &face),
         ),
         (

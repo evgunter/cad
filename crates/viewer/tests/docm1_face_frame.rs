@@ -482,7 +482,7 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
     assert_eq!(
         face_frame_seat(session.landed_pair(), Some(&picked)),
         Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::Standing(NodeStanding::NotEvaluated { node: cube }),
+            error: InterrogateError::Standing(NodeStanding::NotInDocument { node: cube }),
         }),
         "the face is gone, and that is what it is told"
     );

@@ -2477,9 +2477,11 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// The one spelling the hit test, the pick index, the name lookup and
 /// the read-back doors answer with, so a caller that branches on a
 /// failed node at one of them branches on it at every one. The
-/// export, resolution and product doors keep the words they shipped
-/// with (`unknown_node`/`node_failed`/`poisoned`, `target_*`,
-/// `unknown_node`/`root_*`) and map the same standing onto them.
+/// export, resolution, product and checks doors keep the words they
+/// shipped with (`unknown_node`/`node_failed`/`poisoned`, `target_*`,
+/// `unknown_node`/`root_*`, `root_without_value`) and map the same
+/// standing onto them; the evaluation door reads this map except for
+/// its own `unknown_node` and `poisoned` ([`eval_reason_tag`]).
 ///
 /// `node_not_evaluated` covers both of the ladder's absent arms, the
 /// run stopping before the node and an id not in the document: these

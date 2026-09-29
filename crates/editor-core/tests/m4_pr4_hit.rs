@@ -280,7 +280,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     );
     assert_eq!(
         body_name(&ev, RecipeNodeId(9999), 0),
-        Err(HitTestError::Standing(NodeStanding::NotEvaluated {
+        Err(HitTestError::Standing(NodeStanding::NotInDocument {
             node: RecipeNodeId(9999)
         }))
     );

@@ -274,7 +274,7 @@ fn unusable_nodes_surface_typed_errors() {
     let foreign = RecipeNodeId(9999);
     assert_eq!(
         pick_face(&ev, &t(foreign), &r).expect_err("foreign node is an error"),
-        HitTestError::Standing(NodeStanding::NotEvaluated { node: foreign })
+        HitTestError::Standing(NodeStanding::NotInDocument { node: foreign })
     );
     // A good target FIRST does not mask a bad one later in the slice.
     let both = [
@@ -464,6 +464,6 @@ fn node_pick_door_is_prepaired_and_typed() {
     assert_eq!(
         editor_core::NodePick::build(&ev, foreign, 0, DELTA, Tol::witness())
             .expect_err("a foreign id has no result"),
-        NodePickError::Standing(NodeStanding::NotEvaluated { node: foreign })
+        NodePickError::Standing(NodeStanding::NotInDocument { node: foreign })
     );
 }

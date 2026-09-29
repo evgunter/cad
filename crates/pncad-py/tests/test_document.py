@@ -318,7 +318,7 @@ class TestEvaluation(unittest.TestCase):
         # belongs to the node that refused; here it is None (attributes
         # never go missing, LIB-DOORS F3).
         self.assertIsNone(caught.exception.finding)
-        self.assertIn("poisoned by failed ancestor", str(caught.exception))
+        self.assertIn("is poisoned by the failure at node", str(caught.exception))
 
 
 class TestDetectDeclareDoors(unittest.TestCase):

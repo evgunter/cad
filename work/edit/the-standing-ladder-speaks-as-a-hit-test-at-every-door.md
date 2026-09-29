@@ -79,4 +79,4 @@ the name doors' refusal as `HitTestError` under the same tags
 (`node_standing_tag`, `name_lookup_error_tag`), with the lookup's own
 message. Rows: `crates/editor-core/tests/node_standing.rs`
 (`no_standing_refusal_says_hit_test_outside_the_hit_test`,
-`the_three_standings_render_one_way_through_every_door`).
+`every_standing_renders_one_way_through_every_door`).
