@@ -146,6 +146,7 @@ use geom_core::{Band, Decide, Point3, Sign, Tol};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey};
 use crate::euler::{MefSite, MevSite};
+use crate::euler_kill::MergedMember;
 use crate::euler_ring::MekrSite;
 use crate::iso::canonical_form;
 use crate::readback::{EulerCounts, euler_counts};
@@ -920,9 +921,11 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// re-derived here through [`geom_brep::EdgeCurve::recertify`] — the
 /// door `split_edge` itself certifies through, not tier 3's
 /// `recertify_nurbs_lane`, which admits a strictly wider class — and
-/// ASSERTED rather than filtered on: every edge of a generated body is
-/// a split candidate as far as its carrier goes, and one that is not
-/// is a walk that left a stale carrier behind.
+/// ASSERTED rather than filtered on, over every edge this is asked
+/// about: all of them where [`split_edge_candidates`] builds the list,
+/// and the edges up to the first splittable one where
+/// [`any_split_edge`] only asks whether there is one. A stale carrier
+/// there is a walk that left one behind.
 ///
 /// **Why the spec comes back with it.** `split_edge` is the only
 /// catalog member that REPLACES existing geometry rather than only
@@ -1001,69 +1004,130 @@ fn kev_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 }
 
 /// What this walk hands [`Body::kev_describing`] when it kills `he`:
-/// every merged member, re-described as the straight chord between the
-/// endpoints the merge gives it — or, where the merge closes it onto
-/// one vertex, the canonical self-loop circle there
-/// ([`EdgeCurveSpec::self_loop_circle_at`], what `mef_chord` mints at a
-/// self-loop site).
+/// every merged member ([`Body::kev_merged_members`]), re-described as
+/// the straight chord between the endpoints the merge gives it — or,
+/// where the merge closes it onto one point, the canonical self-loop
+/// circle there ([`EdgeCurveSpec::self_loop_circle_at`], what
+/// `mef_chord` mints at a self-loop site).
 ///
-/// **Why every member and not only the ones that need it.** The walk
-/// states its own loci — every edge it mints is a chord or that circle,
-/// by the minting policy ([`apply`]) — and on the counter lattice two
-/// distinct vertices never share a point, so a member's stored carrier,
-/// pinned to the dying vertex's point, never describes it at the
-/// survivor's: the keys-only [`Body::kev`] names every certified member
-/// here ([`crate::EulerOpError::MergeRebasesCarriers`]). Re-describing
-/// them is the walk speaking as the modeler, which is what a
-/// describing kill is for, and it keeps every carrier the walk leaves
-/// behind certified against its own endpoints — which is what lets
-/// [`split_site`] and [`assert_run_site_refuses`] assert coherence
-/// rather than filter on it.
-fn chord_redescriptions(body: &Body<f64>, he: HalfEdgeKey) -> Vec<(EdgeKey, EdgeCurveSpec<f64>)> {
-    try_chord_redescriptions(body, he).expect("valid body: a kev site's merged fan resolves")
+/// **Why every member and not only the ones that need it.** On the
+/// counter lattice two distinct vertices never share a point, so a
+/// member's stored carrier, pinned to the dying vertex's point, never
+/// describes it at the survivor's: the keys-only [`Body::kev`] names
+/// every certified member here
+/// ([`crate::EulerOpError::MergeRebasesCarriers`]). Re-describing them
+/// is the walk speaking as the modeler, which is what a describing kill
+/// is for, and it keeps every carrier the walk leaves behind certified
+/// against its own endpoints — which is what lets [`split_site`] and
+/// [`assert_run_site_refuses`] assert coherence rather than filter on
+/// it. What the walk does NOT list is drawn separately, on a clone
+/// ([`assert_unlisted_members_answer_to_the_gate`]).
+fn chord_redescriptions(
+    body: &Body<f64>,
+    he: HalfEdgeKey,
+) -> (Vec<MergedMember<f64>>, Vec<(EdgeKey, EdgeCurveSpec<f64>)>) {
+    let members = body
+        .kev_merged_members(he)
+        .expect("valid body: a kev site's merged fan resolves");
+    let chords = members.iter().map(chord_of).collect();
+    (members, chords)
 }
 
-/// [`chord_redescriptions`] over a body that need not be valid:
-/// `None` where a key the chords are read through does not resolve or
-/// the dying vertex's orbit does not close. The torn-body rows drive
-/// the describing kill with it, so its mutation phase stays under
-/// attack where the keys-only door refuses the merge in its plan
-/// phase.
+/// [`chord_redescriptions`] over a body that need not be valid: `None`
+/// where [`Body::kev_merged_members`] refuses.
 pub(crate) fn try_chord_redescriptions(
     body: &Body<f64>,
     he: HalfEdgeKey,
 ) -> Option<Vec<(EdgeKey, EdgeCurveSpec<f64>)>> {
-    let v = body.get_half_edge(he)?.start;
-    let orbit = body.vertex_orbit(body.mate(he)?)?;
-    let fan = orbit.get(1..)?;
-    let point_of = |vertex| {
-        body.get_vertex(vertex)
-            .and_then(|vd| body.get_point(vd.point))
-            .copied()
+    let members = body.kev_merged_members(he).ok()?;
+    Some(members.iter().map(chord_of).collect())
+}
+
+/// One member's chord where the merge lands it (see
+/// [`chord_redescriptions`]).
+fn chord_of(member: &MergedMember<f64>) -> (EdgeKey, EdgeCurveSpec<f64>) {
+    let bits = |p: Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    let spec = if bits(member.start) == bits(member.end) {
+        EdgeCurveSpec::self_loop_circle_at(member.start)
+    } else {
+        EdgeCurveSpec::line_between(member.start, member.end)
     };
-    let end = |h: HalfEdgeKey| {
-        if fan.contains(&h) {
-            Some(v)
-        } else {
-            body.get_half_edge(h).map(|hd| hd.start)
-        }
-    };
-    let mut out: Vec<(EdgeKey, EdgeCurveSpec<f64>)> = Vec::new();
-    for &moved in fan {
-        let edge = body.get_half_edge(moved)?.edge;
-        if out.iter().any(|(e, _)| *e == edge) {
-            continue;
-        }
-        let e = body.get_edge(edge)?;
-        let (start, stop) = (end(e.he_plus)?, end(e.he_minus)?);
-        let spec = if start == stop {
-            EdgeCurveSpec::self_loop_circle_at(point_of(start)?)
-        } else {
-            EdgeCurveSpec::line_between(point_of(start)?, point_of(stop)?)
-        };
-        out.push((edge, spec));
+    (member.edge, spec)
+}
+
+/// **The keys-only kill under fuzz.** Every edge this walk mints is
+/// certified, so a kill with a non-empty merged fan has a certified
+/// member and [`Body::kev`] must refuse it, naming every member in orbit
+/// order ([`crate::EulerOpError::MergeRebasesCarriers`]); a kill with
+/// an empty fan it must take. Asked on a clone, beside the describing
+/// kill the walk applies — the shape [`assert_run_site_refuses`] has for
+/// `mev`.
+fn assert_keys_only_kill_answers(body: &Body<f64>, he: HalfEdgeKey, members: &[MergedMember<f64>]) {
+    let got = body.clone().kev(he).map(|_| ());
+    if members.is_empty() {
+        assert_eq!(got, Ok(()), "kev({he:?}) merges no fan and must kill");
+    } else {
+        let edges = members.iter().map(|m| m.edge).collect();
+        assert_eq!(
+            got,
+            Err(crate::EulerOpError::MergeRebasesCarriers { edges }),
+            "kev({he:?}) merges certified members and must refuse, naming each"
+        );
     }
-    Some(out)
+}
+
+/// **The describing kill's unlisted-member gate under fuzz.** The walk
+/// lists every merged member, so this draws a subset to leave unlisted
+/// — at least one, from the lattice counter, so a replayed stream
+/// draws the same — and asks [`Body::kev_describing`] on a clone.
+/// Oracle: each unlisted member's stored carrier re-certified at the
+/// endpoints the merge gives it, straight through
+/// [`geom_brep::EdgeCurve::recertify`]; the first that fails, in orbit
+/// order, is named [`crate::EulerOpError::RebasedCarrier`], and with
+/// none failing the kill goes through. (On the counter lattice every
+/// unlisted member fails; the oracle does not assume it.)
+fn assert_unlisted_members_answer_to_the_gate(
+    body: &Body<f64>,
+    he: HalfEdgeKey,
+    members: &[MergedMember<f64>],
+    chords: &[(EdgeKey, EdgeCurveSpec<f64>)],
+    draw: u32,
+    tol: Tol,
+) {
+    if members.is_empty() {
+        return;
+    }
+    let forced = draw as usize % members.len();
+    let unlisted = |i: usize| i == forced || (draw >> (i % 32)) & 1 == 1;
+    let listed: Vec<(EdgeKey, EdgeCurveSpec<f64>)> = chords
+        .iter()
+        .enumerate()
+        .filter(|&(i, _)| !unlisted(i))
+        .map(|(_, entry)| entry.clone())
+        .collect();
+    let band = Band::linear(tol).expect("the walk's band is valid");
+    let expected = members
+        .iter()
+        .enumerate()
+        .filter(|&(i, _)| unlisted(i))
+        .map(|(_, m)| m)
+        .find(|m| {
+            let curve = body.get_edge(m.edge).expect("a member resolves").curve;
+            body.get_curve_geom(curve)
+                .and_then(crate::null::CurveGeom::certified)
+                .expect("the walk mints no null edge")
+                .recertify(m.start, m.end, |k| body.get_surface(k).cloned(), band)
+                .is_err()
+        })
+        .map(|m| m.edge);
+    let got = body.clone().kev_describing(he, &listed, tol).map(|_| ());
+    match expected {
+        Some(edge) => assert!(
+            matches!(got, Err(crate::EulerOpError::RebasedCarrier { edge: e, .. }) if e == edge),
+            "kev_describing({he:?}) leaving {edge:?} unlisted must refuse it: {got:?}"
+        ),
+        None => assert_eq!(got, Ok(()), "every unlisted member passes where it lands"),
+    }
 }
 
 fn kef_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
@@ -1246,8 +1310,10 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             body.movefac(shell).unwrap();
         }
         OpChoice::Kev(he) => {
-            let redescribed = chord_redescriptions(body, he);
-            body.kev_describing(he, &redescribed, tol).unwrap();
+            let (members, chords) = chord_redescriptions(body, he);
+            assert_keys_only_kill_answers(body, he, &members);
+            assert_unlisted_members_answer_to_the_gate(body, he, &members, &chords, *counter, tol);
+            body.kev_describing(he, &chords, tol).unwrap();
         }
         OpChoice::Kef(he) => {
             body.kef(he).unwrap();
@@ -1553,8 +1619,8 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
             continue;
         }
         if let Some(OpChoice::Kev(he)) = kev_candidates(body, tol).first().copied() {
-            let redescribed = chord_redescriptions(body, he);
-            body.kev_describing(he, &redescribed, tol).unwrap();
+            let (_, chords) = chord_redescriptions(body, he);
+            body.kev_describing(he, &chords, tol).unwrap();
             continue;
         }
         if let Some(OpChoice::Kemr(he1, he2)) = kemr_candidates(body, tol).first().copied() {

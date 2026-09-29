@@ -2959,7 +2959,7 @@ fn rim_phase<T: Decide + Bounds>(
             // on the trim circle).
             let fp = strut_hes[idx].1;
             let radial = (fp - ca) / sa;
-            let chord = merged_chord_spec(body, mr, dying)?;
+            let chord = merged_chord_spec(body, mr, dying, "rim closure kev")?;
             body.kev_describing(dying, &[(mr, chord)], tol)
                 .map_err(|e| op("rim closure kev", e))?;
             // The slit SURVIVES as the band's own double-traversed
@@ -2992,6 +2992,13 @@ fn rim_phase<T: Decide + Bounds>(
             } else {
                 shp
             };
+            // A spur: the rim edges and the plane strut at `v` are
+            // gone, so `v` has valence one and the keys-only kill merges
+            // no fan.
+            debug_assert!(
+                body.kev_merged_members(dying).is_ok_and(|m| m.is_empty()),
+                "rim kev: the remnant is a spur, so the kill merges no fan"
+            );
             body.kev(dying).map_err(|e| op("rim kev", e))?;
             retire_fragment(rec, mr, msrc);
         }
@@ -3693,7 +3700,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         // below states the band's meridian, and every other one dies by
         // the `kef` after.
         let member = mate_feet[ix].1;
-        let chord = merged_chord_spec(body, member, dying)?;
+        let chord = merged_chord_spec(body, member, dying, "annulus closure kev")?;
         body.kev_describing(dying, &[(member, chord)], tol)
             .map_err(|e| op("annulus closure kev", e))?;
         if ix == ann.closure {
@@ -4188,45 +4195,32 @@ fn attach_contact<T: Decide + Bounds>(
 
 /// What a closure kill hands [`Body::kev_describing`] for the one
 /// member its merge re-bases: the member as the chord between the
-/// endpoints the merge gives it — `dying`'s start where the member now
-/// starts at the vertex `dying` kills — the scaffolding this surgery's
-/// struts and trims carry too, until the description pass states the
-/// true carrier ([`attach_contact`], over the `described` list the
-/// member is on). A chord and not the meridian arc it will rest as:
-/// the arc's sweep is an `atan2` over directions read off a centre
-/// that is itself computed, and its scaffolding residual sets the
-/// carrier against a rotation of its start point by that sweep, so the
-/// certified scalar encloses the residual wider than the tightest band
-/// and the kill escalates; the chord's carrier and its scaffold are
-/// one affine expression each, and enclose it at a few units in the
-/// last place.
+/// endpoints the merge gives it ([`Body::kev_merged_members`]) — the
+/// scaffolding this surgery's struts and trims carry too, until the
+/// description pass states the true carrier ([`attach_contact`], over
+/// the `described` list the member is on). The member spans two
+/// distinct feet, so the chord is a line and never a closed circle.
+/// A chord and not the meridian arc it will rest as: the arc's sweep
+/// is an `atan2` over directions read off a centre that is itself
+/// computed, and its scaffolding residual sets the carrier against a
+/// rotation of its start point by that sweep, so the certified scalar
+/// encloses the residual wider than the tightest band and the kill
+/// escalates; the chord's carrier and its scaffold are one affine
+/// expression each, and enclose it at a few units in the last place.
 fn merged_chord_spec<T: Decide>(
     body: &Body<T>,
     member: EdgeKey,
     dying: HalfEdgeKey,
+    site: &'static str,
 ) -> Result<EdgeCurveSpec<T>, BlendError> {
-    let (Some(kept), Some(dead)) = (
-        body.get_half_edge(dying).map(|h| h.start),
-        body.half_edge_end(dying),
-    ) else {
-        return Err(not_intact(
-            EntityId::HalfEdge(dying),
-            "a closure kill's half-edge and its two ends",
-        ));
-    };
-    let (hp, hm) = halves_of(body, member)
-        .ok_or_else(|| not_intact(EntityId::Edge(member), "the meridian a closure kill merges"))?;
-    let merged_end = |he: HalfEdgeKey| {
-        let start = body.get_half_edge(he)?.start;
-        point_of(body, if start == dead { kept } else { start })
-    };
-    let (Some(p0), Some(p1)) = (merged_end(hp), merged_end(hm)) else {
-        return Err(not_intact(
+    let members = body.kev_merged_members(dying).map_err(|e| op(site, e))?;
+    let merged = members.iter().find(|m| m.edge == member).ok_or_else(|| {
+        not_intact(
             EntityId::Edge(member),
-            "the endpoints a closure kill's merge gives its meridian",
-        ));
-    };
-    Ok(EdgeCurveSpec::line_between(p0, p1))
+            "the meridian a closure kill's merge re-bases",
+        )
+    })?;
+    Ok(EdgeCurveSpec::line_between(merged.start, merged.end))
 }
 
 #[cfg(test)]

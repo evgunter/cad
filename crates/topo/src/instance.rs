@@ -497,17 +497,20 @@ mod tests {
             .unwrap()
             .new_edge;
         // The kill merges `e3` back over the dead child's span, so it
-        // takes the describing door: the chord from where `e0` starts
-        // to where `e3` ends.
+        // takes the describing door, with `e3` as the chord it spans.
         let he0 = src.get_edge(e0).unwrap().he_plus;
-        let point = |b: &Body<f64>, v| *b.get_point(b.get_vertex(v).unwrap().point).unwrap();
-        let from = point(src, src.get_half_edge(he0).unwrap().start);
-        let to = point(
-            src,
-            src.half_edge_end(src.get_edge(e3).unwrap().he_plus)
-                .unwrap(),
+        let chords: Vec<_> = src
+            .kev_merged_members(he0)
+            .unwrap()
+            .iter()
+            .map(|m| (m.edge, EdgeCurveSpec::line_between(m.start, m.end)))
+            .collect();
+        assert_eq!(
+            chords.iter().map(|c| c.0).collect::<Vec<_>>(),
+            [e3],
+            "the merge re-bases `e3` alone"
         );
-        src.kev_describing(he0, &[(e3, EdgeCurveSpec::line_between(from, to))], tol)
+        src.kev_describing(he0, &chords, tol)
             .expect("the first child dies");
         [e1, e2, e3]
     }

@@ -17,8 +17,8 @@ Filed by `kevs-fan-merge-needs-a-re-describing-kill-door` (branch
 added `Body::kev_describing`. After that unit, two arms of the
 re-basing machinery guard states that no public door produces, and
 each is exercised only by a fixture that builds its state through the
-kill's crate-internal, ungated execution (`Body::kev_plan` +
-`Body::kev_execute`, `crates/topo/src/euler_kill.rs`).
+kill's test-only, ungated execution (`Body::kev_ungated`,
+`crates/topo/src/euler_kill.rs`).
 
 - **The carried-staleness arm** of `Body::certify_rebased_run`
   (`crates/topo/src/euler.rs`, the "A pre-existing staleness is
@@ -28,13 +28,15 @@ kill's crate-internal, ungated execution (`Body::kev_plan` +
   `kev_describing` either re-describes or re-certifies each member.
   Measured on the generator: `seqgen`'s 64 x 32 pinned streams held
   a stale edge at 734 of 2048 steps on the merge base and at 0 on the
-  unit's head, and `seqgen::split_site` now ASSERTS coherence over
-  every generated edge (the proptest and teardown rows green). Row:
+  unit's head, and `seqgen::split_site` now asserts coherence over
+  each edge it is asked about (every edge where the candidate list is
+  built, the edges up to the first splittable one where only its
+  emptiness is), with the proptest and teardown rows green. Row:
   `euler::tests::the_gate_carries_a_run_an_earlier_kev_had_already_made_stale`,
-  whose stale edge is now planted through `kev_execute`.
-- **The both-halves null arm** of both gates (the mev gate's in
-  `certify_rebased_run`, and `kev`'s keys-only gate in
-  `Body::kev_keys_only_gate`): it carries a null edge whose two halves
+  whose stale edge is now planted through `kev_ungated`.
+- **The both-halves null arm** of both gates (`Body::rebased_carrier`
+  in `crates/topo/src/euler.rs`, which the mev gate
+  `certify_rebased_run` and `kev`'s keys-only gate share): it carries a null edge whose two halves
   both move. That needs a null SELF-LOOP, and none can be built: a
   null edge is minted only by `mev_null`, always to a fresh vertex;
   two existing vertices are joined only by `mef`/`mekr`, which mint a
@@ -44,7 +46,7 @@ kill's crate-internal, ungated execution (`Body::kev_plan` +
   `euler::tests::a_fan_mev_moving_both_halves_of_a_null_edge_keeps_it_one_vertex`
   and `euler::tests::kevs_fan_merge_moving_both_halves_of_a_null_edge_keeps_it_one_vertex`,
   over `null_self_loop_beside_a_strut`, which now builds through
-  `kev_execute` and says why.
+  `kev_ungated` and says why.
 
 ## The question
 

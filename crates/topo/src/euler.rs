@@ -583,8 +583,9 @@ pub enum EulerOpError {
     /// the members of the dying vertex's surviving fan — onto the
     /// surviving vertex, and the keys-only kill cannot certify a
     /// carrier there: it takes no band, so it asks no question a band
-    /// would answer. Raised in the plan phase, so the body is
-    /// untouched.
+    /// would answer, and it refuses every merge with a certified
+    /// member, one whose two vertices hold one point included. Raised
+    /// in the plan phase, so the body is untouched.
     ///
     /// The kill that can is [`Body::kev_describing`], which takes a
     /// band, and a re-description for any member whose stored carrier
@@ -715,9 +716,11 @@ pub enum EulerOpError {
         /// The single vertex both its endpoints name.
         vertex: VertexKey,
     },
-    /// The clockwise vertex orbit walked from `he` failed to close —
-    /// tier-1-invalid input (fired by [`Body::kev`], which walks the far
-    /// vertex's whole fan; the mev-specific target-missing form is
+    /// The clockwise vertex orbit walked from `he` failed to close, or
+    /// reached a half-edge that does not start at `he`'s start vertex —
+    /// tier-1-invalid input (fired by [`Body::kev`] and
+    /// [`Body::kev_describing`], which walk the far vertex's whole fan;
+    /// the mev-specific target-missing form is
     /// [`EulerOpError::FanOrbitBroken`]).
     OrbitBroken {
         /// The half-edge whose start vertex's orbit is broken.
@@ -919,7 +922,8 @@ impl EulerOpError {
             Self::RebasedNullEdge { edge } => format!(
                 "the moved run re-bases one end of null edge {edge:?} and not the other, \
                  and the re-basing gate cannot ask whether the moved end lands on the \
-                 other's point (a fan split that moves nothing is mev_null)"
+                 other's point (the split that moves nothing is mev_null; the merge that \
+                 moves nothing is a kill of the null edge itself)"
             ),
             Self::MergeRebasesCarriers { edges } => format!(
                 "kev: the fan merge re-bases certified edges {edges:?} onto the surviving \
@@ -983,8 +987,8 @@ impl EulerOpError {
                  or kemr)"
             ),
             Self::OrbitBroken { he } => format!(
-                "the clockwise vertex orbit from {he:?} fails to close \
-                 (malformed body)"
+                "the clockwise vertex orbit from {he:?} fails to close, or leaves \
+                 its vertex (malformed body)"
             ),
             Self::EmptyAnchorsCollide { vertex } => format!(
                 "the operation would leave two empty loops holding the same \
@@ -1500,9 +1504,11 @@ impl<T: Decide> Body<T> {
     /// **The variant family.** `mev` takes the new edge's spec;
     /// [`Body::mev_line`] derives the chord; [`Body::mev_null`] takes no
     /// geometry and moves nothing. The kill side mirrors it: [`Body::kev`]
-    /// is keys-only and refuses a merge that would strand a carrier, and
-    /// [`Body::kev_describing`] takes the merged fan's re-descriptions
-    /// and a band, as this door takes its spec and band.
+    /// is keys-only and refuses every merge with a certified member,
+    /// one that moves no point included, and [`Body::kev_describing`]
+    /// takes a band and the merged fan's re-descriptions, as this door
+    /// takes its spec and band — `kev_describing(he, &[], tol)` is the
+    /// merge that moves nothing, or moves within band.
     ///
     /// **Minting order** (D9, exact): point, curve (the certified
     /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.
@@ -2415,6 +2421,51 @@ impl<T: Decide> Body<T> {
         Ok((endpoint(edge_data.he_plus)?, endpoint(edge_data.he_minus)?))
     }
 
+    /// Every edge with a half-edge in `run`, once, in run order: the
+    /// unit both re-basing gates give one verdict per, since a
+    /// self-loop at the moved vertex has both halves in the run. Pure.
+    pub(crate) fn run_edges(&self, run: &[HalfEdgeKey]) -> Result<Vec<EdgeKey>, EulerOpError> {
+        let mut edges: Vec<EdgeKey> = Vec::with_capacity(run.len());
+        for &moved in run {
+            let edge = self.resolve_half_edge(moved)?.edge;
+            if !edges.contains(&edge) {
+                edges.push(edge);
+            }
+        }
+        Ok(edges)
+    }
+
+    /// What moving `run` makes of `edge` before any band is asked: its
+    /// certified carrier, which the move re-bases; `None` for a null
+    /// edge with BOTH halves in the run, which moves whole and stays
+    /// one vertex by structure; and [`EulerOpError::RebasedNullEdge`]
+    /// for a null edge with one half in it
+    /// ([`Body::certify_rebased_run`] says why). The null arm of both
+    /// re-basing gates and of [`Body::kev`]'s keys-only one. Pure.
+    pub(crate) fn rebased_carrier(
+        &self,
+        edge: EdgeKey,
+        run: &[HalfEdgeKey],
+    ) -> Result<Option<&EdgeCurve<T>>, EulerOpError> {
+        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Edge(edge),
+        })?;
+        match self.get_curve_geom(edge_data.curve) {
+            Some(crate::null::CurveGeom::Certified(curve)) => Ok(Some(curve)),
+            Some(crate::null::CurveGeom::NullScaffold(_))
+                if run.contains(&edge_data.he_plus) && run.contains(&edge_data.he_minus) =>
+            {
+                Ok(None)
+            }
+            Some(crate::null::CurveGeom::NullScaffold(_)) => {
+                Err(EulerOpError::RebasedNullEdge { edge })
+            }
+            None => Err(EulerOpError::StaleGeometry {
+                key: GeomRef::Curve(edge_data.curve),
+            }),
+        }
+    }
+
     /// The **re-basing gate**: every edge of a run of half-edges about
     /// to start at a vertex whose point is `p_new`, re-certified
     /// against the endpoints it will have once the run has moved.
@@ -2524,34 +2575,9 @@ impl<T: Decide> Body<T> {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        let mut done: Vec<EdgeKey> = Vec::new();
-        for &moved in run {
-            let edge_key = self.resolve_half_edge(moved)?.edge;
-            if done.contains(&edge_key) {
+        for edge_key in self.run_edges(run)? {
+            let Some(curve) = self.rebased_carrier(edge_key, run)? else {
                 continue;
-            }
-            done.push(edge_key);
-            let edge = self.get_edge(edge_key).ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge_key),
-            })?;
-            let (he_plus, he_minus) = (edge.he_plus, edge.he_minus);
-            let curve = match self.get_curve_geom(edge.curve) {
-                Some(crate::null::CurveGeom::Certified(curve)) => curve,
-                // Both halves in the run: both ends move onto the one
-                // new vertex, so the edge stays one vertex by structure.
-                Some(crate::null::CurveGeom::NullScaffold(_))
-                    if run.contains(&he_plus) && run.contains(&he_minus) =>
-                {
-                    continue;
-                }
-                Some(crate::null::CurveGeom::NullScaffold(_)) => {
-                    return Err(EulerOpError::RebasedNullEdge { edge: edge_key });
-                }
-                None => {
-                    return Err(EulerOpError::StaleGeometry {
-                        key: GeomRef::Curve(edge.curve),
-                    });
-                }
             };
             let (p_start, p_end) = self.rebased_endpoints(edge_key, run, p_new)?;
             let surfaces = |k| self.surfaces.get(k).cloned();
@@ -2563,10 +2589,7 @@ impl<T: Decide> Body<T> {
                 // the same question of the endpoints it has NOW: an
                 // identical answer means it already missed one, so
                 // this move is not what made it false.
-                let at_rest = |he| -> Result<Point3<T>, EulerOpError> {
-                    self.resolve_vertex_point(self.resolve_half_edge(he)?.start)
-                };
-                let (now_start, now_end) = (at_rest(he_plus)?, at_rest(he_minus)?);
+                let (now_start, now_end) = self.rebased_endpoints(edge_key, &[], p_new)?;
                 if curve.recertify(now_start, now_end, surfaces, band).err() == Some(error) {
                     continue;
                 }
@@ -3479,7 +3502,7 @@ mod tests {
     /// re-basing gate's null arm) — and a null edge only ever joins its
     /// minting vertex to a fresh one, so there is no other way to close
     /// one onto a single vertex. The fixture takes the kill's ungated
-    /// execution, `Body::kev_execute`, because the rows it serves pin
+    /// execution, `Body::kev_ungated`, because the rows it serves pin
     /// the both-halves arm, which only this state exercises.
     fn null_self_loop_beside_a_strut() -> (Body<f64>, EdgeKey, HalfEdgeKey) {
         let tol = Tol::witness();
@@ -3512,8 +3535,7 @@ mod tests {
         } else {
             circle.he_minus
         };
-        let plan = body.kev_plan(kill).unwrap();
-        body.kev_execute(plan);
+        body.kev_ungated(kill).unwrap();
         let e = body.get_edge(nul.edge).unwrap();
         let (hp, hm) = (e.he_plus, e.he_minus);
         assert_eq!(
@@ -3973,8 +3995,7 @@ mod tests {
             .unwrap();
         // Kills the far tip; `s` merges onto `a`'s start vertex while
         // its chord still runs to the dead vertex's point.
-        let plan = body.kev_plan(a.he_plus).unwrap();
-        body.kev_execute(plan);
+        body.kev_ungated(a.he_plus).unwrap();
         let stale = body.get_edge(s.edge).unwrap().he_plus;
         let orbit = body.vertex_orbit(stale).unwrap();
         let i = orbit.iter().position(|&h| h == stale).unwrap();

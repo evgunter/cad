@@ -1293,15 +1293,20 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     body.points.remove(vpoint);
     let _ = stray;
     let started = std::time::Instant::now();
-    // Both kill doors: the keys-only one refuses a fan merge in its
-    // plan phase, so the describing one — handed every merged member's
-    // chord where the torn arena still lets them be read — is what
-    // carries a fan-merging kill into the mutation phase they share.
+    // The kills' subject here is their shared plan phase: this tear
+    // leaves no kill a well-formed site, so each door refuses typed
+    // (a torn orbit, a self-loop, an unclaimed half) before its own
+    // gate and never reaches the mutation. `review_d18`'s hammer is the
+    // row that drives the mutation phase on a tear it survives.
     for &he in &halves {
-        let _ = body.clone().kev(he);
-        if let Some(chords) = crate::seqgen::try_chord_redescriptions(&body, he) {
-            let _ = body.clone().kev_describing(he, &chords, tol);
-        }
+        assert!(
+            body.clone().kev(he).is_err(),
+            "kev({he:?}) on the torn chain"
+        );
+        assert!(
+            body.clone().kev_describing(he, &[], tol).is_err(),
+            "kev_describing({he:?}) on the torn chain"
+        );
         let _ = body.clone().kef(he);
     }
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
@@ -1610,22 +1615,19 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     };
     assert_eq!(edges.len(), 2, "a cube corner's two other edges");
     assert_eq!(deep_snapshot(&body), before);
-    let near = body.get_half_edge(bridge).unwrap().start;
-    let point = |body: &Body<f64>, v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-    let far_vertex = body.half_edge_end(bridge).unwrap();
-    let chords: Vec<_> = edges
+    let members = body.kev_merged_members(bridge).unwrap();
+    assert_eq!(
+        members.iter().map(|m| m.edge).collect::<Vec<_>>(),
+        edges,
+        "the read door names the members the refusal names, in its order"
+    );
+    let chords: Vec<_> = members
         .iter()
-        .map(|&e| {
-            let ed = body.get_edge(e).unwrap();
-            let at = |he| match body.get_half_edge(he).unwrap().start {
-                v if v == far_vertex => near,
-                v => v,
-            };
-            let spec = geom_brep::EdgeCurveSpec::line_between(
-                point(&body, at(ed.he_plus)),
-                point(&body, at(ed.he_minus)),
-            );
-            (e, spec)
+        .map(|m| {
+            (
+                m.edge,
+                geom_brep::EdgeCurveSpec::line_between(m.start, m.end),
+            )
         })
         .collect();
     body.kev_describing(bridge, &chords, tol).unwrap();
