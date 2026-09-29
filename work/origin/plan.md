@@ -2,31 +2,37 @@
 
 the D5/N6 identity channel: what a description's source says, and what the Live guard proves
 
-Opened 2026-09-20 by TOPO's priority-seam cut (`work/README.md`, Track
-size). Nothing dispatched yet.
-
 ## The slate
 
-Carrying **22.5 budget points** of dispatchable work against a ceiling of
-30 — about one sitting, which is what the cut was for.
+| pri | item | cost | design | state |
+|---|---|---|---|---|
+| P0 | `a-chart-spans-solids-after-move-shells-to-new-solid` | M | — | ruled (A) by Ev, PR 2527; a unit, brief = the row's scope paragraph |
+| P0 | `graft-copies-provenance-keys-verbatim` | H | — | measure first: the corrected fix shape (a dead-ancestor bridge on `GraftMap`) is a 2026-09-02 reading |
+| P0 | `two-provenance-free-keys-holding-one-surface-read-as-two-charts` | H | yes | weighed with the P3 row below as one question |
+| P1 | `axis-per-component-source-beside-geom-source` | H | — | ratified design, `docs/AXIS-DECLARATION-DESIGN.md` |
+| P3 | `set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree` | M | yes | weighed with the P0 row above |
+| P3 | `live-guard-proves-ordering-not-identity` | M | yes | the scan question first |
 
-| pri | item | cost | title |
-|---|---|---|---|
-| P0 | `a-chart-spans-solids-after-move-shells-to-new-solid` | D | move_shells_to_new_solid re-homes a shell without re-minting its surfaces, so a chart can span two solids |
-| P0 | `graft-copies-provenance-keys-verbatim` | H | topo: a graft copies every Provenance record verbatim, so key-carrying variants point into the SOURCE arena after boolean::combine |
-| P0 | `live-guard-proves-ordering-not-identity` | D | the Live guard compares the spelling of the key looked up, not the key |
-| P0 | `two-provenance-free-keys-holding-one-surface-read-as-two-charts` | H | the loop-re-parenting doors read two keys holding one surface as two charts when no GeomSource ties them, and drop rows that were correct |
-| P1 | `axis-per-component-source-beside-geom-source` | H | The axis channel's per-component source beside GeomSource (step 3 of WIRE's ratified axis-channel cut) |
-| P1 | `kernel-direct-origin-does-not-separate-hand-built-from-derived` | D | GeomOrigin::KernelDirect holds two of the four origins: nothing inside the kernel can tell a hand-built description from a derived one |
+## The chart-identity question
+
+`two-provenance-free-keys-…` and `set-surface-source-…` are the two
+directions of one question: what decides that two surface keys are one
+chart. One is the decision missing a true "same" (equal descriptions
+no `GeomSource` ties), the other is it trusting a false one (a stamp
+nothing checks). `Body::same_chart` (`euler_ring.rs`) and
+`chart_region.rs`'s own `same_chart` both answer it. They go to the
+designer pair together (`memories/orchestration-model.md`), and to Ev
+only if what comes back is a fork that is Ev's.
 
 ## Order
 
-A live wrong answer first, cheapest evidence first within that: `live-guard-proves-ordering-not-identity` and `kernel-direct-origin-does-not-separate-hand-built-from-derived` are the two that can be shown with a unit test before anything is designed; `graft-copies-provenance-keys-verbatim` and `two-provenance-free-keys-holding-one-surface-read-as-two-charts` are the two that need a door. `a-chart-spans-solids-after-move-shells-to-new-solid` carries `needs_ev` and is on Ev's queue since 2026-09-08 — ask it again at the first sitting rather than planning around it.
+The ruled P0 first: it has a brief and no open question. The graft in
+parallel, measure-first, because its fix shape is a month old and
+crosses into editor-core's names lane. The chart-identity question
+goes to the designers at the same time. The axis channel follows the
+first of those to land; the guard row last.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. TOPO ran the full v6 dual on
-kernel units; Ev took S-TCOST off the protocol entirely on 2026-09-12
-and protocol v7 (`docs/MODEL-AB-LOG.md`) runs the dual on triaged-in
-units only. Nobody has re-asked the question for this ground, so the
-first orchestrator answers it here rather than inheriting an answer.
+Per unit, at dispatch, by the tiers in `memories/orchestration-model.md`;
+the log names each unit's tier and its reason.
