@@ -2,10 +2,11 @@
 id: fitted-door-and-scalar-name-travel-as-a-pair-by-convention
 kind: issue
 title: The fitted door and the scalar's name travel as two parameters tied by convention (recertify, certify_general, map_approx)
-status: review
+status: closed
 branch: scalar/scalar-name
 pr: 3461
 opened: 2026-09-25
+closed: 2026-09-29
 priority: P4
 cost: D
 ---
@@ -72,3 +73,7 @@ would only move. Instead the name lives on the scalar:
 D: one `Real` const in five impls, three signatures and their callers
 in topo/sweep tests and the `r2_p2_consumer` example, two name homes
 deleted, and three offset-fit refusal shapes.
+
+## Closed (2026-09-29) — PR 3461 (SCALAR-NAME)
+
+One name source: `Real::NAME`, read as `T::NAME` by every refusal that names a scalar; `AtRestPolicy::scalar_name` and `editor_core::lane::Lane` are deleted, and the replay lists are built from `Real::NAME` with their membership pinned against the policy.

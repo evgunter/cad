@@ -2,10 +2,11 @@
 id: two-scalar-name-rosters
 kind: issue
 title: Two per-scalar name rosters: topo::AtRestPolicy::scalar_name and editor_core::lane::Lane::NAME spell the same five scalars differently
-status: review
+status: closed
 branch: scalar/scalar-name
 pr: 3461
 opened: 2026-09-24
+closed: 2026-09-29
 ---
 
 
@@ -55,3 +56,7 @@ spelling a user reads is the kernel's prose one (`"interval"`,
 `"telemetry probe"`, `"symbolic"`, `"dual"`), written to sit inside
 "at the … scalar"; the editor's refusals (`ShellLaneUnsupported`, the
 measure's `NeedsEnclosure`) read it too.
+
+## Closed (2026-09-29) — PR 3461 (SCALAR-NAME)
+
+One name source: `Real::NAME`, read as `T::NAME` by every refusal that names a scalar; `AtRestPolicy::scalar_name` and `editor_core::lane::Lane` are deleted, and the replay lists are built from `Real::NAME` with their membership pinned against the policy.
