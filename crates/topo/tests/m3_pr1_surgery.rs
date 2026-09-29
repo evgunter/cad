@@ -395,6 +395,40 @@ fn merge_coplanar_declared_vs_numeric() {
     let outcome = same_source.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups.len(), 1);
     assert_eq!(same_source.faces().count(), 6);
+    // Mirrored, N6: the chord twin carries the top plane's reversal,
+    // stamped with the reverted source, on a face of the same sense.
+    // The recipe declared a surface and its mirror, whose outward
+    // sides face apart — not one surface: stays unmerged.
+    let mut mirrored = build(|_| {
+        FaceSurface::New(geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            normal: Point3::new(0.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 1.0),
+            u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+        })
+    });
+    let on_top = |normal_z: f64| {
+        mirrored
+            .faces()
+            .filter(|(_, f)| {
+                matches!(
+                    mirrored.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, normal, .. })
+                        if origin.z == 1.0 && normal.z == normal_z
+                )
+            })
+            .map(|(_, f)| (f.surface, f.sense))
+            .collect::<Vec<_>>()
+    };
+    let (up, down) = (on_top(1.0), on_top(-1.0));
+    assert_eq!((up.len(), down.len()), (1, 1), "{up:?} {down:?}");
+    assert_eq!(up[0].1, down[0].1, "the mirrored pair shares a sense");
+    mirrored.set_surface_source(up[0].0, src.clone()).unwrap();
+    mirrored
+        .set_surface_source(down[0].0, src.reverted())
+        .unwrap();
+    let outcome = mirrored.merge_coplanar_faces(Tol::witness()).unwrap();
+    assert_eq!(outcome.groups, vec![], "a mirrored pair does not glue");
+    assert_eq!(mirrored.faces().count(), 7);
     // Declared, per-call surface pair (F5): same geometry, fresh
     // build, intent supplied by the call — merges after verification.
     let mut declared = build(|_| {

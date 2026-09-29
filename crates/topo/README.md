@@ -110,8 +110,8 @@ senses opposed (aligned coincidence is contradicted), definitely-positive
 trim overlap in a shared chart — exact on the planar trim inventory
 (`chart_region.rs`), typed elsewhere (`NonPlanarTrim`, `ArmUnbounded`,
 `SeamBranch`); empty ⇒ stale, in-band ⇒ escalate. The chart authority is
-one of three, in fixed order (`declared_pair_overlap`): the structurally
-shared chart (`same_chart`); for a declared **planar** pair the shared
+one of three, in fixed order (`declared_pair_overlap`): the declared
+shared chart (`declared_chart`); for a declared **planar** pair the shared
 world carrier — one plane description taken as representative frame,
 legitimate by the frame-invariance lemma at `world_carrier` (both chart
 maps are isometries, so every quantity the area machinery consumes is
