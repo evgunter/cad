@@ -2446,3 +2446,42 @@ shows D1 is wrong as written for `mfkrh`, so the question is a
 
 The `[ev]` PR opens once their recommendations are clear, carrying
 both `For Ev` sections as A and B.
+
+## 2026-09-29 — the fragment-sense fork goes to Ev (PR 3480)
+
+Both designers delivered. **First reports agree** on one final state:
+- on the parent's chart the operator derives the bit (`mef` the
+  parent's, `mfkrh` its negation, which the ring's winding forces);
+- on any other chart the caller states it in the spec
+  (`New { surface, sense }`, `Shared { key, sense }`); no default `true`;
+- `set_face_surface` takes the spec and `set_face_surface_and_sense`
+  folds in.
+
+Both call the smaller variant (fix the derivation, keep the default)
+defensible. The one residual: A checks a stated bit against the
+derivation by `same_chart`, B by key equality (and only leans to the
+refusal). No reconciliation round; the residual goes to Ev as a
+sub-point, with my lean to `same_chart`.
+
+- Effort: A 136.9k tokens, 30 tools, 393 s; B 139.2k tokens,
+  49 tools, 433 s. Reports archived privately.
+- Ratification check: D1's bullet is `80c5843f5d`, merged in PR 158
+  (merged under Ev's account, no discussion). Treated as ratified,
+  since the answer changes what D1 decides, not a symbol it names.
+- PR 3480 edits D1's bullet to the agreed answer, sets `needs_ev` on
+  `mint-face-surface-and-sense-reads-key-equality-where-same-chart-reads-provenance`,
+  and carries fork-log row 16's recommendation half.
+- PR 3467 stays held. Once Ev answers, it is re-aimed rather than
+  replaced: keep `same_chart`, rebuild the `mfkrh` row on a genuine hole
+  (`holed_block(3,[1.5])` + `describe_as_intersections`) asserting the
+  negation, and apply the spec change if Ev takes the full answer.
+  The fix pass then checks what reads the transient `mfkrh(Inherit)`
+  bits in `boolean/finish.rs`, `boolean/rest.rs` and
+  `splitting/reassembly.rs` (they flip from `true` to `!parent`), and
+  re-baselines `reassembly.rs`'s oracle if it moves.
+- Off the question, not filed: both designers note that
+  `splitting/finish.rs`'s `section_sense` measures a winding where the
+  bit could be carried structurally. A is unsure the null face's bit is
+  honest at mint, so it waits for the answer. If Ev takes only the
+  smaller variant, `set_face_surface` keeping a bit across a chart
+  change gets its own issue.
