@@ -178,10 +178,21 @@ representation of reversal. Normative consequences:
   exclusive by surface kind, so every outward normal is negated exactly
   once, the anchor move is a key swap, and `revert ∘ revert` is
   bit-identical at every scalar backend.
-- A face **fragment** inherits its parent's `sense`: `mef` and `mfkrh`
-  mint `true` for a new or foreign surface, but a face landing on the
-  old face's surface key takes that face's bit. Key equality, never a
-  numeric compare.
+- A face's `sense` is decided where its chart is decided. An Euler
+  operator minting a face on its parent's chart (`same_chart`: one
+  key, or keys sharing one payload) derives the bit from its own
+  topology: a `mef` fragment is a piece of the parent's region and
+  takes the parent's bit; the ring `mfkrh` promotes was wound
+  clockwise about the parent's outward normal and now bounds its face
+  counter-clockwise, so that face takes the parent's bit negated
+  (`kfmrh` demotes the other way). A face minted or re-charted onto
+  any other chart carries the bit its caller states beside the
+  surface (`FaceSurface::New`, `Shared`); a stated bit that
+  contradicts the derived one on the parent's chart is refused, typed,
+  before mutating. Never a numeric compare, and never a default. Where
+  the parent bounds no region yet, its bit and so the derived one are
+  provisional, and the constructor states the honest bit when it
+  charts the face.
 - Every "which way is out" consumer (tier gates, mass-properties flux,
   boolean classification, tessellation and export winding) reads the
   signed normal, or documents in place why it is sense-invariant.

@@ -70,7 +70,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use pncad::document::{Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
@@ -331,9 +331,11 @@ pub enum IdMapError {
 /// Why a pick index could not be built (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
 pub enum PickIndexError {
-    /// A root's bodies could not be tessellated or indexed. The node
-    /// rides along because the payload names the body and not the
-    /// root that owns it.
+    /// A root could not be built into a part: it has no value, its
+    /// value is not a body or lacks the body asked for, or its body
+    /// could not be tessellated or indexed. The node rides along
+    /// because the payload names the body and not the root that owns
+    /// it.
     Node {
         /// The root that refused.
         node: RecipeNodeId,
@@ -390,20 +392,65 @@ impl core::fmt::Display for IdMapError {
 
 impl core::error::Error for IdMapError {}
 
+impl PickIndexError {
+    /// **The standing of the node this refusal found with no value**
+    /// — `None` for every refusal of a node that has one.
+    ///
+    /// The build's [`NodePickError::Standing`] and the name doors'
+    /// [`NameLookupError::Standing`] are that: nothing of the node was
+    /// tessellated, indexed or read, because there is no value to take
+    /// a body or a table from. [`NodeStanding::node`] names the node.
+    pub fn standing(&self) -> Option<NodeStanding> {
+        self.restated(|standing| standing)
+            .map(|(standing, _)| standing)
+    }
+
+    /// **This refusal with its standing read by `read`**, beside the
+    /// standing it held — `None` where [`Self::standing`] is.
+    pub fn restated(
+        &self,
+        read: impl FnOnce(NodeStanding) -> NodeStanding,
+    ) -> Option<(NodeStanding, Self)> {
+        match self {
+            Self::Node { node, error } => match error {
+                NodePickError::Standing(standing) => Some((
+                    *standing,
+                    Self::Node {
+                        node: *node,
+                        error: NodePickError::Standing(read(*standing)),
+                    },
+                )),
+                NodePickError::NotABody { .. }
+                | NodePickError::NoSuchBody { .. }
+                | NodePickError::Tessellate(_)
+                | NodePickError::Index(_) => None,
+            },
+            Self::Names(error) => match error {
+                NameLookupError::Standing(standing) => Some((
+                    *standing,
+                    Self::Names(NameLookupError::Standing(read(*standing))),
+                )),
+                NameLookupError::EvaluationOfAnotherDocument(_) => None,
+            },
+            Self::Ids(_) | Self::DrawnTwice { .. } => None,
+        }
+    }
+}
+
 impl core::fmt::Display for PickIndexError {
     /// The arms that carry somebody else's refusal forward to its own
     /// `Display`: the layer that raised a failure names it, and this
     /// one does not restate it. The root the [`PickIndexError::Node`]
     /// arm reports is this layer's own contribution — the payload
-    /// names the body, not the root that owns it. The layout arm is
-    /// this layer's own finding and says so itself.
+    /// names the body, not the root that owns it, and claims only that
+    /// the root was not indexed: why — no value, no body, or a
+    /// tessellation or indexing refusal — is the payload's to say. The
+    /// layout arm is this layer's own finding and says so itself.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Node { node, error } => write!(
-                f,
-                "root {}'s bodies could not be tessellated or indexed: {error}",
-                node.0
-            ),
+            Self::Node { node, error } => {
+                write!(f, "root {} could not be indexed: {error}", node.0)
+            }
             Self::Ids(error) => write!(f, "{error}"),
             Self::DrawnTwice { node, body } => write!(
                 f,

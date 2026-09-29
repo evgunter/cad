@@ -385,7 +385,7 @@ mapping is held for `analysis/design-fork/`. The unit waits for the
 
 Both designers converged after one reconciliation round. #3453 puts
 q1–q5 to Ev, with each designer's first "For Ev" section verbatim,
-labelled A and B only. The DESIGN-FORK-LOG row is 16 (recommendation
+labelled A and B only. The DESIGN-FORK-LOG row is 17 (renumbered from 16 at a merge; recommendation
 half). Unit 5 stays `needs_ev` until Ev answers. If Ev agrees, it lands
 as 5a (tables carry carriers: the bulge retires, the checks and the
 exactness witness land, carriers still derived) and then 5b

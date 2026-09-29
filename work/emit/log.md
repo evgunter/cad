@@ -1058,3 +1058,21 @@ unattributed drift. The gating row stores measured values.
 
 **Closed with it:** the loft-sections row. #3223 had already resolved
 it, and this PR pins it.
+
+## 2026-09-29 — the fold-contact P0 was already fixed (PR 3476)
+
+A first-parent bisect puts the fix at CONTACT-8 (#3377).
+
+**The defect:** an area-overlap declared pair was left unmerged inside
+the accumulation, and the next step's census refused it. The refusal
+was reported as a fold-minted contact verdict.
+
+**This PR:** adds no code change. It adds per-order outcome rows for
+three fixtures.
+
+**Still open:** `SeamVertexParentage` is live in 2/6, 8/24 and 18/24
+orders across those fixtures. It is WIRE's chord-rule row.
+
+**Also found on the way:** EDIT's new hex-id check in test-utils read
+a float's exponent as an id, which turned main red at ε = 1e-6. EMIT
+fixed it in #3466, with a seam note to EDIT.

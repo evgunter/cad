@@ -854,12 +854,8 @@ impl<T: Decide> Body<T> {
         let orbit_w = self
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
+        self.require_orbit_starts_at(&orbit_w, w, m)?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
-        for &moved in &fan {
-            if self.resolve_half_edge(moved)?.start != w {
-                return Err(EulerOpError::OrbitBroken { he: m });
-            }
-        }
         let members = self.run_edges(&fan)?;
         // The unsplice writes through all four neighbor links; prove
         // them now so the mutation below cannot fail midway (atomicity).
@@ -1550,7 +1546,10 @@ mod tests {
     use super::*;
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-    use crate::fixtures::{ArenaSnapshot, arena_snapshot, deep_snapshot, ops_holed_box, prov};
+    use crate::fixtures::{
+        ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, deep_snapshot, ops_holed_box,
+        prov,
+    };
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
     use crate::test_support_fixtures::declined_cube;
@@ -1559,20 +1558,6 @@ mod tests {
 
     fn p(x: f64) -> Point3<f64> {
         Point3::new(x, 0.0, 0.0)
-    }
-
-    /// Runs `op` on `body`, asserts it fails with exactly `expected`,
-    /// and asserts the body is DEEPLY untouched (kill-direction
-    /// atomicity needs more than counts).
-    fn assert_err_deep_unchanged(
-        body: &mut Body<f64>,
-        expected: &EulerOpError,
-        op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
-    ) {
-        let before = deep_snapshot(body);
-        let err = op(body);
-        assert_eq!(&err, expected);
-        assert_eq!(deep_snapshot(body), before, "body changed on Err");
     }
 
     /// mvfs + mev(Lone): the segment body.
