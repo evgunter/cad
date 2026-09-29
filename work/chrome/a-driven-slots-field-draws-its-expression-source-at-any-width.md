@@ -2,10 +2,11 @@
 id: a-driven-slots-field-draws-its-expression-source-at-any-width
 kind: issue
 title: viewer: a driven slot's value field shows the expression's source as its text, which nothing bounds, inside a non-wrapping row
-status: open
+status: dispatched
 opened: 2026-09-23
+branch: chrome/slot-width
 priority: P2
-cost: D
+cost: M
 refs: [messages-in-the-creation-and-properties-panes-still-draw-past-their-row]
 ---
 
