@@ -87,3 +87,29 @@ nothing about it is FIX's any more.
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Evidence: the projection exists; the doors still render (2026-09-29, EDIT D366)
+
+Added by the EDIT lane that built `work/edit/D366.md`. The row's
+blocking question is answered on the projection side: EDIT's D366 spec
+ruled a fieldless, phantom-guarded hand mirror, and
+`crates/editor-core/src/eval/class.rs` now carries `NodeErrorClass`
+and `NodeErrorKind::kind()` (pncad-py's `node_error_tag` reads it).
+
+What that does NOT do is touch the doors this row names, and they are
+still rendering at the merge base of that branch — now four, not three:
+
+- `crates/editor-core/src/drive.rs` (`WitnessDoesNotBuild { cause }`,
+  ~1209) and `crates/editor-core/src/mc.rs` (`NominalDoesNotBuild
+  { cause }`, ~367): `e.kind.to_string()`. PROPS's ground.
+- `crates/editor-core/src/stackup.rs` (~598): `(e.node, e.kind.to_string())`.
+  PROPS's and STACK's ground.
+- `crates/editor-core/src/eval/mod.rs`'s `leaf::read_leaf` (~2704): the
+  same `(e.node, e.kind.to_string())` shape, which the row's census
+  missed. WIRE's ground.
+
+Each now has two typed carriages to choose from, and the choice is the
+remaining half of this row: `NodeRefusal` (already `Clone + Eq`, the
+refusal itself) or `NodeErrorClass` plus the message (the
+`PartFault::PartProduct` shape, where the class is what a consumer
+branches on and the sentence is what a reader reads).
