@@ -525,6 +525,8 @@ mod germ_interior_saddle;
 mod germ_sphere_no_crossings;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
+#[path = "germ_torus_rods.rs"]
+mod germ_torus_rods;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]
