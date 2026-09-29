@@ -209,7 +209,24 @@ fn circle_radius_edit_keeps_names() {
         .unwrap()
         .doc
     };
-    assert_eq!(names_of(&mk(0.5), BODY), names_of(&mk(0.75), BODY));
+    let before = mk(0.5);
+    let after = before
+        .apply(
+            &DocEdit::SetParam {
+                node: PROFILE,
+                slot: editor_core::SlotId::Profile {
+                    loop_: 0,
+                    step: 0,
+                    arg: editor_core::StepArg::Radius,
+                },
+                expr: len(0.75),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .doc;
+    assert_eq!(names_of(&before, BODY), names_of(&after, BODY));
 }
 
 /// The freeze-doctrine backstop (§6, unchanged by the resolution): a

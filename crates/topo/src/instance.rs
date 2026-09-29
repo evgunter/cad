@@ -338,6 +338,7 @@ pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_brep::EdgeCurveSpec;
     use geom_core::Point3;
     use geom_core::Tol;
 
@@ -495,8 +496,22 @@ mod tests {
             .split_edge(e0, param(src, e0, 0.5), tol)
             .unwrap()
             .new_edge;
+        // The kill merges `e3` back over the dead child's span, so it
+        // takes the describing door, with `e3` as the chord it spans.
         let he0 = src.get_edge(e0).unwrap().he_plus;
-        src.kev(he0).expect("the first child dies");
+        let chords: Vec<_> = src
+            .kev_merged_members(he0)
+            .unwrap()
+            .iter()
+            .map(|m| (m.edge, EdgeCurveSpec::line_between(m.start, m.end)))
+            .collect();
+        assert_eq!(
+            chords.iter().map(|c| c.0).collect::<Vec<_>>(),
+            [e3],
+            "the merge re-bases `e3` alone"
+        );
+        src.kev_describing(he0, &chords, tol)
+            .expect("the first child dies");
         [e1, e2, e3]
     }
 

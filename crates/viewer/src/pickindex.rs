@@ -74,8 +74,8 @@ use pncad::document::{Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
-    HitTestError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray, UnnamedEntity,
-    pick_face,
+    HitTestError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray,
+    UnnamedEntity, pick_face,
 };
 // The kernel's certified order over hit intervals, which the
 // cross-group merge below applies to the groups' own answers. A DIRECT
@@ -368,7 +368,7 @@ pub enum PickIndexError {
     /// [`PickIndexError::DrawnTwice`]'s reason, and because a future
     /// caller that assembled parts elsewhere would otherwise get the
     /// wrong document's names in window order.
-    Names(HitTestError),
+    Names(NameLookupError),
 }
 
 impl core::fmt::Display for IdMapError {
@@ -446,14 +446,14 @@ trait DrawnKind {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`] when the part is not of `eval`'s document, or
+    /// [`NameLookupError`] when the part is not of `eval`'s document, or
     /// its node has no table there — the door's own refusal of the
     /// call, verbatim. A slot holds a name or the lookup's one refusal,
     /// [`UnnamedEntity`].
     fn names_of(
         part: &NodePick,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError>;
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError>;
 
     /// The address of the entity at `position` in the part drawing
     /// `(node, body)`, which is at `flat` in the whole index.
@@ -471,7 +471,7 @@ impl DrawnKind for Patches {
     fn names_of(
         part: &NodePick,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
         part.patch_names(eval)
     }
 
@@ -496,7 +496,7 @@ impl DrawnKind for Edges {
     fn names_of(
         part: &NodePick,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
         part.boundary_names(eval)
     }
 

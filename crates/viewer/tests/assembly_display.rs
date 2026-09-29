@@ -75,7 +75,7 @@ fn a_session_with_no_backing_file_resolves_nothing_and_refuses_typed() {
     session.pump();
     for row in session.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no part resolver"),
                 "the refusal names the missing seam: {message}"
             ),
@@ -97,7 +97,7 @@ fn a_missing_part_document_refuses_typed_and_badges_the_row() {
     let status_of = |id: RecipeNodeId| common::status_of(&rows, id);
     for post in [bench.post_a, bench.post_b] {
         match status_of(post) {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
                 "the store's own refusal reaches the badge: {message}"
             ),
@@ -126,7 +126,7 @@ fn the_directory_rule_a_document_never_resolves_against_another_directory() {
     session.pump();
     for row in session.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
                 "unresolvable — the parts are not beside THIS file: {message}"
             ),
@@ -148,7 +148,7 @@ fn a_directory_that_will_not_scan_refuses_each_resolution_typed() {
     // own refusal about the offending file.
     for row in session.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("junk.pncad"),
                 "the scan refusal names the offending file: {message}"
             ),

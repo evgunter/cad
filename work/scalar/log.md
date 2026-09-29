@@ -1819,3 +1819,152 @@ dispatched on Opus concurrently ~22:40Z (protocol `c3129311bd`,
 "no verdict moves at any scalar" and the two deviations that could
 change behaviour; reviewers told not to read other processes' command
 lines).
+
+## LANE-4 dual delivered: the first tally candidate; fix pass dispatched (2026-09-24)
+
+R1 APPROVE-WITH-FIXES 0/2/6 (+9 style); R2 APPROVE-WITH-FIXES 1/2/2
+(+12 style). Fair pair (both pruned their own build dirs when the shared
+disk filled — R2 at the orchestrator's instruction, a correction; R2's
+handback file write was refused by the tool layer, report saved by the
+orchestrator from its message; no glimpse). Blinded coding (byte 72):
+10 bilateral groups; **one tally candidate — MINT-ORDER, R2→, MAJOR,
+code, by execution**: the fix's up-front refusal for a `None` fitted
+door is observable through `nurbs_iso_derive`'s own-chart arm, which
+hands a stated `General` image straight to `mint_face`; at `Dual64` a
+public-API body's mint moved `Ok` → `Err(FittedLaneUnsupported)` and a
+refusal text moved. R1 asserted the opposite by inspection — as did the
+survey (my input) and so the spec. Ruled: upheld as blocking (it
+falsifies the unit's central invariant, whatever its reach); the fix
+pass restores the base's order exactly for both `None` arms and commits
+R2's public-API body as a genuine `Dual64` fixture with rows at all five
+scalars (R2's surviving mutant must red). The orchestrator log had not
+reached main since #2700 (R1's NOTE); landed by #3197. Fix pass
+dispatched on Opus ~23:30Z. DR row drafted (`lane4-dual-row.md`).
+Running tally: 1 of 8.
+
+**2026-09-29 — resumed after the account's weekly usage limit.** The
+LANE-4 fix pass died on the limit (HTTP 429) on 2026-09-25, after its
+three item commits (local only) and mid-gates. It was resumed from its
+transcript, with instructions to push, merge main (~2,200 commits) and
+re-read the changed implementer discipline. Ev signed off RING-5 on
+2026-09-25 ("looks great!"). A test merge of main into `scalar/ring-5`
+conflicts in 13 files, so a merge-main lane is dispatched (Opus; brief
+kept in scratch). Main's protocol changes read:
+- rule 9's readout now counts fair pairs that found any MAJOR (Ev,
+  PR 3342), and the held rows are re-spelled to the new foot;
+- the designer pair weighs a design fork before an `[ev]` PR;
+- `cost` is E/M/H, with `design` as its own flag;
+- runners are a budget, and friction is a finding;
+- the per-PR gate is latency-sized (`gate ok` is the one check);
+- a test costing ≥1 s goes in the slow set.
+
+Main's tally is 2 of 8, so LANE-4's candidate makes 3, not 1.
+
+**2026-09-29 — RING-5 and LANE-4 landed.**
+- **RING-5** (#3174, `e58625a9ee`) merged on Ev's sign-off, after a
+  merge-main lane (12 conflicts per hunk, run 36544973086 green); its
+  review-log row is DR-20 (fair pair, no MAJOR).
+- **LANE-4** (#3194, `8436d852da`) merged after its fix pass:
+  - the base's refusal order is restored in both fitted arms;
+  - R2's public-API body is a five-scalar fixture;
+  - the `m6_2` dual row runs genuine `Dual64`;
+  - R2's table reads identical from base to head.
+  I merged main (with RING-5) at `9cf42f97e1`, and run 36546984842 was
+  green. Its review-log row is DR-21, the first SCALAR tally candidate
+  (MINT-ORDER). The tally is now 3 of 8, and fair pairs that found a
+  MAJOR are 8 of 12.
+
+**2026-09-29 — H5 closed; residue slate dispatched.** A read-only
+triage survey of main at `09f4b2c8c3` confirmed every ruling in H5's
+RATIFIED section done, so H5 is closed. It also found two RING-0 rows
+moot (RING-2 closed them; now closed here) and twelve that stand.
+Re-priced to E/M/H. Three lanes dispatched on Opus, with briefs kept
+in scratch:
+- **SCALAR-HYGIENE** (`scalar/hygiene`), E, orchestrator's read;
+- **CERT-NAMES** (`scalar/cert-names`), M, single review;
+- **CERT-DIFF** (`scalar/cert-diff`), M, single review.
+
+Held:
+- the fitted-door bundle (M, design: true, P4), which goes to the
+  designer pair first;
+- `ab-sample-230`, which is Ev's.
+
+Decided alone: GAP 3 of the certification gate is recorded as the
+consequence of Ev's RING-3 choice of no certification newtype, not
+scheduled.
+
+**2026-09-29 — residue progress.**
+- **SCALAR-HYGIENE** (#3449) merged after the orchestrator's read, with
+  its seven rows closed. It filed five rows for owners: CURVED and
+  CONTACT (both design), RESTFRONT, TINT and SCALAR.
+- **CERT-DIFF** (#3451):
+  - The differential found `DInterval::contains(±inf)` true on an
+    unbounded side, against its own doc and inari. I ruled it a defect
+    against the documented contract, fixed at the backend, not a design
+    fork. The caller survey found no production caller relying on it,
+    and nothing moved.
+  - The single review was APPROVE-WITH-FIXES, no MAJOR; F1 is a
+    carve-out wider than its doc, where a mutant survives. The fix
+    pass runs as a fresh lane.
+  - My error: I removed the implementer's worktree after its hand-back,
+    so it could not be resumed. From now on a lane's worktree stays
+    until its PR merges.
+- **CERT-NAMES** (#3448): the single review was APPROVE-WITH-FIXES, no
+  MAJOR. The fix pass folds in the filed follow-up row, so the
+  boundary is the class, not a list.
+- **Fitted-door pair** (`fitted-door-and-scalar-name-travel-as-a-pair-by-convention`,
+  design): the Opus and Fable designer pair was dispatched on a
+  problem-only statement. The byte is drawn and committed to
+  `analysis/design-fork/scalar-fitted-door-pair`. If the answer is not
+  Ev's fork, it is not a log row.
+
+**2026-09-29 — the fitted-door pair, decided (not Ev's fork).**
+- **What the designers said:** the Opus and Fable designers, working
+  independently on a problem-only statement, converged. The scalar's
+  name is a fact about the type, so it becomes `Real::NAME` with no
+  default. Both existing name homes are deleted: the policy's
+  `scalar_name()` and editor-core's `Lane::NAME`, whose spellings
+  disagree ("dual" vs "Dual") in user-facing refusals. The entry
+  points drop their name parameter, and the door stays an `Option`
+  parameter (ruling 3). Both kept one `recertify` and the prose
+  spelling, and re-worded the refusal to be true when a caller
+  withholds its door. Both rejected the row's own bundle proposal:
+  its public constructor moves the convention rather than removing it.
+- **Why it is not Ev's fork:** no ratified text names either home. Both
+  came from agent PRs (the LANE-4 spec and #2271), and the designers
+  and a grep of DESIGN.md and the READMEs confirm it. So there is no
+  `[ev]` PR and no DESIGN-FORK-LOG row. The byte stays drawn on
+  `analysis/design-fork/scalar-fitted-door-pair` unused.
+- **Dispatched:** SCALAR-NAME (`scalar/scalar-name`), Opus, M, single
+  review. It also folds in the offset-fit refusals' three shapes and
+  the unfiled two-rosters question from the LANE-4 spec.
+
+**2026-09-29 — CERT-DIFF and CERT-NAMES landed.**
+- **CERT-DIFF** (#3451, `fc193e5761`). The fix pass took every
+  item: the carve-out is narrowed so S2 reds, and each door's doc now
+  states its contract. The corpus gained bounded `Dac` brackets and
+  exact verdict floors.
+- **CERT-NAMES** (#3448, `aae5716bf2`). The fix pass took every
+  item and folded in the deferred row: 251 more hits read, 155
+  re-worded, one shared refusal helper. It filed EXCH
+  `try-line-max-drops-a-refused-locus-certificate` (P3, a real defect:
+  `f64::max` drops a refused NaN, so the curve promotes to `Line`) and
+  PROPS `invalid-margin-display-calls-a-refused-enclosure-poisoned`
+  (P4).
+- **Still in flight:** SCALAR-NAME.
+
+**2026-09-29 — SCALAR-NAME landed** (#3461, `80e3fd442c`).
+- **What landed:** `Real::NAME` is now the one name source, and
+  `scalar_name()` and `editor_core::lane::Lane` are deleted.
+- **What the fix pass took, from a single review with no MAJOR:**
+  - the derive-path refusal text, now pinned at `Dual64`;
+  - the replay lists, now built from `Real::NAME`, with their membership
+    pinned against the policy, Probe included.
+- **Merging main:** I resolved a conflict with TOPO's `mint_face`
+  refactor, checked it locally, and CI was green on the merged head.
+- **Reversed LIB-G17:** deleting `Lane` undoes LIB-G17's choice.
+  `Lane::end` was `Bounds::lo`/`hi` under another name, so the bracket
+  reads are now visible to the bounds census, each with its reason.
+- **Tracker:** WIRE's `two-scalar-name-rosters` is closed with it, and
+  the fitted-door row's `design` flag is cleared, since the question
+  is decided.

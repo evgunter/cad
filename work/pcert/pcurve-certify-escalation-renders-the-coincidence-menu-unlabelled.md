@@ -46,3 +46,15 @@ through the edge certifier's `ParamSpan` and `ParamWinding`, the chart
 winding as an exact form selection, the map residual, envelope, trim box
 and the fitted certificate as the last resort. `classify_pcurve` reads it
 at rest; this `Display` can append it at the reading its door knows.
+
+## The escalation's subject (CHROME, PR 3457)
+
+`geom_core::IndeterminatePayload` no longer renders the predicate's
+name, so the words before the margin carry the whole subject. Here they
+are "the fitted lane's certificate escalated — enclosure […] …", which
+names the lane, not what it was deciding.
+`test_utils::refusal::subjectless_escalations` would read that clause as
+no subject if a guarded row rendered it (none does today;
+`topo/tests/review_ssiflat_r1_probes.rs` pins the current words). The
+repair is a clause saying what the certificate could not decide, in
+words.

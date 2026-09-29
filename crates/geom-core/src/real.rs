@@ -268,6 +268,15 @@ pub trait Real:
     /// refused `Contradicted`, `Inexact` ⇔ `Disputed`.
     const WITNESS: Witness;
 
+    /// **This scalar's name, as a refusal names it** — prose written to
+    /// sit inside "at the … scalar" (`"interval"`, `"dual"`), and the
+    /// one home for it: every refusal that names the scalar it ran at
+    /// reads it off its own type parameter, so two refusals cannot
+    /// spell one scalar two ways. Declared, never defaulted,
+    /// so a new scalar is asked by the compiler; a wrapper states its
+    /// own name rather than composing its base's.
+    const NAME: &'static str;
+
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     fn from_f64(x: f64) -> Self;
 
@@ -1587,6 +1596,8 @@ impl Real for f64 {
     /// reason is why a theorem contradicted by this channel is a
     /// dispute rather than a defect.
     const WITNESS: Witness = Witness::Inexact;
+
+    const NAME: &'static str = "f64";
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {

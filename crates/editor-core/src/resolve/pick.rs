@@ -84,8 +84,8 @@ use geom_core::{Decide, Point3, Tol, Vec3};
 use mesh::{Mesh, PatchKeys, PatchMemo, StoredPatchId, TessellateError, tessellate_with};
 use topo::FaceKey;
 
-use super::hit::{HitTestError, UnnamedEntity, entity_name, lookup, standing};
-use crate::eval::{ContentKey, Evaluation, NamingKey, NodeValue};
+use super::hit::{HitTestError, UnnamedEntity, entity_name, lookup};
+use crate::eval::{ContentKey, Evaluation, NamingKey, NodeStanding};
 use crate::ident::DocumentId;
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
@@ -593,9 +593,9 @@ impl<'a> PickTarget<'a> {
 /// Typed failure of [`NodePick::build`] (closed; no silent lanes).
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodePickError {
-    /// The node has no `Ok` value in this evaluation — the same
-    /// standing vocabulary [`pick_face`] answers.
-    Standing(HitTestError),
+    /// The node has no value in this evaluation, so there is no body
+    /// to index.
+    Standing(NodeStanding),
     /// The node's value denotes no output body at all (datum,
     /// profile, declarations, mate).
     NotABody {
@@ -620,15 +620,14 @@ pub enum NodePickError {
 // door owns state the PROBLEM in the pick-build vocabulary — which
 // node, and why its payload offers no body to index — and keep the
 // two payload distinctions the enum draws ("never draws" vs "draws
-// nothing today"). The wrapping arms FORWARD the payload's own
-// `Display` verbatim rather than paraphrasing a vocabulary another
-// door owns: `Standing` is the hit-test door's standing prose about
-// the same evaluation, and `Tessellate`/`Index` each carry their own
-// door's words, prefix included.
+// nothing today"). `Standing` puts this door's prefix on the
+// standing's own sentence; `Tessellate`/`Index` FORWARD their
+// payload's `Display` verbatim, each carrying its own door's words,
+// prefix included.
 impl core::fmt::Display for NodePickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Standing(error) => write!(f, "{error}"),
+            Self::Standing(standing) => write!(f, "pick: {standing}"),
             Self::NotABody { node } => write!(
                 f,
                 "pick: node {}'s value is not body-denoting (a datum, profile, declaration, or \
@@ -650,14 +649,59 @@ impl core::fmt::Display for NodePickError {
 
 impl core::error::Error for NodePickError {}
 
-/// One node's `Ok` value, or the standing refusal that says why there
-/// is none — [`standing`]'s ladder in [`NodePick::build`]'s vocabulary.
-fn standing_value<T: Decide>(
-    eval: &Evaluation<T>,
-    node: RecipeNodeId,
-) -> Result<&NodeValue<T>, NodePickError> {
-    standing(eval, node).map_err(NodePickError::Standing)
+/// The node's standing, at the door that needed its body.
+impl From<NodeStanding> for NodePickError {
+    fn from(standing: NodeStanding) -> Self {
+        Self::Standing(standing)
+    }
 }
+
+/// **Why [`NodePick::patch_names`] or [`NodePick::boundary_names`]
+/// refused the whole call** (closed): the evaluation is of another
+/// document, or the node has no table in it. A per-entity refusal is
+/// not here — it rides its own slot as [`UnnamedEntity`].
+///
+/// No hit test runs at these doors, so the refusal is its own type and
+/// says a name lookup refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NameLookupError {
+    /// The handed evaluation is of another document (DI3, A2a): node
+    /// ids are minted per document, so its tables would answer about
+    /// other geometry. `expected` is the document the index was built
+    /// from.
+    EvaluationOfAnotherDocument(crate::ident::Mispaired),
+    /// The node has no value in the handed evaluation, so there is no
+    /// table to read.
+    Standing(NodeStanding),
+}
+
+impl From<crate::ident::Mispaired> for NameLookupError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument(m)
+    }
+}
+
+impl From<NodeStanding> for NameLookupError {
+    fn from(standing: NodeStanding) -> Self {
+        Self::Standing(standing)
+    }
+}
+
+impl core::fmt::Display for NameLookupError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::EvaluationOfAnotherDocument(m) => write!(
+                f,
+                "name lookup: the evaluation is of document {}, not of document {} — the index \
+                 and the tables it is read against are of two documents",
+                m.found, m.expected
+            ),
+            Self::Standing(standing) => write!(f, "name lookup: {standing}"),
+        }
+    }
+}
+
+impl core::error::Error for NameLookupError {}
 
 /// A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
 /// CONSTRUCTION: [`NodePick::build`] fetches the body from the
@@ -725,8 +769,8 @@ struct PickEntry {
 /// identities that memo reports.
 ///
 /// **Node level.** The key is the evaluation memo's own reuse
-/// condition, exactly — [`NodeValue::content_key`] AND
-/// [`NodeValue::naming_key`] (`eval_node`'s memo hit, whose doc carries
+/// condition, exactly — [`crate::eval::NodeValue::content_key`] AND
+/// [`crate::eval::NodeValue::naming_key`] (`eval_node`'s memo hit, whose doc carries
 /// the argument: the content key proves the body's bits, the naming
 /// key its names and so the face keys the id map is built on) — plus
 /// the document's identity (node ids are minted per document) and
@@ -997,18 +1041,6 @@ impl PickMemo {
     }
 }
 
-/// The pairing for the three doors that take a second evaluation:
-/// `None` when `eval` is of `expected`, else the typed refusal, which
-/// is `HitTestError`'s `From<Mispaired>` and no second spelling of
-/// which field goes where.
-///
-/// The comparison is `ident::mispaired`, the one predicate the pairing
-/// doors share (A2a) — identity only, never a version, so a LATER
-/// evaluation of the same document still pairs.
-fn mispairing<T: Decide>(expected: DocumentId, eval: &Evaluation<T>) -> Option<HitTestError> {
-    crate::ident::mispaired(expected, eval.document).map(HitTestError::from)
-}
-
 fn tolerance_bits(delta: f64, tol: Tol) -> [u64; 3] {
     let ambient = tol.get();
     [delta.to_bits(), ambient.eps.to_bits(), ambient.k.to_bits()]
@@ -1030,7 +1062,7 @@ impl NodePick {
         delta: f64,
         tol: Tol,
     ) -> Result<Self, NodePickError> {
-        let value = standing_value(eval, node)?;
+        let value = eval.usable(node)?;
         // The payload's body-denoting sources, tagged with the SAME
         // output-body indices the node's name table keys its rows by
         // (`product::sources_of` — the one shipped enumeration; using
@@ -1071,7 +1103,7 @@ impl NodePick {
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Self, NodePickError> {
-        let value = standing_value(eval, node)?;
+        let value = eval.usable(node)?;
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
@@ -1171,7 +1203,7 @@ impl NodePick {
         delta: f64,
         tol: Tol,
     ) -> Result<Vec<Self>, NodePickError> {
-        let value = standing_value(eval, node)?;
+        let value = eval.usable(node)?;
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
@@ -1197,7 +1229,7 @@ impl NodePick {
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Vec<Self>, NodePickError> {
-        let value = standing_value(eval, node)?;
+        let value = eval.usable(node)?;
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
@@ -1265,15 +1297,13 @@ impl NodePick {
     ///
     /// # Errors
     ///
-    /// [`HitTestError::EvaluationOfAnotherDocument`] for the pairing;
-    /// the standing arms ([`HitTestError::NodeNotEvaluated`],
-    /// [`HitTestError::NodeFailed`], [`HitTestError::NodePoisoned`])
-    /// when `eval` holds no table for this node. Nothing else refuses
-    /// the call.
+    /// [`NameLookupError::EvaluationOfAnotherDocument`] for the
+    /// pairing; [`NameLookupError::Standing`] when `eval` holds no table
+    /// for this node. Nothing else refuses the call.
     pub fn patch_names(
         &self,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
         self.names_of(
             eval,
             self.mesh
@@ -1315,7 +1345,7 @@ impl NodePick {
     pub fn boundary_names(
         &self,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
         self.names_of(
             eval,
             self.mesh
@@ -1331,11 +1361,11 @@ impl NodePick {
         &self,
         eval: &Evaluation<f64>,
         keys: impl Iterator<Item = EntityKey>,
-    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, HitTestError> {
-        if let Some(refusal) = mispairing(self.document, eval) {
-            return Err(refusal);
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
+        if let Some(m) = crate::ident::mispaired(self.document, eval.document) {
+            return Err(m.into());
         }
-        let value = standing(eval, self.node)?;
+        let value = eval.usable(self.node)?;
         Ok(keys
             .map(|key| {
                 lookup(
@@ -1552,14 +1582,14 @@ pub fn pick_face<T: Decide>(
     // The pairing, before any standing is read: a foreign
     // evaluation has an `Ok` value for these node ids too (docs).
     for target in targets {
-        if let Some(refusal) = mispairing(target.document, eval) {
-            return Err(refusal);
+        if let Some(m) = crate::ident::mispaired(target.document, eval.document) {
+            return Err(m.into());
         }
     }
 
     // Target standing, up front (docs: an error, never a silent miss).
     for target in targets {
-        standing(eval, target.node)?;
+        eval.usable(target.node)?;
     }
 
     // The survivors of the certified order: a candidate no other

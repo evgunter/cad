@@ -63,7 +63,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
                     eprintln!("IN-BAND-AT-REST: tier-3 walk escalated: {errs:?}");
                     assert!(
                         errs.iter()
-                            .any(|e| format!("{e}").contains("tangent_second_order")
+                            .any(|e| format!("{e:?}").contains("tangent_second_order")
                                 || format!("{e:?}").contains("SliverDihedral")),
                         "the escalation must be the F6 second-order one: {errs:?}"
                     );

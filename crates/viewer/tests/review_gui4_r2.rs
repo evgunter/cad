@@ -321,7 +321,7 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
         "a contradictory pair must fail SOME row typed; all rows: {rows:?}"
     );
     for row in &failed {
-        if let RowStatus::Failed { message } = &row.status {
+        if let RowStatus::Failed { message, .. } = &row.status {
             assert!(!message.is_empty(), "the fault carries a message");
         }
     }

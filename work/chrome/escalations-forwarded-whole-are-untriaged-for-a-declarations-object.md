@@ -80,3 +80,13 @@ dihedral). `ssi::SsiError::Escalated` and
 `intersect`'s `Escalated(diag)` render `{diag}` whole under a comment
 that says so on purpose (S6); `edge_nurbs`'s is the
 `work/iso/plane-nurbs-…` row above. The rest are for the triage.
+
+## The shape guard counts the forwarded menu (CHROME, 2026-09-29)
+
+`test_utils::refusal::recourse_markers` now counts the shared
+unlabelled repairs (`BARE_RECOURSES`: `COINCIDENCE_RECOURSE` and the
+two no-declaration forms), so an `Indeterminate` forwarded whole counts
+as one recourse, and a second recourse beside it is red. The first
+problem this row names is closed by that. The second, a "declare"
+lever at a door that takes no declaration, is untouched, and the
+triage stands.

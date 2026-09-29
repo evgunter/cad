@@ -691,11 +691,14 @@ BOUND_AS = {
     # `PartFault`'s arms and the `ResolveFault` classification inside
     # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
-    # `part_root_failed`, `part_product`, `part_reference_cycle`,
-    # `part_depth_exceeded` — the same flattening `NodeErrorKind` gets
-    # above. They left the `gap` roster at LIB-G18a, when the resolver
-    # parameter made them reachable: the tags existed before it, and
-    # `part_no_resolver` was the only one an evaluation could produce.
+    # `part_root_failed`, `part_root_failure_unrecorded`,
+    # `part_product`, `part_reference_cycle`, `part_depth_exceeded` —
+    # the same flattening `NodeErrorKind` gets above. They left the
+    # `gap` roster at LIB-G18a, when the resolver parameter made them
+    # reachable: the tags existed before it, and `part_no_resolver` was
+    # the only one an evaluation could produce. The refusal a failed
+    # part root CARRIES crosses as the exception's `__cause__`, an
+    # `EvaluationError` of its own.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
     # The read-back doors, which hang off the evaluation because a
@@ -788,6 +791,19 @@ BOUND_AS = {
     # slot as at a raise. Whether the slot deserves a class of its own
     # is `work/lib/the-unnamed-slot-crosses-as-a-hit-test-error.md`.
     "UnnamedEntity": "HitTestError",
+    # `NameLookupError` is those two doors' refusal of the WHOLE call —
+    # the pairing, or the node's standing — and it crosses as the same
+    # class at the same words (`crate::tags::name_lookup_error_tag`):
+    # Python has one exception for a name that could not be read off
+    # a pick, and the message is the lookup's own, which names no hit
+    # test.
+    "NameLookupError": "HitTestError",
+    # `NodeStanding` is the payload every door that needs a node's
+    # value refuses with. It crosses by the carrier rule at every
+    # door that carries it, as that door's tag word (`node_failed`,
+    # `target_poisoned`, ...) plus the `node` and `through` attributes
+    # beside it; the hit test's spelling is the one named here.
+    "NodeStanding": "HitTestError.variant",
     # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
     # analytic kind's stage-1 estimator declined on a face that could
     # not import without promotion. It crosses by the carrier rule at
@@ -2621,6 +2637,19 @@ NOT_BOUND = {
     # the fault's own `str()`. Nothing in Python hands one out and no
     # bound door takes one.
     "NodeRefusal": INTERIOR,
+    # The kernel's reading of the refusals a failure carries, level by
+    # level, with the document each level's node is in. Python reads the
+    # same chain in its own shape: each level is an `EvaluationError`
+    # that is the `__cause__` of the level above, and its `document` is
+    # the part's `DocRef`, or `None` for the evaluated document's own.
+    "CarriedChain": SHAPE,
+    "CarriedLevel": SHAPE,
+    "CarriedIn": SHAPE,
+    # Whether a `PlacerRefused` placer states its own refusal, which
+    # decides whether the fault carries it. Python never holds one: it
+    # reads the answer as `MateFault.cause` being the placer's refusal
+    # or `None`.
+    "PlacerRow": INTERIOR,
     # The entity door's answer: what a name turned out to denote, on the
     # four refusals that test an `EntityKey`'s kind
     # (`shell_open_kind`, `face_frame_kind`, the two blend selection
@@ -3365,9 +3394,7 @@ MEMBERS_BOUND_AS = {
     "EvalError::CountToScalarOutOfRange": "EvalError.variant",
     "EvalError::NonFiniteResult": "EvalError.variant",
     "FmtQuantityError::NonFinite": "FmtQuantityError.variant",
-    "HitTestError::NodeNotEvaluated": "HitTestError.variant",
-    "HitTestError::NodeFailed": "HitTestError.variant",
-    "HitTestError::NodePoisoned": "HitTestError.variant",
+    "HitTestError::Standing": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
     "HitTestError::Ambiguous": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
@@ -3492,6 +3519,8 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
     "SelectRefusal::Unreadable": "SelectRefusal.reason",
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
+    "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
+    "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",

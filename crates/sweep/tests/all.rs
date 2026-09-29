@@ -198,6 +198,10 @@ mod contact_edge_must_carry;
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
+#[path = "euler_site_row_frontiers.rs"]
+mod euler_site_row_frontiers;
+#[path = "euler_site_rows_equal_the_pass.rs"]
+mod euler_site_rows_equal_the_pass;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]

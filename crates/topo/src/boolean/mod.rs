@@ -1720,16 +1720,9 @@ impl core::fmt::Display for BooleanError {
                 // instead: the measure is definitely zero (S6 review,
                 // MAJOR-1).
                 if diag.margin.is_invalid() {
-                    match diag.predicate {
-                        Some(name) => write!(
-                            f,
-                            "predicate '{name}' definite: the coincidence measure is \
-                             exactly zero — the geometry coincides"
-                        )?,
-                        None => f.write_str(
-                            "the coincidence measure is exactly zero — the geometry coincides",
-                        )?,
-                    }
+                    f.write_str(
+                        "the coincidence measure is exactly zero — the geometry coincides",
+                    )?;
                 } else {
                     write!(f, "{}", diag.payload())?;
                 }
@@ -1825,7 +1818,7 @@ impl core::fmt::Display for BooleanError {
             Self::Euler(e) => write!(f, "euler operation refused: {e}"),
             Self::Join(e) => write!(
                 f,
-                "joining the operands' sections refused: {}",
+                "the operands' sections could not be joined: {}",
                 crate::chord_join::UnderBoolean(e)
             ),
             Self::RestZipUnsupported { what } => write!(

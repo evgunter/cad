@@ -26,8 +26,8 @@ use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, LoopProgram, Node,
-    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
-    SlotId,
+    NodeError, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind, ProfileProgram,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -727,11 +727,15 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
         eval.value(loose).is_some(),
         "the unfused pattern over the same rule still evaluates"
     );
-    let badge = tree::rows(session.committed_doc(), Some(eval))
-        .into_iter()
-        .find(|row| row.id == crowded)
-        .map(|row| row.status);
-    let Some(RowStatus::Failed { message }) = badge else {
+    let badge = tree::rows(
+        session.committed_doc(),
+        Some(eval),
+        &viewer::parts::PartFiles::default(),
+    )
+    .into_iter()
+    .find(|row| row.id == crowded)
+    .map(|row| row.status);
+    let Some(RowStatus::Failed { message, .. }) = badge else {
         panic!("the tree badge carries the node's own refusal: {badge:?}");
     };
     assert!(
@@ -1100,11 +1104,15 @@ fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
             eval.value(pattern).is_none(),
             "a pattern of {count} instances does not evaluate to a value"
         );
-        let badge = tree::rows(session.committed_doc(), Some(eval))
-            .into_iter()
-            .find(|row| row.id == pattern)
-            .map(|row| row.status);
-        let Some(RowStatus::Failed { message }) = badge else {
+        let badge = tree::rows(
+            session.committed_doc(),
+            Some(eval),
+            &viewer::parts::PartFiles::default(),
+        )
+        .into_iter()
+        .find(|row| row.id == pattern)
+        .map(|row| row.status);
+        let Some(RowStatus::Failed { message, .. }) = badge else {
             panic!("the tree badge carries the node's own refusal: {badge:?}");
         };
         assert!(
@@ -3161,6 +3169,43 @@ fn duplicating_a_several_body_value_is_refused() {
         ),
         "{:?}",
         out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing committed");
+}
+
+/// **A failed body has nothing to copy, and the refusal says its
+/// standing**: which node, what state, where the repair is.
+#[test]
+fn duplicating_a_failed_body_says_its_standing() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    assert!(
+        session
+            .perform(SessionOp::SetSlot {
+                node: body,
+                slot: SlotId::Distance,
+                value: viewer::props::SlotValue::of(Dimension::Length, 0.0)
+                    .expect("a finite length is a value"),
+            })
+            .refusal
+            .is_none()
+    );
+    session.pump();
+    let before = session.committed_doc().clone();
+    let out = session.perform(SessionOp::Duplicate { input: body });
+    let standing = NodeStanding::Failed { node: body };
+    let Some(Refusal::Duplicate(fault)) = &out.refusal else {
+        panic!("a duplicate refusal, got {:?}", out.refusal);
+    };
+    assert!(
+        matches!(fault, DuplicateFault::NoValue(carried) if *carried == standing),
+        "{fault:?}"
+    );
+    assert_eq!(
+        fault.to_string(),
+        format!("there is no body to copy: {standing}")
     );
     assert!(session.committed_doc().bit_eq(&before), "nothing committed");
 }

@@ -201,7 +201,8 @@ pub use validate::{
     FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE,
     FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
     FILLET_SCENE_RESOLUTION_RECOURSE, FILLET_STORED_FORM_INBAND_RECOURSE,
-    FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY, fillet_recourse_for, shared_clause_only,
+    FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY, UNNAMED_DECISION, decision_subject,
+    fillet_recourse_for, shared_clause_only,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed

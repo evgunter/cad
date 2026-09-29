@@ -2069,7 +2069,9 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
         ToolNotice::Blend(BlendEvent::TargetLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
-        ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { .. }) => Retold::Again,
+        ToolNotice::Blend(
+            BlendEvent::NoEdgesOnTarget { .. } | BlendEvent::TargetHasNoValue { .. },
+        ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.to_string(), retold)
 }
@@ -3121,6 +3123,7 @@ mod tests {
             RowStatus::Ok,
             RowStatus::Failed {
                 message: String::new(),
+                carried: Vec::new(),
             },
             RowStatus::Poisoned {
                 through: RecipeNodeId(1),

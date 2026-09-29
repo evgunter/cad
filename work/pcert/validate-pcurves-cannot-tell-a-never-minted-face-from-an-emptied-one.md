@@ -104,3 +104,20 @@ the sheet's OTHER curved panel keeps its four rows across every swap
 above (the rows assert it), so a premise reading "once any face of a
 body stores a row, a rowless face on a minting chart is a finding"
 would name the emptied face in each.
+
+**A sixth door that empties, and one row that moved**
+(`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`,
+branch `topo/mint-rows-at-the-mint-site`). `mev`, `mef` and `mekr` now
+re-mint, before they mutate, every face with complete rows that their
+new half-edges join (`pcurves::site_rows`). Where that face, as the
+surgery leaves it, has no closed-form row set that certifies (a
+secant chord across a cylinder, a strut leaving the chart) the
+operator leaves it storing NOTHING rather than refusing, because it
+runs mid-surgery on states a later door finishes describing; this pass
+then reads that face as never minted. Measured on
+`sweep`'s `review_m2_pr7::diagonal_chord_split_refuses_typed_not_silent`:
+tier 3 read the chord's two halves as `MissingCache` on the merge base
+and reads nothing at the head, while `mint_pcurves` over the same body
+refuses (the row pins both). The `mef` line of the run-door table above
+moved too: onto `New(other cylinder)` the OLD face's minted half now
+carries its row, so the pass reads `[]` there.

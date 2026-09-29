@@ -201,6 +201,13 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
                                        "spelled once; the general rule is at the "
                                        "payload-rule header of "
                                        "crates/pncad/src/document.rs"),
+    # A node's standing is the evaluation's own vocabulary — the refusal of
+    # `Evaluation::usable`, carried beside `Evaluation` on `document` — and the
+    # select-list refusals (hit test, pick, name lookup, name read, resolution,
+    # query) carry it as their payload. The same rule as the rows above.
+    "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
+                               "once, beside `Evaluation`; the general rule is at the "
+                               "payload-rule header of crates/pncad/src/document.rs"),
 }
 
 

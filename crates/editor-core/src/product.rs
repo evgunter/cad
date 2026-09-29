@@ -105,7 +105,7 @@ use geom_core::Decide;
 use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
-use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
+use crate::eval::{BooleanValue, Evaluation, NodeStanding, NodeValue, SplitSide, ValuePayload};
 use crate::names::{CarriedRows, EntityKey, NameTable, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
@@ -548,6 +548,19 @@ impl ProductErrorKind {
     }
 }
 
+/// A root's standing, as the gather's refusal.
+impl From<NodeStanding> for ProductError {
+    fn from(standing: NodeStanding) -> Self {
+        match standing {
+            NodeStanding::NotEvaluated { node } | NodeStanding::NotInDocument { node } => {
+                Self::UnknownNode { node }
+            }
+            NodeStanding::Failed { node } => Self::RootFailed { node },
+            NodeStanding::Poisoned { node, through } => Self::RootPoisoned { node, through },
+        }
+    }
+}
+
 impl ProductError {
     /// Which arm refused, without the payload.
     ///
@@ -878,19 +891,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_body_denoting = false;
     for &node in doc.roots() {
-        let result = evaluation
-            .result(node)
-            .ok_or(ProductError::UnknownNode { node })?;
-        let value = match result {
-            NodeResult::Ok(value) => value,
-            NodeResult::Failed(_) => return Err(ProductError::RootFailed { node }),
-            NodeResult::Poisoned { through } => {
-                return Err(ProductError::RootPoisoned {
-                    node,
-                    through: *through,
-                });
-            }
-        };
+        let value = evaluation.usable(node)?;
         let Some(bodies) = sources_of(value) else {
             continue;
         };
