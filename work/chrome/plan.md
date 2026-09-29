@@ -255,30 +255,25 @@ the 30-point ceiling, in two families and the class behind the second.
 3457. Both P0 rows are closed, and `work/chrome/log.md` has the
 record.
 
-**After Wave 6 (22 of 30 points).** Next, in order:
-- `viewer-panels-disagree-on-a-poisoned-node` (P1). The tree
-  re-attributes a cluster-refused node; properties and appearance
-  must read the same answer.
-- `a-driven-slots-field-draws-its-expression-source-at-any-width` (P2).
-  This is the wrap-floor class, one field left.
-- `escalations-forwarded-whole-are-untriaged-for-a-declarations-object`
-  (P2 M). It is triage now that each door has a subject table.
-- After those, the P3s by ground:
-  - `display-reads-an-instance-off-one-node-kind`;
-  - `a-hover-diff-counts-the-index-builds-progress-label`;
-  - `culling-is-load-bearing-with-no-pixel-test`.
+**Wave 7 LANDED 2026-09-29**: PRs 3475, 3477 and 3478. No P0–P2 row is live, and `work/chrome/log.md` has the record.
+
+**After Wave 7.** The dispatchable slate is P3/P4 and small. Next, grouped by ground:
+- `pick-index-tooltip-says-tessellation-for-a-root-with-no-value` and `display-reads-an-instance-off-one-node-kind`, both on viewer ground (frame/display).
+- `a-hover-diff-counts-the-index-builds-progress-label` (a test flake).
+- `culling-is-load-bearing-with-no-pixel-test`.
+- `chrome-weight-is-outside-the-palette` (P4).
 
 **On Ev:**
-- `a-long-cascades-maintenance-crowds-the-status-line`: options (a)–(d)
-  were asked in chat.
-- `cluster-maintenance-acts-reach-the-outcome-but-not-the-line`: worded
-  or silent.
+- `a-long-cascades-maintenance-crowds-the-status-line`: options (a)–(d) were asked in chat.
+- `cluster-maintenance-acts-reach-the-outcome-but-not-the-line`: worded or silent.
 
-**Needs a design pass before any dispatch:**
+**Design forks, each needing the designer pass (`docs/prompts/designer.md`) before dispatch:**
 - `kernel-refusals-say-node-where-the-tree-says-feature`
 - `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`
 - `failed-row-repair-links-for-arms-with-two-candidate-repairs`
 - `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`
+- `a-computed-slots-value-reads-in-metres-and-radians`
+- `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text`
 
 **The board's in-flight column is a claim, not a fact** — see
 `work/chrome/log.md`, 2026-09-22. A row is marked `dispatched` here only
