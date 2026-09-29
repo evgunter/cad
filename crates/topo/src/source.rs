@@ -29,12 +29,10 @@
 //! hand, derived by a kernel op, or had its source CLEARED by
 //! [`crate::Body::clear_geom_sources`] with the re-stamp that door
 //! expects never running — a defect. [`GeomOrigin`] is the total
-//! record a body keeps per description, and it separates THREE of
-//! those four: `Imported`, `Cleared` and the recipe stamp are each
-//! their own arm, while hand-built and kernel-derived share
-//! `KernelDirect` because nothing inside the kernel can tell them
-//! apart — the reason is on that arm, and the fourth separation is
-//! `work/topo/kernel-direct-origin-does-not-separate-hand-built-from-derived`.
+//! record a body keeps per description: `Imported`, `Cleared` and the
+//! recipe stamp are each their own arm, and hand-built and
+//! kernel-derived are one arm, `KernelDirect`, because no reader asks
+//! which of the two a description is.
 //!
 //! A `GeomSource` is the payload of that record's `Recipe` arm, never
 //! a spelling inside `GeomSource` itself: a source meaning "not from a
@@ -185,9 +183,10 @@ impl std::error::Error for SourceAttachError {}
 /// answers `None` there: no evidence, nothing to assert. The
 /// assertion sites assert only on `Some`.
 ///
-/// This is the ONE remaining bit-identity call site in this crate:
-/// `cfg(debug_assertions)`-gated, never a production consumer (the
-/// CI tripwire allowlists this file on exactly that justification).
+/// This file's witnesses are this crate's only bit-identity call
+/// sites: `cfg(debug_assertions)`-gated, never a production consumer
+/// (the CI tripwire allowlists this file on exactly that
+/// justification).
 #[cfg(debug_assertions)]
 pub(crate) fn plane_bits_witness<T: geom_core::Real>(
     o1: geom_core::Point3<T>,
@@ -205,7 +204,7 @@ pub(crate) fn plane_bits_witness<T: geom_core::Real>(
         (n1.y, n2.y),
         (n1.z, n2.z),
     ];
-    bits_witness(&pairs)
+    bits_witness(pairs)
 }
 
 /// Debug-only bit agreement of two vectors (the `u_ref` leg of the
@@ -216,7 +215,192 @@ pub(crate) fn vec3_bits_witness<T: geom_core::Real>(
     a: geom_core::Vec3<T>,
     b: geom_core::Vec3<T>,
 ) -> Option<bool> {
-    bits_witness(&[(a.x, b.x), (a.y, b.y), (a.z, b.z)])
+    bits_witness([(a.x, b.x), (a.y, b.y), (a.z, b.z)])
+}
+
+/// Assertion-build agreement of two surface descriptions of any kind — the
+/// check behind [`crate::Body::set_surface_source`], with the tri-state
+/// of [`plane_bits_witness`]. Two different kinds, or two NURBS nets of
+/// different shape, disagree at any scalar; a shared payload `Arc`
+/// agrees unread; otherwise every part is compared, and a part that
+/// differs decides the answer even where another part has no bit
+/// channel to read.
+#[cfg(debug_assertions)]
+pub(crate) fn surface_bits_witness<T: geom_core::Real>(
+    a: &geom::Surface<T>,
+    b: &geom::Surface<T>,
+) -> Option<bool> {
+    use geom::Surface as S;
+    let p = |x: geom_core::Point3<T>, y: geom_core::Point3<T>| {
+        bits_witness([(x.x, y.x), (x.y, y.y), (x.z, y.z)])
+    };
+    let v = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
+        bits_witness([(x.x, y.x), (x.y, y.y), (x.z, y.z)])
+    };
+    let s = |x: T, y: T| bits_witness([(x, y)]);
+    match *a {
+        S::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => {
+            let S::Plane {
+                origin: o,
+                normal: n,
+                u_ref: r,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([p(origin, o), v(normal, n), v(u_ref, r)])
+        }
+        S::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let S::Cylinder {
+                origin: o,
+                axis: ax,
+                radius: r,
+                u_ref: u,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([p(origin, o), v(axis, ax), s(radius, r), v(u_ref, u)])
+        }
+        S::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => {
+            let S::Cone {
+                apex: o,
+                axis: ax,
+                half_angle: h,
+                u_ref: u,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([p(apex, o), v(axis, ax), s(half_angle, h), v(u_ref, u)])
+        }
+        S::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => {
+            let S::Sphere {
+                center: c,
+                radius: r,
+                axis: ax,
+                u_ref: u,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([p(center, c), s(radius, r), v(axis, ax), v(u_ref, u)])
+        }
+        S::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => {
+            let S::Torus {
+                center: c,
+                axis: ax,
+                major_radius: big,
+                minor_radius: small,
+                u_ref: u,
+            } = *b
+            else {
+                return Some(false);
+            };
+            joined([
+                p(center, c),
+                v(axis, ax),
+                s(major_radius, big),
+                s(minor_radius, small),
+                v(u_ref, u),
+            ])
+        }
+        S::Nurbs(ref x) => {
+            let S::Nurbs(ref y) = *b else {
+                return Some(false);
+            };
+            if std::sync::Arc::ptr_eq(x, y) {
+                return Some(true);
+            }
+            nurbs_surface_bits_witness(x, y)
+        }
+        S::Approx(ref x) => {
+            let S::Approx(ref y) = *b else {
+                return Some(false);
+            };
+            if std::sync::Arc::ptr_eq(x, y) {
+                return Some(true);
+            }
+            let (wx, wy) = (x.window(), y.window());
+            let window = bits_witness([
+                (wx.u.0, wy.u.0),
+                (wx.u.1, wy.u.1),
+                (wx.v.0, wy.v.0),
+                (wx.v.1, wy.v.1),
+            ]);
+            joined([window, nurbs_surface_bits_witness(x.fit(), y.fit())])
+        }
+    }
+}
+
+/// Assertion-build agreement of two NURBS surfaces: degrees and counts
+/// decide unread; then knots, weights and control net are each
+/// compared, so knots or weights that differ answer `Some(false)` even
+/// where the net's scalar has no bit channel.
+#[cfg(debug_assertions)]
+fn nurbs_surface_bits_witness<T: geom_core::Real>(
+    x: &geom::NurbsSurface<T>,
+    y: &geom::NurbsSurface<T>,
+) -> Option<bool> {
+    let shape = x.knots_u().degree() == y.knots_u().degree()
+        && x.knots_v().degree() == y.knots_v().degree()
+        && x.knots_u().knots().len() == y.knots_u().knots().len()
+        && x.knots_v().knots().len() == y.knots_v().knots().len()
+        && x.control_counts() == y.control_counts();
+    if !shape {
+        return Some(false);
+    }
+    let reals = |a: &[f64], b: &[f64]| bits_witness(a.iter().copied().zip(b.iter().copied()));
+    joined([
+        reals(x.knots_u().knots(), y.knots_u().knots()),
+        reals(x.knots_v().knots(), y.knots_v().knots()),
+        reals(x.weights(), y.weights()),
+        bits_witness(
+            x.control()
+                .iter()
+                .zip(y.control())
+                .flat_map(|(a, b)| [(a.x, b.x), (a.y, b.y), (a.z, b.z)]),
+        ),
+    ])
+}
+
+/// Folds part verdicts: any part that differs decides `Some(false)`;
+/// otherwise a part with no bit channel leaves `None`.
+#[cfg(debug_assertions)]
+fn joined(parts: impl IntoIterator<Item = Option<bool>>) -> Option<bool> {
+    parts
+        .into_iter()
+        .try_fold(Some(true), |acc, part| match part {
+            Some(false) => Err(()),
+            Some(true) => Ok(acc),
+            None => Ok(None),
+        })
+        .unwrap_or(Some(false))
 }
 
 /// `Some(all pairs bit-equal)` where the scalar has a bit channel,
@@ -228,9 +412,9 @@ pub(crate) fn vec3_bits_witness<T: geom_core::Real>(
 /// read at one, so a `[T; N]` parameter here would report this use
 /// ungated (`work/issues/bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`).
 #[cfg(debug_assertions)]
-fn bits_witness<T: geom_core::Real>(pairs: &[(T, T)]) -> Option<bool> {
-    pairs.iter().try_fold(true, |agree, (a, b)| {
-        geom_core::bit_identity::eq_bits(a, b).map(|eq| agree && eq)
+fn bits_witness<T: geom_core::Real>(pairs: impl IntoIterator<Item = (T, T)>) -> Option<bool> {
+    pairs.into_iter().try_fold(true, |agree, (a, b)| {
+        geom_core::bit_identity::eq_bits(&a, &b).map(|eq| agree && eq)
     })
 }
 
@@ -238,12 +422,11 @@ fn bits_witness<T: geom_core::Real>(pairs: &[(T, T)]) -> Option<bool> {
 /// the question `Option<&GeomSource>` could not answer, and the ONE
 /// row a [`crate::Body`] keeps per geometric description.
 ///
-/// A missing `GeomSource` row conflated four origins: an imported
-/// description, a hand-built one, one a kernel op derived, and one
+/// It tells apart what a missing `GeomSource` row cannot: an imported
+/// description, one minted by a kernel door, and one
 /// [`crate::Body::clear_geom_sources`] dropped whose re-stamp never
-/// ran — the last a DEFECT, indistinguishable from the three
-/// legitimate states. Three of the four separate by name here; the
-/// fourth separation is [`GeomOrigin::KernelDirect`]'s own doc.
+/// ran — the last a DEFECT, which absence would make
+/// indistinguishable from the legitimate states.
 ///
 /// **No absence arm, and no second map.** The recipe source IS the
 /// `Recipe` arm's payload, so a description cannot carry a source and
@@ -285,11 +468,11 @@ pub enum GeomOrigin {
     /// at the mint**, not inferred from a missing row.
     ///
     /// A hand-built body's description and one a kernel op derived are
-    /// BOTH this arm today, because nothing inside the kernel can tell
-    /// them apart: they enter the arenas through the same
-    /// crate-internal mint doors, and what separates them is which
-    /// caller opened the public door above
-    /// (`work/topo/kernel-direct-origin-does-not-separate-hand-built-from-derived`).
+    /// both this arm. They enter the arenas through the same
+    /// crate-internal mint doors, so telling them apart would take a
+    /// stamp decided at every public door that mints, and no reader
+    /// asks the question: the importer's consumers need `Imported`
+    /// told from the rest, and N6 reads only `Recipe`.
     KernelDirect,
     /// [`crate::Body::clear_geom_sources`] dropped a recipe source this
     /// description carried, and the re-stamp that door expects has not

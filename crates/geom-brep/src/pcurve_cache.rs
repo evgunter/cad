@@ -167,7 +167,8 @@ use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
 
-use crate::certify::CERT_SAMPLES;
+use crate::certify::{CERT_SAMPLES, CertCheck};
+use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
@@ -700,20 +701,21 @@ pub enum PcurveCheck {
 /// or worse, onto [`geom_core::MarginDiag::Value`], which additionally
 /// claims the classifier judged it and found it in the band — loses
 /// the only thing a reader needs: what the number means. Naming each
-/// follows `edge_nurbs`' `certified_clearance` precedent, where the
-/// same SSI errors are translated into that lane's vocabulary.
+/// follows `edge_nurbs`' `TubeStraddles` precedent, where the same SSI
+/// errors are translated into that lane's vocabulary and the clearance
+/// rides a named verdict (`recourse::Refused`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FittedMagnitude {
     /// A certificate limb exceeded ε: the limb's own residual bound in
     /// metres, as projected from its enclosure when the limb refused.
     /// A definite refusal's quantity — not a classified margin.
     LimbResidual(f64),
-    /// Limb 3's uniqueness tube straddled zero. The number is a
-    /// **certified clearance**, not a measured extent: it is exactly
-    /// zero whenever the enclosure contains zero, so `0` here reads
-    /// "not certifiably zero-free", never "measured zero". The box
-    /// count is the informative companion (the `edge_nurbs` precedent
-    /// carries the same pair).
+    /// Limb 3's uniqueness tube did not classify clear of the zero band.
+    /// The number is a **certified clearance**, not a measured extent:
+    /// it is exactly zero whenever the enclosure contains zero, so `0`
+    /// here reads "not certifiably zero-free", never "measured zero".
+    /// The box count is the informative companion (`edge_nurbs`'
+    /// `TubeStraddles` carries the same pair, with the verdict).
     CertifiedClearance {
         /// The certified zero-free clearance in metres (0 = none).
         certified_clearance: f64,
@@ -1025,6 +1027,61 @@ impl core::fmt::Display for PcurveCertifyError {
 }
 
 impl std::error::Error for PcurveCertifyError {}
+
+impl PcurveCertifyError {
+    /// The ending this refusal's decision gives it, read at `reading`
+    /// ([`PcurveCheck::recourse`]), or `None` for a refusal that is no
+    /// decision's refused arm (an unsupported class, a missing operand,
+    /// a band the tolerance cannot form, a fitted certificate's own
+    /// refusal).
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        let (check, arm) = match self {
+            Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
+            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
+            Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain),
+            Self::AzimuthPeriodExceeded => (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain),
+            Self::TrimEscape => (PcurveCheck::TrimContainment, RefusedArm::SignCertain),
+            // The fitted lane's SSI certificate is an approximation's, as
+            // the plane × NURBS lane's rung-3 certificate is
+            // (`CertCheck::PlaneNurbsCertificate`).
+            Self::FittedEscalated { cause } => {
+                return Some(Unsized::LastResort.recourse(RefusedArm::Undecided(cause), reading));
+            }
+            Self::UnsupportedChart { .. }
+            | Self::UnsupportedCarrier
+            | Self::FittedLaneUnsupported { .. }
+            | Self::FittedMateMissing
+            | Self::IsoUnsupported { .. }
+            | Self::ChartRow { .. }
+            | Self::FittedCertificate { .. }
+            | Self::ChartWindingUnsupported
+            | Self::Band(_) => return None,
+        };
+        Some(check.recourse(arm, reading))
+    }
+}
+
+impl PcurveCheck {
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `reading` (D4 ¶1 (i)): the edge certifier's own decision where
+    /// this check restates it, otherwise a decision with no size.
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+        match self {
+            Self::ParamSpan => crate::certify::recourse(CertCheck::ParamSpan, arm, reading),
+            Self::AzimuthPeriod => crate::certify::recourse(CertCheck::ParamWinding, arm, reading),
+            // The winding the kernel stores exactly: a form selection.
+            Self::ChartWinding => Unsized::Defect.recourse(arm, reading),
+            // A map residual, its between-samples envelope and the trim
+            // box are bounds on a fitted image as well as an exact one,
+            // and the routing reads the check alone.
+            Self::MapResidual | Self::Envelope | Self::TrimContainment => {
+                Unsized::LastResort.recourse(arm, reading)
+            }
+        }
+    }
+}
 
 /// **Which sup-norm a certificate's envelope bounds.** The pcurve lanes
 /// discharge C2.2 by different mechanisms over different quantities,
@@ -1510,12 +1567,12 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             "a certificate limb exceeded ε",
             Some(FittedMagnitude::LimbResidual(value)),
         ),
-        E::TubeStraddles { margin, boxes } => (
+        E::TubeStraddles { verdict, boxes } => (
             Some(SsiLimb::Tube),
-            "the uniqueness tube's transversality straddles zero (a genuine sliver of the \
-             operand pair — escalate, never desingularize)",
+            "the uniqueness tube's transversality is not certified clear of zero (a genuine \
+             sliver of the operand pair — escalate, never desingularize)",
             Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: margin,
+                certified_clearance: verdict.margin(),
                 boxes,
             }),
         ),
@@ -4912,6 +4969,41 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The chart-side winding gate tells the edge certifier's winding
+    /// story on both arms, at every reading: a definite excess ends as
+    /// `CertifyError::WindingExceeded` does, and an in-band headroom as
+    /// `CertCheck::ParamWinding`'s undecided arm does (D4 ¶1 (iv)).
+    #[test]
+    fn the_azimuth_gate_ends_as_the_edge_winding_gate() {
+        use crate::certify::{CertifyError, recourse};
+        let cause = Indeterminate {
+            margin: geom_core::MarginDiag::Value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_azimuth_period"),
+        };
+        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+            assert_eq!(
+                PcurveCertifyError::AzimuthPeriodExceeded.ending(reading),
+                CertifyError::WindingExceeded.ending(reading),
+                "definite, {reading:?}"
+            );
+            let escalated = PcurveCertifyError::Escalated {
+                check: PcurveCheck::AzimuthPeriod,
+                sample: 0,
+                cause,
+            };
+            assert_eq!(
+                escalated.ending(reading),
+                Some(recourse(
+                    CertCheck::ParamWinding,
+                    RefusedArm::Undecided(&cause),
+                    reading
+                )),
+                "in band, {reading:?}"
+            );
+        }
     }
 
     /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.

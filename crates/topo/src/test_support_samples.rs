@@ -40,6 +40,7 @@ use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
+use geom_brep::recourse::{Classified, Definite, Refused};
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
 use strum::IntoEnumIterator as _;
 
@@ -57,7 +58,7 @@ use crate::pcurves::PcurveMintError;
 use crate::props::MassPropsError;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, StaleDeclaration,
-    ValidationError,
+    ValidationError, WedgeCheck,
 };
 
 fn band() -> Band {
@@ -195,7 +196,14 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             value: 1e-7,
         },
         PlaneNurbsRefusal::TubeStraddles {
-            certified_clearance: 1e-7,
+            verdict: Refused::Zero(Classified {
+                margin: 5e-10,
+                band: band(),
+            }),
+            boxes: 12,
+        },
+        PlaneNurbsRefusal::TubeStraddles {
+            verdict: Refused::Negative { margin: -1e-7 },
             boxes: 12,
         },
         PlaneNurbsRefusal::TransversalityEscalated {
@@ -220,7 +228,12 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::IntersectionSameSurface { key },
         CertifyError::SeamOnNonPeriodic,
-        CertifyError::IntervalNotForward,
+        CertifyError::IntervalNotForward {
+            verdict: Definite::Zero,
+        },
+        CertifyError::IntervalNotForward {
+            verdict: Definite::Negative,
+        },
         CertifyError::WindingExceeded,
         CertifyError::ResidualExceeded {
             check: CertCheck::Surface1Residual,
@@ -230,6 +243,14 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::NotSecondOrderSeparated {
             sample: 4,
             band: band(),
+        },
+        CertifyError::TubeNotSeparated {
+            band: band(),
+            verdict: Definite::Zero,
+        },
+        CertifyError::TubeNotSeparated {
+            band: band(),
+            verdict: Definite::Negative,
         },
         CertifyError::TangentCertificateUnsupported,
         CertifyError::Escalated {
@@ -364,9 +385,8 @@ fn mass_props_errors() -> Vec<MassPropsError> {
 }
 
 fn offset_fit_errors() -> Vec<OffsetFitError> {
-    use geom_brep::offset_meters::{Meter, MeterError, Refused};
+    use geom_brep::offset_meters::{Meter, MeterError};
     use geom_brep::patch_bound::PatchBoundError;
-    use geom_brep::recourse::Classified;
     let zero = |margin| {
         Refused::Zero(Classified {
             margin,
@@ -717,7 +737,14 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::UncertifiableSurface { face },
         ValidationError::PoisonedSurfaceDescription { face },
         ValidationError::ApproxLaneUnsupported { face },
-        ValidationError::DegenerateTorus { face },
+        ValidationError::DegenerateTorus {
+            face,
+            verdict: Definite::Zero,
+        },
+        ValidationError::DegenerateTorus {
+            face,
+            verdict: Definite::Negative,
+        },
         ValidationError::DescriptionNotAdjacent { edge },
         ValidationError::PlanarFaceResidual { face, vertex },
         ValidationError::PlanarBoundaryResidual { face, edge },
@@ -838,10 +865,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 ValidationError::PlanarBoundaryEscalated { face, edge, cause },
             ),
             (
-                "SliverDihedral",
-                ValidationError::SliverDihedral { edge, cause },
-            ),
-            (
                 "RingContactEscalated",
                 ValidationError::RingContactEscalated {
                     face,
@@ -855,6 +878,16 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ),
         ] {
             s.push((format!("{arm}{m}"), e));
+        }
+        for check in [
+            WedgeCheck::Dihedral,
+            WedgeCheck::SecondOrder,
+            WedgeCheck::MaterialSide,
+        ] {
+            s.push((
+                format!("SliverDihedral/{check:?}{m}"),
+                ValidationError::SliverDihedral { edge, check, cause },
+            ));
         }
     }
     for source in mass_props_errors() {

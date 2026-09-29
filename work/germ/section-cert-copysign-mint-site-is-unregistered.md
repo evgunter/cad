@@ -35,3 +35,27 @@ first. Here `delta`'s sign picks WHICH side of the axis the witness
 ruling lies on, which is the case the note says needs a frame decision
 rather than a `copysign`, where `delta` can straddle zero at
 `Interval`. That judgement is germ's.
+
+**Registered; the judgement is still owed.** ENCL's
+`encl/fix-main-census-tables` registers the site in the census table and
+in `manifest.rs`'s header list, so the row is green again. It re-asked
+`sym12_the_copysign_census_at_the_nominal` on the seven measured
+documents with rule F on (`shipped`) and shut (`no_f`). The counts are
+unchanged. `tangent.rs`'s jet atoms are the only `copysign` atoms that
+stand: 7 of 14 `tangent_normal_parallel` residuals on the bracket and 14
+of 28 on the link, and none on the other five. A temporary probe at
+`classify`'s cylinder-pair arm and at the saddle branch printed nothing
+on any of the seven replays. So no measured document reaches this site,
+and its reach is unmeasured, which is how the manifest now states it.
+
+What the landing can argue: the branch runs only after
+`|δ| − |r₁ − r₂|` is decided positive (`signs` refuses `Zero` and
+undecided). So `δ` is certified away from zero there, and it cannot
+straddle at `Interval`, which is the failure the 2026-09-26 class note
+guards against. What it cannot settle is germ's:
+- whether the side of cylinder 1's axis should be a frame decision
+  rather than a `copysign`;
+- whether the witness, which is placed against both faces, carries an
+  opaque `copysign(1, δ)` atom into those decisions under the symbolic
+  tier;
+- which document or row would exercise the branch.

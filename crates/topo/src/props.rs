@@ -39,6 +39,7 @@ use geom_brep::props::quad::{RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::Key;
@@ -1809,12 +1810,10 @@ pub fn loop_edges<T: Decide>(
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
-            // A lineage that cycles is one a graft aliased (issue 1597:
-            // records are copied with their source keys, which in the
-            // destination chain into strangers); the flattening then
-            // stamps NO identity, so no two such edges are ever folded
-            // into one — the fold declines rather than trusting a
-            // record it cannot read, and a split meridian on such a
+            // A lineage that cycles is a corrupt record; the flattening
+            // then stamps NO identity, so no two such edges are ever
+            // folded into one — the fold declines rather than trusting
+            // a record it cannot read, and a split meridian on such a
             // body refuses at the far rim as it did before any fold.
             carrier_id: body
                 .split_root(he.edge, |_| false)
@@ -1926,39 +1925,109 @@ pub enum ShellClassifyError {
         /// The per-face/per-body failure.
         source: MassPropsError,
     },
-    /// The sign read escalated: the shell's `V/A` margin sits inside
-    /// the ambiguity band. F6: an in-band orientation is never
-    /// guessed to a side.
+    /// The sign read escalated at an end of the shell's volume bracket:
+    /// the `V/A` margin sat inside the ambiguity band, straddled it as an
+    /// enclosure, or could not be read. F6: an undecided orientation is
+    /// never guessed to a side.
     Escalated {
         /// The unclassifiable shell.
         shell: ShellKey,
         /// The named escalation from the funnel.
         source: Indeterminate,
     },
-    /// The signed volume is definitely zero, or its certified bracket
-    /// definitely straddles zero — there is no side to classify to.
+    /// An end of the shell's volume bracket (the whole volume, for a
+    /// closed-form shell) classified as zero at this tolerance, and no
+    /// end classified to a side.
     ZeroVolume {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+    },
+    /// The shell's certified volume bracket straddles zero at this
+    /// tolerance: its low end classified to the void side and its high
+    /// end to the outer side.
+    Straddles {
         /// The unclassifiable shell.
         shell: ShellKey,
     },
 }
 
+/// The shell-role decision (`chk_shell_volume_sign`): its margin is
+/// `V/A`, the mean wall thickness the shell's volume corresponds to, and
+/// it passes on either definite sign — positive is an outer boundary,
+/// negative a void.
+const SHELL_ROLE: SizedDecision = SizedDecision {
+    lever: "thicken or remove the degenerate geometry",
+    size: "thickness",
+    passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// What a [`ShellClassifyError`] found, without the shell's key or a
+/// stage label: the one text its `Display` and a document-level finding
+/// both render.
+#[derive(Clone, Copy, Debug)]
+pub struct ShellClassifyPayload<'a>(&'a ShellClassifyError);
+
+impl fmt::Display for ShellClassifyPayload<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            ShellClassifyError::Band { error } => write!(f, "{error}"),
+            ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
+            ShellClassifyError::Escalated { source, .. } => write!(f, "{}", source.payload()),
+            ShellClassifyError::ZeroVolume { .. } => f.write_str(
+                "a shell's signed volume, or an end of its certified bracket, is zero at this \
+                 tolerance",
+            ),
+            ShellClassifyError::Straddles { .. } => {
+                f.write_str("a shell's certified volume bracket straddles zero at this tolerance")
+            }
+        }
+    }
+}
+
+impl ShellClassifyError {
+    /// The refusal's data, with no key, label or ending.
+    #[must_use]
+    pub fn payload(&self) -> ShellClassifyPayload<'_> {
+        ShellClassifyPayload(self)
+    }
+
+    /// The shell-role decision's one ending for this refusal (D4 ¶1
+    /// (i)), read at a build; `None` where the refusal is not that
+    /// decision's. A flux refusal ends in its own payload's recourse,
+    /// and a band failure is the run's configuration.
+    ///
+    /// The decision has no sign-certain refusal: an escalation, a zero
+    /// and a straddle are each decided by the band, so each ends the
+    /// same read over a body at rest ([`StoredDefinite::Lever`]).
+    #[must_use]
+    pub fn ending(&self) -> Option<String> {
+        let arm = match self {
+            Self::Escalated { source, .. } => RefusedArm::Undecided(source),
+            Self::ZeroVolume { .. } | Self::Straddles { .. } => RefusedArm::Zero(None),
+            Self::Props { .. } | Self::Band { .. } => return None,
+        };
+        Some(SHELL_ROLE.recourse(arm, Reading::Build))
+    }
+}
+
 impl fmt::Display for ShellClassifyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { error } => write!(f, "shell classification: {error}"),
-            Self::Props { shell, source } => {
-                write!(f, "shell classification: shell {shell:?}: {source}")
-            }
-            Self::Escalated { shell, source } => {
-                write!(f, "shell classification: shell {shell:?}: {source}")
-            }
-            Self::ZeroVolume { shell } => write!(
+            Self::Band { .. } => write!(f, "shell classification: {}", self.payload()),
+            Self::Props { shell, .. }
+            | Self::Escalated { shell, .. }
+            | Self::ZeroVolume { shell }
+            | Self::Straddles { shell } => write!(
                 f,
-                "shell classification: shell {shell:?}'s signed volume is \
-                 definitely zero (or its certified bracket straddles zero) — \
-                 no outer/void side exists to classify to"
+                "shell classification: shell {shell:?}: {}",
+                self.payload()
             ),
+        }?;
+        match self.ending() {
+            Some(ending) => write!(f, ". {ending}"),
+            None => Ok(()),
         }
     }
 }
@@ -1978,15 +2047,16 @@ impl std::error::Error for ShellClassifyError {}
 /// quadrature faces the read is bracket-honest: `Outer` requires the
 /// bracket's LOW end definitely positive, `Void` its HIGH end
 /// definitely negative; anything else refuses typed
-/// ([`ShellClassifyError::Escalated`] / [`ShellClassifyError::ZeroVolume`]),
-/// never a guess.
+/// ([`ShellClassifyError::Escalated`] / [`ShellClassifyError::ZeroVolume`]
+/// / [`ShellClassifyError::Straddles`]), never a guess.
 ///
 /// # Errors
 ///
 /// [`ShellClassifyError`] — the first shell that cannot be classified
-/// refuses the call: an inherited flux refusal, an in-band sign, or a
-/// definite zero. (A component count over a partial classification
-/// would be a guess; the caller gets the refusal instead.)
+/// refuses the call: an inherited flux refusal, an escalated sign, a
+/// volume zero at this tolerance, or a bracket straddling zero. (A
+/// component count over a partial classification would be a guess; the
+/// caller gets the refusal instead.)
 pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
@@ -2117,23 +2187,7 @@ fn classify_shells_via<T: Decide>(
                 };
                 match role_at(BracketEnd::High, hi) {
                     Some(role) => role,
-                    // Neither end decides: surface an escalation that
-                    // could have (the high end's first), else the
-                    // bracket is zero or definitely straddles it.
-                    None => {
-                        let escalated = match hi {
-                            Err(source) => Some(source),
-                            Ok(Sign::Zero) => None,
-                            Ok(Sign::Positive | Sign::Negative) => lo.err(),
-                        };
-                        return Err(match escalated {
-                            Some(source) => ShellClassifyError::Escalated {
-                                shell: shell_key,
-                                source,
-                            },
-                            None => ShellClassifyError::ZeroVolume { shell: shell_key },
-                        });
-                    }
+                    None => return Err(shell_role_refusal(shell_key, lo, hi)),
                 }
             }
         };
@@ -2148,6 +2202,22 @@ fn classify_shells_via<T: Decide>(
         });
     }
     Ok(out)
+}
+
+/// The refusal of a shell whose bracket `[lo, hi]` classified to neither
+/// side (`lo` not outer, `hi` not void), read from the decided signs
+/// alone: an escalated end is the refusal (the high end's first), ends
+/// decided to opposite sides straddle zero, and otherwise an end is zero.
+fn shell_role_refusal(
+    shell: ShellKey,
+    lo: Result<Sign, Indeterminate>,
+    hi: Result<Sign, Indeterminate>,
+) -> ShellClassifyError {
+    match (lo, hi) {
+        (_, Err(source)) | (Err(source), _) => ShellClassifyError::Escalated { shell, source },
+        (Ok(Sign::Negative), Ok(Sign::Positive)) => ShellClassifyError::Straddles { shell },
+        (Ok(_), Ok(_)) => ShellClassifyError::ZeroVolume { shell },
+    }
 }
 
 // SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
@@ -3902,6 +3972,115 @@ mod face_list_door_tests {
             let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
             // Both prisms of the pair are unit cubes.
             assert_eq!(one.volume.to_bits(), 0x3ff0_0000_0000_0000, "{solid:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod shell_role_refusal_tests {
+    use super::*;
+    use geom_core::MarginDiag;
+
+    /// Every bracket that classifies to neither side, as `(lo, hi)`
+    /// reads, and the refusal it takes, read from decided signs alone:
+    /// any escalated end is the refusal (the high end's first, whatever
+    /// its margin says), ends decided to opposite sides straddle, and
+    /// otherwise an end is zero.
+    #[test]
+    fn a_bracket_refuses_by_its_decided_ends() {
+        let shell = ShellKey::default();
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let diag = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("chk_shell_volume_sign"),
+        };
+        let esc = |margin| Err(diag(margin));
+        let escalated = |margin| ShellClassifyError::Escalated {
+            shell,
+            source: diag(margin),
+        };
+        let v = MarginDiag::Value;
+        let across = MarginDiag::Enclosure {
+            lo: -2e-9,
+            hi: 3e-9,
+        };
+        let straddles = ShellClassifyError::Straddles { shell };
+        let zero = ShellClassifyError::ZeroVolume { shell };
+        let rows = [
+            // Closed form: one read for both ends.
+            (
+                "in band, outer",
+                esc(v(5e-9)),
+                esc(v(5e-9)),
+                escalated(v(5e-9)),
+            ),
+            (
+                "in band, void",
+                esc(v(-5e-9)),
+                esc(v(-5e-9)),
+                escalated(v(-5e-9)),
+            ),
+            (
+                "enclosure across zero",
+                esc(across),
+                esc(across),
+                escalated(across),
+            ),
+            (
+                "unreadable",
+                esc(MarginDiag::Invalid),
+                esc(MarginDiag::Invalid),
+                escalated(MarginDiag::Invalid),
+            ),
+            ("zero", Ok(Sign::Zero), Ok(Sign::Zero), zero.clone()),
+            // Padded: the high end's escalation first, else the low end's.
+            (
+                "both ends in band",
+                esc(v(-2e-9)),
+                esc(v(3e-9)),
+                escalated(v(3e-9)),
+            ),
+            (
+                "high end in band",
+                Ok(Sign::Negative),
+                esc(v(3e-9)),
+                escalated(v(3e-9)),
+            ),
+            (
+                "low end in band",
+                esc(v(-2e-9)),
+                Ok(Sign::Positive),
+                escalated(v(-2e-9)),
+            ),
+            (
+                "low end in band, high zero",
+                esc(v(2e-9)),
+                Ok(Sign::Zero),
+                escalated(v(2e-9)),
+            ),
+            (
+                "decided straddle",
+                Ok(Sign::Negative),
+                Ok(Sign::Positive),
+                straddles,
+            ),
+            (
+                "zero low, high outer",
+                Ok(Sign::Zero),
+                Ok(Sign::Positive),
+                zero.clone(),
+            ),
+            (
+                "void low, zero high",
+                Ok(Sign::Negative),
+                Ok(Sign::Zero),
+                zero,
+            ),
+        ];
+        for (name, lo, hi, want) in rows {
+            assert_eq!(shell_role_refusal(shell, lo, hi), want, "{name}");
         }
     }
 }

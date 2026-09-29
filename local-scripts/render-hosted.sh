@@ -48,8 +48,7 @@ gui     renders-gui     demos/renders-gui
 # list: it is not the roster but a PROPERTY of a lane — byte-reproducible
 # off-box, so a pulled file may be compared to the committed one at all.
 # render.yml states that property in prose, per lane, and declares it
-# nowhere a reader can key on
-# (`work/ciw/verify-lane-set-is-a-property-nothing-declares`). What it
+# nowhere a reader can key on. What it
 # costs if it goes stale is bounded and visible: a lane missing here is a
 # lane `--verify` silently does not prove, and `--verify` says how many
 # files it checked. A lane wrongly added reds on the first GL-stack

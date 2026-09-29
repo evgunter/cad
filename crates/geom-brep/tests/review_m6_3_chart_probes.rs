@@ -299,7 +299,8 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
         return;
     };
     // Independent oracle: tensor Bernstein evaluation + central
-    // differences on a fine midpoint grid.
+    // differences on a 60x60 midpoint grid (the enclosure is 2.6 wide, so
+    // the rule's O(h^2) error is far inside the question).
     let bern = |i: usize, t: f64| -> f64 {
         let c = [1.0, 3.0, 3.0, 1.0][i];
         c * t.powi(i as i32) * (1.0 - t).powi(3 - i as i32)
@@ -317,7 +318,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
         }
         s
     };
-    let n = 600usize;
+    let n = 60usize;
     let h = 1.0 / n as f64;
     let mut oracle = 0.0f64;
     for i in 0..n {
@@ -353,7 +354,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
     // silently collapses.
     //
     // Re-derived on the post-CERT-5 tree: the width is 2.6340 on an
-    // enclosure of [1.8587, 4.4927] against a 2.9726 oracle, clearing
+    // enclosure of [1.8587, 4.4927] against a 2.97 oracle, clearing
     // this floor by 2634x. It was scheduled to be invalidated by an
     // area-refining funnel — S-CERT Q1 ruled that funnel out (a
     // wide-but-sound bracket is sound; an ε-scale area target is a
