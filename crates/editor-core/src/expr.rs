@@ -1278,10 +1278,10 @@ pub enum EvalError {
     /// caller supplied the expression being evaluated ([`eval`]'s
     /// argument identifies it; PR 2's evaluation service attaches
     /// node/slot when it evaluates document slots). At certified
-    /// scalars this refuses POISON (NaI/empty/`Trv`-decorated
-    /// enclosures); legitimately unbounded-but-valid enclosures pass
-    /// (boundedness is the `Com`-decoration's business, not this
-    /// door's).
+    /// scalars this refuses what may not certify (NaI, empty and
+    /// `Trv`-decorated enclosures); legitimately unbounded-but-valid
+    /// enclosures pass (boundedness is the `Com`-decoration's business,
+    /// not this door's).
     NonFiniteResult,
 }
 
@@ -1350,8 +1350,8 @@ pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
 
 /// **Door 2, as a shared door.** The ruled non-finite check on a
 /// FINAL evaluated value: `value * 0` is EXACTLY zero for every finite
-/// value and poison (NaN / empty / Trv) otherwise, so any valid band
-/// classifies it identically — Zero passes, everything else is a
+/// value and NaN or refused (NaN / empty / Trv) otherwise, so any valid
+/// band classifies it identically — Zero passes, everything else is a
 /// non-finite result.
 ///
 /// It lives apart from [`eval`] because [`eval`] is not the only

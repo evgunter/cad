@@ -1446,9 +1446,12 @@ pub enum ProgramFault {
     /// The program is not a legal lattice walk (LIB-SWITCH §4h: the
     /// replay PROBE under the document's params refused with the
     /// Transition class — no authoring surface can record this).
-    /// Geometry refusals and resolve failures deliberately PASS this
-    /// door: they are V1 class 2, legal at rest, surfaced as typed
-    /// node errors at evaluation.
+    /// Geometry refusals, resolve failures and validate refusals
+    /// ([`crate::ProgramRefusal::Validate`] — a bowtie loop, even one
+    /// drawn in literals the insert door refuses) deliberately PASS
+    /// this door: they are V1 class 2, legal at rest, surfaced as
+    /// typed node errors at evaluation (the validate class as
+    /// [`crate::NodeErrorKind::Profile`]).
     Lattice {
         /// The offending loop.
         loop_: u32,

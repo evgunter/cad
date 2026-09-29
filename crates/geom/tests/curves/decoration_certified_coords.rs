@@ -1,6 +1,6 @@
 //! **The control-net bracket seam follows the certified door.**
 //!
-//! `ring_coords` lifts a carrier's control net into certification arithmetic, one
+//! `certified_coords` lifts a carrier's control net into certification arithmetic, one
 //! `Interval` per coefficient. The lift reads each coefficient's
 //! bracket, and at the `Interval` scalar a bracket can be *sound but
 //! inadmissible*: `sqrt([−1, 4])` clamps to `[0, 2]` and records the
@@ -12,7 +12,7 @@
 //! a composite bound for an expression nobody asked for.
 //!
 //! The invariant these rows pin: a coefficient that fails
-//! [`CertifiedEnclosure`] crosses as poison, a coefficient that passes
+//! [`CertifiedEnclosure`] crosses refused, a coefficient that passes
 //! crosses with its stored endpoints, and the two verdicts are decided
 //! per coefficient rather than per carrier.
 
@@ -74,7 +74,7 @@ fn construction_admits_a_violated_coefficient() {
 }
 
 #[test]
-fn curve3_ring_coords_refuses_a_violated_coefficient_per_channel() {
+fn curve3_certified_coords_refuses_a_violated_coefficient_per_channel() {
     let c = NurbsCurve3::new(
         kv(),
         vec![
@@ -88,7 +88,7 @@ fn curve3_ring_coords_refuses_a_violated_coefficient_per_channel() {
         vec![1.0, 1.0],
     )
     .unwrap();
-    let coords = c.ring_coords();
+    let coords = c.certified_coords();
     assert!(
         !coords[0][0].is_certified(),
         "the violated coefficient crossed as {:?} — the lift read the \
@@ -104,7 +104,7 @@ fn curve3_ring_coords_refuses_a_violated_coefficient_per_channel() {
 }
 
 #[test]
-fn curve2_ring_coords_refuses_a_violated_coefficient_per_channel() {
+fn curve2_certified_coords_refuses_a_violated_coefficient_per_channel() {
     let c = NurbsCurve2::new(
         kv(),
         vec![
@@ -114,7 +114,7 @@ fn curve2_ring_coords_refuses_a_violated_coefficient_per_channel() {
         vec![1.0, 1.0],
     )
     .unwrap();
-    let coords = c.ring_coords();
+    let coords = c.certified_coords();
     assert!(
         !coords[1][0].is_certified(),
         "the violated coefficient crossed as {:?}",
@@ -126,7 +126,7 @@ fn curve2_ring_coords_refuses_a_violated_coefficient_per_channel() {
 
 /// Non-vacuity from the other side: an all-healthy net crosses whole,
 /// so the rows above are pinning a refusal and not a crossing that
-/// poisons everything it touches.
+/// refuses everything it touches.
 #[test]
 fn a_certified_net_crosses_unchanged() {
     let c = NurbsCurve3::new(
@@ -142,7 +142,7 @@ fn a_certified_net_crosses_unchanged() {
         vec![1.0, 1.0],
     )
     .unwrap();
-    for ch in c.ring_coords() {
+    for ch in c.certified_coords() {
         for r in ch {
             assert!(r.is_certified(), "a certified net must cross whole");
         }

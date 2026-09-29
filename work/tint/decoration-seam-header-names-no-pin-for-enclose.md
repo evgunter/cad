@@ -112,7 +112,7 @@ is what the finding was about".** `grep -rln 'RingInterval::from_certified'
 own — `spline/hull.rs` (the crossing this suite DOES reach, named
 separately in the header) and `real.rs`, whose single occurrence is
 prose in a comment, not a call. The remaining **four** are exactly the
-header's four: `geom/src/net.rs` (`ring_coords`),
+header's four: `geom/src/net.rs` (`certified_coords`),
 `geom-brep/src/ssi/certify.rs` (3 reads),
 `geom-brep/src/ssi/enclose.rs` (36 reads) and `topo/src/props.rs`.
 **"four other places in `crates/*/src`" is still true.** Only the fourth

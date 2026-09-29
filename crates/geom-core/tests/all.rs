@@ -51,6 +51,7 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
+mod refusal;
 mod span_fixtures;
 
 #[path = "ambiguity_k_env.rs"]
@@ -103,8 +104,8 @@ mod knot_queries_differential;
 mod m10_7_r1_retag_probe;
 #[path = "m10_7_r1_sym_probes.rs"]
 mod m10_7_r1_sym_probes;
-#[path = "m5_pr1_poison_conservation.rs"]
-mod m5_pr1_poison_conservation;
+#[path = "m5_pr1_refusal_conservation.rs"]
+mod m5_pr1_refusal_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]
 mod m5_pr7b_tensor_compose;
 #[path = "review_m0_pr2.rs"]
