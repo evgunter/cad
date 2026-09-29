@@ -248,11 +248,11 @@ pub(super) fn standing<T: Decide>(
 /// # Errors
 ///
 /// [`UnnamedEntity`], the lookup's one refusal.
-pub(super) fn lookup<'a, T: Decide>(
-    value: &'a NodeValue<T>,
+pub(super) fn lookup<T: Decide>(
+    value: &NodeValue<T>,
     node: RecipeNodeId,
     entity: EntityRef,
-) -> Result<&'a StableName, UnnamedEntity> {
+) -> Result<&StableName, UnnamedEntity> {
     value
         .name_table
         .name_of(&entity)

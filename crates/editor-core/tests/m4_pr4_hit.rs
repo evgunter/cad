@@ -12,8 +12,7 @@ use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
     EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
     RoleSeg, RunCtx, SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name,
-    evaluate,
-    resolve,
+    evaluate, resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -404,7 +403,14 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             // The lookup's own sentence under this door's prefix: the
             // entity by KIND and body index — an arena key is
             // editor-core-private and says nothing to a person.
-            vec!["hit test:", "name lookup:", "node 7", "face", "body 2", "kernel bug"],
+            vec![
+                "hit test:",
+                "name lookup:",
+                "node 7",
+                "face",
+                "body 2",
+                "kernel bug",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &HIT_TEST_ERROR, &[]);
