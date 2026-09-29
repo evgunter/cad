@@ -873,11 +873,14 @@ const CALLS: &str = "operator calls";
 ///
 /// Untorn, they are also the valid bodies the kill anchors' over-refusal
 /// row sweeps ([`valid_fixtures_never_refuse_a_kill_orbit_broken`]).
-const FIXTURES: [(&str, fn(Tol) -> Body<f64>); 3] = [
+const FIXTURES: [(&str, BuildFixture); 3] = [
     ("declined_cube", |tol| declined_cube::<f64>(tol).body),
     ("ops_ring_bridge", |tol| ops_ring_bridge(tol).body),
     ("ops_strut_cube", |tol| ops_strut_cube(tol).body),
 ];
+
+/// How a [`FIXTURES`] entry builds its body.
+type BuildFixture = fn(Tol) -> Body<f64>;
 
 /// A [`FIXTURES`] entry's exposure category: a body of that fixture the
 /// sweep actually hammered.

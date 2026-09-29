@@ -2,11 +2,13 @@
 id: kill-ops-anchor-emanating-on-an-unproven-next-mate-step
 kind: issue
 title: kef, kemr and kev re-anchor emanating on a next(mate(x)) step whose start vertex no plan proves: a torn next carries an off anchor through Ok
-status: open
+status: review
 opened: 2026-09-29
-refs: [mev-fan-plan-trusts-the-orbits-start-vertices, kevs-fan-merge-needs-a-re-describing-kill-door]
+refs: [mev-fan-plan-trusts-the-orbits-start-vertices, kevs-fan-merge-needs-a-re-describing-kill-door, kill-ops-loop-anchor-on-an-unproven-next-step, revert-anchors-trust-a-torn-next-or-prev]
 priority: P2
 cost: E
+pr: 3483
+branch: topo/kill-anchor-proof
 ---
 
 ## What
