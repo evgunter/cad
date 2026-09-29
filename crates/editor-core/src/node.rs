@@ -976,13 +976,9 @@ pub enum TubeWindow {
 
 /// **THE slot table of a tube window: which [`SlotId`] each of its
 /// expressions carries, in enumeration order** — none for a full ring,
-/// the two angles for an arc.
-///
-/// The one declaration [`TubeWindow::slots`], [`TubeWindow::expr`] and
-/// [`TubeWindow::expr_mut`] read, and the one `node_rows` reads for
-/// both tube kinds, so no two readers can come to disagree about which
-/// angle is which. A macro because it is borrow-generic: match
-/// ergonomics bind `&Expr` or `&mut Expr` from the same rows.
+/// the two angles for an arc. Read by [`node_rows`] for both tube kinds,
+/// so neither can come to disagree with the other about which angle is
+/// which.
 macro_rules! window_rows {
     ($window:expr, $out:expr) => {{
         match $window {
@@ -995,42 +991,38 @@ macro_rules! window_rows {
     }};
 }
 
-impl TubeWindow {
-    /// This window's slots, deterministic order — empty for a full
-    /// ring, the two angles for an arc.
-    pub fn slots(&self) -> Vec<SlotId> {
-        self.rows().into_iter().map(|(slot, _)| slot).collect()
-    }
+/// **The shared and exclusive readers of one borrow-generic row
+/// table**: `rows` and `rows_mut`, each running `$table!` over `self`
+/// under its own borrow. The table is one text and match ergonomics
+/// bind `&Expr` or `&mut Expr` from it, so the two readers list the
+/// same rows in the same order. The table is also handed the reader's
+/// own name, so a table that holds another value's table reads it
+/// through the same borrow.
+macro_rules! row_readers {
+    ($table:ident -> $key:ty) => {
+        /// The rows of this value's slot table, shared.
+        fn rows(&self) -> Vec<($key, &Expr)> {
+            let mut out = Vec::new();
+            $table!(self, rows, out);
+            out
+        }
 
-    /// The expression in one of this window's slots.
-    pub fn expr(&self, slot: SlotId) -> Option<&Expr> {
-        find_row(self.rows(), slot)
-    }
-
-    /// Mutable access to one of this window's slots.
-    pub fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr> {
-        find_row(self.rows_mut(), slot)
-    }
-
-    fn rows(&self) -> Vec<(SlotId, &Expr)> {
-        let mut out = Vec::new();
-        window_rows!(self, out);
-        out
-    }
-
-    fn rows_mut(&mut self) -> Vec<(SlotId, &mut Expr)> {
-        let mut out = Vec::new();
-        window_rows!(self, out);
-        out
-    }
+        /// The rows of this value's slot table, exclusive.
+        fn rows_mut(&mut self) -> Vec<($key, &mut Expr)> {
+            let mut out = Vec::new();
+            $table!(self, rows_mut, out);
+            out
+        }
+    };
 }
+pub(crate) use row_readers;
 
-/// The expression a slot table's rows pair with `slot`, `None` when no
-/// row names it — the one lookup every table in this file is read
+/// The expression a slot table's rows pair with `key`, `None` when no
+/// row names it — the one lookup every slot and role table is read
 /// through, for either borrow.
-fn find_row<E>(rows: Vec<(SlotId, E)>, slot: SlotId) -> Option<E> {
+pub(crate) fn find_row<K: PartialEq, E>(rows: Vec<(K, E)>, key: K) -> Option<E> {
     rows.into_iter()
-        .find(|(s, _)| *s == slot)
+        .find(|(k, _)| *k == key)
         .map(|(_, expr)| expr)
 }
 
@@ -2573,12 +2565,27 @@ impl Axis3 {
 /// component `ax` carries the slot `$slot(ax)`. A pair authored in a
 /// sketch frame's 2-D coordinates yields `X` and `Y` alone, because a
 /// point in a plane has two components and `Z` names none of them.
+/// [`axis_arity`] holds the vector to two or three components, so the
+/// zip cannot drop one.
 macro_rules! axis_rows {
     ($slot:path, $v:expr, $out:expr) => {{
-        for (ax, e) in Axis3::ALL.into_iter().zip($v) {
+        let v = $v;
+        axis_arity(&*v);
+        for (ax, e) in Axis3::ALL.into_iter().zip(v) {
             $out.push(($slot(ax), e));
         }
     }};
+}
+
+/// Compiles for an array of two or three components and nothing else:
+/// the vectors [`axis_rows`] pairs with [`Axis3::ALL`].
+const fn axis_arity<E, const N: usize>(_: &[E; N]) {
+    const {
+        assert!(
+            N == 2 || N == 3,
+            "an axis vector has two or three components"
+        )
+    }
 }
 
 /// **THE slot table of a placement rule**, shared by [`Node::Pattern`]
@@ -2586,29 +2593,27 @@ macro_rules! axis_rows {
 /// so the two nodes cannot drift apart on what a slot means.
 ///
 /// `$count` is the node's count expression when it holds one (an
-/// `Option` of it, borrowed either way). `Explicit` carries listed
-/// placements rather than a rule, so it has no count slot (the list's
+/// `Option` of it, borrowed either way); a stepped rule lists it
+/// first. `Explicit` carries listed placements rather than a rule
+/// ([`PatternKind::placements`]), so it has no count slot (the list's
 /// length IS the count) and no expressions (the frames are structural
-/// data, D8). A parametric rule with no count is a node
+/// data, D8). A stepped rule with no count is a node
 /// [`Node::placement_rule_fault`] refuses, not a node with a count
 /// slot nothing can read.
 macro_rules! rule_rows {
     ($count:expr, $kind:expr, $out:expr) => {{
-        let count = $count;
-        match $kind {
+        let kind = $kind;
+        if kind.placements().is_none()
+            && let Some(count) = $count
+        {
+            $out.push((SlotId::Count, count));
+        }
+        match kind {
             PatternKind::Linear { direction, spacing } => {
-                if let Some(count) = count {
-                    $out.push((SlotId::Count, count));
-                }
                 axis_rows!(SlotId::Direction, direction, $out);
                 $out.push((SlotId::Spacing, spacing));
             }
-            PatternKind::Circular { step, .. } => {
-                if let Some(count) = count {
-                    $out.push((SlotId::Count, count));
-                }
-                $out.push((SlotId::Step, step));
-            }
+            PatternKind::Circular { step, .. } => $out.push((SlotId::Step, step)),
             PatternKind::Explicit(_) => {}
         }
     }};
@@ -2631,19 +2636,16 @@ macro_rules! tube_rows {
 /// order, deterministic.
 ///
 /// The one declaration [`Node::slots`], [`Node::expr`] and
-/// [`Node::expr_mut`] read, so a slot the enumeration lists is a slot
-/// the addressing answers for, and the shared and exclusive borrows
-/// reach the same field. A macro rather than a function because it is
-/// borrow-generic: match ergonomics bind `&Expr` under [`Node::rows`]
-/// and `&mut Expr` under [`Node::rows_mut`] from the same rows.
-///
-/// A profile contributes no rows: its slots are its program's, whose
-/// table the payload holds ([`crate::ProfilePayload`]).
+/// [`Node::expr_mut`] read, through [`row_readers`], so a slot the
+/// enumeration lists is a slot the addressing answers for, and the
+/// shared and exclusive borrows reach the same field. `$rows` names the
+/// reader of the borrow in hand, which the profile arm asks of its
+/// payload.
 ///
 /// Exhaustive on the node vocabulary, so a new node kind is classified
 /// here or the compile breaks.
 macro_rules! node_rows {
-    ($node:expr, $out:expr) => {{
+    ($node:expr, $rows:ident, $out:expr) => {{
         use SlotId as S;
         match $node {
             Node::Datum(Datum::Plane { origin, normal }) => {
@@ -2671,7 +2673,14 @@ macro_rules! node_rows {
             // Origin and normal come off the face; the spin is the
             // one number an author chooses.
             Node::Datum(Datum::FaceFrame { spin, .. }) => $out.push((S::Spin, spin)),
-            Node::Profile(_) => {}
+            // A profile's slots are its program's. The payload keys its
+            // rows by program address, so it answers `S::Profile` and
+            // no other slot.
+            Node::Profile(p) => {
+                for ((loop_, step, arg), e) in p.$rows() {
+                    $out.push((S::Profile { loop_, step, arg }, e));
+                }
+            }
             Node::Extrude { distance, .. } => $out.push((S::Distance, distance)),
             Node::Fillet { radius, .. } => $out.push((S::Radius, radius)),
             Node::Chamfer { distance, .. } => $out.push((S::ChamferDistance, distance)),
@@ -2748,6 +2757,10 @@ macro_rules! node_rows {
             Node::Measure { .. } | Node::Assertion { .. } => {}
         }
     }};
+}
+
+impl<P: crate::ProfilePayload> Node<P> {
+    row_readers!(node_rows -> SlotId);
 }
 
 impl<P> Node<P> {
@@ -3137,15 +3150,12 @@ impl<P> Node<P> {
     /// their PROGRAM's slots (LIB-SWITCH §4c behavior delta 3: the
     /// formerly slot-free payload now carries one slot per continuous
     /// step argument), through the payload's own [`crate::ProfilePayload`]
-    /// implementation.
+    /// rows.
     pub fn slots(&self) -> Vec<SlotId>
     where
         P: crate::ProfilePayload,
     {
-        match self {
-            Node::Profile(p) => p.slots(),
-            _ => self.rows().into_iter().map(|(slot, _)| slot).collect(),
-        }
+        self.rows().into_iter().map(|(slot, _)| slot).collect()
     }
 
     /// The expression in a named slot, `None` if this node type does
@@ -3154,10 +3164,7 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        match self {
-            Node::Profile(p) => p.expr(slot),
-            _ => find_row(self.rows(), slot),
-        }
+        find_row(self.rows(), slot)
     }
 
     /// Mutable access to a named slot's expression (the edit layer's
@@ -3166,24 +3173,7 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        match self {
-            Node::Profile(p) => p.expr_mut(slot),
-            _ => find_row(self.rows_mut(), slot),
-        }
-    }
-
-    /// The rows of [`node_rows`], shared.
-    fn rows(&self) -> Vec<(SlotId, &Expr)> {
-        let mut out = Vec::new();
-        node_rows!(self, out);
-        out
-    }
-
-    /// The rows of [`node_rows`], exclusive.
-    fn rows_mut(&mut self) -> Vec<(SlotId, &mut Expr)> {
-        let mut out = Vec::new();
-        node_rows!(self, out);
-        out
+        find_row(self.rows_mut(), slot)
     }
 
     /// The [`StableName`]s this payload REFERENCES — `Declare` pairs, a
@@ -3657,10 +3647,10 @@ impl<P> Node<P> {
     }
 
     /// **The slot-dimension rule, asked of this node** (spec D6):
-    /// every slot [`Node::slots`] names answers an expression, and
-    /// that expression carries the dimension [`SlotId::dimension`]
-    /// fixes for the address. `None` when the node carries no slot at
-    /// all, which is most of the assembly vocabulary.
+    /// every expression the slot table pairs with a slot carries the
+    /// dimension [`SlotId::dimension`] fixes for that address. `None`
+    /// when the node carries no slot at all, which is most of the
+    /// assembly vocabulary.
     ///
     /// One home for the question, read by the edit doors
     /// (`check_node_slots`) and by the load door's walk, each naming
@@ -3672,21 +3662,9 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        self.slots().into_iter().find_map(|slot| {
-            // `slots()` IS `expr()`'s domain — the two matches answer
-            // for the same payload — so a slot with no expression is a
-            // bug in this module, not a document a door may refuse.
-            // Pinned for every node kind by
-            // `switch_slots::every_node_kinds_slots_are_all_readable`.
-            let Some(expr) = self.expr(slot) else {
-                unreachable!(
-                    "slot {}: `Node::slots` names it and `Node::expr` does not answer for it — \
-                     the two matches in this module disagree",
-                    slot.label()
-                )
-            };
-            slot.dimension_fault(expr)
-        })
+        self.rows()
+            .into_iter()
+            .find_map(|(slot, expr)| slot.dimension_fault(expr))
     }
 
     /// What is wrong with this node's measured expression, if anything

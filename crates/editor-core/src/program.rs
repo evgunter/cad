@@ -41,7 +41,7 @@ use serde::{Deserialize, Serialize};
 use crate::doc::ParamName;
 use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, UnitSym, eval};
-use crate::node::{RecipeNodeId, SlotId, StepArg, StepId};
+use crate::node::{RecipeNodeId, SlotId, StepArg, StepId, find_row, row_readers};
 use geom_core::Tol;
 
 /// **One declaration, two projections** — a document vocabulary's enum,
@@ -498,28 +498,27 @@ type Replayed = (
 /// payloads — the defaults are the slot-free, check-free behavior the
 /// retired opaque payload had).
 pub trait ProfilePayload {
-    /// Every program expression slot, deterministic (loop, step, arg)
-    /// order.
-    fn slots(&self) -> Vec<SlotId> {
+    /// **The program's slot table**: every expression it holds, keyed
+    /// by its `(loop, step, arg)` address, in that deterministic order.
+    /// `Node::Profile` reads its slots, and answers
+    /// `SlotId::Profile { loop_, step, arg }`, from these rows alone. A
+    /// payload's rows carry no other kind of address, so a profile node
+    /// cannot answer another node kind's slot.
+    fn rows(&self) -> Vec<((u32, u32, StepArg), &Expr)> {
         Vec::new()
     }
-    /// The expression a profile slot addresses, `None` off the program.
-    fn expr(&self, _slot: SlotId) -> Option<&Expr> {
-        None
-    }
-    /// Mutable twin of [`ProfilePayload::expr`].
-    fn expr_mut(&mut self, _slot: SlotId) -> Option<&mut Expr> {
-        None
+    /// The rows of [`ProfilePayload::rows`], exclusive: the same rows,
+    /// in the same order.
+    fn rows_mut(&mut self) -> Vec<((u32, u32, StepArg), &mut Expr)> {
+        Vec::new()
     }
     /// Whether any expression of this program reads the document
-    /// parameter `name` — over [`ProfilePayload::slots`], so every
+    /// parameter `name` — over [`ProfilePayload::rows`], so every
     /// payload answers it the one way.
     fn references(&self, name: &ParamName) -> bool {
         let mut refs = Vec::new();
-        for slot in self.slots() {
-            if let Some(e) = self.expr(slot) {
-                e.param_refs(&mut refs);
-            }
+        for (_, e) in self.rows() {
+            e.param_refs(&mut refs);
         }
         refs.iter().any(|(n, _)| n == name)
     }
@@ -1182,36 +1181,33 @@ macro_rules! step_roles {
 }
 
 /// **THE role table of a loop program: which [`StepArg`] each
-/// expression of authored step `step` carries, in enumeration order**
-/// — the step's own field order, deterministic and pinned by tests.
+/// expression of each authored step carries, keyed `(step, role)`, in
+/// enumeration order** — step order, then each step's own field order,
+/// deterministic and pinned by tests.
 ///
 /// The one declaration the three consumers of a role read:
 /// - the enumeration ([`LoopProgram::step_args`], [`LoopProgram::step_radii`])
 ///   reads the roles in order;
-/// - the addressing ([`LoopProgram::expr`] / [`LoopProgram::expr_mut`])
-///   finds the row whose role is asked for;
+/// - the addressing ([`ProfilePayload::rows`], and the recorded
+///   program's notation) finds the row whose `(step, role)` is asked
+///   for ([`find_row`]);
 /// - the resolution ([`res_chain_step`], and [`LoopProgram::resolve`]'s
 ///   carrier arms) tags a refusal with the role this table pairs with
 ///   the very expression that refused ([`role_of`]).
 ///
 /// So a refusal reports at a slot the census enumerates, and that slot
 /// addresses the expression that refused, by construction. A macro
-/// rather than a function because it is borrow-generic: the patterns
-/// bind through match ergonomics, so the same rows yield `&Expr` under
-/// [`LoopProgram::roles`] and `&mut Expr` under
-/// [`LoopProgram::roles_mut`].
-///
-/// `$get` is the borrow's own element getter (`get` / `get_mut`). A
-/// carrier form authors one step, numbered 0, and a step past the loop
-/// has no rows.
+/// rather than a function because it is borrow-generic
+/// ([`row_readers`]). A carrier form authors one step, numbered 0.
+/// The table holds no other value's table, so it has no use for the
+/// reader's name.
 macro_rules! loop_roles {
-    ($loop:expr, $step:expr, $get:ident, $out:expr) => {{
+    ($loop:expr, $_reader:ident, $out:expr) => {{
         use StepArg as A;
-        let step: u32 = $step;
         let carrier = match $loop {
             LoopProgram::Chain(steps) => {
-                if let Some(s) = steps.$get(step as usize) {
-                    step_roles!(s, $out);
+                for (i, s) in steps.into_iter().enumerate() {
+                    chain_step_rows!(s, program_index(i), $out);
                 }
                 None
             }
@@ -1223,21 +1219,34 @@ macro_rules! loop_roles {
                 ..
             } => Some((centre, radius, Some(phase))),
         };
-        if let (0, Some(([x, y], radius, phase))) = (step, carrier) {
-            $out.push((A::CenterX, x));
-            $out.push((A::CenterY, y));
-            $out.push((A::Radius, radius));
+        if let Some(([x, y], radius, phase)) = carrier {
+            $out.push(((0, A::CenterX), x));
+            $out.push(((0, A::CenterY), y));
+            $out.push(((0, A::Radius), radius));
             if let Some(phase) = phase {
-                $out.push((A::Phase, phase));
+                $out.push(((0, A::Phase), phase));
             }
         }
     }};
 }
 
-/// One chain step's role-table rows, shared.
-fn step_rows(step: &ProgramStep) -> Vec<(StepArg, &Expr)> {
+/// One chain step's rows of [`loop_roles`]: [`step_roles`] keyed by
+/// the step's authored index.
+macro_rules! chain_step_rows {
+    ($s:expr, $step:expr, $out:expr) => {{
+        let step: u32 = $step;
+        let mut roles = Vec::new();
+        step_roles!($s, roles);
+        $out.extend(roles.into_iter().map(|(arg, e)| ((step, arg), e)));
+    }};
+}
+
+/// Authored step `step`'s rows of [`loop_roles`], shared — the rows
+/// [`res_chain_step`] resolves a chain step through, built without the
+/// rest of its loop.
+fn step_rows(s: &ProgramStep, step: u32) -> Vec<((u32, StepArg), &Expr)> {
     let mut out = Vec::new();
-    step_roles!(step, out);
+    chain_step_rows!(s, step, out);
     out
 }
 
@@ -1259,7 +1268,7 @@ fn step_rows(step: &ProgramStep) -> Vec<(StepArg, &Expr)> {
 /// reads, so that expression has no slot a refusal could name. That is
 /// a gap in [`loop_roles`], not a caller's input, and every resolution
 /// of a step of that shape reaches it.
-fn role_of(roles: &[(StepArg, &Expr)], e: &Expr) -> StepArg {
+fn role_of(roles: &[((u32, StepArg), &Expr)], e: &Expr) -> (u32, StepArg) {
     let Some((role, _)) = roles.iter().find(|(_, x)| std::ptr::eq(*x, e)) else {
         unreachable!("the role table pairs no role with an expression the resolver reads")
     };
@@ -1359,13 +1368,10 @@ impl LoopProgram {
     /// has therefore always reached the key.
     #[must_use]
     pub fn step_radii(&self) -> Vec<(u32, &Expr)> {
-        (0..program_index(self.authored_steps()))
-            .flat_map(|step| {
-                self.roles(step)
-                    .into_iter()
-                    .filter(|(arg, _)| arg.is_radius())
-                    .map(move |(_, expr)| (step, expr))
-            })
+        self.rows()
+            .into_iter()
+            .filter(|((_, arg), _)| arg.is_radius())
+            .map(|((step, _), expr)| (step, expr))
             .collect()
     }
 
@@ -1378,46 +1384,15 @@ impl LoopProgram {
     /// program rather than re-deriving the answer from the verb table.
     #[must_use]
     pub fn step_args(&self) -> Vec<(u32, StepArg)> {
-        (0..program_index(self.authored_steps()))
-            .flat_map(|step| {
-                self.roles(step)
-                    .into_iter()
-                    .map(move |(arg, _)| (step, arg))
-            })
+        self.rows()
+            .into_iter()
+            .map(|(address, _)| address)
             .collect()
     }
+}
 
-    /// The rows of [`loop_roles`] for authored step `step`, shared.
-    fn roles(&self, step: u32) -> Vec<(StepArg, &Expr)> {
-        let mut out = Vec::new();
-        loop_roles!(self, step, get, out);
-        out
-    }
-
-    /// The rows of [`loop_roles`] for authored step `step`, exclusive.
-    fn roles_mut(&mut self, step: u32) -> Vec<(StepArg, &mut Expr)> {
-        let mut out = Vec::new();
-        loop_roles!(self, step, get_mut, out);
-        out
-    }
-
-    /// The expression at (step, arg), `None` off the loop.
-    fn expr(&self, step: u32, arg: StepArg) -> Option<&Expr> {
-        let (_, expr) = self
-            .roles(step)
-            .into_iter()
-            .find(|(role, _)| *role == arg)?;
-        Some(expr)
-    }
-
-    /// Mutable twin of [`LoopProgram::expr`].
-    fn expr_mut(&mut self, step: u32, arg: StepArg) -> Option<&mut Expr> {
-        let (_, expr) = self
-            .roles_mut(step)
-            .into_iter()
-            .find(|(role, _)| *role == arg)?;
-        Some(expr)
-    }
+impl LoopProgram {
+    row_readers!(loop_roles -> (u32, StepArg));
 }
 
 // ------------------------------------------------------------------
@@ -1430,8 +1405,8 @@ impl LoopProgram {
 // than replaying freely at `T`.
 // ------------------------------------------------------------------
 
-/// **The resolver's leaf**: evaluates one expression of authored step
-/// `step` at the resolution scalar, tagging a refusal with the slot
+/// **The resolver's leaf**: evaluates one expression of a loop
+/// at the resolution scalar, tagging a refusal with the slot
 /// the role table pairs with that expression in `roles`.
 ///
 /// Every resolver below reaches the evaluator through this and names
@@ -1445,13 +1420,12 @@ impl LoopProgram {
 /// carrier arms, which build `roles` from the same binding they then
 /// resolve — the invariant [`role_of`]'s identity lookup rests on.
 fn leaf<'r, T: Decide>(
-    roles: Vec<(StepArg, &'r Expr)>,
+    roles: Vec<((u32, StepArg), &'r Expr)>,
     env: &'r ParamEnv<T>,
     loop_: u32,
-    step: u32,
 ) -> impl Fn(&Expr) -> Result<T, (SlotId, EvalError)> + 'r {
     move |e| {
-        let arg = role_of(&roles, e);
+        let (step, arg) = role_of(&roles, e);
         eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
     }
 }
@@ -1466,7 +1440,7 @@ fn res_chain_step<T: Decide>(
     loop_: u32,
     step: u32,
 ) -> Result<Step<T>, (SlotId, EvalError)> {
-    res_step(s, &leaf(step_rows(s), env, loop_, step))
+    res_step(s, &leaf(step_rows(s, step), env, loop_))
 }
 
 /// Resolves a point's two coordinates through `res`.
@@ -1628,7 +1602,7 @@ impl LoopProgram {
             // A carrier form: its rows and its fields are both read
             // from `self`.
             LoopProgram::Circle { centre, radius } => {
-                let res = leaf(self.roles(0), env, loop_, 0);
+                let res = leaf(self.rows(), env, loop_);
                 Ok(vec![Step::Circle {
                     centre: res_point(centre, &res)?,
                     radius: res(radius)?,
@@ -1640,7 +1614,7 @@ impl LoopProgram {
                 n,
                 phase,
             } => {
-                let res = leaf(self.roles(0), env, loop_, 0);
+                let res = leaf(self.rows(), env, loop_);
                 Ok(vec![Step::CircleSplit {
                     centre: res_point(centre, &res)?,
                     radius: res(radius)?,
@@ -1962,10 +1936,7 @@ impl ProfileProgram {
         for emission in &checked.records.replay.radii {
             let step = program_index(emission.step);
             let arg = radius_arg_of(emission.role);
-            let expr = checked
-                .records
-                .program
-                .expr(step, arg)
+            let expr = find_row(checked.records.program.rows(), (step, arg))
                 .ok_or(StepSegmentsError::RadiusNotAnArgument { step, arg })?;
             if emission.segment >= checked.records.segments {
                 return Err(StepSegmentsError::EmissionOffTheLoop {
@@ -2345,34 +2316,23 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
     }
 }
 
-impl ProfilePayload for ProfileProgram {
-    fn slots(&self) -> Vec<SlotId> {
-        let mut out = Vec::new();
-        for (li, lp) in self.loops.iter().enumerate() {
-            for (step, arg) in lp.step_args() {
-                out.push(SlotId::Profile {
-                    loop_: program_index(li),
-                    step,
-                    arg,
-                });
+/// **The slot table of a profile program**: each loop's role table
+/// ([`loop_roles`]), read through the same borrow and keyed by the
+/// loop's index, in program order.
+macro_rules! program_rows {
+    ($program:expr, $rows:ident, $out:expr) => {{
+        let ProfileProgram { loops, .. } = $program;
+        for (li, lp) in loops.into_iter().enumerate() {
+            let loop_ = program_index(li);
+            for ((step, arg), e) in lp.$rows() {
+                $out.push(((loop_, step, arg), e));
             }
         }
-        out
-    }
+    }};
+}
 
-    fn expr(&self, slot: SlotId) -> Option<&Expr> {
-        let SlotId::Profile { loop_, step, arg } = slot else {
-            return None;
-        };
-        self.loops.get(loop_ as usize)?.expr(step, arg)
-    }
-
-    fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr> {
-        let SlotId::Profile { loop_, step, arg } = slot else {
-            return None;
-        };
-        self.loops.get_mut(loop_ as usize)?.expr_mut(step, arg)
-    }
+impl ProfilePayload for ProfileProgram {
+    row_readers!(program_rows -> (u32, u32, StepArg));
 
     fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
@@ -3051,7 +3011,7 @@ impl LoopProgram {
     ) -> Result<Self, RecordedProgramError> {
         let mut program = Self::from_recorded(steps)?;
         for (&(step, arg), sym) in &notation.units {
-            let Some(slot) = program.expr_mut(step, arg) else {
+            let Some(slot) = find_row(program.rows_mut(), (step, arg)) else {
                 return Err(RecordedProgramError::NotationOffProgram { step, arg });
             };
             // D2 addendum row 4. A recorded program is literal by
