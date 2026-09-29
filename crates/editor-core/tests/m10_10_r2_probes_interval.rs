@@ -231,8 +231,9 @@ fn r2_evidence_every_refused_leaf_of_the_plates_real_study_read_as_its_set() {
 /// side is an arc authored by BULGE (`ArcTo(Bulge)`), a round hole
 /// inside it, and the measure `distance(hole wall, arc wall)` with an
 /// assertion on it. Two variants: the bulge a LITERAL (0.4) with the
-/// hole's centre and radius varying, and the bulge a PARAMETER (the
-/// honest limit rule D states: `atan|b|` against `atan b`).
+/// hole's centre and radius varying, and the bulge a PARAMETER (where
+/// the carrier's span and the pushforward now read one `atan b` atom,
+/// and what stands is the coefficient ring and the radius's `abs`).
 ///
 /// Geometry (metres): chord `(4e-3, ∓2e-3)`, bulge `b` → sagitta
 /// `2e-3·b`, radius `(1 + b²)/(2b)·2e-3`, centre `x = 4e-3 + 2e-3·b −

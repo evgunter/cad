@@ -12,12 +12,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin_on, skin_parameters};
+use sweep::test_support::bulge_arc;
 
 fn ring() -> f64 {
     Band::linear(Tol::witness()).expect("band").zero()
@@ -45,8 +45,7 @@ fn review_arc_exactness_dense_and_signed_turn() {
         // chord endpoint at angle theta from a.
         let theta = 4.0 * f64::atan(bulge);
         let b = Point2::new(theta.cos(), theta.sin());
-        let c = segment_curve(0, SketchSegment::Arc { a, b, bulge }, Affine3::identity())
-            .expect("converts");
+        let c = segment_curve(0, bulge_arc(a, b, bulge), Affine3::identity()).expect("converts");
         let n = 4096usize;
         let mut prev = f64::atan2(0.0, 1.0);
         let mut turn = 0.0f64;
@@ -303,11 +302,7 @@ fn review_half_turn_path_builds_on_the_float_knife_edge() {
     // Half-turn arc: bulge = tan(pi/4) = 1.
     let path = segment_curve(
         0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(0.0, 2.0),
-            bulge: 1.0,
-        },
+        bulge_arc(Point2::new(0.0, 0.0), Point2::new(0.0, 2.0), 1.0),
         Affine3::identity(),
     )
     .expect("path");
