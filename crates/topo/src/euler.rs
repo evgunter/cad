@@ -717,16 +717,19 @@ pub enum EulerOpError {
         /// The single vertex both its endpoints name.
         vertex: VertexKey,
     },
-    /// The clockwise vertex orbit walked from `he` failed to close, or
-    /// reached a half-edge that does not start at `he`'s start vertex —
-    /// tier-1-invalid input (fired by [`Body::kev`] and
-    /// [`Body::kev_describing`], which walk the far vertex's whole fan,
-    /// by [`Body::kef`], [`Body::kemr`] and a strut's [`Body::kev`] for
-    /// the half-edge that would re-anchor `he`'s start vertex, and by a
-    /// fan [`Body::mev`] or [`Body::mev_null`] for a walk from
-    /// `he1` that leaves the split vertex; the mev-specific form for a
-    /// walk that fails to close or misses `he2` is
-    /// [`EulerOpError::FanOrbitBroken`]).
+    /// A plan read `he`'s start vertex's orbit and found it broken —
+    /// tier-1-invalid input. Either the clockwise orbit walk from `he`
+    /// failed to close or reached a half-edge that does not start at that
+    /// vertex (fired by [`Body::kev`], [`Body::kev_describing`] and
+    /// [`Body::kev_merged_members`], which walk the far vertex's whole fan
+    /// from the mate, and by a fan [`Body::mev`] or [`Body::mev_null`] for
+    /// a walk from `he1` that leaves the split vertex; the mev-specific
+    /// form for a walk that fails to close or misses `he2` is
+    /// [`EulerOpError::FanOrbitBroken`]); or a kill's new `emanating` for
+    /// that vertex, read one `next` step from either killed half, starts
+    /// elsewhere, or is `None` while another half-edge still starts there
+    /// (fired by [`Body::kef`], [`Body::kemr`] and the three `kev` doors,
+    /// with `he` the killed half that starts at the vertex).
     OrbitBroken {
         /// The half-edge whose start vertex's orbit is broken.
         he: HalfEdgeKey,
@@ -2557,18 +2560,17 @@ impl<T: Decide> Body<T> {
     }
 
     /// Proves that every member of a closed orbit walk
-    /// ([`Body::vertex_orbit`]), or the one half-edge a kill re-anchors
-    /// `v`'s `emanating` at, starts at `v`, refusing
+    /// ([`Body::vertex_orbit`]), or of any list of half-edges a plan
+    /// takes as `v`'s, starts at `v`, refusing
     /// [`EulerOpError::OrbitBroken`] naming the walk's origin otherwise.
     ///
     /// The walk steps `next(mate(·))` and reads no start vertex, so a
-    /// torn `next` can close it through another vertex's half-edges, and
-    /// a kill's anchor is one such step from the killed half; a plan that
-    /// moves or splices into a vertex's orbit, or re-anchors a vertex,
-    /// proves the half-edges it takes here. The validator
-    /// ([`crate::validate::validate`]) reports the same faults, in pass 6
-    /// for a walk and pass 5 for an anchor. A member that does not
-    /// resolve fails the proof.
+    /// torn `next` can close it through another vertex's half-edges; a
+    /// plan that moves or splices into a vertex's orbit proves its walk
+    /// here, and a kill proves the anchors it writes through
+    /// [`Body::require_kill_anchors`], which calls this. The validator
+    /// ([`crate::validate::validate`]) reports the same fault in pass 6.
+    /// A member that does not resolve fails the proof.
     pub(crate) fn require_orbit_starts_at(
         &self,
         members: &[HalfEdgeKey],
@@ -2583,6 +2585,50 @@ impl<T: Decide> Body<T> {
         } else {
             Err(EulerOpError::OrbitBroken { he: origin })
         }
+    }
+
+    /// Proves the `emanating` writes of a kill that removes the
+    /// half-edges `killed`, one `(vertex, anchor, origin)` per write:
+    /// `Some(anchor)` starts at `vertex`
+    /// ([`Body::require_orbit_starts_at`]), and `None` leaves `vertex`
+    /// with no incidence, meaning every half-edge that starts at it is in
+    /// `killed`. Refuses [`EulerOpError::OrbitBroken`] naming `origin`,
+    /// the killed half that starts at `vertex`, at the first write that
+    /// fails. A kill that moves half-edges onto `vertex` (`kev`'s merged
+    /// fan) proves that anchor by its walk instead, and a kill that
+    /// writes one vertex twice proves both writes.
+    ///
+    /// Each kill reads an anchor one `next` step from a killed half, and
+    /// reads "no anchor" where that step lands on a killed half. A torn
+    /// `next` can put the step on another vertex, or land it on a killed
+    /// half at a vertex that keeps other edges. The orbit walk from the
+    /// killed half takes that same step first, so it closes on the killed
+    /// halves either way; the `None` proof reads every half-edge's start
+    /// instead, bounded by the arena as the kill's orphan sweeps are. The
+    /// validator reports the faults this refuses in pass 5
+    /// (`EmanatingStartMismatch`, `LoneVertexWithIncidence`).
+    pub(crate) fn require_kill_anchors(
+        &self,
+        writes: &[(VertexKey, Option<HalfEdgeKey>, HalfEdgeKey)],
+        killed: &[HalfEdgeKey],
+    ) -> Result<(), EulerOpError> {
+        for &(vertex, anchor, origin) in writes {
+            match anchor {
+                Some(anchor) => {
+                    self.require_orbit_starts_at(core::slice::from_ref(&anchor), vertex, origin)?;
+                }
+                None => {
+                    if self
+                        .half_edges
+                        .iter()
+                        .any(|(he, data)| data.start == vertex && !killed.contains(&he))
+                    {
+                        return Err(EulerOpError::OrbitBroken { he: origin });
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
