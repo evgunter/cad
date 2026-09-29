@@ -2,7 +2,7 @@
 id: mev-fan-plan-trusts-the-orbits-start-vertices
 kind: issue
 title: mev_fan_plan trusts the vertex orbit's start vertices: a torn orbit is carried through a fan mev instead of refused typed, the gap kev_plan closed in PR 3161
-status: open
+status: review
 opened: 2026-09-29
 refs: [kevs-fan-merge-needs-a-re-describing-kill-door, 3161]
 priority: P2

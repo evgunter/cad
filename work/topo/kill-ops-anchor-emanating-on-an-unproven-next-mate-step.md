@@ -32,8 +32,11 @@ its start vertex on trust:
 
 No plan checks the start, so a torn `next` makes the kill write an
 anchor that starts at another vertex (`EmanatingStartMismatch`) and
-return `Ok`. It never panics, because no `unreachable!` reads the
-anchor. But it carries the corruption instead of refusing it typed,
+return `Ok`. With debug assertions off it never panics, because no
+`unreachable!` reads the anchor; with them on (the dev profile, and
+this repo's default release profile) `kef` on its counterexample below
+panics at the tier-1 postcondition `debug_assert` instead. Either way
+it carries the corruption past the plan instead of refusing it typed,
 which is the gap D1's plan-phase contract leaves no room for.
 
 ## Measured (merge base `5ca8d2945e`, release, debug assertions off)
