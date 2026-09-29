@@ -390,10 +390,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   consistency conditions are verified at validate as ε-decisions at the
   validating scalar, never trusted; a stored carrier is carried
   verbatim, including across scalars, and never re-derived from its
-  vertices. An arc may also carry an exactness witness naming which of
-  those conditions its construction proves over the reals: set only by
-  constructions, cleared by every embedding, and read only where an
-  exact identity is registered. Bulge
+  vertices. Where a construction proves one of those conditions exactly
+  over the reals (a circle's vertices, a fillet's tangent points), it
+  registers that identity on the values it built; nothing about it is
+  stored on the arc, and a copied or embedded arc claims nothing. The
+  arc carrier is one type shared by the profile and the B-rep sketch
+  segment, and its radius is the radius the construction gave. Bulge
   (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
   modes, lowered into this form once, at the algebra — not the
   storage. Winding is invisible to users (roles derive from
