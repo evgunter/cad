@@ -2,11 +2,12 @@
 id: carrier-eq-source-rung-reads-orientation-its-own-way
 kind: issue
 title: boolean::carrier_eq::source_rung (curved rung 1) classifies a source pair by same_base plus outward bits, beside source_declaration's orient-based ladder
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P4
 cost: E
 refs: [three-spellings-of-one-chart-answer-the-same-question-differently]
+branch: origin/curve-walk
 ---
 
 
