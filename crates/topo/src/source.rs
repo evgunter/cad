@@ -13,7 +13,7 @@
 //! converse is deliberately NOT claimed — equal bits without shared
 //! source stay unglued (the coincidence ladder's ratified rung (b)).
 //! The bit comparison survives only as debug assertions, read through
-//! [`surface_bits_witness`] and [`data_bits_witness`] — which answer
+//! `surface_bits_witness` and `data_bits_witness` — which answer
 //! nothing at a scalar with no bit channel, so the theorem is asserted
 //! exactly where its premise can be read. Its home is
 //! [`crate::Body::set_surface_source`], against every key of the body
@@ -29,10 +29,10 @@
 //!
 //! - **Do two keys hold one description?** Row carry asks it: a pcurve
 //!   row moves to another surface key only if it is about the value that
-//!   key holds. [`crate::Body::same_chart`] answers from identity — one
+//!   key holds. `Body::same_chart` answers from identity — one
 //!   key, or one shared payload `Arc`.
 //! - **Did the recipe declare two keys one surface?** Gluing and merging
-//!   ask it. [`surface_declaration`] answers from one key or one
+//!   ask it. `surface_declaration` answers from one key or one
 //!   `GeomSource` (N6); the face merge adds the faces' `sense`, since it
 //!   asks whether two faces are one region, and chart-region adds its
 //!   bracketed read of the descriptions.

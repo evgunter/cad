@@ -2343,11 +2343,9 @@ pub(crate) fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface
     use geom::SurfacePairing as P;
     match a.paired_with(b) {
         P::KindsDiffer => false,
-        P::Analytic(data) => data.into_iter().all(|(_, x, y)| {
-            x.scalars()
-                .zip(y.scalars())
-                .all(|(p, q)| exact_pair(p, q))
-        }),
+        P::Analytic(data) => data
+            .into_iter()
+            .all(|(_, x, y)| x.scalars().zip(y.scalars()).all(|(p, q)| exact_pair(p, q))),
         P::Nurbs(x, y) => std::sync::Arc::ptr_eq(x, y),
         P::Approx(x, y) => std::sync::Arc::ptr_eq(x, y),
     }

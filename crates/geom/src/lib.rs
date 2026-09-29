@@ -164,7 +164,7 @@ pub use projection_policy::{
 };
 pub use surfaces::{
     ApproxSurface, ApproxWindow, DatumValue, KnotMirrorError, NetState, NurbsSurface,
-    OffsetCertificate, Surface, SurfaceDatum, SurfacePairing, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection,
-    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, require_ring_torus, ring_torus,
-    torus_tube,
+    OffsetCertificate, Surface, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3,
+    SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
+    require_ring_torus, ring_torus, torus_tube,
 };

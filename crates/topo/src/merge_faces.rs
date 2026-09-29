@@ -1791,12 +1791,16 @@ impl<T: Decide> Body<T> {
         // (`crate::source`'s module docs): kind-agnostic, never numeric.
         let declaration = crate::source::surface_declaration(self, k1, self, k2);
         if same_sense && declaration.one_surface() {
-            // Asserted only where the scalar HAS a bit channel: the rung
-            // is the provenance lookup, the bits are its evidence, and a
-            // scalar with no channel (`Dual`, `Sym`) offers none —
-            // `None` there is not disagreement.
+            // Asserted where the grouping's kind split will not refuse
+            // the pair typed, and only where the scalar HAS a bit
+            // channel: a scalar with no channel (`Dual`, `Sym`) offers
+            // no evidence, and `None` there is not disagreement.
             #[cfg(debug_assertions)]
             if declaration == crate::source::SurfaceDeclaration::SameSource
+                && matches!(
+                    (MergeKind::of(s1), MergeKind::of(s2)),
+                    (Ok(a), Ok(b)) if a == b
+                )
                 && let Some(agree) = crate::source::surface_bits_witness(s1, s2)
             {
                 debug_assert!(

@@ -87,7 +87,7 @@
 
 use std::collections::HashMap;
 
-use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+use geom::{Curve3, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{EdgeDescription, Pcurve};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
@@ -1035,70 +1035,28 @@ impl KeyWriter {
         });
     }
 
-    /// The surface's fields. Exhaustive on purpose: a new variant or
-    /// field is a compile error here, not a silent gap in the key.
+    /// The surface's fields: an analytic kind's through
+    /// [`Surface::analytic_data`], whose exhaustive walk makes a new
+    /// field a datum of the key rather than a silent gap in it.
     fn surface(&mut self, s: &Surface<f64>) {
         self.surface_kind(s);
         match s {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
-                self.p3(*origin);
-                self.v3(*normal);
-                self.v3(*u_ref);
-            }
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => {
-                self.p3(*origin);
-                self.v3(*axis);
-                self.f64(*radius);
-                self.v3(*u_ref);
-            }
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => {
-                self.p3(*apex);
-                self.v3(*axis);
-                self.f64(*half_angle);
-                self.v3(*u_ref);
-            }
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => {
-                self.p3(*center);
-                self.f64(*radius);
-                self.v3(*axis);
-                self.v3(*u_ref);
-            }
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => {
-                self.p3(*center);
-                self.v3(*axis);
-                self.f64(*major_radius);
-                self.f64(*minor_radius);
-                self.v3(*u_ref);
-            }
             Surface::Nurbs(n) => self.nurbs_surface(n),
             // The lane meshes the fit; the description, window and
             // certificate it was fitted against are not read.
             Surface::Approx(a) => self.nurbs_surface(a.fit()),
+            analytic => {
+                let Some(data) = analytic.analytic_data() else {
+                    unreachable!("every kind but the two spline kinds is analytic")
+                };
+                for (_, value) in data {
+                    match value {
+                        DatumValue::Point(p) => self.p3(p),
+                        DatumValue::Direction(v) => self.v3(v),
+                        DatumValue::Scalar(x) => self.f64(x),
+                    }
+                }
+            }
         }
     }
 
