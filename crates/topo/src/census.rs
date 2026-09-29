@@ -98,10 +98,10 @@
 //! runs: the conformal face-pair arm ([`sweep_conformal_patches`]) and
 //! the declared-record confirm arm ([`confirm_curve_and_patch_records`],
 //! its Door 2) each push [`ValidationError::CensusLaneUnsupported`]
-//! naming the pair instead of examining it, and the crossing rung's
-//! backing consult ([`pair_region_verified`]) answers `false`, so a
-//! crossing the pair would have backed stays an
-//! [`ValidationError::UndeclaredContact`]. `validate_pseudomanifold`
+//! naming the pair instead of examining it, and the region-confined
+//! rungs' backing consult ([`pair_region_verified`], for a crossing and
+//! for an edge-on-face bound) answers `false`, so an event the pair
+//! would have backed stays an [`ValidationError::UndeclaredContact`]. `validate_pseudomanifold`
 //! hands `Some(RegionLane::certified())`; its `_structural` twin hands
 //! `None` at every scalar it is called at — a dual's only route, and
 //! an `f64` caller's when it chooses that door.
@@ -147,28 +147,23 @@
 //! post-ratification annotation; `crates/topo/README.md`):
 //! *a declared pair answers exactly for its verified interface — the
 //! overlap region, with material opposition being what "interface"
-//! means for a crossing.* One consult site holds that strength today:
-//! the crossing rung ([`ee_cross_backed`], born at it). Every other
-//! rung is structural-incidence and region-unconfined —
-//! GRANDFATHERED BY NAME, each to be migrated one at a time with its
-//! own measurement: [`Declared::vv_face_backed`] at
-//! [`sweep_vertex_vertex`], [`Declared::vf_face_backed`] at
-//! [`sweep_vertex_face`], [`Declared::ve_face_backed`] at
-//! [`sweep_vertex_edge`], [`ee_bound_backed`]'s face-pair arms, and
-//! [`ef_bound_backed`]'s face-pair arms — the last MEASURED and kept
-//! grandfathered: its confinement refuses the overlap lane's cell
-//! bounds wherever the cut schedule's REACH gap (the edge-on-face
-//! bullet below) puts a bound outside the interface — the declared
-//! straddle seat's own dive cell is bounded at the edge's endpoints —
-//! so the migration waits, by name, on the lane learning
-//! boundary-crossing cuts (scheduled: issue 1500).
+//! means for a crossing.* Two consult sites hold that strength today:
+//! the crossing rung ([`ee_cross_backed`], born at it) and
+//! [`ef_bound_backed`]'s face-pair arms
+//! ([`Declared::vf_face_backed_confined`],
+//! [`Declared::ve_face_backed_confined`]). Every other rung is
+//! structural-incidence and region-unconfined — GRANDFATHERED BY NAME,
+//! each to be migrated one at a time with its own measurement:
+//! [`Declared::vv_face_backed`] at [`sweep_vertex_vertex`],
+//! [`Declared::vf_face_backed`] at [`sweep_vertex_face`],
+//! [`Declared::ve_face_backed`] at [`sweep_vertex_edge`], and
+//! [`ee_bound_backed`]'s face-pair arms.
 //! A grandfathered rung asks whether a declared face pair HOLDS the
 //! entities of the event — one on each side, through boundary
 //! membership and an edge's incidence to the faces it bounds — and
 //! never where on those faces the event lies, so it backs an event on
 //! the entities it holds even where that event lies outside the
-//! pair's own overlap region (the demonstrated reach:
-//! `review_mate4a_r2_probes`' unrelated-pair rows).
+//! pair's own overlap region.
 //! Continuous overlaps — two collinear edges sharing a positive-length
 //! segment, an edge resting in a face's region — are certified by
 //! **reconstruction from their bounding vertex events**:
@@ -205,15 +200,16 @@
 //!   point where some entity of the pair ends, and which side's entity
 //!   that is is a fact about the configuration, not about what a
 //!   declaration can hold.
-//!   The remaining looseness, stated as the REACH gap it is: where the
-//!   face's boundary crosses the edge away from any vertex, that
-//!   crossing is never a bound at all — the overlap lane cuts the
-//!   edge's span only at the face's boundary VERTICES, so one cell
-//!   spans the crossing and is judged from its single midpoint probe.
-//!   The configuration itself is reported by the edge-edge lane, whose
-//!   crossing class takes the unified-strength crossing rung
-//!   ([`ee_cross_backed`] — issue 973 part (b), stage 1 of the
-//!   MATE-4b staging; part (a), this bound rung, was settled first).
+//!   Where the face's boundary crosses the edge away from any vertex,
+//!   the crossing is a bound too: the overlap lane cuts the edge there
+//!   ([`boundary_crossings`]), and the bound is the edge-edge lane's
+//!   `EdgeEdgeCross` event, backed by exactly that lane's rung
+//!   ([`ee_cross_backed`]). Where the crossing boundary edge is a conic
+//!   arc no census lane examines the crossing as an event, so no rung
+//!   backs that bound and the cell is an `UndeclaredContact`. With a
+//!   cut at every place the boundary meets the edge, each cell lies
+//!   inside or outside the face whole, and its midpoint probe answers
+//!   for all of it.
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
@@ -860,10 +856,10 @@ impl Declared {
     /// entities — including outside the declared faces' own overlap
     /// region. That reach is no longer the doctrine, it is the
     /// GRANDFATHER (module docs: the unified strength is the ruled
-    /// sentence, the crossing rung its first instance, and the census
-    /// deliberately holds its rungs to two standards while the named
-    /// migrations land one measured step at a time — issue 1500 is
-    /// `ef_bound_backed`'s scheduled step).
+    /// sentence, and the census deliberately holds its rungs to two
+    /// standards while the named migrations land one measured step at
+    /// a time); [`Declared::ve_face_backed_confined`] is its migrated
+    /// form at the edge-on-face bound.
     fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
@@ -1634,34 +1630,28 @@ fn boundary_vertices_at<T: Decide>(
 }
 
 /// D3 backing for one bound of an edge-on-face overlap (module docs),
-/// at the two granularities a bound can have.
+/// its face-pair arms at the UNIFIED strength: a declared pair backs
+/// the bound only where the bound lies in the pair's verified
+/// interface.
 ///
-/// **Grandfathered at the region-unconfined strength, with its
-/// migration MEASURED** (the module docs' roster): the confined
-/// variant refuses a cell bound the cut schedule's reach gap places
-/// outside the declared pair's interface — an overlap cell is bounded
-/// at the EDGE's own endpoints wherever the face's boundary crosses
-/// the edge away from any vertex, and those endpoints can lie far
-/// outside the region the pair answers for (the declared straddle
-/// seat's dive cell is bounded at its shelf edge's two far corners).
-/// Confinement here therefore waits, by name, on the overlap lane
-/// cutting at boundary crossings — scheduled as issue 1500 — and
-/// until then this rung backs at the same strength as its siblings,
-/// no stronger.
+/// Where a boundary edge of `f` crosses the edge at the bound, the
+/// event is that `EdgeEdgeCross`, and it takes that lane's rung
+/// ([`ee_cross_backed`]); a conic boundary edge's crossing has no rung.
 ///
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
-/// boundary vertex of `f`, face-backed onto `f`, or the vertex is
-/// itself on `f`'s boundary (structural).
+/// boundary vertex of `f`, face-backed onto `f`
+/// ([`Declared::vf_face_backed_confined`]), or the vertex is itself on
+/// `f`'s boundary (structural).
 ///
 /// Where it does not, a boundary vertex of `f` rests at the bound: the
-/// event is a vertex-on-edge, and it takes that lane's rung
-/// ([`Declared::ve_face_backed`]) — the same declared face pair, one
-/// incidence step further out, exactly as [`ee_bound_backed`]'s
-/// asymmetric arm reads it for a collinear overlap. A bound is a bound
-/// of the overlap because some entity ends there; which side's entity
-/// that is, is a fact about the configuration, not about what a
-/// declaration can hold.
+/// event is a vertex-on-edge, and it takes that lane's rung at the
+/// unified strength ([`Declared::ve_face_backed_confined`]) — the same
+/// declared face pair, one incidence step further out, as
+/// [`ee_bound_backed`]'s asymmetric arm reads it (grandfathered there)
+/// for a collinear overlap. A bound is a bound of the overlap because
+/// some entity ends there; which side's entity that is, is a fact
+/// about the configuration, not about what a declaration can hold.
 ///
 /// [`edge_vertex_at`] answers `None` for TWO reasons — an interior
 /// position, and an escalated span decide — and this arm is selected by
@@ -3691,24 +3681,40 @@ impl TouchSite {
         }
     }
 
-    /// The analysis's verdict on the site ([`touch_verdict`]).
+    /// The analysis's verdict on the site ([`touch_verdict`]): a rest
+    /// only where every point the site meets at reads one, and
+    /// otherwise the first point's refusal.
     fn verdict<T: Decide>(self, body: &Body<T>, geo: &Geo<T>, band: Band) -> TouchVerdict {
-        match self.stars(body, geo, band) {
-            Ok((a, b)) => touch_verdict(a, b, band),
-            Err(v) => v,
+        let points = match self.stars(body, geo, band) {
+            Ok(points) => points,
+            Err(v) => return v,
+        };
+        let mut rest = None;
+        for (a, b) in points {
+            match touch_verdict(a, b, band) {
+                v @ TouchVerdict::Rest(_) => {
+                    rest.get_or_insert(v);
+                }
+                v => return v,
+            }
         }
+        rest.unwrap_or(TouchVerdict::InBand)
     }
 
-    /// The two stars the site compares, each as built or as the verdict
-    /// its build refused with; `Err` where the touch point itself does
-    /// not read.
+    /// The two stars the site compares at each point it meets at, each
+    /// as built or as the verdict its build refused with; `Err` where
+    /// no touch point reads. Every site meets at one point but an edge
+    /// in a face, which meets at every cell of its overlap: the cells
+    /// are separate pieces of the face, so no one of them answers for
+    /// another.
     #[allow(clippy::type_complexity)]
     fn stars<T: Decide>(
         self,
         body: &Body<T>,
         geo: &Geo<T>,
         band: Band,
-    ) -> Result<(Result<Star<T>, TouchVerdict>, Result<Star<T>, TouchVerdict>), TouchVerdict> {
+    ) -> Result<Vec<(Result<Star<T>, TouchVerdict>, Result<Star<T>, TouchVerdict>)>, TouchVerdict>
+    {
         let at_vertex = |v: VertexKey| geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt);
         let edge = |e: EdgeKey| {
             geo.edges
@@ -3719,7 +3725,7 @@ impl TouchSite {
         let vertex = |v: VertexKey| Star::vertex(body, geo, v, band);
         let on_edge = |e: EdgeKey, p: Point3<T>| Star::edge(body, geo, e, p, band);
         let in_face = |f: FaceKey, p: Point3<T>| Star::face(body, geo, f, p, band);
-        Ok(match self {
+        Ok(vec![match self {
             Self::VertexVertex(a, b) => (vertex(a), vertex(b)),
             Self::VertexOnEdge(v, e) => (vertex(v), on_edge(e, at_vertex(v)?)),
             Self::EdgeEdge(a, b) => {
@@ -3728,23 +3734,25 @@ impl TouchSite {
             }
             Self::VertexOnFace(v, f) => (vertex(v), in_face(f, at_vertex(v)?)),
             Self::EdgeInFace(e, f) => {
-                // A point of the edge inside the face: the first cell of
-                // the overlap the finding reports, re-derived by the same
-                // walk. A refusal on the way is this touch's own.
+                // Every cell of the overlap the finding reports,
+                // re-derived by the same walk. A refusal on the way is
+                // this touch's own.
                 let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
                 let mut refused = Vec::new();
                 let cells = ef_overlap_cells(body, edge(e)?, fg, geo, band, &mut refused);
-                if !refused.is_empty() {
+                if !refused.is_empty() || cells.is_empty() {
                     return Err(TouchVerdict::InBand);
                 }
-                let p = cells.first().ok_or(TouchVerdict::InBand)?.mid;
-                (on_edge(e, p), in_face(f, p))
+                return Ok(cells
+                    .iter()
+                    .map(|c| (on_edge(e, c.mid), in_face(f, c.mid)))
+                    .collect());
             }
             Self::EdgeCross(a, b) => {
                 let q = ee_cross_point(edge(a)?, edge(b)?);
                 (on_edge(a, q), on_edge(b, q))
             }
-        })
+        }])
     }
 }
 

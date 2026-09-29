@@ -5,15 +5,13 @@
 //! answer at the frozen head, and the assertions pin what was measured
 //! so a later reader can see whether it moved.
 //!
-//! 1. `r2_an_unrelated_declared_pair_backs_the_ef_bound` — the new
-//!    interior arm reads `ve_face_backed(w, e)`, which asks only that
-//!    some declared pair hold a face incident to `w` against a face
-//!    the EDGE bounds. The face `f` whose overlap is being certified is
-//!    never named by the declaration. Two patches between the POST's
-//!    vertical side faces and the SHELF's vertical side face — neither
-//!    of which is the resting pair, and which are not even coplanar
-//!    with each other — back both bounds and retire the hard
-//!    `EdgeFaceOverlap`.
+//! 1. `r2_an_unrelated_declared_pair_backs_no_ef_bound` — two patches
+//!    between the POST's vertical side faces and the SHELF's vertical
+//!    side face, neither of which is the resting pair and which are not
+//!    even coplanar with each other, are incident to both bounds of the
+//!    shelf edge's overlap with the cap. The rung answers only for a
+//!    pair's verified interface, and these pairs have none, so they
+//!    back neither bound and the hard `EdgeFaceOverlap` stands.
 //! 2. `r2_the_touching_boundary_residue_is_not_the_new_arms_doing` —
 //!    the `CensusUnsupported`/`TouchingBoundary` refusal was a property
 //!    of the DECLARED PAIR's region relationship and of
@@ -127,53 +125,54 @@ fn count_ef(cs: &[CensusContact]) -> usize {
         .count()
 }
 
-/// **Probe 1 — the rung's reach, now the GRANDFATHER's documented
-/// anomaly.** The declaration names the post's two vertical side
-/// faces against the shelf's vertical side face. It does NOT name
-/// `post_top` (the face the edge-on-face overlap is ON) and it does
-/// NOT name `shelf_bottom`. Nothing in it asserts a coplanar rest.
+/// **Probe 1 — an unrelated pair backs no bound.** The declaration
+/// names the post's two vertical side faces against the shelf's
+/// vertical side face. It does NOT name `post_top` (the face the
+/// edge-on-face overlap is ON) and it does NOT name `shelf_bottom`.
+/// Nothing in it asserts a coplanar rest.
 ///
-/// Measured at head 72140467: it backs both bounds anyway, and the
-/// hard `EdgeFaceOverlap` on `post_top` is gone. `ve_face_backed(w,
-/// e)` asks for a pair holding SOME face incident to `w` against SOME
-/// face of `e`; the overlap's own face is constrained only by `w`
-/// lying on its boundary.
-///
-/// Under the UNIFIED strength (CONTACT-DESIGN C3/C4's annotation;
-/// MATE-9) this reach is exactly what `ef_bound_backed`'s
-/// grandfathering carries: the rung's region-confined variant was
-/// implemented and MEASURED, and it refuses the overlap lane's cell
-/// bounds wherever the cut schedule's reach gap puts a bound outside
-/// the interface — the declared straddle seat's own dive cell
-/// regresses — so the rung stays grandfathered, this row stays green
-/// as the anomaly's pin, and the migration waits on
-/// boundary-crossing cuts (the grandfather note names it). The
-/// measurement is in MATE-9's PR and in this branch's history.
+/// Each pair is incident to the overlap's bounds — H and B lie on both
+/// faces of each — and the region-confined rung asks more than
+/// incidence: that the pair's own overlap verify through the confirm
+/// pass's two doors. Two perpendicular planes have no such overlap (the
+/// confirm pass refuses the records themselves), so the unrelated pair
+/// backs neither bound and the overlap on `post_top` stands exactly as
+/// it does with no declaration at all, witnesses included.
 #[test]
-fn r2_an_unrelated_declared_pair_backs_the_ef_bound() {
+fn r2_an_unrelated_declared_pair_backs_no_ef_bound() {
     let (body, post_top, _shelf_bottom, side_ha, side_ab, shelf_side) = overhang_seat_full();
-    let bare = undeclared(&errors(&body, &ContactRecords::default(), Tol::witness()));
-    assert_eq!(count_ef(&bare), 3, "the bare baseline: {bare:?}");
-
+    let on_post_top = |errors: &[ValidationError]| -> Vec<String> {
+        errors
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::UndeclaredContact {
+                        contact: CensusContact::EdgeFaceOverlap { face, .. },
+                        ..
+                    } if *face == post_top
+                )
+            })
+            .map(|e| format!("{e:?}"))
+            .collect()
+    };
+    let bare = errors(&body, &ContactRecords::default(), Tol::witness());
+    assert_eq!(count_ef(&undeclared(&bare)), 3, "the bare baseline: {bare:?}");
     let unrelated = errors(
         &body,
         &records(&[(side_ha, shelf_side), (side_ab, shelf_side)]),
         Tol::witness(),
     );
-    // Measured full list at the frozen head: the two declarations are
-    // themselves refused `ContactContradicted` (`bool_plane_parallel`
-    // — they are not parallel planes), yet they still silenced the
-    // census rung. The document refuses either way; what moved is
-    // which lane refuses it.
-    let contacts = undeclared(&unrelated);
-    let dived: Vec<_> = contacts
-        .iter()
-        .filter(|c| matches!(c, CensusContact::EdgeFaceOverlap { face, .. } if *face == post_top))
-        .collect();
-    assert!(
-        dived.is_empty(),
-        "a declaration that never names post_top backed its edge-on-face \
-         overlap anyway: {unrelated:?}"
+    assert_eq!(
+        on_post_top(&unrelated).len(),
+        1,
+        "the shelf edge's one cell in the cap: {unrelated:?}"
+    );
+    assert_eq!(
+        on_post_top(&unrelated),
+        on_post_top(&bare),
+        "a declaration that never names post_top backs none of its \
+         edge-on-face overlap: {unrelated:?}"
     );
 }
 

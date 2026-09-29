@@ -254,13 +254,14 @@ establishes the smooth precondition; the census is otherwise
 sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
-`ve_face_backed`, and the face-pair arms of `ee_bound_backed` and
-`ef_bound_backed` confine by structural incidence only and can back an
-event outside the pair's overlap region. Each migrates one at a time,
-measured; `ef_bound_backed` measured badly because the edge-on-face lane
-cuts cells only at coincident boundary vertices (the D3 reach gap,
-`census.rs` module docs), so its migration waits on boundary-crossing
-cuts.
+`ve_face_backed`, and the face-pair arms of `ee_bound_backed` confine by
+structural incidence only and can back an event outside the pair's
+overlap region. Each migrates one at a time, measured.
+`ef_bound_backed`'s face-pair arms hold the unified strength: the
+edge-on-face lane cuts an edge wherever the face's boundary meets it,
+at a coincident vertex or a crossing, so no cell spans the face's
+boundary, and a declared pair backs a cell bound only inside its
+verified overlap region.
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
 interpenetration until a C6 vocabulary exists; the recourse is separating
@@ -286,7 +287,6 @@ routing); `docs/DISCIPLINES-DESIGN.md`; `crates/geom-brep/README.md`
 ## Open
 
 - The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
-- `ef_bound_backed`'s migration waits on boundary-crossing cuts (1500).
 - `interior_witness`'s budget-exhaustion decline is untyped (1478).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
