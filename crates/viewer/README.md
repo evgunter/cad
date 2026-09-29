@@ -1139,7 +1139,9 @@ The region is taken down to a floor and no further:
 `widgets::message_floor` is the widest number `readout::number`
 returns (`widgets::widest_number`, over `readout::widest_render`) and
 one space after it. Below the floor a message stops narrowing and the
-pane's `ScrollArea::both()` scrolls, and a line never breaks inside a
+pane's `ScrollArea::both()` scrolls — the toolbar's status line, in a
+panel that does not scroll, has a row of its own under the controls
+that scrolls sideways (`app`'s `toolbar_ui`) — and a line never breaks inside a
 number `readout` renders. `widgets::message`'s doc says why the space
 is there and what the floor does not cover, and states the rule for
 which texts are bounded by characters and which by their region.
@@ -1158,7 +1160,9 @@ visible width rather than an infinite one, so a pane that scrolls both
 ways still wraps its sentences instead of answering with a scrollbar —
 and `app`'s `the_toolbars_status_line_wraps_under_itself_rather_than_at_the_windows_edge`
 measures the status line in the real toolbar, which is where the
-second symptom was reported.
+second symptom was reported, with
+`the_toolbars_status_line_is_drawn_inside_the_panel_at_every_width` and
+`below_the_floor_the_toolbars_status_line_scrolls_to_the_rest` beside it.
 
 **Startup is split by what it needs, and the two context-wide styles
 are on the deviceless side.** `ViewerApp::new` takes an

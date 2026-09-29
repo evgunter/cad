@@ -1450,14 +1450,30 @@ impl ViewerApp {
     /// costs a second line only at widths where the alternative was a
     /// control nobody could click.
     ///
+    /// **The status line is a row of its own, under the controls, and
+    /// that row scrolls.** It is a [`crate::widgets::message`], whose
+    /// floor assumes a region that scrolls, and the panel does not; so
+    /// the row is a horizontal scroll area the width of the panel, and
+    /// a window narrower than the floor scrolls the line rather than
+    /// drawing it past the panel. The row also fixes where the line
+    /// begins: at the panel's left edge, at every width, rather than
+    /// wherever the wrapping row's cursor fell.
+    ///
+    /// **The document's name is truncated at the panel's edge**, with
+    /// the whole name on hover: the user chose it, so nothing here
+    /// bounds its width, and it is a name rather than a sentence.
+    ///
     /// [`Refusal::GestureInFlight`]: crate::session::Refusal::GestureInFlight
     fn toolbar_ui(&mut self, ui: &mut egui::Ui, ops: &mut Vec<SessionOp>, chosen: &mut Theme) {
+        // Read before the controls: a control laid out past the
+        // panel widens this `Ui`, and the status row must not follow.
+        let panel_width = ui.available_width();
         ui.horizontal_wrapped(|ui| {
             // What is OPEN, not what the program is called: the
             // window title already carries the application's name,
             // and a toolbar that repeats it tells a user nothing
             // they cannot see in their own title bar.
-            ui.label(document_name(self.session.path()));
+            ui.add(egui::Label::new(document_name(self.session.path())).truncate());
             ui.separator();
             // The New… control (GAUTH-1): one name field, because
             // the document id is derived from the name — see
@@ -1628,7 +1644,7 @@ impl ViewerApp {
                         ui.spinner();
                     }
                     // Two clauses in a wrapping row, so a sentence:
-                    // `widgets::message`, like the status line.
+                    // `widgets::message`.
                     crate::widgets::message(ui, CANCELED_LINE);
                     if ui.button("Re-evaluate").clicked() {
                         ops.push(SessionOp::Reevaluate);
@@ -1755,13 +1771,14 @@ impl ViewerApp {
             if let Some(badge) = frame::prefs_badge(self.store.unusable().as_ref()) {
                 draw_badge(ui, &self.theme, &badge);
             }
-            if let Some(status) = &self.status {
-                ui.separator();
-                // A sentence, in this chrome's one WRAPPING row —
-                // the case `widgets::message`'s doc calls the second.
-                crate::widgets::message(ui, status.text());
-            }
         });
+        if let Some(status) = &self.status {
+            ui.separator();
+            egui::ScrollArea::horizontal()
+                .id_salt("viewer_status_line")
+                .max_width(panel_width)
+                .show(ui, |ui| crate::widgets::message(ui, status.text()));
+        }
     }
 }
 
@@ -2561,6 +2578,9 @@ mod tests {
         /// Where the sentence [`toolbar_drawn`] looked for landed, one
         /// rect per line, empty when it was given none.
         status: Vec<egui::Rect>,
+        /// The clip rect that sentence was painted under: the part of
+        /// a line outside it is not on screen.
+        status_clip: egui::Rect,
     }
 
     /// A status line longer than a narrow window's toolbar row, in the
@@ -2608,6 +2628,19 @@ mod tests {
         prepare: impl FnOnce(&mut ViewerApp),
         sentence: Option<&str>,
     ) -> Row {
+        toolbar_driven(width, prepare, sentence, |_| Vec::new())
+    }
+
+    /// [`toolbar_drawn`], then one frame per batch of events `input`
+    /// hands back — it is shown the row the frame before measured,
+    /// and an empty batch ends the drive — with `sentence` read off
+    /// the last frame.
+    fn toolbar_driven(
+        width: f32,
+        prepare: impl FnOnce(&mut ViewerApp),
+        sentence: Option<&str>,
+        mut input: impl FnMut(&Row) -> Vec<egui::Event>,
+    ) -> Row {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
@@ -2617,13 +2650,21 @@ mod tests {
             available: f32::NAN,
             panel: egui::Rect::NOTHING,
             status: Vec::new(),
+            status_clip: egui::Rect::NOTHING,
         };
-        for _ in 0..2 {
+        let mut frame = 0;
+        loop {
+            let events = if frame < 2 { Vec::new() } else { input(&row) };
+            if frame >= 2 && events.is_empty() {
+                break;
+            }
+            frame += 1;
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
                     egui::vec2(width, 600.0),
                 )),
+                events,
                 ..Default::default()
             };
             let app = &mut app;
@@ -2652,12 +2693,30 @@ mod tests {
                 })
                 .map(|landed| landed.rows)
                 .unwrap_or_default();
+            row.status_clip = sentence
+                .and_then(|text| clip_of(&output.shapes, text))
+                .unwrap_or(egui::Rect::NOTHING);
             // Nothing here paints, so the frame's texture delta is
             // dropped rather than uploaded, and epaint refuses a drop
             // it did not see taken.
             output.textures_delta.clear();
         }
         row
+    }
+
+    /// The clip rect the text run `text` was painted under.
+    fn clip_of(shapes: &[egui::epaint::ClippedShape], text: &str) -> Option<egui::Rect> {
+        fn holds(shape: &egui::Shape, text: &str) -> bool {
+            match shape {
+                egui::Shape::Text(run) => run.galley.text() == text,
+                egui::Shape::Vec(shapes) => shapes.iter().any(|shape| holds(shape, text)),
+                _ => false,
+            }
+        }
+        shapes
+            .iter()
+            .find(|clipped| holds(&clipped.shape, text))
+            .map(|clipped| clipped.clip_rect)
     }
 
     /// Where the toolbar's canceled line landed in a window `width`
@@ -2686,11 +2745,11 @@ mod tests {
         )
     }
 
-    /// **The canceled line wraps as the status line does**: whole, at
-    /// the row's own left edge, and never split between the end of one
-    /// line of the toolbar and the start of the next.
+    /// **The canceled line wraps whole**: at the row's own left edge,
+    /// and never split between the end of one line of the toolbar and
+    /// the start of the next.
     ///
-    /// It sits in the same wrapping row as the status line, where
+    /// It sits in the toolbar's wrapping row, where
     /// `egui::Label::layout_in_ui` starts a label beside the widget
     /// before it and puts its second line at the panel's left edge.
     /// Where the line falls on the row moves with the window, so the
@@ -3046,16 +3105,11 @@ mod tests {
     }
 
     /// **And the STATUS LINE wraps under itself**, in the real
-    /// toolbar, which is Ev's second symptom measured where he saw it.
-    ///
-    /// Every refusal this chrome raises reaches the line
-    /// (`frame::apply`), and the toolbar is this crate's one wrapping
-    /// row: egui starts a wrapped label beside the widget before it
-    /// and puts every line after the first at the left edge of the
-    /// PANEL, which for a top panel is the window's. So the reading
-    /// that answers the symptom is not "it fits" — it is that the
-    /// lines begin under EACH OTHER, well right of the window's edge,
-    /// where the reader's eye is.
+    /// toolbar, which is Ev's second symptom measured where he saw it:
+    /// egui starts a label in a wrapping row beside the widget before
+    /// it and puts every line after the first at the panel's left
+    /// edge. So the reading that answers the symptom is not "it fits"
+    /// — it is that the lines begin under EACH OTHER.
     #[test]
     fn the_toolbars_status_line_wraps_under_itself_rather_than_at_the_windows_edge() {
         let row = toolbar_with(NARROW, Some(STATUS));
@@ -3077,18 +3131,6 @@ mod tests {
              of drift across {:?})",
             row.status
         );
-        // Measured, and it is what `widgets::message`'s doc predicts:
-        // at this width the galley is wider than what is left on the
-        // line, so the placer moves the MESSAGE WHOLE to the next
-        // line. Every line then begins at the row's own left edge —
-        // together, which is the difference from the defect, where
-        // only the first line is indented to the cursor.
-        assert!(
-            (first - row.panel.left()).abs() <= SLACK,
-            "the whole message moved to its own line rather than splitting \
-             across two ({first} vs panel {:?})",
-            row.panel
-        );
         // **And the width it wrapped at is the WINDOW's**, which is
         // the reading that says the rows above can fail: a wrap at a
         // constant, or at anything but the row it is in, would read
@@ -3101,17 +3143,131 @@ mod tests {
              ({:?})",
             wide.status
         );
-        let past = row
+    }
+
+    /// **What of the status line is on screen lies inside the panel, at
+    /// every width**, the ones below the message floor included.
+    ///
+    /// The sweep runs from below the floor to past a half-tiled
+    /// desktop, in steps fine enough to put the controls' last line at
+    /// every position the status line could follow it from.
+    #[test]
+    fn the_toolbars_status_line_is_drawn_inside_the_panel_at_every_width() {
+        for width in (0..=26).map(|step| 120.0 + 20.0 * step as f32) {
+            let row = toolbar_with(width, Some(STATUS));
+            assert!(
+                !row.status.is_empty(),
+                "the status line was painted at a {width}-point window"
+            );
+            for line in &row.status {
+                assert!(
+                    (line.left() - row.panel.left()).abs() <= SLACK,
+                    "at a {width}-point window every line of the status begins at the \
+                     panel's left edge ({line:?}, panel {:?})",
+                    row.panel
+                );
+                let shown = line.right().min(row.status_clip.right());
+                assert!(
+                    shown <= row.panel.right() + SLACK,
+                    "at a {width}-point window the status line is on screen {} points past \
+                     the panel ({line:?} under clip {:?}, panel {:?})",
+                    shown - row.panel.right(),
+                    row.status_clip,
+                    row.panel
+                );
+            }
+        }
+    }
+
+    /// **Below the floor the status line scrolls**: it is laid out at
+    /// the floor, wider than the panel, and scrolling it brings the
+    /// rest into the panel.
+    #[test]
+    fn below_the_floor_the_toolbars_status_line_scrolls_to_the_rest() {
+        let width = 150.0;
+        let at_rest = toolbar_with(width, Some(STATUS));
+        let widest = at_rest
             .status
             .iter()
-            .map(|line| line.right() - row.panel.right())
+            .map(|line| line.right())
             .fold(f32::NEG_INFINITY, f32::max);
         assert!(
-            past <= SLACK,
-            "and no line reaches past the window ({past} points past, panel {:?}, \
-             lines {:?})",
-            row.panel,
+            widest > at_rest.panel.right() + SLACK,
+            "at a {width}-point window the status is laid out wider than the panel, at the \
+             floor ({widest} against panel {:?})",
+            at_rest.panel
+        );
+        let mut step = 0;
+        let scrolled = toolbar_driven(
+            width,
+            |app| {
+                app.status = Some(crate::frame::Message::new(
+                    crate::frame::Subject::Document,
+                    STATUS,
+                    crate::frame::Retold::Again,
+                ));
+            },
+            Some(STATUS),
+            |row| {
+                let Some(first) = row.status.first() else {
+                    return Vec::new();
+                };
+                // A sideways wheel over the line, then frames for
+                // egui's smoothed scroll to spend it in.
+                let over = egui::pos2(row.panel.center().x, first.center().y);
+                step += 1;
+                match step {
+                    1 => vec![
+                        egui::Event::PointerMoved(over),
+                        egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: egui::vec2(-60.0, 0.0),
+                            phase: egui::TouchPhase::Move,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ],
+                    2..=40 => vec![egui::Event::PointerMoved(over)],
+                    _ => Vec::new(),
+                }
+            },
+        );
+        let moved = at_rest.status[0].left() - scrolled.status[0].left();
+        assert!(
+            moved > SLACK,
+            "a sideways scroll over the status line moves it ({moved} points; at rest {:?}, \
+             scrolled {:?})",
+            at_rest.status,
+            scrolled.status
+        );
+    }
+
+    /// **The document's name is cut at the panel's edge**: the user
+    /// chose it, so it can be wider than any window.
+    #[test]
+    fn a_long_document_name_is_truncated_inside_the_panel() {
+        let name = "a document name its author made long enough to run past any narrow toolbar";
+        let path = std::env::temp_dir().join(format!("{name} {}.pncad", std::process::id()));
+        let shown = super::document_name(Some(&path));
+        let row = toolbar_drawn(
+            NARROW,
+            |app| {
+                let outcome = app.session.perform(SessionOp::Save(path.clone()));
+                assert!(outcome.refusal.is_none(), "the fixture saves: {outcome:?}");
+            },
+            Some(&shown),
+        );
+        std::fs::remove_file(&path).expect("the fixture removes the document it saved");
+        assert_eq!(
+            row.status.len(),
+            1,
+            "the name is one line: {:?}",
             row.status
+        );
+        assert!(
+            row.status[0].right() <= row.panel.right() + SLACK,
+            "the name ends inside the panel ({:?}, panel {:?})",
+            row.status[0],
+            row.panel
         );
     }
     /// The context startup installed onto, and the app it assembled.
