@@ -371,3 +371,43 @@ fn an_old_file_is_refused_typed() {
         other => panic!("an old transform must refuse typed, got {other:?}"),
     }
 }
+
+/// **A literal frame compares by bits** (D7): a transform's matrix
+/// step and an explicit rule's listed frame differing only in a signed
+/// zero are two nodes to `Node::bit_eq`, as they are to the content
+/// key, and a saved literal reads back to its own bits.
+#[test]
+fn a_literal_frame_compares_by_bits() {
+    let signed = Frame::translation([-0.0, 0.0, 0.25]);
+    let plain = Frame::translation([0.0, 0.0, 0.25]);
+    let body = RecipeNodeId(3);
+    let transform = |f: &Frame| -> Node<editor_core::ProfileProgram> {
+        Node::Transform {
+            input: body,
+            placement: Placement::literal(f),
+        }
+    };
+    assert!(transform(&signed).bit_eq(&transform(&signed)));
+    assert!(
+        !transform(&signed).bit_eq(&transform(&plain)),
+        "a transform's -0.0 is not its 0.0"
+    );
+    let group =
+        |f: &Frame| -> Node<editor_core::ProfileProgram> { Node::placed_union_at(body, vec![*f]) };
+    assert!(
+        !group(&signed).bit_eq(&group(&plain)),
+        "an explicit rule's -0.0 is not its 0.0"
+    );
+
+    let (doc, input) = cube("placement-bits");
+    let (doc, _) = insert(
+        doc,
+        Node::Transform {
+            input,
+            placement: Placement::literal(&signed),
+        },
+    );
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
+    assert!(back.bit_eq(&doc), "the literal round-trips to its own bits");
+}
