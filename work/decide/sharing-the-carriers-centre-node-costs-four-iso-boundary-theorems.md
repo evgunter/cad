@@ -2,8 +2,9 @@
 id: sharing-the-carriers-centre-node-costs-four-iso-boundary-theorems
 kind: issue
 title: the pushforward sharing the carrier's centre node costs sym_thin_strip four pcurve_iso_boundary theorems (Theorem -> NumericZero, outcome unchanged)
-status: open
+status: closed
 opened: 2026-09-25
+closed: 2026-09-29
 ---
 
 
@@ -61,3 +62,16 @@ order is fixed per build. Invariance under a re-ordering that leaves
 the forms unchanged does not hold. Marked for DECIDE's triage: whether
 a node frozen under one decision's walk should be re-attempted under
 another's, and whether a row should pin order-invariance on a fixture.
+
+## Closed by the merge onto main (2026-09-29)
+
+Merged onto main at 48b767651, where tier 3's check 1 reads every edge
+carrier's datums inside the session, the four come back: at every ε the
+regenerated digest reads `sym_thin_strip validate_geometric` `sz=26
+num=634`, main's own counts. What still moves against main is the
+`frozen` column alone, down on both sym-session rows (`sym_arc_loft`
+685 → 656 / 599 → 570 / 670 → 641, `sym_thin_strip` 860 → 803 /
+825 → 768 / 858 → 801 at ε = 1e-6 / 1e-9 / 1e-12). The loss was a
+traversal-order effect, as the triage note guessed, and the carrier pass
+now interns the shared node before the domain-end test meets it. Nothing
+is left to triage.

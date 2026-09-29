@@ -192,7 +192,6 @@ pub(crate) fn fold_shell_error<T: Real>(
             gap: end(gap, Infimum),
             needed: end(needed, Supremum),
         },
-        E::ChartSpansSolids { face, other } => E::ChartSpansSolids { face, other },
         E::ChartSenseMixed { face, other } => E::ChartSenseMixed { face, other },
         E::Face { face, error } => E::Face {
             face,
@@ -228,6 +227,7 @@ fn fold_replace_face_error<T: Real>(
     use BracketEnd::{Infimum, Supremum};
     use ReplaceFaceError as R;
     match error {
+        R::Band { error } => R::Band { error },
         R::StaleFace { face } => R::StaleFace { face },
         R::Corrupt => R::Corrupt,
         R::Offset { face, error } => R::Offset {
@@ -279,6 +279,17 @@ fn fold_replace_face_error<T: Real>(
             edge,
             kind,
             other_kind,
+        },
+        R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
+        } => R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
         },
         R::FittedBoundaryUnsupported { edge, what } => R::FittedBoundaryUnsupported { edge, what },
         R::CarrierLaneUnsupported { edge, what } => R::CarrierLaneUnsupported { edge, what },

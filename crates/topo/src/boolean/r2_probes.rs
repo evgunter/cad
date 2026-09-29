@@ -92,7 +92,7 @@ fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f6
         }
         // An in-band escalation is the honest decline; only the rung-5
         // `Invalid` (constructed ≠ certified) is a broken premise.
-        Err(e) => (None, matches!(e.margin, geom_core::MarginDiag::Invalid)),
+        Err(e) => (None, e.margin.is_invalid()),
     }
 }
 

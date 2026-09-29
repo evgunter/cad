@@ -32,10 +32,11 @@
 //!   a wrong attribution marks confidently wrong geometry and a
 //!   missing one only falls back.
 //!
-//! An op that emits no segment at all (a `Transform`, a split-intact
-//! entity) needs no arm here: it leaves the ORIGINAL minting node in
-//! [`StableName::node`] by construction, so the walk answers it
-//! without ever seeing the transform.
+//! An op that emits no segment at all (a `Transform`, a `Part`'s
+//! projection, a split-intact entity — the set `role.rs`'s
+//! `verbatim_edge` classifies) needs no arm here: it leaves the
+//! ORIGINAL minting node in [`StableName::node`] by construction, so
+//! the walk answers it without ever seeing the op.
 
 use crate::names::role::{RoleSeg, StableName, name_free_seg};
 use crate::node::RecipeNodeId;
@@ -122,8 +123,8 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
-        | RoleSeg::BandSlit(_)
+        | RoleSeg::BandCross { .. }
+        | RoleSeg::BandSlit { .. }
         // A shell's cavity twin, rim and hole rim are new entities the
         // op worked AGAINST a source: the twin is the source's inward
         // offset, not the source, and a rim is the annulus the source

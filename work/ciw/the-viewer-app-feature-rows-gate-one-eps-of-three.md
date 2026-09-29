@@ -1,11 +1,11 @@
 ---
 id: the-viewer-app-feature-rows-gate-one-eps-of-three
 kind: issue
-title: The viewer's app-feature rows run at one eps row of the three the matrix gates, and the red that sat in the gap was found by hand, not by CI
+title: The viewer's app-feature rows run at the default eps only, per-PR and nightly, and the red that sat in the gap was found by hand, not by CI
 status: open
 opened: 2026-09-21
 priority: P2
-cost: D
+cost: E
 ---
 
 
@@ -16,23 +16,18 @@ at `eps = 1e-6` in hosted CI. Running the viewer suite at all three
 eps rows locally then turned up a SECOND red that hosted CI does not
 see at all.
 
-**The gap.** `.github/workflows/ci.yml` has two ways viewer rows run:
+**The gap.** The viewer's app-gated rows (everything behind
+`#[cfg(feature = "app")]` — `viewer::pane`, `viewer::app`,
+`viewer::gpu`) run in exactly one place: `ci.yml`'s `viewer` job,
+step `viewer app-feature rows (chrome + gpu pipeline smoke)`, which is
+`cargo nextest run --profile ci -p viewer --features app` with **no
+`CAD_TOLERANCE_EPS`**. The nightly's `full-suite` job runs every eps
+row but at default features, so none of these rows is in it; its
+`viewer-toolkit` job runs clippy and rustdoc at the app feature and no
+tests.
 
-- the `test (eps = …)` matrix, which runs the nextest ARCHIVE. The
-  archive is built at DEFAULT features, deliberately and with the
-  argument written out in the job's own comment ("THE APP-FEATURE
-  TEST ROW, AND WHY IT IS NOT `--features app` ON THE ARCHIVE"), so
-  everything behind `#[cfg(feature = "app")]` — `viewer::pane`,
-  `viewer::app`, `viewer::gpu` — is absent from all twelve of them.
-- the `viewer app-feature rows (chrome + gpu pipeline smoke)` step in
-  `rustfmt + rustdoc (gate) + wasm32`, which is
-  `cargo nextest run -p viewer --features app` and carries **no
-  `CAD_TOLERANCE_EPS`**, so it is the default row and only that.
-
-So the app-gated half of the viewer is gated at **one** of the three
-eps rows the run otherwise gates everywhere. That is the residue of
-`work/chrome/viewer-chrome-not-in-nextest-archive.md` (closed, #1755):
-that row bought the rows a seat, and the seat is single-eps.
+So the app-gated half of the viewer runs at **one** of the three eps
+rows every other suite runs at, nightly if not per-PR.
 
 ## The red that sat in the gap, and what closes it
 
@@ -103,20 +98,17 @@ own `expect` — a multiplier outside the admissible window reds the row
 at every ε — not this sweep. A second ε-relative fixture added later
 would be just as invisible, and nothing counts them.
 
-## What a fix would have to decide
+## The fix
 
-The eps rows exist because a tolerance is a runtime parameter and a
-row can be true at one value and false at another — which the red
-above is an instance of. Adding `CAD_TOLERANCE_EPS` to the app-feature step
-three times costs three runs of a row whose slowest member builds
-every GPU pipeline on a real device, in a job that already holds the
-codegen. Cheaper shapes exist: run the two non-default rows without
-the `gpu` smoke, or shard the app rows into the `test` matrix behind a
-second archive. **Not adjudicated here**, and the measurement the
-closed row above refused to pay (a second archive at `--features app`,
-+179 MB per leg) is the one number a decision needs.
+The eps rows beyond the default belong in the nightly
+(`work/ciw/latency-cut.md`): a step in `nightly.yml`'s `viewer-toolkit`
+job running `cargo nextest run -p viewer --features app` at
+`CAD_TOLERANCE_EPS=1e-6` and `1e-12`. The `gpu::` smoke needs a Vulkan
+adapter; either install lavapipe there as `ci.yml`'s `viewer` job does,
+or skip `gpu::` at the non-default rows, since the pipeline smoke is not
+eps-sensitive.
 
 ## Fence
 
-`.github/workflows/ci.yml` is CIW's. The red row itself is chrome's
+`.github/workflows/nightly.yml` is CIW's. The red row itself is chrome's
 and view's, filed there.

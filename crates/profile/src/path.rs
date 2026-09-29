@@ -839,10 +839,10 @@ pub enum PathError<T: Real> {
     /// recourse, and it is now the same SHAPE as the tangent class's:
     /// if the cusp is intended, author it structurally with
     /// `.cusp()`, which reverses the incoming ray exactly and DECLARES
-    /// the joint; otherwise move the geometry. The declaration is what
-    /// the kernel's material-wedge invariant asks for at rest (D1's
-    /// tier-3 arm), and it is never inferred from a margin — which is
-    /// why an authored near-reverse still refuses here.
+    /// the joint; otherwise move the geometry. The declaration is where
+    /// a cusp's intent lives — D1 declares it where the tangency is
+    /// created and never infers it from a margin — which is why an
+    /// authored near-reverse still refuses here.
     JunctionCusp {
         /// The classified turn margin sin φ · arm, meters.
         margin: T,
@@ -5452,10 +5452,6 @@ mod fillet_stored_form {
     /// The fillet radius every corner below is rounded with.
     const R: f64 = 0.2;
 
-    fn p2(x: f64, y: f64) -> Point2<f64> {
-        Point2::new(x, y)
-    }
-
     /// The arrival leg's carrier. The door's fillet arc is tangent to it
     /// at `t2`, so the carrier's unit tangent there plus the turn sense
     /// reconstructs the centre the door computed — `fillet_arc_carrier`'s
@@ -5649,8 +5645,8 @@ mod fillet_stored_form {
     /// origin, the corner sits at (4, 0), the arrival leaves it at
     /// `theta`, anchored three units along.
     fn line_line(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-        let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-        Open.at(p2(0.0, 0.0))
+        let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+        Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, Tol::witness())?
             .fillet(R, Tol::witness())?
             .at(anchor, Tol::witness())?
@@ -5663,7 +5659,7 @@ mod fillet_stored_form {
     /// The line × arc corner's arrival circle: radius 2, counterclockwise
     /// tangent (cos θ, sin θ) at the corner (4, 0).
     fn line_arc_centre(theta: f64) -> Point2<f64> {
-        p2(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
+        Point2::new(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
     }
 
     /// A line × arc corner turning by `theta`: the east ray from the
@@ -5672,7 +5668,7 @@ mod fillet_stored_form {
         let c = line_arc_centre(theta);
         let start = c + Vec2::new(2.0 * theta.cos(), 2.0 * theta.sin());
         Open.at(start)
-            .line_to(p2(0.0, 0.0), Tol::witness())?
+            .line_to(Point2::new(0.0, 0.0), Tol::witness())?
             .toward(1.0, 0.0, Tol::witness())?
             .fillet_arc(
                 R,
@@ -5693,15 +5689,15 @@ mod fillet_stored_form {
     fn arc_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         Open.arc_fillet_arc(
             Center {
-                c: p2(-theta, 0.0),
+                c: Point2::new(-theta, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0 - theta, 0.0),
+                p: Point2::new(2.0 - theta, 0.0),
             },
             R,
             Center {
-                c: p2(theta, 0.0),
+                c: Point2::new(theta, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(theta - 2.0, 0.0),
+                p: Point2::new(theta - 2.0, 0.0),
             },
             Tol::witness(),
         )?

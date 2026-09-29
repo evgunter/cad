@@ -1,29 +1,22 @@
-//! **The teapot's document, tabulated** — the class behind the scene's
-//! sixth finding, and the guard its two-request roll owes.
+//! **The teapot's document, tabulated** — the one-request roll the
+//! scene ships, held to the class and to the kernel door.
 //!
-//! `demos/tour/src/teapot.rs` pins the finding LIVE, on the lid's own
-//! three rims: the one-request `Node::Fillet` is attempted on every
-//! pass and its `Naming(Duplicate)` asserted. A pin on one selection
-//! says the door refused THAT selection. This file is the other half —
-//! the claim the scene's prose makes about the CLASS, executed:
-//!
-//! 1. **The collision is not "any two ADJACENT rims".** A band slits
-//!    ONE support's seam meridian, so two rims collide exactly when
-//!    their bands slit the SAME one. On this lid that is the pair
-//!    `{1, 2}` and nothing else among the rims that roll: `{1, 3}`,
-//!    `{1, 4}`, `{2, 3}`, `{2, 4}` and `{3, 4}` all compose, and two
-//!    of those — `{2, 3}` and `{3, 4}` — are ADJACENT. Adjacency is
-//!    necessary and not sufficient, which is what the filed issue's
-//!    first cut got wrong.
-//! 2. **The two requests build what the kernel's one request builds.**
-//!    The scene splits the roll because the document layer cannot NAME
-//!    the one-request output, and the whole weight of that deviation
-//!    rests on the two spellings being the same body. So they are
-//!    compared: same census, the three bands' stored `(station, major,
-//!    minor)` bit for bit, and the mass properties to a relative
-//!    1e-14. What they do NOT share is the face ORDER, which is the
-//!    only thing the conversion moved and is recorded here rather than
-//!    left to the tess-budget diff to imply.
+//! 1. **Every pair of the lid's rims composes in ONE request**, and so
+//!    do the scene's three. A band slits — and its trimline crosses —
+//!    ONE support's seam meridian, so two rims at the two ends of one
+//!    meridian segment put two slits and two crossings on one source
+//!    meridian. On this lid those pairs are `{1, 2}` (the flange cone's
+//!    seam) and `{5, 0}` (the vent's). Their names tell them apart by
+//!    the BAND that made each: those pairs build, and the two slits
+//!    and two crossings on the flange seam carry that seam and one
+//!    band each.
+//! 2. **The one request builds the kernel's one-request body**: same
+//!    census, the three bands' stored `(station, major, minor)` bit for
+//!    bit, the mass to a relative 1e-14 — and the same face ORDER,
+//!    which is what the tess-budget rows and the uv sheet's cells key
+//!    on.
+//! 3. **The names are a function of the recipe's names, not of its
+//!    numbers**: the rolled lid's name set at two radii is one set.
 //!
 //! The meridian and the constants are re-spelled here because a demo
 //! binary's module cannot be imported by an integration test — the
@@ -36,15 +29,15 @@
 use core::f64::consts::TAU;
 
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram, Node,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply,
-    evaluate,
+    CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Expr,
+    LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    ValuePayload, apply, evaluate, split,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
-use pncad::prelude::{StableName, fillet_edges, query};
+use pncad::prelude::{EntityKind, MeridianEnd, RoleSeg, StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
-use pncad::select::{ProfilePieces, band_rim, carried, edge_name};
+use pncad::select::{ProfilePieces, band_rim, edge_name};
 use pncad::topo::{Body, EdgeKey};
 
 // ---- the lid's stations, from `src/teapot.rs` ----
@@ -110,7 +103,11 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -
 
 /// A fresh document carrying the sharp lid, and that node's id.
 fn sharp_lid(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid", tol);
+    sharp_lid_in(Doc::empty_derived("teapot-lid", tol), tol)
+}
+
+/// [`sharp_lid`] appended to `doc`, whatever it already holds.
+fn sharp_lid_in(mut doc: Doc<ProfileProgram>, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let plane = insert(
         &mut doc,
         Node::Datum(Datum::Frame {
@@ -209,22 +206,35 @@ fn rim(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> Stable
     band_rim(lid, piece)
 }
 
-/// How a refusal spells the seam meridian of the flange cone — the
-/// sharp lid's meridian segment 1.
-fn flange_seam(tol: Tol) -> String {
-    let (doc, lid) = sharp_lid(tol);
-    let piece = pieces_of(&doc, lid, tol)
-        .edge(0, 1)
-        .expect("segment 1 is the meridian's");
-    format!("Meridian(Seam, {piece:?})")
+/// The seam meridian of segment `k` of the lid.
+fn seam_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, k: usize, tol: Tol) -> StableName {
+    let piece = pieces_of(doc, lid, tol)
+        .edge(0, k)
+        .expect("the segment is the meridian's");
+    StableName {
+        kind: EntityKind::Edge,
+        node: lid,
+        path: vec![RoleSeg::Meridian(MeridianEnd::Seam, piece)],
+    }
+}
+
+/// The lid rolled at `roll` over the rims at `vs` in ONE `Node::Fillet`
+/// request: the document, the sharp lid's id and the rolled node's.
+fn rolled_lid(
+    vs: &[u32],
+    roll: f64,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
+    let (mut doc, lid) = sharp_lid(tol);
+    let sel: Vec<StableName> = vs.iter().map(|&v| rim(&doc, lid, v, tol)).collect();
+    let rolled = insert(&mut doc, Node::fillet(lid, len(roll), sel), tol);
+    (doc, lid, rolled)
 }
 
 /// One `Node::Fillet` request over the rims at `vs`: the census it
 /// built, or the refusal it answered.
-fn roll_once(vs: &[u32], tol: Tol) -> Result<(usize, usize, usize), String> {
-    let (mut doc, lid) = sharp_lid(tol);
-    let sel: Vec<StableName> = vs.iter().map(|&v| rim(&doc, lid, v, tol)).collect();
-    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
+fn roll_once(vs: &[u32], roll: f64, tol: Tol) -> Result<(usize, usize, usize), String> {
+    let (doc, _, rolled) = rolled_lid(vs, roll, tol);
     let ev = eval(&doc, tol);
     match ev.node_error(rolled) {
         Some(e) => Err(format!("{:?}", e.kind)),
@@ -232,124 +242,136 @@ fn roll_once(vs: &[u32], tol: Tol) -> Result<(usize, usize, usize), String> {
     }
 }
 
-/// **Which rim pairs one request can name, and which it cannot.**
+/// **Every rim pair one request can roll, it can name.**
 ///
-/// The filed issue's first cut said any two ADJACENT latitude rims
-/// collide. They do not: a band slits ONE support's seam, so the test
-/// is whether two bands slit the SAME meridian. Two of the five pairs
-/// below that COMPOSE are adjacent.
+/// `{1, 2}` is the pair whose bands both slit and both cross the
+/// flange cone's seam; `{2, 3}` and `{3, 4}` are adjacent and slit two
+/// different seams. All of them build, and so does the scene's triple.
+/// `{5, 0}` shares the vent's seam the same way; it is rolled at a
+/// quarter of the scene's radius, where the concave vent rim has the
+/// headroom the scene's radius does not give it.
 #[test]
-fn the_slit_collision_is_per_meridian_and_not_per_adjacency() {
+fn every_rim_pair_composes_in_one_request() {
     let tol = Tol::witness();
-    // The scene's own three rims, in one request: the refusal the
-    // scene's two-request grain exists for.
-    let all = roll_once(&ROLLED, tol).expect_err("all three in one request must refuse");
-    assert!(
-        all.starts_with("Naming(Duplicate")
-            && all.contains("BandSlit")
-            && all.contains(&flange_seam(tol)),
-        "the three-rim request refuses at the SLIT's name, on the flange cone's own \
-         seam meridian (segment 1): {all}"
+    assert_eq!(
+        roll_once(&ROLLED, ROLL, tol),
+        Ok((9, 18, 9)),
+        "the scene's three rims in ONE request: three annulus bands over the sharp \
+         lid's 6/12/6"
     );
-    // The pair that collides, and it is the only one among the rolled
-    // rims: the flange's rim and the dome's foot are the two ends of
-    // segment 1, so both bands slit its seam.
-    let pair = roll_once(&[1, 2], tol).expect_err("the flange rim and the dome foot collide");
-    assert!(
-        pair.starts_with("Naming(Duplicate") && pair.contains(&flange_seam(tol)),
-        "{pair}"
-    );
-    // Every other pair over the rims the scene rolls composes, ADJACENT
-    // or not — which is the half the issue's first cut denied. `{2, 3}`
-    // and `{3, 4}` are adjacent and build.
-    for pair in [[1u32, 3], [1, 4], [2, 3], [2, 4], [3, 4]] {
+    for pair in [[1u32, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]] {
         assert_eq!(
-            roll_once(&pair, tol),
+            roll_once(&pair, ROLL, tol),
             Ok((8, 16, 8)),
-            "rims {pair:?} slit two different meridians, so ONE request names their \
-             output: two annulus bands over the sharp lid's 6/12/6"
+            "rims {pair:?} in ONE request: two annulus bands over the sharp lid's 6/12/6"
+        );
+    }
+    assert_eq!(
+        roll_once(&[5, 0], ROLL / 4.0, tol),
+        Ok((8, 16, 8)),
+        "the vent's two rims share its seam meridian as the flange's rim and the \
+         dome's foot share the flange cone's"
+    );
+}
+
+/// **Two slits on one source meridian carry two bands.**
+///
+/// The flange's rim (vertex 1) and the dome's foot (vertex 2) are the
+/// two ends of meridian segment 1, and both bands slit its seam. So the
+/// rolled table holds exactly two `BandSlit`s whose source edge is that
+/// seam, and what tells them apart is the band: each carries its own
+/// rim, and no other. The same holds of the `BandCross` each band's
+/// trimline leaves on that seam.
+#[test]
+fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
+    let tol = Tol::witness();
+    let (doc, lid, rolled) = rolled_lid(&ROLLED, ROLL, tol);
+    let ev = eval(&doc, tol);
+    assert!(
+        ev.node_error(rolled).is_none(),
+        "{:?}",
+        ev.node_error(rolled)
+    );
+    let table = &ev.value(rolled).expect("the roll evaluated").name_table;
+    // The flange cone's seam meridian: the sharp lid's meridian
+    // segment 1, on the revolve's seam.
+    let seam = seam_of(&doc, lid, 1, tol);
+    let want = |v: u32| vec![rim(&doc, lid, v, tol)];
+    for role in ["slit", "cross"] {
+        let mut bands: Vec<Vec<StableName>> = table
+            .iter()
+            .filter_map(|(n, _)| match (role, &n.path[..]) {
+                ("slit", [RoleSeg::BandSlit { edge, band }])
+                | ("cross", [RoleSeg::BandCross { edge, band }])
+                    if **edge == seam =>
+                {
+                    Some(band.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        bands.sort();
+        assert_eq!(
+            bands,
+            vec![want(1), want(2)],
+            "the flange seam's {role}s: one per band that ends on it, each carrying its \
+             own rim"
         );
     }
 }
 
-/// **The two requests build the body the kernel's one request builds.**
+/// **The one request builds the kernel's one-request body.**
 ///
-/// The scene splits the roll because the document layer cannot name
-/// the one-request output, and the deviation is only honest if the
-/// geometry is untouched by it. Same census, the same three bands bit
-/// for bit, the same mass. The face ORDER differs, and that difference
-/// is the whole of what the conversion moved in the tess-budget rows.
+/// Same census, the same three bands bit for bit, the same mass, the
+/// same face order: the document door adds names and nothing else.
 #[test]
-fn two_requests_build_the_kernels_one_request_body() {
+fn one_request_builds_the_kernels_body() {
     let tol = Tol::witness();
-    let (mut doc, lid) = sharp_lid(tol);
-    let rims = ROLLED.map(|v| rim(&doc, lid, v, tol));
-    let first = insert(
-        &mut doc,
-        Node::fillet(lid, len(ROLL), vec![rims[0].clone()]),
-        tol,
-    );
-    let second = insert(
-        &mut doc,
-        Node::fillet(
-            first,
-            len(ROLL),
-            vec![
-                carried(first, rims[1].clone()),
-                carried(first, rims[2].clone()),
-            ],
-        ),
-        tol,
-    );
+    let (doc, lid, rolled) = rolled_lid(&ROLLED, ROLL, tol);
     let ev = eval(&doc, tol);
     assert!(
-        ev.node_error(second).is_none(),
-        "the two-request roll builds: {:?}",
-        ev.node_error(second)
+        ev.node_error(rolled).is_none(),
+        "the one-request roll builds: {:?}",
+        ev.node_error(rolled)
     );
     let sharp = body_at(&ev, lid);
-    let two = body_at(&ev, second);
+    let doc_body = body_at(&ev, rolled);
 
-    // The kernel's ONE request over the same three rims — their keys
-    // found through the NAMES, so the two spellings are asked for the
-    // same edges and not merely for three edges each.
-    let keys: Vec<EdgeKey> = rims
+    // The kernel's request over the same three rims — their keys found
+    // through the NAMES, so the two doors are asked for the same edges
+    // and not merely for three edges each.
+    let keys: Vec<EdgeKey> = ROLLED
         .iter()
-        .map(|rim| {
+        .map(|&v| {
+            let want = rim(&doc, lid, v, tol);
             query::all_edges(&sharp)
                 .into_iter()
-                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(rim))
+                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(&want))
                 .expect("each rolled rim's key, by its name")
         })
         .collect();
-    let one = fillet_edges(&sharp, &keys, ROLL, tol)
+    let kernel = fillet_edges(&sharp, &keys, ROLL, tol)
         .expect("the kernel door rolls all three in one request")
         .body;
 
-    assert_eq!(census(&one), (9, 18, 9));
-    assert_eq!(census(&two), (9, 18, 9));
+    assert_eq!(census(&kernel), (9, 18, 9));
+    assert_eq!(census(&doc_body), (9, 18, 9));
     assert_eq!(
-        bands(&one),
-        bands(&two),
-        "the three bands' STORED (station, major, minor) must be identical bits — a \
-         difference here is the two-request grain changing the part"
+        bands(&kernel),
+        bands(&doc_body),
+        "the three bands' STORED (station, major, minor) must be identical bits"
     );
-    let p1 = pncad::topo::mass_properties(&one, tol).expect("one-request props");
-    let p2 = pncad::topo::mass_properties(&two, tol).expect("two-request props");
+    let p1 = pncad::topo::mass_properties(&kernel, tol).expect("kernel props");
+    let p2 = pncad::topo::mass_properties(&doc_body, tol).expect("document props");
     assert!(
         ((p1.volume - p2.volume) / p1.volume).abs() < 1e-14
             && ((p1.surface_area - p2.surface_area) / p1.surface_area).abs() < 1e-14,
-        "one request V={} A={}; two requests V={} A={}",
+        "kernel V={} A={}; document V={} A={}",
         p1.volume,
         p1.surface_area,
         p2.volume,
         p2.surface_area
     );
-
-    // What DOES differ, recorded rather than implied: the order the
-    // faces come out in. This is the whole of the tess-budget move the
-    // conversion carries — three `teapotlid` rows permuting their
-    // triangle counts among themselves.
     let order = |b: &Body<f64>| -> Vec<String> {
         b.faces()
             .map(|(_, f)| match b.get_surface(f.surface) {
@@ -362,18 +384,292 @@ fn two_requests_build_the_kernels_one_request_body() {
             })
             .collect()
     };
-    let (a, b) = (order(&one), order(&two));
-    println!("   one request: {a:?}\n   two requests: {b:?}");
-    let mut sorted = (a.clone(), b.clone());
-    sorted.0.sort();
-    sorted.1.sort();
     assert_eq!(
-        sorted.0, sorted.1,
-        "the two spellings carry the same faces; only their order may differ"
+        order(&kernel),
+        order(&doc_body),
+        "one request through either door lays the faces out in one order"
     );
+}
+
+/// **The rolled lid's names do not depend on the radius.**
+///
+/// Every role argument is a source NAME, so rolling the same rims at a
+/// different radius re-mints the same name set: a name stays put when
+/// a number moves.
+#[test]
+fn the_rolled_names_are_one_set_at_two_radii() {
+    let tol = Tol::witness();
+    let names = |roll: f64| -> Vec<StableName> {
+        let (doc, _, rolled) = rolled_lid(&ROLLED, roll, tol);
+        let ev = eval(&doc, tol);
+        assert!(
+            ev.node_error(rolled).is_none(),
+            "{:?}",
+            ev.node_error(rolled)
+        );
+        let mut out: Vec<StableName> = ev
+            .value(rolled)
+            .expect("the roll evaluated")
+            .name_table
+            .iter()
+            .map(|(n, _)| n.clone())
+            .collect();
+        out.sort();
+        out
+    };
+    let (a, b) = (names(ROLL), names(ROLL * 0.75));
+    assert_eq!(
+        a.len(),
+        9 + 18 + 9 + 1,
+        "one name per entity and the body's"
+    );
+    assert_eq!(a, b);
+}
+
+/// Every entity of the rolled body, keyed by its NAME, with a
+/// geometric witness: a vertex's point, an edge's two end points
+/// (sorted), a face's vertex count. Bits, so "same" means same.
+fn named_geometry(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+) -> std::collections::BTreeMap<StableName, Vec<u64>> {
+    let b = body_at(ev, node);
+    let pt = |v: pncad::topo::VertexKey| -> [u64; 3] {
+        let p = b.get_point(b.get_vertex(v).unwrap().point).unwrap();
+        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
+    };
+    let mut out = std::collections::BTreeMap::new();
+    for (k, e) in b.edges() {
+        let n = edge_name(ev, node, 0, k).expect("every edge named").clone();
+        let a = pt(b.get_half_edge(e.he_plus).unwrap().start);
+        let z = pt(b.get_half_edge(e.he_minus).unwrap().start);
+        let mut ends = [a, z];
+        ends.sort_unstable();
+        out.insert(n, ends.concat());
+    }
+    for (n, _) in ev.value(node).unwrap().name_table.iter() {
+        if n.kind == EntityKind::Vertex {
+            let p = pncad::select::vertex_position(ev, node, n).expect("vertex reads");
+            out.insert(n.clone(), vec![p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
+        }
+    }
+    out
+}
+
+fn roll_named(
+    vs: &[u32],
+    roll: f64,
+    tol: Tol,
+) -> Result<std::collections::BTreeMap<StableName, Vec<u64>>, String> {
+    let (doc, _, rolled) = rolled_lid(vs, roll, tol);
+    let ev = eval(&doc, tol);
+    match ev.node_error(rolled) {
+        Some(e) => Err(format!("{:?}", e.kind)),
+        None => Ok(named_geometry(&ev, rolled)),
+    }
+}
+
+/// **No set of the lid's rims refuses at a NAME**: every pair of the
+/// six, all six, and each half, at a quarter of the roll. A request
+/// may still refuse on geometry; it may not refuse because two of its
+/// outputs share a name.
+#[test]
+fn every_rim_set_at_a_quarter_roll_is_nameable() {
+    let tol = Tol::witness();
+    let mut sets: Vec<Vec<u32>> = Vec::new();
+    for a in 0..6u32 {
+        for b in (a + 1)..6 {
+            sets.push(vec![a, b]);
+        }
+    }
+    sets.push((0..6).collect());
+    sets.push(vec![0, 1, 2]);
+    sets.push(vec![3, 4, 5]);
+    let mut bad = Vec::new();
+    for s in &sets {
+        if let Err(e) = &roll_once(s, ROLL / 4.0, tol)
+            && (e.contains("Naming") || e.contains("Duplicate"))
+        {
+            bad.push((s.clone(), e.clone()));
+        }
+    }
+    assert!(bad.is_empty(), "naming refusals: {bad:#?}");
+}
+
+/// **Two annulus bands on one PLANE cap compose and name their
+/// output**: the underside (segment 0) carries rims 0 and 1, the top
+/// (segment 4) rims 4 and 5, so each pair's bands both carve the
+/// cap's radial seam. At a quarter of the roll, where the vent's
+/// concave rims have headroom.
+#[test]
+fn two_bands_on_one_plane_cap_compose() {
+    let tol = Tol::witness();
+    for pair in [[0u32, 1], [4, 5]] {
+        assert_eq!(
+            roll_once(&pair, ROLL / 4.0, tol),
+            Ok((8, 16, 8)),
+            "rims {pair:?} share a plane cap"
+        );
+    }
+}
+
+/// **The selection ORDER moves no name** (N4): the kernel carves the
+/// bands one after another, and which one goes first decides which
+/// band records the remnant between two of them — so the name →
+/// geometry map is compared across orders, `BandCut` included.
+#[test]
+fn the_selection_order_moves_no_name() {
+    let tol = Tol::witness();
+    for (a, b) in [
+        (vec![1u32, 2, 4], vec![4u32, 2, 1]),
+        (vec![1, 2], vec![2, 1]),
+        (vec![5, 0], vec![0, 5]),
+    ] {
+        let roll = if a.contains(&5) { ROLL / 4.0 } else { ROLL };
+        let ga = roll_named(&a, roll, tol).expect("a builds");
+        let gb = roll_named(&b, roll, tol).expect("b builds");
+        assert_eq!(
+            ga.keys().collect::<Vec<_>>(),
+            gb.keys().collect::<Vec<_>>(),
+            "{a:?} vs {b:?}: name sets"
+        );
+        for (n, g) in &ga {
+            assert_eq!(Some(g), gb.get(n), "{a:?} vs {b:?}: {n:?} moved");
+        }
+    }
+}
+
+/// **One `BandCut` survives between two bands on one seam**: on the
+/// flange seam exactly one remnant is named, and it runs from one
+/// band's crossing to the other's. Two would share the source
+/// meridian's name — the uniqueness rests on each band retiring the
+/// remnant row an earlier band recorded before recording its own.
+#[test]
+fn one_band_cut_survives_between_two_bands() {
+    let tol = Tol::witness();
+    let (doc, lid, rolled) = rolled_lid(&[1, 2], ROLL, tol);
+    let ev = eval(&doc, tol);
+    assert!(ev.node_error(rolled).is_none());
+    let seam = seam_of(&doc, lid, 1, tol);
+    let g = named_geometry(&ev, rolled);
+    let cuts: Vec<_> = g
+        .iter()
+        .filter(|(n, _)| matches!(&n.path[..], [RoleSeg::BandCut(e)] if **e == seam))
+        .collect();
+    let crosses: Vec<_> = g
+        .iter()
+        .filter(|(n, _)| matches!(&n.path[..], [RoleSeg::BandCross { edge, .. }] if **edge == seam))
+        .map(|(_, p)| p.clone())
+        .collect();
+    assert_eq!(cuts.len(), 1, "{cuts:#?}");
+    assert_eq!(crosses.len(), 2);
+    let mut want = [crosses[0].clone(), crosses[1].clone()];
+    want.sort();
+    assert_eq!(
+        cuts[0].1,
+        &want.concat(),
+        "the cut runs crossing to crossing"
+    );
+}
+
+/// **The interval lane mints the f64 lane's names** (N4: a name is
+/// float-free, so the scalar type cannot move it).
+#[test]
+fn the_interval_lane_mints_the_f64_names() {
+    use pncad::geom_core::Interval;
+    let tol = Tol::witness();
+    let (doc, _, rolled) = rolled_lid(&ROLLED, ROLL, tol);
+    let ef = eval(&doc, tol);
+    let ei: Evaluation<Interval> = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let nf: Vec<StableName> = ef
+        .value(rolled)
+        .unwrap()
+        .name_table
+        .iter()
+        .map(|(n, _)| n.clone())
+        .collect();
+    let ni: Vec<StableName> = ei
+        .value(rolled)
+        .unwrap_or_else(|| panic!("the interval lane rolls: {:?}", ei.node_error(rolled)))
+        .name_table
+        .iter()
+        .map(|(n, _)| n.clone())
+        .collect();
+    assert_eq!(nf, ni);
+}
+
+/// **A re-map of node ids carries into a held slit's band.** The lid
+/// is split out of a document whose first node stays behind, so every
+/// id the part mints is one lower; a node holding the flange band's
+/// slit by name travels with it. In the part, the held name must still
+/// denote the SAME slit. Re-mapping the slit's `edge` but not its
+/// `band` would leave it naming a band on another node — or, on a seam
+/// two bands share, the OTHER band's slit: a silent retarget no
+/// refusal catches, which is what this row is for.
+#[test]
+fn a_split_carries_a_held_slits_band() {
+    let tol = Tol::witness();
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-split", tol);
+    let lead = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(1.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
+    );
+    let (mut doc, lid) = sharp_lid_in(doc, tol);
+    let sel = vec![rim(&doc, lid, 1, tol), rim(&doc, lid, 2, tol)];
+    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
+    let ev = eval(&doc, tol);
+    assert!(
+        ev.node_error(rolled).is_none(),
+        "{:?}",
+        ev.node_error(rolled)
+    );
+    let before = named_geometry(&ev, rolled);
+    let flange = rim(&doc, lid, 1, tol);
+    let slit = before
+        .keys()
+        .find(|n| matches!(&n.path[..], [RoleSeg::BandSlit { band, .. }] if *band == vec![flange.clone()]))
+        .expect("the flange band's slit")
+        .clone();
+    let holder = insert(
+        &mut doc,
+        Node::fillet(rolled, len(ROLL / 8.0), vec![slit.clone()]),
+        tol,
+    );
+
+    let cut: std::collections::BTreeSet<RecipeNodeId> =
+        doc.order().iter().copied().filter(|&n| n != lead).collect();
+    let out = split(&doc, &cut, DocumentId::derive("teapot-lid-part"), tol, None)
+        .expect("the lid splits out whole");
+    let (part_rolled, part_holder) = (out.node_map[&rolled], out.node_map[&holder]);
+    let held = match out.part.node(part_holder) {
+        Some(Node::Fillet { selection, .. }) => selection[0].clone(),
+        other => panic!("{other:?}"),
+    };
     assert_ne!(
-        a, b,
-        "the face ORDER is the same after all — then the tess-budget rows the conversion \
-         moved should not have moved, and the baseline wants re-cutting back"
+        held, slit,
+        "the split moved the ids (else the row is vacuous)"
+    );
+    let ev = eval(&out.part, tol);
+    assert!(
+        ev.node_error(part_rolled).is_none(),
+        "{:?}",
+        ev.node_error(part_rolled)
+    );
+    let after = named_geometry(&ev, part_rolled);
+    assert_eq!(
+        after.get(&held),
+        Some(&before[&slit]),
+        "the held slit names the same edge in the part"
     );
 }

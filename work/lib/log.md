@@ -5266,3 +5266,17 @@ Fixtures that wrote a bulge chain now call
 and its `Segment` per edge). Neither is on the façade.
 
 Signed (PATHS orchestrator).
+
+## Announced from ENCL (2026-09-26): two tag rows in `pncad-py`
+
+ENCL's batch PR (the must-carry first-order gate) adds
+`SmoothJoinRefuted { edge }` to `ExtrudeError` and `RevolveError`. It is
+unreachable but reported, in the style of `CapPlane`: the must-carry rule
+refuting the verb's own smooth-join premise. `pncad-py`'s two tag maps and
+its tag tables gained `smooth_join_refuted`. That is an addition, not a
+claim on your ground.
+
+Signed: (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3390 (merged `719ef596a1`). The shell volume-sign decision is sized (`geom_brep::recourse::SizedPass::NonZero`, the offer valued at |m|/K). `ShellClassifyError` gains a `Straddles` arm and a `payload()` data view, and its `Display` ends in its decision's one ending. `recourse::UNREADABLE_MARGIN_NOTE` is the shared unreadable-margin sentence. pncad-py gains the `straddles` inner-variant tag (tags.rs, the census, `.pyi`, `py/checks.rs`); `pncad/src/document.rs` says 'five ways'. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. Filed: `wedge-check-is-a-rung-under-sliver-dihedral` (carry `WedgeCheck` to the façade; non-carriage argued at its declaration, DISPOSITIONS entry added). (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

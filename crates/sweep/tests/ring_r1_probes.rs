@@ -24,7 +24,7 @@
 
 use crate::revolve_common;
 
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
@@ -38,8 +38,22 @@ const PI: f64 = core::f64::consts::PI;
 #[test]
 fn one_call_equals_the_defining_composition() {
     let tol = Tol::witness();
-    let outer = || ProfileLoop::polygon([p2(1.0, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(1.0, 2.0)]);
-    let hole = || ProfileLoop::polygon([p2(1.5, 0.5), p2(2.5, 0.5), p2(2.5, 1.5), p2(1.5, 1.5)]);
+    let outer = || {
+        ProfileLoop::polygon([
+            Point2::new(1.0, 0.0),
+            Point2::new(3.0, 0.0),
+            Point2::new(3.0, 2.0),
+            Point2::new(1.0, 2.0),
+        ])
+    };
+    let hole = || {
+        ProfileLoop::polygon([
+            Point2::new(1.5, 0.5),
+            Point2::new(2.5, 0.5),
+            Point2::new(2.5, 1.5),
+            Point2::new(1.5, 1.5),
+        ])
+    };
 
     let holed = revolve(
         &validated(vec![outer(), hole()]),
@@ -71,12 +85,17 @@ fn hole_hugging_the_outer_boundary_at_this_eps() {
     let tol = Tol::witness();
     let g = 1000.0 * eps();
     let (x0, x1, y0, y1) = (1.0, 2.0, 0.0, 1.0);
-    let outer = ProfileLoop::polygon([p2(x0, y0), p2(x1, y0), p2(x1, y1), p2(x0, y1)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(x0, y0),
+        Point2::new(x1, y0),
+        Point2::new(x1, y1),
+        Point2::new(x0, y1),
+    ]);
     let hole = ProfileLoop::polygon([
-        p2(x0 + g, y0 + g),
-        p2(x1 - g, y0 + g),
-        p2(x1 - g, y1 - g),
-        p2(x0 + g, y1 - g),
+        Point2::new(x0 + g, y0 + g),
+        Point2::new(x1 - g, y0 + g),
+        Point2::new(x1 - g, y1 - g),
+        Point2::new(x0 + g, y1 - g),
     ]);
     let t = revolve(
         &validated(vec![outer, hole]),
@@ -116,12 +135,19 @@ fn near_axis_hole_refuses_below_the_band_and_builds_above_it() {
     // Outer's left edge ON the axis; the hole 5·eps away from it:
     // inside the ambiguity band (K = 10) — the profile must refuse
     // typed (touching or escalated), never validate.
-    let outer = || ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let outer = || {
+        ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+        ])
+    };
     let tight = ProfileLoop::polygon([
-        p2(5.0 * e, 0.25),
-        p2(0.5, 0.25),
-        p2(0.5, 0.75),
-        p2(5.0 * e, 0.75),
+        Point2::new(5.0 * e, 0.25),
+        Point2::new(0.5, 0.25),
+        Point2::new(0.5, 0.75),
+        Point2::new(5.0 * e, 0.75),
     ]);
     assert!(
         Profile::new(SketchPlane::xy(), vec![outer(), tight])
@@ -132,7 +158,12 @@ fn near_axis_hole_refuses_below_the_band_and_builds_above_it() {
     // 1000·eps away: decidable — the wire-case ring builds, with the
     // cavity's inner wall a cylinder of radius 1000·eps.
     let g = 1000.0 * e;
-    let hole = ProfileLoop::polygon([p2(g, 0.25), p2(0.5, 0.25), p2(0.5, 0.75), p2(g, 0.75)]);
+    let hole = ProfileLoop::polygon([
+        Point2::new(g, 0.25),
+        Point2::new(0.5, 0.25),
+        Point2::new(0.5, 0.75),
+        Point2::new(g, 0.75),
+    ]);
     let t = revolve(
         &validated(vec![outer(), hole]),
         axis_y(),
@@ -161,9 +192,24 @@ fn near_axis_hole_refuses_below_the_band_and_builds_above_it() {
 #[test]
 fn boolean_admissible_fixture_still_runs_no_crossing_machinery() {
     let tol = Tol::witness();
-    let outer = ProfileLoop::polygon([p2(1.0, 0.0), p2(3.0, 0.0), p2(3.0, 3.0), p2(1.0, 3.0)]);
-    let h1 = ProfileLoop::polygon([p2(1.25, 0.5), p2(2.75, 0.5), p2(2.75, 1.0), p2(1.25, 1.0)]);
-    let h2 = ProfileLoop::polygon([p2(1.25, 1.5), p2(2.0, 1.5), p2(2.0, 2.5), p2(1.25, 2.5)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(3.0, 0.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(1.0, 3.0),
+    ]);
+    let h1 = ProfileLoop::polygon([
+        Point2::new(1.25, 0.5),
+        Point2::new(2.75, 0.5),
+        Point2::new(2.75, 1.0),
+        Point2::new(1.25, 1.0),
+    ]);
+    let h2 = ProfileLoop::polygon([
+        Point2::new(1.25, 1.5),
+        Point2::new(2.0, 1.5),
+        Point2::new(2.0, 2.5),
+        Point2::new(1.25, 2.5),
+    ]);
     let vp = validated(vec![outer, h1, h2]);
     let bracket = geom_core::k_stats::Bracket::open();
     let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
@@ -184,8 +230,13 @@ fn boolean_admissible_fixture_still_runs_no_crossing_machinery() {
 #[test]
 fn wire_outer_with_circular_hole_torus_cavity() {
     let tol = Tol::witness();
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 3.0), p2(0.0, 3.0)]);
-    let hole = profile::circle(p2(1.0, 1.5), 0.4, tol).unwrap();
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 3.0),
+        Point2::new(0.0, 3.0),
+    ]);
+    let hole = profile::circle(Point2::new(1.0, 1.5), 0.4, tol).unwrap();
     let vp = validated(vec![outer, hole.into()]);
     let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
     assert_all_tiers(&t.body);

@@ -21,7 +21,7 @@
 
 use core::f64::consts::PI;
 
-use crate::common::approx::band;
+use crate::common::shell_operands::tube;
 use geom::Surface;
 use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
@@ -36,10 +36,6 @@ use sweep::{
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ValidationError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 /// Every edge at rest still described through the scaffolding door.
 fn scaffold_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -115,14 +111,17 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
 
 /// A two-vertex full circle (two semicircular arcs), counterclockwise.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)])
+    bulge_loop(vec![
+        (Point2::new(cx - r, cy), 1.0),
+        (Point2::new(cx + r, cy), 1.0),
+    ])
 }
 
 /// A rounded square: four lines and four quarter-circle corner arcs,
 /// tangent-declared at every arc joint.
 fn rounded_square(half: f64, r: f64) -> ProfileLoop<f64> {
     let b = (PI / 8.0).tan(); // quarter-turn bulge
-    let v = |x, y, bulge| (p2(x, y), bulge);
+    let v = |x, y, bulge| (Point2::new(x, y), bulge);
     bulge_loop(vec![
         v(-half + r, -half, 0.0),
         v(half - r, -half, b),
@@ -140,13 +139,13 @@ fn revolved(points: &[(f64, f64, f64)], rev: Revolution<f64>) -> Body<f64> {
     let lp = bulge_loop(
         points
             .iter()
-            .map(|(r, y, bulge)| (p2(*r, *y), *bulge))
+            .map(|(r, y, bulge)| (Point2::new(*r, *y), *bulge))
             .collect(),
     );
     revolve(
         &validated(vec![lp]),
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         rev,
@@ -164,19 +163,24 @@ fn revolved(points: &[(f64, f64, f64)], rev: Revolution<f64>) -> Body<f64> {
 fn extrude_products_carry_no_scaffold_at_rest() {
     // The plain L (all-transverse corners).
     let l = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ]);
     fence_crosscheck(&extruded(vec![l], 1.0), "extrude L");
 
     // Square with a circular hole: the hole's two half-walls share ONE
     // cylinder key, so its struts take the same-key under-determined
     // lane (declared images).
-    let square = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
+    let square = ProfileLoop::polygon([
+        Point2::new(-2.0, -2.0),
+        Point2::new(2.0, -2.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(-2.0, 2.0),
+    ]);
     let holed = extruded(vec![square.clone(), circle_loop(0.0, 0.0, 0.8)], 1.0);
     fence_crosscheck(&holed, "extrude square + hole");
 
@@ -192,20 +196,10 @@ fn extrude_products_carry_no_scaffold_at_rest() {
 #[test]
 fn revolve_products_carry_no_scaffold_at_rest() {
     // The full ring (rectangle off the axis).
-    fence_crosscheck(
-        &revolved(
-            &[
-                (0.4, 0.0, 0.0),
-                (0.8, 0.0, 0.0),
-                (0.8, 0.6, 0.0),
-                (0.4, 0.6, 0.0),
-            ],
-            Revolution::Full,
-        ),
-        "revolve ring (full)",
-    );
+    fence_crosscheck(&tube(0.4, 0.8, 0.6), "revolve ring (full)");
     // A partial wedge at an ordinary angle.
     fence_crosscheck(
+        // NOT `common::shell_operands::tube`: its meridian turned PI / 3.0, a wedge.
         &revolved(
             &[
                 (0.4, 0.0, 0.0),
@@ -220,6 +214,7 @@ fn revolve_products_carry_no_scaffold_at_rest() {
     // Exactly pi: the two cap planes are coplanar and the meridian
     // copies land antipodally — the angle-pi lane the PR names.
     fence_crosscheck(
+        // NOT `common::shell_operands::tube`: its meridian turned PI, a wedge.
         &revolved(
             &[
                 (0.4, 0.0, 0.0),
@@ -315,10 +310,10 @@ fn boolean_products_carry_no_scaffold_at_rest() {
     // A through hole: plate minus a taller coaxial disc.
     let plate = extruded(
         vec![ProfileLoop::polygon([
-            p2(-2.0, -2.0),
-            p2(2.0, -2.0),
-            p2(2.0, 2.0),
-            p2(-2.0, 2.0),
+            Point2::new(-2.0, -2.0),
+            Point2::new(2.0, -2.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(-2.0, 2.0),
         ])],
         1.0,
     );
@@ -396,20 +391,6 @@ fn fillet_products_carry_no_scaffold_at_rest() {
 // 2. Declaration transport: is_declared never flips silently.
 // =====================================================================
 
-/// The tube: outer wall r = 0.8, inner wall r = 0.4, annular caps at
-/// y = 0 and y = 0.6 — the same fixture family `verbs_offd` uses.
-fn tube() -> Body<f64> {
-    revolved(
-        &[
-            (0.4, 0.0, 0.0),
-            (0.8, 0.0, 0.0),
-            (0.8, 0.6, 0.0),
-            (0.4, 0.6, 0.0),
-        ],
-        Revolution::Full,
-    )
-}
-
 fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
     body.faces()
         .find(|(_, f)| {
@@ -434,15 +415,14 @@ fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
 #[test]
 fn offsets_preserve_the_authority_census() {
     // Cap offset: rigid translation, declarations carried bodily.
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     let before = authority_census(&body);
     assert!(
         before.iter().any(|(_, d)| *d),
         "the tube must carry declared edges for this row to mean anything"
     );
     let cap = plane_face_at(&body, 0.6);
-    topo::replace_face_offset(&mut body, cap, 0.05, band(), Tol::witness())
-        .expect("the cap offsets");
+    topo::replace_face_offset(&mut body, cap, 0.05, Tol::witness()).expect("the cap offsets");
     assert_eq!(
         authority_census(&body),
         before,
@@ -455,10 +435,10 @@ fn offsets_preserve_the_authority_census() {
     // are intrinsic, its meridian is the chart's derived seam), so the
     // op succeeds and must still not flip anyone — in particular the
     // cap seams it re-anchors keep their declarations.
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     let before = authority_census(&body);
     let wall = cylinder_face_at(&body, 0.4);
-    topo::replace_face_offset(&mut body, wall, 0.05, band(), Tol::witness())
+    topo::replace_face_offset(&mut body, wall, 0.05, Tol::witness())
         .expect("the underived inner wall offsets");
     assert_eq!(
         authority_census(&body),
@@ -474,7 +454,7 @@ fn offsets_preserve_the_authority_census() {
 /// this row's).
 #[test]
 fn rigid_transform_preserves_the_authority_census() {
-    let body = tube();
+    let body = tube(0.4, 0.8, 0.6);
     let before: Vec<bool> = authority_census(&body).iter().map(|(_, d)| *d).collect();
     let map = Affine3::translation(Vec3::new(3.0, -1.0, 2.0))
         * Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), PI / 2.0);
@@ -520,7 +500,7 @@ fn rigid_transform_preserves_the_authority_census() {
 fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     // (a) Re-describe the outer wall's top rim as a DECLARED image in
     // the wall's own chart, then offset the wall.
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     let wall = cylinder_face_at(&body, 0.8);
     let wall_key = body.get_face(wall).unwrap().surface;
     // The wall's top rim: the fixture selector names the arc by the
@@ -557,7 +537,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     // (b) Give the top cap's seam a rotation-family declaration, then
     // offset the cap (a rigid translation — the placement would carry,
     // the trajectory cannot).
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     let cap = plane_face_at(&body, 0.6);
     let seam = body
         .edges()
@@ -670,7 +650,7 @@ fn dummy_declaration() -> MappedCurve<f64> {
 /// catches, and both were found by hand instead.
 #[test]
 fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     // The outer wall's derived seam meridian: give it a declaration
     // whose placement is ~1000 units away from the body.
     let victim = body
@@ -737,29 +717,18 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
 
 /// **`split` at a face-coplanar plane, cross-checked at tier 3.**
 ///
-/// `splitting/finish.rs`'s `describe_section_boundary` upgrades a
-/// section-boundary edge to `Intersection` when the dihedral is
-/// transverse and — its own comment — *"Smooth: the conventional chord
-/// stays (D2)"*, an EMPTY arm. That is the exact pre-collapse shape
-/// `extrude`'s eighth family had: doing nothing used to keep a legal
-/// conventional description, and since U2 it keeps whatever the edge
-/// happens to carry — a scaffolding chord, or a stale citation.
+/// The Fig. 14.2 notched block, built by the real verb, split at its
+/// own face-coplanar plane, both products cross-checked. It is the cut
+/// that makes a citation stale: an operand edge lands on the section
+/// boundary with its transverse partner reassigned to the OTHER
+/// product, so the `Intersection` it carried names a surface that is
+/// not on its side. `splitting/finish.rs`'s `describe_section_boundary`
+/// restates that description, and one left standing fails this row's
+/// cross-check as `DescriptionNotAdjacent`.
 ///
-/// The committed coplanar-split row (`m3_pr3_split::notched_block_end_
-/// to_end`) asserts tier 2 only, so the battery never measured this
-/// body at tier 3. This row does: the Fig. 14.2 notched block, built
-/// by the real verb, split at its face-coplanar plane, both sides
-/// cross-checked.
-///
-/// **RED, and filed rather than fixed here: #1152.** R1 measured this
-/// byte-identically on `main`, so it is a pre-existing `topo::split`
-/// defect and not the pcurve collapse's — this unit changed no `split`
-/// code. Absorbing someone else's defect into a migration is how a
-/// unit becomes unreviewable, so the probe is adopted, ignored against
-/// the issue, and preserved as the reproduction: the Fig. 14.2 notched
-/// block split at its own face-coplanar plane reports
-/// `DescriptionNotAdjacent` on three edges of the `below` product.
-/// Un-ignore it when #1152 lands.
+/// `m3_pr3_split::notched_block_end_to_end` asserts tier 3 on the same
+/// cut over `topo`'s own prism; this row reaches it through `sweep`'s
+/// extrude.
 #[test]
 fn coplanar_split_products_carry_no_scaffold_at_rest() {
     let notched = ProfileLoop::polygon(
@@ -774,7 +743,7 @@ fn coplanar_split_products_carry_no_scaffold_at_rest() {
             (3.0, 2.0),
             (0.0, 2.0),
         ]
-        .map(|(x, y)| p2(x, y)),
+        .map(|(x, y)| Point2::new(x, y)),
     );
     let body = extruded(vec![notched], 1.0);
     fence_crosscheck(&body, "notched block (extruded)");

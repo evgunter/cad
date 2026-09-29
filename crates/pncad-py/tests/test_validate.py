@@ -452,7 +452,7 @@ class TestTheRefusalsShape(unittest.TestCase):
     def test_the_arms_this_suite_cannot_reach_are_named(self):
         """WHAT PYTHON CANNOT PRODUCE, said rather than left implied.
 
-        `ValidationError` has seventy-one arms and Python reaches them
+        Python reaches `ValidationError`'s arms
         through five `Body` methods — the four rungs and
         `validate_geometric_measured`, whose gate half is the third
         rung. The structural and geometric arms
@@ -685,9 +685,9 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         volume number at this eps. The door refuses there with the
         reporting door's own class and `reason`, so a caller already
         catching `mass_properties()` catches this unchanged; what is
-        new is the sign-level bracket the gate DID certify, which is
-        the whole of what the certified quadrature is entitled to say
-        about such a body.
+        new is the bracket the certificate or its continuation held,
+        which is the whole of what the certified quadrature is entitled
+        to say about such a body.
 
         ONE certified quadrature is run here and that is deliberate:
         this row is the suite's most expensive and the reporting
@@ -715,7 +715,7 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertFalse(hasattr(gated.exception, "door"))
         lo, hi = gated.exception.volume_lo, gated.exception.volume_hi
         self.assertLess(lo, hi)
-        self.assertGreater(lo, 0.0, "the sign check 7 certified is in the bracket")
+        self.assertGreater(lo, 0.0, "the bracket is definitely positive")
         self.assertGreater(gated.exception.surface_area, 0.0)
         # The bracket is THIS body's and not a placeholder: a tapered
         # tube of radii 23.4 m and 11.7 m over a 125 m spine encloses

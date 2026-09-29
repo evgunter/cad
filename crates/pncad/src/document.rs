@@ -285,7 +285,7 @@ pub use editor_core::ContentBits;
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
 pub use editor_core::{
-    Product, ProductError, ProductErrorKind, RootFault, product, product_recorded,
+    Product, ProductError, ProductErrorKind, RootFault, SourceFinding, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -450,7 +450,7 @@ pub use editor_core::{
 /// two different findings about the SAME thing: the component count
 /// for this subject is unknowable, because a shell's orientation read
 /// escalated or because a face of it is outside the flux inventory.
-/// Which shell, and which of the four ways the door refused, is
+/// Which shell, and which of the five ways the door refused, is
 /// `source` — and a consumer that could match the arm and not name its
 /// type read that only out of the message prose.
 ///

@@ -793,8 +793,11 @@ impl core::error::Error for AssemblyError {}
 /// through, fed the records the mates declared. The door is reached
 /// through the SCALAR'S at-rest policy ([`topo::AtRestPolicy`],
 /// `docs/DUAL-DESIGN.md` DL3): certifying scalars run
-/// [`topo::validate_pseudomanifold`] verbatim; at a dual the gate is
-/// structurally absent, and its success arm says so
+/// [`topo::validate_pseudomanifold`]'s verdict, reading tier 3's half of
+/// it off the verdict the gather kept on the product's body
+/// ([`topo::AtRestBody::validate_pseudomanifold`]), so the local battery
+/// runs once per aggregate and the census is what this gate adds; at a
+/// dual the gate is structurally absent, and its success arm says so
 /// ([`topo::AtRestOutcome::NotRunAtThisScalar`]).
 ///
 /// **The pairing obligation (DL3), stated at this door**: at a
@@ -896,7 +899,7 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
     }
     match T::gate_at_rest_declared(&body, &contacts, tol) {
         Ok(_) => Ok(Assembly {
-            body,
+            body: body.into_body(),
             names,
             contacts,
             minted,
@@ -1067,9 +1070,8 @@ fn resolve_face<P, T: Decide>(
     match entry {
         Entry::Unique(ent) => {
             // A face by the head's type and the table's own rule that
-            // a row's kind is its name's — `NameTable::insert` and
-            // `NameTable::insert_tied` are the only doors that seat a
-            // row, and both refuse a key whose kind disagrees with the
+            // a row's kind is its name's — every `NameTable` door that
+            // seats a row refuses a key whose kind disagrees with the
             // name's. A key that is not a face here is that rule
             // broken, which is this crate's bug and not a document:
             // asserted, and answered with the silence in release.
@@ -1370,6 +1372,8 @@ fn attribute(
         | ValidationError::DegenerateTorusEscalated { .. }
         | ValidationError::PoisonedSurfaceDatum { .. }
         | ValidationError::UnrepresentableSurfaceDatum { .. }
+        | ValidationError::PoisonedCurveDatum { .. }
+        | ValidationError::UnrepresentableCurveDatum { .. }
         | ValidationError::ApproxCertification { .. }
         | ValidationError::ApproxLaneUnsupported { .. }
         | ValidationError::EdgeCertification { .. }
@@ -1381,13 +1385,9 @@ fn attribute(
         | ValidationError::SliverDihedral { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
-        // The material-wedge arm's two refusals are findings about an
-        // EDGE of this body, not about a contact record: the lamina
-        // states that two of its own faces osculate, and the
-        // undeclared cusp states that NO declaration names the pair —
-        // which is `UndeclaredContact`'s reasoning one granularity
-        // down, and the same reason neither can name a mate.
-        | ValidationError::UndeclaredCusp { .. }
+        // The material-wedge arm's refusal is a finding about an EDGE
+        // of this body, not about a contact record: the lamina states
+        // that two of its own faces osculate, which no mate names.
         | ValidationError::LaminaWedge { .. }
         | ValidationError::ScaffoldAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
@@ -1399,6 +1399,7 @@ fn attribute(
         | ValidationError::RingContactEscalated { .. }
         | ValidationError::RingOutsideOuter { .. }
         | ValidationError::RingNestingUndecided { .. }
+        | ValidationError::ShellWinding { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }
@@ -1692,9 +1693,10 @@ mod attribution {
 
     fn escalation() -> geom_core::Indeterminate {
         geom_core::Indeterminate {
-            margin: MarginDiag::Value(0.0),
+            margin: MarginDiag::value(0.0),
             band: Band::linear(Tol::witness()).expect("the ambient tolerance builds a band"),
             predicate: None,
+            terminal_sliver: false,
         }
     }
 

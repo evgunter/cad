@@ -39,13 +39,16 @@
 //!   and is the authority on where the edge is; `cargo tree -e dev -i
 //!   sweep` answers the same question locally.
 //!
-//!   A fixture only earns a place here once a consumer OUTSIDE this
-//!   crate needs it or a second suite inside it does; the narrower
-//!   homes, and the rule that routes between them, are stated in
-//!   `sweep`'s own `tests/common` module. The same rule seats the
-//!   crate-PRIVATE seams a suite reads through — [`ring_clearance`]
-//!   and [`walked_chains`] — which are not fixtures but the only way a
-//!   `tests/` crate can observe a `pub(crate)` phase.
+//!   A fixture lives at the narrowest home all of its consumers can
+//!   reach, by the routing rule `sweep`'s own `tests/common` module
+//!   states, and that rule governs. So a fixture lives HERE only when
+//!   a consumer outside this crate needs it, or an in-crate `mod
+//!   tests` does (neither can reach `tests/common`); one that only this
+//!   crate's `tests/` suites share, however many, lives in
+//!   `tests/common`. The crate-PRIVATE seams a suite reads through —
+//!   [`ring_clearance`] and [`walked_chains`] — sit here too: they are
+//!   not fixtures but the only way a `tests/` crate can observe a
+//!   `pub(crate)` phase.
 //!
 //! # The extrusion family
 //!
@@ -226,7 +229,7 @@ fn square<T: Decide>(l: f64) -> Vec<(Point2<T>, T)> {
 /// `f64` whatever the lane's arithmetic is.
 pub fn corners<T: Decide>(pts: &[(f64, f64)]) -> Vec<(Point2<T>, T)> {
     pts.iter()
-        .map(|&(x, y)| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero()))
+        .map(|&(x, y)| (Point2::new(x, y).map(T::from_f64), T::zero()))
         .collect()
 }
 
@@ -435,15 +438,8 @@ pub fn waisted(tol: Tol) -> Body<f64> {
 /// exactly representable, so the fixture's enclosures are points at a
 /// certified scalar) through the same doors.
 pub fn waisted_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
-    let v = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
     revolved_about_y_at(
-        vec![
-            v(0.0, 0.0),
-            v(1.0, 0.0),
-            v(0.5, 0.5),
-            v(1.0, 1.0),
-            v(0.0, 1.0),
-        ],
+        corners(&[(0.0, 0.0), (1.0, 0.0), (0.5, 0.5), (1.0, 1.0), (0.0, 1.0)]),
         crate::Revolution::Full,
         tol,
     )
@@ -483,6 +479,33 @@ pub fn domed_cavity(tol: Tol) -> Body<f64> {
     )
 }
 
+/// A radius-`r` ball centred at `c` with its polar axis along `+y`:
+/// the half-disc lamina — the semicircle out of `(0, -r)` and the
+/// straight diameter back — revolved a full turn about the sketch
+/// y-axis, which is where the revolve puts a ball's poles, then
+/// translated to `c`. [`ball_poled_z`] is the same ball turned onto
+/// `+z` before it is placed.
+pub fn ball_poled_y<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
+    r: T,
+    c: Vec3<T>,
+    tol: Tol,
+) -> Body<T> {
+    topo::transform_rigid(&ball_about_origin(r, tol), &Affine3::translation(c), tol).unwrap()
+}
+
+/// The two ball doors' common first step: the lamina revolved about
+/// the sketch y-axis, at the origin.
+fn ball_about_origin<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
+    revolved_about_y_at(
+        vec![
+            (Point2::new(T::zero(), -r), T::one()),
+            (Point2::new(T::zero(), r), T::zero()),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
 /// A radius-`r` ball centred at `c` with its polar axis along `+z`: the
 /// revolve puts a ball's poles on the sketch axis, and a plane×sphere
 /// section against a chart whose polar axis is tilted to the plane is a
@@ -501,16 +524,8 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
     c: Vec3<T>,
     tol: Tol,
 ) -> Body<T> {
-    let ball = revolved_about_y_at(
-        vec![
-            (Point2::new(T::zero(), -r), T::one()),
-            (Point2::new(T::zero(), r), T::zero()),
-        ],
-        crate::Revolution::Full,
-        tol,
-    );
     let poled = topo::transform_rigid(
-        &ball,
+        &ball_about_origin(r, tol),
         &Affine3::rotation_about_axis(
             Point3::new(T::zero(), T::zero(), T::zero()),
             Vec3::new(T::one(), T::zero(), T::zero()),
@@ -520,6 +535,50 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
     )
     .unwrap();
     topo::transform_rigid(&poled, &Affine3::translation(c), tol).unwrap()
+}
+
+/// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
+///
+/// The axis matters: `revolve` puts the ball's poles on the sketch
+/// axis, and a plane×sphere section taken against a chart whose polar
+/// axis is TILTED to the plane is a typed frontier of the split-join
+/// (`the azimuth-anchored arc-side rule needs a polar section`). A pip
+/// is cut by a face plane, so its ball is charted with the pole along
+/// that face's normal and the section stays polar by construction.
+/// [`ball_poled_y`] and [`ball_poled_z`] name the two poles suites use
+/// most; this door takes any.
+pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> {
+    let ball = ball_about_origin(r, tol);
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let axis = y.cross(pole);
+    let placed = if axis.norm() < 1e-12 {
+        if y.dot(pole) > 0.0 {
+            ball
+        } else {
+            topo::transform_rigid(
+                &ball,
+                &Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    core::f64::consts::PI,
+                ),
+                tol,
+            )
+            .unwrap()
+        }
+    } else {
+        topo::transform_rigid(
+            &ball,
+            &Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                axis.normalize(),
+                y.dot(pole).clamp(-1.0, 1.0).acos(),
+            ),
+            tol,
+        )
+        .unwrap()
+    };
+    topo::transform_rigid(&placed, &Affine3::translation(c), tol).unwrap()
 }
 
 /// **The toroidal spool**: an annular meridian whose outer wall is an
@@ -1026,7 +1085,7 @@ pub fn assert_naming_totality<T: Real>(
         .iter()
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
-        .chain(rec.slits.iter().map(|(e, _)| *e))
+        .chain(rec.slits.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .collect();
@@ -1034,7 +1093,7 @@ pub fn assert_naming_totality<T: Real>(
         .rim_feet
         .iter()
         .map(|(v, _)| *v)
-        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
+        .chain(rec.meridian_splits.iter().map(|(v, _, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
         .collect();
     // (e) recorded once each.
@@ -1058,8 +1117,8 @@ pub fn assert_naming_totality<T: Real>(
     let fragments: Vec<(EdgeKey, EdgeKey)> = rec
         .meridian_remnants
         .iter()
-        .chain(rec.slits.iter())
         .copied()
+        .chain(rec.slits.iter().map(|(e, m, _)| (*e, *m)))
         .collect();
     for e in &minted_edges {
         match fragments.iter().find(|(k, _)| k == e) {
@@ -1319,15 +1378,8 @@ pub fn bowl(tol: Tol) -> Body<f64> {
 /// same doors, so the interval twin differs in the scalar and nothing
 /// else.
 pub fn bowl_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
-    let v = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
     revolved_about_y_at(
-        vec![
-            v(0.0, 0.0),
-            v(1.5, 0.0),
-            v(1.5, 1.5),
-            v(1.0, 1.0),
-            v(0.0, 1.0),
-        ],
+        corners(&[(0.0, 0.0), (1.5, 0.0), (1.5, 1.5), (1.0, 1.0), (0.0, 1.0)]),
         crate::Revolution::Full,
         tol,
     )

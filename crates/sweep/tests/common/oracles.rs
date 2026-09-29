@@ -1,6 +1,6 @@
-//! **Closed-form volumes the blend and chamfer suites meter against** —
-//! derived here from the geometry, never from the kernel, so a carve
-//! and its expectation cannot be wrong together.
+//! **Closed-form volumes the blend, chamfer and shell suites meter
+//! against** — derived here from the geometry, never from the kernel,
+//! so a carve and its expectation cannot be wrong together.
 //!
 //! **The rule for what belongs here, and it is checkable by reading:**
 //! a per-suite spelling comes here when it could not disagree with the
@@ -109,6 +109,14 @@ pub fn chamfered_cube_removed(a: f64, d: f64) -> f64 {
 /// that side's own scale.
 pub fn rounded_box_volume(l: f64, r: f64) -> f64 {
     l.powi(3) + 6.0 * l * l * r + 3.0 * PI * l * r * r + (4.0 / 3.0) * PI * r.powi(3)
+}
+
+/// **The volume of a `w × d × h` box**, `w·d·h` — the term every
+/// closed form of a shelled box is a difference of: a wall of
+/// thickness `t` on the `2 × 3 × 4` block is
+/// `box_volume(2, 3, 4) − box_volume(2 − 2t, 3 − 2t, 4 − 2t)`.
+pub fn box_volume(w: f64, d: f64, h: f64) -> f64 {
+    w * d * h
 }
 
 /// **The oracle's `σ` for a ball-side bit**: `+1` where the ball rests

@@ -14,12 +14,13 @@
 use crate::corpus;
 use crate::fixture;
 
+use crate::fixture::len;
 use corpus::plate_param::{
     HOLE_CENTRES, HOLE_R, HOLE_R_VALUE, PLATE, PLATE_DEPTH, hole_loop, plate_profile,
 };
 use corpus::{body_of, eval};
 use editor_core::{
-    Dimension, DocEdit, DocParam, EvalOutcome, Expr, Node, NodeErrorKind, NodeResult, ParamName,
+    Dimension, DocEdit, DocParam, EvalOutcome, Node, NodeErrorKind, NodeResult, ParamName,
     ProfileDoc, ProfilePayload, RecipeNodeId, SlotId, StepArg, apply,
 };
 use geom_core::Tol;
@@ -75,7 +76,7 @@ fn scene() -> Scene {
         &DocEdit::InsertNode {
             node: Node::Extrude {
                 profile,
-                distance: Expr::literal(PLATE_DEPTH, Dimension::Length).expect("depth"),
+                distance: len(PLATE_DEPTH),
             },
         },
         Tol::witness(),
@@ -306,7 +307,7 @@ fn the_authoring_door_refuses_but_set_doc_param_does_not() {
         &DocEdit::SetParam {
             node: s.profile,
             slot: radius_slot,
-            expr: Expr::literal(0.0, Dimension::Length).expect("zero literal"),
+            expr: len(0.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -331,7 +332,7 @@ fn the_authoring_door_refuses_but_set_doc_param_does_not() {
         &DocEdit::SetParam {
             node: s.profile,
             slot: radius_slot,
-            expr: Expr::literal(0.3, Dimension::Length).expect("literal"),
+            expr: len(0.3),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

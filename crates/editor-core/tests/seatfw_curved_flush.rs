@@ -64,10 +64,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         centre: [len(0.0), len(0.0)],
         radius: len(r),
     };
-    let (doc, peg_plane) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, peg_plane) = insert(doc, fixture::xy_frame());
     let (doc, peg_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {

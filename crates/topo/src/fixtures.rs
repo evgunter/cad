@@ -801,7 +801,6 @@ pub(crate) struct OpsHoledBox {
 /// [`crate::test_support_fixtures::drill_hole`] from the top face to
 /// the bottom.
 pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
-    let pt = Point3::new;
     let CubeOps {
         mut body,
         seed,
@@ -815,16 +814,16 @@ pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
         mefs[1].he_plus,
         mefs[0].face,
         &[
-            pt(0.25, 0.25, 1.0),
-            pt(0.75, 0.25, 1.0),
-            pt(0.75, 0.75, 1.0),
-            pt(0.25, 0.75, 1.0),
+            Point3::new(0.25, 0.25, 1.0),
+            Point3::new(0.75, 0.25, 1.0),
+            Point3::new(0.75, 0.75, 1.0),
+            Point3::new(0.25, 0.75, 1.0),
         ],
         &[
-            pt(0.25, 0.25, 0.0),
-            pt(0.75, 0.25, 0.0),
-            pt(0.75, 0.75, 0.0),
-            pt(0.25, 0.75, 0.0),
+            Point3::new(0.25, 0.25, 0.0),
+            Point3::new(0.75, 0.25, 0.0),
+            Point3::new(0.75, 0.75, 0.0),
+            Point3::new(0.25, 0.75, 0.0),
         ],
         tol,
     );
@@ -853,7 +852,6 @@ pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
 /// front face's first half-edge). Euler ledger check inside:
 /// v − e + f − r = 22 − 33 + 13 − 4 = −2 = 2(1 − 2).
 pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
-    let pt = Point3::new;
     let t = ops_holed_box(tol);
     let mut body = t.body;
     let f_front = t.box_mefs[1].face;
@@ -866,8 +864,16 @@ pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
         &mut body,
         at,
         f_back,
-        &[pt(0.3, 0.0, 0.3), pt(0.7, 0.0, 0.3), pt(0.5, 0.0, 0.7)],
-        &[pt(0.3, 1.0, 0.3), pt(0.7, 1.0, 0.3), pt(0.5, 1.0, 0.7)],
+        &[
+            Point3::new(0.3, 0.0, 0.3),
+            Point3::new(0.7, 0.0, 0.3),
+            Point3::new(0.5, 0.0, 0.7),
+        ],
+        &[
+            Point3::new(0.3, 1.0, 0.3),
+            Point3::new(0.7, 1.0, 0.3),
+            Point3::new(0.5, 1.0, 0.7),
+        ],
         tol,
     );
     // Genus-2 checkpoint.
@@ -1112,13 +1118,8 @@ pub(crate) fn bowed_patch() -> geom::NurbsSurface<f64> {
 /// scalars that have no fit).
 pub(crate) fn bowed_offset_approx<T: geom_core::Real>() -> geom::ApproxSurface<T> {
     let tol = Tol::witness();
-    let band = geom_core::Band::linear(tol).unwrap();
-    let minted =
-        geom_brep::approx_offset_surface(std::sync::Arc::new(bowed_patch()), 0.05, tol, band)
-            .expect("the bowed patch's offset fits at every eps row the gate commits");
-    let geom::Surface::Approx(approx) = minted else {
-        panic!("the mint door produces `Surface::Approx`");
-    };
+    let approx = geom_brep::approx_offset_surface(std::sync::Arc::new(bowed_patch()), 0.05, tol)
+        .expect("the bowed patch's offset fits at every eps row the gate commits");
     approx.map_scalar(T::from_f64)
 }
 

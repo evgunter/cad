@@ -22,10 +22,10 @@ use geom_core::{Point3, Real, Vec3};
 
 /// A point from three `f64` literals, embedded in the caller's scalar.
 pub(crate) fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
-    Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    Point3::new(x, y, z).map(T::from_f64)
 }
 
 /// A vector from three `f64` literals, embedded in the caller's scalar.
 pub(crate) fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
-    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    Vec3::new(x, y, z).map(T::from_f64)
 }

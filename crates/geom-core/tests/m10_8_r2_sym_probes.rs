@@ -12,7 +12,7 @@
 //! term cap under which a node's form is reduced during the walk).
 //!
 //! Everything here is a deterministic fixture; nothing samples, so
-//! nothing needs a seed ([[test-suite-cost]]).
+//! nothing needs a seed (implementer-discipline §8).
 //!
 //! NO TEST IN THIS FILE IS EXECUTED BY CI — the whole file is behind
 //! `#![cfg(feature = "probe")]` and nothing
@@ -52,7 +52,7 @@ fn lit(x: f64) -> Sym<Interval> {
 
 /// The decision the funnel would make about `m`.
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 /// Runs `f` with every buildable rule ON — the configuration the unit

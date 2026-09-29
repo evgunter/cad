@@ -100,7 +100,7 @@ const HEX_WALLS: [[[f64; 3]; 4]; 2] = [
 fn newell_normal_sum<T: Real>(ring: &[[f64; 3]; 4]) -> Vec3<T> {
     let points: Vec<Point3<T>> = ring
         .iter()
-        .map(|p| Point3::new(T::from_f64(p[0]), T::from_f64(p[1]), T::from_f64(p[2])))
+        .map(|p| Point3::new(p[0], p[1], p[2]).map(T::from_f64))
         .collect();
     let n = T::from_f64(points.len() as f64);
     let mut sum = Vec3::zero();

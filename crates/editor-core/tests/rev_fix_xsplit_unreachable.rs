@@ -229,10 +229,7 @@ fn three_shapes() -> ProfileDoc {
 /// diverge.
 fn foreign_master() -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-foreign"), Tol::witness());
-    let (doc, _datum) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, _datum) = insert(doc, fixture::xy_frame());
     let (doc, a) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-a")));
     let (doc, pa) = insert(
         doc,

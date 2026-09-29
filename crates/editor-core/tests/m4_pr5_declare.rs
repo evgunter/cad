@@ -446,12 +446,13 @@ fn declare_resolution_failures_are_typed_n5_errors() {
 }
 
 /// Review F1, recipe door: flush caps DECLARED on an ordinary partial
-/// overlap (walls offset) — the cap groups license, land outside the
-/// merge's never-elide inventory, and are SKIPPED; the result must
-/// still be tier-3 honest (no stale in-plane descriptions) with the
-/// exact volume.
+/// overlap (walls offset). Each cap pair meets along a seam bent at
+/// the overlap's corner; the merge joins the pair and deletes the seam
+/// edge left dangling with the corner, so each cap MERGES into one
+/// octagon. The result must be tier-3 honest (no stale in-plane
+/// descriptions) with the exact volume.
 #[test]
-fn skipped_declared_merge_recipe_door_is_tier3_green() {
+fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
@@ -485,6 +486,9 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
         topo::mass_properties(body, Tol::witness()).unwrap().volume,
         1.625
     );
+    // Both caps merged: two octagonal caps and eight walls, where two
+    // unglued cap pairs would leave twelve faces.
+    assert_eq!(body.faces().count(), 10, "each cap pair merged into one");
     assert_eq!(
         topo::validate::validate_geometric(body, Tol::witness()),
         Ok(()),
@@ -495,9 +499,11 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
         Ok(())
     );
     // Review F6: this shape is the corpus's PURE-seam-vertex pin —
-    // the skip lane's re-described in-plane chain leaves vertices
-    // whose every incident edge is Seam-named from ONE line (single
-    // Seam-headed path, no junction composition). Assert they exist.
+    // the merged caps keep, on their boundary, the vertices where the
+    // two blocks' walls cross, each named from ONE seam line (single
+    // Seam-headed path, no junction composition); the bent seam's
+    // corner, the one vertex the merge deletes, is not among them.
+    // Assert they exist.
     let pure_seam_vertices = ev
         .value(u)
         .unwrap()

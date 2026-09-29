@@ -1673,7 +1673,7 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::predicate::MarginDiag;
+    use geom_core::ErrorTextReading;
 
     const SITE: &str = "solve_test_direction";
 
@@ -1700,7 +1700,9 @@ mod tests {
             panic!("an in-band length escalates with its diagnostic: {in_band:?}");
         };
         assert_eq!(diag.predicate, Some(SITE));
-        assert!(matches!(diag.margin, MarginDiag::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9));
+        assert!(
+            matches!(diag.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9)
+        );
         assert_eq!(
             derived_direction(Vec3::new(0.5 * eps, 0.0, 0.0), SITE, band()).unwrap_err(),
             FrameError::Degenerate {

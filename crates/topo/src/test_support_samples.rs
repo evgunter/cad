@@ -25,8 +25,9 @@
 //! and every [`Undecided`] reason, which is every `what` the
 //! cross-solid backstop can raise. One level further in, the enums
 //! `PcurveMintError::Certify`, `MassPropsError::Face` and
-//! `CertifyError::PlaneNurbs` carry are sampled whole too; the four
-//! `OffsetFitError` wrappers carry one value each.
+//! `CertifyError::PlaneNurbs` carry are sampled whole too, as are
+//! `OffsetFitError::PatchBound`'s and `OffsetFitError::Band`'s; the
+//! other four `OffsetFitError` wrappers carry one value each.
 //!
 //! Where a raise site fills a field with prose — a `what`, a `detail`,
 //! a steer — the sample carries the prose a real run renders, and a
@@ -34,12 +35,12 @@
 //! names. Arena keys are the default (null) keys.
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
 
-use geom_brep::MaterialWedge;
 use geom_brep::certify::{CertCheck, CertifyError};
 use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
+use geom_brep::recourse::{Classified, Refused};
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
 use strum::IntoEnumIterator as _;
 
@@ -57,7 +58,7 @@ use crate::pcurves::PcurveMintError;
 use crate::props::MassPropsError;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, StaleDeclaration,
-    ValidationError,
+    ValidationError, WedgeCheck,
 };
 
 fn band() -> Band {
@@ -71,14 +72,12 @@ fn diags() -> [Indeterminate; 3] {
         margin,
         band: band(),
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
     };
     [
-        with(MarginDiag::Value(5e-9)),
-        with(MarginDiag::Enclosure {
-            lo: -2e-9,
-            hi: 4e-9,
-        }),
-        with(MarginDiag::Invalid),
+        with(MarginDiag::value(5e-9)),
+        with(MarginDiag::enclosure(-2e-9, 4e-9)),
+        with(MarginDiag::INVALID),
     ]
 }
 
@@ -86,13 +85,30 @@ fn diag() -> Indeterminate {
     diags()[0]
 }
 
+/// A band-decided zero verdict on `margin`, as `f64` classification
+/// reports it.
+fn zero_verdict(margin: f64) -> Refused {
+    Refused::Zero(Classified {
+        margin: MarginDiag::value(margin),
+        band: band(),
+    })
+}
+
+/// A sign-certain negative verdict on `margin`.
+fn negative_verdict(margin: f64) -> Refused {
+    Refused::Negative {
+        margin: MarginDiag::value(margin),
+    }
+}
+
 /// The margin every `ContactRefusal::Contradicted` raise site carries:
 /// invalid, naming the contact predicate that decided.
 fn contradiction_margin(predicate: &'static str) -> Indeterminate {
     Indeterminate {
-        margin: MarginDiag::Invalid,
+        margin: MarginDiag::INVALID,
         band: band(),
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -188,15 +204,31 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             sample: 3,
             last_distance: 1e-7,
         },
-        PlaneNurbsRefusal::NotTransverse { sample: 3 },
+        PlaneNurbsRefusal::NotTransverse {
+            sample: 3,
+            verdict: zero_verdict(0.0),
+        },
         PlaneNurbsRefusal::PcurveFit,
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
             value: 1e-7,
         },
         PlaneNurbsRefusal::TubeStraddles {
-            certified_clearance: 1e-7,
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::value(5e-10),
+                band: band(),
+            }),
             boxes: 12,
+        },
+        PlaneNurbsRefusal::TubeStraddles {
+            verdict: Refused::Negative {
+                margin: MarginDiag::value(-1e-7),
+            },
+            boxes: 12,
+        },
+        PlaneNurbsRefusal::TransversalityEscalated {
+            sample: 4,
+            cause: diag(),
         },
         PlaneNurbsRefusal::Escalated(diag()),
         PlaneNurbsRefusal::Unsupported {
@@ -216,16 +248,35 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::IntersectionSameSurface { key },
         CertifyError::SeamOnNonPeriodic,
-        CertifyError::IntervalNotForward,
+        // Both zero-span stories: a length a smaller tolerance decides,
+        // and a span of no length, which none does.
+        CertifyError::IntervalNotForward {
+            verdict: zero_verdict(5e-10),
+        },
+        CertifyError::IntervalNotForward {
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::IntervalNotForward {
+            verdict: negative_verdict(-1e-3),
+        },
         CertifyError::WindingExceeded,
         CertifyError::ResidualExceeded {
             check: CertCheck::Surface1Residual,
             sample: 4,
         },
-        CertifyError::NotTransverse { sample: 4 },
+        CertifyError::NotTransverse {
+            sample: 4,
+            verdict: zero_verdict(5e-10),
+        },
         CertifyError::NotSecondOrderSeparated {
             sample: 4,
-            band: band(),
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::TubeNotSeparated {
+            verdict: zero_verdict(5e-10),
+        },
+        CertifyError::TubeNotSeparated {
+            verdict: negative_verdict(-1e-7),
         },
         CertifyError::TangentCertificateUnsupported,
         CertifyError::Escalated {
@@ -259,7 +310,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             limb: Some(geom_brep::SsiLimb::Tube),
             what: "the uniqueness tube straddles a second branch",
             magnitude: Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: 1e-7,
+                certified_clearance: MarginDiag::value(1e-7),
                 boxes: 12,
             }),
         },
@@ -360,20 +411,40 @@ fn mass_props_errors() -> Vec<MassPropsError> {
 }
 
 fn offset_fit_errors() -> Vec<OffsetFitError> {
-    use geom_brep::offset_meters::MeterError;
-    vec![
+    use geom_brep::offset_meters::{Meter, MeterError};
+    use geom_brep::patch_bound::PatchBoundError;
+    let zero = zero_verdict;
+    let mut v = vec![
+        // Both zero-floor stories: a thinness a smaller tolerance
+        // decides, and a floor of exactly zero, which none does.
         OffsetFitError::Meter(MeterError::NormalFloor {
             floor: 1e-9,
-            thinness: 1e-3,
             speed_lever: 2.0,
+            verdict: zero(5e-10),
+        }),
+        OffsetFitError::Meter(MeterError::NormalFloor {
+            floor: 0.0,
+            speed_lever: 2.0,
+            verdict: zero(0.0),
+        }),
+        // Both verdicts: a sign-certain fold, and one inside the zero
+        // band, whose ending differs.
+        OffsetFitError::Meter(MeterError::CurvatureHeadroom {
+            reach: 0.5,
+            kappa: (2.0, 0.5),
+            verdict: Refused::Negative {
+                margin: MarginDiag::value(-0.1),
+            },
         }),
         OffsetFitError::Meter(MeterError::CurvatureHeadroom {
             reach: 0.5,
-            headroom: -0.1,
             kappa: (2.0, 0.5),
+            verdict: zero(5e-10),
         }),
-        OffsetFitError::Meter(MeterError::Escalated { source: diag() }),
-        OffsetFitError::PatchBound(geom_brep::patch_bound::PatchBoundError::Crease),
+        OffsetFitError::Meter(MeterError::Escalated {
+            meter: Meter::NormalFloor,
+            source: diag().with_predicate(Meter::NormalFloor.predicate()),
+        }),
         OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { have: 2, need: 4 }),
         OffsetFitError::Structure(geom_core::spline::SplineError::DomainInvalid {
             lo: 1.0,
@@ -389,6 +460,22 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            last_round: geom_brep::LastRound::Improved,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
+        },
+        OffsetFitError::BudgetExhausted {
+            budget: 4096,
+            grid: (64, 64),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+            last_round: geom_brep::LastRound::DidNotImprove,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::SampleCapReached {
             cap: 4096,
@@ -396,19 +483,37 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
             grid: (64, 64),
             d: 0.1,
             tolerance: 1e-6,
-            last_finite: Some(3e-6),
+            best: Some(geom_brep::BestBound {
+                bound: 3e-6,
+                grid: (48, 64),
+            }),
+        },
+        OffsetFitError::BoundNotFinite {
+            rounds: 6,
+            grid: (64, 64),
+            d: 1e-8,
+            tolerance: 1e-6,
+            best: None,
         },
         OffsetFitError::RefinementStalled {
             rounds: 6,
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::WindowUnsupported {
             window: geom::ApproxWindow {
@@ -421,7 +526,24 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
-    ]
+        OffsetFitError::Limb {
+            limb: OffsetLimb::OnLocus,
+            bound: 3e-6,
+            tolerance: 1e-6,
+        },
+        // The payload the elevation's own `check_weights` produces.
+        OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::Structure(
+            geom_core::spline::SplineError::NonPositiveWeight {
+                index: 3,
+                weight: 0.0,
+            },
+        )),
+    ];
+    // Every patch-bound note is its own sentence, and the enum is
+    // fieldless, so its compiler-derived roster is the sample list.
+    v.extend(PatchBoundError::iter().map(OffsetFitError::PatchBound));
+    v.extend(band_errors().into_iter().map(OffsetFitError::Band));
+    v
 }
 
 fn census_contacts() -> Vec<CensusContact> {
@@ -638,7 +760,14 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::UncertifiableSurface { face },
         ValidationError::PoisonedSurfaceDescription { face },
         ValidationError::ApproxLaneUnsupported { face },
-        ValidationError::DegenerateTorus { face },
+        ValidationError::DegenerateTorus {
+            face,
+            verdict: zero_verdict(5e-10),
+        },
+        ValidationError::DegenerateTorus {
+            face,
+            verdict: negative_verdict(-1e-3),
+        },
         ValidationError::DescriptionNotAdjacent { edge },
         ValidationError::PlanarFaceResidual { face, vertex },
         ValidationError::PlanarBoundaryResidual { face, edge },
@@ -675,16 +804,50 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
         ));
-        for end in geom::ConventionEnd::iter() {
-            s.push((
-                label("UnrepresentableSurfaceDatum", &datum),
-                ValidationError::UnrepresentableSurfaceDatum {
-                    face,
-                    kind,
-                    datum,
-                    end,
-                },
-            ));
+        // Every measure at every end, the frame's included: the
+        // renderings differ by measure, so each is budget-checked.
+        for measure in geom::ConventionMeasure::iter() {
+            for end in geom::ConventionEnd::iter() {
+                s.push((
+                    format!(
+                        "{}/{measure:?}",
+                        label("UnrepresentableSurfaceDatum", &datum)
+                    ),
+                    ValidationError::UnrepresentableSurfaceDatum {
+                        face,
+                        kind,
+                        datum,
+                        measure,
+                        end,
+                    },
+                ));
+            }
+        }
+    }
+
+    // A carrier datum, poisoned or outside its range: every datum, at
+    // each end of the range.
+    for datum in geom::CurveDatum::iter() {
+        let kind = crate::query::CurveKind::Ellipse;
+        s.push((
+            label("PoisonedCurveDatum", &datum),
+            ValidationError::PoisonedCurveDatum { edge, kind, datum },
+        ));
+        // Every measure at every end, the frame's included: the
+        // renderings differ by measure, so each is budget-checked.
+        for measure in geom::ConventionMeasure::iter() {
+            for end in geom::ConventionEnd::iter() {
+                s.push((
+                    format!("{}/{measure:?}", label("UnrepresentableCurveDatum", &datum)),
+                    ValidationError::UnrepresentableCurveDatum {
+                        edge,
+                        kind,
+                        datum,
+                        measure,
+                        end,
+                    },
+                ));
+            }
         }
     }
 
@@ -725,10 +888,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 ValidationError::PlanarBoundaryEscalated { face, edge, cause },
             ),
             (
-                "SliverDihedral",
-                ValidationError::SliverDihedral { edge, cause },
-            ),
-            (
                 "RingContactEscalated",
                 ValidationError::RingContactEscalated {
                     face,
@@ -743,12 +902,16 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ] {
             s.push((format!("{arm}{m}"), e));
         }
-    }
-    for wedge in [MaterialWedge::Cusp, MaterialWedge::Slit] {
-        s.push((
-            label("UndeclaredCusp", &wedge),
-            ValidationError::UndeclaredCusp { edge, wedge },
-        ));
+        for check in [
+            WedgeCheck::Dihedral,
+            WedgeCheck::SecondOrder,
+            WedgeCheck::MaterialSide,
+        ] {
+            s.push((
+                format!("SliverDihedral/{check:?}{m}"),
+                ValidationError::SliverDihedral { edge, check, cause },
+            ));
+        }
     }
     for source in mass_props_errors() {
         let l = match &source {
@@ -781,6 +944,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 face,
                 ring: loop_,
                 source,
+            },
+        ));
+    }
+    // Check 10: both rendered magnitudes, the doubled count and the
+    // negative one.
+    for (winding, bounded) in [(1, 2), (0, -1)] {
+        s.push((
+            format!("ShellWinding/{bounded}"),
+            ValidationError::ShellWinding {
+                solid,
+                shell: ShellKey::default(),
+                winding,
+                bounded,
             },
         ));
     }
@@ -930,7 +1106,8 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     use geom_brep::offset_fit::OffsetFitErrorKind;
     use geom_brep::pcurve_cache::PcurveCertifyErrorKind;
     use geom_brep::props::PropsErrorKind;
-    use geom_core::predicate::{BandErrorKind, MarginDiagKind};
+    use geom_core::MarginKind;
+    use geom_core::predicate::BandErrorKind;
     let causes: Vec<CensusUnsupportedCause> = validation_error_samples()
         .into_iter()
         .filter_map(|(_, e)| match e {
@@ -982,7 +1159,7 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &offset_fit_errors(),
     ));
     out.extend(gaps::<_, BandErrorKind>("BandError", &band_errors()));
-    out.extend(gaps::<_, MarginDiagKind>("MarginDiag", &margins));
+    out.extend(gaps::<_, MarginKind>("MarginDiag", &margins));
     out.extend(gaps::<_, CensusContactKind>(
         "CensusContact",
         &census_contacts(),

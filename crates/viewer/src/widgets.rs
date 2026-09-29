@@ -373,9 +373,8 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
 /// [`install_number_formatter`], which can carry the render as a
 /// context default and cannot carry this, because `egui::Style` has a
 /// `number_formatter` and no parser. There is no such site:
-/// `scripts/gates/viewer-numeric-field-door.sh` refuses one, and this
-/// file is its one home because the constructor and the rows that
-/// hold what it adds are both here.
+/// `roster_tests::no_numeric_field_bypasses_the_door` refuses one
+/// anywhere in the crate outside this file.
 pub(crate) fn number_field<Num: egui::emath::Numeric>(
     value: &mut Num,
     speed: f64,
@@ -444,7 +443,7 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
 /// is the row that pins what the difference IS.
 ///
 /// **So the twelfth site is refused rather than relied on**:
-/// `scripts/gates/viewer-numeric-field-door.sh` reds on a bare
+/// `roster_tests::no_numeric_field_bypasses_the_door` reds on a bare
 /// `egui::DragValue` anywhere under `crates/viewer/src` outside this
 /// file. The floor stays — it is what makes a site that slips past a
 /// gate revision show the right text anyway — but *every numeric
@@ -1719,6 +1718,34 @@ mod roster_tests {
              paragraph name these files; a call site that is not here, or one \
              that reached the name through a `use` rather than the qualified \
              path, makes both stale"
+        );
+    }
+
+    /// **Every numeric field goes through [`super::number_field`].** A bare
+    /// `egui::DragValue` shows the right text but commits its own render
+    /// back when a click leaves it; the door carries the precision rule
+    /// and the echo veto (`field_tests::a_bare_field_commits_a_render_the_door_would_refuse`
+    /// pins the difference). This file is the door's home and holds its
+    /// harness's bare fields, so it is the one file not scanned. Code only,
+    /// test modules included; `egui::Slider` is not matched (the crate has
+    /// none).
+    #[test]
+    fn no_numeric_field_bypasses_the_door() {
+        let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+        let bare: Vec<String> = test_utils::source::rust_sources(&src)
+            .into_iter()
+            .filter(|path| *path != src.join("widgets.rs"))
+            .filter(|path| {
+                let text = test_utils::source::code_only(
+                    &std::fs::read_to_string(path).expect("a source file"),
+                );
+                text.contains("DragValue::new") || text.contains("DragValue::from_get_set")
+            })
+            .map(|path| path.display().to_string())
+            .collect();
+        assert!(
+            bare.is_empty(),
+            "a bare egui::DragValue outside widgets.rs; build it with widgets::number_field: {bare:?}"
         );
     }
 }
@@ -3361,14 +3388,15 @@ mod value_field_tests {
 
     use super::{FieldVocabulary, number_text, value_field_ops, value_gesture};
     use crate::forms::FieldWriting;
-    use crate::frame::{self, StatusUpdate};
+    use crate::frame::{self, RankedVerdict};
     use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
+    use crate::test_support::{declared, framed_square, inserted, len, scl};
     use eframe::egui;
     use pncad::document::{
-        Datum, Dimension, DimensionError, Doc, DocEdit, DocParam, Expr, LoopProgram, Node,
-        ParamName, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId, apply,
+        Dimension, DimensionError, Doc, DocParam, Expr, Node, ParamName, PatternKind,
+        ProfileProgram, RecipeNodeId, SlotId,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
@@ -3414,39 +3442,6 @@ mod value_field_tests {
         notices: Vec<crate::frame::Message>,
     }
 
-    /// Apply one edit to a fixture document, answering the document
-    /// and any minted id — `tests/common`'s `edited`, spelled here
-    /// because this suite lives inside the crate.
-    fn edited(
-        doc: &Doc<ProfileProgram>,
-        edit: DocEdit<ProfileProgram>,
-        tol: Tol,
-    ) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-        let applied = apply(doc, &edit, tol, &RefusingReach).expect("the fixture's edit applies");
-        (applied.doc, applied.record.minted)
-    }
-
-    fn inserted(
-        doc: &Doc<ProfileProgram>,
-        node: Node<ProfileProgram>,
-        tol: Tol,
-    ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-        let (doc, minted) = edited(doc, node_insert(node), tol);
-        (doc, minted.expect("an insert mints an id"))
-    }
-
-    fn node_insert(node: Node<ProfileProgram>) -> DocEdit<ProfileProgram> {
-        DocEdit::InsertNode { node }
-    }
-
-    fn len(metres: f64) -> Expr {
-        Expr::literal(metres, Dimension::Length).expect("a finite length")
-    }
-
-    fn scl(value: f64) -> Expr {
-        Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
-    }
-
     impl Row {
         /// One length parameter, declared in millimetres and holding
         /// `canonical` metres.
@@ -3481,36 +3476,13 @@ mod value_field_tests {
         /// row about a DRIVEN slot has something to drive it with.
         fn extrude_distance(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
-            let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
-            let (doc, _) = edited(
-                &doc,
-                DocEdit::SetDocParam {
-                    name: ParamName::new("base_r"),
-                    value: DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
-                },
+            let doc = declared(
+                label,
+                &ParamName::new("base_r"),
+                DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
                 tol,
             );
-            let (doc, plane) = inserted(
-                &doc,
-                Node::Datum(Datum::Frame {
-                    origin: [len(0.0), len(0.0), len(0.0)],
-                    u: [scl(1.0), scl(0.0), scl(0.0)],
-                    v: [scl(0.0), scl(1.0), scl(0.0)],
-                }),
-                tol,
-            );
-            let (doc, profile) = inserted(
-                &doc,
-                Node::Profile(ProfileProgram {
-                    plane,
-                    loops: vec![
-                        LoopProgram::polygon([(0.0, 0.0), (0.04, 0.0), (0.04, 0.04), (0.0, 0.04)])
-                            .expect("finite corners"),
-                    ],
-                    ids: Vec::new(),
-                }),
-                tol,
-            );
+            let (doc, profile) = framed_square(&doc, 0.04, tol);
             let (doc, extrude) = inserted(
                 &doc,
                 Node::Extrude {
@@ -3852,7 +3824,7 @@ mod value_field_tests {
         assert_eq!(row.session.history().len(), before, "and nothing lands");
         assert_eq!(row.showing().0, 2.0, "and the field keeps the count");
         let typed = frame::frame_status(&row.notices, &typed_ops, None);
-        let StatusUpdate::Show(said) = &typed else {
+        let RankedVerdict::Show(said) = &typed else {
             panic!("the typed refusal reaches the line: {typed:?}");
         };
         assert_eq!(said.text(), "a literal value must be finite");

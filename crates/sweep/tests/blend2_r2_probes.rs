@@ -210,16 +210,17 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
         .iter()
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
-        .chain(rec.slits.iter().map(|(e, _)| *e))
+        .chain(rec.slits.iter().map(|(e, _, _)| *e))
         .collect();
     let n = minted_e.len();
     minted_e.sort_unstable();
     minted_e.dedup();
     assert_eq!(n, minted_e.len(), "a mint was recorded twice");
-    let fragments: Vec<_> = rec
+    let fragments: Vec<(EdgeKey, EdgeKey)> = rec
         .meridian_remnants
         .iter()
-        .chain(rec.slits.iter())
+        .copied()
+        .chain(rec.slits.iter().map(|(e, m, _)| (*e, *m)))
         .collect();
     for e in &minted_e {
         match fragments.iter().find(|(k, _)| k == e) {

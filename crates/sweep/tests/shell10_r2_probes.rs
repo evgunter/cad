@@ -29,12 +29,14 @@ use sweep::test_support::block;
 use topo::{Body, FaceKey, SolidKey};
 
 use crate::common::approx::band;
-use crate::shell8_common::{
-    beside, cap, charts_of, deep_dump, face_of_he, faces_of, solid_of, tol, volume,
-};
-use crate::verbs_shell::{tube, v, vessel};
+use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::{tube, vessel};
+use crate::shell8_common::{beside, cap, deep_dump, faces_of, solid_of, tol, volume, wearers};
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
+/// NOT `common::pcurve_rows::rows`: scoped to one solid's faces, which
+/// is what these rows compare across a scoped walk.
 fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
     let mine: Vec<FaceKey> = faces_of(body, solid);
     body.pcurves()
@@ -53,13 +55,12 @@ fn dead_rows(body: &Body<f64>) -> usize {
         .count()
 }
 
-/// The whole chart `face` wears.
+/// The chart `face` wears, as its solid's wearers of it. NOT
+/// `common::charts::charts`: one chart, filtered by one surface key,
+/// rather than the partition.
 fn chart_of(body: &Body<f64>, face: FaceKey) -> Vec<FaceKey> {
     let key = body.get_face(face).unwrap().surface;
-    body.faces()
-        .filter(|(_, f)| f.surface == key)
-        .map(|(k, _)| k)
-        .collect()
+    wearers(body, solid_of(body, face), key)
 }
 
 /// The chart of the plane normal to `z` at `z = at`, over the whole
@@ -139,11 +140,12 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let ves = solids[1];
-    let ves_shell = pair.get_solid(ves).unwrap().shells[0];
+    let ves_shell = pair.shells_of_solid(ves).unwrap()[0];
     let top = cap(&pair, ves_shell, Vec3::new(0.0, 1.0, 0.0), 2.0);
 
     let hollow = topo::shell(&pair, t, tol()).expect("hollow both");
-    let want1 = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (cyl(1.0, 2.0) - cyl(0.95, 1.9));
+    let want1 =
+        (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9)) + (cyl(1.0, 2.0) - cyl(0.95, 1.9));
     println!(
         "[r2-10] e2e1 hollow: volume={:.12} closed form {:.12}",
         volume(&hollow.body),
@@ -162,8 +164,8 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     let opened = topo::shell_open(&hollow.body, t2, &chart, tol())
         .expect("open the vessel's void ceiling while the box stays sealed");
     let took = started.elapsed();
-    let want_box =
-        (v(2.0, 3.0, 4.0) - v(1.96, 2.96, 3.96)) + (v(1.94, 2.94, 3.94) - v(1.9, 2.9, 3.9));
+    let want_box = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
+        + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9));
     let want_ves = (cyl(1.0, 2.0) - cyl(0.98, 1.96)) + (cyl(0.97, 1.94) - cyl(0.95, 1.9));
     // The lid the opening removes: the designated face's TWIN's disc
     // (SHELL-8's e2e used the twin's rectangle for an outer lid).
@@ -203,10 +205,10 @@ fn r2_e2e_four_solids_hollowed_once_then_one_opened() {
     let started = Instant::now();
     let hollow = topo::shell(&four, t, tol()).expect("four solids hollow in one call");
     let took_hollow = started.elapsed();
-    let want1 = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9))
+    let want1 = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (cyl(1.0, 2.0) - cyl(0.95, 1.9))
         + (annulus(0.6, 1.0, 2.0) - annulus(0.65, 0.95, 1.9))
-        + (v(2.0, 2.0, 2.0) - v(1.9, 1.9, 1.9));
+        + (box_volume(2.0, 2.0, 2.0) - box_volume(1.9, 1.9, 1.9));
     println!(
         "[r2-10] e2e2 hollow: solids={} shells={} volume={:.12} closed form {:.12} took {took_hollow:?}",
         hollow.body.solids().count(),
@@ -224,14 +226,14 @@ fn r2_e2e_four_solids_hollowed_once_then_one_opened() {
     let opened = topo::shell_open(&hollow.body, t2, &lid, tol())
         .expect("one lid opens while the other three solids shell sealed");
     let took_open = started.elapsed();
-    let want2 = (v(2.0, 3.0, 4.0) - v(1.96, 2.96, 3.96))
-        + (v(1.94, 2.94, 3.94) - v(1.9, 2.9, 3.9))
+    let want2 = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
+        + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
         + (cyl(1.0, 2.0) - cyl(0.98, 1.96))
         + (cyl(0.97, 1.94) - cyl(0.95, 1.9))
         + (annulus(0.6, 1.0, 2.0) - annulus(0.62, 0.98, 1.96))
         + (annulus(0.63, 0.97, 1.94) - annulus(0.65, 0.95, 1.9))
-        + (v(2.0, 2.0, 2.0) - v(1.96, 1.96, 1.96))
-        + (v(1.94, 1.94, 1.94) - v(1.9, 1.9, 1.9))
+        + (box_volume(2.0, 2.0, 2.0) - box_volume(1.96, 1.96, 1.96))
+        + (box_volume(1.94, 1.94, 1.94) - box_volume(1.9, 1.9, 1.9))
         - 1.96 * 1.96 * t2;
     println!(
         "[r2-10] e2e2 opened: volume={:.12} closed form {:.12} took {took_open:?}",
@@ -285,13 +287,7 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
         topo::mint_pcurves_of(&mut before, &in_scope, tol()).expect("the vessel's rows mint");
     let box_deep = deep_dump(&before, bx);
     let box_rows = rows_of(&before, bx);
-    let moves: Vec<topo::ChartMove<f64>> = charts_of(&before, ves)
-        .into_iter()
-        .map(|faces| topo::ChartMove {
-            faces,
-            distance: -0.05,
-        })
-        .collect();
+    let moves = moves_by(charts_of(&before, ves), -0.05);
     let mut after = before.clone();
     topo::offset_charts_together(&mut after, &moves, band(), tol())
         .expect("the door reads its scope, and its scope charts");
@@ -307,13 +303,7 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
     let mut alone = vessel(1.0, 2.0);
     assert_eq!(alone.solids().next().unwrap().0, ves);
     topo::mint_pcurves(&mut alone, tol()).expect("the vessel alone mints");
-    let alone_moves: Vec<topo::ChartMove<f64>> = charts_of(&alone, ves)
-        .into_iter()
-        .map(|faces| topo::ChartMove {
-            faces,
-            distance: -0.05,
-        })
-        .collect();
+    let alone_moves = moves_by(charts_of(&alone, ves), -0.05);
     assert_eq!(
         moves.iter().map(|m| m.faces.clone()).collect::<Vec<_>>(),
         alone_moves
@@ -357,7 +347,10 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
     let seam = b
         .edges()
         .find(|(_, e)| {
-            let (fa, fb) = (face_of_he(&b, e.he_plus), face_of_he(&b, e.he_minus));
+            let (fa, fb) = (
+                b.face_of_half_edge(e.he_plus).unwrap(),
+                b.face_of_half_edge(e.he_minus).unwrap(),
+            );
             let (sa, sb) = (
                 b.get_face(fa).unwrap().surface,
                 b.get_face(fb).unwrap().surface,

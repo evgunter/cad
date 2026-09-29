@@ -15,7 +15,7 @@
 
 use crate::common;
 
-use common::{inserted, len3, scl3, square};
+use common::{frame, inserted, len3, scl3, square, xy_frame};
 use pncad::document::{
     CancelToken, Datum, Doc, DocumentId, EvalOptions, Node, ProfileProgram, evaluate,
 };
@@ -128,14 +128,6 @@ fn axis(origin: [f64; 3], direction: [f64; 3]) -> Node<ProfileProgram> {
 fn point(position: [f64; 3]) -> Node<ProfileProgram> {
     Node::Datum(Datum::Point {
         position: len3(position),
-    })
-}
-
-fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    Node::Datum(Datum::Frame {
-        origin: len3(origin),
-        u: scl3(u),
-        v: scl3(v),
     })
 }
 
@@ -253,11 +245,7 @@ fn a_frames_grid_follows_its_own_axes() {
 /// the ruling cannot be.
 #[test]
 fn a_frames_arrows_cannot_hide_in_its_grid() {
-    let (doc, tol) = evaluated(vec![frame(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    )]);
+    let (doc, tol) = evaluated(vec![xy_frame()]);
     let segments = &draws(&doc, tol, [0.0, -0.15, 0.1])[0].segments;
     let off_axis = segments
         .chunks_exact(2)
@@ -299,11 +287,7 @@ fn a_frames_arrows_cannot_hide_in_its_grid() {
 /// (nearly) one place, which is one head drawn twice.
 #[test]
 fn a_frames_arms_match_and_the_x_head_is_doubled() {
-    let (doc, tol) = evaluated(vec![frame(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    )]);
+    let (doc, tol) = evaluated(vec![xy_frame()]);
     let segments = &draws(&doc, tol, [0.0, -0.15, 0.1])[0].segments;
     // The marks found by what they ARE, not by their index in the
     // list: an arm is a segment leaving the origin along one of the
@@ -624,7 +608,7 @@ fn grid_pitch_refuses_a_scale_that_is_not_a_positive_length() {
 fn a_view_with_no_finite_scale_draws_nothing() {
     let (doc, tol) = evaluated(vec![
         plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        xy_frame(),
         axis([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
         point([0.0, 0.0, 0.0]),
     ]);
@@ -657,11 +641,7 @@ fn a_view_with_no_finite_scale_draws_nothing() {
 /// normally.
 #[test]
 fn a_frame_keeps_its_arms_when_only_the_patch_has_no_scale() {
-    let (doc, tol) = evaluated(vec![frame(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    )]);
+    let (doc, tol) = evaluated(vec![xy_frame()]);
     let evaluation = evaluate(
         &doc,
         None,

@@ -12,7 +12,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 
 | Decisions | Module |
 |---|---|
-| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier` | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
+| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the product's two-roots check and the mate member walk) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
 | N2 discriminators; tie propagation | `discriminate.rs`; `defer.rs` |
@@ -59,13 +59,28 @@ made by the verdicts that decided it. Nodes already follow this rule, and so do
 union members (`FromMember`, DM4). Profile pieces follow it as well:
 
 - **The id.** Every step of a profile program carries a `StepId` in the recipe
-  (`ProfileProgram::ids`). It is minted from the document's monotone step
-  counter when the step is authored, by `InsertNode` or `SetProgram`. Like a
-  `RecipeNodeId`, it is never positional and never reused, and it is unique
-  across the whole document; the load door checks all three. A name may
-  spell only a step the document has minted: the doors that write a name
-  (`InsertNode`, `Rebind`, `SetAppearance`, `SetAppearanceMeta`) refuse one
-  at or beyond the counter, and so does the load door.
+  (`ProfileProgram::ids`). It is minted when the step is authored, by
+  `InsertNode` or `SetProgram`, from the document's mint chain: a digest
+  the document carries, which each minting edit extends by that edit's
+  canonical bytes. The steps one edit mints take the extended chain's
+  digests, one per step in authored order. So an id is a function of the
+  edit sequence that minted it:
+  - the same sequence of edits from one value mints the same ids (D9);
+  - two documents that branch from one value — an undo followed by a
+    different edit, or two edits applied to one base — mint different ids
+    for their different steps, so a name carried from one branch into the
+    other spells a step that branch never minted and denotes nothing
+    there, rather than another step. A parent's name held across a pin
+    update between two such versions resolves `Vanished`.
+
+  Like a `RecipeNodeId`, a step id is never positional and never reused,
+  and it is unique across the whole document. The document keeps every
+  id it has minted in its mint log, dropped steps' included, and a mint
+  whose digest is already in the log is refused. The load door checks all
+  three. A name may spell only a step the document has minted: the doors
+  that write a name (`InsertNode`, `Rebind`, `SetAppearance`,
+  `SetAppearanceMeta`) refuse one the mint log does not hold, and so does
+  the load door.
 - **The role.** A step draws its pieces from a fixed list of roles, one list
   per verb:
   - every verb that draws one segment has one role, `Leg`: `line`,
@@ -231,6 +246,20 @@ Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
 hit-testing (`resolve/hit.rs`) reads the table backwards, so the GUI never sees
 an arena key.
 
+**A tie's candidates keep their identity.** The node that mints an
+`Entry::Tied` row numbers its candidates, and the number belongs to the row: a
+tied row holds (candidate, entity) pairs, and a row that narrows to one
+candidate (a `Part`'s projection of the half that holds it, a split's
+pass-through of the uncut one) is a `Unique` row that keeps its candidate. The
+pass-through ops of N1 carry the candidate with the name; an op that wraps the
+name numbers afresh, as it mints a fresh name. The product's gather therefore
+has one rule for strict and tied names alike: a (name, candidate) pair reaches
+the product at most once. A strict name is its own only candidate, so two roots
+carrying it refuse; two roots carrying different candidates of one tie merge
+back into the tie; two carrying the same candidate refuse
+(`ProductError::Naming`), the tied case of one entity placed twice. The
+candidate is not part of the name and reaches no name digest.
+
 **The row is a shared handle.** A table keys on `NameRef` — one `Arc<StableName>`
 per row, held by both directions — and a role segment holds its argument name by
 the same type, so a downstream name EMBEDS its operand's row rather than copying
@@ -354,8 +383,10 @@ transform composes into `expr` (`SourceExpr::Placed`), `revert` flips `orient`
 (`rev ∘ rev = id`). Same source is syntactic identity of the triple. Theorem:
 same `GeomSource` ⇒ bit-identical descriptions (D9); the converse is not
 claimed, so equal bits without a shared source stay unglued. The declared
-coincidence rung is this lookup (`merge_faces.rs`, `oriented_plane_eq`); the bit
-comparison survives only as the debug assertions behind `plane_bits_witness`, and the gate
+coincidence rung is this lookup (`source::surface_declaration`, whose source rung
+`source::source_declaration` is also `oriented_plane_eq`'s rung 1); the bit
+comparison survives only in the debug assertions built on `crates/topo/src/source.rs`'s
+bit witnesses (`surface_bits_witness`, `data_bits_witness`), and the gate
 `scripts/gates/bit-identity-consumer.sh` keeps the production allowlist empty.
 Identity holds per evaluation against the current document only.
 

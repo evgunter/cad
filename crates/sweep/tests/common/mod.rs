@@ -14,12 +14,17 @@
 //!   reason;
 //! - this module — section authoring, the profile vocabulary a suite
 //!   builds a body FROM;
+//! - [`interval`] — the `Interval` literals (`iv`, `p2`, `v2`, `p3`,
+//!   `v3`) an interval-lane suite authors with (section authoring,
+//!   same routing);
 //! - [`orient`] — what a suite CHECKS of a body it built, by reading
 //!   POSITIONS off the shipped charts;
 //! - [`cap_rims`] — what a suite checks of a body's CAP RIMS: the
 //!   boundary walk, the face across a rim, and the description each
 //!   rim carries. A reader, not an evaluator, which is why it is not
 //!   [`orient`];
+//! - [`census`] — a built body's ring count and genus through the
+//!   kernel's census door: a check of a body, so beside [`orient`];
 //! - [`operands`] — the plain named bodies a boolean row puts
 //!   something else against: the shared boxes and the conic corpus's
 //!   rounded plate (body authoring, same routing);
@@ -27,11 +32,44 @@
 //!   authoring, so it routes to this module rather than to a suite);
 //! - [`cavity`] — the vented-cavity fixture vocabulary (body
 //!   authoring, same routing);
+//! - [`charts`] — a body's faces grouped by the surface they wear, and
+//!   the `ChartMove` sets the offset doors take: what a suite drives a
+//!   door WITH, which is neither a body nor a check of one;
 //! - [`oracles`] — closed-form volumes, which are neither: a truth
 //!   derived without the kernel, so its own doc carries the rule for
 //!   which per-suite spellings may come here at all;
-//! - `revolve_common` — the revolve suites' own, and the place `p2`
-//!   and `eps` presently live despite belonging to no verb.
+//! - [`sphere_recut`] — the certified sphere-recut fixture and the one
+//!   measurement taken of it, a group two suites' rows name (body
+//!   authoring, same routing);
+//! - [`germ_pair`] — the intersecting equal-radius cylinder pair (body
+//!   authoring, same routing);
+//! - [`cone_nappe`] — the cone-nappe fixtures and the corner walk a
+//!   cone face is checked with (body authoring plus the one reader that
+//!   goes with it);
+//! - [`latitude_seam`] — the same-surface latitude-seam fixtures and the
+//!   readers their rows run over them (body authoring plus readers that
+//!   evaluate no surface);
+//! - [`shell_operands`] — the `shell` verb's operands and the two role
+//!   readers its rows run over them (body authoring plus readers that
+//!   evaluate no surface, as [`latitude_seam`]);
+//! - [`torus_walls`] — the torus-walled revolves the offset-axial door
+//!   is measured on, and the cavity it carves in one (body authoring,
+//!   same routing);
+//! - [`cert_corpus`] — the valid and corrupt bodies the certified doors
+//!   and their `_structural` twins are walked over (body authoring,
+//!   same routing);
+//! - [`pcurve_rows`], [`bitdump`] and [`contact_edges`] — what a suite
+//!   reads OFF a body it built to diff or count it: every stored pcurve
+//!   row as text, the whole body bit for bit, and how its contact edges
+//!   are described. Readers of stored data that evaluate nothing, so
+//!   they route beside [`cap_rims`] rather than into [`orient`];
+//! - [`poses`] — the rigid poses a re-posed row asks its question at:
+//!   what a suite drives a door WITH, as [`charts`];
+//! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
+//!   declarations, swapped for the reversed order: what a suite drives
+//!   a door WITH, as [`poses`];
+//! - `revolve_common` — the revolve suites' own, and the place `eps`
+//!   presently lives despite belonging to no verb.
 //!
 //! A helper one suite uses stays in that suite.
 //!
@@ -100,6 +138,12 @@ pub mod approx;
 /// routes here.
 pub mod cavity;
 
+/// A body's charts — its faces grouped by the surface they wear — and
+/// the `ChartMove` sets the simultaneous offset doors take. What a
+/// suite drives a door WITH, so it routes here rather than into a
+/// suite.
+pub mod charts;
+
 /// The intersecting equal-radius cylinder pair — the germ lane's
 /// fixture and the parameter-identity channel's, one authoring for
 /// the one door both read. Body authoring, so it routes here.
@@ -119,11 +163,61 @@ pub mod cone_nappe;
 /// evaluate no surface, so it routes here.
 pub mod latitude_seam;
 
+/// The `Interval` literals — a scalar, and points and vectors from
+/// exact `f64` coordinates. What an interval-lane
+/// suite authors its profile and placements with, so it routes here.
+pub mod interval;
+
 /// The closed-form volumes those suites meter against. Not a fixture
 /// and not a check of a body, but a truth derived WITHOUT the kernel;
 /// its module doc carries the rule for which per-suite spellings come
 /// here and which are second derivations that must not.
 pub mod oracles;
+
+/// The certified sphere-recut fixture — its plate, its ball and the
+/// enclosure width its subtract is measured to escalate on — which two
+/// suites' rows run as one fixture. Body authoring, so it routes here.
+pub mod sphere_recut;
+
+/// The `shell` verb's operands — the vessel, the tube, the hollow box
+/// and the two-void box — and the two role readers a shell row runs
+/// over them. Body authoring plus readers that evaluate no surface, so
+/// it routes here.
+pub mod shell_operands;
+
+/// The torus-walled revolves — the barrel, the teapot's belly and the
+/// sectioned vessel with its cavity through the axial door. Body
+/// authoring, so it routes here.
+pub mod torus_walls;
+
+/// The certification corpus — valid bodies, their reverted twins and
+/// the `f64`-only corrupt constructions — the certified/`_structural`
+/// door pairs are walked over. Body authoring, so it routes here.
+pub mod cert_corpus;
+
+/// Every stored pcurve row of a body as text: the bit-for-bit form two
+/// bodies' rows are compared by, and the dump form a base/head diff
+/// reads. What a suite CHECKS of a body, so it routes here.
+pub mod pcurve_rows;
+
+/// The reviewer bit-identity dump and the `BITDUMP_DIR` channel that
+/// arms it. What a suite reads off a body, so it routes here.
+pub mod bitdump;
+
+/// The counts of a carved body's contact-edge descriptions — intrinsic
+/// tangency, or chart image. What a suite CHECKS of a body, so it
+/// routes here.
+pub mod contact_edges;
+
+/// The rigid poses a re-posed row asks its question at: the torax
+/// rows' one re-pose and the six-pose set. What a suite drives a door
+/// WITH, so it routes here.
+pub mod poses;
+
+/// ∖ in both operand orders and ∩ under one set of declarations,
+/// swapped for the reversed order. What a suite drives a door WITH, so
+/// it routes here.
+pub mod revert_ops;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
@@ -195,6 +289,45 @@ pub fn arc_section(s: f64) -> Section {
         v(s, s, 0.0),
         v(-s, s, 0.0),
     ])]
+}
+
+/// **The three-arc circle**: radius `radius` about `centre`, as three
+/// 120° arcs whose first joint sits at `first` degrees (any angle; the
+/// suites use 0, 60, 90 and 120-degree steps of them). Each joint's
+/// angle is reduced mod 360 before it is evaluated, so a start of 240
+/// puts its joints at 240, 0 and 120 — never at 360, whose `sin` is
+/// not zero in `f64`.
+///
+/// One loop for the crate's three-arc cylinders, collars and pegs: a
+/// cylinder built from it is one curved surface cut by three seam
+/// struts, which is the shape the MATE-2 rows and the conic corpus
+/// both depend on.
+pub fn three_arc(centre: Point2<f64>, radius: f64, first: f64) -> ProfileLoop<f64> {
+    let b120 = (core::f64::consts::PI / 6.0).tan();
+    let at = |deg: f64| {
+        let th: f64 = (deg % 360.0).to_radians();
+        Point2::new(centre.x + radius * th.cos(), centre.y + radius * th.sin())
+    };
+    bulge_loop(vec![
+        (at(first), b120),
+        (at(first + 120.0), b120),
+        (at(first + 240.0), b120),
+    ])
+}
+
+/// **The bulge of the minor arc from `a` to `b` about `c`**:
+/// `tan(θ/4)`, `θ` the signed angle `a − c` turns through to `b − c`
+/// (counter-clockwise positive, `|θ| ≤ π`). The profile vocabulary a
+/// suite spells an off-axis meridian arc in — a torus wall's — when
+/// what it knows is the arc's centre.
+///
+/// Not `profile::bulge_from_center`, which takes the winding as
+/// an argument and reduces the angle by another chain: the fixtures
+/// that spell their arcs this way are pinned at this computation's
+/// bits, and a body built from the other would be a different body.
+pub fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
+    let (u, v) = (a - c, b - c);
+    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
 }
 
 /// **Runs `run` on a pool of exactly `threads` threads**, and answers
@@ -314,6 +447,61 @@ pub fn tilted_cut_upper() -> Body<f64> {
         panic!("both sides of the tilted cut carry material");
     };
     above
+}
+
+/// The tilted cut's plane normal: `0.3` rad about `y` from `+z`. The
+/// plane passes through the axis point `(0, 0, 1.25)`.
+pub fn tilted_cut_normal() -> Vec3<f64> {
+    Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos())
+}
+
+/// How far a [`tilted_cut_cylinder`] half's volume may sit from its
+/// closed form `π · 1.25`: the tilted section's wall flux is a
+/// QUADRATURE converged to the run's ε, measured `2.2e-6` m³ off at
+/// ε = 1e-6. The bound only confirms a body is the half its truth
+/// describes, so it sits well above that and far below the `0.064` m³
+/// a missed `0.4` box would move.
+pub const TILTED_CUT_WALL_VOLUME: f64 = 1e-4;
+
+/// **The tilted-cut unit cylinder**: a unit disc prism of height `2.5`
+/// split by the plane through `(0, 0, 1.25)` with normal
+/// [`tilted_cut_normal`]; `above` picks the half. The cut face's rim is
+/// two exact `Ellipse` arcs (semi-axes `1/cos 0.3` and `1`) over two
+/// vertices. Asserts it is that half: the volume within
+/// [`TILTED_CUT_WALL_VOLUME`] of `π · 1.25`, and ellipse carriers on
+/// the rim.
+///
+/// Not [`tilted_cut_upper`], a half-unit cylinder of height 1 cut at
+/// mid-height — a different body read by other rows.
+pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
+    let tol = Tol::witness();
+    let tall = sweep::test_support::prism(
+        vec![(Point2::new(-1.0, 0.0), 1.0), (Point2::new(1.0, 0.0), 1.0)],
+        2.5,
+        tol,
+    );
+    let plane = topo::splitting::SplitPlane {
+        origin: Point3::new(0.0, 0.0, 1.25),
+        normal: tilted_cut_normal(),
+    };
+    let result = topo::splitting::split(&tall, &plane, tol).expect("the plane cuts the prism");
+    let part = if above { result.above } else { result.below };
+    let topo::splitting::SplitPart::Body(half) = part else {
+        panic!("each half carries material");
+    };
+    let v = topo::mass_properties(&half, tol).expect("props").volume;
+    assert!(
+        (v - core::f64::consts::PI * 1.25).abs() < TILTED_CUT_WALL_VOLUME,
+        "the plane halves the cylinder: {v}"
+    );
+    assert!(
+        half.edges().any(|(_, e)| half
+            .get_curve_geom(e.curve)
+            .and_then(topo::CurveGeom::certified)
+            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))),
+        "the cut face is bounded by ellipse arcs"
+    );
+    half
 }
 
 /// The bulged extrusion: an analytic cylinder wall with a CURVED trim

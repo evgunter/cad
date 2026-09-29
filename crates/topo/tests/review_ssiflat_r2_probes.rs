@@ -170,7 +170,9 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
         "an escalation names no limb, only its predicate"
     );
     assert_eq!(what, "ssi_hull_sup");
-    let Some(geom_core::MarginDiag::Enclosure { lo, hi }) = margin else {
+    let Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) =
+        margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text)
+    else {
         panic!("the escalation must carry its enclosure: {margin:?}");
     };
     assert!(
@@ -227,8 +229,8 @@ fn the_interval_hull_bound_is_span_dependent() {
             Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
                 if cause.predicate == Some("ssi_hull_sup") =>
             {
-                match cause.margin {
-                    geom_core::MarginDiag::Enclosure { hi, .. } => Some(hi),
+                match cause.margin.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Enclosure { hi, .. } => Some(hi),
                     other => panic!("unexpected margin shape at div={div}: {other:?}"),
                 }
             }
@@ -255,7 +257,7 @@ fn the_interval_hull_bound_is_span_dependent() {
 /// when the tube ladder is EMPTY — a structural refusal with no margin
 /// at all, reachable on a legal body whose feature extent is under
 /// `64·ε`. The PR's rewritten `ssi_refusal` turns that into
-/// `Some(MarginDiag::Value(NaN))`, which is exactly the manufactured
+/// `Some(MarginKind::Value(NaN))`, which is exactly the manufactured
 /// poison #925 was filed as, wearing the label the classifier reserves
 /// for a real f64 margin — and the text still says a limb "exceeded ε".
 ///

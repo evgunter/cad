@@ -46,14 +46,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use geom_core::{Band, Point2, Point3, Tol, Vec2};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
+use crate::common::charts::hollow_moves;
+use crate::common::poses::torax_pose;
+use crate::common::torus_walls::{klein_elbow, torus_barrel, torus_belly};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -86,31 +86,6 @@ const T: f64 = 1.0 / 128.0;
 /// above the larger measured residue, therefore replaces the two
 /// unexplained per-row tolerances this file used to carry.
 const GAP_REL: f64 = 1e-14;
-
-/// Revolved about the `y` axis through the origin, so a vertex's axial
-/// coordinates are `(hypot(x, z), y)`.
-fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the meridian validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        turn,
-        tol(),
-    )
-    .expect("the meridian revolves")
-    .body
-}
-
-/// The bulge (`tan(θ/4)`) of the arc from `a` to `b` about `c`.
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
 
 /// `p` in the `(ρ, h)` half-plane of the `y` axis.
 fn axial(p: Point3<f64>) -> (f64, f64) {
@@ -192,46 +167,8 @@ fn residual(s: &Surface<f64>, p: Point3<f64>) -> f64 {
 }
 
 // ---------------------------------------------------------------------
-// The two full-revolve consumers
+// The two full-revolve consumers: `common::torus_walls`' barrel and belly
 // ---------------------------------------------------------------------
-
-/// **The barrel bulged about a centre OFF the axis.** The same two
-/// junction stations and the same `5/64` meridian radius as the tour's
-/// sphere-zone barrel, about the OTHER centre on their perpendicular
-/// bisector — so the wall is a TORUS: `R = 6/64`, `r = 5/64`,
-/// `h_c = 4/64`, a 3-4-5 at each junction with both residuals exactly
-/// zero.
-fn torus_barrel() -> Body<f64> {
-    let c = p2(6.0 / 64.0, 1.0 / 16.0);
-    let (lo, hi) = (p2(3.0 / 64.0, 0.0), p2(3.0 / 64.0, 8.0 / 64.0));
-    revolved(
-        bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (lo, bulge(lo, hi, c)),
-            (hi, 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
-
-/// **The teapot's wall-1 belly.** The pot's own foot and mouth, its
-/// belly bulged about `(7/64, 5/64)` — off the axis, so a TORUS with
-/// `R = 7/64`, `r = 5/64`, `h_c = 5/64`.
-fn torus_belly() -> Body<f64> {
-    let c = p2(7.0 / 64.0, 5.0 / 64.0);
-    let (lo, hi) = (p2(4.0 / 64.0, 1.0 / 64.0), p2(3.0 / 64.0, 8.0 / 64.0));
-    revolved(
-        bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(4.0 / 64.0, 0.0), 0.0),
-            (lo, bulge(lo, hi, c)),
-            (hi, 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
 
 /// **The barrel's cap × wall corners solve as Station × torus-circle
 /// roots, in closed form.**
@@ -362,11 +299,7 @@ fn torax_every_torus_corner_lies_on_its_own_moved_surfaces() {
 /// `1e-12` this row was first written with.
 #[test]
 fn torax_the_torus_corners_survive_a_rigid_re_pose() {
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.25, -0.5, 0.125),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
-    );
+    let map = torax_pose();
     for (what, body) in [
         ("the torus barrel", torus_barrel()),
         ("the teapot's torus belly", torus_belly()),
@@ -406,6 +339,64 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
             "{what}: the match is not a bijection — {} pose-then-hollow points \
              are unclaimed",
             pool.len()
+        );
+    }
+}
+
+/// **The re-posed barrel's cavity sits inside its outer wall — as
+/// `point_in_solid` reads it, not only as the vertex bijection above
+/// does.** The hollow's cavity vertices lie strictly inside the
+/// operand, so each reads `In` against the re-posed OPERAND, whose
+/// faces are exactly the hollow's outer shell; and a point in the wall
+/// material between the two top caps reads `In` against the re-posed
+/// HOLLOW, with the cavity's own centre `Out`.
+///
+/// The top-cap rim vertex `(−0.0275, 15/128, 0)` (revolve frame) read
+/// `Out` here: the deciding ray, the schedule's `+y`, leaves the
+/// operand through its top cap, a half-disc bounded by a semicircle
+/// and a diameter through the axis vertex; the planar arm read that
+/// face as the polygon through its three COLLINEAR vertices, whose
+/// area is zero, dropped the crossing, and the ray — crossing nothing
+/// else ahead of it — fell to the at-infinity side. Unposed, the same
+/// sweep's deciding ray is a different schedule member that happens to
+/// cross the torus wall first, which is all the pose changed.
+#[test]
+fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
+    let map = torax_pose();
+    let band = Band::linear(tol()).expect("the witness band");
+    let barrel = torus_barrel();
+    let hollow = hollowed("the torus barrel", &barrel);
+    let operand = transform_rigid(&barrel, &map, tol()).expect("the operand re-poses");
+    let posed = transform_rigid(&hollow, &map, tol()).expect("the hollow re-poses");
+    let on_operand: Vec<Point3<f64>> = operand
+        .vertices()
+        .map(|(_, v)| *operand.get_point(v.point).expect("point"))
+        .collect();
+    let mut cavity = 0;
+    for (_, v) in posed.vertices() {
+        let q = *posed.get_point(v.point).expect("point");
+        if on_operand.iter().any(|p| (*p - q).norm() < 1e-12) {
+            continue;
+        }
+        cavity += 1;
+        let got = topo::point_in_solid(&operand, q, band, tol());
+        assert!(
+            matches!(got, Ok(topo::SolidContainment::In)),
+            "the cavity vertex {q:?} is strictly inside the re-posed operand, got {got:?}"
+        );
+    }
+    assert_eq!(cavity, 6, "the cavity shell's six vertices");
+    // On the axis: between the two top caps (y ∈ (15/128, 1/8)) is wall
+    // material; the cavity's middle is not.
+    for (y, want) in [
+        (31.0 / 256.0, topo::SolidContainment::In),
+        (1.0 / 16.0, topo::SolidContainment::Out),
+    ] {
+        let q = map.transform_point(Point3::new(0.0, y, 0.0));
+        let got = topo::point_in_solid(&posed, q, band, tol());
+        assert!(
+            matches!(got, Ok(v) if v == want),
+            "the re-posed hollow at axial height {y}: want {want:?}, got {got:?}"
         );
     }
 }
@@ -456,11 +447,10 @@ fn torax_a_wall_thicker_than_the_tube_refuses_typed() {
 /// `false` and `shell` falls to the per-chart loop — which, at the time
 /// this was measured, refused at the C5 table's
 /// `NeighborPairUnroutable(Plane, Torus)`. VERBS-C5ARMS has since
-/// routed the pair, so the same counterfactual would now proceed one
-/// door deeper and refuse at the per-chart reanchor gate — the
-/// corner-accumulation family `offd2_r1_probes` pins at `8.331e-4` m
-/// on the elbow cap — never through the mint. Nothing else in this
-/// suite refuses through the mint.
+/// routed the pair, so the same counterfactual would now proceed past
+/// the kind gate and refuse at a per-chart door after it (the pose
+/// gate or the corner re-anchor, by the cap's pose) — never through
+/// the mint. Nothing else in this suite refuses through the mint.
 #[test]
 fn torax_the_torus_arms_floor_is_the_ring_closing() {
     // Below the floor: the same fixture the closed-form rows use.
@@ -498,14 +488,17 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
     let turn = Revolution::Partial(turn);
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![bulge_loop(vec![(p2(0.0, -r), 0.0), (p2(0.0, r), -1.0)])],
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), -1.0),
+        ])],
     )
     .validate(tol())
     .expect("the lune's cross-section validates");
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -513,28 +506,6 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
     )
     .expect("the lune revolves")
     .body
-}
-
-/// Every chart of `body` moved inward by `t` through the simultaneous
-/// door — the same moves `shell` builds, spelled at the door itself.
-fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
 }
 
 /// **The klein elbow's rim MINTS, and the elbow stops at its equator
@@ -584,25 +555,10 @@ fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
 #[test]
 fn torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let r = 0.275_f64;
-    let elbow = {
-        let profile = Profile::new(
-            SketchPlane::xy(),
-            vec![bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])],
-        )
-        .validate(tol())
-        .expect("the elbow's cross-section validates");
-        revolve(
-            &profile,
-            RevolveAxis {
-                origin: p2(1.2, 0.0),
-                dir: Vec2::new(0.0, -1.0),
-            },
-            Revolution::Partial(-core::f64::consts::FRAC_PI_2),
-            tol(),
-        )
-        .expect("the elbow revolves")
-        .body
-    };
+    let elbow = klein_elbow(vec![bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])]);
     let e = topo::shell(&elbow, 0.05, tol())
         .expect_err("the equator seams' declarations cannot be re-authored off their plane");
     println!("[torax] the elbow's next door: {e}");
@@ -777,11 +733,7 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
 #[test]
 fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
     let (r, t) = (0.3_f64, 0.05_f64);
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.25, -0.5, 0.125),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
-    );
+    let map = torax_pose();
     let body = lune(r, core::f64::consts::FRAC_PI_2);
     let band = Band::linear(tol()).expect("band");
 

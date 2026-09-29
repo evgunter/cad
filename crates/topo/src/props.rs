@@ -39,8 +39,11 @@ use geom_brep::props::quad::{RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
+use geom_brep::recourse::{
+    Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+};
 use geom_core::k_stats::Detached;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::Key;
 
 use crate::body::Body;
@@ -478,9 +481,10 @@ fn round_hook<T: Decide>(
 /// pairs** — [`mass_properties_closed_form`]/[`mass_properties_closed_form_of`]
 /// and [`classify_shells`]/[`classify_shells_of`] each keep a
 /// whole-body wrapper beside the restricted spelling, and this one has
-/// none. That is deliberate: every caller decides per solid, so a
-/// wrapper handing [`crate::query::all_faces`] would be dead code
-/// carrying a whole-body claim nothing exercises.
+/// none. That is deliberate: every caller decides per solid (check 7)
+/// or per shell (check 10's role reads), so a wrapper handing
+/// [`crate::query::all_faces`] would be dead code carrying a whole-body
+/// claim nothing exercises.
 ///
 /// # Errors
 ///
@@ -822,6 +826,18 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     ///
     /// [`MassPropsError`], as [`crate::mass_properties`].
     pub fn refine_to_target(self) -> Result<MassProperties<T>, MassPropsError> {
+        self.continue_to_target()
+            .map_err(|unreached| unreached.refusal)
+    }
+
+    /// [`Self::refine_to_target`]'s walk, with what it HELD when it
+    /// refused: the fold of every face's run at the point the walk
+    /// returned ([`ContinuationRefusal::held`]).
+    fn continue_to_target(self) -> Result<MassProperties<T>, ContinuationRefusal<T>> {
+        let hard = |refusal| ContinuationRefusal {
+            refusal,
+            held: None,
+        };
         let Self {
             body,
             band,
@@ -880,24 +896,43 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // slot, in arena order. A slot the map did not cover is decided
         // here instead — that is both the session arm and the tail past
         // `reached`, which the return below never gets to.
+        //
+        // **What a refusal here HOLDS** is the fold of `runs` as the
+        // walk leaves it: every slot before the refusing one at the
+        // round it was resumed to, the refusing slot at its last
+        // completed round, and every slot after it at the round the
+        // certificate held — never a resumption the map took past the
+        // refusing face, because that slot's recordings are dropped
+        // with it and the serial arm never takes it, so reading it
+        // would make the enclosure depend on the pool width. Each run's
+        // enclosure is sound at whatever round it was taken (the lane's
+        // `RoundOutcome` bounds are sound at every round), and the fold
+        // is the sum [`sign_walk`] already takes over faces left at
+        // different rounds — so the held fold is as sound as the
+        // certificate's own.
         let mut decided = decided.into_iter();
-        for run in &mut runs {
+        for slot in 0..runs.len() {
+            let run = &mut runs[slot];
             match decided.next() {
                 Some((Some(resumed), recording)) => {
                     geom_core::k_stats::splice(recording);
-                    *run = resumed?;
+                    *run = resumed.map_err(hard)?;
                 }
                 Some((None, _nothing_recorded)) => {}
                 None => {
                     if let Some(round) = run.open_at {
-                        *run = resume(run.face, round)?;
+                        *run = resume(run.face, round).map_err(hard)?;
                     }
                 }
             }
             if let Some(source) = run.refusal.clone() {
-                return Err(MassPropsError::Face {
+                let refusal = MassPropsError::Face {
                     face: run.face,
                     source,
+                };
+                return Err(ContinuationRefusal {
+                    refusal,
+                    held: Some(fold_runs(&runs).0),
                 });
             }
         }
@@ -923,12 +958,23 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// apart. The schedule running out (a face's
     /// [`PropsError::QuadratureBudget`]) is the case this certificate
     /// exists for: the sign was decided, the body is valid, and its
-    /// volume is not measurable at this ε — so the bracket the check
-    /// decided on is the whole of what the quadrature is entitled to
-    /// say, and it comes back in [`TargetUnreached::bracket`]. Every
-    /// other refusal (an escalated decision, a poisoned bound, a
-    /// degenerate lever — met in a round the check never needed) leaves
-    /// no enclosure a caller may read, and the bracket is `None`.
+    /// volume is not measurable at this ε — so a bracket is the whole
+    /// of what the quadrature is entitled to say, and it comes back in
+    /// [`TargetUnreached::bracket`]. Every other refusal (an escalated
+    /// decision, a poisoned bound, a degenerate lever — met in a round
+    /// the check never needed) leaves no enclosure a caller may read,
+    /// and the bracket is `None`.
+    ///
+    /// **The bracket is the narrower of the two this call held**: the
+    /// certificate's own ([`Self::enclosure`]), and the fold the
+    /// continuation held when it refused — every face up to the
+    /// refusing one at the round it was resumed to, the rest at the
+    /// round the certificate left them. Both are sums of per-face
+    /// enclosures each sound at the round it was taken, so either is a
+    /// sound bracket of the same volume, and "narrower" is read on the
+    /// half-width both carry (`MassProperties::volume_pad`). A tie, or
+    /// a continuation that refused before resuming anything, keeps the
+    /// certificate's.
     ///
     /// This is the one home of that classification: the import reader,
     /// the Python measurement door and the tour ask it here rather than
@@ -939,34 +985,53 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// [`TargetUnreached`], carrying [`Self::refine_to_target`]'s
     /// refusal verbatim.
     pub fn measure(self) -> Result<MassProperties<T>, TargetUnreached<T>> {
-        let sign_level = self.enclosure();
-        self.refine_to_target().map_err(|refusal| {
-            let bracket = matches!(
-                refusal,
-                MassPropsError::Face {
-                    source: PropsError::QuadratureBudget { .. },
-                    ..
+        let sign_level = fold_runs(&self.runs).0;
+        self.continue_to_target()
+            .map_err(|ContinuationRefusal { refusal, held }| {
+                let budget = matches!(
+                    refusal,
+                    MassPropsError::Face {
+                        source: PropsError::QuadratureBudget { .. },
+                        ..
+                    }
+                );
+                let narrowest = held
+                    .filter(|held| held.volume_pad < sign_level.volume_pad)
+                    .unwrap_or(sign_level);
+                TargetUnreached {
+                    refusal,
+                    bracket: budget.then(|| narrowest.enclosure()),
                 }
-            )
-            .then_some(sign_level);
-            TargetUnreached { refusal, bracket }
-        })
+            })
     }
+}
+
+/// [`SignCertificate::continue_to_target`]'s refusal: the refusal
+/// [`SignCertificate::refine_to_target`] reports, and — when it is a
+/// refusal a face's run CARRIED rather than one that left the face with
+/// no enclosure — the fold of every run as the walk left it.
+struct ContinuationRefusal<T: Real> {
+    refusal: MassPropsError,
+    held: Option<MassProperties<T>>,
 }
 
 /// **A volume the continuation could not reach**
 /// ([`SignCertificate::measure`]): the refusal, and — exactly when the
-/// refusal is the schedule running out — the sign-level bracket the
-/// check decided on.
+/// refusal is the schedule running out — the narrowest bracket the
+/// certificate or its continuation held.
 #[derive(Clone, Debug)]
 pub struct TargetUnreached<T: Real> {
     /// The refusal the reporting door makes on the same body, verbatim.
     pub refusal: MassPropsError,
-    /// The bracket the certificate held before the continuation ran,
-    /// `Some` iff `refusal` is a face's
+    /// The narrower of the bracket the certificate held before the
+    /// continuation ran ([`SignCertificate::enclosure`]) and the one the
+    /// continuation held when it refused — so never wider than the
+    /// first, and narrower wherever the continuation refined a face
+    /// before it stopped ([`SignCertificate::measure`] says how it is
+    /// read). `Some` iff `refusal` is a face's
     /// [`PropsError::QuadratureBudget`]: the body's sign is decided and
     /// its volume lies in this bracket, which is as sound as the lane
-    /// it was derived through ([`SignCertificate::enclosure`]).
+    /// it was derived through.
     pub bracket: Option<VolumeEnclosure<T>>,
 }
 
@@ -977,7 +1042,7 @@ impl<T: Real> fmt::Display for TargetUnreached<T> {
         // caller that wants them reads `bracket`.
         fmt::Display::fmt(&self.refusal, f)?;
         if self.bracket.is_some() {
-            f.write_str(" (the volume's sign is decided; its sign-level bracket is kept)")?;
+            f.write_str(" (the volume's sign is decided; its bracket is kept)")?;
         }
         Ok(())
     }
@@ -1158,7 +1223,7 @@ fn splice_in_arena_order<T: Decide>(
 ///
 /// The end-to-end rows live in `sweep`'s
 /// `mass_props_are_thread_count_invariant` — a real body, the public
-/// doors, 1 thread against 4. This one pins the rule those rows depend
+/// doors, 4 threads against the serial walk's golden. This one pins the rule those rows depend
 /// on at the site that carries it, with the refusal placed where no
 /// fixture body puts it: at a chosen slot, with a recording on every
 /// slot before and after, so a fold that spliced one face too few or
@@ -1747,12 +1812,10 @@ pub fn loop_edges<T: Decide>(
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
-            // A lineage that cycles is one a graft aliased (issue 1597:
-            // records are copied with their source keys, which in the
-            // destination chain into strangers); the flattening then
-            // stamps NO identity, so no two such edges are ever folded
-            // into one — the fold declines rather than trusting a
-            // record it cannot read, and a split meridian on such a
+            // A lineage that cycles is a corrupt record; the flattening
+            // then stamps NO identity, so no two such edges are ever
+            // folded into one — the fold declines rather than trusting
+            // a record it cannot read, and a split meridian on such a
             // body refuses at the far rim as it did before any fold.
             carrier_id: body
                 .split_root(he.edge, |_| false)
@@ -1782,6 +1845,37 @@ pub enum ShellRole {
     /// Definitely-negative signed volume: the shell bounds an internal
     /// cavity.
     Void,
+}
+
+/// Which end of a volume bracket a sign was read at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BracketEnd {
+    /// The bracket's lower end.
+    Low,
+    /// The bracket's upper end.
+    High,
+}
+
+impl ShellRole {
+    /// **The enclosure-to-role reading**: the one place a decided end
+    /// of a volume bracket becomes a role.
+    ///
+    /// Every bracket contains the true volume, so a LOW end definitely
+    /// positive makes the boundary `Outer` and a HIGH end definitely
+    /// negative makes it `Void`, and no finer bracket can say otherwise.
+    /// Any other sign decides nothing at that end. An exact volume is a
+    /// bracket whose two ends coincide, so its one sign is read at both.
+    ///
+    /// Which end is read first, under which predicate name, and what a
+    /// bracket that neither end decides costs (a refinement, an
+    /// "undecided", a typed refusal) belong to the caller.
+    pub(crate) fn decided_at(end: BracketEnd, sign: Sign) -> Option<Self> {
+        match (end, sign) {
+            (BracketEnd::Low, Sign::Positive) => Some(Self::Outer),
+            (BracketEnd::High, Sign::Negative) => Some(Self::Void),
+            _ => None,
+        }
+    }
 }
 
 /// One shell's flux-derived properties and its decided role.
@@ -1833,39 +1927,114 @@ pub enum ShellClassifyError {
         /// The per-face/per-body failure.
         source: MassPropsError,
     },
-    /// The sign read escalated: the shell's `V/A` margin sits inside
-    /// the ambiguity band. F6: an in-band orientation is never
-    /// guessed to a side.
+    /// The sign read escalated at an end of the shell's volume bracket:
+    /// the `V/A` margin sat inside the ambiguity band, straddled it as an
+    /// enclosure, or could not be read. F6: an undecided orientation is
+    /// never guessed to a side.
     Escalated {
         /// The unclassifiable shell.
         shell: ShellKey,
         /// The named escalation from the funnel.
         source: Indeterminate,
     },
-    /// The signed volume is definitely zero, or its certified bracket
-    /// definitely straddles zero — there is no side to classify to.
+    /// An end of the shell's volume bracket (the whole volume, for a
+    /// closed-form shell) classified as zero at this tolerance, and no
+    /// end classified to a side.
     ZeroVolume {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+        /// The zero end's verdict, with its reporting margin.
+        verdict: Classified,
+    },
+    /// The shell's certified volume bracket straddles zero at this
+    /// tolerance: its low end classified to the void side and its high
+    /// end to the outer side.
+    Straddles {
         /// The unclassifiable shell.
         shell: ShellKey,
     },
 }
 
+/// The shell-role decision (`chk_shell_volume_sign`): its margin is
+/// `V/A`, the mean wall thickness the shell's volume corresponds to, and
+/// it passes on either definite sign — positive is an outer boundary,
+/// negative a void.
+const SHELL_ROLE: SizedDecision = SizedDecision {
+    lever: "thicken or remove the degenerate geometry",
+    size: "thickness",
+    passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// What a [`ShellClassifyError`] found, without the shell's key or a
+/// stage label: the one text its `Display` and a document-level finding
+/// both render.
+#[derive(Clone, Copy, Debug)]
+pub struct ShellClassifyPayload<'a>(&'a ShellClassifyError);
+
+impl fmt::Display for ShellClassifyPayload<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            ShellClassifyError::Band { error } => write!(f, "{error}"),
+            ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
+            ShellClassifyError::Escalated { source, .. } => write!(f, "{}", source.payload()),
+            ShellClassifyError::ZeroVolume { .. } => f.write_str(
+                "a shell's signed volume, or an end of its certified bracket, is zero at this \
+                 tolerance",
+            ),
+            ShellClassifyError::Straddles { .. } => {
+                f.write_str("a shell's certified volume bracket straddles zero at this tolerance")
+            }
+        }
+    }
+}
+
+impl ShellClassifyError {
+    /// The refusal's data, with no key, label or ending.
+    #[must_use]
+    pub fn payload(&self) -> ShellClassifyPayload<'_> {
+        ShellClassifyPayload(self)
+    }
+
+    /// The shell-role decision's one ending for this refusal (D4 ¶1
+    /// (i)), read at a build; `None` where the refusal is not that
+    /// decision's. A flux refusal ends in its own payload's recourse,
+    /// and a band failure is the run's configuration.
+    ///
+    /// An escalation and a zero are band-decided and end with the value
+    /// the margin gives. A straddle is two definite verdicts on
+    /// opposite sides, which no smaller tolerance reconciles, so it
+    /// ends in the lever alone; each ends the same read over a body at
+    /// rest ([`StoredDefinite::Lever`]).
+    #[must_use]
+    pub fn ending(&self) -> Option<String> {
+        let arm = match self {
+            Self::Escalated { source, .. } => RefusedArm::Undecided(source),
+            Self::ZeroVolume { verdict, .. } => RefusedArm::Zero(*verdict),
+            Self::Straddles { .. } => RefusedArm::SignCertain,
+            Self::Props { .. } | Self::Band { .. } => return None,
+        };
+        Some(SHELL_ROLE.recourse(arm, Reading::Build))
+    }
+}
+
 impl fmt::Display for ShellClassifyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { error } => write!(f, "shell classification: {error}"),
-            Self::Props { shell, source } => {
-                write!(f, "shell classification: shell {shell:?}: {source}")
-            }
-            Self::Escalated { shell, source } => {
-                write!(f, "shell classification: shell {shell:?}: {source}")
-            }
-            Self::ZeroVolume { shell } => write!(
+            Self::Band { .. } => write!(f, "shell classification: {}", self.payload()),
+            Self::Props { shell, .. }
+            | Self::Escalated { shell, .. }
+            | Self::ZeroVolume { shell, .. }
+            | Self::Straddles { shell } => write!(
                 f,
-                "shell classification: shell {shell:?}'s signed volume is \
-                 definitely zero (or its certified bracket straddles zero) — \
-                 no outer/void side exists to classify to"
+                "shell classification: shell {shell:?}: {}",
+                self.payload()
             ),
+        }?;
+        match self.ending() {
+            Some(ending) => write!(f, ". {ending}"),
+            None => Ok(()),
         }
     }
 }
@@ -1885,15 +2054,16 @@ impl std::error::Error for ShellClassifyError {}
 /// quadrature faces the read is bracket-honest: `Outer` requires the
 /// bracket's LOW end definitely positive, `Void` its HIGH end
 /// definitely negative; anything else refuses typed
-/// ([`ShellClassifyError::Escalated`] / [`ShellClassifyError::ZeroVolume`]),
-/// never a guess.
+/// ([`ShellClassifyError::Escalated`] / [`ShellClassifyError::ZeroVolume`]
+/// / [`ShellClassifyError::Straddles`]), never a guess.
 ///
 /// # Errors
 ///
 /// [`ShellClassifyError`] — the first shell that cannot be classified
-/// refuses the call: an inherited flux refusal, an in-band sign, or a
-/// definite zero. (A component count over a partial classification
-/// would be a guess; the caller gets the refusal instead.)
+/// refuses the call: an inherited flux refusal, an escalated sign, a
+/// volume zero at this tolerance, or a bracket straddling zero. (A
+/// component count over a partial classification would be a guess; the
+/// caller gets the refusal instead.)
 pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
@@ -2006,44 +2176,32 @@ fn classify_shells_via<T: Decide>(
         // convention): the mean displacement of this shell's boundary
         // that the volume defect corresponds to.
         let sign_at = |end: T| {
-            crate::validate::decide("chk_shell_volume_sign", Margin::over_lever(end, area), band)
+            crate::validate::decide_reported(
+                "chk_shell_volume_sign",
+                Margin::over_lever(end, area),
+                band,
+            )
         };
+        let role_at = |end, decided: Result<Decided, Indeterminate>| {
+            decided
+                .ok()
+                .and_then(|decided| ShellRole::decided_at(end, decided.sign))
+        };
+        // The low end first; the high end only when the low end decides
+        // nothing. Closed-form shells (pad = 0) reuse the one verdict.
         let lo = sign_at(volume - T::from_f64(volume_pad));
-        let role = if matches!(lo, Ok(Sign::Positive)) {
-            // Even the bracket's low end is definitely positive.
-            ShellRole::Outer
-        } else {
-            // Closed-form shells (pad = 0) reuse the one verdict; a
-            // padded bracket reads its own high end.
-            let hi = if volume_pad == 0.0 {
-                lo
-            } else {
-                sign_at(volume + T::from_f64(volume_pad))
-            };
-            match hi {
-                Ok(Sign::Negative) => ShellRole::Void,
-                Err(source) => {
-                    return Err(ShellClassifyError::Escalated {
-                        shell: shell_key,
-                        source,
-                    });
+        let role = match role_at(BracketEnd::Low, lo) {
+            Some(role) => role,
+            None => {
+                let hi = if volume_pad == 0.0 {
+                    lo
+                } else {
+                    sign_at(volume + T::from_f64(volume_pad))
+                };
+                match role_at(BracketEnd::High, hi) {
+                    Some(role) => role,
+                    None => return Err(shell_role_refusal(shell_key, lo, hi, band)),
                 }
-                Ok(Sign::Zero) => {
-                    return Err(ShellClassifyError::ZeroVolume { shell: shell_key });
-                }
-                // High end definitely positive while the low end was
-                // not: either the low end escalated (surface that
-                // escalation) or the certified bracket definitely
-                // straddles zero.
-                Ok(Sign::Positive) => match lo {
-                    Err(source) => {
-                        return Err(ShellClassifyError::Escalated {
-                            shell: shell_key,
-                            source,
-                        });
-                    }
-                    _ => return Err(ShellClassifyError::ZeroVolume { shell: shell_key }),
-                },
             }
         };
         out.push(ShellClassification {
@@ -2057,6 +2215,35 @@ fn classify_shells_via<T: Decide>(
         });
     }
     Ok(out)
+}
+
+/// The refusal of a shell whose bracket `[lo, hi]` classified to neither
+/// side (`lo` not outer, `hi` not void), read from the decided signs:
+/// an escalated end is the refusal (the high end's first), ends decided
+/// to opposite sides straddle zero, and otherwise an end is zero (the
+/// low end's first), carried with its reporting margin.
+fn shell_role_refusal(
+    shell: ShellKey,
+    lo: Result<Decided, Indeterminate>,
+    hi: Result<Decided, Indeterminate>,
+    band: Band,
+) -> ShellClassifyError {
+    match (lo, hi) {
+        (_, Err(source)) | (Err(source), _) => ShellClassifyError::Escalated { shell, source },
+        (Ok(lo), Ok(hi)) => match (lo.sign, hi.sign) {
+            (Sign::Negative, Sign::Positive) => ShellClassifyError::Straddles { shell },
+            _ => {
+                let zero = if lo.sign == Sign::Zero { lo } else { hi };
+                ShellClassifyError::ZeroVolume {
+                    shell,
+                    verdict: Classified {
+                        margin: zero.margin,
+                        band,
+                    },
+                }
+            }
+        },
+    }
 }
 
 // SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
@@ -2482,16 +2669,33 @@ pub trait AtRestPolicy: Decide + geom_brep::PcurveFittedLane {
     /// it.
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>>;
 
-    /// The at-rest gate over a body with declared contacts — the
-    /// tier-3′ census door ([`crate::validate_pseudomanifold`] at
-    /// certifying scalars; absent at duals).
+    /// [`AtRestPolicy::gate_at_rest`] over a body the caller hands on,
+    /// keeping the verdict with it ([`crate::AtRestBody::validate`] at
+    /// certifying scalars; the body carried unvalidated at duals), so
+    /// [`AtRestPolicy::gate_at_rest_declared`] over the same body pays
+    /// the census alone.
+    ///
+    /// # Errors
+    ///
+    /// The validator's own findings, verbatim, where the scalar runs
+    /// it.
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>>;
+
+    /// The at-rest gate over a gated body with declared contacts — the
+    /// tier-3′ pass ([`crate::AtRestBody::validate_pseudomanifold`],
+    /// which is [`crate::validate_pseudomanifold`] less the battery the
+    /// kept verdict already answers, at certifying scalars; absent at
+    /// duals).
     ///
     /// # Errors
     ///
     /// The validator's own findings, verbatim, where the scalar runs
     /// it.
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>>;
@@ -2526,12 +2730,19 @@ impl AtRestPolicy for f64 {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        crate::AtRestBody::validate(body, tol)
+    }
+
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2555,12 +2766,19 @@ impl AtRestPolicy for geom_core::Probe {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        crate::AtRestBody::validate(body, tol)
+    }
+
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2583,12 +2801,19 @@ impl AtRestPolicy for geom_core::interval::Interval {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        crate::AtRestBody::validate(body, tol)
+    }
+
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2623,12 +2848,19 @@ where
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        crate::AtRestBody::validate(body, tol)
+    }
+
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2663,8 +2895,15 @@ where
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        _tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        Ok(crate::AtRestBody::not_run(body))
+    }
+
     fn gate_at_rest_declared(
-        _body: &Body<Self>,
+        _body: &crate::AtRestBody<Self>,
         _contacts: &ContactRecords,
         _tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -2681,6 +2920,8 @@ mod at_rest_policy_tests {
     //! grant stays invisible to it. Each certifying (scalar, method)
     //! pair is asserted equal to its door on a body the door refuses,
     //! so `Ok(Validated)`-without-validating cannot survive these rows.
+    //! The tier-3′ arm over a kept verdict is pinned the same way, on a
+    //! subject tier 3 passes and the census refuses.
     //! The shell door is the one arm that is not a gate on that
     //! subject: it is a VALUE, so what these rows pin is the arm's
     //! answer — `ShellDoor::certified()` at a certifying scalar, `None`
@@ -2688,8 +2929,10 @@ mod at_rest_policy_tests {
     //! `wiring_rows`' pin, per scalar, beside the quadrature door's.
 
     use super::{AtRestOutcome, AtRestPolicy};
+    use crate::AtRestBody;
     use crate::body::Body;
     use crate::boolean::ContactRecords;
+    use crate::test_support_fixtures::identity_map;
     use geom_core::{Decide, Point3, Tol};
 
     /// The `mvfs` seed body: its face surface is the placeholder, which
@@ -2712,19 +2955,52 @@ mod at_rest_policy_tests {
             door.map(|()| AtRestOutcome::Validated),
             "gate_at_rest must be validate_geometric verbatim at a certifying scalar"
         );
+        assert_eq!(
+            T::gate_at_rest_kept(b.clone(), tol).map(|kept| kept.outcome()),
+            crate::validate::validate_geometric(&b, tol).map(|()| AtRestOutcome::Validated),
+            "gate_at_rest_kept must refuse as validate_geometric at a certifying scalar"
+        );
         let contacts = ContactRecords::default();
         // The certified door, and its name is the assertion: a
         // certifying arm takes the door whose bound names the right it
         // has, so check 2 re-derives the M7-8 carrier class here.
         // `validate_pseudomanifold_structural` is the lane-free sibling
-        // a dual takes, and is not what this arm runs.
+        // a dual takes, and is not what this arm runs. A body carried
+        // with no verdict takes the whole pass.
         let door = crate::validate::validate_pseudomanifold(&b, &contacts, tol);
         assert!(door.is_err(), "the seed body must refuse the census door");
         assert_eq!(
-            T::gate_at_rest_declared(&b, &contacts, tol),
+            T::gate_at_rest_declared(&AtRestBody::not_run(b), &contacts, tol),
             door.map(|()| AtRestOutcome::Validated),
-            "gate_at_rest_declared must be validate_pseudomanifold verbatim at a certifying \
-             scalar"
+            "gate_at_rest_declared must be validate_pseudomanifold verbatim over an unvalidated \
+             body at a certifying scalar"
+        );
+        // Over a KEPT verdict the pass is the census alone, and the
+        // subject must be one the census refuses and tier 3 does not —
+        // two unit cubes overlapping by half — or a census skipped with
+        // the battery would pass here unseen.
+        let mut overlap = crate::test_support_fixtures::mapped_cube(identity_map::<T>, tol);
+        crate::test_support_fixtures::cube_into(
+            &mut overlap,
+            |x, y, z| identity_map::<T>(x + 0.5, y + 0.5, z + 0.5),
+            tol,
+        );
+        let door = crate::validate::validate_pseudomanifold(&overlap, &contacts, tol);
+        assert!(
+            door.is_err(),
+            "the overlapping pair must refuse the census door"
+        );
+        let kept = T::gate_at_rest_kept(overlap, tol).expect("tier 3 alone passes the pair");
+        assert_eq!(
+            kept.outcome(),
+            AtRestOutcome::Validated,
+            "a certifying arm keeps a Validated verdict"
+        );
+        assert_eq!(
+            T::gate_at_rest_declared(&kept, &contacts, tol),
+            door.map(|()| AtRestOutcome::Validated),
+            "gate_at_rest_declared over a kept verdict must refuse as validate_pseudomanifold, \
+             finding for finding"
         );
         // The arm's `Some` is the door's one constructor and not a
         // value spelled beside it: the `impl AtRestPolicy for …` arms
@@ -2773,7 +3049,7 @@ mod at_rest_policy_tests {
     /// the reason is the point: `validate_geometric` cannot be CALLED
     /// at a dual — the composed entry carries the certified half's
     /// bound, so there is no refusal left to observe here. What a dual
-    /// can still do is the structural half, and this row pins that
+    /// can still do is the `_structural` twin, and this row pins that
     /// instead: the seed body's placeholder surface is a check-1
     /// failure, which is structural, so the dual sees the same refusal
     /// the certifying scalars see through the same checks.
@@ -2783,15 +3059,18 @@ mod at_rest_policy_tests {
         let b = refusing_body::<geom_core::Dual64>();
         assert!(
             crate::validate::validate_geometric_structural(&b, tol).is_err(),
-            "the structural half still runs, and still refuses, at a dual"
+            "the `_structural` twin still runs, and still refuses, at a dual"
         );
         assert_eq!(
             <geom_core::Dual64 as AtRestPolicy>::gate_at_rest(&b, tol),
             Ok(AtRestOutcome::NotRunAtThisScalar)
         );
+        let kept = <geom_core::Dual64 as AtRestPolicy>::gate_at_rest_kept(b, tol)
+            .expect("a dual keeps every body, gating none");
+        assert_eq!(kept.outcome(), AtRestOutcome::NotRunAtThisScalar);
         assert_eq!(
             <geom_core::Dual64 as AtRestPolicy>::gate_at_rest_declared(
-                &b,
+                &kept,
                 &ContactRecords::default(),
                 tol
             ),
@@ -3719,6 +3998,118 @@ mod face_list_door_tests {
             let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
             // Both prisms of the pair are unit cubes.
             assert_eq!(one.volume.to_bits(), 0x3ff0_0000_0000_0000, "{solid:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod shell_role_refusal_tests {
+    use super::*;
+    use geom_core::MarginDiag;
+
+    /// Every bracket that classifies to neither side, as `(lo, hi)`
+    /// reads, and the refusal it takes, read from decided signs: any
+    /// escalated end is the refusal (the high end's first, whatever its
+    /// margin says), ends decided to opposite sides straddle, and
+    /// otherwise an end is zero and its reporting margin rides along.
+    #[test]
+    fn a_bracket_refuses_by_its_decided_ends() {
+        let shell = ShellKey::default();
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let diag = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("chk_shell_volume_sign"),
+            terminal_sliver: false,
+        };
+        let esc = |margin| Err(diag(margin));
+        let escalated = |margin| ShellClassifyError::Escalated {
+            shell,
+            source: diag(margin),
+        };
+        let v = MarginDiag::value;
+        let ok = |sign, m| Ok(Decided { sign, margin: v(m) });
+        let across = MarginDiag::enclosure(-2e-9, 3e-9);
+        let straddles = ShellClassifyError::Straddles { shell };
+        // The zero end's verdict rides the refusal, the low end's first.
+        let zero = |m| ShellClassifyError::ZeroVolume {
+            shell,
+            verdict: Classified { margin: v(m), band },
+        };
+        let rows = [
+            // Closed form: one read for both ends.
+            (
+                "in band, outer",
+                esc(v(5e-9)),
+                esc(v(5e-9)),
+                escalated(v(5e-9)),
+            ),
+            (
+                "in band, void",
+                esc(v(-5e-9)),
+                esc(v(-5e-9)),
+                escalated(v(-5e-9)),
+            ),
+            (
+                "enclosure across zero",
+                esc(across),
+                esc(across),
+                escalated(across),
+            ),
+            (
+                "unreadable",
+                esc(MarginDiag::INVALID),
+                esc(MarginDiag::INVALID),
+                escalated(MarginDiag::INVALID),
+            ),
+            ("zero", ok(Sign::Zero, 0.0), ok(Sign::Zero, 0.0), zero(0.0)),
+            // Padded: the high end's escalation first, else the low end's.
+            (
+                "both ends in band",
+                esc(v(-2e-9)),
+                esc(v(3e-9)),
+                escalated(v(3e-9)),
+            ),
+            (
+                "high end in band",
+                ok(Sign::Negative, -1.0),
+                esc(v(3e-9)),
+                escalated(v(3e-9)),
+            ),
+            (
+                "low end in band",
+                esc(v(-2e-9)),
+                ok(Sign::Positive, 1.0),
+                escalated(v(-2e-9)),
+            ),
+            (
+                "low end in band, high zero",
+                esc(v(2e-9)),
+                ok(Sign::Zero, 0.0),
+                escalated(v(2e-9)),
+            ),
+            (
+                "decided straddle",
+                ok(Sign::Negative, -1.0),
+                ok(Sign::Positive, 1.0),
+                straddles,
+            ),
+            (
+                "zero low, high outer",
+                ok(Sign::Zero, 5e-10),
+                ok(Sign::Positive, 1.0),
+                zero(5e-10),
+            ),
+            (
+                "void low, zero high",
+                ok(Sign::Negative, -1.0),
+                ok(Sign::Zero, -5e-10),
+                zero(-5e-10),
+            ),
+        ];
+        for (name, lo, hi, want) in rows {
+            assert_eq!(shell_role_refusal(shell, lo, hi, band), want, "{name}");
         }
     }
 }

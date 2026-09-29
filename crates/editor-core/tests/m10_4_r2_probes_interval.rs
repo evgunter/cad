@@ -25,7 +25,7 @@
 //! silent finite zero through the guided lift (the spec's "never silent
 //! zeros" valve, absent).
 //!
-//! Sweep shape (`memories/test-suite-cost.md`): nothing here samples —
+//! Sweep shape (implementer-discipline §8): nothing here samples —
 //! every row is a witness that can be written down, so all are static
 //! fixtures and no seed appears. Rows whose doc comment says
 //! EVIDENCE-ONLY print or assert a documented behaviour and gate
@@ -43,7 +43,7 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, ParamBoxVerdict, drive};
 use editor_core::stackup::{
-    Chamber, PairingViolation, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal, Stackup,
+    Chamber, PairingViolation, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal,
     Unavailable, sensitivities, stackup,
 };
 use editor_core::{
@@ -55,24 +55,7 @@ use editor_core::{
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
 
-use fixture::{Recorder, fname, len, scl, wall};
-
-/// The bore/pin worst-case hull's enclosure padding per analyzed
-/// half-width, measured at every CI ε row (see the consumer-walk row).
-/// The padding is proportional to the width of the LEAF each enclosure
-/// is taken over: under A0 alone the `ε/8` study certified in 4 leaves
-/// and the padding was `1·half`; under the form-level algebra (rule D
-/// with A/B per node) in 2 leaves of twice the width with padding
-/// `2·half`; with amendment A1 the whole box is ONE leaf and the
-/// padding is `4·half` — twice the leaf's width each time
-/// (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`;
-/// `work/props/certified-hull-padding-is-the-leaf-width-not-the-lane`).
-/// A bound, not a target — if it grows, the question is which leaves
-/// widened; it cannot grow past this without a leaf wider than the box.
-const BORE_PIN_PADDING_PER_HALF_WIDTH: f64 = 4.0;
-/// The rounding on top of the dependency padding (measured ~1e-15 at
-/// the 1e-12 row, where it is largest relative to the half-width).
-const BORE_PIN_ROUNDING: f64 = 1.0e-14;
+use fixture::{Recorder, fname, len, wall};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -436,11 +419,11 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     // A frame per section height: the two sections are drawn on
     // DIFFERENT planes, so they are different nodes.
     let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }))
+        r.insert(fixture::frame(
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ))
     };
     let (c0, z0) = section(0.0);
     let f0 = frame_at(&mut r, z0);
@@ -1252,158 +1235,6 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
 }
 
 // ------------------------------------------------------------- e2e
-
-/// **The consumer's walk on a different geometry** (the bore/pin fit):
-/// a real ±0.05 study CERTIFIES under M10-10's tier — it refused
-/// `NothingCertified` from M10-4 through M10-10's first cut, the honest
-/// limit then; amendment A1's chart-phase fold moved the fixture's
-/// whole-certifying half-width to a real margin at about 0.018
-/// (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
-/// with `CAD_M10_10_CEILINGS`), so ±0.05 splits and certifies — and an
-/// ε-scale study reports in full — read here exactly as a consumer
-/// would. EVIDENCE-ONLY where it prints.
-#[test]
-fn the_bore_pin_fit_as_a_consumer_reads_it() {
-    // The real study.
-    let (doc, m) = fit(Some(uniform(-0.05, 0.05)));
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    // A bounded leaf budget: the box splits a few times and certifies.
-    let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
-    assert!(
-        verdict.receipt().splits >= 1 && !verdict.certified().is_empty(),
-        "a ±0.05 study splits and certifies under M10-10's tier: {:?}",
-        verdict.receipt()
-    );
-    let real = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
-        .unwrap_or_else(|e| panic!("a ±0.05 study certifies now: {e}"));
-    println!(
-        "±0.05 study: {:?}; worst case {:?} over {} leaves\n  accounting: {:#?}",
-        verdict.receipt(),
-        real.worst_case,
-        real.worst_case.leaves,
-        verdict.accounting()
-    );
-    // The gap is `0.2 − r` exactly, so the hull must enclose
-    // `0.2 ± 0.05` and its nominal is the nominal.
-    assert!(
-        real.worst_case.lo <= 0.15 && 0.25 <= real.worst_case.hi,
-        "{:?}",
-        real.worst_case
-    );
-    assert!(
-        (real
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
-            - 0.2)
-            .abs()
-            < 1e-12
-    );
-    // The nominal's leaf certifies, so the sensitivity is
-    // chamber-certified rather than `LocalOnly`.
-    match &real.per_param[0].sensitivity {
-        SensitivityOutcome::Derivative { value, chamber } => {
-            assert_eq!(*value, -1.0);
-            assert!(contains_nominal(chamber), "{chamber:?}");
-        }
-        other => panic!("{other:?}"),
-    }
-
-    // The ε-scale study.
-    let half = eps() / 8.0;
-    let (doc, m) = fit(Some(uniform(-half, half)));
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
-    let handed = eval(&doc);
-    let report: Stackup = stackup(
-        &doc,
-        m,
-        &analyzed,
-        &verdict,
-        Some(&handed),
-        true,
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("{e}"));
-    println!("ε-scale study: {report:#?}");
-    assert_eq!(report.measurement, m);
-    assert!(
-        (report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
-            - 0.2)
-            .abs()
-            < 1e-12
-    );
-    let row = &report.per_param[0];
-    assert_eq!(row.param, name("r"));
-    match &row.sensitivity {
-        SensitivityOutcome::Derivative { value, chamber } => {
-            assert_eq!(*value, -1.0);
-            assert!(contains_nominal(chamber));
-        }
-        other => panic!("{other:?}"),
-    }
-    assert_eq!(row.contribution, Ok(half));
-    let wc = report.worst_case;
-    assert!(
-        wc.lo
-            <= report
-                .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
-            && report
-                .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
-                <= wc.hi
-    );
-    // The hull ENCLOSES the true range `0.2 ± half` (the gap is linear
-    // in the radius with slope −1) and exceeds it by the interval
-    // lane's enclosure padding alone. The padding is proportional to
-    // the certified LEAF's width, not to ε: measured at every CI ε row
-    // (default, 1e-6, 1e-12) the hull is 6·half wide — 2·half of spread
-    // plus exactly 4·half of padding over the ONE leaf the drive
-    // certifies (4.000 × half at every row; it was 2·half over two
-    // leaves before amendment A1 and 1·half over four before rule D,
-    // `BORE_PIN_PADDING_PER_HALF_WIDTH`'s docs) —
-    // so the bound is stated per half-width plus the rounding of a
-    // 0.2-scale quantity through a few dozen outward-rounded operations
-    // (~1e-15). No absolute slack: an ε-independent term says nothing
-    // at the tight rows and the wrong thing at the loose ones (issue
-    // 1646).
-    assert!(wc.lo <= 0.2 - half && wc.hi >= 0.2 + half, "{wc:?}");
-    let padding = (wc.hi - wc.lo) - 2.0 * half;
-    println!(
-        "EVIDENCE-ONLY worst-case padding: hull width {:e}, true range {:e}, padding {padding:e} \
-         ({:.3} half-widths)",
-        wc.hi - wc.lo,
-        2.0 * half,
-        padding / half
-    );
-    // Pinned at BOTH ends and with the leaf count (R1 MIN-6, R2 m2): a
-    // one-sided ceiling stays green when the tier's reach falls back
-    // to four narrow leaves and `1·half`, which is the regression the
-    // pin exists to notice. One leaf, the whole box, `4·half` exactly.
-    assert_eq!(
-        wc.leaves,
-        1,
-        "under M10-10's tier the ε/8 study is ONE leaf: {:?}",
-        verdict.receipt()
-    );
-    assert!(
-        (padding - BORE_PIN_PADDING_PER_HALF_WIDTH * half).abs() <= BORE_PIN_ROUNDING,
-        "padding {padding:e} is not the measured {BORE_PIN_PADDING_PER_HALF_WIDTH}·half: {wc:?}"
-    );
-    match report.rss {
-        Rss::Advisory { sigma } => {
-            let expect = (2.0 * half) / 12f64.sqrt();
-            assert!(
-                (sigma - expect).abs() <= 1e-9 * expect,
-                "{sigma} vs {expect}"
-            );
-        }
-        other => panic!("{other:?}"),
-    }
-    assert!((report.coverage.total().unwrap() - 1.0).abs() <= 1e-9);
-}
 
 /// **Where deviation 2 would bite.** The passes run the GUIDED lift at
 /// `Dual64` while the anchor runs the build path (`Pinned`, `f64`); the

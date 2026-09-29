@@ -33,12 +33,8 @@ use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 
 use crate::common;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn on_circle(center: Point2<f64>, r: f64, angle: f64) -> Point2<f64> {
-    p2(center.x + r * angle.cos(), center.y + r * angle.sin())
+    Point2::new(center.x + r * angle.cos(), center.y + r * angle.sin())
 }
 
 /// The arc x arc authoring `tests/fillet_refusal_envelope.rs` and
@@ -62,9 +58,9 @@ fn arc_arc(
     [Point2<f64>; 2],
     [Point2<f64>; 2],
 ) {
-    let corner = p2(0.0, 0.0);
-    let c1 = p2(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
-    let c2 = p2(
+    let corner = Point2::new(0.0, 0.0);
+    let c1 = Point2::new(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
+    let c2 = Point2::new(
         corner.x - r_out * a_out.cos(),
         corner.y - r_out * a_out.sin(),
     );
@@ -279,10 +275,10 @@ fn a_construction_stage_refusal_about_the_bracketed_corner_is_not_hidden_behind_
     let t = 1.5 * k * eps;
     let radius = (16.0 * k.powi(3) * eps).max(1.0);
     let h = radius * phi.sin();
-    let centre = p2(0.0, radius * phi.cos());
-    let ahead = p2(h, 0.0);
-    let behind = p2(-h, 0.0);
-    let origin = p2(h - t, 0.0);
+    let centre = Point2::new(0.0, radius * phi.cos());
+    let ahead = Point2::new(h, 0.0);
+    let behind = Point2::new(-h, 0.0);
+    let origin = Point2::new(h - t, 0.0);
     // The arrival anchor a radian further round, counter-clockwise from
     // the ahead crossing.
     let ahead_angle = (ahead.y - centre.y).atan2(ahead.x - centre.x);
@@ -333,19 +329,19 @@ fn a_construction_stage_refusal_about_the_bracketed_corner_is_not_hidden_behind_
 #[test]
 fn the_straight_pair_names_its_one_corner_point() {
     let err = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet(2.5, Tol::witness())
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(p2(3.0, 2.0), Tol::witness())
+        .to(Point2::new(3.0, 2.0), Tol::witness())
         .expect_err("the setback outruns the arrival leg");
     let corners = common::corners(&err);
     assert_eq!(corners.len(), 1);
     assert!(
-        dist(corners[0].at, p2(3.0, 0.0)) < 1e-12,
+        dist(corners[0].at, Point2::new(3.0, 0.0)) < 1e-12,
         "the entry's point is the carriers' intersection: {:?}",
         corners[0].at
     );
@@ -359,15 +355,15 @@ fn the_straight_pair_names_its_one_corner_point() {
 #[test]
 fn a_gate_only_pair_lists_both_window_discarded_corners() {
     let err = Open
-        .at(p2(3.0, 0.0))
+        .at(Point2::new(3.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
             },
             Tol::witness(),
         )

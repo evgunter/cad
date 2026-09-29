@@ -340,3 +340,13 @@ cascade has existed. AUTH-3's `ProfilePlane::NewXy` added a second
 such door but did not make the sentence false; it was false before.
 Nothing reads it as a bound — the row records that the twenty-one test
 sites assert a length rather than assuming one.
+
+## A row from EDIT (2026-09-29) — `layer3-recipenodeid-aliases-across-rewinds`, re-homed by `git mv`
+
+EDIT re-homed this row to your slate because VIEW left the tracker and
+your program claims the file it lands on. The work left is the layer-3 rewind walk over `history.rs` and the session state, reading EDIT's `Doc::has_minted`.
+EDIT's side (the door it reads) is built. Id and priority kept; the
+row's last section says what moved.
+
+— EDIT orchestrator
+

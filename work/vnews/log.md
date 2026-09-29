@@ -550,3 +550,40 @@ Final pass: `app.rs` gains a test module, `properties_pane_tests`, which
 drives the real app frame headlessly (`ViewerApp::assemble`, eframe's
 `Frame::_new_kittest`). Filed: `add-profile-held-reason-is-overwritten-not-first`,
 `part-census-dir-iff-refusal-is-held-in-prose`.
+
+## 2026-09-25 — P0 `rank-one-discards-the-frames-other-news`: the first dual on this slate (DR-9)
+
+**Tier: dual**, under `memories/orchestration-model.md`'s tiers, which this program adopted at #3261. Reason: the unit puts a classification (`frame::Retold`) on every status-line `Message`, with no default, so every producer in the crate must answer it — a design decision that is broad and hard to reverse. **Chosen after spec, not at it**: the unit was dispatched expecting a single style review, and that review showed its first rule tested the wrong property (whether the *state* comes back, when the question is whether the *news* does). The fix pass then made the rule broad enough to earn a dual. Recorded as such in the row.
+
+The pair (R1 NOT-MERGEABLE-AS-IS, R2 APPROVE-WITH-FIXES) both found, by independent probes, that a `Strand` on a `Declare` carrier is lost beside a refusal. R1 rated it MAJOR and R2 MINOR, so it is bilateral and not a tally candidate. The fix pass answered every strand `Never` under a new stated burden — *a door answers `Again` only when it can show the retelling from what it holds* — because a carrier poisoned upstream defeats a per-carrier answer. Tally unchanged at 0; fair pairs 6.
+
+## 2026-09-28 — batch 1: six units in one PR, to spare CI
+
+Ev, 2026-09-26: *"you can combine unrelated units of yours into a single
+pr in order to reduce the burden on ci"*, after the P0 (#3235) merged
+on its own. From here, lanes push branches without PRs; the
+orchestrator merges each reviewed unit into `vnews/batch-1` and opens
+one PR for the lot. #3281 (the seats cluster) was already open, and it
+closes in favour of the batch.
+
+| unit | tier and reason | review outcome |
+|---|---|---|
+| seats cluster (`one-seat-line`, #3281's branch) | style: a vocabulary fold, readable | mergeable; fix pass on the mate's two nouns (the fix minted "feature 3" in the panel beside "node 3" in the refusal), overclaiming docs and two mutations that survived |
+| the unit picker reads its refusal | full: a new session admission shared with the op, and a vector-partial write | mergeable after fixes: the "nowhere else" overclaim (the op's `GestureInFlight` layer), the live hover's framing, the all-driven row; the vector decision accepted |
+| the chooser says why it is unusable | style: an API reshape over one closed enum | mergeable; fix pass on a doubly-projected Option at the call site and four false doc claims |
+| a ranked verdict is its own type | full: the status line's two doors change type | mergeable, no claim fell; the dispatch premise was wrong (`cursor_status` never had a `Show` arm); `LineVerdict` renamed `RankedVerdict` |
+| the add-profile form's held reason | orchestrator's read: an E-cost fold with its rule in one function | the rule chosen: a refused input outranks a missing one; ties go to form order |
+| the preview error reads its tone | style: a salience move onto the value | mergeable; fix pass put sentence and tone on one partition of the value (`ProfilePreview::hold`) |
+
+The whole-app harness in `app.rs`'s `properties_pane_tests` grew three
+more helpers across these units. On the batch branch they draw through
+one `app_frame`, except the add-profile helper's taller window; the
+race and the copies are one row,
+`the-whole-app-harness-paints-before-the-evaluation-lands` (P2), which
+absorbed a duplicate the ranked-verdict lane filed.
+
+Build slot: several lanes waited hours for the machine-wide slot behind
+other programs' runs, and the express slot cannot finish a cold
+`editor-core` build inside its 590 s. Each unit's local run is its
+lane's; on the batch branch the orchestrator ran clippy after every
+merge and left the tests to CI.

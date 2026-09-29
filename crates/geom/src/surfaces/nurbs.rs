@@ -1564,7 +1564,7 @@ mod reversal_tests {
     /// direction (`transposed().reversed_u()?.transposed()`), so the
     /// direct-permutation comparison is what says the conjugation
     /// composes to the map it claims. (One fixture, one build —
-    /// `memories/test-suite-cost`; every assertion is labelled so the
+    /// implementer-discipline §8; every assertion is labelled so the
     /// failing property is readable from the message.)
     #[test]
     fn reversed_v_agrees_with_a_direct_column_permutation_and_is_an_involution() {
