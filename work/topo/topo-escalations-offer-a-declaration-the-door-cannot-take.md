@@ -2,10 +2,12 @@
 id: topo-escalations-offer-a-declaration-the-door-cannot-take
 kind: issue
 title: topo: split_edge's in-band interiority forwards the declare menu to the split and blend doors, which take no declaration
-status: open
+status: review
 opened: 2026-09-29
 priority: P2
 cost: E
+pr: 3493
+branch: topo/route-refusal-subjects
 ---
 
 
