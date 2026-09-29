@@ -11,19 +11,20 @@
 //! emission bug surfaced loudly as [`UnnamedEntity`], never an
 //! `Option::None` to swallow.
 //!
-//! Two refusals live here because two things can go wrong, at two
-//! places. The node's STANDING ([`standing`]) is a fact about the
-//! evaluation — no result, failed, poisoned — and settles whether
-//! there is a table at all; the LOOKUP ([`lookup`]) reads that table
-//! and has one refusal of its own, [`UnnamedEntity`]. The hit-test
-//! doors fold both into [`HitTestError`]; a door that only looks names
-//! up carries the lookup's refusal by itself, so its type says exactly
-//! what can happen there.
+//! Two refusals meet here because two things can go wrong, at two
+//! places. The node's STANDING ([`NodeStanding`], read by
+//! [`Evaluation::usable`]) is a fact about the evaluation — no result,
+//! failed, poisoned — and settles whether there is a table at all; the
+//! LOOKUP ([`lookup`]) reads that table and has one refusal of its own,
+//! [`UnnamedEntity`]. The hit-test doors fold both into
+//! [`HitTestError`]; a door that only looks names up carries the
+//! lookup's refusal by itself, so its type says exactly what can
+//! happen there.
 
 use geom_core::Decide;
 use topo::{EdgeKey, FaceKey, VertexKey};
 
-use crate::eval::{Evaluation, NodeResult, NodeValue};
+use crate::eval::{Evaluation, NodeStanding, NodeValue};
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
 
@@ -76,24 +77,9 @@ impl core::error::Error for UnnamedEntity {}
 /// means here is that they name the same faces at the same places.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HitTestError {
-    /// The node has no result in this evaluation (canceled suffix or
-    /// a foreign node id).
-    NodeNotEvaluated {
-        /// The node.
-        node: RecipeNodeId,
-    },
-    /// The node failed; there is no table to invert.
-    NodeFailed {
-        /// The failed node.
-        node: RecipeNodeId,
-    },
-    /// The node was poisoned by an upstream failure.
-    NodePoisoned {
-        /// The queried node.
-        node: RecipeNodeId,
-        /// The nearest failed ancestor.
-        through: RecipeNodeId,
-    },
+    /// The node has no value in this evaluation, so there is no table
+    /// to invert.
+    Standing(NodeStanding),
     /// The handed evaluation is of another document (DI3, A2a): the
     /// door is a statement about a value of `expected`, and an
     /// evaluation of `found` answers out of another document's name
@@ -131,6 +117,13 @@ pub enum HitTestError {
     Unnamed(UnnamedEntity),
 }
 
+/// The node's standing, at the door that needed its table.
+impl From<NodeStanding> for HitTestError {
+    fn from(standing: NodeStanding) -> Self {
+        Self::Standing(standing)
+    }
+}
+
 /// The lookup's refusal, at the door that ran a hit test first.
 impl From<UnnamedEntity> for HitTestError {
     fn from(unnamed: UnnamedEntity) -> Self {
@@ -155,34 +148,14 @@ impl From<crate::ident::Mispaired> for HitTestError {
 
 // LIB-DOORS F6: the human-readable rendering a consumer prints instead
 // of composing a sentence about somebody else's refusal. Each arm
-// states the PROBLEM in this layer's vocabulary — which node, and what
-// about it makes the inversion impossible — plus the recourse where a
-// user has one. The `Unnamed` arm forwards the lookup's own sentence
-// under this door's prefix: the hit test ran, and its lookup refused.
+// states the PROBLEM in this layer's vocabulary plus the recourse where
+// a user has one. The `Standing` and `Unnamed` arms forward their
+// payload's own sentence under this door's prefix: the hit test ran,
+// and the node it needed had no table, or its lookup refused.
 impl core::fmt::Display for HitTestError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeNotEvaluated { node } => write!(
-                f,
-                "hit test: node {} has no result in this evaluation — \
-                 the pick names a node this run did not produce (a \
-                 canceled suffix, or an id from another document)",
-                node.0
-            ),
-            Self::NodeFailed { node } => write!(
-                f,
-                "hit test: node {} failed, so it has no name table to \
-                 invert — fix the node's own failure before picking \
-                 against it",
-                node.0
-            ),
-            Self::NodePoisoned { node, through } => write!(
-                f,
-                "hit test: node {} is poisoned by the failure at node \
-                 {}, so it has no name table to invert — the repair is \
-                 upstream, at node {}",
-                node.0, through.0, through.0
-            ),
+            Self::Standing(standing) => write!(f, "hit test: {standing}"),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
                 "hit test: the evaluation is of document {found}, not \
@@ -217,33 +190,8 @@ impl core::fmt::Display for HitTestError {
 
 impl core::error::Error for HitTestError {}
 
-/// One node's `Ok` value, or the standing refusal that says why there
-/// is none — the ladder every door of this module and of
-/// [`super::pick`] climbs, written once: two spellings of one
-/// standing vocabulary is how two doors come to disagree about a
-/// poisoned node.
-///
-/// # Errors
-///
-/// [`HitTestError::NodeNotEvaluated`], [`HitTestError::NodeFailed`]
-/// or [`HitTestError::NodePoisoned`], per the node's standing.
-pub(super) fn standing<T: Decide>(
-    eval: &Evaluation<T>,
-    node: RecipeNodeId,
-) -> Result<&NodeValue<T>, HitTestError> {
-    match eval.nodes.get(&node) {
-        Some(NodeResult::Ok(value)) => Ok(value),
-        Some(NodeResult::Failed(_)) => Err(HitTestError::NodeFailed { node }),
-        Some(NodeResult::Poisoned { through }) => Err(HitTestError::NodePoisoned {
-            node,
-            through: *through,
-        }),
-        None => Err(HitTestError::NodeNotEvaluated { node }),
-    }
-}
-
 /// One entity's name out of one node's table — the lookup itself,
-/// with the node's standing already settled by [`standing`].
+/// with the node's standing already settled by [`Evaluation::usable`].
 ///
 /// # Errors
 ///
@@ -265,15 +213,15 @@ pub(super) fn lookup<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`HitTestError`]: no result / failed / poisoned nodes are typed
-/// refusals; an evaluated-but-unnamed entity is the loud
+/// [`HitTestError::Standing`] for a node with no value; an
+/// evaluated-but-unnamed entity is the loud
 /// [`HitTestError::Unnamed`] bug report.
 pub fn entity_name<T: Decide>(
     eval: &Evaluation<T>,
     node: RecipeNodeId,
     entity: EntityRef,
 ) -> Result<&StableName, HitTestError> {
-    Ok(lookup(standing(eval, node)?, node, entity)?)
+    Ok(lookup(eval.usable(node)?, node, entity)?)
 }
 
 /// [`entity_name`] for a face patch's back-reference.

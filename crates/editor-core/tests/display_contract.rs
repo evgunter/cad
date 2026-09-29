@@ -25,6 +25,7 @@ use editor_core::{
     ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
     SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
+use editor_core::{Mispaired, NameLookupError, NodeStanding};
 use geom_core::BandError;
 
 /// The gate's refusal over ONE of this document's own mates: the arm
@@ -166,11 +167,12 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
             NodePickError::NoSuchBody { node, body: 2 },
             vec!["node 4", "index 2"],
         ),
-        // The wrapped standing/kernel refusals are forwarded in their
-        // own doors' words, not paraphrased — prefix included.
+        // The standing speaks under this door's prefix; the wrapped
+        // kernel refusals are forwarded in their own doors' words, not
+        // paraphrased — prefix included.
         (
-            NodePickError::Standing(HitTestError::NodeFailed { node }),
-            vec!["hit test:", "node 4", "failed"],
+            NodePickError::Standing(NodeStanding::Failed { node }),
+            vec!["pick:", "node 4", "failed"],
         ),
         (
             NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance {
@@ -188,6 +190,53 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
         ),
     ];
     assert_f6_every_variant(&cases, &NODE_PICK_ERROR, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `NameLookupError`'s census — see [`NODE_PICK_ERROR`].
+    const NAME_LOOKUP_ERROR: NameLookupError = [EvaluationOfAnotherDocument, Standing];
+}
+
+/// The name doors' refusal of the whole call names the lookup, and
+/// then the pairing or the standing — never a hit test, which these
+/// doors do not run.
+#[test]
+fn name_lookup_error_display_names_its_content_not_its_struct() {
+    let expected = DocumentId::derive("name-lookup-expected");
+    let found = DocumentId::derive("name-lookup-found");
+    let cases = [
+        (
+            NameLookupError::EvaluationOfAnotherDocument(Mispaired { expected, found }),
+            vec![
+                "name lookup:".to_owned(),
+                format!("of document {found}, not of document {expected}"),
+                "two documents".to_owned(),
+            ],
+        ),
+        (
+            NameLookupError::Standing(NodeStanding::Poisoned {
+                node: RecipeNodeId(6),
+                through: RecipeNodeId(2),
+            }),
+            vec![
+                "name lookup:".to_owned(),
+                "node 6".to_owned(),
+                "poisoned".to_owned(),
+                "node 2".to_owned(),
+            ],
+        ),
+    ];
+    let cases: Vec<(NameLookupError, Vec<&str>)> = cases
+        .iter()
+        .map(|(e, want)| (*e, want.iter().map(String::as_str).collect()))
+        .collect();
+    assert_f6_every_variant(&cases, &NAME_LOOKUP_ERROR, &["Mispaired"]);
+    for (refusal, _) in &cases {
+        assert!(
+            !refusal.to_string().contains("hit test"),
+            "no hit test ran: {refusal}"
+        );
+    }
 }
 
 /// The name doors' per-entity refusal is a LOOKUP's, and its sentence
@@ -226,34 +275,75 @@ fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
 }
 
 test_utils::f6_variants! {
-    /// `ResolveIndeterminate`'s census — see [`NODE_PICK_ERROR`].
-    const RESOLVE_INDETERMINATE: ResolveIndeterminate =
-        [TargetFailed, TargetPoisoned, TargetNotEvaluated];
+    /// `NodeStanding`'s census — see [`NODE_PICK_ERROR`].
+    const NODE_STANDING: NodeStanding = [NotEvaluated, NotInDocument, Failed, Poisoned];
+}
+
+/// The standing names itself — the node, its state, where the repair
+/// is — and no door: every door that carries it puts its own subject
+/// in front (`node_standing`'s rows hold that half).
+#[test]
+fn node_standing_display_names_its_content_and_no_door() {
+    let node = RecipeNodeId(6);
+    let cases = [
+        (
+            NodeStanding::NotEvaluated { node },
+            vec!["node 6", "no result", "canceled", "re-evaluate"],
+        ),
+        (
+            NodeStanding::NotInDocument { node },
+            vec!["node 6", "not a node of the document"],
+        ),
+        (
+            NodeStanding::Failed { node },
+            vec!["node 6", "failed", "own failure"],
+        ),
+        (
+            NodeStanding::Poisoned {
+                node,
+                through: RecipeNodeId(2),
+            },
+            vec!["node 6", "poisoned", "node 2", "upstream"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &NODE_STANDING, &[]);
+    for (standing, _) in &cases {
+        let text = standing.to_string();
+        for door in [
+            "hit test",
+            "pick",
+            "lookup",
+            "export",
+            "select",
+            "reference",
+        ] {
+            assert!(
+                !text.contains(door),
+                "the standing names no door ({door}): {text}"
+            );
+        }
+    }
 }
 
 #[test]
 fn resolve_indeterminate_display_names_its_content_not_its_struct() {
-    let cases = [
-        (
-            ResolveIndeterminate::TargetFailed {
+    assert_f6(
+        &ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
                 node: RecipeNodeId(6),
-            },
-            vec!["minting node 6", "failed"],
-        ),
-        (
-            ResolveIndeterminate::TargetPoisoned {
                 through: RecipeNodeId(2),
             },
-            vec!["poisoned", "node 2", "upstream"],
-        ),
-        (
-            ResolveIndeterminate::TargetNotEvaluated {
-                node: RecipeNodeId(6),
-            },
-            vec!["minting node 6", "no result"],
-        ),
-    ];
-    assert_f6_every_variant(&cases, &RESOLVE_INDETERMINATE, &[]);
+        },
+        &[
+            "indeterminate",
+            "minting node",
+            "node 6",
+            "poisoned",
+            "node 2",
+            "upstream",
+        ],
+        &["ResolveIndeterminate", "Poisoned", "standing:"],
+    );
 }
 
 test_utils::f6_variants! {
@@ -299,9 +389,7 @@ test_utils::f6_variants! {
     /// keeps both in step, so they could not drift, but the enum has
     /// one roster in this binary and this is it.
     pub(crate) const INTERROGATE_ERROR: InterrogateError = [
-        NodeNotEvaluated,
-        NodeFailed,
-        NodePoisoned,
+        Standing,
         NoSuchName,
         Ambiguous,
         WrongKind,
@@ -318,15 +406,7 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
     let through = RecipeNodeId(3);
     let cases = [
         (
-            InterrogateError::NodeNotEvaluated { node },
-            vec!["node 7", "no result"],
-        ),
-        (
-            InterrogateError::NodeFailed { node },
-            vec!["node 7", "failed"],
-        ),
-        (
-            InterrogateError::NodePoisoned { node, through },
+            InterrogateError::Standing(NodeStanding::Poisoned { node, through }),
             vec!["node 7", "node 3", "poisoned"],
         ),
         (InterrogateError::NoSuchName, vec!["stale", "another node"]),
@@ -385,6 +465,8 @@ fn select_refusal_is_exhaustive(e: &SelectRefusal) {
         | SelectRefusal::TiedDisagrees { .. }
         | SelectRefusal::Unreadable { .. }
         | SelectRefusal::NotADatum { .. }
+        | SelectRefusal::DatumHasNoValue(_)
+        | SelectRefusal::NodeHasNoValue(_)
         | SelectRefusal::NotALength { .. }
         | SelectRefusal::PairInBand { .. }
         | SelectRefusal::BadValue(_)
@@ -409,6 +491,8 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
             "TiedDisagrees",
             "Unreadable",
             "NotADatum",
+            "DatumHasNoValue",
+            "NodeHasNoValue",
             "NotALength",
             "PairInBand",
             "BadValue",
@@ -470,6 +554,19 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 found: "a body",
             },
             vec!["node 9", "a body", "evaluated datum"],
+        ),
+        (
+            SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
+                node: RecipeNodeId(9),
+                through: RecipeNodeId(4),
+            }),
+            vec!["distance query's datum", "node 9", "poisoned", "node 4"],
+        ),
+        (
+            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
+                node: RecipeNodeId(9),
+            }),
+            vec!["flush query's node", "node 9", "failed"],
         ),
         (
             SelectRefusal::NotALength {
@@ -926,7 +1023,8 @@ test_utils::f6_variants! {
         AssertionBound,
         MetadataUnversioned,
         StepIds,
-        NameStepBeyondCounter,
+        MintLogOrder,
+        NameStepNotMinted,
     ];
 }
 
@@ -1168,7 +1266,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::NameStepBeyondCounter {
+            SnapshotError::MintLogOrder { step: StepId(6) },
+            vec!["not strictly ascending at id 6", "which no mint writes"],
+        ),
+        (
+            SnapshotError::NameStepNotMinted {
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
                     node,
@@ -1178,9 +1280,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     })],
                 }),
                 step: StepId(8),
-                next_step: 6,
             },
-            vec!["minted by node 5", "profile step id #8", "step counter 6"],
+            vec![
+                "minted by node 5",
+                "profile step id #8",
+                "mint log does not hold",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
@@ -2805,7 +2910,8 @@ test_utils::f6_variants! {
         Shape,
         NotThisProfiles,
         Repeated,
-        BeyondCounter,
+        NotMinted,
+        Collides,
     ];
 }
 
@@ -2843,11 +2949,16 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             vec!["step id 4 stands for two steps"],
         ),
         (
-            StepIdFault::BeyondCounter {
-                step: StepId(12),
-                next_step: 10,
-            },
-            vec!["step id 12", "step counter 10", "never minted it"],
+            StepIdFault::NotMinted { step: StepId(12) },
+            vec![
+                "step id 12",
+                "not in the document's mint log",
+                "never minted it",
+            ],
+        ),
+        (
+            StepIdFault::Collides { step: StepId(7) },
+            vec!["drew step id 7", "mint log already holds"],
         ),
     ];
     assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);
@@ -2876,13 +2987,12 @@ fn a_step_id_fault_names_the_id_or_the_count() {
                 )],
             },
             step: StepId(9),
-            next_step: 5,
         },
         &[
             "edge name minted by node 3",
             "profile step id #9",
             "never minted",
-            "step counter is 5",
+            "mint log does not hold it",
         ],
         &["NameStepNeverMinted"],
     );

@@ -1,6 +1,6 @@
-//! Kill-direction Euler duals — [`Body::kvfs`], [`Body::kev`],
-//! [`Body::kef`] — and the ring-promotion inverse [`Body::mfkrh`]
-//! (M1 PR 4).
+//! Kill-direction Euler duals — [`Body::kvfs`], [`Body::kev`] (with
+//! its describing door [`Body::kev_describing`]), [`Body::kef`] — and
+//! the ring-promotion inverse [`Body::mfkrh`] (M1 PR 4).
 //!
 //! These complete the ten-operator catalog (Mäntylä ch. 9): every
 //! make-direction operator now has its exact inverse in-tree, which is
@@ -112,6 +112,22 @@
 //! the strut case's `next(m)` (which starts at `v`), else `None`
 //! (segment kill — `v` is lone again).
 //!
+//! **The merged fan's geometry.** The merge moves an end of every
+//! merged member from `w`'s point to `v`'s, and each keeps the carrier
+//! it was certified with. [`Body::kev`] is keys-only and ε-free: it
+//! carries a merge that moves nothing — an empty fan, or a killed null
+//! edge, whose two vertices hold one point — and otherwise refuses
+//! every merge with a certified member, one at a single point included
+//! ([`EulerOpError::MergeRebasesCarriers`], naming every one), or one
+//! that moves one end of a null edge
+//! ([`EulerOpError::RebasedNullEdge`]). [`Body::kev_describing`] is the
+//! same kill with a band and the members' re-descriptions: a listed
+//! member is certified with its spec at the merged endpoints, an
+//! unlisted one passes the re-basing gate `mev`'s fan site passes, so
+//! `kev_describing(he, &[], tol)` is the merge that moves nothing or
+//! moves within band. [`Body::kev_merged_members`] reads the members
+//! and their merged endpoints.
+//!
 //! # `kef` — inverse of `mef` (the loop splice)
 //!
 //! [`Body::kef`] kills `he`'s edge and **the face of `he`'s loop** —
@@ -208,7 +224,7 @@
 //! | make | exact inverse | degenerate cases |
 //! |---|---|---|
 //! | `mvfs` | `kvfs(created.solid)` | — |
-//! | `mev(site)` | `kev(created.he_plus)` | `Fan{he1==he2}` ↔ strut kill; `Lone` ↔ segment kill |
+//! | `mev(site)` | `kev(created.he_plus)` — `kev_describing(created.he_plus, &[], tol)` where the run is non-empty and the new edge certified | `Fan{he1==he2}` ↔ strut kill; `Lone` ↔ segment kill |
 //! | `mef(site)` | `kef(created.he_minus)` | `Chords{he1==he2}` ↔ dying-loop-alone; `Lone` ↔ both-alone |
 //! | `mekr(site)` | `kemr(created.he_plus, created.he_minus)` | per-site, see [`crate::euler_ring`] |
 //! | `kfmrh(f1, f2)` | `mfkrh(result.ring)` | empty-outer `f2` ↔ empty-ring promotion |
@@ -271,7 +287,8 @@
 //!
 //! [`Empty`]: crate::LoopBoundary::Empty
 
-use geom_core::Decide;
+use geom_brep::{EdgeCurve, EdgeCurveSpec};
+use geom_core::{Decide, Point3, Real, Tol};
 
 use crate::body::Body;
 use crate::entity::{
@@ -380,6 +397,60 @@ pub struct MfkrhCreated {
     /// [module docs](self) on why sharing cannot be restored).
     pub surface: SurfaceKey,
 }
+
+/// One merged member of a [`Body::kev`] fan merge, as
+/// [`Body::kev_merged_members`] reads it: the edge, and its two
+/// endpoints once the merge has re-based it, in `he_plus` forward
+/// order (`start` is `start(he_plus)`'s point, `end` is
+/// `start(he_minus)`'s).
+#[derive(Clone, Copy, Debug)]
+pub struct MergedMember<T: Real> {
+    /// The member edge.
+    pub edge: EdgeKey,
+    /// Where the edge will start: the point its `he_plus` starts at
+    /// after the merge.
+    pub start: Point3<T>,
+    /// Where the edge will end: the point its `he_minus` starts at
+    /// after the merge.
+    pub end: Point3<T>,
+}
+
+/// Everything [`Body::kev_plan`] proves, handed to
+/// [`Body::kev_execute`]: the keys the kill reads and writes, the
+/// merged fan and its members, and the four splice links as proof
+/// tokens.
+struct KevPlan {
+    he: HalfEdgeKey,
+    m: HalfEdgeKey,
+    edge: EdgeKey,
+    he_plus: HalfEdgeKey,
+    he_minus: HalfEdgeKey,
+    curve: CurveKey,
+    /// The surviving vertex, `start(he)`.
+    v: VertexKey,
+    /// The dying vertex, `end(he)`.
+    w: VertexKey,
+    w_point: PointKey,
+    l1: LoopKey,
+    l2: LoopKey,
+    /// `w`'s surviving fan, clockwise from the mate: the run the merge
+    /// re-bases onto `v`. Every half in it starts at `w`.
+    fan: Vec<HalfEdgeKey>,
+    /// The merged members: every edge with a half in `fan`, once, in
+    /// orbit order. None is `edge`.
+    members: Vec<EdgeKey>,
+    /// `prev(he)`, `next(he)`, `prev(m)`, `next(m)`.
+    links: [Live; 4],
+}
+
+/// [`Body::kev`]'s arena delta, shared by both kill doors.
+#[cfg(debug_assertions)]
+const KEV_DELTA: ArenaDelta = ArenaDelta {
+    half_edges: -2,
+    edges: -1,
+    vertices: -1,
+    ..ArenaDelta::ZERO
+};
 
 impl<T: Decide> Body<T> {
     /// KVFS — *kill vertex, face, solid*: the inverse of [`Body::mvfs`].
@@ -525,24 +596,34 @@ impl<T: Decide> Body<T> {
     /// `None` (segment kill — the loop is [`LoopBoundary::Empty`] at the
     /// survivor again).
     ///
-    /// **The merged fan's carriers are left certified against the dead
-    /// vertex.** The far vertex's surviving edges are re-based onto
-    /// `start(he)` and each keeps the curve it was certified with,
-    /// which pins `carrier(t₀)` (or `carrier(t₁)`) to the point that
-    /// died; where the two vertices' points differ, every merged edge
-    /// describes a locus that no longer ends where the edge does.
+    /// # The merged fan
     ///
-    /// Nothing enforces a re-description. Tier 1 does not constrain
-    /// it, this operator does not check it, and no later operator
-    /// repairs it: tier 3 reports it at rest, and `split_edge` and
-    /// [`Body::set_edge_curve`] refuse typed on such an edge.
-    /// [`Body::mev`]'s fan site refuses exactly this state; this door
-    /// does not, and the asymmetry is measured rather than chosen —
-    /// the fan merge's live callers kill MID-SURGERY, so a
-    /// precondition here would refuse a promise that does not exist
-    /// yet at the call. The measurement, the landing shapes and the
-    /// decision are
-    /// `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`.
+    /// The far vertex's surviving edges — the **merged members** — are
+    /// re-based onto `start(he)`, each keeping the curve it was
+    /// certified with, which pins one end of its carrier to the dying
+    /// vertex's point. This door takes no band, so it certifies none of
+    /// them: it refuses **every** merge with a certified member
+    /// ([`EulerOpError::MergeRebasesCarriers`], naming each in orbit
+    /// order), a merge of two vertices at one point included, since
+    /// whether the survivor's point is the dying vertex's is the question
+    /// the re-basing gate does not ask (the crate-internal
+    /// `Body::certify_rebased_run`'s docs). It carries what structure
+    /// answers: an empty merged fan, a killed null edge, and a null
+    /// member with both halves in the fan; a null member with one half
+    /// in it refuses [`EulerOpError::RebasedNullEdge`].
+    ///
+    /// A killed null edge moves nothing because its two vertices hold
+    /// one point: [`Body::mev_null`] mints them so, and both re-basing
+    /// gates refuse to move one end of one. Nothing else enforces it,
+    /// and the doors that write vertex points (`replace_face`,
+    /// `offset_*`) take tier-2-valid bodies, which hold no null edge.
+    ///
+    /// A merge that moves nothing, or moves its members within band,
+    /// goes through `kev_describing(he, &[], tol)`
+    /// ([`Body::kev_describing`]), and a merge that re-describes its
+    /// members hands their specs to that door;
+    /// [`Body::kev_merged_members`] reads the members and the endpoints
+    /// the merge gives each.
     ///
     /// # Precondition check order
     ///
@@ -553,9 +634,18 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::SelfLoopEdge`]); both endpoint vertices resolve
     /// (`StaleKey`); both parent loops resolve (`StaleKey`) and are
     /// cycles ([`EulerOpError::LoopNotCycle`]); the far vertex's orbit
-    /// closes ([`EulerOpError::OrbitBroken`] — tier-1-invalid input);
-    /// the four splice links (`prev`/`next` of both halves) resolve
-    /// (`StaleKey`).
+    /// closes and every half-edge on it starts at the far vertex
+    /// ([`EulerOpError::OrbitBroken`] — tier-1-invalid input: a torn
+    /// `next` can walk it through the killed half itself); the four
+    /// splice links (`prev`/`next` of both halves) resolve
+    /// (`StaleKey`). Then, where the merged fan is not empty: the killed
+    /// edge's curve entry resolves ([`EulerOpError::StaleGeometry`]),
+    /// and unless it is a null edge, per merged member in orbit order,
+    /// the member and its curve entry resolve (`StaleKey` /
+    /// `StaleGeometry`) and it is not a null edge the merge moves one
+    /// end of ([`EulerOpError::RebasedNullEdge`]); last, no member is
+    /// certified ([`EulerOpError::MergeRebasesCarriers`], naming all
+    /// of them).
     ///
     /// # Errors
     ///
@@ -564,17 +654,174 @@ impl<T: Decide> Body<T> {
     pub fn kev(&mut self, he: HalfEdgeKey) -> Result<KevResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let plan = self.kev_plan(he)?;
+        self.kev_keys_only_gate(&plan)?;
+        let result = self.kev_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEV_DELTA, "kev");
+        Ok(result)
+    }
 
-        // ---- Preconditions: no mutation until every check passes. ----
+    /// KEV with the merged fan's re-descriptions: [`Body::kev`]'s kill,
+    /// taking a band and, for any merged member whose stored carrier
+    /// does not describe it at the merged endpoints, the spec that
+    /// does.
+    ///
+    /// The shape of [`Body::mev`] on the kill side: the site (`he`),
+    /// the geometry the kill writes (`redescriptions`) and the band
+    /// (`tol`). Topology and descriptions are written together, so no
+    /// state between them is ever observable, and nothing is written
+    /// until everything has certified.
+    ///
+    /// - **A listed member** is certified with its spec against the
+    ///   endpoints the merge WILL give it — the surviving vertex's point
+    ///   at every half in the merged fan, its current point elsewhere —
+    ///   through the attachment gate [`Body::set_edge_curve`] certifies
+    ///   through, adjacency coherence included, and its curve is
+    ///   replaced by fresh insertion (the old one reaped iff orphaned).
+    ///   Pcurve rows stand, as they do under `set_edge_curve` (its docs
+    ///   say why, and what tier 3 does with them).
+    /// - **An unlisted member** keeps its carrier and passes the
+    ///   re-basing gate [`Body::mev`]'s fan site passes, under this
+    ///   band: its stored description re-certified against the merged
+    ///   endpoints, a pre-existing staleness carried and a null edge
+    ///   the merge moves one end of refused. Where the killed edge is a
+    ///   null edge nothing moves and the gate is not asked ([`Body::kev`]
+    ///   says why).
+    ///
+    /// An empty list is the kill for a caller whose members all pass
+    /// where they land — a merge of two vertices at one point, or a band
+    /// apart — and a non-empty one is the kill for a caller that
+    /// re-describes what it merges: `split_edge`'s inverse re-attaching
+    /// the parent's spec, a blend handing a member the chord it spans.
+    /// [`Body::kev_merged_members`] reads the members and the endpoints
+    /// the merge gives each, which is what a caller states its specs
+    /// against.
+    ///
+    /// Euler vector, kill order and re-anchoring: [`Body::kev`]'s. Then,
+    /// per listed member in list order: its certified curve is inserted
+    /// and its old curve reaped iff orphaned, through the write
+    /// [`Body::set_edge_curve`] makes. [`KevResult`] reports what the
+    /// kill kills and not these: a re-described member survives, its
+    /// new curve is its edge's `curve`, and the replaced curve is reaped
+    /// exactly as `set_edge_curve` reaps one, which reports no reaped
+    /// key either.
+    ///
+    /// # Precondition check order
+    ///
+    /// [`Body::kev`]'s structural list (through the four splice links).
+    /// Then per entry of `redescriptions`, in list order: the edge is a
+    /// merged member ([`EulerOpError::NotMergedMember`]); it was not
+    /// listed before ([`EulerOpError::DuplicateRedescription`]); its
+    /// spec is adjacency-coherent
+    /// ([`EulerOpError::DescriptionNotAdjacent`], with `StaleKey` for a
+    /// half, loop or face that does not resolve); the merged endpoints
+    /// resolve (`StaleKey` / [`EulerOpError::StaleGeometry`], the
+    /// surviving vertex's point among them); the spec certifies against
+    /// them ([`EulerOpError::RebasedCarrier`] naming the edge). Then,
+    /// where the merged fan is not empty, the killed edge's curve entry
+    /// resolves (`StaleGeometry`); and unless it is a null edge, where a
+    /// member is left unlisted, the surviving vertex's point resolves
+    /// (`StaleGeometry`) and the unlisted members pass the re-basing
+    /// gate in orbit order ([`EulerOpError::StaleKey`] /
+    /// `StaleGeometry` / [`EulerOpError::RebasedNullEdge`] /
+    /// [`EulerOpError::RebasedCarrier`] naming the first that fails).
+    /// So an empty merged fan with an empty list asks nothing past the
+    /// structural list, and the two doors agree there.
+    ///
+    /// # Errors
+    ///
+    /// The first failing precondition above; the body is untouched on
+    /// `Err`.
+    pub fn kev_describing(
+        &mut self,
+        he: HalfEdgeKey,
+        redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
+        tol: Tol,
+    ) -> Result<KevResult, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.kev_plan(he)?;
+        let described = self.kev_describing_gate(&plan, redescriptions, tol)?;
+        let result = self.kev_execute(plan);
+        // Every listed edge is a merged member, and no merged member is
+        // the killed edge (`kev_plan` proves it), so each one survives
+        // the kill to be written.
+        for (edge, curve) in described {
+            self.replace_edge_curve(edge, curve);
+        }
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEV_DELTA, "kev_describing");
+        Ok(result)
+    }
+
+    /// The merged members of `kev(he)` — every edge the kill re-bases
+    /// onto `start(he)`, once each, in the dying vertex's clockwise
+    /// orbit order from the killed edge — each with the endpoints the
+    /// merge gives it. Read from the plan both kill doors run and the
+    /// endpoint reading their gates certify against, so a spec stated
+    /// between these endpoints is one [`Body::kev_describing`]
+    /// certifies at them. Pure.
+    ///
+    /// Empty where the merged fan is: a strut or segment kill merges
+    /// nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::kev`]'s structural list; then, where the fan is not
+    /// empty, `StaleKey` / [`EulerOpError::StaleGeometry`] where the
+    /// surviving vertex's point or a member's other endpoint does not
+    /// resolve. Nothing the merge's geometry decides is asked.
+    pub fn kev_merged_members(
+        &self,
+        he: HalfEdgeKey,
+    ) -> Result<Vec<MergedMember<T>>, EulerOpError> {
+        let plan = self.kev_plan(he)?;
+        if plan.members.is_empty() {
+            return Ok(Vec::new());
+        }
+        let p_v = self.resolve_vertex_point(plan.v)?;
+        plan.members
+            .iter()
+            .map(|&edge| {
+                let (start, end) = self.rebased_endpoints(edge, &plan.fan, p_v)?;
+                Ok(MergedMember { edge, start, end })
+            })
+            .collect()
+    }
+
+    /// The kill with neither door's gate: plan, then execute. For
+    /// fixtures that plant a state no door produces (a carrier its
+    /// endpoint left, a null self-loop), which the gates' own arms are
+    /// rowed against.
+    #[cfg(test)]
+    pub(crate) fn kev_ungated(&mut self, he: HalfEdgeKey) -> Result<KevResult, EulerOpError> {
+        let plan = self.kev_plan(he)?;
+        Ok(self.kev_execute(plan))
+    }
+
+    /// [`Body::kev`]'s structural plan phase, shared by both kill doors
+    /// (the precondition list up to the four splice links). Pure.
+    ///
+    /// Beyond resolving every key the kill writes, it proves that every
+    /// half-edge of the merged fan starts at the dying vertex. That is
+    /// what keeps the killed edge out of its own merged members: its
+    /// halves are `he`, which starts at the survivor, and the mate, which
+    /// heads the orbit walk and so is not in the fan. The walk steps
+    /// through `next(mate(·))` and reads no start vertex, so a torn
+    /// `next` can put a foreign half-edge — the killed half among
+    /// them — on it, and only this check sees one.
+    fn kev_plan(&self, he: HalfEdgeKey) -> Result<KevPlan, EulerOpError> {
         let he_data = self.resolve_half_edge(he)?;
         let edge = he_data.edge;
-        let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
+        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
         })?;
-        let m = if edge_data.he_plus == he {
-            edge_data.he_minus
-        } else if edge_data.he_minus == he {
-            edge_data.he_plus
+        let (he_plus, he_minus, curve) = (edge_data.he_plus, edge_data.he_minus, edge_data.curve);
+        let m = if he_plus == he {
+            he_minus
+        } else if he_minus == he {
+            he_plus
         } else {
             return Err(EulerOpError::UnclaimedHalfEdge { he, edge });
         };
@@ -608,6 +855,12 @@ impl<T: Decide> Body<T> {
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
+        for &moved in &fan {
+            if self.resolve_half_edge(moved)?.start != w {
+                return Err(EulerOpError::OrbitBroken { he: m });
+            }
+        }
+        let members = self.run_edges(&fan)?;
         // The unsplice writes through all four neighbor links; prove
         // them now so the mutation below cannot fail midway (atomicity).
         let (a, b) = (
@@ -618,7 +871,138 @@ impl<T: Decide> Body<T> {
             self.require_live(m_data.prev)?,
             self.require_live(m_data.next)?,
         );
-        // ---- Mutation (infallible from here on). ----
+        Ok(KevPlan {
+            he,
+            m,
+            edge,
+            he_plus,
+            he_minus,
+            curve,
+            v,
+            w,
+            w_point,
+            l1,
+            l2,
+            fan,
+            members,
+            links: [a, b, c, d],
+        })
+    }
+
+    /// Whether the merge moves anything: `false` for an empty merged
+    /// fan and for a killed null edge (whose two vertices hold one
+    /// point — [`Body::kev`]'s docs), `true` otherwise.
+    fn kev_merge_moves(&self, plan: &KevPlan) -> Result<bool, EulerOpError> {
+        if plan.fan.is_empty() {
+            return Ok(false);
+        }
+        match self.get_curve_geom(plan.curve) {
+            Some(crate::null::CurveGeom::NullScaffold(_)) => Ok(false),
+            Some(crate::null::CurveGeom::Certified(_)) => Ok(true),
+            None => Err(EulerOpError::StaleGeometry {
+                key: crate::GeomRef::Curve(plan.curve),
+            }),
+        }
+    }
+
+    /// [`Body::kev`]'s ε-free gate over the merged fan (its docs): the
+    /// re-basing gate's null arm, and every certified member named.
+    fn kev_keys_only_gate(&self, plan: &KevPlan) -> Result<(), EulerOpError> {
+        if !self.kev_merge_moves(plan)? {
+            return Ok(());
+        }
+        let mut stranded: Vec<EdgeKey> = Vec::new();
+        for &member in &plan.members {
+            if self.rebased_carrier(member, &plan.fan)?.is_some() {
+                stranded.push(member);
+            }
+        }
+        if stranded.is_empty() {
+            Ok(())
+        } else {
+            Err(EulerOpError::MergeRebasesCarriers { edges: stranded })
+        }
+    }
+
+    /// [`Body::kev_describing`]'s gate: every listed spec certified
+    /// against the merged endpoints, every unlisted member through the
+    /// re-basing gate. Pure; returns the certified curves in list
+    /// order for the mutation to write.
+    fn kev_describing_gate(
+        &self,
+        plan: &KevPlan,
+        redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
+        tol: Tol,
+    ) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError> {
+        // The survivor's point, resolved at the first question that
+        // needs it and not before.
+        let mut p_v: Option<Point3<T>> = None;
+        let mut survivor_point = || -> Result<Point3<T>, EulerOpError> {
+            if let Some(p) = p_v {
+                return Ok(p);
+            }
+            let p = self.resolve_vertex_point(plan.v)?;
+            p_v = Some(p);
+            Ok(p)
+        };
+        let mut listed: Vec<EdgeKey> = Vec::with_capacity(redescriptions.len());
+        let mut certified = Vec::with_capacity(redescriptions.len());
+        for (edge, spec) in redescriptions {
+            let edge = *edge;
+            if !plan.members.contains(&edge) {
+                return Err(EulerOpError::NotMergedMember { edge });
+            }
+            if listed.contains(&edge) {
+                return Err(EulerOpError::DuplicateRedescription { edge });
+            }
+            listed.push(edge);
+            self.check_description_adjacent(edge, &spec.description)?;
+            let (p_start, p_end) = self.rebased_endpoints(edge, &plan.fan, survivor_point()?)?;
+            let curve = self
+                .certify_edge_spec(spec.clone(), p_start, p_end, tol)
+                .map_err(|e| match e {
+                    EulerOpError::Certification { error } => {
+                        EulerOpError::RebasedCarrier { edge, error }
+                    }
+                    other => other,
+                })?;
+            certified.push((edge, curve));
+        }
+        if self.kev_merge_moves(plan)? && listed.len() < plan.members.len() {
+            let mut run: Vec<HalfEdgeKey> = Vec::with_capacity(plan.fan.len());
+            for &moved in &plan.fan {
+                if !listed.contains(&self.resolve_half_edge(moved)?.edge) {
+                    run.push(moved);
+                }
+            }
+            self.certify_rebased_run(&run, survivor_point()?, tol)?;
+        }
+        Ok(certified)
+    }
+
+    /// The kill itself, from a proven plan: the fan merge, the
+    /// unsplice, the re-anchoring and the kills. Infallible — every
+    /// key it touches was resolved by [`Body::kev_plan`] — and it
+    /// checks no geometry, so it is the gated doors' tail and nothing
+    /// else's: it is private to this module, whose callers are those
+    /// two doors and the test-only `Body::kev_ungated`.
+    fn kev_execute(&mut self, plan: KevPlan) -> KevResult {
+        let KevPlan {
+            he,
+            m,
+            edge,
+            he_plus,
+            he_minus,
+            curve,
+            v,
+            w,
+            w_point,
+            l1,
+            l2,
+            fan,
+            members: _,
+            links: [a, b, c, d],
+        } = plan;
         // Fan merge: everything starting at w except the doomed mate now
         // starts at v (the run move, reversed — module docs).
         for &moved in &fan {
@@ -683,7 +1067,7 @@ impl<T: Decide> Body<T> {
         };
         vertex.emanating = v_anchor;
         // Kills, each with its provenance entry (kill order documented
-        // above).
+        // on `kev`).
         self.half_edges.remove(he);
         self.half_edge_provenance.remove(he);
         self.half_edges.remove(m);
@@ -692,30 +1076,16 @@ impl<T: Decide> Body<T> {
         self.edge_provenance.remove(edge);
         self.vertices.remove(w);
         self.vertex_provenance.remove(w);
-        let killed_curve = self
-            .remove_curve_if_orphaned(edge_data.curve)
-            .then_some(edge_data.curve);
+        let killed_curve = self.remove_curve_if_orphaned(curve).then_some(curve);
         let killed_point = self.remove_point_if_orphaned(w_point).then_some(w_point);
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                half_edges: -2,
-                edges: -1,
-                vertices: -1,
-                ..ArenaDelta::ZERO
-            },
-            "kev",
-        );
-        Ok(KevResult {
+        KevResult {
             killed_edge: edge,
-            killed_he_plus: edge_data.he_plus,
-            killed_he_minus: edge_data.he_minus,
+            killed_he_plus: he_plus,
+            killed_he_minus: he_minus,
             killed_vertex: w,
             killed_curve,
             killed_point,
-        })
+        }
     }
 
     /// KEF — *kill edge, face*: the inverse of [`Body::mef`]. Kills
@@ -1637,11 +2007,14 @@ mod tests {
         // single-op re-make — the re-making mev would have to start
         // the migrated fan at a vertex its chords do not run to, which
         // `mev`'s re-basing gate refuses — but the result must still be
-        // tier-1 valid. That the migrated chords now miss their own
-        // endpoint is this door's open residue,
-        // `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`.)
+        // tier-1 valid.) The migrated chord would miss its new end, so
+        // the merge is the describing kill's, handed the chord it runs
+        // along now; the row's subject is the merge's topology.
         let (mut body, seed, seg, strut) = strutted();
-        let result = body.kev(strut.he_minus).unwrap();
+        let chord = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        let result = body
+            .kev_describing(strut.he_minus, &[(seg.edge, chord)], Tol::witness())
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(result.killed_vertex, seg.vertex);
         // The whole old fan of seg.vertex (seg.he_minus) now starts at
@@ -1660,32 +2033,563 @@ mod tests {
     }
 
     #[test]
-    fn the_merged_fan_keeps_a_carrier_its_endpoint_left_and_split_edge_refuses_on_it() {
-        // The symptom, still live on the kill side
-        // (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`),
-        // and the state `mev`'s fan site used to produce and now
-        // refuses. After the mirror merge, `seg` runs to the strut tip
-        // while its chord still runs to the dead vertex's point, so
-        // `split_edge` — which certifies both children against the
-        // CURRENT endpoints — refuses on it. This is what `seqgen`'s
-        // split filter routes around, and what a re-describing kill
-        // door would close.
+    fn a_merge_that_would_strand_a_carrier_refuses_keys_only_and_the_describing_kill_leaves_it_splittable()
+     {
+        // The mirror merge moves `seg`'s far end from `(1,0,0)` to the
+        // strut tip `(2,0,0)` while its chord still runs to `(1,0,0)`:
+        // the state `split_edge` refuses on, since it certifies both
+        // children against the CURRENT endpoints. The keys-only kill
+        // refuses it typed, naming the member, body untouched; so does
+        // the describing kill that is handed a band and nothing to
+        // write, through the re-basing gate. Handed the chord `seg` runs
+        // along after the merge, it merges, certifies, and `split_edge`
+        // runs on the merged edge.
+        let tol = Tol::witness();
         let (mut body, _seed, seg, strut) = strutted();
-        body.kev(strut.he_minus).unwrap();
+        let before = deep_snapshot(&body);
+        assert_eq!(
+            body.kev(strut.he_minus).map(|_| ()),
+            Err(EulerOpError::MergeRebasesCarriers {
+                edges: vec![seg.edge]
+            })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+        let err = body
+            .kev_describing(strut.he_minus, &[], tol)
+            .map(|_| ())
+            .unwrap_err();
+        assert!(
+            matches!(err, EulerOpError::RebasedCarrier { edge, .. } if edge == seg.edge),
+            "{err:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before);
+
+        let chord = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        body.kev_describing(strut.he_minus, &[(seg.edge, chord)], tol)
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
         let curve = body.get_edge(seg.edge).unwrap().curve;
-        let (t0, t1) = body
-            .get_curve_geom(curve)
+        let certified = body.get_curve_geom(curve).unwrap().certified().unwrap();
+        let (t0, t1) = certified.params();
+        assert_eq!(
+            certified.carrier().eval(t1).x,
+            2.0,
+            "the chord runs to the tip"
+        );
+        let split = body
+            .split_edge(seg.edge, 0.5f64.mul_add(t1 - t0, t0), tol)
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.get_point(body.get_vertex(split.vertex).unwrap().point)
+                .map(|q| q.x),
+            Some(1.0),
+            "the split lands on the merged chord's midpoint"
+        );
+    }
+
+    /// A merged member the caller re-describes, certified against the
+    /// merged endpoints; an unlisted member through the re-basing gate.
+    /// The strutted segment with a second strut at the far vertex:
+    /// killing the first strut from its tip merges `seg` and `other`
+    /// onto the tip.
+    fn two_member_merge() -> (Body<f64>, MevCreated, MevCreated, MevCreated) {
+        let (mut body, _seed, seg, strut) = strutted();
+        let other = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: strut.he_plus,
+                    he2: strut.he_plus,
+                },
+                Point3::new(1.0, 1.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        (body, seg, strut, other)
+    }
+
+    #[test]
+    fn kev_names_every_certified_member_in_orbit_order() {
+        let (mut body, seg, strut, other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let err = body.kev(strut.he_minus).map(|_| ()).unwrap_err();
+        let EulerOpError::MergeRebasesCarriers { edges } = err else {
+            panic!("{err:?}")
+        };
+        let mut sorted = edges.clone();
+        sorted.sort();
+        let mut expected = vec![seg.edge, other.edge];
+        expected.sort();
+        assert_eq!(sorted, expected, "both members are named");
+        let orbit = body.vertex_orbit(strut.he_plus).unwrap();
+        let in_orbit: Vec<EdgeKey> = orbit[1..]
+            .iter()
+            .map(|&h| body.get_half_edge(h).unwrap().edge)
+            .collect();
+        assert_eq!(edges, in_orbit, "named in the dying vertex's orbit order");
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_refuses_a_listed_edge_that_is_not_a_merged_member() {
+        // The killed edge itself, and an edge at the surviving end of
+        // `seg`, which the merge does not touch.
+        let (mut body, seg, strut, _other) = two_member_merge();
+        let far = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                Point3::new(0.0, -1.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let before = deep_snapshot(&body);
+        for stranger in [strut.edge, far.edge] {
+            assert_eq!(
+                body.kev_describing(
+                    strut.he_minus,
+                    &[(stranger, EdgeCurveSpec::line_between(p(0.0), p(9.0)))],
+                    Tol::witness(),
+                )
+                .map(|_| ()),
+                Err(EulerOpError::NotMergedMember { edge: stranger })
+            );
+            assert_eq!(deep_snapshot(&body), before);
+        }
+    }
+
+    #[test]
+    fn kev_describing_refuses_a_member_listed_twice() {
+        let (mut body, seg, strut, _other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let chord = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        assert_eq!(
+            body.kev_describing(
+                strut.he_minus,
+                &[(seg.edge, chord.clone()), (seg.edge, chord)],
+                Tol::witness(),
+            )
+            .map(|_| ()),
+            Err(EulerOpError::DuplicateRedescription { edge: seg.edge })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_refuses_a_spec_that_does_not_certify_at_the_merged_endpoints() {
+        // `seg`'s spec is the chord it had — to the dying vertex's
+        // point, which is not where the merge ends it. Named at the
+        // listed edge, body untouched.
+        let (mut body, seg, strut, other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let tip_to_other = EdgeCurveSpec::line_between(p(2.0), Point3::new(1.0, 1.0, 0.0));
+        let err = body
+            .kev_describing(
+                strut.he_minus,
+                &[
+                    (other.edge, tip_to_other),
+                    (seg.edge, EdgeCurveSpec::line_between(p(0.0), p(1.0))),
+                ],
+                Tol::witness(),
+            )
+            .map(|_| ())
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EulerOpError::RebasedCarrier {
+                    edge,
+                    error: geom_brep::CertifyError::ResidualExceeded { .. },
+                } if edge == seg.edge
+            ),
+            "{err:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_refuses_a_spec_whose_description_is_not_the_members() {
+        // A chart image must name one of the member's own faces'
+        // surfaces: the attachment gate's adjacency rule, asked in the
+        // plan phase against the faces the merge leaves the member on
+        // (the kill moves no half-edge between loops). The chart named
+        // is a live surface — another solid's face's — so what refuses
+        // is whose it is, not that it does not resolve.
+        let (mut body, seg, strut, _other) = two_member_merge();
+        let elsewhere = body.mvfs(Point3::new(9.0, 9.0, 9.0)).unwrap();
+        let own = body
+            .get_face(body.face_of_half_edge(seg.he_plus).unwrap())
+            .unwrap()
+            .surface;
+        assert_ne!(elsewhere.surface, own);
+        assert!(body.get_surface(elsewhere.surface).is_some());
+        let before = deep_snapshot(&body);
+        let mut spec = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        spec.description = geom_brep::EdgeDescriptionSpec::chart(elsewhere.surface);
+        assert_eq!(
+            body.kev_describing(strut.he_minus, &[(seg.edge, spec)], Tol::witness())
+                .map(|_| ()),
+            Err(EulerOpError::DescriptionNotAdjacent { edge: seg.edge })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_refuses_an_unlisted_member_the_gate_refuses() {
+        // Only `seg` is re-described; `other` keeps a chord to the dying
+        // vertex's point and the re-basing gate names it.
+        let (mut body, seg, strut, other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let err = body
+            .kev_describing(
+                strut.he_minus,
+                &[(seg.edge, EdgeCurveSpec::line_between(p(0.0), p(2.0)))],
+                Tol::witness(),
+            )
+            .map(|_| ())
+            .unwrap_err();
+        assert!(
+            matches!(err, EulerOpError::RebasedCarrier { edge, .. } if edge == other.edge),
+            "{err:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_writes_every_listed_member_and_reaps_what_it_replaced() {
+        let tol = Tol::witness();
+        let (mut body, seg, strut, other) = two_member_merge();
+        let old = [
+            body.get_edge(seg.edge).unwrap().curve,
+            body.get_edge(other.edge).unwrap().curve,
+        ];
+        let curves_before = body.curves().count();
+        body.kev_describing(
+            strut.he_minus,
+            &[
+                (
+                    other.edge,
+                    EdgeCurveSpec::line_between(p(2.0), Point3::new(1.0, 1.0, 0.0)),
+                ),
+                (seg.edge, EdgeCurveSpec::line_between(p(0.0), p(2.0))),
+            ],
+            tol,
+        )
+        .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        // The killed edge's curve and both replaced curves are reaped;
+        // two are minted.
+        assert_eq!(body.curves().count(), curves_before - 1);
+        for (edge, was) in [(seg.edge, old[0]), (other.edge, old[1])] {
+            let now = body.get_edge(edge).unwrap().curve;
+            assert_ne!(now, was);
+            assert!(
+                body.get_curve_geom(was).is_none(),
+                "the old curve is reaped"
+            );
+            assert!(carrier_is_coherent_here(&body, edge, tol));
+        }
+    }
+
+    #[test]
+    fn kev_merged_members_reads_what_the_describing_door_certifies_against() {
+        // The members in orbit order, each with the endpoints the merge
+        // gives it; handed back as chords, the describing kill takes
+        // them. A strut kill merges nothing.
+        let tol = Tol::witness();
+        let (mut body, seg, strut, other) = two_member_merge();
+        let members = body.kev_merged_members(strut.he_minus).unwrap();
+        let orbit = body.vertex_orbit(strut.he_plus).unwrap();
+        let in_orbit: Vec<EdgeKey> = orbit[1..]
+            .iter()
+            .map(|&h| body.get_half_edge(h).unwrap().edge)
+            .collect();
+        assert_eq!(members.iter().map(|m| m.edge).collect::<Vec<_>>(), in_orbit);
+        let tip = [2.0, 0.0, 0.0];
+        let xyz = |q: Point3<f64>| [q.x, q.y, q.z];
+        for m in &members {
+            let (start, end) = (xyz(m.start), xyz(m.end));
+            if m.edge == seg.edge {
+                assert_eq!((start, end), ([0.0; 3], tip), "seg now ends at the tip");
+            } else {
+                assert_eq!(m.edge, other.edge);
+                assert_eq!(
+                    (start, end),
+                    (tip, [1.0, 1.0, 0.0]),
+                    "other now starts there"
+                );
+            }
+        }
+        assert!(
+            body.kev_merged_members(strut.he_plus).unwrap().is_empty(),
+            "the strut kill from the far end merges nothing"
+        );
+        let chords: Vec<_> = members
+            .iter()
+            .map(|m| (m.edge, EdgeCurveSpec::line_between(m.start, m.end)))
+            .collect();
+        body.kev_describing(strut.he_minus, &chords, tol).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+    }
+
+    #[test]
+    fn a_torn_orbit_through_the_killed_half_refuses_typed_in_both_doors() {
+        // Two `next` tears walk the dying vertex's orbit through the
+        // killed half itself: [seg−, strut+, seg+]. Unchecked, the
+        // killed edge is its own merged member, the keys-only door
+        // names it, and the describing door certifies it, kills it and
+        // then has it to write. The plan phase sees that `seg+` does not
+        // start at the dying vertex and both doors, and the read door,
+        // refuse typed, body untouched.
+        let tol = Tol::witness();
+        let (mut body, _seed, seg, strut) = strutted();
+        body.get_half_edge_mut(strut.he_minus).unwrap().next = seg.he_plus;
+        body.get_half_edge_mut(seg.he_minus).unwrap().next = seg.he_minus;
+        assert_eq!(
+            body.vertex_orbit(seg.he_minus),
+            Some(vec![seg.he_minus, strut.he_plus, seg.he_plus])
+        );
+        let torn = EulerOpError::OrbitBroken { he: seg.he_minus };
+        let he = seg.he_plus;
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &[], tol).unwrap_err()
+        });
+        let chord = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &[(seg.edge, chord)], tol).unwrap_err()
+        });
+        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn));
+    }
+
+    #[test]
+    fn a_twice_torn_declined_cube_refuses_typed_in_both_doors() {
+        // The first counterexample a seeded search of two random
+        // `next` tears on the declined cube found (22 of 96,000 kill
+        // calls reached the describing door's write with the killed
+        // edge listed): the tears and the kill, by position in the
+        // fixture's half-edge arena. The orbit leaves the dying vertex,
+        // and both doors refuse it in the plan phase.
+        let tol = Tol::witness();
+        let mut body = declined_cube::<f64>(tol).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[8]).unwrap().next = halves[18];
+        body.get_half_edge_mut(halves[16]).unwrap().next = halves[23];
+        let he = halves[16];
+        let m = body.mate(he).unwrap();
+        let torn = EulerOpError::OrbitBroken { he: m };
+        let killed = body.get_half_edge(he).unwrap().edge;
+        let orbit = body.vertex_orbit(m).unwrap();
+        assert!(
+            orbit[1..]
+                .iter()
+                .any(|&h| body.get_half_edge(h).unwrap().edge == killed),
+            "the torn orbit walks the killed edge back into its own fan"
+        );
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
+        let chords: Vec<_> = orbit[1..]
+            .iter()
+            .map(|&h| body.get_half_edge(h).unwrap().edge)
+            .fold(Vec::new(), |mut edges, e| {
+                if !edges.contains(&e) {
+                    edges.push(e);
+                }
+                edges
+            })
+            .into_iter()
+            .map(|e| (e, EdgeCurveSpec::line_between(p(0.0), p(1.0))))
+            .collect();
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &chords, tol).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn kev_describing_asks_the_survivors_point_only_where_a_question_needs_it() {
+        // A strut kill from the tip's far end merges nothing; with the
+        // surviving vertex's point gone, the describing door asks what
+        // its docs list in their order: a listed non-member refuses as
+        // one, and an empty list asks nothing past the structural list,
+        // as the keys-only door asks nothing, so both kill. (The body is
+        // tier-1-invalid, so the kills run inside a surgery scope,
+        // whose close is dropped unswept.)
+        let tol = Tol::witness();
+        let (mut body, _seed, seg, strut) = strutted();
+        let v = body.get_half_edge(strut.he_plus).unwrap().start;
+        let point = body.get_vertex(v).unwrap().point;
+        body.points.remove(point);
+        assert!(body.kev_merged_members(strut.he_plus).unwrap().is_empty());
+        let stranger = EdgeCurveSpec::line_between(p(0.0), p(9.0));
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::NotMergedMember { edge: seg.edge },
+            |b| {
+                b.kev_describing(strut.he_plus, &[(seg.edge, stranger)], tol)
+                    .unwrap_err()
+            },
+        );
+        for describing in [false, true] {
+            let mut copy = body.clone();
+            let mut scope = copy.begin_surgery();
+            let got = if describing {
+                scope.kev_describing(strut.he_plus, &[], tol)
+            } else {
+                scope.kev(strut.he_plus)
+            };
+            drop(scope);
+            assert!(got.is_ok(), "describing: {describing}: {got:?}");
+        }
+    }
+
+    #[test]
+    fn both_doors_carry_a_killed_null_edge_whose_fan_holds_one_half_of_another() {
+        // `n1` joins `seg`'s far vertex to `w` at one point, and `n2`
+        // leaves `w` at that point too. Killing `n1` toward `w` merges
+        // one half of `n2` onto the survivor: nothing moves, so neither
+        // door asks the re-basing gate, whose null arm would refuse the
+        // one half.
+        let tol = Tol::witness();
+        let (mut body, _seed, seg) = segment();
+        let n1 = body
+            .mev_null(
+                MevSite::Fan {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let at_w = if body.get_half_edge(n1.he_plus).unwrap().start == n1.vertex {
+            n1.he_plus
+        } else {
+            n1.he_minus
+        };
+        let n2 = body
+            .mev_null(
+                MevSite::Fan {
+                    he1: at_w,
+                    he2: at_w,
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let toward_w = body.mate(at_w).unwrap();
+        assert_eq!(body.half_edge_end(toward_w), Some(n1.vertex));
+        let members = body.kev_merged_members(toward_w).unwrap();
+        assert_eq!(
+            members.iter().map(|m| m.edge).collect::<Vec<_>>(),
+            [n2.edge]
+        );
+        assert_eq!(body.clone().kev(toward_w).map(|_| ()), Ok(()));
+        body.kev_describing(toward_w, &[], tol).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+    }
+
+    #[test]
+    fn a_certified_self_loop_member_is_named_once() {
+        // A self-loop circle at the dying vertex has both halves in the
+        // merged fan; it is one member, named once by the refusal and
+        // read once by the read door.
+        let tol = Tol::witness();
+        let (mut body, _seed, seg) = segment();
+        let circle = body
+            .mef(
+                MefSite::Chords {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                EdgeCurveSpec::self_loop_circle_at(p(1.0)),
+                crate::euler::FaceSurface::Inherit,
+                tol,
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.kev_merged_members(seg.he_plus)
+                .unwrap()
+                .iter()
+                .map(|m| m.edge)
+                .collect::<Vec<_>>(),
+            [circle.edge]
+        );
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::MergeRebasesCarriers {
+                edges: vec![circle.edge],
+            },
+            |b| b.kev(seg.he_plus).unwrap_err(),
+        );
+    }
+
+    #[test]
+    fn the_keys_only_kill_refuses_a_merge_that_moves_no_point_and_kev_describing_takes_it() {
+        // The exact inverse of a certified `mev` at the old point: the
+        // kill merges the star's two middle spokes back onto a vertex at
+        // their own point, so every carrier stays true bitwise. The
+        // keys-only door refuses it anyway — it asks no band question,
+        // and whether the two points are one is the question the
+        // re-basing gate does not ask — and the describing door with
+        // nothing listed takes it, carriers untouched.
+        let tol = Tol::witness();
+        let (mut body, _seed, [_a, b, c, d]) = four_spoke_star();
+        let created = body
+            .mev(
+                MevSite::Fan {
+                    he1: b.he_plus,
+                    he2: d.he_plus,
+                },
+                p(0.0),
+                EdgeCurveSpec::self_loop_circle_at(p(0.0)),
+                tol,
+            )
+            .unwrap();
+        let curves = [
+            body.get_edge(b.edge).unwrap().curve,
+            body.get_edge(c.edge).unwrap().curve,
+        ];
+        let carriers = curves.map(|k| format!("{:?}", body.get_curve_geom(k).unwrap()));
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::MergeRebasesCarriers {
+                edges: vec![b.edge, c.edge],
+            },
+            |body| body.kev(created.he_plus).unwrap_err(),
+        );
+        body.kev_describing(created.he_plus, &[], tol).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            [b.edge, c.edge].map(|e| body.get_edge(e).unwrap().curve),
+            curves,
+            "no curve is re-minted"
+        );
+        assert_eq!(
+            curves.map(|k| format!("{:?}", body.get_curve_geom(k).unwrap())),
+            carriers,
+            "every carrier is bitwise what it was"
+        );
+    }
+
+    /// Whether `edge`'s stored carrier re-certifies against its own
+    /// endpoints now.
+    fn carrier_is_coherent_here(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
+        let e = body.get_edge(edge).unwrap();
+        let point = |he| {
+            let v = body.get_half_edge(he).unwrap().start;
+            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+        };
+        body.get_curve_geom(e.curve)
             .unwrap()
             .certified()
             .unwrap()
-            .params();
-        let err = body
-            .split_edge(seg.edge, 0.5f64.mul_add(t1 - t0, t0), Tol::witness())
-            .unwrap_err();
-        assert!(
-            matches!(err, EulerOpError::Certification { .. }),
-            "the merged edge's own carrier misses its endpoint: {err:?}"
-        );
+            .recertify(
+                point(e.he_plus),
+                point(e.he_minus),
+                |k| body.get_surface(k).cloned(),
+                geom_core::Band::linear(tol).unwrap(),
+            )
+            .is_ok()
     }
 
     #[test]
@@ -2327,7 +3231,12 @@ mod tests {
                 )
                 .unwrap();
             body.kef(cut.he_minus).unwrap();
-            body.kev(seg.he_plus).unwrap(); // pillow → circular-edge body
+            // pillow → circular-edge body: the surviving edge closes
+            // onto the seed vertex, so the kill re-describes it as the
+            // circle there.
+            let circle = EdgeCurveSpec::self_loop_circle_at(p(0.0));
+            body.kev_describing(seg.he_plus, &[(split.edge, circle)], Tol::witness())
+                .unwrap();
             body
         };
         let a = run();

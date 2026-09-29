@@ -795,6 +795,19 @@ BOUND_AS = {
     # slot as at a raise. Whether the slot deserves a class of its own
     # is `work/lib/the-unnamed-slot-crosses-as-a-hit-test-error.md`.
     "UnnamedEntity": "HitTestError",
+    # `NameLookupError` is those two doors' refusal of the WHOLE call —
+    # the pairing, or the node's standing — and it crosses as the same
+    # class at the same words (`crate::tags::name_lookup_error_tag`):
+    # Python has one exception for a name that could not be read off
+    # a pick, and the message is the lookup's own, which names no hit
+    # test.
+    "NameLookupError": "HitTestError",
+    # `NodeStanding` is the payload every door that needs a node's
+    # value refuses with. It crosses by the carrier rule at every
+    # door that carries it, as that door's tag word (`node_failed`,
+    # `target_poisoned`, ...) plus the `node` and `through` attributes
+    # beside it; the hit test's spelling is the one named here.
+    "NodeStanding": "HitTestError.variant",
     # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
     # analytic kind's stage-1 estimator declined on a face that could
     # not import without promotion. It crosses by the carrier rule at
@@ -3385,9 +3398,7 @@ MEMBERS_BOUND_AS = {
     "EvalError::CountToScalarOutOfRange": "EvalError.variant",
     "EvalError::NonFiniteResult": "EvalError.variant",
     "FmtQuantityError::NonFinite": "FmtQuantityError.variant",
-    "HitTestError::NodeNotEvaluated": "HitTestError.variant",
-    "HitTestError::NodeFailed": "HitTestError.variant",
-    "HitTestError::NodePoisoned": "HitTestError.variant",
+    "HitTestError::Standing": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
     "HitTestError::Ambiguous": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
@@ -3512,6 +3523,8 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
     "SelectRefusal::Unreadable": "SelectRefusal.reason",
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
+    "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
+    "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",

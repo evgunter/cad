@@ -622,9 +622,12 @@ fn a_delete_reports_the_appearance_keys_it_stranded() {
     let before = doc.appearance().clone();
 
     let applied = delete(&doc, victim);
+    // The report runs in the store's order, which is name order.
+    let mut stranded = vec![one, two];
+    stranded.sort();
     assert_eq!(
         appearance_strands(&applied.maintenance),
-        vec![one, two],
+        stranded,
         "both keys the deleted node minted, and only those"
     );
     assert_eq!(

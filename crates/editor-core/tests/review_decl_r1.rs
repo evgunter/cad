@@ -168,7 +168,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
                 tr,
                 fname(
                     b0,
-                    editor_core::RoleSeg::Lateral(crate::fixture::no_piece()),
+                    editor_core::RoleSeg::Lateral(crate::fixture::no_piece_of(&doc)),
                 ),
             ),
         )]),

@@ -2,8 +2,9 @@
 id: ring-nan-poison-is-load-bearing-at-unguarded-reads
 kind: issue
 title: "The ring's NaN poison is load-bearing at 31 unguarded reads: RING-2's decoration swap launders a refusal into a pass there, and this row is the re-runnable register"
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-09-29
 priority: P2
 cost: D
 refs: [H5]
@@ -227,3 +228,20 @@ itself. The fix at every site is one shape — ask the refusal first
 instead of relying on NaN. The RING-0 dry run
 (`scalar/ring-0-dry-run`) reached **none** of these with a red row,
 which is why they need naming rather than reading off a failure list.
+
+## Closed (2026-09-29) — moot, closed by RING-2 (PR 3032)
+
+RING-2 guarded the thirty endpoint-read hazards with `is_poison()` and
+made the register executable. RING-3 and RING-5 re-keyed it as
+`crates/geom-core/tests/certified_endpoint_census.rs`, whose roster shows
+every file on this row's list guarded. The unguarded reads it still
+counts are argued safe in the roster:
+- `props/quad.rs`'s angle steps and half-angle clamps;
+- `ssi/certify.rs`'s `T: Bounds` evaluation reads.
+
+The conditional branch this row named did happen: `from_certified` now
+carries a bracket capped at `Trv`, which the census covers. The row's
+blind spots (a value handed to a helper, and macros) are the census's
+blind spots 3–4 and the certification gate's GAPs 3 and 5
+(`certification-gate-gaps-3-and-5-have-no-follow-up`). Verified against
+main at `09f4b2c8c3` by the triage survey.

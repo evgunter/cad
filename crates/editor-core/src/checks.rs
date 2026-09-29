@@ -50,7 +50,7 @@ use geom_core::{BandError, CertifiedBounds, Decide, Tol};
 use topo::{AtRestPolicy, Body, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
-use crate::eval::Evaluation;
+use crate::eval::{Evaluation, NodeStanding};
 use crate::node::RecipeNodeId;
 use crate::product;
 
@@ -709,15 +709,11 @@ impl fmt::Display for ChecksReport {
 /// not that a check fired.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChecksError {
-    /// A root produced no value in this evaluation (failed, poisoned,
-    /// or past a cancelation's prefix) — the [`crate::product()`]
-    /// posture: checks are defined over roots that evaluated, and a
-    /// report over a partial evaluation would claim more than was
-    /// checked.
-    Root {
-        /// The root without a value.
-        node: RecipeNodeId,
-    },
+    /// A root has no value in this evaluation, and its standing says
+    /// why and where the repair is — the [`crate::product()`] posture:
+    /// checks are defined over roots that evaluated, and a report over
+    /// a partial evaluation would claim more than was checked.
+    Root(NodeStanding),
     /// The run's tolerance cannot form a band.
     Band {
         /// The band construction failure.
@@ -799,12 +795,7 @@ impl ChecksError {
 impl fmt::Display for ChecksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Root { node } => write!(
-                f,
-                "checks: root {} produced no value in this evaluation — evaluate to \
-                 completion (and fix or remove the failing root) before running checks",
-                node.0
-            ),
+            Self::Root(standing) => write!(f, "checks: a root has no value: {standing}"),
             Self::Band { error } => write!(f, "checks: {error}"),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
@@ -1064,9 +1055,7 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
     // the walk is stale (an expectation with no subject).
     let mut unconsumed = cfg.expected_components.clone();
     for &root in doc.roots() {
-        let Some(value) = ev.value(root) else {
-            return Err(ChecksError::Root { node: root });
-        };
+        let value = ev.usable(root).map_err(ChecksError::Root)?;
         // Non-body roots (datums, mates, profiles, declarations)
         // denote no subject; an empty boolean denotes zero subjects.
         let Some(sources) = product::sources_of(value) else {
@@ -1167,9 +1156,7 @@ fn chart_coherence<P, T: Decide + ChartCoherenceLane>(
     report: &mut ChecksReport,
 ) -> Result<(), ChecksError> {
     for &root in doc.roots() {
-        let Some(value) = ev.value(root) else {
-            return Err(ChecksError::Root { node: root });
-        };
+        let value = ev.usable(root).map_err(ChecksError::Root)?;
         let Some(sources) = product::sources_of(value) else {
             continue;
         };

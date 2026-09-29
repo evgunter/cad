@@ -133,10 +133,10 @@ use pncad::document::{
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
     EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
     MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorClass, NodeErrorKind, ParseError, PersistError, PiecesFault,
-    PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation,
-    ResolveFault, RootFault, ShellClassifyError, SlotId, SnapshotError, SplitError, StepIdFault,
-    Subgroup, UpdateError,
+    MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError,
+    PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
+    RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError, SlotId, SnapshotError,
+    SplitError, StepIdFault, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -149,8 +149,9 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NamingError,
-    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate, RimShare,
+    DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError,
+    NamingError, NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
+    RimShare,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -306,6 +307,8 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::TiedDisagrees { .. } => "tied_disagrees",
         R::Unreadable { .. } => "unreadable",
         R::NotADatum { .. } => "not_a_datum",
+        R::DatumHasNoValue(_) => "datum_has_no_value",
+        R::NodeHasNoValue(_) => "node_has_no_value",
         R::NotALength { .. } => "not_a_length",
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
@@ -1787,7 +1790,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
         SnapshotError::StepIds { .. } => "step_ids",
-        SnapshotError::NameStepBeyondCounter { .. } => "name_step_beyond_counter",
+        SnapshotError::MintLogOrder { .. } => "mint_log_order",
+        SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
         SnapshotError::DeclareInput { .. } => "declare_input",
@@ -2005,9 +2009,13 @@ pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
 pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
     use pncad::export::ExportError as E;
     match err {
-        E::UnknownNode { .. } => "unknown_node",
-        E::NodeFailed { .. } => "node_failed",
-        E::Poisoned { .. } => "poisoned",
+        E::Standing(standing) => match standing {
+            NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+                "unknown_node"
+            }
+            NodeStanding::Failed { .. } => "node_failed",
+            NodeStanding::Poisoned { .. } => "poisoned",
+        },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
@@ -2380,9 +2388,7 @@ pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
 /// is reached through a name or through a key.
 pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
     match err {
-        InterrogateError::NodeNotEvaluated { .. } => "node_not_evaluated",
-        InterrogateError::NodeFailed { .. } => "node_failed",
-        InterrogateError::NodePoisoned { .. } => "node_poisoned",
+        InterrogateError::Standing(standing) => node_standing_tag(standing),
         InterrogateError::NoSuchName => "no_such_name",
         InterrogateError::Ambiguous { .. } => "ambiguous",
         InterrogateError::WrongKind { .. } => "wrong_kind",
@@ -2426,31 +2432,27 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
 /// `tests::the_whole_tag_table_matches_its_committed_inventory` reds
 /// on an addition and on a rename.
 ///
-/// [`EvalReason::NodeNotEvaluated`] is the standing ladder's first
-/// rung, spelled identically to the read-back and picking doors'
-/// ([`interrogate_error_tag`], [`hit_test_error_tag`]) and pinned
-/// against both by `tests::the_evaluation_door_speaks_the_standing_ladder`,
-/// in both directions. (Named as text rather than as an intra-doc
-/// link: `tests` is `#[cfg(test)]`, so a link would not render.)
+/// A node with no value answers through [`node_standing_tag`], except
+/// the two words this door shipped before the ladder had one:
+/// `unknown_node` for an id the document does not have, and
+/// `poisoned`.
 pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
     match reason {
-        EvalReason::UnknownNode => "unknown_node",
         EvalReason::WrongKind => "wrong_kind",
         EvalReason::EmptyBoolean => "empty_boolean",
-        EvalReason::NodeNotEvaluated => "node_not_evaluated",
-        EvalReason::NodeFailed => "node_failed",
-        EvalReason::Poisoned => "poisoned",
+        EvalReason::Standing(standing) => match standing {
+            NodeStanding::NotInDocument { .. } => "unknown_node",
+            NodeStanding::Poisoned { .. } => "poisoned",
+            NodeStanding::NotEvaluated { .. } | NodeStanding::Failed { .. } => {
+                node_standing_tag(&standing)
+            }
+        },
     }
 }
 
 /// The stable tag for a hit-test refusal — the ray door's own.
 ///
-/// The three standing arms are the SAME vocabulary
-/// [`interrogate_error_tag`] speaks for the read-back doors, spelled
-/// identically on purpose: "node 7 has no result in this evaluation"
-/// is one fact about the run, and a caller that already branches on
-/// `node_not_evaluated` from a frame read should not have to learn a
-/// second word for it at the pick.
+/// A standing answers [`node_standing_tag`]'s word.
 ///
 /// `evaluation_of_another_document` is DI3's pairing refusal, the
 /// same word the gather, the checks and the name-level edit door
@@ -2476,12 +2478,46 @@ pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
 /// diagnostic a bug report can act on.
 pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
     match err {
-        HitTestError::NodeNotEvaluated { .. } => "node_not_evaluated",
-        HitTestError::NodeFailed { .. } => "node_failed",
-        HitTestError::NodePoisoned { .. } => "node_poisoned",
+        HitTestError::Standing(standing) => node_standing_tag(standing),
         HitTestError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         HitTestError::Ambiguous { .. } => "ambiguous",
         HitTestError::Unnamed { .. } => "unnamed",
+    }
+}
+
+/// The stable tag for a node's standing, under the ladder's own words:
+/// `node_not_evaluated`, `node_failed`, `node_poisoned`.
+///
+/// The one spelling the hit test, the pick index, the name lookup and
+/// the read-back doors answer with, so a caller that branches on a
+/// failed node at one of them branches on it at every one. The
+/// export, resolution, product and checks doors keep the words they
+/// shipped with (`unknown_node`/`node_failed`/`poisoned`, `target_*`,
+/// `unknown_node`/`root_*`, `root_without_value`) and map the same
+/// standing onto them; the evaluation door reads this map except for
+/// its own `unknown_node` and `poisoned` ([`eval_reason_tag`]).
+///
+/// `node_not_evaluated` covers both of the ladder's absent arms, the
+/// run stopping before the node and an id not in the document: these
+/// doors answered that one word for both before the standing split
+/// them.
+pub fn node_standing_tag(standing: &NodeStanding) -> &'static str {
+    match standing {
+        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+            "node_not_evaluated"
+        }
+        NodeStanding::Failed { .. } => "node_failed",
+        NodeStanding::Poisoned { .. } => "node_poisoned",
+    }
+}
+
+/// The stable tag for [`NameLookupError`], the name doors' refusal of
+/// the whole call: the pairing word [`hit_test_error_tag`] answers
+/// with, or the standing's.
+pub fn name_lookup_error_tag(err: &NameLookupError) -> &'static str {
+    match err {
+        NameLookupError::EvaluationOfAnotherDocument(_) => "evaluation_of_another_document",
+        NameLookupError::Standing(standing) => node_standing_tag(standing),
     }
 }
 
@@ -2489,11 +2525,10 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 ///
 /// Three arms FORWARD rather than wrap, the
 /// [`interrogate_error_tag`] / [`assembly_error_tag`] convention: the
-/// standing ladder arrives under [`hit_test_error_tag`]'s words (it is
-/// literally that type), and a tessellation refusal arrives under the
-/// tessellator's own tag, because "the chordal budget was not finite"
-/// is that fact whether it is reached through `Body.tessellate` or
-/// through a pick index.
+/// standing arrives under [`node_standing_tag`]'s words, and a
+/// tessellation refusal arrives under the tessellator's own tag,
+/// because "the chordal budget was not finite" is that fact whether it
+/// is reached through `Body.tessellate` or through a pick index.
 ///
 /// The `Index` arm does NOT forward, and that is a decision rather
 /// than the absence one. `mesh_index` names which door's invariant
@@ -2504,7 +2539,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// [`mesh_pick_error_tag`] rather than in place of it.
 pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
     match err {
-        NodePickError::Standing(err) => hit_test_error_tag(err),
+        NodePickError::Standing(standing) => node_standing_tag(standing),
         NodePickError::NotABody { .. } => "not_a_body",
         NodePickError::NoSuchBody { .. } => "no_such_body",
         NodePickError::Tessellate(err) => tessellate_error_tag(err),
@@ -2609,10 +2644,12 @@ pub fn resolve_error_tag(err: &ResolveError) -> &'static str {
 /// `target_not_evaluated`: a canceled run never reached it, and
 /// re-evaluating is the whole of the recourse.
 pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
-    match cause {
-        ResolveIndeterminate::TargetFailed { .. } => "target_failed",
-        ResolveIndeterminate::TargetPoisoned { .. } => "target_poisoned",
-        ResolveIndeterminate::TargetNotEvaluated { .. } => "target_not_evaluated",
+    match cause.standing {
+        NodeStanding::Failed { .. } => "target_failed",
+        NodeStanding::Poisoned { .. } => "target_poisoned",
+        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+            "target_not_evaluated"
+        }
     }
 }
 
@@ -3045,7 +3082,8 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::Shape { .. } => "shape",
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
-        StepIdFault::BeyondCounter { .. } => "beyond_counter",
+        StepIdFault::NotMinted { .. } => "not_minted",
+        StepIdFault::Collides { .. } => "collides",
     }
 }
 
