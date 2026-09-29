@@ -813,7 +813,9 @@ fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
 /// The sweep never examines a lone vertex (it is edge-driven), so the
 /// certificate refuses rather than rest an answer on the argument that
 /// such a vertex hides no component (module docs). The same wall
-/// without the ring clears.
+/// without the ring clears. The strut that leaves the ring is a secant
+/// of the cylinder, so `mev` leaves the wall storing no row; the wall is
+/// re-minted once the ring is made, so both scans read a minted wall.
 #[test]
 fn a_lone_vertex_ring_refuses_the_pair() {
     let tol = Tol::witness();
@@ -852,6 +854,7 @@ fn a_lone_vertex_ring_refuses_the_pair() {
         )
         .unwrap();
     body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
     assert!(
         body.get_face(wall).unwrap().rings.iter().any(|&l| matches!(
             body.get_loop(l).unwrap().boundary,
@@ -1041,7 +1044,8 @@ fn an_off_carrier_witness_places_nowhere() {
     );
 }
 
-/// **A lone-vertex ring on operand B's face refuses too.**
+/// **A lone-vertex ring on operand B's face refuses too.** The wall is
+/// re-minted once the ring is made, as in the A-side row.
 #[test]
 fn a_lone_vertex_ring_on_the_b_side_refuses_the_pair() {
     let tol = Tol::witness();
@@ -1072,6 +1076,7 @@ fn a_lone_vertex_ring_on_the_b_side_refuses_the_pair() {
         )
         .unwrap();
     body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
     let verdicts = scan_b(&tilted_slab(), &body, wall);
     assert!(!verdicts.is_empty());
     assert!(

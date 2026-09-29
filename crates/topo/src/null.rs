@@ -227,6 +227,8 @@ impl<T: geom_core::Decide> Body<T> {
                     plan,
                     point,
                     crate::euler::MevCurveMint::Null(new_side),
+                    // A null edge has no carrier to derive a row from.
+                    Vec::new(),
                     provenance,
                 )
             }
@@ -237,6 +239,7 @@ impl<T: geom_core::Decide> Body<T> {
                     v,
                     p_old, // bitwise coincident copy
                     crate::euler::MevCurveMint::Null(new_side),
+                    Vec::new(),
                     provenance,
                 )
             }
