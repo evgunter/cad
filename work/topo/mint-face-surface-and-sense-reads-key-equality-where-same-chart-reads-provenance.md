@@ -62,3 +62,45 @@ keys sharing one NURBS/`Approx` payload carry rows through
 `same_chart` but reset `sense` to `true` in `mint_face_surface_and_sense`.
 The title's "where same_chart reads provenance" is no longer true.
 (ORIGIN orchestrator)
+
+## Brief (TOPO, 2026-09-29): review tier SINGLE (full)
+
+A single full review is enough: the change is one decision about an
+operator's orientation contract, with a small blast radius.
+
+1. **One question, one answer.** "Is the new face on the parent's own
+   surface" is the question `same_chart` answers for the rows. Have
+   `mint_face_surface_and_sense` inherit the parent's `sense` exactly
+   when `same_chart(surface, inherit_surface)` holds, and stamp `true`
+   otherwise.
+   - First check that `sense` and chart identity mean the same thing
+     here: the sense bit is the outward normal relative to the chart's
+     own normal. Two keys holding one `Arc` payload hold the same chart
+     with the same orientation, so the parent's bit is right for the
+     fragment.
+   - If a case turns up where the two answers must differ (a shared
+     payload with opposite orientation, or a `Shared` spec a caller
+     uses deliberately to flip), stop: keep key equality, and write in
+     the helper's doc why the sense bit is stricter than the chart,
+     with the row that shows it. Say which was found, and why.
+2. **Rows** (ordinary tests):
+   - **Red-first:** on the sheet of
+     `crates/topo/tests/loop_reparenting_pcurve_rows.rs`, give the
+     lower panel `sense: false` and split it with a `mef` whose spec is
+     `Shared(second key)`, where `second` shares the parent's `Arc`
+     payload (a NURBS/`Approx` surface: the suite's payload-`Arc`
+     fixture). On the merge base the new face's `sense` resets to
+     `true`; at the head it inherits `false`. Show both.
+   - **Controls:** `Shared(own key)` inherits; `New(...)` and a foreign
+     `Shared` key stamp `true`.
+   - Cover `mfkrh`'s promoted ring the same way.
+3. **Callers and receipt.** List every caller of the helper and every
+   production `set_face_sense(` that follows a `Shared` spec; say
+   whether each is now redundant or still needed. Remove none unless
+   the row set proves it redundant.
+4. **Docs.** The helper's doc and `same_chart`'s doc agree: one
+   sentence each, pointing to the one home. Update this item's title
+   ("where same_chart reads provenance" no longer holds).
+5. **Seams.** `euler.rs` and `euler_ring.rs` are TOPO's. Run
+   `python3 scripts/work.py territory --base origin/main` and announce
+   any crossing on the owner's log.
