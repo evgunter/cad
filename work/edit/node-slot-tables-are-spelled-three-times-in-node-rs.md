@@ -2,7 +2,7 @@
 id: node-slot-tables-are-spelled-three-times-in-node-rs
 kind: issue
 title: Node, TubeWindow and the placement rule each spell their slot roles three times in node.rs - slots(), expr() and a hand-copied expr_mut() - where program.rs now reads one role table
-status: spec
+status: review
 branch: edit/slot-tables-one-home
 opened: 2026-09-25
 priority: P1
@@ -73,3 +73,28 @@ claim.
    does, root-cause it before re-baselining.
 3. **Not in scope:** the wider verb-seat family
    (`work/wire/two-verb-seats-do-not-compose.md` item (a)).
+
+## Built (2026-09-29)
+
+Each of the three shapes has one borrow-generic row list in
+`crates/editor-core/src/node.rs`, and `slots`, `expr` and `expr_mut`
+all read it: `window_rows!` (read by `TubeWindow`'s three doors and by
+both tube kinds), `rule_rows!` (`Node::Pattern` and
+`Node::PlacedUnion`) and `node_rows!` (every other node kind, with
+`tube_rows!` holding the head both tube kinds share). `comp`,
+`comp_mut`, `comp2` and `comp2_mut` became one `axis_rows!`, which zips
+a 3- or 2-vector with `Axis3::ALL`. The profile arm still delegates to
+its payload, whose table is `program.rs`'s `loop_roles`. `rule_expr_mut`'s
+"same mapping" doc went with the function.
+
+The guard is
+`switch_slots::every_node_kinds_expr_mut_writes_the_field_expr_reads`.
+It writes a sentinel through `expr_mut` at every slot of every node
+shape, reads it back through `expr`, and checks that no other slot
+moved. Across the union of every shape's slots, it checks that
+`expr_mut` answers exactly where `expr` does. A transposed `U` arm reds
+it, both in the old `Node::expr_mut` and as a remap in the new one.
+
+No slot order and no stored bit moved: every shape's `(slot, expr)`
+list was dumped before and after the change, and the two dumps are
+identical.

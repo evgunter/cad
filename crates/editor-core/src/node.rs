@@ -979,7 +979,7 @@ pub enum TubeWindow {
 /// the two angles for an arc.
 ///
 /// The one declaration [`TubeWindow::slots`], [`TubeWindow::expr`] and
-/// [`TubeWindow::expr_mut`] read, and the one [`node_rows`] reads for
+/// [`TubeWindow::expr_mut`] read, and the one `node_rows` reads for
 /// both tube kinds, so no two readers can come to disagree about which
 /// angle is which. A macro because it is borrow-generic: match
 /// ergonomics bind `&Expr` or `&mut Expr` from the same rows.

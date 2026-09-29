@@ -775,8 +775,8 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     nodes
 }
 
-/// **`slots()` is `expr()`'s domain, for every node kind** — the
-/// invariant the two matches in `node.rs` keep between them, and the
+/// **`slots()` is `expr()`'s domain, for every node kind, and each slot
+/// reads an expression of the dimension its address fixes** — the
 /// reason neither door carries a refusal for a slot it cannot read:
 /// `Node::slot_dimension_fault` asserts against it at the site rather
 /// than routing a missing expression to a door as a document's fault.

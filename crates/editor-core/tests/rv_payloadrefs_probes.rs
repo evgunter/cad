@@ -84,7 +84,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
 
 /// **PROBE 1 — the walk's domain, at its edge.** `Node::slots()` gives
 /// a pattern a `SlotId::Count` only while its rule is a STEPPED one
-/// (`node::rule_slots`), and `payload_exprs` returns `None` for a
+/// (`node::rule_rows`), and `payload_exprs` returns `None` for a
 /// pattern at every rule. So a file carrying an `Explicit` rule AND a
 /// count expression holds an `Expr` that NEITHER param-ref walk reads
 /// — and this row measures what the load door does with one whose
