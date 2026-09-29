@@ -390,12 +390,16 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   consistency conditions are verified at validate as ε-decisions at the
   validating scalar, never trusted; a stored carrier is carried
   verbatim, including across scalars, and never re-derived from its
-  vertices. Where a construction proves one of those conditions exactly
-  over the reals (a circle's vertices, a fillet's tangent points), it
-  registers that identity on the values it built; nothing about it is
-  stored on the arc, and a copied or embedded arc claims nothing. The
-  arc carrier is one type shared by the profile and the B-rep sketch
-  segment, and its radius is the radius the construction gave. Bulge
+  vertices. The authored shape lives in the program, not the storage:
+  each construction lowers what the user wrote into this form in the
+  shape's own algebra (the radius as authored, the sweep as one
+  `4·atan` of a quantity algebraic in the authored data, never an
+  angle difference), so the symbolic tier, replaying the program, reads
+  the authored shape through the stored fields. An identity the
+  algebra does not close is registered by the construction that proves
+  it, on the values it built; nothing about it is stored on the arc,
+  and a copied or embedded arc claims nothing. The arc carrier is one
+  type shared by the profile and the B-rep sketch segment. Bulge
   (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
   modes, lowered into this form once, at the algebra — not the
   storage. Winding is invisible to users (roles derive from
