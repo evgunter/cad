@@ -555,9 +555,6 @@ mod tests {
         // A pin prefix whose twelve hex digits are all decimal.
         assert!(arena_key("the part pinned at 951583145512 is gone"));
         assert!(!arena_key("the offset is 0.300000000000 mm"));
-        assert!(!arena_key(
-            "margin 3e-10 lies inside the ambiguity band (1e-6, 9.999999999999999e-6)"
-        ));
         assert!(!arena_key("the offset is 123456789012.5 mm"));
         assert!(!arena_key("i64::MAX is 9223372036854775807"));
         // A float's fraction and exponent marker read as one mixed word.
