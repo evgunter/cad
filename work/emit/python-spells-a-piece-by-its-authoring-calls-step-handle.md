@@ -5,7 +5,9 @@ title: Python spells a profile piece by the step handle its authoring call retur
 status: open
 opened: 2026-09-25
 priority: P1
-cost: D
+cost: M
+design: true
+needs_ev: true
 ---
 
 ## What
@@ -40,3 +42,22 @@ position, which is the positional reading the rule exists to retire.
 - `Doc.pieces` stays, as the reading for a caller that holds no handle.
 - `pncad.pyi`, the binding census and the role-name rows move with it.
 
+
+## The fork (2026-09-29)
+
+The first lane stopped before writing code. The row says the handle is
+"backed by the insert door's minted id", but a loop is a free value
+that can be placed several times, and each placement mints different
+ids. So what a handle denotes, and how it binds to an id, is an open
+question.
+
+The designer pair and its split are in the `[ev]` PR. Both designers
+agree on the handle: an authored address (the step's index plus the
+program's shape up to that step, values erased), bound to an id by
+editor-core per placement.
+
+Three questions remain for Ev:
+- whether the author names the loop, or the lookup finds it;
+- whether a role is checked by per-verb handle classes or at the
+  `piece()` door;
+- the form of `set_program`'s keep map.
