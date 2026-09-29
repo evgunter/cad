@@ -67,3 +67,39 @@ nothing re-described.
 `S93` (`work/probe/S93.md`) closes with this unit; the orchestrator
 closes it at merge.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## Seam from TOPO, fix pass on PR 3161 (2026-09-29)
+
+`Body::kev_merged_members(he)` is new and public: the merged members
+of `kev(he)`, in the dying vertex's orbit order, each with the two
+endpoints the merge gives it (`topo::MergedMember { edge, start, end }`,
+`he_plus` forward order). It is read from the same plan and endpoint
+reading the two kill doors certify against, so a caller no longer
+re-derives what the merge will do. `kev`'s plan phase now also refuses
+`OrbitBroken` where the dying vertex's orbit reaches a half-edge that
+does not start there (two `next` tears could walk it through the killed
+half, and the describing door then panicked); on a valid body nothing
+changes.
+
+**Your file, and what changed in it: `crates/topo/src/seqgen.rs`.**
+
+- `chord_redescriptions` and `try_chord_redescriptions` map
+  `kev_merged_members` through one `chord_of` (a line, or the
+  self-loop circle where the two merged endpoints are one point); the
+  walk's own orbit and endpoint re-derivation is gone.
+- The walk's `Kev` arm now asks two more questions on a clone before
+  it kills, so the gates the walk's full list never reaches are fuzzed:
+  - `assert_keys_only_kill_answers`: plain `kev` must refuse
+    `MergeRebasesCarriers` naming every member where the fan is not
+    empty, and must kill where it is.
+  - `assert_unlisted_members_answer_to_the_gate`: a subset of the
+    members, drawn from the lattice counter (at least one), is left
+    unlisted, and the describing kill must name the first unlisted
+    member whose stored carrier does not re-certify at its merged
+    endpoints, or kill where none fails.
+  Both run on clones, so the walk, the selection pin and the module
+  docs' counts do not move.
+- `split_site`'s docs no longer say it asserts over every generated
+  edge: `any_split_edge` stops at the first splittable one.
+- `review_m1_pr4`'s torn-body row no longer calls the chords helper; it
+  asserts that both kill doors refuse every kill on its tear.

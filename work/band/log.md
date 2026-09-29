@@ -174,3 +174,31 @@ MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
 has its measured red-first row.
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/band/blend-endings-say-lower-the-tolerance-and-route-by-name.md`. `sweep::blend::ClassifiedMargin` is a third spelling of a decided margin beside `recourse::Classified`; convergence is noted on the encl certify-span row. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## Seam from TOPO, fix pass on PR 3161 (2026-09-29)
+
+`Body::kev_merged_members(he)` is new and public: the merged members
+of `kev(he)`, in the dying vertex's orbit order, each with the two
+endpoints the merge gives it (`topo::MergedMember { edge, start, end }`,
+`he_plus` forward order). It is read from the same plan and endpoint
+reading the two kill doors certify against, so a caller no longer
+re-derives what the merge will do. `kev`'s plan phase now also refuses
+`OrbitBroken` where the dying vertex's orbit reaches a half-edge that
+does not start there (two `next` tears could walk it through the killed
+half, and the describing door then panicked); on a valid body nothing
+changes.
+
+**Your files, and what changed in them.**
+
+- `crates/sweep/src/blend/surgery.rs`: `merged_chord_spec` now reads
+  the member's merged endpoints from `kev_merged_members` instead of
+  re-deriving them (its old rule, `start == dead`, agreed with the
+  door only on valid bodies). It takes the refusal site name, so a
+  read-door refusal is reported as `"rim closure kev"` or
+  `"annulus closure kev"`. The chord it hands the kill is unchanged.
+- `crates/sweep/src/blend/surgery.rs` `"rim kev"`,
+  `crates/sweep/src/blend/open/planar.rs` `"corner kev"` and
+  `crates/sweep/src/blend/open/ruled.rs` `"cap vertex kev"`: each is a
+  spur kill, so the keys-only kill merges no fan. Each now says so and
+  `debug_assert!`s it through `kev_merged_members`, where before the
+  claim was only measured.
