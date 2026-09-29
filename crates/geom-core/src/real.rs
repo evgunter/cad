@@ -1026,11 +1026,15 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 ///    `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
 ///    precisely what was asked for and refused. The classify seam's own
 ///    diagnostic is not such a helper: `MarginDiag`, minted inside each
-///    scalar's `Decide` impl on a verdict the funnel records under its
-///    name, is the one projection of a decided margin. A refusal payload
-///    may echo it, on a definite verdict as on an indeterminate one, for
-///    a recourse table or a door's message to choose its words from —
-///    never to branch a decision on.
+///    scalar's `Decide` impl on every outcome of a verdict the funnel
+///    records under its name (definite and indeterminate alike), is the
+///    one projection of a decided margin. A refusal payload may echo it,
+///    for error reporting only: a recourse table or a door's message
+///    chooses its words from it, and nothing decides on it. Its type
+///    makes that structural, not a convention — it offers no value a
+///    comparison could read in passing, so deciding on it takes an
+///    obviously wrong, visibly named step that review and a gate can
+///    see.
 ///
 /// For genuine decisions nothing changes: the metered predicate layer is
 /// the only spelling — it IS the "definite sign or indeterminate" trilean,
