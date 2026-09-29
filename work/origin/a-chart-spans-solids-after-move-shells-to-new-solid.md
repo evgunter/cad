@@ -2,10 +2,11 @@
 id: a-chart-spans-solids-after-move-shells-to-new-solid
 kind: unit
 title: move_shells_to_new_solid re-homes a shell without re-minting its surfaces, so a chart can span two solids
-status: spec
+status: dispatched
 opened: 2026-09-08
 priority: P0
 cost: M
+branch: origin/scoped-chart-grouping
 ---
 
 

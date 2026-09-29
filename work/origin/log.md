@@ -218,3 +218,11 @@ four comparison sites whose drift is exactly the defect.
 
 Ev took (B) ("sounds good!"). `a-chart-spans-solids-…` is a unit at
 `spec` again, now for the scoped-grouping change; fork row 12 completed.
+
+## 2026-09-29 — the scoped-grouping unit dispatched
+
+`a-chart-spans-solids-…` → implementer on
+`origin/scoped-chart-grouping`: the shell door, `replace_faces_offset`
+and point-in-solid group their own scope's faces through one primitive;
+`ChartSpansSolids` and `SurfaceSharedOutsideSolid` retire. Review tier:
+single FULL — three doors' refusal surfaces change, across crates.
