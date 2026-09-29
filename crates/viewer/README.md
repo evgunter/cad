@@ -2109,8 +2109,7 @@ where, exhaustively:
   `editor-core` is not in the seed set — so a branch that renames or
   deletes that constant reaches `viewer` through the closure, takes
   skip mode, and nothing anywhere reports the break. **The hole this
-  bullet once described as theoretical is open**, and the row that owns
-  the repair owns this instance with it.
+  bullet once described as theoretical is open.**
 
   **What the rule cannot match**, stated because the claim above it is a
   universal: a link whose target is reached through a `use`, since the
@@ -2125,9 +2124,10 @@ where, exhaustively:
   exits 0 — measured, by planting one. It re-takes the RENDER, not the
   lint. The sweep rule this bullet owes is *the renderer-free half's
   cross-crate link targets, against `VIEWER_TOOLKIT_SEEDS`*, written
-  above as the command that produces it, and
-  `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` — on
-  MIRROR's slate, having moved there with CIW's cut — owns the repair.
+  above as the command that produces it. Since 2026-09-28 no PR runs
+  rustdoc at all: `nightly.yml`'s `rustdoc (gate, every root)` runs
+  `scripts/doc-gate.sh` without skip mode, so the all-features pass
+  reads this half with the link lint live, once a day.
 
 Someone who runs `cargo doc` on this crate without `app` — the reader
 the renderer-free half exists for — meets one of those links as the
