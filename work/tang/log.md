@@ -22,7 +22,7 @@ of ATREST's P0/P1 rows**, not only of its own consumers:
   annular rim of every shelled vessel of revolution. Two of its three
   thirds (`ArcParity`, `NoWalk`) wait on #1076 outright; only the
   `Disc` class can be closed without it.
-- `work/atrest/validate-tier3-curved-boundary-containment` — the last
+- `work/restfront/validate-tier3-curved-boundary-containment` — the last
   unmarked deferral in tier 3's not-yet-checked list. Its
   region-bounding half wants the same thing: a walk that can express a
   loop's region when the loop is not a polygon.
@@ -77,3 +77,4 @@ instrumenting `kev` across `cargo test -p topo` and
 re-certifies within band, including the zip's 58 ulp-distinct merges.
 The strut-undo kill in `boolean/rest.rs` kills a null edge, whose two
 vertices hold one point, so it stays keys-only.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

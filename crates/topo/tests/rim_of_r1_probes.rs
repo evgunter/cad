@@ -28,14 +28,6 @@ use geom_core::{Point3, Tol, Vec3};
 use topo::query::rim_of;
 use topo::{Body, EdgeKey, FaceSurface, MefSite, MevSite, RimError, VertexKey};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 const RIM_Z: f64 = 0.5;
 
 fn rim_r() -> f64 {
@@ -44,28 +36,28 @@ fn rim_r() -> f64 {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn rim_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: p3(0.0, 0.0, RIM_Z),
-        normal: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, RIM_Z),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 /// The rim circle, wound `+z`.
 fn rim_circle() -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, RIM_Z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, RIM_Z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: rim_r(),
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -75,10 +67,10 @@ fn rim_circle() -> Curve3<f64> {
 /// world azimuth `-t`.
 fn rim_circle_negated_value() -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, RIM_Z),
-        axis: -v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, RIM_Z),
+        axis: -Vec3::new(0.0, 0.0, 1.0),
         radius: rim_r(),
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -87,16 +79,16 @@ fn rim_circle_negated_value() -> Curve3<f64> {
 /// names.
 fn rim_circle_negated_fresh() -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, RIM_Z),
-        axis: v3(0.0, 0.0, -1.0),
+        center: Point3::new(0.0, 0.0, RIM_Z),
+        axis: Vec3::new(0.0, 0.0, -1.0),
         radius: rim_r(),
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 /// The world point at azimuth `theta` on the rim.
 fn at(theta: f64) -> Point3<f64> {
-    p3(rim_r() * theta.cos(), rim_r() * theta.sin(), RIM_Z)
+    Point3::new(rim_r() * theta.cos(), rim_r() * theta.sin(), RIM_Z)
 }
 
 /// The sphere face alone, with ONE arc of the rim (world azimuth

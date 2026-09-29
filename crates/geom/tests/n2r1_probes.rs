@@ -179,7 +179,6 @@ fn probe_wide_implies_narrow_over_every_channel_pattern() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::{Point3, knots5};
     use geom::NurbsCurve3;

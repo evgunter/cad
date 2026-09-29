@@ -16,7 +16,7 @@
 //! `domain_hull`, `domain_hull_rational`, every `derivative_coeffs`
 //! entry, `derivative_domain_hull`, `sup_norm_bound` and
 //! `sup_norm_bound_rational`. Two coefficient lanes here: `f64` brackets
-//! and `RingInterval` brackets (what the consumers actually hand in);
+//! and `Interval` brackets (what the consumers actually hand in);
 //! the `Interval`-bracket lane is `coeffs_bit_identity_interval.rs`,
 //! whole-file gated on the feature and sharing this corpus. Every `f64`
 //! that comes out is recorded by its bits.
@@ -37,8 +37,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza; the helpers serve `coeffs_bit_identity_interval` too
 
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
-use geom_core::{CertifiedEnclosure, RingInterval};
+use geom_core::{CertifiedBounds, Interval};
 
 pub type Rows = Vec<(String, u64)>;
 
@@ -99,7 +100,7 @@ pub fn weights(n: usize, rational: bool) -> Vec<f64> {
         .collect()
 }
 
-pub fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
+pub fn ri(o: &mut Rows, tag: &str, r: Interval) {
     o.push((format!("{tag}.lo"), r.lo().to_bits()));
     o.push((format!("{tag}.hi"), r.hi().to_bits()));
 }
@@ -108,7 +109,7 @@ pub fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
 /// vector — one pair minted non-rationally and one rationally, each
 /// asked for every window. The labels are the ones the free
 /// `(coeffs, span)` and `(kv, coeffs)` spellings produced.
-pub fn drive<E: CertifiedEnclosure>(
+pub fn drive<E: CertifiedBounds>(
     o: &mut Rows,
     name: &str,
     kv: &KnotVector,
@@ -154,17 +155,17 @@ pub fn drive<E: CertifiedEnclosure>(
     ));
 }
 
-/// The default-lane corpus: `f64` and `RingInterval` brackets.
+/// The default-lane corpus: `f64` and `Interval` brackets.
 fn rows() -> Rows {
     let mut o = Vec::new();
     for (vname, kv) in vectors() {
         let n = kv.control_count();
         let c = values(n);
         #[allow(clippy::cast_precision_loss)]
-        let rings: Vec<RingInterval> = c
+        let rings: Vec<Interval> = c
             .iter()
             .enumerate()
-            .map(|(i, x)| RingInterval::from_bounds(x - 0.01 * i as f64, x + 0.005))
+            .map(|(i, x)| Interval::from_bounds(x - 0.01 * i as f64, x + 0.005))
             .collect();
         for rational in [false, true] {
             let w = weights(n, rational);
@@ -226,8 +227,8 @@ const ROW_COUNT: usize = 960;
 
 /// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
 ///
-/// **Re-captured when the C9 ring became a newtype over the backend**
-/// (`0xdedc_bc91_037f_daab` before): the ring padded one representable
+/// **Re-captured when certification arithmetic became the backend's**
+/// (`0xdedc_bc91_037f_daab` before): the retired arithmetic padded one representable
 /// step outward on every operation unconditionally, and the backend
 /// pads only where the operation was inexact. 436 of this corpus's 960
 /// rows moved TIGHTER and none moved looser, so every door's bracket
@@ -243,7 +244,7 @@ const SPOT: &[(&str, u64)] = &[
     ("d2m2.rat.f64.hull_rat@4.hi", 0x4002_4fdf_3b64_5a1d),
     // Tighter by two steps: the derivative-hull fold's differences
     // and sums are exact at these coefficients, so the backend's
-    // witnesses fire where the ring padded anyway.
+    // witnesses fire where the retired arithmetic padded anyway.
     ("d3.nr.ring.dhull@5.lo", 0xc002_8106_24dd_2f1d),
     // Tighter by two steps, same cause one door over: the rational
     // derivative-domain hull's exact steps stop being padded.
@@ -254,7 +255,7 @@ const SPOT: &[(&str, u64)] = &[
     ("d4.nr.f64.hull@7.hi", 0x4002_4fdf_3b64_5a1d),
     // Tighter by four steps (a `hi` on a negative value, so the bit
     // pattern rises): the degree-4 derivative coefficient is a chain
-    // of exact differences, and the ring padded each one.
+    // of exact differences, and the retired arithmetic padded each one.
     ("d4.nr.f64.dcoeff.3.hi", 0xc017_cac0_8312_6e98),
     ("d4.rat.ring.domain_rat.lo", 0xbff8_0000_0000_0000),
 ];

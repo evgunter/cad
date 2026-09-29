@@ -29,7 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendKind, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
@@ -260,9 +260,9 @@ fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
 /// A circular prism: two half-arc profile segments extruded, so every
 /// rim edge has a plane and a CYLINDER for supports.
 fn cylinder(r: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-r, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(r, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -394,7 +394,7 @@ fn top_loop(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// An L-bracket: the six-vertex L profile extruded by 1 m.
 fn l_bracket() -> Body<f64> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         [
             (0.0, 0.0),
             (1.0, 0.0),
@@ -404,7 +404,7 @@ fn l_bracket() -> Body<f64> {
             (0.0, 1.0),
         ]
         .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .map(|(x, y)| (Point2::new(x, y), 0.0))
         .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

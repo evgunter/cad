@@ -1126,12 +1126,10 @@ mod tests {
     use crate::sizing::MAX_ANGULAR_STEP;
     use geom_core::Tol;
     use geom_core::{Affine3, Point2, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+    use profile::{
+        Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
+    };
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-
-    fn p2(x: f64, y: f64) -> Point2<f64> {
-        Point2::new(x, y)
-    }
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         Profile::new(SketchPlane::xy(), loops)
@@ -1141,7 +1139,7 @@ mod tests {
 
     fn axis_y() -> RevolveAxis<f64> {
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         }
     }
@@ -1256,9 +1254,9 @@ mod tests {
     }
 
     fn ball() -> Body<f64> {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), 1.0),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        let lp = bulge_loop(vec![
+            (Point2::new(0.0, -1.0), 1.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ]);
         revolve(
             &validated(vec![lp]),
@@ -1274,9 +1272,9 @@ mod tests {
     /// walk is hardest (`revolves.rs`'s `survives_sphere_wedges_...`
     /// shape), absent from the sweep until the review asked for it.
     fn sphere_band(theta: f64) -> Body<f64> {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), 1.0),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        let lp = bulge_loop(vec![
+            (Point2::new(0.0, -1.0), 1.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ]);
         revolve(
             &validated(vec![lp]),
@@ -1289,7 +1287,11 @@ mod tests {
     }
 
     fn cone_body() -> Body<f64> {
-        let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(0.0, 1.0),
+        ]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -1301,7 +1303,12 @@ mod tests {
     }
 
     fn washer() -> Body<f64> {
-        let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 1.0),
+        ]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -1313,9 +1320,9 @@ mod tests {
     }
 
     fn donut() -> Body<f64> {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(2.0, -0.5), 1.0),
-            ProfileVertex::new(p2(2.0, 0.5), 1.0),
+        let lp = bulge_loop(vec![
+            (Point2::new(2.0, -0.5), 1.0),
+            (Point2::new(2.0, 0.5), 1.0),
         ]);
         revolve(
             &validated(vec![lp]),
@@ -1328,7 +1335,12 @@ mod tests {
     }
 
     fn wedge(theta: f64) -> Body<f64> {
-        let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 1.0),
+        ]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -1344,7 +1356,12 @@ mod tests {
     /// which is one of the two shapes an earlier review lane built
     /// *because the walk is hardest there*.
     fn axis_wedge(theta: f64) -> Body<f64> {
-        let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+        ]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -1360,7 +1377,11 @@ mod tests {
     /// revolve, so the nappe walls carry junction u/v assignments —
     /// the other hardest-walk shape.
     fn mirror_nappe(theta: f64) -> Body<f64> {
-        let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 1.0), p2(1.0, 2.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 2.0),
+        ]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -1374,16 +1395,16 @@ mod tests {
     fn rounded_prism() -> Body<f64> {
         let b = core::f64::consts::FRAC_PI_8.tan();
         let r = 0.5;
-        let v = |pos: Point2<f64>, bulge: f64| ProfileVertex::new(pos, bulge);
-        let mut lp = ProfileLoop::new(vec![
-            v(p2(r, 0.0), 0.0),
-            v(p2(2.0 - r, 0.0), b),
-            v(p2(2.0, r), 0.0),
-            v(p2(2.0, 2.0 - r), b),
-            v(p2(2.0 - r, 2.0), 0.0),
-            v(p2(r, 2.0), b),
-            v(p2(0.0, 2.0 - r), 0.0),
-            v(p2(0.0, r), b),
+        let v = |pos: Point2<f64>, bulge: f64| (pos, bulge);
+        let mut lp = bulge_loop(vec![
+            v(Point2::new(r, 0.0), 0.0),
+            v(Point2::new(2.0 - r, 0.0), b),
+            v(Point2::new(2.0, r), 0.0),
+            v(Point2::new(2.0, 2.0 - r), b),
+            v(Point2::new(2.0 - r, 2.0), 0.0),
+            v(Point2::new(r, 2.0), b),
+            v(Point2::new(0.0, 2.0 - r), 0.0),
+            v(Point2::new(0.0, r), b),
         ]);
         let n = lp.vertices().len();
         lp = lp.with_tangent_joints((0..n).collect());
@@ -1402,10 +1423,10 @@ mod tests {
     /// crate's reach that a BOOLEAN produced rather than a sweep.
     fn die_pip() -> Body<f64> {
         let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-            p2(0.0, 0.0),
-            p2(4.0, 0.0),
-            p2(4.0, 4.0),
-            p2(0.0, 4.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(4.0, 0.0),
+            Point2::new(4.0, 4.0),
+            Point2::new(0.0, 4.0),
         ]);
         let slab = extrude(
             &validated(vec![lp]),
@@ -1414,9 +1435,9 @@ mod tests {
         )
         .unwrap()
         .body;
-        let half = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -0.5), 1.0),
-            ProfileVertex::new(p2(0.0, 0.5), 0.0),
+        let half = bulge_loop(vec![
+            (Point2::new(0.0, -0.5), 1.0),
+            (Point2::new(0.0, 0.5), 0.0),
         ]);
         let ball = revolve(
             &validated(vec![half]),
@@ -2121,7 +2142,12 @@ mod tests {
     /// and the same topology is what every STEP exporter emits when a
     /// vertex lands on an otherwise-straight face boundary.
     fn split_and_placed_frustum_wedge() -> Body<f64> {
-        let lp = ProfileLoop::polygon([p2(0.5, 0.0), p2(2.0, 0.0), p2(1.0, 2.0), p2(0.5, 2.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(0.5, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.5, 2.0),
+        ]);
         let mut body = revolve(
             &validated(vec![lp]),
             axis_y(),

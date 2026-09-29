@@ -4,16 +4,14 @@
 //! condition measured rather than inferred.
 //!
 //! **ADOPTED** from the delta review's `verbs/f7d-probes`,
-//! authorship-preserving. They were written as review-lane probes;
-//! they ship because they are the mechanism's differential rows —
-//! D1 makes the merge-side comparison RED-CAPABLE, where the
-//! shipped `verbs_f7_collinear_seam` row only printed it.
+//! authorship-preserving; `topo`'s `f7d_delta_probes` carries the
+//! hand-built rows (D1–D4).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
 
-use geom_core::{Band, Tol};
+use geom_core::{Band, Point2, Tol};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
@@ -21,9 +19,9 @@ use topo::{Body, BooleanOp, boolean_reduce, mint_pcurves, validate_closed, valid
 
 fn cone() -> Body<f64> {
     let vp = validated(vec![ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(0.0, 1.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
     ])]);
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
@@ -84,8 +82,12 @@ fn d6_repaired_cone_operand_door_measured() {
     let b = {
         use profile::{Profile, SketchPlane};
         use sweep::{Extrusion, extrude};
-        let loop_ =
-            ProfileLoop::polygon([p2(-0.5, -0.5), p2(0.5, -0.5), p2(0.5, 0.5), p2(-0.5, 0.5)]);
+        let loop_ = ProfileLoop::polygon([
+            Point2::new(-0.5, -0.5),
+            Point2::new(0.5, -0.5),
+            Point2::new(0.5, 0.5),
+            Point2::new(-0.5, 0.5),
+        ]);
         let vp = Profile::new(SketchPlane::xy(), vec![loop_])
             .validate(tol)
             .unwrap();

@@ -43,6 +43,7 @@ test_utils::gated_to![
     "crates/topo/src/iso.rs",
     "crates/topo/src/seqgen.rs",
     "crates/topo/src/fixtures.rs",
+    "crates/topo/src/test_support_fixtures.rs",
 ];
 
 use geom_core::Point3;
@@ -59,12 +60,8 @@ use crate::test_support_fixtures::declined_cube;
 use crate::validate::validate;
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 fn p(x: f64) -> Point3<f64> {
-    pt(x, 0.0, 0.0)
+    Point3::new(x, 0.0, 0.0)
 }
 
 /// mvfs + mev(Lone): the segment body.
@@ -908,7 +905,9 @@ fn hexagon_pillow_oracle_is_deterministic_and_rotation_blind() {
     // must be isomorphic to each other (min-over-roots must defeat the
     // anchor/rotation sensitivity), and repeated canonicalization must
     // be byte-stable.
-    let hexagon: Vec<Point3<f64>> = (0..6).map(|i| pt(f64::from(i), 0.0, 0.0)).collect();
+    let hexagon: Vec<Point3<f64>> = (0..6)
+        .map(|i| Point3::new(f64::from(i), 0.0, 0.0))
+        .collect();
     let reference = ngon_pillow(&hexagon, tol);
     let reference_form = canonical_form(&reference);
     assert_eq!(canonical_form(&reference), reference_form, "stable");
@@ -944,7 +943,7 @@ fn hexagon_pillow_with_fully_degenerate_coordinates_is_stable() {
     // closes at that point), and the ORACLE claim under test — topology
     // and canonicalization are stable under coordinate ties — is
     // unchanged.
-    let p7 = pt(7.0, 7.0, 7.0);
+    let p7 = Point3::new(7.0, 7.0, 7.0);
     let degenerate_pillow = || {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p7).unwrap();
@@ -1046,7 +1045,11 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
             .unwrap();
         let plant = |body: &mut Body<f64>, at: HalfEdgeKey| {
             let strut = body
-                .mev_line(MevSite::Fan { he1: at, he2: at }, pt(9.0, 9.0, 9.0), tol)
+                .mev_line(
+                    MevSite::Fan { he1: at, he2: at },
+                    Point3::new(9.0, 9.0, 9.0),
+                    tol,
+                )
                 .unwrap();
             body.kemr(strut.he_plus, strut.he_minus).unwrap()
         };
@@ -1069,126 +1072,16 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
 // 6. Teardown: the genus-2 double-hole body.
 // =====================================================================
 
-/// Carves an n-gon hole from `f_from` through to `f_to` (PR 3 review's
-/// recipe, compacted; no ledger asserts — the seqgen Ledger is checked
-/// where it matters).
-fn carve_hole(
-    body: &mut Body<f64>,
-    at: HalfEdgeKey,
-    _f_from: FaceKey, // reviewer signature kept; the anchor `at` already sits on it
-    f_to: FaceKey,
-    rim_pts: &[Point3<f64>],
-    drop_pts: &[Point3<f64>],
-    tol: Tol,
-) {
-    let strut = body
-        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0], tol)
-        .unwrap();
-    let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
-    let mut rim: Vec<MevCreated> = vec![
-        body.mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1], tol)
-            .unwrap(),
-    ];
-    for rp in &rim_pts[2..] {
-        let prev = rim.last().unwrap().he_minus;
-        rim.push(
-            body.mev_line(
-                MevSite::Fan {
-                    he1: prev,
-                    he2: prev,
-                },
-                *rp,
-                tol,
-            )
-            .unwrap(),
-        );
-    }
-    let membrane = body
-        .mef_chord(
-            MefSite::Chords {
-                he1: rim[0].he_plus,
-                he2: rim.last().unwrap().he_minus,
-            },
-            tol,
-        )
-        .unwrap();
-    let mut drops: Vec<MevCreated> = Vec::new();
-    for (i, dp) in drop_pts.iter().enumerate() {
-        let anchor = if i < rim.len() {
-            rim[i].he_plus
-        } else {
-            membrane.he_minus
-        };
-        drops.push(
-            body.mev_line(
-                MevSite::Fan {
-                    he1: anchor,
-                    he2: anchor,
-                },
-                *dp,
-                tol,
-            )
-            .unwrap(),
-        );
-    }
-    let mut walls: Vec<crate::euler::MefCreated> = Vec::new();
-    for i in 0..drops.len() - 1 {
-        walls.push(
-            body.mef_chord(
-                MefSite::Chords {
-                    he1: drops[i].he_minus,
-                    he2: drops[i + 1].he_minus,
-                },
-                tol,
-            )
-            .unwrap(),
-        );
-    }
-    let he_first_far = body
-        .find_half_edge(membrane.face, drops[0].vertex, drops[1].vertex)
-        .unwrap();
-    body.mef_chord(
-        MefSite::Chords {
-            he1: drops.last().unwrap().he_minus,
-            he2: he_first_far,
-        },
-        tol,
-    )
-    .unwrap();
-    body.kfmrh(f_to, membrane.face).unwrap();
-    assert_eq!(validate(body), Ok(()));
-}
-
 #[test]
 fn genus_two_double_hole_body_tears_down_to_nothing() {
     let tol = Tol::witness();
-    // Rebuild the PR 3 milestone body via ops: cube + square hole
-    // top→bottom (the ops_holed_box recipe) + triangular hole
-    // front→back. Genus 2. Then drive seqgen::teardown — it must
-    // unwind handles (mfkrh), rings, and all 30+ edges to empty arenas
-    // AND empty provenance maps AND fully reaped geometry (teardown
-    // asserts all of that internally).
-    let t = crate::fixtures::ops_holed_box(tol);
-    let mut body = t.body;
-    // Second hole: triangular, through the front face to the back face.
-    let f_front = t.box_mefs[1].face;
-    let f_back = t.box_mefs[3].face;
-    let front_outer = body.get_face(f_front).unwrap().outer;
-    let LoopBoundary::Cycle { first } = body.get_loop(front_outer).unwrap().boundary else {
-        panic!("front outer is a cycle");
-    };
-    let at = first;
-    carve_hole(
-        &mut body,
-        at,
-        f_front,
-        f_back,
-        &[pt(0.3, 0.0, 0.3), pt(0.7, 0.0, 0.3), pt(0.5, 0.0, 0.7)],
-        &[pt(0.3, 1.0, 0.3), pt(0.7, 1.0, 0.3), pt(0.5, 1.0, 0.7)],
-        tol,
-    );
-    // Genus 2 checkpoint: v − e + f − r = 2(1 − 2) = −2.
-    assert_eq!(euler_counts(&body).genus(), Ok(2), "genus 2");
+    // The PR 3 milestone body via ops: cube + square hole top→bottom +
+    // triangular hole front→back, genus 2 (`ops_genus2` asserts the
+    // ledger). Then drive seqgen::teardown — it must unwind handles
+    // (mfkrh), rings, and all 30+ edges to empty arenas AND empty
+    // provenance maps AND fully reaped geometry (teardown asserts all
+    // of that internally).
+    let mut body = crate::fixtures::ops_genus2(tol);
     seqgen::teardown(&mut body, tol);
 }
 
@@ -1330,12 +1223,7 @@ fn kef_rejects_a_corrupt_edge_bijection() {
 //    `corrupt input (release profile)` job in .github/workflows/ci.yml,
 //    which runs on every code-tier run too and is the ONLY lane that runs
 //    it: that job pins `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`,
-//    and nothing else in the tree does. `local-scripts/ci-local.sh`'s
-//    `topo_release` row names this test but sets no such override, so
-//    against the root `[profile.release]`'s `debug-assertions = true` it
-//    is a third run of the DEBUG behaviour, not a local mirror of the
-//    release side. It greps that job name out of this comment, so a
-//    rename is loud rather than quietly falsifying this sentence.
+//    and nothing else in the tree does.
 // =====================================================================
 
 #[test]

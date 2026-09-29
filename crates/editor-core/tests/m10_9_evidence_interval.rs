@@ -10,16 +10,15 @@
 //! that instrument.
 //!
 //! Every row here is an `#[ignore]`d evidence probe that prints and
-//! asserts nothing a gate could read ([[test-suite-cost]]); the
+//! asserts nothing a gate could read (implementer-discipline §8); the
 //! positive pins the measurement justifies live in
 //! `m10_9_pins_interval.rs`, and the M10-8 harness
 //! (`m10_8_harness::ceiling`) is the shared probe. Run them:
 //!
 //! ```sh
-//! cargo test -p editor-core --features interval --test all -- \
+//! cargo test -p editor-core --test all -- \
 //!   m10_9_evidence_interval:: --ignored --nocapture
 //! ```
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;

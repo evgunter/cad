@@ -168,3 +168,77 @@ fails; the closing-mint convention retires with it. The declared
 posture (ii) is the interim statement until the unit lands. Kernel
 answer: a block slot (phase 1 is the split question); this row is now
 that unit.
+
+## Brief (TOPO, 2026-09-24): review tier DUAL
+
+**Tier: DUAL.** Phase 1 decides the bound structure of the pcurve
+derivation: whether the closed-form chart-image derivation can live
+under `T: Decide`, split from the fitted lane, or whether the minting
+operators take the `PcurveFittedLane` ripple. That is an architectural
+decision every generic caller of the Euler operators inherits, and it
+is hard to change later.
+
+**The answer to give: Ev's ruling above.** An Euler operator that
+mints a half-edge into a cached curved face mints that half-edge's row
+at the mint site, so no Euler operator returns a half-minted face.
+
+**Phase 1: the split.** `pcurves::pcurve_of`, `nurbs_iso_derive` and
+`mint_pcurves_of` carry `T: PcurveFittedLane` because one body serves
+both lanes. The carriers the operators mint are lines and closed-form
+arcs, and on the analytic charts (plane, cylinder, sphere, torus,
+cone) their images have closed forms: the arms `mint_face` routes
+every non-`General` image through. Decide, with the bound analysis
+written down, whether those arms can be stated under `T: Decide`.
+- **If they can**, the operators mint closed-form rows under their
+  present bound. Where only the fitted lane could derive the image (a
+  NURBS or `General` chart), they refuse typed (`UnsupportedCarrier`-
+  shaped), BEFORE mutating.
+- **If they cannot**, the ripple (`Decide → PcurveFittedLane` on the
+  minting operators and their generic callers) is ruled acceptable.
+  Count it first, and report the count in the PR body before taking
+  it.
+
+**The sites.** `Body::mint_halves`' callers: `mev_fan_execute`,
+`mev_lone_execute`, `mef_chords` and `mef_lone` (`euler.rs`), and
+`mekr_mint` (`euler_ring.rs`). Phase 1 defines what "cached" means
+here. A face with no rows stays unminted: the minting pass owns it,
+and an operator minting rows onto an unminted face would half-mint it
+the other way. Decide what a HALF-minted face gets. `mef` mints one
+half on each of two faces. After PR 2603 its moved run's rows carry or
+drop by `same_chart`, and the new chord's halves are what this unit
+adds.
+
+**Rows.**
+- Red-first: `mev_line` at a `Fan` site on the minted cylinder wall
+  (`crates/topo/tests/split_edge_pcurve_rows.rs`) gives two
+  `MissingCache` on the merge base, and a complete face with
+  `validate_pcurves` `[]` at the head.
+- PR 2603's `mef` controls in
+  `crates/topo/tests/loop_reparenting_pcurve_rows.rs` read two
+  `MissingCache` today, "the count moves when that unit lands". They
+  move here.
+- Also rows for `mekr`, for an unminted face that stays rowless, and
+  for the typed refusal at the fitted frontier with the body untouched.
+
+**Prose.** The closing-mint convention retires. Find its copies (the
+row counts thirteen) and re-word each to what now holds.
+`pcurves::staleness_posture::DECLARED` moves the minting operators to
+the posture that describes them (`Maintains`, if that is what they now
+do), and `validate_pcurves`' `MissingCache` arm is documented as a
+kernel-bug detector for Euler output. Callers that re-mint afterwards
+keep working; say whether `mint_pcurves` over a complete face is a
+no-op.
+
+**Receipt.** Every `mint_halves` caller; every closing-mint prose
+copy; and, if the ripple is taken, every generic caller whose bound
+moves.
+
+**Seams.** `euler.rs`, `euler_ring.rs` and `pcurves.rs` are TOPO's
+(no open program's globs name `pcurves.rs`). Check `work.py territory`
+for anything in `geom-brep` or `nurbs_iso.rs`, and announce any
+crossing on the owner's log. `crates/*/tests/*` rows are ordinary
+tests.
+
+Branch `topo/mint-rows-at-the-mint-site`. PR title: "TOPO: Euler
+operators mint the row of every half-edge they add to a cached curved
+face". Do not close the item; the dual runs at review.

@@ -326,7 +326,7 @@ fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// The `(i, j)` a group's disjointness refusal named.
-fn uncertified_pair(doc: &ProfileDoc, id: RecipeNodeId) -> (usize, usize) {
+fn uncertified_pair(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> (usize, usize) {
     match eval::<f64>(doc).nodes.get(&id) {
         Some(NodeResult::Failed(e)) => match e.kind {
             NodeErrorKind::PlacementsUncertified { i, j } => (i, j),

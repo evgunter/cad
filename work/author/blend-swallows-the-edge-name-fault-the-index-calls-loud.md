@@ -46,3 +46,12 @@ word.
 Same class, different seam: the finding is a typed fault collapsed to
 an `Option`, not a value that will not narrow. `blend.rs` is this
 program's under `work/author/program.md`'s `paths`.
+
+## Still present (2026-09-25)
+
+Found a second time by the review of `vnews/ray-refusal-is-not-a-disagreement`
+(PR 3221), sweeping by callee (`edge_name_of`) across the viewer
+crate. Both sites (`load_all_edges`'s `filter_map(.. .ok())` and
+`mark_segments`'s `is_ok_and`) are unchanged on main at that date. The
+`marks.rs` sibling for faces is
+`work/vgeom/marks-focus-drops-an-unnamed-patch-from-attribution`.

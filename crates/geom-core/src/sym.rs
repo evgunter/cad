@@ -539,10 +539,14 @@
 //! and every whole-certifying ceiling is identical to the digit on all
 //! EIGHT, with the over-band set at ceiling + δ identical too. The
 //! exception is the pad's replay at the scale it certifies whole at:
-//! `symbolic_zero` 858 → 854, `registered` 104 → 128, `numeric`
-//! 991 → 971, `frozen` 2750 either way — the same 1953 decisions, 24
+//! `symbolic_zero` 886 → 882, `registered` 104 → 128, `numeric`
+//! 1075 → 1055, `frozen` 2750 either way — the same 2065 decisions, 24
 //! of them moving into the door, twenty out of `numeric` and FOUR out
-//! of `symbolic_zero`. Those four are the unit's finding: opening an
+//! of `symbolic_zero` (the rows' stored values; the replay's
+//! `numeric` and `frozen` currently measure off them by a drift not
+//! yet attributed,
+//! `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`).
+//! Those four are the unit's finding: opening an
 //! atom the early walk was cancelling OVER can cost that walk a
 //! theorem, which is
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class.
@@ -807,7 +811,7 @@
 //!
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
-//! `Indeterminate` carrying `MarginDiag::Invalid`
+//! `Indeterminate` carrying `MarginKind::Invalid`
 //! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
@@ -875,7 +879,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
+use crate::predicate::{Band, Decide, Decided, Indeterminate, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
 use crate::tolerance::Tol;
@@ -917,7 +921,7 @@ mod rational;
 #[path = "sym/report.rs"]
 pub mod report;
 /// Rule C: the polynomial square root and the clause-3 fold, with the
-/// one value read the tier makes (a parameter bracket in the ring).
+/// one value read the tier makes (a parameter bracket in certification arithmetic).
 #[path = "sym/signed.rs"]
 mod signed;
 /// Rule D: trig of `atan`, exact — the closed forms of `sin`/`cos` at
@@ -1402,9 +1406,9 @@ pub struct SymCounts {
     /// pinned by `geom-core`'s
     /// `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`).
     /// No leaf of a drive reaches it — a drive mints every node inside
-    /// its own session — and `editor-core`'s
-    /// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
-    /// pins that over five drives.
+    /// its own session — measured over five drives with the profile's
+    /// `FreezeCause::Unrecorded` count; no gating row holds that
+    /// count.
     ///
     /// **The dial does not move it.** With the drive's memo off a leaf
     /// freezes every node of its closure that freezes at all, so its
@@ -2318,6 +2322,53 @@ fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
 #[must_use]
 pub fn session_counts() -> Option<SymCounts> {
     SESSION.with(|s| s.borrow().as_ref().map(|s| s.counts))
+}
+
+/// **Whether a decision may be taken on a worker thread at all** — the
+/// test every walk that maps deciding units onto rayon workers reads
+/// before it maps (`topo::props`' face walks, `editor_core`'s node
+/// schedule), and the one home of that test.
+///
+/// **It covers more than decisions.** It is false while a symbolic
+/// session is installed, which changes what a decision answers, AND
+/// while the shape report is installed, which changes nothing a
+/// decision answers but records every one in a thread-local of the
+/// deciding thread. The name is the session half's; the report half is
+/// the third bullet below.
+///
+/// The K-funnel's frame and sample sink are thread-local too, but they
+/// compose back: a unit run under `k_stats::detached` hands its
+/// recording back as a value and the caller's fold splices it
+/// (`k_stats::map_detached`). The two thread-locals read here do not,
+/// and three things follow. The first is about the answer, not about
+/// what is recorded; the other two are about recording:
+///
+/// - **The decision itself changes.** `Sym`'s `sign_within` consults
+///   the session; with none installed `discharge` answers `None`, the
+///   identity tier discharges nothing and the answer is the plain
+///   numeric one. A unit on a worker would decide differently from its
+///   siblings on the caller's thread — the one thing D9 forbids
+///   outright.
+/// - **The receipt is written in place.** `count_decision` and
+///   `count_registration_contradicted` mutate the installed session's
+///   [`SymCounts`], and [`Sym::opaque`] advances the per-replay
+///   `OPAQUE_SEQ` counter — a sequence whose determinism rests on the
+///   minting ORDER being a fixed single-threaded walk. Neither is a
+///   value handed back, so neither can be spliced. (Node ids are NOT in
+///   this list: `intern` is a content hash of the node, so the DAG a
+///   replay builds is the same whatever order it is built in.)
+/// - **The shape report is written in place too.** [`report`]'s rows
+///   are pushed from `Sym::sign_within` into a thread-local on the
+///   deciding thread, with or without a session, so a unit decided on a
+///   worker is missing from the report the caller takes.
+///
+/// So a walk stays on the caller's thread — the serial walk, exactly —
+/// for as long as either is installed. It is a property of the CALL and
+/// not of the scalar: `Sym` with neither installed is as portable as
+/// `f64`, and the test reads the thread's state rather than the type.
+#[must_use]
+pub fn decisions_are_thread_portable() -> bool {
+    session_counts().is_none() && !report::active()
 }
 
 /// Records `node` in the installed session and answers its id. Outside a
@@ -3359,7 +3410,7 @@ impl<T> Sym<T> {
     /// mints a parameter axis already holds. The bracket is recorded in
     /// the installed session for rule C's sign read ([`signed`]); it is
     /// the ONLY value the symbolic tier ever reads, and it is read as
-    /// two floats through a ring enclosure, never as the lane scalar.
+    /// two floats through a certification enclosure, never as the lane scalar.
     /// Outside a session the bracket is dropped and this is `param`.
     #[must_use]
     pub fn param_over(symbol: ParamSymbol, value: T, lo: f64, hi: f64) -> Self {
@@ -3719,10 +3770,6 @@ impl<T: CertifiedEnclosure> CertifiedEnclosure for Sym<T> {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
     }
-
-    fn crossing_bracket(self) -> (f64, f64) {
-        self.value.crossing_bracket()
-    }
 }
 
 /// Span selection is STRUCTURE selection and reads the value channel;
@@ -3748,7 +3795,7 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// 1. **the computation was defined on the whole input box**, checked
 ///    in TWO places because one scalar cannot see both halves of it.
 ///
-///    *The value side.* [`MarginDiag::Invalid`] is the arm every scalar
+///    *The value side.* [`MarginKind::Invalid`](crate::MarginKind::Invalid) is the arm every scalar
 ///    returns for a domain violation it can see —
 ///    [`crate::Interval::sign_within`] for an uncertified enclosure,
 ///    `f64` and [`crate::Probe`] for NaN — so the numeric channel
@@ -3828,15 +3875,20 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 ///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
-    fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
+    fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]
         let mark = crate::k_stats::sink_mark();
         let numeric = self.value.sign_within(band);
-        let domain_violation =
-            matches!(&numeric, Err(e) if matches!(e.margin, MarginDiag::Invalid));
-        let definitely_nonzero = matches!(&numeric, Ok(Sign::Positive | Sign::Negative));
+        let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
+        let definitely_nonzero = matches!(
+            &numeric,
+            Ok(Decided {
+                sign: Sign::Positive | Sign::Negative,
+                ..
+            })
+        );
         if definitely_nonzero {
             // **A REGISTERED zero here is a CONTRADICTED AXIOM**, and it
             // is checked in release rather than asserted in debug: a
@@ -3914,7 +3966,15 @@ impl<T: Decide> Decide for Sym<T> {
             #[cfg(feature = "probe")]
             crate::k_stats::retag_at(mark, how.sample_outcome());
             report::record(&numeric, Some(how), None, self.value.enclosure_probe());
-            return Ok(Sign::Zero);
+            // The form decided; what the numeric channel saw is still
+            // the reading a refusal reports.
+            let margin = match numeric {
+                Ok(Decided { margin, .. }) | Err(Indeterminate { margin, .. }) => margin,
+            };
+            return Ok(Decided {
+                sign: Sign::Zero,
+                margin,
+            });
         }
         // The shape report wants the residual that BLOCKED — rendered
         // only when the instrument is installed, so an ordinary replay

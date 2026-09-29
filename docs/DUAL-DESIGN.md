@@ -115,18 +115,20 @@ validated.
 - Foreclosed by this shape: "tolerate refusals per-face and limp"
   — availability by policy, not by swallowing typed errors.
 
-## DL4 — `Enclosure` joins the allowlist gate (closes issue 701)
+## DL4 — `…Enclosure` names ride the allowlist gate (closes issue 701)
 
-**Proposal**: `bounds-allowlist.sh` greps `Enclosure` (and
-`CertifiedEnclosure` as today's skip-list handles) exactly as it
-greps `Bounds`, same file allowlist. The blanket
-`impl<T: Bounds> Enclosure for T` makes every `Dual` an
-`Enclosure` since D1; no `Enclosure`-bounded signature exists in
-`crates/*/src` today (`real.rs:727-740`), so the gate lands green
-and the hole (a future `T: Enclosure` bound on certifying code,
-with no CI row saying so) closes while it is still hypothetical.
-The known alias gap (#279's class) is unchanged in scope — this
-adds a name to the existing instrument, not a new instrument.
+**Proposal**: `bounds-allowlist.sh` reads an identifier ending in
+`Enclosure` exactly as it reads one ending in `Bounds`, against the
+same file allowlist, so a compound bound naming `CertifiedEnclosure`
+beside a deciding term is counted and gated like a `Bounds`
+compound, and an `…Enclosure` bracket door written later is gated
+the day it is written. There is one bracket-reading trait, `Bounds`
+— certification values are `Interval`, which carries it — so the
+issue-701 hole (a bracket bound on certifying code under a name the
+gate does not read, with no CI row saying so) stays closed. The
+known alias gap (#279's class) is unchanged in scope — this is a
+name-shaped reading of the existing instrument, not a new
+instrument.
 
 ## DL5 — The fillet seam's lapsed justification: discharge by
 ## ratifying the delegation rule, not by building an empty lane

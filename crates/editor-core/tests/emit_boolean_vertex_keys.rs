@@ -37,11 +37,8 @@ use editor_core::{
 use geom_core::Tol;
 use topo::BooleanResultKind;
 
-fn pv(vertex: u32) -> ProfileVertexRef {
-    ProfileVertexRef {
-        loop_index: 0,
-        vertex,
-    }
+fn pv(doc: &editor_core::ProfileDoc, node: RecipeNodeId, vertex: u32) -> ProfileVertexRef {
+    crate::fixture::vpiece(doc, node, 0, vertex as usize)
 }
 
 fn boolean(
@@ -164,7 +161,10 @@ fn the_surviving_operand_names_the_corners_in_every_order() {
         let corners = [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)];
         for (end, h) in [(CapEnd::Start, z), (CapEnd::End, z + dz)] {
             for (i, (px, py)) in corners.into_iter().enumerate() {
-                let own = NameRef::new(vname(survivor, RoleSeg::CapVertex(end, pv(i as u32))));
+                let own = NameRef::new(vname(
+                    survivor,
+                    RoleSeg::CapVertex(end, pv(&doc, survivor, i as u32)),
+                ));
                 let seg = if kind == BooleanResultKind::OperandA {
                     RoleSeg::FromA(own)
                 } else {
@@ -251,8 +251,8 @@ fn a_b_edge_split_by_an_a_vertex_is_named_by_its_a_partner() {
     let (doc, ell_first) = union(doc, ell, tip);
     let ev = run(&doc);
 
-    let apex = vname(tip, RoleSeg::CapVertex(CapEnd::Start, pv(0)));
-    let reflex = ename(ell, RoleSeg::LateralEdge(pv(3)));
+    let apex = vname(tip, RoleSeg::CapVertex(CapEnd::Start, pv(&doc, tip, 0)));
+    let reflex = ename(ell, RoleSeg::LateralEdge(pv(&doc, ell, 3)));
     let at = [1.0, 1.0, 0.5];
 
     assert_eq!(kind_of(&ev, tip_first), BooleanResultKind::OperandB);
@@ -294,8 +294,8 @@ fn an_assembly_names_the_touch_vertex_by_its_partner_in_either_order() {
     let (doc, wedge_first) = union(doc, wedge, cube);
     let ev = run(&doc);
 
-    let corner = vname(cube, RoleSeg::CapVertex(CapEnd::Start, pv(2)));
-    let ridge = ename(wedge, RoleSeg::LateralEdge(pv(0)));
+    let corner = vname(cube, RoleSeg::CapVertex(CapEnd::Start, pv(&doc, cube, 2)));
+    let ridge = ename(wedge, RoleSeg::LateralEdge(pv(&doc, wedge, 0)));
     let at = [1.0, 1.0, 0.0];
 
     assert_eq!(kind_of(&ev, cube_first), BooleanResultKind::Assembly);
@@ -424,7 +424,8 @@ fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     };
     let (doc, m1) = place(doc, 0.0);
     let (doc, m2) = place(doc, 0.5);
-    let (doc, bar, _) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
+    let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
+    let (doc, bar, _) = declared_union(doc, &[m1, m2], pairs);
     // The tip's frame: normal (1, 1, -1)/sqrt3 pointing into the bar.
     let s3 = 3f64.sqrt();
     let n = [1.0 / s3, 1.0 / s3, -1.0 / s3];

@@ -9,7 +9,6 @@
 //!
 //! Evidence-only rows print; the rest assert what they measured.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::interval::Interval;

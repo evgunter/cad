@@ -1,4 +1,4 @@
-//! The concave waist at the CERTIFIED scalar (feature `interval`) — the
+//! The concave waist at the CERTIFIED scalar — the
 //! interval twin of `fillet_h4_concave_rim`'s waist row.
 //!
 //! The material-adding band's one new decision is a SIGN — the side the
@@ -13,19 +13,15 @@
 //! shrug. Every profile coordinate is dyadic, so the fixture's
 //! enclosures are points and the widths below are the lane's own.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
-use geom_core::{Bounds, Interval, Real, Tol};
+use crate::common::interval::iv;
+use geom_core::{Bounds, Interval, Tol};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{rim_arcs_at, waist_fill, waisted_at};
 use topo::{mass_properties, validate_geometric};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
 
 /// An enclosure must contain its truth AND be a claim: under a
 /// nanometre-cubed wide on bodies of volume ~2.

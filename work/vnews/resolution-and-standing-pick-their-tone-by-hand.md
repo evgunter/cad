@@ -2,8 +2,11 @@
 id: resolution-and-standing-pick-their-tone-by-hand
 kind: issue
 title: The properties pane picks weak-or-coloured by hand from Resolution and Standing
-status: open
+status: closed
 opened: 2026-09-19
+branch: vnews/salience-read-from-the-value
+pr: 3230
+closed: 2026-09-25
 priority: P1
 cost: E
 ---
@@ -83,3 +86,100 @@ available at that site.
 The decision the row states is unchanged and now covers more: these
 values are `pncad`'s and `crate::display`'s, so where a tone for a
 non-viewer value lives is still what has to be settled first.
+
+## Decided (2026-09-25): the tone lives on `Standing`
+
+**`Standing::tone()`** (`crates/viewer/src/session/select.rs` — the
+type has moved there from `props.rs`), total like `RowStatus::tone`:
+`Actionable` for a deleted node, an undeclared parameter, a name that
+failed to resolve and one the evaluation could not answer for;
+`Advisory` for nothing selected, a live selection, and a pick with no
+evaluation behind it yet. The match is exhaustive over the kernel's
+`Resolution`, so a verdict the kernel grows has to answer it here.
+
+**Why this home and not the other two.**
+
+- *A free function keyed on `Resolution`* reaches the resolution arms
+  only. The deleted-node and undeclared-parameter arms are not
+  `Resolution`s, so they would need a second home for the same rule,
+  and the "no evaluation yet" arm is not a `Resolution` either — it is
+  `Standing`'s own `Option`.
+- *A wrapper the pane builds first* already exists: it is `Standing`.
+  The session builds it from the kernel's verdict, and `live()` and
+  `unresolved()` are two readings of that verdict for the chrome. A
+  second wrapper would be a second copy of the same interpretation.
+- Nothing enters `pncad`: the kernel's verdict stays the kernel's, and
+  how loud a viewer draws it is decided by the viewer's own value.
+
+**The pane.** Every arm's words are drawn by one free function,
+`pane::properties::standing_verdict`, exhaustive over `Standing` and
+reading its tone once off `standing.tone()`: the deleted node's one
+word, the undeclared parameter's sentence, and a picked entity's
+resolution verdict with its rebind count. The entity's noun is read off
+its own arm, so no caller hands it one. `standing_ui` draws the header
+line (number, delete button, the "face of" label) and calls it.
+
+**A fact is said once in this pane** — the principle `failure_lines`
+keeps for a failed tree row (loud at the badge, the words under it
+quiet) and `instance_ui` keeps for a vanished instance (silent under
+the header that said so). The parameter panel's own `"that parameter
+is gone"` line was one fact in one frame in two tones, `Actionable`
+above and `Advisory` below; it is **gone**, not re-toned, since the
+header already says it loud. For the same reason a **deleted** node no
+longer draws *"this feature carries no parameters"* under its loud
+`deleted` — that sentence was false (the node carries nothing because
+it is not there) and is now gated on `standing.live()`, as the pick arm
+already was.
+
+**The widened population, disposed.** The rule
+(`a-tree-rows-message-line-picks-its-affordance-by-hand`) is that the
+value owes the tone wherever the tone varies across its arms; where a
+site admits one arm only, the literal stays, **and the literal is still
+checked**.
+
+- `pane/create.rs`, the part chooser: **the value carries it**,
+  `parts::PartChooser::tone`. An empty listing (the open document's own
+  file has gone from its directory) and a refusal are `Actionable`, a
+  listing is `Advisory`; the chooser's body is the free
+  `pane::create::part_listing`. The header draws nothing for a chooser
+  with no directory, since the refusal under it says exactly that — the
+  old quiet `"no directory"` was the same fact in the other voice.
+- `pane/create.rs`, the datum form's face-frame fault: **the value
+  carries it**, `session::FaceFrameFault::tone`. A fault about the pick
+  (`NotOneBody`, `NotPlanar`, `Unresolved`) is `Actionable`; a seat not
+  yet answerable (`NoFace`, `NotLanded`) is `Advisory`. The form's pick
+  is LATCHED and outlives the selection, so `Unresolved` is loud on its
+  own merits — the header is often about something else. When the
+  latched face IS the selection and the selection carries an unresolved
+  verdict, the header already says it loud, so the form omits its
+  sentence (`selection_says_unresolved`): a fact said once, as above.
+- `pane/create.rs`, the add-profile form's held reason: **typed**,
+  `pane::create::Held`. It was one `&'static str` for three prompts
+  (`Advisory`) and one refused input — a bore at least as wide as the
+  radius — which is `Actionable`.
+- `pane/create.rs`, the mate tool's admission line: **left**. It reports
+  the admission table's verdict on a class, which asks nothing of the
+  reader.
+- `pane/properties.rs`, the free-move probe's fault and `hide_toggle`'s:
+  **left, with the reason at each site, and the literal re-checked**.
+  Past the section's kind gate the only faults that arrive are a mate
+  placing the instance and geometry fused with another's — the document
+  as written, which asks nothing of the reader.
+- `pane/properties.rs`, `slot_group_ui`'s two `ui.weak` over a
+  dimension: secondary text, not a tone.
+
+**Receipts.** Every row reads the colour off the paint
+(`pane::headless::Landed::ink`) and holds it against fixed colours
+(`pane::headless::Voices`: `Theme::DEFAULT.unresolved` and egui's own
+weak text), through the free function the pane calls — so a literal put
+back at a draw site goes red as well as a wrong value:
+`pane::properties::verdict_tests` (a vanished face and its offer count,
+an indeterminate edge, no evaluation, a deleted node, an undeclared
+parameter, and silence for a standing that still denotes) and
+`pane::create::tone_tests` (the chooser's three answers, the face-frame
+faults including a stale pick, the stale pick said once, the bore's
+`Refused`, the held reason). `app::properties_pane_tests` drives a whole
+headless frame of the app, so `properties_ui`'s own `live()` gate and
+the deleted parameter line are held where they live. `session::select::tests` holds
+`Standing::tone`'s node and parameter arms against fixed `Tone`s. The
+mutation runs are named in PR #3230.

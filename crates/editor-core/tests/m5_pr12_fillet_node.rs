@@ -214,7 +214,6 @@ fn an_inadmissible_radius_fails_the_node_typed() {
 /// from a sentinel. This row is now the green assertion, and the
 /// registry membership beside it (`corpus::documents()`) is what
 /// carries the standard Interval, persistence and latency rows.
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_lane_evaluates_the_fillet_green() {
     use editor_core::NodeResult;

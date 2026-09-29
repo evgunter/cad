@@ -16,7 +16,6 @@ use std::fmt::Write as _;
 
 use geom::{Curve3, Surface};
 use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::pappus::{pappus_volume, sector, segment, triangle};
@@ -27,12 +26,12 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn body_of(verts: Vec<ProfileVertex<f64>>) -> Body<f64> {
+fn body_of(verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
     revolved_about_y(verts, Revolution::Full, tol())
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64, f64) {
@@ -367,18 +366,16 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
 // Row 6: the C3 bit-identity dump — the plane–sphere ANNULUS carve
 // (the dome's one-edge rim), the path `bitdump.rs` does not cover and
 // the path this PR's host/mate surgery rewrite actually touched.
-// Armed by BITDUMP_DIR exactly as `bitdump.rs` is; clean skip unarmed.
+// Armed by BITDUMP_DIR through the same channel as `bitdump.rs`; clean
+// skip unarmed.
 // ------------------------------------------------------------------
 
-// The dump function has ONE home, `bitdump::dump` — this row used to
-// carry a copy that omitted the mass-properties line, which made it
-// blind to a volume, area or pad move on the very path it exists to
-// watch.
-use crate::bitdump::dump;
+// The dump and its arming channel have ONE home, `common::bitdump`.
+use crate::common::bitdump::{dump, dump_dir, save};
 
 #[test]
 fn bitdump_dome_annulus() {
-    let Some(dir) = std::env::var("BITDUMP_DIR").ok().filter(|d| !d.is_empty()) else {
+    let Some(dir) = dump_dir() else {
         return;
     };
     let source = revolved_about_y(
@@ -390,6 +387,5 @@ fn bitdump_dome_annulus() {
     let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(text, "band={:?}", out.band_faces);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(format!("{dir}/dome_annulus.txt"), text).unwrap();
+    save(&dir, "dome_annulus", &text);
 }

@@ -52,9 +52,11 @@
 //!   segment and `axis = −n` for a clockwise one, so that increasing
 //!   carrier parameter always runs along the segment's traversal —
 //!   satisfying the ratified `he_plus` forward contract with positive
-//!   parameter spans. The span is **θ = 4·atan|bulge|**, from the
-//!   stored bulge (the sanctioned re-inspection; never endpoint
-//!   `atan2`). A carrier circle's `u_ref` points from the center at the
+//!   parameter spans. The span is the arc's |Δθ|, spelled
+//!   **4·atan|b|** on the bulge the segment was lowered from (never
+//!   endpoint `atan2`): that is the expression the swept span identity
+//!   is registered about, and the symbolic tier normalizes
+//!   `|4·atan b|` differently. A carrier circle's `u_ref` points from the center at the
 //!   segment's start vertex; a shared side cylinder's `u_ref` comes
 //!   from the first segment of its cosurface run in sweep order (seam
 //!   placement is conventional data, D2 — no `Seam` edges exist in an
@@ -168,7 +170,7 @@ pub use revolve::{
 // are `Section`s — `profile::ProfileLoop` lists, re-exported here so
 // section authors need not depend on `profile` directly.
 pub use geom_brep::SketchSegment;
-pub use profile::{ProfileLoop, ProfileVertex};
+pub use profile::ProfileLoop;
 pub use skin::{
     LoftGeometry, Section, SkinError, loft_geometry, loft_parameters, make_compatible,
     segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,

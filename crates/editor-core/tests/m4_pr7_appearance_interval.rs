@@ -4,7 +4,6 @@
 //! losses at both scalar types. Resolution is scalar-independent data
 //! (names, entity refs, exact attribute values), so the comparison is
 //! direct equality.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

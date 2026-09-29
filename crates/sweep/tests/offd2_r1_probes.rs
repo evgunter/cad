@@ -5,55 +5,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::approx::band;
 use crate::common::operands;
-use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::test_support::block;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use crate::common::shell_operands::{hollow_box, vessel};
+use crate::common::torus_walls::klein_elbow;
+use geom_core::{Point2, Tol};
+use profile::test_support::bulge_loop;
+use sweep::test_support::{block, corners, prism};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("polygon profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("polygon extrudes")
-        .body
-}
-
-fn vessel(r: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(r, 0.0), 0.0),
-        ProfileVertex::new(p2(r, h), 0.0),
-        ProfileVertex::new(p2(0.0, h), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("meridian profile");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        Tol::witness(),
-    )
-    .expect("meridian revolves")
-    .body
-}
 
 fn plane_face_at(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
@@ -140,15 +99,16 @@ fn probe_exact_half_slab_fails_loud() {
 #[test]
 fn probe_lshape_colliding_cavity_fails_loud() {
     let l = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (3.0, 0.0),
             (3.0, 1.0),
             (1.0, 1.0),
             (1.0, 3.0),
             (0.0, 3.0),
-        ],
+        ]),
         2.0,
+        Tol::witness(),
     );
     let r = topo::shell(&l, 0.6, Tol::witness());
     match r {
@@ -168,7 +128,7 @@ fn probe_lshape_colliding_cavity_fails_loud() {
 #[test]
 fn probe_dumbbell_neck_collision_fails_loud() {
     let db = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (2.0, 0.0),
             (2.0, 0.8),
@@ -181,8 +141,9 @@ fn probe_dumbbell_neck_collision_fails_loud() {
             (2.0, 1.2),
             (2.0, 2.0),
             (0.0, 2.0),
-        ],
+        ]),
         2.0,
+        Tol::witness(),
     );
     let r = topo::shell(&db, 0.3, Tol::witness());
     // **MAJ-1, closed (ordinal 82 -> fix pass).** At `259fde04` this
@@ -218,9 +179,7 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 /// void with the dilated twin as its OUTER shell.
 #[test]
 fn probe_shell_of_a_hollow_thickens_every_boundary() {
-    let hollow = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, Tol::witness())
-        .expect("the first shell is the PR's own green row")
-        .body;
+    let hollow = hollow_box();
     let shelled = topo::shell(&hollow, 0.05, Tol::witness())
         .expect("a hollow operand thickens every boundary")
         .body;
@@ -445,7 +404,7 @@ fn probe_opened_vessel_cup() {
 fn probe_stale_designation_refuses_typed() {
     let body = block(2.0, 3.0, 4.0, Tol::witness());
     let big = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (2.0, 0.0),
             (2.0, 0.8),
@@ -458,8 +417,9 @@ fn probe_stale_designation_refuses_typed() {
             (2.0, 1.2),
             (2.0, 2.0),
             (0.0, 2.0),
-        ],
+        ]),
         2.0,
+        Tol::witness(),
     );
     let foreign = big
         .faces()
@@ -503,7 +463,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 
     let mut work = v.clone();
     let before = format!("{work:?}");
-    let e = topo::replace_faces_offset(&mut work, &cyl[..1], -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &cyl[..1], -0.2, Tol::witness())
         .expect_err("a partial group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
@@ -522,7 +482,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         .map(|(k, _)| k)
         .unwrap();
     let mixed = vec![cyl[0], cap];
-    let e = topo::replace_faces_offset(&mut work, &mixed, -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &mixed, -0.2, Tol::witness())
         .expect_err("a mixed group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::GroupChartsDiffer { .. }),
@@ -535,7 +495,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     );
 
     // The empty group.
-    let e = topo::replace_faces_offset(&mut work, &[], -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &[], -0.2, Tol::witness())
         .expect_err("an empty group must refuse");
     assert!(matches!(e, topo::ReplaceFaceError::EmptyGroup), "got {e}");
     assert_eq!(
@@ -546,32 +506,25 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 }
 
 /// A LATE Err path through the group door (a refusal decided after the
-/// mint and the boundary plan): whole-body Debug still untouched — the
-/// decided-then-mutated clone discipline.
+/// mint, inside the boundary plan): whole-body Debug still untouched —
+/// the decided-then-mutated clone discipline.
+///
+/// **The elbow's cap is also the torus arm's pose witness.** A partial
+/// revolve's torus wall: its planar caps contain the torus axis, which
+/// the plane×torus arm serves (the two meridian circles). Offset, a cap
+/// is parallel to the axis and OFF it, and cuts a spiric quartic the
+/// arm routes to the general rung, so the C5 gate refuses it by the
+/// arm's own grounds while planning the cap's boundary. This row
+/// pinned `ReanchorOffCarrier` at `8.331e-4` m while the gate read only
+/// the kind pair: the moved pose passed as served and the corner gate
+/// one door down caught it. The C5 table's own `plane × torus` note is
+/// held row by row in `intersect_table::route_inventory`.
 #[test]
 fn probe_late_err_leaves_body_untouched() {
-    // A partial revolve's torus wall: replacing a CAP routes plane x
-    // torus through the C5 gate (the arm is implemented), reaches the
-    // per-chart reanchor plan, and refuses THERE — an Err decided even
-    // deeper in the plan than the route gate this row used to stop at.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-0.3, 0.0), 1.0),
-        ProfileVertex::new(p2(0.3, 0.0), 1.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("disc profile");
-    let elbow = revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(1.2, 0.0),
-            dir: Vec2::new(0.0, -1.0),
-        },
-        Revolution::Partial(-0.5 * core::f64::consts::PI),
-        Tol::witness(),
-    )
-    .expect("the elbow revolves")
-    .body;
+    let elbow = klein_elbow(vec![bulge_loop(vec![
+        (Point2::new(-0.3, 0.0), 1.0),
+        (Point2::new(0.3, 0.0), 1.0),
+    ])]);
     let cap = elbow
         .faces()
         .find(|(_, f)| {
@@ -584,31 +537,25 @@ fn probe_late_err_leaves_body_untouched() {
         .unwrap();
     let mut work = elbow.clone();
     let before = format!("{work:?}");
-    let e = topo::replace_face_offset(&mut work, cap, -0.05, band(), Tol::witness())
-        .expect_err("the per-chart rim corner leaves its carrier");
-    // The door AND the magnitude are pinned, not just the variant.
-    // This row pinned `NeighborPairUnroutable(Plane, Torus)` until the
-    // C5 arm landed; with the pair routed, the same call proceeds one
-    // door deeper and refuses at the per-chart corner-accumulation
-    // gate: the moved cap's rim vertex, transported by this ONE
-    // chart's own offset alone, stands off the neighbouring edge's
-    // carrier by a real distance — 8.33e-4 m on this elbow, the
-    // corner error the per-chart loop exists to refuse (the
-    // simultaneous axial door has no arm for a partial revolve's rim,
-    // measured in `torax_axial`). Still an Err decided in the plan,
-    // which is the property this probe holds: the body is untouched.
-    //
-    // The old row's OTHER job — holding the C5 table to its own
-    // `plane × torus` note, so a quiet widening would go green — is
-    // rehomed, not dropped: `intersect_table::route_inventory` pins
-    // `(Plane, Torus, Rung::Closed, true)` row by row, and reverting
-    // the flag reds it (verified in this unit's mutation pass).
-    let topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
-        panic!("expected the reanchor refusal, got {e}");
+    let e = topo::replace_face_offset(&mut work, cap, -0.05, Tol::witness())
+        .expect_err("the moved cap cuts a spiric");
+    let topo::ReplaceFaceError::NeighborPoseUnroutable {
+        kind,
+        other_kind,
+        why,
+        ..
+    } = e
+    else {
+        panic!("expected the pose refusal, got {e}");
     };
-    assert!(
-        (gap - 8.331019803635142e-4).abs() <= 1e-12,
-        "the corner error is the elbow's own number, got {gap}"
+    assert_eq!(
+        (kind, other_kind),
+        (geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Torus)
     );
-    assert_eq!(before, format!("{work:?}"), "body moved across a late Err");
+    assert!(why.contains("spiric"), "the arm's own grounds, got {why}");
+    assert_eq!(
+        before,
+        format!("{work:?}"),
+        "body moved across the gate's Err"
+    );
 }

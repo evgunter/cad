@@ -123,15 +123,14 @@
 //! `f64` report sums. No ε is consulted and no funnel predicate is
 //! minted.
 //!
-//! Nothing here persists, and the goldening form is M10-6's: it will
-//! want a `serialize()` shaped like `ParamBoxVerdict`'s (floats as
-//! exact bits, one line per row). The door is visible; nothing is built
-//! behind it.
+//! Nothing here persists. The goldening form is [`Stackup::serialize`]
+//! (floats as exact bits, one line per row) and [`Stackup::content_key`]
+//! keys it, derived on demand; [`Stackup::render`] is the human form.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use geom_core::{Dual64, Tol};
+use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -882,10 +881,13 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(14);
             for lp in p.validated.loops() {
                 d.u64(lp.vertices().len() as u64);
-                for v in lp.vertices() {
-                    d.scalar(v.pos().x);
-                    d.scalar(v.pos().y);
-                    d.scalar(v.bulge());
+                // Each vertex with the bulge its segment was lowered
+                // from: an arc's carrier and sweep are functions of
+                // these, so they are digested through them.
+                for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                    d.scalar(v.x);
+                    d.scalar(v.y);
+                    d.scalar(s.bulge);
                 }
             }
         }
@@ -1351,13 +1353,16 @@ impl Stackup {
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
              leaf/leaves",
-            self.worst_case.lo, self.worst_case.hi, self.worst_case.leaves
+            Readable(self.worst_case.lo),
+            Readable(self.worst_case.hi),
+            self.worst_case.leaves
         );
         match &self.nominal {
             Ok(v) => {
                 let _ = writeln!(
                     s,
-                    "  nominal (f64 build): {v}  [{}]",
+                    "  nominal (f64 build): {}  [{}]",
+                    Readable(*v),
                     match &self.chamber {
                         Chamber::ChamberCertified { .. } =>
                             "the nominal sits in a certified chamber",
@@ -1376,21 +1381,7 @@ impl Stackup {
             }
         }
         let _ = writeln!(s, "  ADVISORY, never gating:");
-        let _ = writeln!(
-            s,
-            "    rss {}",
-            match &self.rss {
-                Rss::Advisory { sigma } => format!("σ ≈ {sigma} (linearized, first-order)"),
-                Rss::UnavailableBecause { blockers } => format!(
-                    "UNAVAILABLE — {}",
-                    blockers
-                        .iter()
-                        .map(|b| format!("{b}"))
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                ),
-            }
-        );
+        let _ = write!(s, "{}", render_rss(&self.rss));
         for row in &self.per_param {
             let _ = writeln!(
                 s,
@@ -1398,7 +1389,7 @@ impl Stackup {
                 row.param.0,
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
-                    Ok(v) => format!("{v}"),
+                    Ok(v) => Readable(*v).to_string(),
                     Err(u) => format!("[{u}]"),
                 }
             );
@@ -1411,6 +1402,49 @@ impl Stackup {
         s
     }
 }
+
+/// The human form's rss row; under a refused column, a count and then
+/// one line per blocker.
+///
+/// The boundary between blockers is the line break, not punctuation a
+/// blocker's sentence may itself write. No [`Unavailable`] arm writes
+/// a line break (`every_blocker_renders_on_one_line`, over every arm),
+/// so the lines under the count are exactly the blockers
+/// (`a_refused_rss_splits_back_into_its_blockers`). The parameter name
+/// a blocker frames is the document's, not the arm's; what a name may
+/// contain is the declaration door's to decide.
+fn render_rss(rss: &Rss) -> String {
+    use core::fmt::Write as _;
+    let mut s = String::new();
+    match rss {
+        Rss::Advisory { sigma } => {
+            let _ = writeln!(
+                s,
+                "    rss σ ≈ {} (linearized, first-order)",
+                Readable(*sigma)
+            );
+        }
+        Rss::UnavailableBecause { blockers } => {
+            let _ = writeln!(
+                s,
+                "    rss UNAVAILABLE — {} {}:",
+                blockers.len(),
+                if blockers.len() == 1 {
+                    "blocker"
+                } else {
+                    "blockers"
+                }
+            );
+            for b in blockers {
+                let _ = writeln!(s, "{RSS_BLOCKER_LEAD}{b}");
+            }
+        }
+    }
+    s
+}
+
+/// What opens each blocker's line under a refused rss row.
+const RSS_BLOCKER_LEAD: &str = "      - ";
 
 /// One sensitivity reading, in one spelling shared by the goldening
 /// form and the human one — the number and its E4 mark, never the
@@ -1839,4 +1873,102 @@ fn worst_case(
         hi,
         leaves: brackets.len(),
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
+    use crate::ParamName;
+
+    test_utils::f6_variants! {
+        /// Every [`Unavailable`] arm, welded to the enum by the match
+        /// the macro writes; [`every_arm`] must produce each of them.
+        const UNAVAILABLE: Unavailable = [
+            TangentDegraded,
+            MeasureRefused,
+            Unliftable,
+            BandHasNoMeasure,
+        ];
+    }
+
+    /// One blocker of every arm, for `param` — checked against the
+    /// weld, so an arm with no example here fails every row that reads
+    /// this.
+    fn every_arm(param: &str) -> Vec<Unavailable> {
+        let param = ParamName::new(param);
+        let all = vec![
+            Unavailable::TangentDegraded {
+                param: param.clone(),
+            },
+            Unavailable::MeasureRefused {
+                param: param.clone(),
+            },
+            Unavailable::Unliftable {
+                param: param.clone(),
+            },
+            Unavailable::BandHasNoMeasure { param },
+        ];
+        let mut made: Vec<String> = all.iter().map(test_utils::f6::variant_identifier).collect();
+        made.sort();
+        let mut welded: Vec<String> = UNAVAILABLE
+            .identifiers()
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        welded.sort();
+        assert_eq!(made, welded, "one example per Unavailable arm, no more");
+        all
+    }
+
+    /// The claim the rss row's line-per-blocker layout rests on: no
+    /// arm's sentence writes a line break of its own.
+    #[test]
+    fn every_blocker_renders_on_one_line() {
+        for b in every_arm("width") {
+            let line = b.to_string();
+            assert!(!line.contains(['\n', '\r']), "{line:?}");
+        }
+    }
+
+    /// A refused rss row splits back into exactly the blockers it was
+    /// made from, in order — including blockers whose sentences carry
+    /// the punctuation a flat join would have split on, which a
+    /// sentence is free to write and a name can carry.
+    #[test]
+    fn a_refused_rss_splits_back_into_its_blockers() {
+        let mut blockers = every_arm("width");
+        blockers.extend(every_arm("a; b, c"));
+        let rendered = render_rss(&Rss::UnavailableBecause {
+            blockers: blockers.clone(),
+        });
+        let mut lines = rendered.lines();
+        assert_eq!(
+            lines.next(),
+            Some(format!("    rss UNAVAILABLE — {} blockers:", blockers.len()).as_str()),
+            "{rendered}"
+        );
+        let items: Vec<&str> = lines
+            .map(|l| {
+                l.strip_prefix(RSS_BLOCKER_LEAD)
+                    .unwrap_or_else(|| panic!("a blocker line opens with the lead: {l:?}"))
+            })
+            .collect();
+        let want: Vec<String> = blockers.iter().map(ToString::to_string).collect();
+        assert_eq!(items, want, "{rendered}");
+    }
+
+    #[test]
+    fn a_single_blocker_is_counted_in_the_singular() {
+        let rendered = render_rss(&Rss::UnavailableBecause {
+            blockers: vec![Unavailable::Unliftable {
+                param: ParamName::new("w"),
+            }],
+        });
+        assert_eq!(
+            rendered,
+            "    rss UNAVAILABLE — 1 blocker:\n      - parameter w's seed could not reach the \
+             measure: the lift refused typed\n"
+        );
+    }
 }

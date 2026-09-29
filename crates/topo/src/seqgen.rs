@@ -973,7 +973,12 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
     if body
         .vertices()
         .filter_map(|(_, v)| body.get_point(v.point))
-        .any(|p| !matches!(p.distance(minted).sign_within(band), Ok(Sign::Positive)))
+        .any(|p| {
+            !matches!(
+                p.distance(minted).sign_within(band).map(|d| d.sign),
+                Ok(Sign::Positive)
+            )
+        })
     {
         return None;
     }

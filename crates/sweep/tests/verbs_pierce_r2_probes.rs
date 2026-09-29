@@ -11,25 +11,22 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::three_arc_cylinder;
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
+use topo::Body;
 
 /// A washer: annulus (outer r, hole rh) extruded z0..z1 at the origin.
 fn washer(r: f64, rh: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let outer = profile::circle(p2(0.0, 0.0), r, tol).unwrap();
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(rh, 0.0), 1.0),
-        ProfileVertex::new(p2(-rh, 0.0), 1.0),
+    let outer = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
+    let hole = bulge_loop(vec![
+        (Point2::new(rh, 0.0), 1.0),
+        (Point2::new(-rh, 0.0), 1.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![outer.into(), hole])
@@ -90,22 +87,16 @@ fn r2_a_box_through_the_washer_solid_part_is_never_silent() {
 /// DIFFERENT circles, no line edge at all, so it is outside the disc
 /// class AND outside any "mixes arcs and lines" description, and its
 /// polygon through two vertices has zero area like every other member
-/// of the class.
-///
-/// **RED-BY-DESIGN, FLIPPED.** Written against the shipped PR it
-/// measured a silent wrong body; the loop-shape gate refuses it typed
-/// now. The volume comparison is kept underneath the refusal so the
-/// row still names the wrong answer it is standing in front of.
+/// of the class. Read from that polygon it was a silent wrong body (the
+/// overlap double-counted); read on its carriers the union is exact.
 #[test]
 fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     let tol = Tol::witness();
-    // Lens: from (-1,0) to (1,0) via a deep arc (bulge 0.6), back via
-    // a shallow arc of a DIFFERENT circle (bulge 0.35 on the return).
     // SYMMETRIC lens: equal bulges on both legs bow outward on
     // opposite sides (mirror-image circles, distinct carriers).
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-1.0, 0.0), 0.6),
-        ProfileVertex::new(p2(1.0, 0.0), 0.6),
+    let lp = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 0.6),
+        (Point2::new(1.0, 0.0), 0.6),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
@@ -113,44 +104,33 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
         .unwrap()
         .body;
     let va = topo::mass_properties(&a, tol).unwrap().volume;
-    // A small box through the cap near (0, 0.3) — inside the lens for
-    // these bulges (upper arc reaches y=0.6... sagitta = bulge*half-chord).
-    println!(
-        "lens operand volume {}",
-        topo::mass_properties(&a, tol).unwrap().volume
-    );
+    // A small box through the cap around the origin, inside the lens,
+    // standing a unit above its top.
     let b = brick((-0.1, 0.1), (-0.1, 0.1), (1.0, 3.0), tol);
     let silent_wrong = va + 0.2 * 0.2 * 2.0;
-    match topo::union(&a, &b, tol) {
-        Err(e) => assert!(
-            matches!(e, BooleanError::ArcLoopContainmentUnsupported { .. }),
-            "the lens cap has no walk and must say so; got {e:?}"
-        ),
-        Ok(topo::BooleanResult::Body(out)) => {
-            let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-            panic!(
-                "ALL-ARC LENS SILENT WRONG BODY: {v} (operand {va}, \
-                 silent-wrong {silent_wrong} — the overlap double-counted)"
-            );
-        }
-        Ok(other) => panic!("unexpected: {other:?}"),
-    }
+    let truth = va + 0.2 * 0.2 * 1.0;
+    let topo::BooleanResult::Body(out) =
+        topo::union(&a, &b, tol).unwrap_or_else(|e| panic!("the lens cap is walked; got {e:?}"))
+    else {
+        panic!("a union of two solids is a body");
+    };
+    let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+    assert!(
+        (v - truth).abs() < 1e-9,
+        "lens + box: {v} against the truth {truth} (silent-wrong {silent_wrong} — the \
+         overlap double-counted)"
+    );
 }
 
 /// A box driven up through a HALF-cylinder's cap, in the semicircular
 /// region: the cap's loop is an arc plus a chord over two vertices, so
 /// the polygon through them is a zero-area segment.
 ///
-/// **RED-BY-DESIGN, FLIPPED — and re-signed.** As authored this row
-/// ran ONE bulge sense and read `3.266592653589793` as the silent
-/// wrong body against a truth of `3.204092653589793`. Measured in the
-/// fix pass, that half-disc bows AWAY from its box: nothing overlaps,
-/// and `3.266592653589793` is the correct disjoint answer. The row
-/// therefore takes the R1 row's two-sense design, which needs no such
-/// judgement — exactly one of the two senses contains the box, the
-/// containing one has no walk for its cap and refuses typed, and the
-/// other is honestly disjoint. Both answering the same number is the
-/// silent wrong body.
+/// The row runs the R1 row's two-sense design, which needs no judgement
+/// about which sense bows toward the box: exactly one of the two
+/// senses contains it and buries its lower half, and the other is
+/// honestly disjoint. Both answering the same number is the silent
+/// wrong body.
 #[test]
 fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     let tol = Tol::witness();
@@ -160,74 +140,32 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     let half = PI / 2.0 * 2.0; // half-disc area * height = pi
     let disjoint_answer = half + 0.25 * 0.25 * 2.0;
     let buried_truth = disjoint_answer - 0.25 * 0.25 * 1.0;
-    let mut refused = 0;
-    let mut bodies = 0;
+    let mut volumes = Vec::new();
     for bulge in [1.0, -1.0] {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(1.0, 0.0), 0.0),
-            ProfileVertex::new(p2(-1.0, 0.0), bulge),
+        let lp = bulge_loop(vec![
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(-1.0, 0.0), bulge),
         ]);
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
         let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
         let a = extrude(&profile, Extrusion::Distance(2.0), tol)
             .unwrap()
             .body;
-        match topo::union(&a, &b, tol) {
-            Err(e) => {
-                assert!(
-                    matches!(e, BooleanError::ArcLoopContainmentUnsupported { .. }),
-                    "bulge={bulge}: the half-disc cap has no walk; got {e:?}"
-                );
-                refused += 1;
-            }
-            Ok(topo::BooleanResult::Body(out)) => {
-                let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-                println!("half-disc cap bulge={bulge}: BODY volume {v}");
-                assert!(
-                    (v - disjoint_answer).abs() < 1e-9,
-                    "bulge={bulge}: the non-containing sense is honestly disjoint \
-                     ({disjoint_answer}); got {v}"
-                );
-                bodies += 1;
-            }
-            Ok(other) => panic!("bulge={bulge}: unexpected {other:?}"),
-        }
+        let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol)
+            .unwrap_or_else(|e| panic!("bulge={bulge}: the half-disc cap is walked; got {e:?}"))
+        else {
+            panic!("bulge={bulge}: a union of two solids is a body");
+        };
+        let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+        println!("half-disc cap bulge={bulge}: BODY volume {v}");
+        volumes.push(v);
     }
-    assert_eq!(
-        (refused, bodies),
-        (1, 1),
-        "one sense contains the box and must refuse; the other must answer \
-         disjoint ({disjoint_answer}). Both answering it is the silent wrong \
-         body against a buried truth of {buried_truth}"
+    volumes.sort_by(f64::total_cmp);
+    assert!(
+        (volumes[0] - buried_truth).abs() < 1e-9 && (volumes[1] - disjoint_answer).abs() < 1e-9,
+        "one sense contains the box and buries its lower half ({buried_truth}); the \
+         other is honestly disjoint ({disjoint_answer}); got {volumes:?}"
     );
-}
-
-/// The door-table claim names `Join(SectionLoopMixed)` for the
-/// box-through-cap row; the shipped test asserts only `Join(_)`.
-/// Print the exact payload.
-#[test]
-fn r2_the_box_cap_refusal_payload_is_printed() {
-    let tol = Tol::witness();
-    let lp = profile::circle(p2(0.0, 0.0), 1.0, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
-    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    let a = extrude(&profile, Extrusion::Distance(2.0), tol)
-        .unwrap()
-        .body;
-    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol);
-    match topo::union(&a, &b, tol) {
-        Err(e) => {
-            println!("box-through-cap refusal: {e:?}");
-            assert!(
-                matches!(
-                    e,
-                    BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-                ),
-                "the door table names this payload, so it is pinned: {e:?}"
-            );
-        }
-        Ok(r) => panic!("expected the typed refusal, got {r:?}"),
-    }
 }
 
 /// Calibration for the PR's cosurface design claim (door-2 evidence
@@ -262,7 +200,7 @@ fn r2_stacked_boxes_calibrate_the_cosurface_claim() {
 fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
     let tol = Tol::witness();
     let cyl = {
-        let lp = profile::circle(p2(0.0, 0.0), 5.0, tol).unwrap();
+        let lp = profile::circle(Point2::new(0.0, 0.0), 5.0, tol).unwrap();
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
         let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
         extrude(&profile, Extrusion::Distance(0.4), tol)
@@ -294,14 +232,14 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     use profile::SketchPlane as SP;
     let tol = Tol::witness();
     // The m9_2b_r2 fixture, restated (holed plate + through-boss).
-    let outer = ProfileLoop::new(
+    let outer = bulge_loop(
         [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .to_vec(),
     );
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.5, 2.0), 1.0),
-        ProfileVertex::new(p2(1.5, 2.0), 1.0),
+    let hole = bulge_loop(vec![
+        (Point2::new(2.5, 2.0), 1.0),
+        (Point2::new(1.5, 2.0), 1.0),
     ]);
     let plate_profile = Profile::new(SP::xy(), vec![outer, hole])
         .validate(tol)
@@ -309,21 +247,7 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     let plate = extrude(&plate_profile, Extrusion::Distance(1.0), tol)
         .unwrap()
         .body;
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(90.0), b120),
-        ProfileVertex::new(at(210.0), b120),
-        ProfileVertex::new(at(330.0), b120),
-    ]);
-    let plane = SP::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
-    let boss_profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    let boss = extrude(&boss_profile, Extrusion::Distance(1.6), tol)
-        .unwrap()
-        .body;
+    let boss = three_arc_cylinder(Point2::new(2.0, 2.0), 0.5, -0.2, 1.6, 90.0);
 
     let mut body = plate.clone();
     let plate_faces: std::collections::BTreeSet<_> = body.faces().map(|(k, _)| k).collect();
@@ -377,6 +301,16 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     }
     let with_decl = count_undecidable(&declared);
     println!("undeclared: {undeclared} undecidable; declared: {with_decl}");
-    assert_eq!(undeclared, 11, "the PR measured 11 undeclared");
-    assert_eq!(with_decl, 6, "the PR measured 6 under declaration");
+    // The PR measured 11 and 6 face-pair refusals. The census's
+    // instance arm adds one solid-pair refusal to each: the plate and
+    // the boss meet through the curved candidates arm 1 left
+    // unexamined, and a pair that meets is not cleared past them.
+    assert_eq!(
+        undeclared, 12,
+        "11 face pairs undeclared, plus the solid pair"
+    );
+    assert_eq!(
+        with_decl, 7,
+        "6 face pairs under declaration, plus the solid pair"
+    );
 }

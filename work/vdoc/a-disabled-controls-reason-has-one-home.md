@@ -112,3 +112,15 @@ call, and the VNEWS plan's exit shape assumes the former.
 
 The census, its rule and its two enumerated populations are in
 `work/vnews/a-disabled-control-says-why-in-four-shapes.md`.
+
+## Evidence from `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere` (2026-09-28)
+
+The README sentence quoted in clause 1 above no longer exists in that
+form, and the row it names is closed. `platform::NO_CHOOSER_BACKEND` is gone.
+The dialog controls now read `platform::ChooserBackend::unusable`
+(`Option<&'static str>`, the sentence composed on the probe's value)
+and `match` on it. The README's "How it says so" paragraph now says
+the dialog refusal is the environment's and precedes the operation,
+while a cancel door's is its operation's own. In the one-home shape
+list the chooser moved from *a named `&'static str` spent by more than
+one door* to *a composer on the vocabulary type*.

@@ -2,7 +2,7 @@
 //! derivation of what the PR claims, driven through `viewer`'s public
 //! surface exactly as an outside consumer would call it.
 //!
-//! Every randomized sweep here follows `memories/test-suite-cost.md`:
+//! Every randomized sweep here follows implementer-discipline §8:
 //! counterexample searches draw a fresh seed per run through
 //! `test_utils::fuzz` (logged unconditionally, `CAD_FUZZ_SEED` replays,
 //! counts ride `CAD_FUZZ_EFFORT`). Nothing in this file is a

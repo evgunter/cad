@@ -6,7 +6,7 @@
 //! INTERVAL lane — so the f64 result cannot settle it alone. This is
 //! the same fixture at the certified `Interval` scalar.
 //!
-//! Run with `--features interval`; ε comes from `CAD_TOLERANCE_EPS`.
+//! ε comes from `CAD_TOLERANCE_EPS`.
 //! Prints; asserts nothing.
 
 // A reviewer's evidence binary, not a library door: it fails LOUDLY on
@@ -14,7 +14,6 @@
 // targets carry, for the same reason.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[cfg(feature = "interval")]
 fn main() {
     use geom::Surface;
     use geom_core::{Bounds, Interval, Point2, Real, Tol};
@@ -91,9 +90,4 @@ fn main() {
             }
         }
     }
-}
-
-#[cfg(not(feature = "interval"))]
-fn main() {
-    println!("[ABI] built without --features interval; nothing measured");
 }

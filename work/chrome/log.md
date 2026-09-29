@@ -2256,3 +2256,16 @@ and the two new ones, **projection** and **duplicate**. Unchanged: the
 **revolve** tool (its seats are a profile and an in-sketch axis, which
 no ray meets), and the **mate** and **blend** tools, which never took
 this route — they read the face and the edge whole.
+
+## 2026-09-27 — seam note from S-DUP (#3304)
+
+#3304 rewrote the rustdoc of `crates/viewer/src/camera.rs`'s `CameraError::UnusableBounds` arm. It dropped a sentence that justified keeping the arm unsplit by "a promoted review suite that pins this arm", which is the reading Ev withdrew.
+
+- **The arm doc.** It is now a per-door list of what a caller can infer from the arm. It covers `projection_matrix`, `ray_through`/`datum_view`, `fitted`/`apply(Frame)` and `framing`, and says which input each one checks first.
+- **The first line and `Display`.** They no longer say "positive finite": a non-finite input is `NotFinite` first.
+- **Unchanged.** The API is the same, and the arm stays unsplit. Whether to split it is still this ground's call.
+
+Signed (S-DUP orchestrator).
+
+- 2026-09-28 — Received `culling-is-load-bearing-with-no-pixel-test` from BLIND, which left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`). Id unchanged. (tracker sweep)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

@@ -112,14 +112,8 @@
 //! constructed at exactly one site in `clearance.rs` and reachable in
 //! principle — but it IS a gap, stated here rather than papered over.
 //!
-//! The basename carries `interval` deliberately: the whole suite is
-//! `#![cfg(feature = "interval")]`, which is what actually selects it
-//! into the interval legs (`scripts/interval-only-selection.py` derives
-//! that set from the two `nextest list` archives, never from a name);
-//! the name is the ADVISORY half — `_advises_interval` in
-//! `scripts/ci-filter.py` reads every changed basename to suggest the
-//! lane pin.
-#![cfg(feature = "interval")]
+//! The basename carries `interval` because the suite's subject is the
+//! certified scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -140,7 +134,7 @@ use editor_core::{
 };
 use geom_core::{Sign, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, ang, len, scl};
 
 /// The analysis box's half-width, in metres.
 ///
@@ -193,7 +187,7 @@ fn translated(input: RecipeNodeId, by: Expr) -> Node<ProfileProgram> {
         input,
         translation: [by, len(0.0), len(0.0)],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_angle: ang(0.0),
     }
 }
 
@@ -203,15 +197,16 @@ fn translated(input: RecipeNodeId, by: Expr) -> Node<ProfileProgram> {
 /// `ProfileProgram::plane` became a node reference under this branch
 /// (main's move), so every fixture mints the frame first and hands the
 /// profile its id.
-fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::xy_frame())
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -265,13 +260,17 @@ fn dumbbell() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// Selecting them by name is what keeps the acceptance rows' cost
 /// honest AND small: one candidate pair, the one the certificate is
 /// about, rather than every pair of a fourteen-face body.
-fn neck_walls(minted_at: RecipeNodeId, read_at: RecipeNodeId) -> Selection {
+fn neck_walls(
+    doc: &editor_core::ProfileDoc,
+    minted_at: RecipeNodeId,
+    read_at: RecipeNodeId,
+) -> Selection {
     Selection {
         at: read_at,
         body: 0,
         faces: FaceScope::Named(vec![
-            fixture::fname(minted_at, fixture::wall(2)),
-            fixture::fname(minted_at, fixture::wall(9)),
+            fixture::fname(minted_at, fixture::wall(doc, minted_at, 2)),
+            fixture::fname(minted_at, fixture::wall(doc, minted_at, 9)),
         ]),
     }
 }
@@ -280,13 +279,13 @@ fn neck_walls(minted_at: RecipeNodeId, read_at: RecipeNodeId) -> Selection {
 /// Slanted, so their axis-aligned boxes are 2/sqrt(3) apart where the
 /// faces are 2 m apart — the pair the tree cannot exclude and only the
 /// subdivision can discharge.
-fn opposite_flats(minted: RecipeNodeId) -> Selection {
+fn opposite_flats(doc: &editor_core::ProfileDoc, minted: RecipeNodeId) -> Selection {
     Selection {
         at: minted,
         body: 0,
         faces: FaceScope::Named(vec![
-            fixture::fname(minted, fixture::wall(0)),
-            fixture::fname(minted, fixture::wall(3)),
+            fixture::fname(minted, fixture::wall(doc, minted, 0)),
+            fixture::fname(minted, fixture::wall(doc, minted, 3)),
         ]),
     }
 }
@@ -400,7 +399,7 @@ fn a_generous_wall_clearance_holds_over_the_dumbbell() {
 #[test]
 fn the_bound_the_neck_breaks_is_violated_with_a_verified_witness() {
     let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(minted, minted);
+    let sel = neck_walls(&doc, minted, minted);
     let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.6, Tol::witness());
     let ClearanceVerdict::Violated(v) = report.verdict() else {
         panic!("expected a violation at c = 0.6: {}", report.serialize());
@@ -441,7 +440,7 @@ fn the_bound_the_neck_breaks_is_violated_with_a_verified_witness() {
 #[test]
 fn a_starved_cell_budget_refuses_typed() {
     let (doc, minted, _at) = hexagon();
-    let sel = opposite_flats(minted);
+    let sel = opposite_flats(&doc, minted);
     let q = query(
         1.99,
         ClearanceConfig {
@@ -466,7 +465,7 @@ fn a_starved_cell_budget_refuses_typed() {
 #[test]
 fn a_starved_cell_depth_refuses_on_its_own_axis() {
     let (doc, minted, _at) = hexagon();
-    let sel = opposite_flats(minted);
+    let sel = opposite_flats(&doc, minted);
     let q = query(
         1.5,
         ClearanceConfig {
@@ -494,7 +493,7 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
 #[test]
 fn every_run_lands_in_exactly_one_arm_with_a_holding_receipt() {
     let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(minted, minted);
+    let sel = neck_walls(&doc, minted, minted);
     let leaf = box_of("place");
     for c in [0.0, 0.1, 0.39, 0.6, 5.0] {
         for pairs in [4, 64, 4_096] {
@@ -533,8 +532,8 @@ fn a_slanted_pair_the_tree_cannot_exclude_is_discharged_by_refining_it() {
         at: minted,
         body: 0,
         faces: FaceScope::Named(vec![
-            fixture::fname(minted, fixture::wall(0)),
-            fixture::fname(minted, fixture::wall(3)),
+            fixture::fname(minted, fixture::wall(&doc, minted, 0)),
+            fixture::fname(minted, fixture::wall(&doc, minted, 3)),
         ]),
     };
     let report = clearance(&doc, &box_of("place"), &sel, &sel, 1.5, Tol::witness());
@@ -657,7 +656,7 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
     let sel = Selection {
         at,
         body: 0,
-        faces: FaceScope::Named(vec![fixture::ename(at, fixture::wall(0))]),
+        faces: FaceScope::Named(vec![fixture::ename(at, fixture::wall(&doc, at, 0))]),
     };
     let whole = Selection::body_of(at);
     let report = clearance(&doc, &box_of("place"), &sel, &whole, 0.1, Tol::witness());
@@ -687,7 +686,7 @@ fn a_node_that_does_not_exist_refuses_at_the_selection() {
 #[test]
 fn the_answer_is_deterministic_across_repeats() {
     let (hex, hex_minted, _hex_at) = hexagon();
-    let slanted = opposite_flats(hex_minted);
+    let slanted = opposite_flats(&hex, hex_minted);
     let (doc, minted, _at) = dumbbell();
     let sel = Selection::body_of(minted);
     let leaf = box_of("place");
@@ -912,7 +911,7 @@ fn a_driver_certified_leaf_carries_the_certificate() {
 #[test]
 fn the_cost_curve_is_measured_at_both_ends() {
     let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(minted, minted);
+    let sel = neck_walls(&doc, minted, minted);
     let leaf = box_of("place");
     let mut violated_cells = Vec::new();
     for c in [0.9, 0.8, 0.7, 0.6, 0.5, 0.41] {
@@ -945,7 +944,7 @@ fn the_cost_curve_is_measured_at_both_ends() {
     // 1.155 m apart where the faces are 2 m apart. Every cell of it is
     // classified, so this is what a budget actually buys.
     let (hex, minted, _at) = hexagon();
-    let sel = opposite_flats(minted);
+    let sel = opposite_flats(&doc, minted);
     let leaf = box_of("place");
     let held = clearance(&hex, &leaf, &sel, &sel, 1.5, Tol::witness());
     let hr = held.receipt();

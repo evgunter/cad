@@ -71,7 +71,7 @@ fn an_indeterminate_minted_after_a_definite_verdict_is_on_the_escalation_log() {
     let recorded = bracket.finish();
     let escalated = out.expect_err("the predicate escalates to its caller");
     assert_eq!(escalated.predicate, Some("enters_material_arm"));
-    assert_eq!(escalated.margin, MarginDiag::Invalid);
+    assert_eq!(escalated.margin, MarginDiag::INVALID);
     assert_eq!(
         verdicts(&recorded),
         [("enters_material_arm", Sign::Zero)],
@@ -79,7 +79,7 @@ fn an_indeterminate_minted_after_a_definite_verdict_is_on_the_escalation_log() {
     );
     assert_eq!(
         sole_escalation(&recorded),
-        ("enters_material_arm", MarginDiag::Invalid),
+        ("enters_material_arm", MarginDiag::INVALID),
         "and the escalation the caller received is on the log beside it"
     );
 }
@@ -108,7 +108,7 @@ fn the_order2_sector_arm_gate_records_its_escalation() {
     );
     assert_eq!(
         sole_escalation(&recorded),
-        ("tangent_sector_order2_arm", MarginDiag::Invalid)
+        ("tangent_sector_order2_arm", MarginDiag::INVALID)
     );
 }
 
@@ -136,7 +136,7 @@ fn the_dihedral_arm_gate_records_its_escalation() {
     assert_eq!(verdicts(&recorded), [("dihedral_arm", Sign::Zero)]);
     assert_eq!(
         sole_escalation(&recorded),
-        ("dihedral_arm", MarginDiag::Invalid)
+        ("dihedral_arm", MarginDiag::INVALID)
     );
 }
 
@@ -166,7 +166,7 @@ fn the_material_pairing_gate_records_its_escalation() {
     assert_eq!(verdicts(&recorded), [("material_wedge_side", Sign::Zero)]);
     assert_eq!(
         sole_escalation(&recorded),
-        ("material_wedge_side", MarginDiag::Invalid)
+        ("material_wedge_side", MarginDiag::INVALID)
     );
 }
 
@@ -181,7 +181,7 @@ fn the_material_pairing_gate_records_its_escalation() {
 /// below are executed, not hypothetical — the first two were reproduced
 /// by the review of the change that added this row:
 ///
-/// - **The raw classifier route.** `margin.sign_within(band)` followed
+/// - **The raw classifier route.** `margin.sign_within(band).map(|d| d.sign)` followed
 ///   by `.with_predicate(name)` mints the defect's exact payload with no
 ///   `Indeterminate` token anywhere in the file. Nothing here sees it.
 /// - **The same shape through `k_stats::decide` and a hand-built

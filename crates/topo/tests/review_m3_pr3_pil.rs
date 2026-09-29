@@ -210,10 +210,10 @@ fn the_verdict_is_blind_to_the_normals_sign() {
         match r {
             Ok(v) => format!("{v:?}"),
             Err(PointInLoopError::Escalated { r#loop, diag }) => {
-                let kind = match diag.margin {
-                    geom_core::MarginDiag::Value(_) => "Value",
-                    geom_core::MarginDiag::Enclosure { .. } => "Enclosure",
-                    geom_core::MarginDiag::Invalid => "Invalid",
+                let kind = match diag.margin.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Value(_) => "Value",
+                    geom_core::ErrorTextReading::Enclosure { .. } => "Enclosure",
+                    geom_core::ErrorTextReading::Invalid => "Invalid",
                 };
                 format!(
                     "Escalated{loop:?}/{:?}/{:?}/{kind}",
@@ -287,10 +287,14 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     let q = Point3::new(1.0, 1.0 + delta, 1.0);
     let up = point_in_loop(&fx.body, top.outer, n_z(), q, band);
     let down = point_in_loop(&fx.body, top.outer, flipped, q, band);
-    let geom_core::MarginDiag::Value(m_up) = escalated_margin(&up) else {
+    let geom_core::ErrorTextReading::Value(m_up) =
+        escalated_margin(&up).diagnostic_f64_for_error_text()
+    else {
         panic!("expected an f64 escalation, got {up:?}");
     };
-    let geom_core::MarginDiag::Value(m_down) = escalated_margin(&down) else {
+    let geom_core::ErrorTextReading::Value(m_down) =
+        escalated_margin(&down).diagnostic_f64_for_error_text()
+    else {
         panic!("expected an f64 escalation, got {down:?}");
     };
     assert_eq!(m_up, -m_down, "the two margins must be exact negations");

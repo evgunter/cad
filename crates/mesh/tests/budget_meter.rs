@@ -13,8 +13,7 @@
 
 // The meter is opt-in (`mesh`'s `budget` feature, gated at the module
 // boundary — see `mesh::budget`), so this suite is too: without it
-// there is no `arm`/`take` to drive. CI runs it in its own row, the
-// way the `interval` lane's rows work.
+// there is no `arm`/`take` to drive. CI runs it in its own row.
 #![cfg(feature = "budget")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

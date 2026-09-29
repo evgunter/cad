@@ -47,3 +47,27 @@ Also `crates/topo/src/merge_faces.rs`, which TOPO and ZIP both claim.
 The three new variants go into `OpPlacement::of`'s enum-verdict arm.
 The `kev` row of its site table now says the fan-merge refusals cannot
 fire at `strut_tip`'s site, whose far vertex has valence one.
+## 2026-09-26 — note from CONTACT (CONTACT-2, PR 3250)
+
+CONTACT-2's lane filed or edited three rows on your slate:
+
+- `an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`
+  (new). The axis-coincident box lap's remaining refusal; it
+  reproduces on an all-planar diamond at the base.
+- `role-resolution-interior-tiers-certify-only-planar-region-faces`
+  (new). Its review turned the open question into a reproduced
+  defect: a curved edge's chord-midpoint anchor reads both loops alike
+  and the join refuses `SectionLoopMixed`
+  (`crates/sweep/tests/axis_lap.rs`
+  `a_chord_midpoint_probe_reads_both_loops_alike`). The lane set it to
+  P0/H. Re-band it if you read it differently. It refuses loudly
+  today; it is not a wrong answer.
+- The top-entry blind D pocket stays on
+  `blind-d-pocket-subtract-refuses-with-join-internal-words`. The
+  bottom-entry pocket now builds, pinned in `axis_lap.rs`.
+
+CONTACT-2 also touched `boolean/join.rs`, where the anchor tiers are
+now named by an `Anchor` enum.
+
+Signed: (CONTACT orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

@@ -3,6 +3,7 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
   "snapshot": {
     "id": "5ef5ef0364b6939c4ca61f34b393f7b3",
     "next_id": 9,
+    "next_step": 12,
     "nodes": {
       "0": {
         "Datum": {
@@ -220,6 +221,21 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                 }
               }
             }
+          ],
+          "ids": [
+            [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            [
+              5
+            ],
+            [
+              6
+            ]
           ]
         }
       },
@@ -399,6 +415,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                 }
               ]
             }
+          ],
+          "ids": [
+            [
+              7,
+              8,
+              9,
+              10,
+              11
+            ]
           ]
         }
       },
@@ -441,8 +466,12 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                 "path": [
                   {
                     "Lateral": {
-                      "loop_index": 1,
-                      "segment": 0
+                      "Piece": {
+                        "step": 5,
+                        "role": {
+                          "Piece": 0
+                        }
+                      }
                     }
                   }
                 ]
@@ -456,8 +485,12 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                 "path": [
                   {
                     "Lateral": {
-                      "loop_index": 2,
-                      "segment": 1
+                      "Piece": {
+                        "step": 6,
+                        "role": {
+                          "Piece": 1
+                        }
+                      }
                     }
                   }
                 ]

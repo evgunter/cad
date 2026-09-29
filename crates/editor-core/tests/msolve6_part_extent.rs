@@ -168,7 +168,7 @@ fn mated(
 /// The reach of every instance in `ids`, through the public door:
 /// each instance's part, read off the document the way the solve
 /// reads it.
-fn reaches(doc: &ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
+fn reaches(doc: &editor_core::ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
     let reach = mate_reach::<f64>(opts, Tol::witness());
     ids.iter()
         .map(|&id| {
@@ -290,7 +290,7 @@ enum Verdict {
 /// strictness moves this expectation with the solve rather than
 /// leaving the row testing a copied rule.
 fn verdict(band: Band, theta: f64, arm: f64) -> Verdict {
-    match (theta * arm).sign_within(band) {
+    match (theta * arm).sign_within(band).map(|d| d.sign) {
         Ok(Sign::Zero) => Verdict::Parallel,
         Ok(Sign::Positive | Sign::Negative) => Verdict::Refused,
         Err(_) => Verdict::Indeterminate,
@@ -1328,7 +1328,6 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
 /// the upper end of its reach bracket (an upper bound by definition),
 /// it bounds the `f64` lane's reach, and the mate over it evaluates
 /// `Ok` with the part evaluated once.
-#[cfg(feature = "interval")]
 #[test]
 fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
     use geom_core::{Bounds, Interval};
