@@ -716,13 +716,13 @@ pub struct Doc<P> {
     /// The monotone id counter: the next [`RecipeNodeId`] to mint.
     /// Never decremented — deletion does not free ids (spec D3).
     pub(crate) next_id: u64,
-    /// The monotone STEP counter: the next [`crate::StepId`] to mint
-    /// for an authored profile step (`names/README.md`, "N1, the
-    /// profile pieces"). Never decremented — a step a `SetProgram`
-    /// drops takes its id with it, and the id is never minted again.
-    /// A counter of its own rather than the node counter's, so an
-    /// authored step moves no node id.
-    pub(crate) next_step: u64,
+    /// The step mint: the chain an authored profile step's
+    /// [`crate::StepId`] is minted from and the log of every id minted
+    /// (`names/README.md`, "N1, the profile pieces"). A step a
+    /// `SetProgram` drops keeps its log entry, so its id is never
+    /// minted again. Apart from the node counter, so an authored step
+    /// moves no node id.
+    pub(crate) step_mint: crate::StepMint,
     /// The nodes, by stable id.
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
@@ -870,7 +870,7 @@ impl<P> Doc<P> {
         Self {
             id,
             next_id: 0,
-            next_step: 0,
+            step_mint: crate::StepMint::empty(),
             nodes: BTreeMap::new(),
             order: Vec::new(),
             roots: Vec::new(),
@@ -895,12 +895,11 @@ impl<P> Doc<P> {
         self.id
     }
 
-    /// The document's step counter: the [`crate::StepId`] the next
-    /// authored profile step will be minted — every id below it was
-    /// minted once, and none at or above it ever was.
+    /// The document's step mint: its chain, and the log of every
+    /// [`crate::StepId`] it has minted.
     #[must_use]
-    pub fn next_step(&self) -> u64 {
-        self.next_step
+    pub fn step_mint(&self) -> &crate::StepMint {
+        &self.step_mint
     }
 
     /// The same document under a different identity: `id` replaces
@@ -1199,7 +1198,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
             && self.next_id == other.next_id
-            && self.next_step == other.next_step
+            && self.step_mint == other.step_mint
             && self.order == other.order
             && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()

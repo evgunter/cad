@@ -79,9 +79,19 @@ fn the_selection_reaches_the_wire_canonical() {
             other => panic!("a square's side is a step's piece, got {other:?}"),
         };
     let spelled = |seg: usize| format!("\"step\": {}", step_of(seg));
-    let zero = text[sel..].find(&spelled(0)).expect("segment 0");
-    let two = text[sel..].find(&spelled(2)).expect("segment 2");
-    assert!(zero < two, "stored in canonical order, not authoring order");
+    // Canonical order is name order, which for two pieces of one
+    // profile is their steps' id order.
+    let (low, high) = if step_of(0) < step_of(2) {
+        (0, 2)
+    } else {
+        (2, 0)
+    };
+    let at_low = text[sel..].find(&spelled(low)).expect("the lower id");
+    let at_high = text[sel..].find(&spelled(high)).expect("the higher id");
+    assert!(
+        at_low < at_high,
+        "stored in canonical order, not authoring order"
+    );
 
     // A non-canonical selection on the wire is a CORRUPT file: refused
     // at the shared validator, never quietly re-sorted (a repair would
@@ -89,12 +99,14 @@ fn the_selection_reaches_the_wire_canonical() {
     // is one predicate on `Node::input_fault`, so the load door names it
     // in the arm it names every other structural fault in;
     // `edit_blend_canonical` is where the two doors are pinned together.
-    // Segment 0's piece rewritten to segment 3's, which sorts after
-    // segment 2's.
+    // The two pieces' steps swapped, so the list runs high to low.
     let corrupt = format!(
         "{}{}",
         &text[..sel],
-        text[sel..].replacen(&spelled(0), &spelled(3), 1)
+        text[sel..]
+            .replacen(&spelled(low), "@swap@", 1)
+            .replacen(&spelled(high), &spelled(low), 1)
+            .replacen("@swap@", &spelled(high), 1)
     );
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {

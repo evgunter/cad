@@ -42,19 +42,25 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// One END-cap rim edge-shaped name on the prism, indexed `segment`:
-/// the first step's piece in role `Piece(segment)`, which the square
-/// never draws. These rows are about the ORDER of a selection, which
-/// the doors check before anything resolves, so the names only have to
-/// be well formed, spell a minted step, and sort by `segment` — so
-/// `edge(n, 0) < edge(n, 2)`.
+/// the piece in role `Piece(segment)` of the least step the prism
+/// minted, which the square never draws. These rows are about the ORDER
+/// of a selection, which the doors check before anything resolves, so
+/// the names only have to be well formed, spell a minted step, and sort
+/// by `segment` — so `edge(n, 0) < edge(n, 2)`.
 fn edge(node: RecipeNodeId, segment: u32) -> StableName {
+    let (doc, _) = prism();
+    let step = *doc
+        .step_mint()
+        .log()
+        .first()
+        .expect("the prism minted its steps");
     StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
             editor_core::ProfileEdgeRef::Piece {
-                step: editor_core::StepId(1),
+                step,
                 role: editor_core::PieceRole::Piece(segment),
             },
         )],

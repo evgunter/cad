@@ -944,7 +944,7 @@ fn the_cost_curve_is_measured_at_both_ends() {
     // 1.155 m apart where the faces are 2 m apart. Every cell of it is
     // classified, so this is what a budget actually buys.
     let (hex, minted, _at) = hexagon();
-    let sel = opposite_flats(&doc, minted);
+    let sel = opposite_flats(&hex, minted);
     let leaf = box_of("place");
     let held = clearance(&hex, &leaf, &sel, &sel, 1.5, Tol::witness());
     let hr = held.receipt();

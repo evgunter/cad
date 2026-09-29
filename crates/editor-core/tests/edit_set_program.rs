@@ -577,13 +577,20 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     );
 }
 
+/// The least step id `doc`'s mint log does not hold.
+fn never_minted(doc: &ProfileDoc) -> StepId {
+    (0..)
+        .map(StepId)
+        .find(|s| !doc.step_mint().has_minted(*s))
+        .expect("a u64 the log does not hold")
+}
+
 /// **A name may spell a step a `SetProgram` dropped, never one the
 /// document has not minted.** The dropped id was minted, so a frame on
 /// it inserts (and resolves to nothing, as the stranded fillet does
-/// above); an id at the step counter would be minted for the next new
-/// step, and a name written on it before then would come to denote that
-/// step — the insert, rebind and appearance doors refuse it typed, as
-/// the load door does.
+/// above); an id the mint log does not hold is a typo or a name
+/// carried from another branch of the document — the insert, rebind and
+/// appearance doors refuse it typed, as the load door does.
 #[test]
 fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
     let r = rod("set-program-never-minted", &[]);
@@ -595,7 +602,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
     let (_, frame) = frame_on(reshaped.clone(), r.rod, dropped.clone());
     assert!(frame.0 > 0, "a name on a dropped step inserts");
 
-    let next = StepId(reshaped.next_step());
+    let next = never_minted(&reshaped);
     let unminted = wall_by(r.rod, next, PieceRole::Leg);
     let never = |edit: DocEdit<ProfileProgram>| match apply(
         &reshaped,
@@ -603,12 +610,8 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
         tol(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::NameStepNeverMinted {
-            name,
-            step,
-            next_step,
-        }) => {
-            assert_eq!((name, step, next_step), (unminted.clone(), next, next.0));
+        Err(EditError::NameStepNeverMinted { name, step }) => {
+            assert_eq!((name, step), (unminted.clone(), next));
         }
         other => panic!("a never-minted step refuses typed, got {other:?}"),
     };
@@ -726,23 +729,44 @@ fn every_step_id_fault_refuses_typed_before_the_program_is_checked() {
 
 /// **A program entering the document carries no ids: the insert door
 /// mints them, and refuses a program that brings its own.** The minted
-/// ids run one per authored step, in loop then step order, from the
-/// document's step counter — a second profile's continue where the
-/// first's stopped.
+/// ids run one per authored step, from the document's mint chain, which
+/// each insert extends — so a second, identical profile mints ids of its
+/// own — and the mint log holds every one. The same inserts into a fresh
+/// document mint the same ids (D9).
 #[test]
 fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
-    let doc = ProfileDoc::empty_derived("set-program-mint", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
-    let square = fixture::desc(plane, vec![fixture::square(0.0, 0.0, 1.0)]);
-    let (doc, first) = insert(doc, Node::Profile(square.clone()));
-    let (doc, second) = insert(doc, Node::Profile(square.clone()));
+    let build = || {
+        let doc = ProfileDoc::empty_derived("set-program-mint", tol());
+        let (doc, plane) = insert(doc, fixture::xy_frame());
+        let square = fixture::desc(plane, vec![fixture::square(0.0, 0.0, 1.0)]);
+        let (doc, first) = insert(doc, Node::Profile(square.clone()));
+        let (doc, second) = insert(doc, Node::Profile(square.clone()));
+        (doc, square, first, second)
+    };
+    let (doc, square, first, second) = build();
+    let (mine, theirs) = (ids_of(&doc, first), ids_of(&doc, second));
     assert_eq!(
-        ids_of(&doc, first),
-        vec![(0..5).map(StepId).collect::<Vec<_>>()]
+        (mine.len(), mine[0].len(), theirs.len(), theirs[0].len()),
+        (1, 5, 1, 5),
+        "one id per authored step"
+    );
+    let every: std::collections::BTreeSet<StepId> =
+        mine[0].iter().chain(&theirs[0]).copied().collect();
+    assert_eq!(
+        every.len(),
+        10,
+        "no id stands for two steps: {mine:?} {theirs:?}"
     );
     assert_eq!(
-        ids_of(&doc, second),
-        vec![(5..10).map(StepId).collect::<Vec<_>>()]
+        doc.step_mint().log(),
+        &every,
+        "the mint log holds exactly the minted ids"
+    );
+    let (again, _, first_again, second_again) = build();
+    assert_eq!(
+        (ids_of(&again, first_again), ids_of(&again, second_again)),
+        (mine, theirs),
+        "one edit sequence mints one set of ids"
     );
     let mut preminted = square;
     preminted.ids = ids_of(&doc, first);
@@ -1001,8 +1025,8 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
 
 /// **Every step-id fault a file can carry refuses typed at the load
 /// door**: an id two profiles share, an id one profile holds twice, an
-/// id at or beyond the document's step counter, a name spelling a step
-/// at or beyond it, and a file with no counter at all. The document is
+/// id the document's mint log does not hold, a name spelling such a
+/// step, a log entry twice, and a file with no mint at all. The document is
 /// two squares, one extruded with a frame on a wall; each fault is one
 /// field of its saved text changed.
 #[test]
@@ -1016,7 +1040,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     );
     let wall = wall_of(&doc, ext, 0, 1);
     let (doc, _) = frame_on(doc, ext, wall);
-    let next_step = doc.next_step();
+    let stray = never_minted(&doc);
     let text = save(&doc, &[], tol()).expect("saves");
     assert!(load(&text, tol()).is_ok(), "the untouched file loads");
     let (header, body) = text.split_once('\n').expect("an id line, then the body");
@@ -1057,21 +1081,18 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         StepIdFault::Repeated { step: theirs[0] }
     );
     // An id the document never minted.
-    let beyond = edited(&|v| ids(v, profile, 0, next_step));
+    let beyond = edited(&|v| ids(v, profile, 0, stray.0));
     assert_eq!(
         step_fault(beyond, profile),
-        StepIdFault::BeyondCounter {
-            step: StepId(next_step),
-            next_step,
-        }
+        StepIdFault::NotMinted { step: stray }
     );
     // A name spelling a step the document never minted: the frame's
-    // wall, re-spelled on the step at the counter.
+    // wall, re-spelled on a step the mint log does not hold.
     let piece = serde_json::to_value(fixture::piece(&doc, ext, 0, 1))
         .unwrap()
         .to_string();
     let unminted = ProfileEdgeRef::Piece {
-        step: StepId(next_step),
+        step: stray,
         role: PieceRole::Leg,
     };
     let compact = body.to_string();
@@ -1086,26 +1107,48 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         compact.replace(&piece, &serde_json::to_value(unminted).unwrap().to_string())
     );
     match refused(respelled) {
-        editor_core::SnapshotError::NameStepBeyondCounter {
-            step,
-            next_step: counter,
-            ..
-        } => assert_eq!((step, counter), (StepId(next_step), next_step)),
+        editor_core::SnapshotError::NameStepNotMinted { step, .. } => {
+            assert_eq!(step, stray);
+        }
         other => panic!("a name on a never-minted step refuses, got {other:?}"),
     }
-    // No counter at all.
-    let no_counter = edited(&|v| {
+    // A program id the log does not hold, taken out of the log.
+    let unlogged = edited(&|v| {
+        let log = v["snapshot"]["step_mint"]["log"]
+            .as_array_mut()
+            .expect("the file carries its mint log");
+        log.retain(|id| id.as_u64() != Some(theirs[1].0));
+    });
+    assert_eq!(
+        step_fault(unlogged, other),
+        StepIdFault::NotMinted { step: theirs[1] }
+    );
+    // A log entry twice.
+    let repeated = edited(&|v| {
+        let log = v["snapshot"]["step_mint"]["log"]
+            .as_array_mut()
+            .expect("the file carries its mint log");
+        log.push(theirs[1].0.into());
+    });
+    match load(&repeated, tol()) {
+        Err(PersistError::Unreadable { detail, .. }) => {
+            assert!(detail.contains("duplicate step mint log entry"), "{detail}");
+        }
+        other => panic!("a log entry twice is unreadable, got {other:?}"),
+    }
+    // No mint at all.
+    let no_mint = edited(&|v| {
         v["snapshot"]
             .as_object_mut()
             .expect("the snapshot")
-            .remove("next_step")
-            .expect("the file carries its step counter");
+            .remove("step_mint")
+            .expect("the file carries its step mint");
     });
-    match load(&no_counter, tol()) {
+    match load(&no_mint, tol()) {
         Err(PersistError::Unreadable { detail, .. }) => {
-            assert!(detail.contains("next_step"), "{detail}");
+            assert!(detail.contains("step_mint"), "{detail}");
         }
-        other => panic!("a file without a step counter is unreadable, got {other:?}"),
+        other => panic!("a file without a step mint is unreadable, got {other:?}"),
     }
 }
 

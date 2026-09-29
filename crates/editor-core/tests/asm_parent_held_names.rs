@@ -257,25 +257,33 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
 /// inserts a leg to `(3,1)` after the corner `(2,0)`; version B, made
 /// from the same base (an undo and a different edit, or a second
 /// `apply` on the base), inserts a leg to `(1,3)` after `(2,2)`
-/// instead. The step counter is part of the document value, so both
-/// mint the same id for their different legs. The parent pins A and
-/// paints A's new leg, then moves its pin to B — the version a store
-/// holds once B is saved over A (`pncad::workspace::update_to_store`).
-///
-/// This row pins the defect the tracker row
-/// `sibling-branches-mint-one-step-id-for-different-steps` records: the
-/// held name silently re-denotes B's leg and nothing is reported. It is
-/// the row that turns when that is fixed.
+/// instead. A step id is minted from the document's mint chain, which
+/// each branch extends by its own edit, so the two legs get different
+/// ids. The parent pins A and paints A's new leg, then moves its pin to
+/// B — the version a store holds once B is saved over A
+/// (`pncad::workspace::update_to_store`). The held name spells a step B
+/// never minted: it denotes nothing there and the evaluation reports
+/// the paint `Vanished`, rather than re-denoting B's leg.
 #[test]
-fn sibling_versions_mint_one_step_id_and_a_held_name_crosses_between_them() {
+fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them() {
     let (base, profile, ext) = part();
     let a = with_leg(&base, profile, 2, (3.0, 1.0));
     let b = with_leg(&base, profile, 3, (1.0, 3.0));
     let a_new = step_ids(&a, profile)[2];
     let b_new = step_ids(&b, profile)[3];
-    assert_eq!(
+    assert_ne!(
         a_new, b_new,
-        "each branch mints its new step from the base's counter"
+        "each branch mints its new step from its own chain"
+    );
+    assert!(
+        !b.step_mint().has_minted(a_new),
+        "B's mint log does not hold A's new step"
+    );
+    let again = with_leg(&base, profile, 2, (3.0, 1.0));
+    assert_eq!(
+        step_ids(&again, profile),
+        step_ids(&a, profile),
+        "one edit from one base mints one set of ids (D9)"
     );
 
     let mut shelf = VersionShelf::default();
@@ -283,16 +291,18 @@ fn sibling_versions_mint_one_step_id_and_a_held_name_crosses_between_them() {
     let rb = shelf.shelve(b);
     let shelf = Arc::new(shelf);
 
-    let wall = fixture::fname(
-        ext,
-        RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
-            step: a_new,
-            role: editor_core::PieceRole::Leg,
-        }),
-    );
+    let wall = |step| {
+        fixture::fname(
+            ext,
+            RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
+                step,
+                role: editor_core::PieceRole::Leg,
+            }),
+        )
+    };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
     let (parent, instance) = insert(parent, Node::instantiate_part(ra));
-    let name = held(instance, &wall);
+    let name = held(instance, &wall(a_new));
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
@@ -304,10 +314,16 @@ fn sibling_versions_mint_one_step_id_and_a_held_name_crosses_between_them() {
     )
     .unwrap()
     .doc;
-    let before = corners(&run(&parent, &shelf), instance, &name);
+    let before_ev = run(&parent, &shelf);
+    let before = corners(&before_ev, instance, &name);
     assert!(
         before.contains(&(2.0, 0.0, 0.0)) && before.contains(&(3.0, 1.0, 0.0)),
         "at A the held name is A's leg (2,0)→(3,1): {before:?}"
+    );
+    assert_eq!(
+        before_ev.appearance.losses,
+        Vec::new(),
+        "at A the paint lands"
     );
 
     let updated = apply(
@@ -323,13 +339,32 @@ fn sibling_versions_mint_one_step_id_and_a_held_name_crosses_between_them() {
     assert_eq!(
         updated.maintenance,
         Vec::new(),
-        "the update reports nothing"
+        "the storeless update reads neither version and reports nothing"
     );
-    let after = corners(&run(&updated.doc, &shelf), instance, &name);
+    let after_ev = run(&updated.doc, &shelf);
     assert!(
-        after.contains(&(2.0, 2.0, 0.0)) && after.contains(&(1.0, 3.0, 0.0)),
-        "at B the same spelling is B's leg (2,2)→(1,3), a step A never had: {after:?}"
+        table(&after_ev, instance).lookup(&name).is_none(),
+        "at B the held spelling denotes nothing"
     );
+    let b_leg = corners(&after_ev, instance, &held(instance, &wall(b_new)));
+    assert!(
+        b_leg.contains(&(2.0, 2.0, 0.0)) && b_leg.contains(&(1.0, 3.0, 0.0)),
+        "B's leg (2,2)→(1,3) is drawn, under B's own id: {b_leg:?}"
+    );
+    match after_ev.appearance.losses.as_slice() {
+        [loss] => {
+            assert_eq!(loss.name, name, "the lost paint is the held name's");
+            assert!(
+                matches!(
+                    loss.cause,
+                    editor_core::AppearanceLossCause::Vanished { .. }
+                ),
+                "and it is lost as Vanished: {:?}",
+                loss.cause
+            );
+        }
+        other => panic!("one appearance loss, the held name's: {other:?}"),
+    }
 }
 
 /// **Node ids branch the same way.** Two inserts applied to one base

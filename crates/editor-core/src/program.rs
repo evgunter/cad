@@ -468,8 +468,8 @@ pub struct ProfileProgram {
     /// what a profile piece's name spells (`names/README.md`, "N1, the
     /// profile pieces").
     ///
-    /// The document's edit doors mint them from its monotone step
-    /// counter — `InsertNode` every one, `SetProgram` each step it does
+    /// The document's edit doors mint them from its mint chain
+    /// ([`crate::StepMint`]) — `InsertNode` every one, `SetProgram` each step it does
     /// not keep — so a program on its way IN carries none (`InsertNode`
     /// refuses one that does), and a program at rest carries exactly
     /// one per step, unique across the document, which the load door
@@ -554,15 +554,20 @@ pub trait ProfilePayload {
     {
         None
     }
-    /// **Mints an id for every authored step** from the document's step
-    /// counter, advancing it: the insert door's half of N1's minting. A
+    /// **Mints an id for every authored step** of this payload, entering
+    /// the document as `node`, from the document's mint
+    /// ([`crate::StepMint`]): the insert door's half of N1's minting. A
     /// payload with no program mints nothing.
     ///
     /// # Errors
     ///
     /// [`StepIdFault::Preminted`] where the program already carries
-    /// ids.
-    fn mint_step_ids(&mut self, _counter: &mut u64) -> Result<(), StepIdFault> {
+    /// ids; the mint's own refusals.
+    fn mint_step_ids(
+        &mut self,
+        _node: crate::RecipeNodeId,
+        _mint: &mut crate::StepMint,
+    ) -> Result<(), StepIdFault> {
         Ok(())
     }
     /// **The document node this payload is drawn ON**, if it names one
@@ -2393,22 +2398,29 @@ impl ProfilePayload for ProfileProgram {
             ids,
         })
     }
-    fn mint_step_ids(&mut self, counter: &mut u64) -> Result<(), StepIdFault> {
+    fn mint_step_ids(
+        &mut self,
+        node: crate::RecipeNodeId,
+        mint: &mut crate::StepMint,
+    ) -> Result<(), StepIdFault> {
         if self.carries_step_ids() {
             return Err(StepIdFault::Preminted);
         }
+        let count = self.loops.iter().map(LoopProgram::authored_steps).sum();
+        let mut minted = mint
+            .mint(
+                &crate::step_mint::MintingEdit::InsertNode {
+                    node,
+                    plane: self.plane,
+                    loops: &self.loops,
+                },
+                count,
+            )?
+            .into_iter();
         self.ids = self
             .loops
             .iter()
-            .map(|lp| {
-                (0..lp.authored_steps())
-                    .map(|_| {
-                        let id = StepId(*counter);
-                        *counter += 1;
-                        id
-                    })
-                    .collect()
-            })
+            .map(|lp| minted.by_ref().take(lp.authored_steps()).collect())
             .collect();
         Ok(())
     }
@@ -2449,14 +2461,20 @@ pub enum StepIdFault {
         /// The id.
         step: StepId,
     },
-    /// An id at or beyond the document's step counter — one the
-    /// document never minted.
-    BeyondCounter {
+    /// An id the document's mint log does not hold — one the document
+    /// never minted.
+    NotMinted {
         /// The id.
         step: StepId,
-        /// The counter.
-        next_step: u64,
     },
+    /// A mint drew an id the document's mint log already holds.
+    Collides {
+        /// The id.
+        step: StepId,
+    },
+    /// The minting edit did not serialize to its canonical bytes, so
+    /// there is no chain to extend.
+    Unencodable,
 }
 
 impl core::fmt::Display for StepIdFault {
@@ -2487,11 +2505,19 @@ impl core::fmt::Display for StepIdFault {
                 step.0
             ),
             Self::Repeated { step } => write!(f, "step id {} stands for two steps", step.0),
-            Self::BeyondCounter { step, next_step } => write!(
+            Self::NotMinted { step } => write!(
                 f,
-                "step id {} is at or beyond the document's step counter {next_step}, so the \
-                 document never minted it",
+                "step id {} is not in the document's mint log, so the document never minted it",
                 step.0
+            ),
+            Self::Collides { step } => write!(
+                f,
+                "the mint drew step id {}, which the document's mint log already holds",
+                step.0
+            ),
+            Self::Unencodable => f.write_str(
+                "the minting edit did not serialize to its canonical bytes, so no step id could \
+                 be minted",
             ),
         }
     }
