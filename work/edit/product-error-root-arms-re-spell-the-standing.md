@@ -2,7 +2,8 @@
 id: product-error-root-arms-re-spell-the-standing
 kind: issue
 title: ProductError's three root arms re-spell the node standing instead of carrying it
-status: open
+status: spec
+branch: edit/part-product-refusals
 opened: 2026-09-29
 priority: P4
 cost: E
@@ -54,3 +55,49 @@ viewer's badge placement and the Python words need not move;
 `From<NodeStanding> for ProductError` goes, and the census row
 (`crates/editor-core/tests/node_standing.rs`) is unchanged — the read
 already goes through the one door.
+
+## Ruled and spec'd (2026-09-29, EDIT orchestrator) — one unit with its two siblings, branch `edit/part-product-refusals`
+
+This row, `a-parts-poisoned-root-drops-the-failure-that-poisoned-it` and
+`part-product-refusal-draws-the-gathers-stage-prefix` are **one unit**.
+They are the same seam, `eval/parts.rs`'s `product_fault` over
+`product.rs`'s `ProductError`, seen from three sides.
+
+**Tier:** single review (one Opus FULL). It changes public refusal payloads
+and a Python tag's carried value.
+
+**It depends on D366** (PR #3469). D366's `NodeErrorClass` projects every
+`PartFault` arm, so this unit branches from `origin/main` after #3469
+merges and extends the class and its witness census for any arm it adds.
+
+1. **ProductError carries the standing.** `ProductError`'s root arms carry
+   `NodeStanding` as one payload. `ProductErrorKind`, the viewer's badge
+   placement (`viewer/src/frame.rs`) and `product_error_tag` keep their
+   classes and their tag words (`unknown_node`, `root_failed`,
+   `root_poisoned`), with the tag table pinned against main. The three
+   hand sentences go.
+2. **A poisoned root carries the failure that poisoned it.**
+   - A part whose product root was poisoned crosses carrying the
+     refusal at `through`, typed. `through` is the node the author
+     repairs, so it goes through the same carried-refusal machinery
+     #3459 built (`carried_chain`, `CarriedLine`), and the viewer draws
+     it as a level of the traceback.
+   - Choose the arm shape: reuse `PartRootFailed { node: through, … }`
+     with the root named, or add an arm naming both. Say which and why.
+   - Use `viewer/tests/common/mod.rs`'s `broken_document` as the
+     witness.
+3. **No doubled stage word, and a recourse.**
+   - Build the `Part/PartProduct` concision row from a real
+     `ProductError`'s text (red today).
+   - The instance's sentence must not draw the gather's own
+     `product:` inside the part's wrapper.
+   - `PartProduct` states a recourse (the shape guard's item 9 notes it
+     has none).
+4. **Python.** The `part_product` tag and the carried `__cause__` move
+   with it; announce the change to LIB.
+
+**Rows** (red on `origin/main`, then green):
+- a poisoned-root part's traceback ends at the failing node;
+- the `PartProduct` row with real text passes `problems`;
+- the product tag table is unchanged;
+- the class census covers any new arm.
