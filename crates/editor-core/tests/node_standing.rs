@@ -596,9 +596,9 @@ const READERS: [(&str, usize, &str); 11] = [
     ),
     (
         "crates/editor-core/src/eval/parts.rs",
-        3,
-        "moves a failed part root's own error out of the part's evaluation, which the \
-         standing does not carry",
+        1,
+        "moves the failure behind a failed or poisoned part root out of the part's \
+         evaluation, which the standing does not carry",
     ),
 ];
 
