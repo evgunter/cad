@@ -90,12 +90,13 @@ impl DirResolver {
 
 impl PartResolver for DirResolver {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        // The scan's refusal is the store's, verbatim; the fault
+        // The scan's refusal is the store's sentence, without its stage
+        // word as the store's own resolution carries it; the fault
         // classification is `Unresolved` because the reference itself
         // was never reached.
         let workspace = self
             .workspace()
-            .map_err(|error| ResolveFailure::unresolved(error.to_string()))?;
+            .map_err(|error| ResolveFailure::unresolved(error.sentence().to_string()))?;
         PartResolver::resolve(&workspace, doc_ref, tol)
     }
 }

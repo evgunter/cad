@@ -222,11 +222,17 @@ impl PartFault {
 impl core::fmt::Display for PartFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // Every door that evaluates, solves or edits over parts
+            // takes one.
             Self::NoResolver => write!(
                 f,
                 "this evaluation carries no part resolver, so a referenced document cannot be \
-                 reached"
+                 reached. Recourse: give it a resolver over the store that holds the part"
             ),
+            // The resolver knows what went wrong in its store, so its
+            // message states the recourse of a pin or a lookup; the ε
+            // seam's is the same whatever the store, since a document
+            // keeps the ε it was written at and a process holds one.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
                     write!(f, "the reference's pin does not hold: {message}")
@@ -234,7 +240,7 @@ impl core::fmt::Display for PartFault {
                 ResolveFault::EpsilonSeam => write!(
                     f,
                     "the referenced document's recorded tolerance disagrees with this process's: \
-                     {message}"
+                     {message}. Recourse: author the part again in a process at this tolerance"
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
@@ -283,12 +289,16 @@ impl core::fmt::Display for PartFault {
                     }
                     write!(f, "{r}")?;
                 }
-                Ok(())
+                // A pin is its document's hash, so a store that checks
+                // pins cannot hold a loop: every door resolves through
+                // one, and a loop is a resolver's defect.
+                write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::DepthExceeded => write!(
                 f,
                 "instantiation nested deeper than {MAX_DEPTH} documents without repeating a \
-                 reference"
+                 reference. Recourse: flatten the assembly so its parts nest fewer documents \
+                 deep"
             ),
         }
     }

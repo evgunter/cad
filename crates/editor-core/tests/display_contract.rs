@@ -3003,7 +3003,7 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &[
-            "node 4's program step ids",
+            "node 4's program cannot take the step ids given",
             "step id 2 stands for two steps",
         ],
         &["StepIdsRefused", "Repeated"],

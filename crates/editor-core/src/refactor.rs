@@ -838,28 +838,12 @@ impl core::fmt::Display for ReplayTail<'_> {
                 ),
                 Replay::SplitPart | Replay::SplitRemainder => defect(f),
             },
-            // The solve levers through the parts the replay's resolver
-            // holds, and a split may be given none. Any other solve
-            // fault is the forwarded mate refusal's whole sentence,
-            // which the mate solve owns.
-            EditError::MaintenanceRefused {
-                fault: Some(fault), ..
-            }
-            | EditError::MateRefused { fault, .. } => {
-                if !unresolved_part(fault) {
-                    return Ok(());
-                }
-                f.write_str(match replay {
-                    Replay::SplitPart | Replay::SplitRemainder => {
-                        ". Recourse: give the split a resolver that holds every part the \
-                         document places"
-                    }
-                    Replay::Inline => {
-                        ". Recourse: give the inline a resolver that holds every part the \
-                         referenced document places"
-                    }
-                })
-            }
+            // The forwarded mate refusal's whole sentence, which the
+            // mate solve owns. A part the solve could not lever through
+            // states its resolver's recourse inside it: the fault's own,
+            // or the split's resolver's (`WithPart`).
+            EditError::MaintenanceRefused { fault: Some(_), .. }
+            | EditError::MateRefused { .. } => Ok(()),
             // Every other edit re-writes what the source document or
             // the part already holds, each validated at its own door
             // when it was written: a refusal here is this module's
@@ -932,27 +916,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PinUnchanged { .. } => defect(f),
         }
     }
-}
-
-/// Whether a mate solve refused because a part it levers through did
-/// not resolve at all — the one solve fault a replaying door's
-/// resolver answers.
-fn unresolved_part(fault: &crate::mate::MateFault) -> bool {
-    use crate::eval::PartFault;
-    matches!(
-        fault,
-        crate::mate::MateFault::Unleverable {
-            refusal: crate::mate::LeverRefusal::PartUnresolved {
-                fault: PartFault::NoResolver
-                    | PartFault::Unresolved {
-                        fault: crate::part::ResolveFault::Unresolved,
-                        ..
-                    },
-                ..
-            },
-            ..
-        }
-    )
 }
 
 /// What [`split`] produced: the two documents, the recorded edits
@@ -2456,7 +2419,8 @@ impl PartResolver for WithPart {
             Some(inner) => inner.resolve(doc_ref, tol),
             None => Err(ResolveFailure::unresolved(
                 "the split was given no resolver, and the reference is not the part it is \
-                 minting",
+                 minting. Recourse: give the split a resolver that holds every part the \
+                 document places",
             )),
         }
     }

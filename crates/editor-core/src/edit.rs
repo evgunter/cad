@@ -1504,6 +1504,44 @@ impl Tail {
     }
 }
 
+/// [`EditError::StepIdsRefused`]'s recourse, by the fault. `InsertNode`
+/// raises `Preminted`, `SetProgram` the shape and keep arms, and both
+/// `Collides`; `NotMinted` is the load door's, which an edit door
+/// spells [`EditError::NameStepNeverMinted`].
+fn step_ids_recourse(
+    f: &mut core::fmt::Formatter<'_>,
+    tail: Tail,
+    fault: &crate::program::StepIdFault,
+) -> core::fmt::Result {
+    use crate::program::StepIdFault as F;
+    match fault {
+        F::Preminted => tail.recourse(f, format_args!("clear the program's step ids first")),
+        F::LoopCount { .. } => tail.recourse(
+            f,
+            format_args!("give one list of kept ids per loop of the new program"),
+        ),
+        F::Shape { loop_, .. } => tail.recourse(
+            f,
+            format_args!(
+                "give loop {loop_} one entry per authored step, with no id for a step it adds"
+            ),
+        ),
+        F::NotThisProfiles { .. } => tail.recourse(
+            f,
+            format_args!("keep only ids of this node's own steps, and give a new step none"),
+        ),
+        F::Repeated { .. } => tail.recourse(
+            f,
+            format_args!("keep the id on one of the two steps, and give the other none"),
+        ),
+        // The mint draws from a SHA-256 chain over the document's own
+        // edits, so a draw the log already holds is a chain or log the
+        // file was damaged in, or a defect.
+        F::Collides { .. } => tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        F::NotMinted { .. } => tail.ending(f, geom_core::KERNEL_DEFECT_ENDING),
+    }
+}
+
 /// [`EditError::problem`]'s rendering.
 struct Problem<'a>(&'a EditError);
 
@@ -1525,8 +1563,8 @@ impl EditError {
     /// recourse of its own (`SplitError::PartEdit`, `InlineError::Edit`
     /// and the other doors that replay or derive edits). An arm that
     /// forwards another layer's sentence (`ProfileProgramRefused`,
-    /// `StepIdsRefused`, `MateRefused`, `MaintenanceRefused`) forwards
-    /// it whole here too: the forwarded layer owns that text.
+    /// `MateRefused`, `MaintenanceRefused`) forwards it whole here too:
+    /// the forwarded layer owns that text.
     pub fn problem(&self) -> impl core::fmt::Display + '_ {
         Problem(self)
     }
@@ -1602,15 +1640,27 @@ impl EditError {
                     ),
                 )
             }
-            Self::SetProgramOnNonProfile { node } => write!(
-                f,
-                "node {} holds no profile program, so it has no program to set",
-                node.0
-            ),
-            // The fault owns its sentence; the door adds which node's
-            // program the ids were about.
+            // A document's profile node always holds a program; the
+            // node named is of another kind.
+            Self::SetProgramOnNonProfile { node } => {
+                write!(
+                    f,
+                    "node {} holds no profile program, so it has no program to set",
+                    node.0
+                )?;
+                tail.recourse(f, format_args!("aim the edit at a profile node"))
+            }
+            // The fault owns its sentence, shared with the load door;
+            // the door adds which node's program the ids were about,
+            // and the recourse, since only it knows which edit wrote
+            // them.
             Self::StepIdsRefused { node, fault } => {
-                write!(f, "node {}'s program step ids: {fault}", node.0)
+                write!(
+                    f,
+                    "node {}'s program cannot take the step ids given: {fault}",
+                    node.0
+                )?;
+                step_ids_recourse(f, tail, fault)
             }
             Self::TooFewMembers { found, .. } => {
                 write!(
@@ -1905,12 +1955,18 @@ impl EditError {
                     format_args!("splice in an expression whose dimension fits its place"),
                 )
             }
-            Self::NameStepNeverMinted { name, step } => write!(
-                f,
-                "the {name} spells the profile step id #{}, which this document never minted (its \
-                 mint log does not hold it)",
-                step.0
-            ),
+            Self::NameStepNeverMinted { name, step } => {
+                write!(
+                    f,
+                    "the {name} spells the profile step id #{}, which this document never minted \
+                     (its mint log does not hold it)",
+                    step.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("name a piece of a step this document minted"),
+                )
+            }
             Self::DeclareNamesMissingNode { name } => {
                 write!(f, "the declared {name} refers to a node that is not live")?;
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))

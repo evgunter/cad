@@ -9,7 +9,8 @@
 //! of the number; this is the same number for the edit chain).
 //!
 //! The forwarding arms are rendered over what they forward: every
-//! `MateFault` arm inside `MaintenanceRefused` and `MateRefused`, and
+//! `MateFault` arm inside `MaintenanceRefused` and `MateRefused`, every
+//! `StepIdFault` arm an edit door raises inside `StepIdsRefused`, and
 //! the longest path refusals inside `ProfileProgramRefused` (the
 //! feature tree's rows in `editor-core/tests/refusal_concision_chains.rs`
 //! render every `PathError` arm).
@@ -21,6 +22,7 @@ use editor_core::{
     AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
     DocumentId, EditError, EntityKind, EvalError, ExprPath, MateFault, MeasureNodeFault,
     MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, StableName,
+    StepIdFault,
 };
 use test_utils::refusal::Admission;
 use viewer::session::Refusal;
@@ -135,6 +137,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "SetMembersOnNonList",
             EditError::SetMembersOnNonList { node: n(5) },
+        ),
+        (
+            "SetProgramOnNonProfile",
+            EditError::SetProgramOnNonProfile { node: n(5) },
         ),
         (
             "TooFewMembers",
@@ -312,6 +318,23 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "DeclareNamesMissingNode",
             EditError::DeclareNamesMissingNode { name: name() },
+        ),
+        (
+            "NameStepNeverMinted",
+            EditError::NameStepNeverMinted {
+                name: StableName {
+                    kind: EntityKind::Edge,
+                    node: n(3),
+                    path: vec![editor_core::RoleSeg::RimEdge(
+                        editor_core::CapEnd::End,
+                        editor_core::ProfileEdgeRef::Piece {
+                            step: editor_core::StepId(9),
+                            role: editor_core::PieceRole::Leg,
+                        },
+                    )],
+                },
+                step: editor_core::StepId(9),
+            },
         ),
         (
             "ReadSiteMissingNode",
@@ -540,6 +563,26 @@ fn next_distribution_fault(fault: &DistributionFault) -> Option<DistributionFaul
     }
 }
 
+fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
+    use editor_core::StepId;
+    match fault {
+        StepIdFault::Preminted => Some(StepIdFault::LoopCount { loops: 2, given: 1 }),
+        StepIdFault::LoopCount { .. } => Some(StepIdFault::Shape {
+            loop_: 0,
+            authored: 4,
+            given: 3,
+        }),
+        StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles { step: StepId(7) }),
+        StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated { step: StepId(7) }),
+        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides { step: StepId(7) }),
+        StepIdFault::Collides { .. } => None,
+        // No row: no edit door raises it. It is the load door's word,
+        // and an edit that writes a name spelling a step the document
+        // never minted refuses `NameStepNeverMinted`, which has its own.
+        StepIdFault::NotMinted { .. } => None,
+    }
+}
+
 /// The path refusals a program edit forwards whole, at their longest:
 /// each one the feature tree's census measures over 60 words.
 fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
@@ -747,6 +790,12 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
         rows.push((
             format!("Roots({})", variant(&fault)),
             EditError::Roots(fault),
+        ));
+    }
+    for fault in witnesses(StepIdFault::Preminted, next_step_id_fault) {
+        rows.push((
+            format!("StepIdsRefused({})", variant(&fault)),
+            EditError::StepIdsRefused { node: n(4), fault },
         ));
     }
     for fault in witnesses(

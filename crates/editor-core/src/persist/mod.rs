@@ -423,81 +423,99 @@ pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recip
      (every saved document replays from source; this kernel is \
      unreleased and writes no old-format files)";
 
+// The stage word is this door's own label; a carrier that names the
+// stage itself renders the sentence alone ([`PersistError::sentence`]).
 impl core::fmt::Display for PersistError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::NonFinite { site } => write!(f, "persist: non-finite float at {site}"),
-            Self::ProfileProgram { node, fault } => write!(
-                f,
-                "persist: profile program fault at node {}: {fault}",
-                node.0
-            ),
-            Self::Distribution { name, fault } => {
-                write!(f, "persist: document parameter {name}: {fault}")
+        write!(f, "persist: {}", self.sentence())
+    }
+}
+
+/// [`PersistError::sentence`]'s rendering.
+struct Sentence<'a>(&'a PersistError);
+
+impl PersistError {
+    /// The refusal without the load door's stage word: what a carrier
+    /// that names the stage itself renders (a store's "refused to
+    /// load").
+    pub fn sentence(&self) -> impl core::fmt::Display + '_ {
+        Sentence(self)
+    }
+}
+
+impl core::fmt::Display for Sentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.0 {
+            PersistError::NonFinite { site } => write!(f, "non-finite float at {site}"),
+            PersistError::ProfileProgram { node, fault } => {
+                write!(f, "profile program fault at node {}: {fault}", node.0)
             }
-            Self::DisplayUnit {
+            PersistError::Distribution { name, fault } => {
+                write!(f, "document parameter {name}: {fault}")
+            }
+            PersistError::DisplayUnit {
                 name,
                 unit,
                 declared,
             } => write!(
                 f,
-                "persist: document parameter {name} is declared {declared} but its display \
+                "document parameter {name} is declared {declared} but its display \
                  unit measures {unit}"
             ),
-            Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
-            Self::HeaderId { found } => {
+            PersistError::Serialize { message } => write!(f, "serializer failed: {message}"),
+            PersistError::HeaderId { found } => {
                 write!(
                     f,
-                    "persist: no `id: <32 lowercase hex>` header line (found: {found:?}) — \
+                    "no `id: <32 lowercase hex>` header line (found: {found:?}) — \
                      {REGENERATE_RECOURSE}"
                 )
             }
-            Self::IdMismatch { header, snapshot } => write!(
+            PersistError::IdMismatch { header, snapshot } => write!(
                 f,
-                "persist: header id {header} disagrees with the snapshot's id {snapshot} — \
+                "header id {header} disagrees with the snapshot's id {snapshot} — \
                  tampered or hand-assembled file"
             ),
-            Self::Parse {
+            PersistError::Parse {
                 line,
                 column,
                 message,
-            } => write!(f, "persist: body line {line} column {column}: {message}"),
-            Self::Unreadable {
+            } => write!(f, "body line {line} column {column}: {message}"),
+            PersistError::Unreadable {
                 line,
                 column,
                 detail,
             } => write!(
                 f,
-                "persist: this build cannot read the document (body line {line} column \
+                "this build cannot read the document (body line {line} column \
                  {column}: {detail}) — {REGENERATE_RECOURSE}"
             ),
-            Self::Dimension {
+            PersistError::Dimension {
                 line,
                 column,
                 error,
             } => write!(
                 f,
-                "persist: body line {line} column {column}: refused by the document \
+                "body line {line} column {column}: refused by the document \
                  layer's dimension checker: {error}"
             ),
-            Self::Snapshot(e) => write!(f, "persist: invalid snapshot: {e}"),
-            Self::EditReplay { index, error } => {
-                write!(f, "persist: edit {index} refused on replay: {error}")
+            PersistError::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
+            PersistError::EditReplay { index, error } => {
+                write!(f, "edit {index} refused on replay: {error}")
             }
             // The frame rule's ONE prose, forwarded into this door's
             // subject the way the snapshot's placement arms forward it.
-            Self::MaintenanceFrame { index, row, fault } => write!(
+            PersistError::MaintenanceFrame { index, row, fault } => write!(
                 f,
-                "persist: edit {index}'s maintenance row {row} records a frame that {fault}, so \
+                "edit {index}'s maintenance row {row} records a frame that {fault}, so \
                  it is not a placement"
             ),
-            Self::ToleranceConflict { process, document } => write!(
+            PersistError::ToleranceConflict { process, document } => write!(
                 f,
-                "persist: document ε {document:e} conflicts with the process ε {process:e} \
+                "document ε {document:e} conflicts with the process ε {process:e} \
                  (one process, one ε)"
             ),
-            Self::ToleranceInvalid { value } => {
-                write!(f, "persist: recorded ε {value:e} is not a valid tolerance")
+            PersistError::ToleranceInvalid { value } => {
+                write!(f, "recorded ε {value:e} is not a valid tolerance")
             }
         }
     }
