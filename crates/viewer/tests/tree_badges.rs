@@ -500,6 +500,459 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
 
+/// **Every surface that says why a node has no value names the row the
+/// tree names** — over one cluster refusal, the node the kernel reports
+/// as its own `Failed` and the node it poisons through it.
+///
+/// The kernel's standing for `post_a` is `Failed` and for the boolean
+/// is poisoned through `post_a`; the tree draws both downstream of the
+/// offending mate. The properties panel's verdict on a picked face, the
+/// mate tool's dropped pick, the sketch-on-face seat, the duplicate
+/// door, the blend loader and the product's gather refusal each carry a
+/// standing, and each must carry the TREE's.
+#[test]
+fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
+    use pncad::document::{NodeStanding, ProductError};
+    use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
+    use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
+    use viewer::combine::DuplicateFault;
+    use viewer::matetool::{MateTool, MateToolError, MateToolEvent};
+    use viewer::session::{FaceFrameFault, FaceSelection, Selection, Standing};
+
+    let tol = Tol::witness();
+    let bench = common::asm::bench("panels-agree", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let boolean = common::session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: BooleanOp::Union,
+            a: bench.post_a,
+            b: bench.shelf_i,
+        },
+    );
+    session.pump();
+
+    // A face of post_a, selected and held while it still resolves.
+    let face = FaceSelection {
+        name: common::asm::in_part(bench.post_a, &bench.post_top),
+        node: bench.post_a,
+        body: 0,
+    };
+    let outcome = session.perform(SessionOp::Select(Selection::Face(face.clone())));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        session.standing().live(),
+        "the premise: the picked face resolves before the cluster refuses: {:?}",
+        session.standing()
+    );
+    let mut mate_tool = MateTool::new();
+    mate_tool.pick(face.clone());
+    let index = common::asm::index_of(&session);
+
+    common::session_insert(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
+    );
+    let offender = common::session_insert(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
+    );
+    session.pump();
+
+    let rows = session.tree_rows();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    // The premise that makes this row a test: the kernel's own standing
+    // for each node is NOT the tree's.
+    assert_eq!(
+        ev.usable(bench.post_a).err(),
+        Some(NodeStanding::Failed { node: bench.post_a }),
+        "the kernel reports the cluster-refused instance as its own failure"
+    );
+    assert_eq!(
+        ev.usable(boolean).err(),
+        Some(NodeStanding::Poisoned {
+            node: boolean,
+            through: bench.post_a
+        }),
+        "and poisons the boolean through it"
+    );
+    // The tree's answer, which every other surface must carry.
+    let drawn = |id| match common::status_of(&rows, id) {
+        RowStatus::Poisoned { through, .. } => NodeStanding::Poisoned { node: id, through },
+        other => panic!("the tree draws {id:?} downstream, got {other:?}"),
+    };
+    let post_a = drawn(bench.post_a);
+    assert_eq!(
+        post_a,
+        NodeStanding::Poisoned {
+            node: bench.post_a,
+            through: offender
+        },
+        "the tree points post_a at the offending mate"
+    );
+    let two_hop = drawn(boolean);
+    assert_eq!(
+        tree::cause_row(bench.post_a, ev),
+        Some(offender),
+        "cause_row"
+    );
+
+    let indeterminate = |standing| Resolution::Indeterminate(ResolveIndeterminate { standing });
+    match session.standing() {
+        Standing::Face { resolution, .. } => assert_eq!(
+            resolution.as_deref(),
+            Some(&indeterminate(post_a)),
+            "the properties panel's verdict on the picked face"
+        ),
+        other => panic!("the face stays selected, got {other:?}"),
+    }
+    match mate_tool.reconcile(doc, ev).as_slice() {
+        [MateToolEvent::PickLost { resolution, .. }] => assert_eq!(
+            **resolution,
+            indeterminate(post_a),
+            "the mate tool's dropped pick"
+        ),
+        other => panic!("the mate tool drops its one pick, got {other:?}"),
+    }
+    match viewer::session::face_frame_seat(Some((doc, ev)), Some(&face)) {
+        Err(FaceFrameFault::Unresolved {
+            error: InterrogateError::Standing(standing),
+        }) => assert_eq!(standing, post_a, "the sketch-on-face seat"),
+        other => panic!("the seat refuses on the standing, got {other:?}"),
+    }
+    match viewer::combine::duplicate_step(ev, bench.post_a, tol) {
+        Err(DuplicateFault::NoValue(standing)) => {
+            assert_eq!(standing, post_a, "the duplicate door, post_a");
+        }
+        other => panic!("the duplicate door refuses post_a, got {other:?}"),
+    }
+    match viewer::combine::duplicate_step(ev, boolean, tol) {
+        Err(DuplicateFault::NoValue(standing)) => {
+            assert_eq!(standing, two_hop, "the duplicate door, the boolean");
+        }
+        other => panic!("the duplicate door refuses the boolean, got {other:?}"),
+    }
+    let target = BlendTarget {
+        node: bench.post_a,
+        body: 0,
+    };
+    match BlendTool::new().load_all_edges(target, ev, &index) {
+        Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
+            assert_eq!(standing, post_a, "the blend loader");
+        }
+        other => panic!("the blend loader refuses post_a, got {other:?}"),
+    }
+    // The mate tool's frame read, on a pick of post_a and one of post_b.
+    let mut both = MateTool::new();
+    both.pick(face.clone());
+    both.pick(FaceSelection {
+        name: common::asm::in_part(bench.post_b, &bench.post_top),
+        node: bench.post_b,
+        body: 0,
+    });
+    match both.proposal(
+        doc,
+        ev,
+        &session.eval_options(),
+        tol,
+        common::asm::seat_choice(),
+    ) {
+        Err(MateToolError::Frame {
+            error: InterrogateError::Standing(standing),
+            ..
+        }) => assert_eq!(standing, post_a, "the mate tool's frame read"),
+        other => panic!("the mate tool refuses the frame read, got {other:?}"),
+    }
+
+    // The pick index refuses on a root with no value; its tooltip
+    // carries that root's standing as the tree draws it.
+    let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
+        panic!("the index does not build over a root with no value");
+    };
+    let badge = viewer::frame::index_badge(Some(&refusal), Some(ev)).expect("a refusal badges");
+    let detail = badge
+        .detail()
+        .expect("the badge defers its words to the tooltip");
+    assert!(
+        detail.contains(&format!("failure at node {}", offender.0)) && !detail.contains("ancestor"),
+        "the pick index's tooltip names the offending mate: {detail}"
+    );
+
+    // The product gather: its value is the kernel's, and the at-rest
+    // badge draws it with the tree's pointer, never "ancestor" for a
+    // mate.
+    let root = match session.product_fault() {
+        Some(ProductError::Root(
+            NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
+        )) => *node,
+        other => panic!("the gather refuses on a root, got {other:?}"),
+    };
+    assert!(
+        matches!(common::status_of(&rows, root), RowStatus::Poisoned { through, .. } if through == offender),
+        "the refused root is drawn downstream of the offending mate"
+    );
+    match session.at_rest() {
+        Some(viewer::session::AtRestBadge::Refused { message }) => assert_eq!(
+            *message,
+            format!(
+                "product: root {}",
+                NodeStanding::Poisoned {
+                    node: root,
+                    through: offender
+                }
+            ),
+            "the at-rest badge points where the tree points"
+        ),
+        other => panic!("the at-rest badge refuses, got {other:?}"),
+    }
+
+    std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
+/// **Every kernel door under `crates/viewer/src` that hands back a
+/// node's standing reads it through the tree's answer**, or is admitted
+/// below by name with the reason it need not.
+///
+/// A source census over the code view. A door call counts as read when
+/// it sits inside the argument list of a re-read (`*_as_drawn(…)`,
+/// `product_refusal_wording(…)`), or when a re-read appears in the rest
+/// of its own statement: from the call to the first `;` at the call's
+/// own brace depth, or to the end of the enclosing block. What it cannot
+/// see: a kernel door missing from `STANDING_DOORS`, and a door reached
+/// through a helper in another crate.
+#[test]
+fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
+    use test_utils::source::{balanced_end, boundary_before, code_only, rust_sources};
+
+    /// The kernel doors whose refusal carries a `NodeStanding`.
+    const STANDING_DOORS: &[&str] = &[
+        ".usable(",
+        "resolve(RunCtx",
+        "face_frame(",
+        "face_carrier_kind(",
+        "NodePick::build_all",
+        "patch_names(",
+        "boundary_names(",
+        "product_recorded(",
+        "product(",
+        "pick_face(",
+        "run_checks_on(",
+    ];
+    /// The re-reads a door call may sit inside, or share a statement
+    /// with.
+    const REREADS: &[&str] = &[
+        "standing_as_drawn(",
+        "resolution_as_drawn(",
+        "interrogation_as_drawn(",
+        "index_refusal_as_drawn(",
+        "product_refusal_wording(",
+    ];
+    /// `(file, door, reason)`: each admits exactly one unread call.
+    const ADMITTED: &[(&str, &str, &str)] = &[
+        (
+            "blend.rs",
+            ".usable(",
+            "asks only `is_err()` and draws nothing; the node's row carries it",
+        ),
+        (
+            "pickindex.rs",
+            "NodePick::build_all",
+            "reaches the chrome only through `frame::index_badge`, which re-reads it",
+        ),
+        (
+            "pickindex.rs",
+            "NodePick::build_all",
+            "the memoised build; the same route as the one above",
+        ),
+        (
+            "pickindex.rs",
+            "patch_names(",
+            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+        ),
+        (
+            "pickindex.rs",
+            "boundary_names(",
+            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+        ),
+        (
+            "pickindex.rs",
+            "pick_face(",
+            "`HitTestError::Standing` cannot arise: the parts are built from the evaluation \
+             the ray is asked of",
+        ),
+        (
+            "pickindex.rs",
+            "pick_face(",
+            "the moved instances' pass; the same argument as the one above",
+        ),
+        (
+            "scene.rs",
+            "product(",
+            "`scene_of`'s headless path; no chrome surface draws its refusal",
+        ),
+        (
+            "scene.rs",
+            "product(",
+            "runs only over a pair whose gather already succeeded (the A5 gate ate the \
+             body), so no root refusal reaches it",
+        ),
+        (
+            "session.rs",
+            "run_checks_on(",
+            "the registry's refusal is dropped (`.ok()`), never drawn",
+        ),
+        (
+            "session.rs",
+            "run_checks_on(",
+            "the no-body subject's registry run; dropped the same way",
+        ),
+    ];
+
+    /// The end of the statement a call at `at` belongs to: the first
+    /// `;` at its own brace depth, or the close of its enclosing block.
+    fn statement_end(code: &str, at: usize) -> usize {
+        let mut depth = 0i32;
+        for (off, c) in code[at..].char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => {
+                    depth -= 1;
+                    if depth < 0 {
+                        return at + off;
+                    }
+                }
+                ';' if depth == 0 => return at + off,
+                _ => {}
+            }
+        }
+        code.len()
+    }
+
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut unread: Vec<(String, &str, String)> = Vec::new();
+    let mut calls = 0;
+    for path in rust_sources(&root) {
+        let text = std::fs::read_to_string(&path).expect("a source file reads");
+        let code = code_only(&text);
+        let file = path
+            .file_name()
+            .expect("a file name")
+            .to_string_lossy()
+            .into_owned();
+        // Every re-read's argument span, as byte ranges of `code`.
+        let spans: Vec<std::ops::Range<usize>> = REREADS
+            .iter()
+            .flat_map(|reread| {
+                code.match_indices(reread)
+                    .map(|(at, _)| at + reread.len() - 1)
+            })
+            .map(|open| open..balanced_end(&code, open).expect("a re-read's call closes"))
+            .collect();
+        for door in STANDING_DOORS {
+            for (at, _) in code.match_indices(door) {
+                if door.starts_with(|c: char| c.is_alphabetic()) && !boundary_before(&code, at) {
+                    continue;
+                }
+                calls += 1;
+                let inside = spans.iter().any(|span| span.contains(&at));
+                let rest = &code[at..statement_end(&code, at)];
+                let shares = REREADS.iter().any(|reread| rest.contains(reread));
+                if !inside && !shares {
+                    let line = test_utils::source::line(&code, at);
+                    unread.push((file.clone(), door, format!("{}:{line}", path.display())));
+                }
+            }
+        }
+    }
+    assert!(
+        calls >= 16,
+        "the census found the doors it names ({calls} calls)"
+    );
+
+    let mut admitted: Vec<(&str, &str)> = ADMITTED.iter().map(|(f, d, _)| (*f, *d)).collect();
+    admitted.sort_unstable();
+    let mut found: Vec<(&str, &str)> = unread.iter().map(|(f, d, _)| (f.as_str(), *d)).collect();
+    found.sort_unstable();
+    assert_eq!(
+        found, admitted,
+        "every standing door reads through the tree's answer or is admitted by name; \
+         unread calls: {unread:#?}"
+    );
+}
+
+/// **A root the tree does NOT redraw keeps the gather's own words** —
+/// `tree::product_refusal_wording`'s re-read, pinned by its literal
+/// text so it cannot re-point a root that is its own cause, or one
+/// poisoned through a real DAG ancestor.
+#[test]
+fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
+    use pncad::document::{Node, NodeStanding, ProductError, RecipeNodeId};
+
+    let tol = Tol::witness();
+
+    // A failed root: the extrude alone.
+    let doc = pncad::document::Doc::empty_derived("gather-words-failed", tol);
+    let (mut doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let extrude = common::insert_into(
+        &mut doc,
+        Node::Extrude {
+            profile,
+            distance: pncad::document::Expr::div(common::len(0.008), common::scl(0.0))
+                .expect("length / scalar is a length"),
+        },
+        tol,
+    );
+    assert_eq!(extrude, RecipeNodeId(2), "the literal below names this id");
+    let ev = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let failed = ProductError::Root(NodeStanding::Failed { node: extrude });
+    assert_eq!(
+        tree::product_refusal_wording(&failed, &ev),
+        "product: root node 2 failed, so it has no value — fix the node's own failure",
+        "a root that is its own cause keeps the gather's sentence"
+    );
+
+    // A root poisoned through a real DAG ancestor.
+    let (doc, extrude, moved) = common::broken_document(tol);
+    assert_eq!(
+        (extrude, moved),
+        (RecipeNodeId(2), RecipeNodeId(3)),
+        "the literal below names these ids"
+    );
+    let ev = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let poisoned = ProductError::Root(NodeStanding::Poisoned {
+        node: moved,
+        through: extrude,
+    });
+    assert_eq!(
+        tree::product_refusal_wording(&poisoned, &ev),
+        "product: root node 3 is poisoned by the failure at node 2, so it has no value — the \
+         repair is upstream, at node 2",
+        "a root poisoned through the row the tree names keeps the gather's sentence"
+    );
+}
+
 // ---- The refusal that names no row ----
 
 /// The env var naming the child process that commits a bandless

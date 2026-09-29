@@ -84,6 +84,19 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   that write a name (`InsertNode`, `Rebind`, `SetAppearance`,
   `SetAppearanceMeta`) refuse one the mint log does not hold, and so does
   the load door.
+  An author reaches a step's id through an authored address, not a name:
+  the step's index in its loop and its program's shape up to that step,
+  values erased, read against the loop the author states. The profile's
+  program maps the address to the id it minted for that placement, so
+  one authored loop placed twice resolves to two ids, a value edit
+  leaves the address valid, and a reshape that changes the prefix
+  refuses it. An address is valid for the program it was authored for;
+  across a `SetProgram` an author holds the `StepId`. The check is the
+  prefix alone, so a wrong loop of the same shape, or a stale address
+  whose prefix the program still has, binds without error; and equal
+  addresses are one key in a keep map. The roles a step may draw come
+  from one per-verb list, which the piece door (`ProfileProgram::piece`)
+  checks and the authoring surfaces' role accessors are generated from.
 - **The role.** A step draws its pieces from a fixed list of roles, one list
   per verb:
   - every verb that draws one segment has one role, `Leg`: `line`,

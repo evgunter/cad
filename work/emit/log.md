@@ -1058,3 +1058,33 @@ unattributed drift. The gating row stores measured values.
 
 **Closed with it:** the loft-sections row. #3223 had already resolved
 it, and this PR pins it.
+
+## 2026-09-29 — the fold-contact P0 was already fixed (PR 3476)
+
+A first-parent bisect puts the fix at CONTACT-8 (#3377).
+
+**The defect:** an area-overlap declared pair was left unmerged inside
+the accumulation, and the next step's census refused it. The refusal
+was reported as a fold-minted contact verdict.
+
+**This PR:** adds no code change. It adds per-order outcome rows for
+three fixtures.
+
+**Still open:** `SeamVertexParentage` is live in 2/6, 8/24 and 18/24
+orders across those fixtures. It is WIRE's chord-rule row.
+
+**Also found on the way:** EDIT's new hex-id check in test-utils read
+a float's exponent as an id, which turned main red at ε = 1e-6. EMIT
+fixed it in #3466, with a seam note to EDIT.
+
+## 2026-09-29: Python step handles (PR 3481), ruled on [ev] #3473
+
+Ev ruled that the author states the loop, that there is one role list per verb with the accessors generated from it, and that `set_program` takes one keep dict per loop.
+
+**The review found a real defect.** The first version bypassed `rides` for a fused step's own emission. That missed Radius/Via arrivals, whose arc a later binder step emits. Far from the origin at ε 1e-11, those panicked the new role check: 106 of 3,600 grid cases.
+
+**The fix is structural:** the fused verb claims `RunOut` where it emits the arc. #3266's circle measurement is gone, and only the ray arm still decides geometrically.
+
+**Friction noted:**
+- Twice today, main went red where the PR gate had skipped the rows: the 1e-6 hex-id row (#3466) and the demo `chaintol` rows (#3479). Both were fixed by EMIT, with seam notes to EDIT and CHROME.
+- #3266's test job took about 14 minutes.

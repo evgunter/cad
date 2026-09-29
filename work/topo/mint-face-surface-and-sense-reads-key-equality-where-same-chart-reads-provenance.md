@@ -5,7 +5,7 @@ title: mint_face_surface_and_sense decides 'the parent's own surface' by key equ
 status: open
 opened: 2026-09-24
 priority: P1
-cost: E
+cost: M
 ---
 
 
@@ -62,3 +62,41 @@ keys sharing one NURBS/`Approx` payload carry rows through
 `same_chart` but reset `sense` to `true` in `mint_face_surface_and_sense`.
 The title's "where same_chart reads provenance" is no longer true.
 (ORIGIN orchestrator)
+
+## What PR 3467's review found (2026-09-29)
+
+The first fix (PR 3467) widened the inheritance test from key
+equality to `same_chart`. Its reviewer measured that inheritance is
+wrong for `mfkrh` under either test: on `holed_block(3, [1.5])`, the
+bore circle promoted by `mfkrh(ring, Inherit)` with the parent's
+`true` is refused by tier 3 with `LoopRoleInverted`, and validates
+with `false` (probe: the reviewer's `senser-probe.patch`). A ring is
+wound clockwise about the parent's outward normal, so promoted to an
+outer loop on the same chart it faces the other way. A `mef` fragment
+across the same face validates with the parent's bit. The defect
+predates PR 3467; production same-chart promotions override the bit
+afterwards (`crates/topo/src/shell.rs`, `crates/topo/src/splitting/finish.rs`),
+and the boolean's transient promotions (`boolean/finish.rs`,
+`boolean/rest.rs`, `splitting/reassembly.rs`) carry the wrong bit
+until they are zipped or killed.
+
+The rule is D1's fragment bullet, so the question is D1's: what
+`sense` a minted or re-charted face carries, and who decides it. The
+item's original seam (key equality against `same_chart`) is one part
+of that answer.
+
+## Ruled (2026-09-29, PR 3480)
+
+Ev took the recommendation: "i agree with your recommendation!". D1's
+bullet now reads as PR 3480 wrote it.
+- On the parent's chart (`same_chart`), the operator derives the bit:
+  `mef` takes the parent's, `mfkrh` the parent's negated.
+- On any other chart, the caller states it in the spec
+  (`FaceSurface::New { surface, sense }`, `Shared { key, sense }`). No
+  operator stamps a default.
+- A stated bit that contradicts the derived one on the parent's chart
+  is refused, typed, before mutating. The test is `same_chart`.
+- `set_face_surface` takes the same spec, and
+  `set_face_surface_and_sense` folds into it.
+
+The implementation re-aims PR 3467.

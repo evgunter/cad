@@ -102,9 +102,9 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 /// refusal has no arms. Two enums, two discriminants, each projected
 /// where it lives.
 ///
-/// A refusal that CARRIES another node's (a part whose root failed, a
-/// mate whose placer's row cannot state its refusal) never quotes it in
-/// its message; the carried refusal crosses typed, as this exception's
+/// A refusal that CARRIES another node's (a part whose root failed or
+/// was poisoned, a mate whose placer's row cannot state its refusal)
+/// never quotes it in its message; the carried refusal crosses typed, as this exception's
 /// `__cause__` ([`with_carried`]).
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let err = refused(py, node, &error.kind, error.to_string(), None);
@@ -156,7 +156,9 @@ fn refused(
             ("node", node_obj),
             (
                 "kind",
-                PyString::new(py, node_error_tag(kind)).unbind().into_any(),
+                PyString::new(py, node_error_tag(kind.class()))
+                    .unbind()
+                    .into_any(),
             ),
             ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
@@ -235,7 +237,7 @@ fn poisoning(
         Some(error) => {
             fields.push((
                 "kind",
-                PyString::new(py, node_error_tag(&error.kind))
+                PyString::new(py, node_error_tag(error.kind.class()))
                     .unbind()
                     .into_any(),
             ));

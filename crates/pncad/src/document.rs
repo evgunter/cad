@@ -79,10 +79,18 @@
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
 // arm can name what it caught. `PiecesFault` is the same for
 // `NodeErrorKind::ProfilePieces` and `ProgramRefusal::Pieces`.
+// `AuthoredStep` is how an author who recorded a step reaches its id
+// and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
+// keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
+// what those doors refuse with, and the shape types are what an
+// `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
     Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
     StepIdFault, apply, apply_logged,
+};
+pub use editor_core::{
+    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -247,6 +255,9 @@ pub use editor_core::DocParamField;
 // `Evaluation::usable`'s refusal and the payload every door that
 // needs a node's value refuses with, so a consumer can match those
 // arms but not read which node, or which standing, without naming it.
+// `NodeErrorClass` rides with `NodeErrorKind`: it is `NodeErrorKind::class`'s
+// answer, the refusal's class a consumer can clone, compare and hash where
+// the refusal itself cannot be.
 // `Found` rides with `NodeErrorKind` by the same rule: it is the
 // `found` field of the four entity-kind refusals, so a consumer can
 // match those variants but not name what they say was there instead.
@@ -257,8 +268,8 @@ pub use editor_core::DocParamField;
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
     DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
-    NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, ProfileLift,
-    SplitSide, ValuePayload, VerbKind, evaluate,
+    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.

@@ -506,6 +506,12 @@ pub enum ErrorClass {
     /// so a caller who branches on `band_has_no_measure` reads the
     /// same word from either door.
     Mc,
+    /// An authored step handle that does not bind in the profile it was
+    /// read against: its address is off that loop's program, or the
+    /// role asked of it is one its verb never draws. The Python class
+    /// is `StepHandleError`, after the Rust type
+    /// [`StepHandleRefusal`](pncad::document::StepHandleRefusal).
+    StepHandle,
 }
 
 /// **Six doors, four classes.** The document layer's `DimensionError`
@@ -577,6 +583,7 @@ impl ErrorClass {
             Self::MeasureUnavailableAt => "MeasureUnavailableAt",
             Self::AnalysisPolicy => "AnalysisPolicyError",
             Self::Mc => "McRefusal",
+            Self::StepHandle => "StepHandleError",
         }
     }
 }

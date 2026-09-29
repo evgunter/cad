@@ -1581,10 +1581,13 @@ same bytes.
 
 A piece is the part of the profile one authored step drew: the step,
 by the id the document minted for it when the profile was inserted, and
-its role in that step. `Doc.pieces(profile)` answers them, one list per
-loop — 0 the outer one, then the holes in the order the profile
-describes them — and one piece per segment along it, so a hole's band is
-spelled exactly like the outer one from its own list. A piece stays the
+its role in that step. Every authoring call hands back its step's
+handle as `.step`, and `doc.piece(profile, loop, h.leg)` spells the
+piece that step drew in the loop you state — 0 the outer one, then the
+holes in the order the profile describes them — so a hole's band is
+spelled exactly like the outer one. A handle's role accessors are its
+verb's roles: `.leg` on a leg, `.run_in`, `.arc` and `.run_out` on a
+fillet, `.piece(k)` on a `circle` or `circle_split`. A piece stays the
 name of what its step draws whatever later moves the segment, which is
 why the doors take it rather than a position. And the text is still
 never read or assembled — you name a ROLE, and the door does the rest.
@@ -1615,13 +1618,10 @@ RI, RO, H, T = 1.0, 2.0, 1.0, 0.125
 
 doc = Doc()
 frame = doc.sketch_frame()
-section = (
-    Open.at((RI * m, 0 * m))
-    .line_to((RO * m, 0 * m))
-    .line_to((RO * m, H * m))
-    .line_to((RI * m, H * m))
-    .line_to(Start)
-)
+bottom = Open.at((RI * m, 0 * m)).line_to((RO * m, 0 * m))
+outer = bottom.line_to((RO * m, H * m))
+top = outer.line_to((RI * m, H * m))
+section = top.line_to(Start)
 profile = doc.insert(Node.profile(section, plane=frame))
 ring = doc.insert(
     Node.revolve(
@@ -1637,13 +1637,15 @@ ring = doc.insert(
     )
 )
 
-# Piece 2 is the top annulus's leg and the rim standing where it
-# starts — read off the profile as written, with nothing evaluated yet.
-# The section has one loop, so every piece below is from list 0.
-pieces = doc.pieces(profile)[0]
-cup = doc.insert(Node.shell(ring, Expr.length_in(T, m), [band(ring, pieces[2])]))
+# The top leg sweeps the top annulus, and its rim stands where the leg
+# starts — spelled from the handles the legs returned, with nothing
+# evaluated yet. The section has one loop, loop 0.
+def piece(leg):
+    return doc.piece(profile, 0, leg.step.leg)
+
+cup = doc.insert(Node.shell(ring, Expr.length_in(T, m), [band(ring, piece(top))]))
 rolled = doc.insert(
-    Node.fillet(ring, Expr.length_in(T, m), [band_rim(ring, pieces[2]), band_rim(ring, pieces[3])])
+    Node.fillet(ring, Expr.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
 )
 
 ev = evaluate(doc)
@@ -1654,7 +1656,7 @@ ev.value(rolled).body().validate()
 # survived the hollowing wear exactly `carried` of what they were.
 faces = NamePat.of_kind(EntityKind.Face)
 survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
-assert sorted(survivors) == sorted(carried(cup, band(ring, pieces[s])) for s in (0, 1, 3))
+assert sorted(survivors) == sorted(carried(cup, band(ring, piece(leg))) for leg in (bottom, outer, section))
 ```
 
 ## 3. Parametric models

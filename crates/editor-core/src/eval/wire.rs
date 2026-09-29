@@ -833,6 +833,17 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// constant, so the telemetry and an escalation report the same name.
 pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 
+/// What one of this layer's decisions decides, in words
+/// (`crate::decision::words` reads them). `None` for a predicate this
+/// layer does not own.
+pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        EVAL_DIRECTION_NORM => "whether a direction has any length",
+        "revolve_full_vs_partial" => "whether the revolve makes a full turn",
+        _ => return None,
+    })
+}
+
 /// Normalizes a direction-valued vector; a non-finite length refuses,
 /// an underflowed one refuses, a decided-zero length refuses, in-band
 /// indeterminacy escalates.
@@ -942,8 +953,11 @@ impl DirectionRefusal {
     /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
     /// spelling** from a carried or raised refusal to a
-    /// [`NodeErrorKind`]; `pub` because [`NodeErrorKind::FrameDirection`]'s
-    /// `Display` and tag spell through it too.
+    /// [`NodeErrorKind`]: [`NodeErrorKind::FrameDirection`]'s `Display`
+    /// and its class ([`NodeErrorKind::class`]) read through it, so the
+    /// carried refusal says and is what the frame's own raise says and
+    /// is. `pub` because the carried refusal is: a consumer holding one
+    /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
         refusal(self.error, self.role, DATUM_UNIT_NORM)
     }

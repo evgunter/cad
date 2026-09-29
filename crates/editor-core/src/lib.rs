@@ -21,6 +21,7 @@ pub mod appearance;
 pub mod assembly;
 pub mod checks;
 pub mod clearance;
+mod decision;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
@@ -72,6 +73,7 @@ pub mod roots;
 /// leaf identity, and the gating `worst_case` is a certified interval
 /// enclosure.
 pub mod stackup;
+pub mod step_handle;
 pub mod step_mint;
 // Test fixtures (the literals and the pick door); see the module's
 // docs. The gate is this crate's `test-support` feature, on only
@@ -121,9 +123,10 @@ pub use edit::{
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
-    EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, ProfileLift,
-    ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate, mate_reach,
+    EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
+    ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate,
+    mate_reach,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
@@ -210,6 +213,9 @@ pub use resolve::{
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
+};
+pub use step_handle::{
+    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 pub use step_mint::StepMint;
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray

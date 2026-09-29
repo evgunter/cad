@@ -428,7 +428,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/edit/edit-refusals-short-of-the-shape-guard.md
     "Part/DepthExceeded",
     "Part/NoResolver",
-    "Part/PartProduct",
     "Part/ReferenceCycle",
     "Part/Unresolved(EpsilonSeam)",
     "Part/Unresolved(PinMismatch)",
@@ -3264,16 +3263,17 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "RootFailureUnrecorded",
-            PartFault::RootFailureUnrecorded {
-                node: RecipeNodeId(7),
+            "PartRootPoisoned",
+            PartFault::PartRootPoisoned {
+                root: RecipeNodeId(8),
+                through: RecipeNodeId(7),
+                refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "PartProduct",
-            PartFault::PartProduct {
-                kind: editor_core::product::ProductErrorKind::NoBodyRoots,
-                message: "the document declares no body root".to_owned(),
+            "RootFailureUnrecorded",
+            PartFault::RootFailureUnrecorded {
+                node: RecipeNodeId(7),
             },
         ),
         (
@@ -3293,7 +3293,180 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ));
     }
+    rows.extend(part_products());
+    rows.extend(part_products_forwarding());
     rows
+}
+
+/// The instance rows of a part with no product, raised through real
+/// documents so each carries the gather's own sentence: a sketch-only
+/// part, whose roots denote no body; a part that places its body under
+/// two roots; and a part whose split and a move of the split's target
+/// are both roots, so the two alias the block's strict wall names.
+fn part_products() -> Vec<(String, NodeErrorKind)> {
+    use crate::fixture::resolver::{PartStore, with_resolver};
+    use crate::fixture::{ang, insert, len, on_frame, scl, square};
+    use editor_core::{
+        CancelToken, Datum, DocumentId, Node, NodeResult, PartFault, ProductErrorKind, ProfileDoc,
+        evaluate,
+    };
+    use geom_core::Tol;
+    let tol = Tol::witness();
+    let sketch = |label| {
+        on_frame(
+            ProfileDoc::empty(DocumentId::derive(label), tol),
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(0.0, 0.0, 0.5)],
+        )
+    };
+    let moved = |doc, input, dx| {
+        insert(
+            doc,
+            Node::Transform {
+                input,
+                translation: [len(dx), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        )
+        .0
+    };
+    let twice = {
+        let (doc, profile) = sketch("concision-part-twice");
+        let (doc, body) = insert(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
+        moved(moved(doc, body, 2.0), body, 4.0)
+    };
+    let aliased = {
+        let (doc, profile) = sketch("concision-part-aliased");
+        let (doc, block) = insert(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
+        let (doc, plane) = insert(
+            doc,
+            Node::Datum(Datum::Plane {
+                origin: [len(0.25), len(0.0), len(0.0)],
+                normal: [scl(1.0), scl(0.0), scl(0.0)],
+            }),
+        );
+        let (doc, _) = insert(
+            doc,
+            Node::Split {
+                target: block,
+                tool: plane,
+            },
+        );
+        moved(doc, block, 2.0)
+    };
+    let mut store = PartStore::new();
+    let parts = [
+        (
+            "Part/PartProduct",
+            store.insert(sketch("concision-part-sketch").0, tol),
+            ProductErrorKind::NoBodyRoots,
+        ),
+        (
+            "Part/PartProduct(PlacedUnderTwoRoots)",
+            store.insert(twice, tol),
+            ProductErrorKind::PlacedUnderTwoRoots,
+        ),
+        (
+            "Part/PartProduct(Naming)",
+            store.insert(aliased, tol),
+            ProductErrorKind::Naming,
+        ),
+    ];
+    let opts = with_resolver(store);
+    parts
+        .into_iter()
+        .map(|(name, part, class)| {
+            let (doc, instance) = insert(
+                ProfileDoc::empty(DocumentId::derive(name), tol),
+                Node::instantiate_part(part),
+            );
+            match evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol).result(instance) {
+                Some(NodeResult::Failed(error)) => match &error.kind {
+                    NodeErrorKind::Part {
+                        doc_ref,
+                        fault: fault @ PartFault::PartProduct { kind, .. },
+                    } if *kind == class => row(
+                        name,
+                        NodeErrorKind::Part {
+                            doc_ref: *doc_ref,
+                            fault: fault.clone(),
+                        },
+                    ),
+                    other => panic!("{name}: the instance refuses as a {class:?} part: {other:?}"),
+                },
+                other => panic!("{name}: the instance refuses: {other:?}"),
+            }
+        })
+        .collect()
+}
+
+/// The instance rows of the three gather classes whose sentence
+/// forwards the kernel's own refusal, which no document reaches: a root
+/// the at-rest gate refuses, an aggregate it refuses, and a graft the
+/// kernel refuses. Each is built as the instance carries it, the
+/// gather's [`editor_core::ProductError::sentence`] beside its class.
+fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
+    use editor_core::{PartFault, ProductError, SourceFinding};
+    let inside_out = || topo::ValidationError::NegativeVolume {
+        solid: topo::SolidKey::default(),
+    };
+    [
+        (
+            "Part/PartProduct(RootInvalid)",
+            ProductError::RootInvalid {
+                findings: vec![SourceFinding {
+                    node: RecipeNodeId(3),
+                    output: 0,
+                    errors: vec![inside_out()],
+                }],
+            },
+        ),
+        (
+            "Part/PartProduct(ProductInvalid)",
+            ProductError::ProductInvalid {
+                errors: vec![inside_out()],
+            },
+        ),
+        (
+            "Part/PartProduct(Graft)",
+            ProductError::Graft {
+                node: RecipeNodeId(5),
+                source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
+                    zero: 1.0,
+                    escalate: 0.5,
+                })),
+            },
+        ),
+    ]
+    .into_iter()
+    .map(|(name, error)| {
+        row(
+            name,
+            NodeErrorKind::Part {
+                doc_ref: doc_ref(),
+                fault: PartFault::PartProduct {
+                    kind: error.kind(),
+                    message: error.sentence().to_string(),
+                },
+            },
+        )
+    })
+    .collect()
 }
 
 fn mate() -> Vec<(String, NodeErrorKind)> {

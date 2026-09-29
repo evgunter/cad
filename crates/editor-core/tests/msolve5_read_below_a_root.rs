@@ -41,9 +41,9 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
     EntityKind, Entry, EvalOptions, Evaluation, Expr, LeverRefusal, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, PartSelect,
-    PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg,
-    SitedFace, StableName, product,
+    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding,
+    PartSelect, PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef,
+    RoleSeg, SitedFace, StableName, product,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
@@ -554,7 +554,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::RootFailed { node } if node == base)
+                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == base)
         ),
         "the gather refuses at the failed root before any reference is read: {err:?}"
     );

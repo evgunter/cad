@@ -464,6 +464,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the gather counter's three gated sites, code view
     },
     Entry {
+        path: "crates/viewer/tests/tree_badges.rs",
+        disposition: Shared, // the standing doors' as-drawn census, code view
+    },
+    Entry {
         path: "tools/k-lint/tests/predicate_roster.rs",
         disposition: Shared, // roster pinned to the kernel's mint: code view to locate, literal view to read
     },
