@@ -1528,8 +1528,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                     error,
                 })?;
             // The promoted face inherits the HOST's orientation, not
-            // the guest's: `mfkrh` with a `Shared` surface mints
-            // `sense: true`, and the guest faces the other way. The
+            // the guest's: `mfkrh` hands the promoted face either the
+            // guest's bit (the host's surface on the guest's chart) or
+            // `true`, and the guest faces the other way. The
             // winding works out by construction — a ring of the guest
             // is wound opposite to the guest's outer loop, i.e. the way
             // an outer loop of a host-facing face must be — and it is

@@ -1179,7 +1179,9 @@ impl<T: Decide> Body<T> {
     /// Two keys holding equal values with no identity tie answer
     /// `false`, and their rows drop and are re-minted: the price of
     /// never carrying a row onto a surface it is not about. The face's
-    /// `sense` is not read — it does not move the chart.
+    /// `sense` is not read — it does not move the chart. The same
+    /// answer decides whether a minted fragment inherits its parent's
+    /// `sense` ([`Body::mint_face_surface_and_sense`]).
     pub(crate) fn same_chart(&self, a: SurfaceKey, b: SurfaceKey) -> bool {
         if a == b {
             return true;

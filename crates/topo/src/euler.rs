@@ -2719,13 +2719,14 @@ impl<T: Decide> Body<T> {
     /// The new face's surface key and material side when an operator
     /// carves a region off a parent face.
     ///
-    /// A fragment that lands on the parent's OWN surface is a piece of
-    /// the parent's region — the same surface with the same material
-    /// side — so it takes the parent's [`crate::entity::Face::sense`].
-    /// A `New` (or foreign `Shared`) surface is not this face's region
-    /// at all, and the mint's `true` stands; the caller then attaches
-    /// the honest bit through [`crate::Body::set_face_sense`], as the
-    /// sweep constructors do. Key equality, never a numeric compare.
+    /// A fragment that lands on the parent's chart is a piece of the
+    /// parent's region — one chart normal, the same material side — so
+    /// it takes the parent's [`crate::entity::Face::sense`]. "The
+    /// parent's chart" is [`Body::same_chart`]'s answer, the one the
+    /// fragment's pcurve rows take. Anywhere else the fragment is not
+    /// the parent's region at all, and the mint's `true` stands; the
+    /// caller then attaches the honest bit through
+    /// [`crate::Body::set_face_sense`], as the sweep constructors do.
     ///
     /// The bit has teeth: a re-mint that stamped `true` unconditionally
     /// would silently reset the material side on every fragment of a
@@ -2738,7 +2739,7 @@ impl<T: Decide> Body<T> {
         inherit_sense: bool,
     ) -> (SurfaceKey, bool) {
         let surface = self.mint_face_surface(spec, inherit_surface);
-        let sense = if surface == inherit_surface {
+        let sense = if self.same_chart(surface, inherit_surface) {
             inherit_sense
         } else {
             true

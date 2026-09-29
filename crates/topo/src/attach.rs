@@ -163,9 +163,9 @@ impl<T: Decide> Body<T> {
     /// constructor-facing writer of the S10 orientation bit, opened in
     /// M5 S11.
     ///
-    /// An Euler operator mints `sense: true` on a face it puts on a
-    /// NEW surface, because the material side is not op-level
-    /// knowledge: `mef` sees two chords, not the profile. Whether a
+    /// An Euler operator mints `sense: true` on a face it puts on
+    /// another chart than its parent's, because the material side is
+    /// not op-level knowledge: `mef` sees two chords, not the profile. Whether a
     /// swept wall's material lies with or against its surface's chart
     /// normal is the **constructor's**
     /// knowledge, decided from exact stored structure (a concave arc
@@ -191,12 +191,11 @@ impl<T: Decide> Body<T> {
     ///
     /// **Splitting inherits the bit exactly where the fragment is the
     /// same region.** A `mef` or `mfkrh` re-mint that keeps the
-    /// parent's surface takes the parent's `sense` — a piece of a
+    /// parent's chart takes the parent's `sense` — a piece of a
     /// reversed wall is the same surface region with the same material
-    /// side — and stamps `true` only when the fragment lands somewhere
-    /// that is NOT the parent's surface (a fresh one, or a foreign
-    /// shared key), which is not the parent's region at all and whose
-    /// honest bit is this door's to attach.
+    /// side — and stamps `true` only when the fragment lands on another
+    /// chart, which is not the parent's region at all and whose honest
+    /// bit is this door's to attach.
     /// `Body::mint_face_surface_and_sense`
     /// owns that rule; the boolean's chord re-mints (`chord_join.rs`)
     /// pass `FaceSurface::Inherit` and so inherit. A face moved onto
