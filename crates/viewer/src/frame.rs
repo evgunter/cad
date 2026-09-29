@@ -747,7 +747,7 @@ pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
 /// stale. Moving the pointer is not that: it emits an operation on
 /// every frame the cursor changes what it is over, refuses nothing by
 /// construction, and left unfiltered it wipes the ratified
-/// expression-driven affordance off the screen the instant the mouse
+/// expression-driven affordance (G4) off the screen the instant the mouse
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
     !matches!(op, SessionOp::Hover(_))
@@ -1553,7 +1553,7 @@ pub enum Tone {
 pub enum Affordance {
     /// A label. Its [`Badge::detail`], where it has one, is a tooltip.
     Read,
-    /// **A control, not a label** — the ratified argument the checks
+    /// **A control, not a label** — the argument the checks
     /// badge carries, and the reason this is part of the value rather
     /// than a shape the toolbar picks: the findings were once reachable
     /// only by hovering the badge, which is a poor home for text a
@@ -2541,7 +2541,7 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
 /// `None` while preferences are kept.
 ///
 /// **A badge, by the provenance rule**, and by the same argument Ev
-/// ruled on for the absent file chooser: the store's usability is
+/// ruled on for the absent file chooser (#2275, 2026-09-10): the store's usability is
 /// settled when the store is built and true for the whole run, so the
 /// sentence exists on a frame where nobody acted. That is a read of
 /// held state a reader consults, and a whole-run environmental fact
@@ -2646,7 +2646,8 @@ pub fn progress(outstanding: Outstanding, index: IndexSeam) -> Option<Progress> 
 ///
 /// The parse door's unknown-parameter refusal is deliberate
 /// typo-safety — text naming an undeclared parameter never creates
-/// one. The ratified pattern is refuse-then-offer, and this is the
+/// one. The pattern is refuse-then-offer — G4 ratifies it for a drag
+/// on a driven dimension, and this door extends it — and this is the
 /// offer as a value: the undeclared name, for the frame loop to
 /// prefill into the add-parameter affordance (name only — the
 /// expression's context does not determine the new parameter's

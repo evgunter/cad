@@ -267,7 +267,8 @@ impl Selection {
 }
 
 /// Whether the selection still denotes something in the evaluation on
-/// screen — the ratified resolution-failure semantics, as a value.
+/// screen — the ratified resolution-failure semantics
+/// (`docs/SELECT-DESIGN.md` §4), as a value.
 ///
 /// **A vanished reference is a STATE, not an event.** Nothing clears
 /// the selection when the thing it names stops existing: the name

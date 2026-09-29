@@ -1121,7 +1121,7 @@ impl ViewerApp {
     /// **Not one assignment per op.** A frame queues several ops and
     /// several of them can refuse; assigning `status` from each in turn
     /// keeps the LAST, which is how dragging a driven slot came to
-    /// display `NoGesture` instead of the ratified affordance —
+    /// display `NoGesture` instead of the ratified affordance (G4) —
     /// `BeginGesture` refuses with the affordance and the same frame's
     /// `PreviewGesture` refuses `NoGesture` on top of it. `Refusal`
     /// ranks itself; this keeps the best-ranked, first-seen one, and
@@ -1253,7 +1253,7 @@ impl ViewerApp {
         // `prefs::Unusable::refusal` — the same sentence, once per
         // switch, on the channel that carries one frame's news, which
         // is the misclassification Ev ruled on for the absent file
-        // chooser. Nothing is discarded here because nothing is
+        // chooser (#2275, 2026-09-10). Nothing is discarded here because nothing is
         // attempted.
         if self.store.unusable().is_some() {
             return;
@@ -1942,7 +1942,7 @@ impl eframe::App for ViewerApp {
 
         // The open tool consumes the selection vocabulary: a pick this
         // frame produced is ALSO held as a tool pick (the
-        // two-sequential-picks ruling — the same single-select value,
+        // GUI plan's two-sequential-picks ruling — the same single-select value,
         // copied into tool state). Which vocabulary each tool reads is
         // `Tools::feed`'s to know, and a pick a tool DECLINED comes
         // back as a notice through the same door as a survival drop.

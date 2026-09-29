@@ -25,7 +25,7 @@ use pncad::workspace::WorkspaceError;
 // The recourse this module's `NoSuchParam` arm ends on, read from its
 // one home beside the error whose door raises the other half of the
 // pair. A direct edge on the owning crate rather than a new re-export
-// added to `pncad`'s root — the ruling `pncad`'s own crate docs state
+// added to `pncad`'s root — the rule `pncad`'s own crate docs state
 // for a name the facade does not carry, and the same one this crate's
 // `bvh` and `Rgba8` edges cite.
 use editor_core::edit::UNDECLARED_PARAM_RECOURSE;
@@ -187,7 +187,8 @@ impl Step {
 #[derive(Debug)]
 pub enum Refusal {
     /// The slot is driven by an expression, so a direct numeric edit
-    /// is refused — the ratified affordance. The payload is what the
+    /// is refused with the affordance G4 ratifies for a drag, which
+    /// this layer extends to a typed write. The payload is what the
     /// affordance needs: which parameters drive it (each navigable and
     /// editable), and what the slot evaluates to today.
     DrivenByExpression {
@@ -262,7 +263,7 @@ pub enum Refusal {
     },
     /// The New door was asked for a blank name. The document id is
     /// derived from the name (`DocumentId::derive` — the identity
-    /// ruling logged in `docs/GAUTH-LOG.md`), so a nameless document
+    /// rule GAUTH's orchestrator decided at the program's opening), so a nameless document
     /// would carry an identity nobody could ever re-derive.
     EmptyName,
     /// A creation op named a node that is not the kind its seat
@@ -434,14 +435,14 @@ impl Refusal {
     ///
     /// **A frame performs a BATCH of operations**, and a batch can hold
     /// more than one refusal: dragging an expression-driven slot queues
-    /// `BeginGesture` (refused with the ratified affordance) and
+    /// `BeginGesture` (refused with G4's ratified affordance) and
     /// `PreviewGesture` (refused `NoGesture`, purely because the first
     /// refusal stopped the gesture from opening). A chrome that keeps
     /// the last refusal shows the second one and buries the decision
     /// the affordance exists to deliver.
     ///
     /// So the ranks are: the affordance first, because it is a ratified
-    /// decision about what the user just tried; then every refusal that
+    /// decision (G4) about what the user just tried; then every refusal that
     /// names a real failure; then the bookkeeping ones, which are
     /// consequences of an earlier refusal at least as often as they are
     /// news. [`Refusal::preferred`] applies it.
@@ -586,17 +587,18 @@ impl Refusal {
         }
     }
 
-    /// **The ratified affordance sentence, and its one home.**
+    /// **The affordance sentence, and its one home.**
     ///
-    /// "Dragging an expression-driven dimension → refuse, with an
-    /// affordance" is a ratified micro-decision whose WORDING is part
-    /// of the decision, so it is composed once and **every surface
-    /// that shows it calls this** — through this function, or through
+    /// G4 ratifies the behaviour — "Dragging an expression-driven
+    /// dimension refuses, with an affordance offering to edit the
+    /// expression" — and decides no wording; the sentence is this
+    /// layer's. It is composed once and **every surface that shows it
+    /// calls this** — through this function, or through
     /// the `Display` of a [`Refusal::DrivenByExpression`] the surface
     /// is holding. The surfaces are not listed here: a list is a
     /// census of call sites that nothing re-derives, and the rule is
-    /// what does the work. Two independently-built copies is how the
-    /// wording drifts from the decision.
+    /// what does the work. Two independently-built copies is how two
+    /// surfaces come to say different things about one refusal.
     pub fn affordance(params: &[ParamName], current: Option<SlotValue>) -> String {
         let over = if params.is_empty() {
             "an expression".to_owned()
@@ -660,7 +662,7 @@ impl core::fmt::Display for Refusal {
     /// raised the failure names it.
     ///
     /// One exception, stated rather than hidden: the affordance arm's
-    /// wording is a RATIFIED decision of this layer's, so it is
+    /// wording is this layer's own sentence, so it is
     /// composed here (and here only — [`Refusal::affordance`] is its
     /// single home).
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

@@ -5,7 +5,7 @@
 //! # Shape
 //!
 //! The mate tool's pattern one vocabulary over: single-select stays
-//! ruled, so the tool holds its two picks in tool state and consumes
+//! ruled (GQ7), so the tool holds its two picks in tool state and consumes
 //! the ordinary selection stream — a tree click is a node pick
 //! directly, a viewport face or edge pick reaches the node whose drawn
 //! body the ray met (`Selection::seat_node`). Neither of this tool's

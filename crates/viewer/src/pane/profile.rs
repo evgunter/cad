@@ -522,7 +522,7 @@ mod tests {
         // near 2r. A bottom under the band and a top over it therefore
         // force some rung INTO (ε, K·ε), because no ≤3× step clears a
         // factor-K window. Two of those inequalities are facts about
-        // the ratified K = 10 and not about the structure —
+        // the ratified K = 10 (`docs/DESIGN.md`, #89) and not about the structure —
         // `CAD_AMBIGUITY_K` admits any finite K > 1, and at K ≤ 8 the
         // "nearest rung is 8s, still under K·ε" step fails outright
         // while at K ≤ 3 the ladder can step over the band. Below

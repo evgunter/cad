@@ -530,9 +530,9 @@ pub mod file {
         ///
         /// **The path is handed in, never discovered here.** Finding
         /// it means reading the environment, and every ambient read
-        /// this crate performs lives in `crate::frame`
-        /// (`crate::platform::prefs_path`) — the one-door ruling in
-        /// `scripts/gates/no-ambient-env.sh`. It also keeps this
+        /// this crate performs lives in `crate::platform`
+        /// (`crate::platform::prefs_path`) — the one-door rule
+        /// `scripts/gates/no-ambient-env.sh` enforces. It also keeps this
         /// module a pure value over a document and a store, which is
         /// what lets the suite exercise the real read and write
         /// against a temporary path rather than a stand-in.

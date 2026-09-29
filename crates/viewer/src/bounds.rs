@@ -67,7 +67,7 @@
 //! * **An INDETERMINATE interval decision means subdivide.**
 //!   `editor_core::drive`'s leaf classifier answers
 //!   `LeafVerdict::Bisect` for every escalation but the ratified
-//!   terminal sliver, which it refuses as `SliverTerminal` carrying
+//!   terminal sliver (`docs/ERROR-DESIGN.md` E6), which it refuses as `SliverTerminal` carrying
 //!   the escalation's predicate — `<unnamed>` where the escalation
 //!   carries none, so the arm is typed but the culprit is not always
 //!   named. The SEPARATE question of what a certified lane owes when

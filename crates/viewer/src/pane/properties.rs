@@ -1102,7 +1102,7 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: 
 /// The affordance is attached to the row rather than raised on
 /// refusal alone so the user can see WHY the number will not move
 /// before they fight it — the refusal itself still surfaces in the
-/// status line when they try. Its wording is the ratified one, from
+/// status line when they try. Its wording comes from
 /// its one home, the same string the status line shows when the edit
 /// is actually attempted. Its doors share a WRAPPING row, one per
 /// parameter the expression reads, so a door too long for what is

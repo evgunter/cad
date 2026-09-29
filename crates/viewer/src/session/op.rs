@@ -217,7 +217,7 @@ pub enum SessionOp {
     /// name) and collapsing them would put an `Option` in every arm.
     /// A parameter is where the expression-driven affordance sends a
     /// user, so it is a dragged widget on a primary path and gets the
-    /// gesture rule the ratified preview-vs-commit decision demands.
+    /// gesture rule the ratified preview-vs-commit decision (G1) demands.
     BeginParamGesture {
         /// The parameter.
         name: ParamName,
