@@ -1003,6 +1003,9 @@ fn kev_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
         .collect()
 }
 
+/// A describing kill's list: each merged member with its spec.
+type Redescriptions = Vec<(EdgeKey, EdgeCurveSpec<f64>)>;
+
 /// What this walk hands [`Body::kev_describing`] when it kills `he`:
 /// every merged member ([`Body::kev_merged_members`]), re-described as
 /// the straight chord between the endpoints the merge gives it — or,
@@ -1025,7 +1028,7 @@ fn kev_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 fn chord_redescriptions(
     body: &Body<f64>,
     he: HalfEdgeKey,
-) -> (Vec<MergedMember<f64>>, Vec<(EdgeKey, EdgeCurveSpec<f64>)>) {
+) -> (Vec<MergedMember<f64>>, Redescriptions) {
     let members = body
         .kev_merged_members(he)
         .expect("valid body: a kev site's merged fan resolves");
@@ -1034,11 +1037,13 @@ fn chord_redescriptions(
 }
 
 /// [`chord_redescriptions`] over a body that need not be valid: `None`
-/// where [`Body::kev_merged_members`] refuses.
+/// where [`Body::kev_merged_members`] refuses. Its caller is
+/// `review_d18`'s release-only hammer.
+#[cfg(not(debug_assertions))]
 pub(crate) fn try_chord_redescriptions(
     body: &Body<f64>,
     he: HalfEdgeKey,
-) -> Option<Vec<(EdgeKey, EdgeCurveSpec<f64>)>> {
+) -> Option<Redescriptions> {
     let members = body.kev_merged_members(he).ok()?;
     Some(members.iter().map(chord_of).collect())
 }
