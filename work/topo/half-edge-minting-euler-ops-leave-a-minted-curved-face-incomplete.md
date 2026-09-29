@@ -2,11 +2,14 @@
 id: half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete
 kind: issue
 title: mev, mef and mekr mint half-edges into a cached curved face and no pcurve row with them, leaving the face half-minted
-status: open
+status: closed
 opened: 2026-09-13
 refs: [validate-pcurves-never-recertifies-a-face-it-finds-incomplete]
 priority: P0
 cost: H
+pr: 3160
+branch: topo/mint-rows-at-the-mint-site
+closed: 2026-09-29
 ---
 
 
@@ -247,3 +250,28 @@ face". Do not close the item; the dual runs at review.
 ## Note from SCALAR (2026-09-29)
 
 Since LANE-4 (PR #3194) the fitted door is a value (`FittedLane<T>`), so a derivation door could take `Option<FittedLane<T>>` under `T: Decide` (H5 ruling 3's shape) rather than widen to `AtRestPolicy` — a third answer beside the split and the ripple, as TQUERY's `split-edge-cannot-carry-a-fitted-or-general-pcurve-row` records for `split_edge`.
+
+## Closed (2026-09-29, PR 3160)
+
+`mev`, `mef` and `mekr` mint the row of every half-edge they add to a
+COMPLETE curved face, at the mint site and before any mutation.
+- The closed-form derivation is split from the fitted lane under
+  `T: Decide` (`walk_cycle`/`pin_branch`, and `certify_walked` shared
+  with the pass), so no signature moved.
+- A spline chart refuses typed (`PcurveMint { SplineChart }`) with the
+  body untouched.
+- An unminted or half-minted face is left as found.
+- A complete face the closed-form lane cannot mint after the surgery
+  is cleared rather than refused. That is ruled the operator's answer,
+  since every production clear is followed by its producer's closing
+  mint.
+
+The staleness postures (`Maintains` for `mev`/`mekr`) and the
+`MissingCache` door list say what holds.
+
+Residues filed:
+- `work/topo/mev-null-leaves-a-complete-curved-face-half-minted`;
+- `work/topo/loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`;
+- `work/topo/euler-site-mint-re-walks-the-rewired-loop-on-every-op`
+  (the pipeline-level quadratic);
+- the PCERT and WALKS rows amended.

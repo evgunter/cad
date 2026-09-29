@@ -2132,3 +2132,28 @@ Ev answered on 2026-09-24.
 Meanwhile both implementer lanes (`kev`'s two doors and mint-at-site)
 died on the weekly usage limit on 2026-09-24. Their recovery is the
 next entry.
+
+## Mint-at-site merged: PR 3160 closes `half-edge-minting-euler-ops-…` (2026-09-29)
+
+The fix pass (478,158 tokens / 71 min, harness) took all ten
+adjudicated items and refuted none.
+- W5 is killed by both reviewers' fixtures. After the kept-ring cut it
+  is equivalent by construction.
+- The headline is scoped to complete faces, and `MissingCache` lists
+  every door that can still half-mint.
+- `Maintains` says what holds.
+- `PcurveMint` sits last in the three order paragraphs. The body-wide
+  fast path is gone, so the gate reads the touched faces only.
+- Kept loops keep their rows unwalked: the ring bench is 2.1× faster
+  at N=200. The remaining per-loop quadratic is filed.
+- One home each: `certify_walked` for the window-plus-certify pass,
+  `StoredRows::complete` for "complete".
+- The orchestrator read `certify_walked`. It is all-or-nothing per
+  face, so a failed certification now leaves no partial row set where
+  `mint_face` used to keep one. That is the one change the pass itself
+  sees.
+
+Head `e14f763548` is green (run 36568174959). Main was merged forward
+at close; that merge was clean. The DR-23 row rides as this PR's last
+commit. The pair has no MAJOR, so it advances neither the tally nor
+the found-a-MAJOR count under the 2026-09-28 readout rule.
