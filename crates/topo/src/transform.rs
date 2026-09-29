@@ -213,8 +213,9 @@ impl core::fmt::Display for TransformError {
                 f,
                 "an approximating surface cannot be moved at the {scalar} scalar with no \
                  offset-fit door in hand: its certificate is re-derived on the moved pair, and \
-                 only f64 holds that door (the fit is derived there alone). Recourse: move the \
-                 body at f64"
+                 only {holders} holds that door (the fit is derived there alone). Recourse: \
+                 move the body at {holders}",
+                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::ApproxRecertify { source } => write!(
                 f,

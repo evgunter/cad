@@ -1528,7 +1528,7 @@ pub enum NodeErrorKind {
     /// The door validates what it built with a certified claim, so it
     /// is formed only at a scalar with certification rights; a dual
     /// does not certify (the DL3 ruling), and rather than hollow a
-    /// body it cannot validate the node refuses, naming the lane. The
+    /// body it cannot validate the node refuses, naming the scalar. The
     /// base-scalar evaluation beside this one is where the shell is
     /// built and validated.
     ///
@@ -1539,8 +1539,8 @@ pub enum NodeErrorKind {
     /// spelling crosses the Python boundary as the
     /// `shell_lane_unsupported` tag.
     ShellLaneUnsupported {
-        /// The scalar lane that has no door.
-        lane: &'static str,
+        /// The scalar that has no door ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// A derived frame's face name failed to resolve through its
     /// body's name table — [`NodeErrorKind::BlendSelectionResolve`]'s
@@ -2172,9 +2172,9 @@ impl core::fmt::Display for NodeErrorKind {
                 found.article(),
                 found.noun()
             ),
-            Self::ShellLaneUnsupported { lane } => write!(
+            Self::ShellLaneUnsupported { scalar } => write!(
                 f,
-                "the shell door has no lane at the {lane} scalar: hollowing validates what it \
+                "the shell door has no lane at the {scalar} scalar: hollowing validates what it \
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
             ),

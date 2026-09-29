@@ -778,10 +778,10 @@ pub enum PcurveCertifyError {
     /// genuine mismatch — a harmonic image claimed for a spline
     /// carrier, which no constructor mints.
     UnsupportedCarrier,
-    /// A [`Pcurve::Fitted`] or [`Pcurve::General`] image reached check
-    /// 4 of the fitted lane with **no fitted door in hand** — no
-    /// [`crate::FittedLane`] to derive its C2 certificate with (and, in
-    /// the mint, none to derive a general image or a chart foot with).
+    /// A [`Pcurve::Fitted`] or [`Pcurve::General`] image needed the
+    /// fitted door with **none in hand** — at check 4 of the fitted
+    /// lane, where [`crate::FittedLane`] derives its C2 certificate, or
+    /// in the mint, before any check, where it derives a general image.
     /// The door is absent either because the scalar may not certify (a
     /// dual, D1 2026-08-19: certification arithmetic, C9, is not
     /// reachable from it) or because a caller at a certifying scalar
@@ -930,12 +930,14 @@ impl core::fmt::Display for PcurveCertifyError {
             ),
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
-                "pcurve certification: a fitted (rung-3) chart image reached check 4 at the \
-                 {scalar} scalar with no fitted door in hand, and its between-samples bound is \
-                 a hull in certification arithmetic (C9) that only the door derives. Only a \
-                 scalar with certification rights holds the door (f64, the telemetry probe, the \
-                 interval scalar, and the symbolic tier over one of them): replay the body at \
-                 one, or, if the run is at one already, pass the call its door"
+                "pcurve certification: a fitted (rung-3) chart image needs the fitted door at \
+                 the {scalar} scalar, which derives such an image and certifies its \
+                 between-samples bound (a hull in certification arithmetic, C9), and none was \
+                 in hand. Only a scalar with certification rights holds the door, {holders} \
+                 (the {sym} one over a certifying base): replay the body at one, or, if the run \
+                 is at one already, pass the call its door",
+                holders = crate::ScalarList(crate::FITTED_DOOR_HOLDERS),
+                sym = <geom_core::Sym<f64> as geom_core::Real>::NAME,
             ),
             Self::FittedMateMissing => write!(
                 f,
@@ -1763,7 +1765,7 @@ impl<T: Decide> PcurveCache<T> {
     /// caller who can assert the OQ4 construction identity, this one
     /// by a caller who cannot. Nothing here is weaker as a
     /// consequence — the certificate is measured either way — so the
-    /// three outcomes are the fitted lane's verbatim:
+    /// outcomes are the fitted lane's verbatim:
     ///
     /// - **certify**: every sampled map residual is coincident with
     ///   zero, the hull sup bound is within ε, and the uniqueness
@@ -1773,10 +1775,11 @@ impl<T: Decide> PcurveCache<T> {
     ///   IntervalNotForward`];
     /// - **escalate**: [`PcurveCertifyError::Escalated`] /
     ///   [`PcurveCertifyError::FittedEscalated`] (a sliver-band
-    ///   verdict), [`PcurveCertifyError::FittedMateMissing`] (no
-    ///   operand pair to state a tube about), or
-    ///   [`PcurveCertifyError::FittedLaneUnsupported`] (a scalar with
-    ///   no fitted door).
+    ///   verdict) or [`PcurveCertifyError::FittedMateMissing`] (no
+    ///   operand pair to state a tube about);
+    /// - **no door**: [`PcurveCertifyError::FittedLaneUnsupported`], at
+    ///   check 4, when `lane` is `None` — the scalar may not certify,
+    ///   or the caller withheld its door.
     ///
     /// `lane` is the scalar's fitted door (`topo::AtRestPolicy::fitted_lane`),
     /// or `None` where the scalar may not certify or the caller

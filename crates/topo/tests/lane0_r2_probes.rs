@@ -200,3 +200,34 @@ fn the_interval_scalar_has_no_fit_at_the_public_doors() {
     doors_at::<geom_core::interval::Interval>("interval", Some("interval"));
     certified_doors_at::<geom_core::interval::Interval>("interval");
 }
+
+/// **The offset-fit refusals' replay list is the policy's answer.**
+/// `geom_brep::OFFSET_FIT_DOOR_HOLDERS` is what the three refusals
+/// render, and geom-brep cannot read the policy, so its membership is
+/// pinned here: exactly the scalars whose `offset_fit_lane()` answers
+/// `Some`, the probe among them in a build that has it.
+#[test]
+fn the_offset_fit_replay_list_is_the_policys_holders() {
+    fn holds<T: topo::AtRestPolicy>(held: &mut Vec<&'static str>) {
+        if T::offset_fit_lane().is_some() {
+            held.push(T::NAME);
+        }
+    }
+    let mut held = Vec::new();
+    holds::<f64>(&mut held);
+    holds::<geom_core::interval::Interval>(&mut held);
+    holds::<geom_core::Sym<f64>>(&mut held);
+    holds::<geom_core::Sym<geom_core::interval::Interval>>(&mut held);
+    holds::<geom_core::Dual64>(&mut held);
+    #[cfg(feature = "probe")]
+    holds::<geom_core::Probe>(&mut held);
+    held.sort_unstable();
+    held.dedup();
+    let mut listed = geom_brep::OFFSET_FIT_DOOR_HOLDERS.to_vec();
+    listed.sort_unstable();
+    assert_eq!(
+        listed, held,
+        "the offset-fit refusals' replay list must name exactly the scalars whose policy \
+         holds the door"
+    );
+}

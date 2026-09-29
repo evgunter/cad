@@ -2832,8 +2832,10 @@ impl fmt::Display for ValidationError {
             Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,
                 "a face carries a fitted offset surface, and the check at the {scalar} scalar \
-                 had no offset-fit door to re-derive its certificate with; only f64 holds that \
-                 door (the fit is derived there alone). Recourse: check the body at f64"
+                 had no offset-fit door to re-derive its certificate with; only {holders} holds \
+                 that door (the fit is derived there alone). Recourse: check the body at \
+                 {holders}",
+                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::DegenerateTorus { verdict, .. } => write!(
                 f,
@@ -12744,10 +12746,13 @@ mod offset_fit_door_rows {
             <geom_core::Probe as crate::props::AtRestPolicy>::offset_fit_lane(),
         );
         assert!(
-            errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f, .. } if *f == face)
-            ),
-            "the probe scalar has no fit, so its face must report the absence: {errors:?}"
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ApproxLaneUnsupported { face: f, scalar: "telemetry probe" }
+                    if *f == face
+            )),
+            "the probe scalar has no fit, so its face must report the absence, naming the \
+             probe: {errors:?}"
         );
     }
 

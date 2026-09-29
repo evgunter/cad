@@ -29,7 +29,7 @@ written at this scalar"* — and not *"this scalar may not certify"*
 (`docs/DUAL-DESIGN.md` DL1, the missing `CertifiedEnclosure` impl).
 The probe arm is the sharp one: `Probe` IS `f64` with a sink, and every
 other per-scalar seam in editor-core says so and delegates
-(`Lane::end`, `SectionScalar::pinned_f64` returning `Some(self.0)`,
+(`SectionScalar::pinned_f64` returning `Some(self.0)`,
 `AxisScalar::axis`, `ShellLane::run_shell`). Reading the arms alone, a
 reader cannot tell which of the two absences this is, and the probe
 arm reads as a demotion nobody intended.

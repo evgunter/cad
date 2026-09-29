@@ -573,8 +573,10 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::ApproxLaneUnsupported { face, scalar } => write!(
                 f,
                 "replace_face_offset: {face:?} carries a NURBS surface, and the mint at the \
-                 {scalar} scalar had no offset-fit door to fit its offset with; only f64 holds \
-                 that door (the fit is derived there alone). Recourse: offset the face at f64"
+                 {scalar} scalar had no offset-fit door to fit its offset with; only {holders} \
+                 holds that door (the fit is derived there alone). Recourse: offset the face at \
+                 {holders}",
+                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::SharedSurfaceKey { face, other } => write!(
                 f,
