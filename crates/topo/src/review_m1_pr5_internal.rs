@@ -353,6 +353,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "set_surface_field_source",
         "ParamSource metadata, no arena key (a per-field side record beside the surface)",
     ),
+    (
+        "set_surface_axis_source",
+        "axis-channel metadata, no arena key (a per-component side record beside the surface)",
+    ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("mint_pcurves", "pcurve caches only; no topology touched"),

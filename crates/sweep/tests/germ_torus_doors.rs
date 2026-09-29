@@ -47,6 +47,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::framed_bar;
+use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
 
 use geom_core::{Band, Point2, Point3, Tol};
@@ -761,34 +763,6 @@ fn the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control() {
 // A certified root the landing point contradicts keeps the door.
 // -------------------------------------------------------------------
 
-/// A `w × w` square bar along the unit direction `d`, from `o + d·t0`
-/// to `o + d·t1`: the square lies in the plane normal to `d` at the
-/// start, in the frame `u = normalize(d × ŷ)`, `v = d × u`.
-fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: f64) -> Body<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
-    let d = d.normalize();
-    let u = d.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
-    let v = d.cross(u);
-    let h = w / 2.0;
-    let lp = ProfileLoop::polygon([
-        Point2::new(-h, -h),
-        Point2::new(h, -h),
-        Point2::new(h, h),
-        Point2::new(-h, h),
-    ]);
-    let start = o + d * t0;
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(u, v, d),
-        start - Point3::origin(),
-    ));
-    let vp = profile::Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("the framed bar's profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(t1 - t0), Tol::witness())
-        .expect("the framed bar extrudes")
-        .body
-}
-
 /// **A bar through the tube is never answered as disjoint.** A near-
 /// perpendicular pose puts a certified quartic root a hair off the
 /// tube, and the landing point then reads definitely OFF the carrier.
@@ -1110,97 +1084,190 @@ fn a_cube_in_the_donuts_hole_answers_the_disjoint_union() {
 }
 
 // -------------------------------------------------------------------
-// ∖ and ∩ against an oval no crossing can see.
+// ∖ and ∩ through the same doors.
 // -------------------------------------------------------------------
 
-/// The donut's profile revolved by `π` about `y`: the half with `z ≤ 0`,
-/// capped by two planar discs in `z = 0`.
-fn half_donut() -> Body<f64> {
-    let vp = validated(vec![revolve_common::donut_profile()]);
-    revolve(
-        &vp,
-        axis_y(),
-        Revolution::Partial(std::f64::consts::PI),
+/// **The cube in the hole under ∖ and ∩, both orders.** The section
+/// certificate that answers its union answers these: `donut ∖ cube` is
+/// the donut (`π²`), `cube ∖ donut` the cube (`0.5`), `donut ∩ cube`
+/// empty — each result valid at tier 3 and placing the witnesses where
+/// the operands do.
+#[test]
+fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
+    let (d, cube) = (donut(), bar((-0.5, 0.5), (-0.25, 0.25), (-0.5, 0.5)));
+    let vol = |x: &Body<f64>| {
+        topo::mass_properties(x, Tol::witness())
+            .expect("the volume integrates")
+            .volume
+    };
+    // (the cube's centre, the tube's spine, the hole beside the cube)
+    let q = [
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(2.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+    ];
+    for (what, r, want, inside) in [
+        (
+            "donut ∖ cube",
+            topo::subtract(&d, &cube, Tol::witness()),
+            std::f64::consts::PI.powi(2),
+            [false, true, false],
+        ),
+        (
+            "cube ∖ donut",
+            topo::subtract(&cube, &d, Tol::witness()),
+            0.5,
+            [true, false, false],
+        ),
+    ] {
+        let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let b = &r.body().expect("non-empty").body;
+        assert_eq!(
+            topo::validate_geometric(b, Tol::witness()),
+            Ok(()),
+            "{what}"
+        );
+        assert!(
+            (vol(b) - want).abs() <= 1e-9 * want,
+            "{what}: {} against {want}",
+            vol(b)
+        );
+        for (&x, want) in q.iter().zip(inside) {
+            assert!(
+                matches!(
+                    (topo::point_in_solid(b, x, band(), Tol::witness()), want),
+                    (Ok(topo::SolidContainment::In), true)
+                        | (Ok(topo::SolidContainment::Out), false)
+                ),
+                "{what} at {x:?}"
+            );
+        }
+    }
+    assert!(
+        matches!(
+            topo::intersect(&d, &cube, Tol::witness()),
+            Ok(topo::BooleanResult::Empty)
+        ),
+        "donut ∩ cube is empty"
+    );
+}
+
+/// **∖ and ∩ refuse where ∪ does, both orders.** With the torus on the
+/// revert roster, a subtract or an intersect over the fixtures above
+/// reaches the same doors as their unions:
+///
+/// - a bar through the tube (near-perpendicular, belly, chord across
+///   the hole) stops at the curved-sector sagitta charge, or at the
+///   crossing layer's pierce door where the run's band puts the
+///   near-perpendicular root there;
+/// - the slab's face-interior oval is a certified interior loop
+///   (R-loop), and two tori meeting in an oval, or a cylinder grazing
+///   the outer equator, have no section classification (R-reach);
+/// - the dumbbell's declared waists stop at the section pass on their
+///   tangency (R-tan), and undeclared at the crossing layer.
+///
+/// None of them is a body.
+#[test]
+fn subtract_and_intersect_refuse_where_union_does() {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let d = donut();
+    let none = BooleanDeclarations::none();
+    let near = framed_bar(
+        Point3::new(
+            -2.109_637_800_205_744_5,
+            0.170_221_792_550_834_86,
+            1.920_645_887_674_835_4,
+        ),
+        Vec3::new(
+            -0.990_360_666_876_138_8,
+            1.376_996_009_986_983_2e-4,
+            0.138_512_564_568_957,
+        ),
+        -4.6,
+        -0.1,
+        1e-3,
+    );
+    for (name, b) in [
+        ("near-perpendicular bar", near),
+        ("belly bar", bar((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0))),
+        (
+            "chord across the hole",
+            bar((-0.1, 0.1), (-0.1, 0.1), (-2.0, 2.0)),
+        ),
+    ] {
+        for (op, r) in subtract_both_orders_and_intersect(&d, &b, &none) {
+            let err = r.expect_err(op);
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::CurvedSectorSideUnsupported { .. }
+                        | BooleanError::CurvedPierceUnsupported { .. }
+                ),
+                "{name}, {op}: {err:?}"
+            );
+        }
+    }
+    let far = topo::transform_rigid(
+        &d,
+        &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
         Tol::witness(),
     )
-    .expect("the half donut revolves")
-    .body
-}
-
-/// A C-shaped bracket, `0.6` thick in `y`: a pin through the half
-/// donut's `x > 0` cap (`x ∈ [1.95, 2.05]`, down to `z = −0.1`, inside
-/// the tube), a bridge and an upright standing clear of the ring, and a
-/// foot along `x` whose top face `z = −2.45` cuts an oval off the outer
-/// equator's crown (`z = −2.5`). The oval touches no edge of either
-/// body; the pin's crossings are elsewhere.
-fn bracket() -> Body<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
-    let lp = ProfileLoop::polygon(
-        [
-            (1.95, -0.1),
-            (2.05, -0.1),
-            (2.05, 0.8),
-            (3.0, 0.8),
-            (3.0, -2.45),
-            (-1.0, -2.45),
-            (-1.0, -2.8),
-            (3.2, -2.8),
-            (3.2, 1.0),
-            (1.95, 1.0),
-        ]
-        .map(|(x, z)| Point2::new(x, z)),
-    );
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_z(), -Vec3::unit_y()),
-        Vec3::new(0.0, 0.3, 0.0),
-    ));
-    let vp = profile::Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("the bracket profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(0.6), Tol::witness())
-        .expect("the bracket extrudes")
-        .body
-}
-
-/// **∖ and ∩ refuse the oval, both operand orders.** The bracket's foot
-/// meets the half donut's outer face in a closed oval interior to both
-/// faces, while the pin crosses the cap elsewhere, so the op has
-/// crossings and never reaches the no-crossings section pass; the join
-/// and the face-region propagation cannot see an oval no edge crosses
-/// (`work/germ/torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`).
-/// The revert roster refusing the torus face is what keeps ∖ and ∩ off
-/// that path: with the torus admitted, the intersection came back a
-/// valid body missing the oval's lens (the point `(0, 0, −2.47)`, inside
-/// both operands, read `Out` of it).
-#[test]
-fn subtract_and_intersect_refuse_an_oval_their_crossings_cannot_see() {
-    let (h, c) = (half_donut(), bracket());
-    let q = Point3::new(0.0, 0.0, -2.47);
-    let band = band();
-    for (name, body) in [("half donut", &h), ("bracket", &c)] {
-        assert!(
-            matches!(
-                topo::point_in_solid(body, q, band, Tol::witness()),
-                Ok(topo::SolidContainment::In)
-            ),
-            "the witness point is inside the {name}"
-        );
-    }
-    for (op, r) in [
-        ("h ∖ c", topo::subtract(&h, &c, Tol::witness())),
-        ("c ∖ h", topo::subtract(&c, &h, Tol::witness())),
-        ("h ∩ c", topo::intersect(&h, &c, Tol::witness())),
+    .expect("the donut translates");
+    let cyl = {
+        let lp = bulge_loop(vec![
+            (Point2::new(-0.55, 3.0), 1.0),
+            (Point2::new(0.55, 3.0), 1.0),
+        ]);
+        let plane = profile::SketchPlane::new(Affine3::from_parts(
+            Mat3::from_cols(Vec3::unit_y(), Vec3::unit_z(), Vec3::unit_x()),
+            Vec3::new(-1.0, 0.0, 0.0),
+        ));
+        let vp = profile::Profile::new(plane, vec![lp])
+            .validate(Tol::witness())
+            .expect("the circle validates");
+        sweep::extrude(&vp, sweep::Extrusion::Distance(2.0), Tol::witness())
+            .expect("the cylinder extrudes")
+            .body
+    };
+    let halves = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
+    let waists = declarations(&halves.0, &halves.1, Some(ContactClass::Rest));
+    for (name, a, b, decls, says) in [
+        (
+            "slab",
+            &d,
+            &bar((-0.8, 0.8), (-0.4, 0.4), (2.45, 3.0)),
+            &none,
+            "a closed loop interior to both faces",
+        ),
+        ("two tori", &d, &far, &none, "has no section classification"),
+        (
+            "grazing cylinder",
+            &d,
+            &cyl,
+            &none,
+            "has no section classification",
+        ),
+        (
+            "declared dumbbell",
+            &halves.0,
+            &halves.1,
+            &waists,
+            "tangent or near-tangent carriers",
+        ),
     ] {
+        for (op, r) in subtract_both_orders_and_intersect(a, b, decls) {
+            let err = r.expect_err(op);
+            let BooleanError::FallbackExtentUnsupported { what, .. } = &err else {
+                panic!("{name}, {op}: the section pass refuses: {err:?}");
+            };
+            assert!(what.contains(says), "{name}, {op}: {what}");
+        }
+    }
+    for (op, r) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none) {
         let err = r.expect_err(op);
         assert!(
-            matches!(
-                err,
-                BooleanError::CurvedPairUnsupported {
-                    kind: geom_brep::SurfaceKind::Torus,
-                    ..
-                }
-            ),
-            "{op}: {err:?}"
+            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            "undeclared dumbbell, {op}: {err:?}"
         );
     }
 }

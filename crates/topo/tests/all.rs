@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "axis_source_rows.rs"]
+mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
 mod bool4_material_containment;
 #[path = "bool4r1_probes.rs"]

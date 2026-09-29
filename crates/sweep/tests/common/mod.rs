@@ -65,6 +65,9 @@
 //!   they route beside [`cap_rims`] rather than into [`orient`];
 //! - [`poses`] — the rigid poses a re-posed row asks its question at:
 //!   what a suite drives a door WITH, as [`charts`];
+//! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
+//!   declarations, swapped for the reversed order: what a suite drives
+//!   a door WITH, as [`poses`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -210,6 +213,11 @@ pub mod contact_edges;
 /// rows' one re-pose and the six-pose set. What a suite drives a door
 /// WITH, so it routes here.
 pub mod poses;
+
+/// ∖ in both operand orders and ∩ under one set of declarations,
+/// swapped for the reversed order. What a suite drives a door WITH, so
+/// it routes here.
+pub mod revert_ops;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;

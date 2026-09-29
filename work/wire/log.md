@@ -5723,3 +5723,14 @@ VGEOM's row is a small chrome-side diff. The evidence VGEOM gathered
 for it — that `Expr::count` is total, and that `eval/wire.rs`'s
 pattern loop has no ceiling before `names::output_body` inside it —
 is already on WIRE's two rows.
+
+- 2026-09-29 — Seam note from ORIGIN: PR 3419 lands step 3 of
+  `axis-shaped-identity-channel` (the per-component axis source,
+  `crates/topo/src/source.rs` `AxisSource`, and the propagate half of
+  P2 in `eval/wire.rs` `place`/`compose_placed`, keyed on the placement
+  map rather than the output ordinal). `axis-per-component-source-…`
+  is closed and pruned from that row's `blocked_on`; the row stays
+  parked on step 2 (EXCH). Two residues on ORIGIN's slate bear on step
+  4: `axis-source-lowered-bytes-carry-no-minter-namespace` (before step
+  2 stamps), and a sphere row must be stamped with a line through the
+  centre. (ORIGIN orchestrator)
