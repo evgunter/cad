@@ -438,7 +438,10 @@ pyo3::create_exception!(
      are one answer, with the hull of their intervals.\n\n\
      `NodePick.patch_names` answers with instances of this class IN A \
      SLOT rather than raising: one naming-emission bug must not cost a \
-     consumer the names of every other patch it is drawing."
+     consumer the names of every other patch it is drawing. It and \
+     `boundary_names` RAISE this class for a refusal of the whole \
+     call — the pairing, or the standing — under the same words; their \
+     message says a name lookup refused, because no hit test ran."
 );
 pyo3::create_exception!(
     pncad,
@@ -454,8 +457,8 @@ pyo3::create_exception!(
      node that draws nothing today (an annihilated boolean, an empty \
      split side) draws again after an edit.\n\n\
      Two arms FORWARD rather than wrap. The standing ladder arrives \
-     under `HitTestError`'s own tags, because it IS that refusal; a \
-     tessellation refusal arrives under the tessellator's own tag and \
+     under the tags `HitTestError` answers with, because it is the \
+     same standing; a tessellation refusal arrives under the tessellator's own tag and \
      prose. What a forwarded arm does not bring is the inner refusal's \
      extra ATTRIBUTES — a tessellation refusal's `value`, `bound`, \
      `requested` and `note` stay on `TessellateError`, where \

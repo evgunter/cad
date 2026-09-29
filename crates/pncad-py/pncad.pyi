@@ -826,8 +826,8 @@ class NodePickError(PncadError):
     under an edit, which is why the two are not one arm.
 
     Two arms FORWARD rather than wrap. The standing ladder arrives
-    under `HitTestError`'s own tags, because it IS that refusal; a
-    tessellation refusal arrives under the tessellator's own tag and
+    under the tags `HitTestError` answers with, because it is the same
+    standing; a tessellation refusal arrives under the tessellator's own tag and
     prose. A forwarded arm does not bring the inner refusal's extra
     ATTRIBUTES: a tessellation refusal's `value`, `bound`, `requested`
     and `note` stay on `TessellateError`, where `Body.tessellate`

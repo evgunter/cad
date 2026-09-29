@@ -399,7 +399,8 @@ pub enum ErrorClass {
     /// different stages of one story: this one means there is nothing
     /// to pick AGAINST, that one means the pick itself could not
     /// answer. The standing ladder is shared, and arrives here under
-    /// the hit-test door's own tags rather than a wrapper's.
+    /// the same tags the hit-test door answers with rather than a
+    /// wrapper's.
     NodePick,
     /// The advisory-check registry could not RUN: a root without a
     /// value, a tolerance that forms no band, roots that gather into
