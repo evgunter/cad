@@ -2658,3 +2658,47 @@ not any review outcome.
 The pair dispatches concurrently when PR 3483's reviewer frees its
 target: disk has room for two warm targets, not three. Per protocol
 item 4, fewer simultaneous duals rather than a narrowed method.
+
+## PR 3483's review: APPROVE-WITH-FIXES; fix pass out. PR 3467's dual pair out (2026-09-29)
+
+**PR 3483.** The single full review of `d9465eb31e` took 281,838
+tokens, 125 tools and 62 min (harness); archived privately.
+- **Confirmed by execution:**
+  - the counterexamples at base and head, with the PR's tables
+    reproduced exactly;
+  - 0 `OrbitBroken` across 24,297 valid bodies (468k calls per op),
+    including 28k `kef` calls with `u == w`;
+  - an environment hook over five crates' suites fired only where
+    tears are planted.
+- **MAJOR-1 (accepted):** the `None` arms (`kev_plan`'s segment arm,
+  `kef`'s survivor, `kemr`'s empty side) decide "no anchor" from the
+  same unproven `next` step. They write `None` on a vertex that keeps
+  incidence, through `Ok`. It is the same residue at base, and in
+  scope because a `None` anchor is an anchor write.
+- **MAJOR-1b (accepted):** the fix's fan-first order in `kev_plan`
+  assumes `mate(m) == he` without checking it. Six `EdgeBijection`
+  calls moved from a dead `Some` anchor to a `None` on a live vertex.
+  This is the style lane's "a fix mints a fresh instance". The PR's
+  `NextForeign`-only, `Some`-only probe could not see either.
+- **Also accepted:**
+  - MINOR-2: M10/M12 survive, since each op pins one side; add `u == w` rows.
+  - MINOR-3: the receipt missed the `Empty` loop writes; they go to
+    the loop row.
+  - NOTE-4: the `OrbitBroken` doc.
+  - NOTE-5: the revert row is now measured (168/576 `next`, 120/576
+    `prev`).
+  - Q1: one helper for the anchor loop.
+  - Q3: the probe gains `None` and `EdgeBijection` columns.
+  - Q4: stale module-doc sentences.
+- The fix pass is dispatched on a fresh target (`topo-anchorfix-target`,
+  non-incremental), because the pair below holds both warm ones.
+
+**PR 3467, DUAL.** Two Opus reviewers are dispatched concurrently on
+frozen `15a78f05fa`.
+- The two briefs are identical except for lane label, target and
+  scratch; hashes are stored privately.
+- The coding byte is drawn and recorded privately.
+- The PR thread was re-read before briefing: it is empty.
+- R1 builds on `topo-rebase-target` (warm on this head) and R2 on
+  `topo-mefkefr2-target` (warm on topo at another head). Only the
+  warmth differs, not the method.
