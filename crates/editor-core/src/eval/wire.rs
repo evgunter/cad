@@ -4060,6 +4060,9 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
     let map = transform_map(translation, rot_axis, angle);
+    if std::env::var_os("PLACE1_R2_MOTION").is_some() {
+        eprintln!("MOTION node={} {:?}", id.0, map);
+    }
     let per = placeable.bodies().len();
     let payload =
         placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;

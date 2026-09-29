@@ -710,7 +710,7 @@ fn transform_map<P: crate::ProfilePayload>(
         return Err(here(NodeErrorKind::MissingInput { input: node }));
     };
     let vals = node_slots(transform, env).map_err(here)?;
-    Ok(crate::eval::transform_map(
+    let m = (crate::eval::transform_map(
         need_vec3(&vals, SlotId::Translation).map_err(here)?,
         crate::eval::unit_direction(
             need_vec3(&vals, SlotId::RotationAxis).map_err(here)?,
@@ -719,7 +719,11 @@ fn transform_map<P: crate::ProfilePayload>(
         )
         .map_err(here)?,
         need_scalar(&vals, SlotId::RotationAngle).map_err(here)?,
-    ))
+    ));
+    if std::env::var_os("PLACE1_R2_MOTION").is_some() {
+        eprintln!("MMOTION node={} {:?}", node.0, m);
+    }
+    Ok(m)
 }
 
 /// **The placer's slots, in `env`** — [`eval_slots`], the

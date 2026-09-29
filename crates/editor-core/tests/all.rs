@@ -266,6 +266,8 @@ mod m10_4_seed;
 mod maintenance_net;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
+#[path = "place1_r2_motion_probe.rs"]
+mod place1_r2_motion_probe;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]
