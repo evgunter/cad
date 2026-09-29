@@ -226,10 +226,10 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind,
-    RecipeNodeId, SlotId,
+    ChecksReport, Evaluation, Maintenance, NodeStanding, ParamName, ParseError, ProductError,
+    ProductErrorKind, RecipeNodeId, SlotId,
 };
-use pncad::select::{HitTestError, NameLookupError, NodePickError};
+use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
 use crate::camera::CameraError;
@@ -2432,54 +2432,23 @@ pub fn index_badge(
     })
 }
 
-/// A pick-index refusal, every standing it carries re-read by
-/// [`crate::tree::standing_as_drawn`]; every other refusal is the
-/// index's, unchanged.
+/// A pick-index refusal, its standing ([`PickIndexError::standing`])
+/// re-read by [`crate::tree::standing_as_drawn`]; every other refusal
+/// is the index's, unchanged.
 fn index_refusal_as_drawn(error: &PickIndexError, evaluation: &Evaluation<f64>) -> PickIndexError {
-    let drawn = |standing| crate::tree::standing_as_drawn(standing, evaluation);
-    match error {
-        PickIndexError::Node { node, error } => PickIndexError::Node {
-            node: *node,
-            error: match error {
-                NodePickError::Standing(standing) => NodePickError::Standing(drawn(*standing)),
-                NodePickError::NotABody { .. }
-                | NodePickError::NoSuchBody { .. }
-                | NodePickError::Tessellate(_)
-                | NodePickError::Index(_) => error.clone(),
-            },
-        },
-        PickIndexError::Names(NameLookupError::Standing(standing)) => {
-            PickIndexError::Names(NameLookupError::Standing(drawn(*standing)))
-        }
-        PickIndexError::Names(NameLookupError::EvaluationOfAnotherDocument(_))
-        | PickIndexError::Ids(_)
-        | PickIndexError::DrawnTwice { .. } => error.clone(),
-    }
+    error
+        .restated(|standing| crate::tree::standing_as_drawn(standing, evaluation))
+        .map_or_else(|| error.clone(), |(_, drawn)| drawn)
 }
 
-/// **The root a pick-index refusal is a consequence of**, when the
-/// refusal is the one a root with no value produces — `None` for a
-/// refusal that is the index's own.
-///
-/// Only [`NodePickError::Standing`] is that: it is how the index says
-/// the root has no `Ok` value in the evaluation. Whether that is
-/// because the root failed, was poisoned, or never ran is the tree's
-/// to read, and [`index_badge`] asks it rather than reading the
-/// standing arm here. A tessellation or indexing refusal of a root
-/// that DID evaluate is news no other surface carries.
+/// **The node a pick-index refusal is a consequence of**, when the
+/// refusal is one a node with no value produces
+/// ([`PickIndexError::standing`]) — `None` for a refusal that is the
+/// index's own. Whether the node failed, was poisoned, or never ran
+/// is the tree's to read, and [`index_badge`] asks it rather than
+/// reading the standing here.
 fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
-    match error {
-        PickIndexError::Node { node, error } => match error {
-            NodePickError::Standing(_) => Some(*node),
-            NodePickError::NotABody { .. }
-            | NodePickError::NoSuchBody { .. }
-            | NodePickError::Tessellate(_)
-            | NodePickError::Index(_) => None,
-        },
-        PickIndexError::Ids(_) | PickIndexError::DrawnTwice { .. } | PickIndexError::Names(_) => {
-            None
-        }
-    }
+    error.standing().map(NodeStanding::node)
 }
 
 /// **What the chrome badges about a camera that cannot be

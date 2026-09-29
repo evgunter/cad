@@ -27,7 +27,8 @@
 
 use bvh::Aabb;
 use editor_core::{
-    HitTestError, InterrogateError, MateSide, NodePickError, NodeStanding, UnnamedEntity,
+    HitTestError, InterrogateError, MateSide, NameLookupError, NodePickError, NodeStanding,
+    UnnamedEntity,
 };
 use pncad::document::{EditError, RecipeNodeId};
 use pncad::mesh::TessellateError;
@@ -256,19 +257,56 @@ fn pick_index_error_forwards_its_id_arm() {
 }
 
 /// The indexing arm carries `editor-core`'s own refusal, and the root
-/// it names is this layer's contribution — both reach the reader.
+/// it names is this layer's contribution. The arm claims only that the
+/// root was not indexed, which is true of every payload: why — no
+/// value, no body, a tessellation refusal — is the payload's to say.
 #[test]
-fn pick_index_error_forwards_its_node_arm() {
+fn pick_index_error_says_only_that_its_root_was_not_indexed() {
     let node = RecipeNodeId(7);
-    let inner = NodePickError::NotABody { node };
-    let outer = PickIndexError::Node {
-        node,
-        error: inner.clone(),
+    let not_a_body = NodePickError::NotABody { node };
+    let standing = NodeStanding::Failed { node };
+    for inner in [not_a_body, NodePickError::Standing(standing)] {
+        let outer = PickIndexError::Node {
+            node,
+            error: inner.clone(),
+        }
+        .to_string();
+        assert_eq!(outer, format!("root 7 could not be indexed: {inner}"));
     }
-    .to_string();
-    assert!(outer.contains(&inner.to_string()), "{outer}");
-    assert!(outer.contains('7'), "{outer}");
-    prose(&outer, "NotABody");
+}
+
+/// A node with no value is the one fact a pick-index refusal shares
+/// with the tree, at the build and at the name doors alike; every
+/// other refusal is the index's own.
+#[test]
+fn pick_index_error_reads_a_standing_at_the_build_and_at_the_name_doors() {
+    let node = RecipeNodeId(7);
+    let standing = NodeStanding::Failed { node };
+    let build = PickIndexError::Node {
+        node,
+        error: NodePickError::Standing(standing),
+    };
+    let names = PickIndexError::Names(NameLookupError::Standing(standing));
+    let not_a_body = PickIndexError::Node {
+        node,
+        error: NodePickError::NotABody { node },
+    };
+    assert_eq!(
+        (build.standing(), names.standing(), not_a_body.standing()),
+        (Some(standing), Some(standing), None)
+    );
+    let poisoned = NodeStanding::Poisoned {
+        node,
+        through: RecipeNodeId(3),
+    };
+    assert_eq!(
+        names.restated(|_| poisoned),
+        Some((
+            standing,
+            PickIndexError::Names(NameLookupError::Standing(poisoned))
+        )),
+        "the standing is re-read in its own seat"
+    );
 }
 
 /// The layout arm is this layer's OWN finding — no payload to forward
