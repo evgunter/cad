@@ -2,9 +2,8 @@
 id: edit-refusals-short-of-the-shape-guard
 kind: issue
 title: edit: refusals the viewer draws that state no recourse, by the shape guard's census
-status: review
+status: open
 pr: 3490
-branch: edit/edit-refusal-recourse
 opened: 2026-09-29
 priority: P2
 cost: M
