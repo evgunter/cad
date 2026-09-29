@@ -2,10 +2,11 @@
 id: certification-contains-admits-an-infinite-probe
 kind: issue
 title: Certification::contains answers true for ±inf on an unbounded enclosure, where the enclosure is a set of reals and the retired inari backend answers false
-status: review
+status: closed
 branch: scalar/cert-diff
 pr: 3451
 opened: 2026-09-29
+closed: 2026-09-29
 priority: P2
 cost: E
 ---
@@ -59,3 +60,7 @@ production caller, the `Certification::contains` door, and the door has
 no production caller in the workspace; every test caller probes a
 finite value (a constant, or an f64 result guarded by `is_finite()` or
 drawn from a bounded range). Nothing relied on admitting `±inf`.
+
+## Closed (2026-09-29) — PR 3451 (CERT-DIFF)
+
+Fixed at the backend: `DInterval::contains` refuses a non-finite probe, matching its doc and inari; no production caller relied on it; nothing moved.
