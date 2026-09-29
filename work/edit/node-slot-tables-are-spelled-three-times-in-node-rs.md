@@ -77,25 +77,33 @@ claim.
 
 ## Built (2026-09-29)
 
-Each of the three shapes has one borrow-generic row list in
-`crates/editor-core/src/node.rs`, and `slots`, `expr` and `expr_mut`
-all read it: `window_rows!` (read by `TubeWindow`'s three doors and by
-both tube kinds), `rule_rows!` (`Node::Pattern` and
-`Node::PlacedUnion`) and `node_rows!` (every other node kind, with
-`tube_rows!` holding the head both tube kinds share). `comp`,
-`comp_mut`, `comp2` and `comp2_mut` became one `axis_rows!`, which zips
-a 3- or 2-vector with `Axis3::ALL`. The profile arm still delegates to
-its payload, whose table is `program.rs`'s `loop_roles`. `rule_expr_mut`'s
-"same mapping" doc went with the function.
+Each shape has one borrow-generic row list, and every door reads it.
+In `crates/editor-core/src/node.rs`: `node_rows!` (every node kind),
+with `rule_rows!` (`Node::Pattern` and `Node::PlacedUnion`),
+`tube_rows!` and `window_rows!` (both tube kinds) and `axis_rows!`
+(every 3- or 2-vector, held to that arity at compile time) under it.
+The profile arm reads `ProfilePayload::rows`, which is keyed by
+`(loop, step, arg)`, so a profile node answers only `SlotId::Profile`
+addresses. In `crates/editor-core/src/program.rs`: `loop_roles!` (a
+whole loop, keyed `(step, role)`) and `program_rows!` (a program, over
+its loops). `row_readers!` writes each `rows`/`rows_mut` pair
+(`Node`, `LoopProgram`, `ProfileProgram`), and `find_row` is the one
+lookup in both files. `Node::slots`, `expr` and `expr_mut` are each
+one line over `Node::rows`, and `slot_dimension_fault` reads the rows
+directly, so it has no unreachable arm. `TubeWindow`'s uncalled doors
+went.
 
-The guard is
-`switch_slots::every_node_kinds_expr_mut_writes_the_field_expr_reads`.
-It writes a sentinel through `expr_mut` at every slot of every node
-shape, reads it back through `expr`, and checks that no other slot
-moved. Across the union of every shape's slots, it checks that
-`expr_mut` answers exactly where `expr` does. A transposed `U` arm reds
-it, both in the old `Node::expr_mut` and as a remap in the new one.
-
-No slot order and no stored bit moved: every shape's `(slot, expr)`
-list was dumped before and after the change, and the two dumps are
-identical.
+The guards, all in `switch_slots`:
+- `every_node_kinds_expr_mut_writes_the_field_expr_reads`: a sentinel
+  written through `expr_mut` at every slot reads back through `expr`,
+  and no other slot moves. A transposed `U` arm reds it.
+- `every_node_kinds_slots_are_all_readable`: also checks that `slots()`
+  lists no slot twice.
+- `every_node_shapes_slot_table_is_pinned`: the golden
+  `crates/editor-core/tests/golden/slot_tables.txt` holds every shape's
+  slots in order and the field each one addresses (a distinct tag per
+  slot, written through `expr_mut`). It reds on a same-dimension field
+  swap (Sweep `Stations`/`v_degree`) and on an order-only swap
+  (Transform translation/rotation axis), which every other row passes.
+  It is green on the pre-change sources, so no slot order or mapping
+  moved.
