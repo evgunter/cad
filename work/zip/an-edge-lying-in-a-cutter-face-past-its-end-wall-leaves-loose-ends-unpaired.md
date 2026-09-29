@@ -59,6 +59,18 @@ the op reaches this door. Unmeasured whether the four loose ends are
 exactly the in-face-edge class above; the shape matches (an operand
 edge lying in a cutter face, the cutter ending inside the operand).
 
+**A closed in-face conic, every op** (germ, 2026-09-28). A tube
+`0.5 ≤ ρ ≤ 1`, `y ∈ [−1, 1]` revolved about `y` from a profile with a
+vertex at `(1, 0)`, so its outer wall is two faces meeting in the
+circle `ρ = 1, y = 0`; B the box `[−1.5, 1.5] × [−2, 0] × [−1.5, 1.5]`,
+whose top face `y = 0` holds that whole circle. ∪, ∖ and ∩ each refuse
+`Join(UnpairedLooseEnds { count: 4 })`, with or without the sweep's
+endpoint treatment for a conic lying in a plane face's plane. The same
+tube with B over `x ∈ [−0.3, 0.3]`, `z ∈ [0.8, 1.3]` (an arc of the
+circle in the face) refuses at `split_arc_window` instead. Held,
+refuse-or-answer-correctly, by `crates/sweep/tests/germ_coplanar_conic.rs`
+`every_op_refuses_or_answers_its_closed_form`.
+
 ## What the taker owes
 
 Either the join learns to reuse the in-face edge as its section segment

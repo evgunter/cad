@@ -2,8 +2,10 @@
 id: validate-own-close-levers-follow-the-d4-recourse-ruling
 kind: issue
 title: topo::validate's own-close escalations (SliverDihedral, the planar residuals) say 'lower the tolerance' where D4 now says 'tighten, if this size is intended', or nothing
-status: open
+status: dispatched
 opened: 2026-09-28
+priority: P3
+cost: M
 ---
 
 

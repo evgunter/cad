@@ -250,30 +250,20 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     assert_eq!(format!("{:?}", rev.revert().unwrap()), format!("{body:?}"));
 }
 
-/// **Re-pinned again at M5 S13 (was
-/// `the_die_pips_shape_still_refuses_at_the_narrowed_per_class_door`,
-/// before that `curved_subtract_front_door_quotes_the_same_finding`).**
-/// PR 9c's own smoke shape — the unit ball at the origin bitten out of
-/// a slab standing on z = 0 — now PASSES the per-class door (S13 opened
-/// the sphere class: the (Plane, Sphere) germ arm plus the
-/// extent-certified fallback re-cut, pinned green in
-/// `m5_s13_pips.rs`/`m5_s12_curved_ops.rs`), and what stops THIS
-/// particular placement is its own geometry: the ball is exactly
-/// TANGENT to the slab's top-face carrier (center on z = 0, radius 1,
-/// face at z = 1), a touching configuration the crossing layer cannot
-/// represent. The extent scan refuses it TYPED — never the S12
-/// finding's silent vertex-probe answer — which keeps this row's
-/// charter: PR 9c's smoke shape pinned at whatever the current door
-/// says. What that is: the ball's seam great circle lies EXACTLY IN
-/// the bottom face's carrier plane (center on z = 0) — the coplanar
-/// conic class, routed structurally to endpoint-only treatment (the
-/// M3 rule; S13 fix pass) — so the reduction finds no crossings and
-/// the extent scan takes over, where the ball is exactly TANGENT to
-/// the TOP face's carrier (center z = 0, radius 1, face z = 1): the
-/// scan's tangency arm refuses TYPED. (Nudge the ball off both
-/// coincidences and the S13 lanes cut it — the pips suite.)
+/// **PR 9c's own smoke shape** — the unit ball at the origin bitten
+/// out of a slab standing on `z = 0` — pinned at whatever the current
+/// door says. The ball's seam great circle lies EXACTLY IN the bottom
+/// face's carrier plane, poles and all, so the sweep records both poles
+/// on that face (a conic lying in a plane face's plane takes the line
+/// lane's endpoint posture). With those events the reduction takes the
+/// crossings path, and the join refuses the section it meets there —
+/// the great circle `z = 0`, tilted against the ball's `y` polar axis —
+/// as a typed frontier. The ball is also exactly TANGENT to the top
+/// face's carrier (`z = 1`), which the extent scan refused when the
+/// sweep did not see the poles. (Nudge the ball off both coincidences
+/// and the S13 lanes cut it — the pips suite.)
 #[test]
-fn the_die_pips_shape_now_stops_typed_at_its_own_tangency() {
+fn the_die_pips_shape_stops_typed_at_its_tilted_section() {
     let slab = validated(vec![profile::ProfileLoop::polygon([
         Point2::new(-2.0, -2.0),
         Point2::new(2.0, -2.0),
@@ -285,20 +275,16 @@ fn the_die_pips_shape_now_stops_typed_at_its_own_tangency() {
         .body;
     let b = ball();
     let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
-    let topo::BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-        panic!("expected the extent scan's tangency arm, got {err:?}");
+    let topo::BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }) = &err else {
+        panic!("expected the join's tilted-section frontier, got {err:?}");
     };
-    assert!(what.contains("tangent"), "{what}");
+    assert!(what.contains("tilted"), "{what}");
     // The retired claims must be GONE from the surfaced text: revert is
     // wired, the gate is not wholesale, and the sphere class is no
     // longer refused as a class.
     let msg = err.to_string();
     assert!(!msg.contains("no representation"), "{msg}");
     assert!(!msg.contains("no seam lane"), "{msg}");
-    assert!(
-        msg.contains("cannot be sure whether one lies inside the other"),
-        "{msg}"
-    );
 }
 
 /// NOTE row (PR 9c review, F4): the TANGENT ray. A schedule direction
