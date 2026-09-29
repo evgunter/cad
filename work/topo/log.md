@@ -2411,3 +2411,38 @@ The container restarted around 14:30 UTC, stopping two lanes:
 PR 3472's full review is dispatched too. The two reviewers run
 concurrently on the targets warm on their heads. The state sync
 (PR 3471) merged.
+
+## PR 3467's review: NOT-MERGEABLE-AS-IS. The fragment-sense rule goes to a design fork (2026-09-29)
+
+The single full review of `a7224a17d0` (223,428 tokens / 15 min,
+harness; archived privately) found two MAJORs.
+
+1. **For `mfkrh`, inheriting the parent's `sense` on the parent's chart
+   is geometrically wrong.** A promoted ring bounds a face facing
+   opposite to its parent.
+   - Executed on `holed_block(3,[1.5])`: both `Inherit` and
+     `Shared(own key)` mint the parent's bit, and tier 3 refuses
+     `LoopRoleInverted`. The `mef` control validates.
+   - The defect predates PR 3467 (it holds under key equality), and
+     the PR extends it to the shared-`Arc` rung. The PR's `mfkrh` row
+     pins the wrong bit on a demoted panel that faces the parent's way.
+   - Every production same-chart `mfkrh` overrides the bit
+     (`shell.rs`, `splitting/finish.rs`).
+2. **`docs/DESIGN.md` D1 states the rule the PR changes**: "a face
+   landing on the old face's surface key takes that face's bit. Key
+   equality, never a numeric compare". It was untouched, and the PR
+   body wrongly called the rule unratified.
+
+The orchestrator's brief is at fault for the second: it asked for no
+ratification check before changing what D1 decides. The pickaxe traces
+the clause to `80c5843f5d`, a DESIGN.md D1 sync in August. The review
+shows D1 is wrong as written for `mfkrh`, so the question is a
+**design fork** on ratified text.
+- PR 3467 is held.
+- Per the 2026-09-24 procedure, two designers were dispatched
+  concurrently on one problem statement (no candidate answers), each
+  pointed at `docs/prompts/designer.md`.
+- The blinding byte is committed to `analysis/design-fork/topo-fragment-sense`.
+
+The `[ev]` PR opens once their recommendations are clear, carrying
+both `For Ev` sections as A and B.
