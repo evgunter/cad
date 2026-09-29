@@ -389,26 +389,15 @@ fn carrier_roots(c: Carrier, big_r: f64, r: f64) -> Vec<f64> {
 #[test]
 fn a_seam_whose_antipode_sits_beside_an_off_arc_root_still_pierces() {
     let (big_r, r) = (1.0, 0.25);
+    // `B`: a tube window of 2.4 rad centred on `+x`.
     let b = tube(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(1.2_f64.cos(), 0.0, -(1.2_f64.sin())),
         big_r,
         r,
         2.4,
     );
-    let b = {
-        // Centre the window on `+x`: turn the quarter's start back 1.2.
-        let _ = b;
-        tube(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec3::new(1.2_f64.cos(), 0.0, -(1.2_f64.sin())),
-            big_r,
-            r,
-            2.4,
-        )
-    };
     let axis = Vec3::new(1.0, 0.0, 0.0)
         .cross(Vec3::new(0.0, 0.4, 1.0))
         .normalize();
