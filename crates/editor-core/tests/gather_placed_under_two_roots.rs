@@ -481,9 +481,11 @@ fn rv_selection_rides_down_through_a_transform() {
 //
 // Two halves of one split taken as two `Part` roots place no body
 // twice, and gather the product the split root gathers. The mechanism
-// is the separated-piece mark (`NameTable`'s `separated` field). The
-// rows below pin the merge through every verbatim edge, and pin that
-// two roots carrying ONE entity still refuse.
+// is candidate identity (N4, "A tie's candidates keep their identity"):
+// each half's row keeps the candidate it holds, and different
+// candidates of one tie merge back. The rows below pin the merge
+// through every verbatim edge, and pin that two roots carrying ONE
+// entity still refuse.
 
 /// A 4×4×4 block less a cutter whose prongs, each `(y0, y1)`, cross the
 /// x = 4 wall at z ∈ [1, 3]: the prongs' far ends leave cap fragments
@@ -670,15 +672,15 @@ fn row(names: &NameTable, name: &StableName) -> Entry {
     names.lookup(name).cloned().expect("the name has a row")
 }
 
-/// **The piece's mark rides the other verbatim edges, and changes no
-/// lone half.** Over the U-cutter split at y = 2, the separated name is
+/// **The piece's candidate rides the other verbatim edges, and changes
+/// no lone half.** Over the U-cutter split at y = 2, the separated name is
 /// tied over two in the split's product. A lone `Part` root gathers it
 /// `Unique` — that half's product holds one candidate. A transformed
 /// half beside the other half gathers it tied over both, as does the
 /// upper half split AGAIN, clear of its candidate, beside the lower
-/// half: the second split passes the marked row through unchanged.
+/// half: the second split passes the row through with its candidate.
 #[test]
-fn a_separated_piece_merges_through_a_transform_and_a_second_split() {
+fn a_tie_candidate_merges_through_a_transform_and_a_second_split() {
     let (whole, _, sub, _, _) =
         halves_over_a_tie("gather-halves-edges", &[(1.0, 1.5), (2.5, 3.0)], 2.0);
     let split = whole.roots()[0];
@@ -743,7 +745,7 @@ fn a_separated_piece_merges_through_a_transform_and_a_second_split() {
     );
 
     // The second split's lower half holds the candidate; a `Part` of it
-    // projects an already-marked row, and keeps the mark.
+    // projects a row that is already one candidate, and keeps it.
     let (doc, inner) = half(doc, again, SplitHalf::Below);
     let (doc, below) = half(doc, split, SplitHalf::Below);
     assert_eq!(doc.roots(), &[inner, below][..], "the premise");
@@ -781,10 +783,9 @@ fn half_of_a_split(
 
 /// **Two roots carrying one entity still refuse.** Halves of two
 /// DIFFERENT splits of the U-cutter's subtract overlap: both carry the
-/// subtract's uncut entities in the overlap verbatim, and those rows
-/// are not separated pieces — the mark must stay off them, so they go
-/// in strict and collide. Each pair below refuses `Naming`; a
-/// projection that marked every `Unique` row would tie them instead.
+/// subtract's uncut entities in the overlap verbatim, each as the same
+/// candidate of its name — strict, or one candidate of a tie — so each
+/// pair below refuses `Naming`.
 #[test]
 fn halves_of_two_splits_that_overlap_still_refuse_naming() {
     let at_y = |y: f64| ([0.0, y, 0.0], [0.0, 1.0, 0.0]);
