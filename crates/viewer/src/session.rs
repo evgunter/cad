@@ -2622,6 +2622,39 @@ impl DocSession {
         )
     }
 
+    /// **What `SessionOp::DeleteNode` would answer for `node` because
+    /// the committed document does not hold it, or `None` where it
+    /// does** — asked ahead of the click by the control that pushes
+    /// the op.
+    ///
+    /// It walks [`Self::delete_node`]'s own branch over the document
+    /// that op reads: an empty cascade takes the single edit, and the
+    /// edit door is asked for its verdict, so the refusal is
+    /// `EditError`'s and has one home. A selection can outlive its
+    /// feature here — a face resolves against the last LANDED run,
+    /// which still holds a feature the committed document has dropped
+    /// until the next run lands, and indefinitely after a cancel.
+    ///
+    /// Not everything `perform` can answer: a held value gesture
+    /// refuses the op before this admission runs, and a held node's
+    /// cascade is applied at the click rather than rehearsed every
+    /// frame.
+    pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
+        if !cascade_delete_order(self.committed_doc(), node).is_empty() {
+            return None;
+        }
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        apply(
+            self.committed_doc(),
+            &DocEdit::DeleteNode { id: node },
+            self.tol,
+            &reach,
+        )
+        .err()
+        .map(|error| Refusal::Edit(Box::new(error)))
+    }
+
     /// The same door for an action that takes SEVERAL edits: apply
     /// them in order, and record the whole run as one history state,
     /// so one user action is one undo.

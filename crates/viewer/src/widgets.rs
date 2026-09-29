@@ -1568,16 +1568,21 @@ pub(crate) fn pick_unit(
 }
 
 /// The delete button: a renderer for [`DocSession::delete_affordance`]
-/// and nothing else, so the two places a delete is reachable from (a
-/// node selection and a face selection) cannot state different costs
-/// for the same operation, and the sentence itself is testable without
-/// a window.
+/// and [`DocSession::delete_refusal`] and nothing else, so the places a
+/// delete is reachable from (a node selection, and a face or edge
+/// selection) cannot state different costs for the same operation or
+/// offer it where it refuses, and the sentences themselves are testable
+/// without a window.
 pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: RecipeNodeId) -> bool {
     let affordance = session.delete_affordance(node);
-    let button = ui.button(affordance.label);
-    match affordance.hover {
-        Some(text) => button.on_hover_text(text).clicked(),
-        None => button.clicked(),
+    // Drawn disabled where the op would refuse, with the refusal's own
+    // sentence on the hover a disabled button still shows.
+    let refusal = session.delete_refusal(node);
+    let button = ui.add_enabled(refusal.is_none(), egui::Button::new(affordance.label));
+    match (refusal, affordance.hover) {
+        (Some(refusal), _) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
+        (None, Some(text)) => button.on_hover_text(text).clicked(),
+        (None, None) => button.clicked(),
     }
 }
 

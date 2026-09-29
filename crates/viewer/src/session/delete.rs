@@ -42,8 +42,9 @@ impl DeleteAffordance {
     /// #1097: reached from a face selection, a bare "Delete feature"
     /// read as deleting the *face* — an entity this vocabulary can
     /// never delete). The id-only arm is for a node the document does
-    /// not hold: no button renders for one today, and if that changes
-    /// the label stays honest rather than panicking.
+    /// not hold, which a face or edge selection can still name while
+    /// the landed run holds its feature: that button is drawn disabled,
+    /// with the op's refusal on its hover (`DocSession::delete_refusal`).
     ///
     /// Neither sentence mentions the features that merely FED the
     /// target and survive as roots of their own, because this delete
