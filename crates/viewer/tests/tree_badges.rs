@@ -500,6 +500,179 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
 
+/// **Every surface that says why a node has no value names the row the
+/// tree names** — over one cluster refusal, the node the kernel reports
+/// as its own `Failed` and the node it poisons through it.
+///
+/// The kernel's standing for `post_a` is `Failed` and for the boolean
+/// is poisoned through `post_a`; the tree draws both downstream of the
+/// offending mate. The properties panel's verdict on a picked face, the
+/// mate tool's dropped pick, the sketch-on-face seat, the duplicate
+/// door, the blend loader and the product's gather refusal each carry a
+/// standing, and each must carry the TREE's.
+#[test]
+fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
+    use pncad::document::{NodeStanding, ProductError};
+    use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
+    use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
+    use viewer::combine::DuplicateFault;
+    use viewer::matetool::{MateTool, MateToolEvent};
+    use viewer::session::{FaceFrameFault, FaceSelection, Selection, Standing};
+
+    let tol = Tol::witness();
+    let bench = common::asm::bench("panels-agree", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let boolean = common::session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: BooleanOp::Union,
+            a: bench.post_a,
+            b: bench.shelf_i,
+        },
+    );
+    session.pump();
+
+    // A face of post_a, selected and held while it still resolves.
+    let face = FaceSelection {
+        name: common::asm::in_part(bench.post_a, &bench.post_top),
+        node: bench.post_a,
+        body: 0,
+    };
+    let outcome = session.perform(SessionOp::Select(Selection::Face(face.clone())));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        session.standing().live(),
+        "the premise: the picked face resolves before the cluster refuses: {:?}",
+        session.standing()
+    );
+    let mut mate_tool = MateTool::new();
+    mate_tool.pick(face.clone());
+    let index = common::asm::index_of(&session);
+
+    common::session_insert(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
+    );
+    let offender = common::session_insert(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
+    );
+    session.pump();
+
+    let rows = session.tree_rows();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    // The premise that makes this row a test: the kernel's own standing
+    // for each node is NOT the tree's.
+    assert_eq!(
+        ev.usable(bench.post_a).err(),
+        Some(NodeStanding::Failed { node: bench.post_a }),
+        "the kernel reports the cluster-refused instance as its own failure"
+    );
+    assert_eq!(
+        ev.usable(boolean).err(),
+        Some(NodeStanding::Poisoned {
+            node: boolean,
+            through: bench.post_a
+        }),
+        "and poisons the boolean through it"
+    );
+    // The tree's answer, which every other surface must carry.
+    let drawn = |id| match common::status_of(&rows, id) {
+        RowStatus::Poisoned { through, .. } => NodeStanding::Poisoned { node: id, through },
+        other => panic!("the tree draws {id:?} downstream, got {other:?}"),
+    };
+    let post_a = drawn(bench.post_a);
+    assert_eq!(
+        post_a,
+        NodeStanding::Poisoned {
+            node: bench.post_a,
+            through: offender
+        },
+        "the tree points post_a at the offending mate"
+    );
+    let two_hop = drawn(boolean);
+    assert_eq!(
+        tree::cause_row(bench.post_a, ev),
+        Some(offender),
+        "cause_row"
+    );
+
+    let indeterminate = |standing| Resolution::Indeterminate(ResolveIndeterminate { standing });
+    match session.standing() {
+        Standing::Face { resolution, .. } => assert_eq!(
+            resolution.as_deref(),
+            Some(&indeterminate(post_a)),
+            "the properties panel's verdict on the picked face"
+        ),
+        other => panic!("the face stays selected, got {other:?}"),
+    }
+    match mate_tool.reconcile(doc, ev).as_slice() {
+        [MateToolEvent::PickLost { resolution, .. }] => assert_eq!(
+            **resolution,
+            indeterminate(post_a),
+            "the mate tool's dropped pick"
+        ),
+        other => panic!("the mate tool drops its one pick, got {other:?}"),
+    }
+    match viewer::session::face_frame_seat(Some((doc, ev)), Some(&face)) {
+        Err(FaceFrameFault::Unresolved {
+            error: InterrogateError::Standing(standing),
+        }) => assert_eq!(standing, post_a, "the sketch-on-face seat"),
+        other => panic!("the seat refuses on the standing, got {other:?}"),
+    }
+    match viewer::combine::duplicate_step(ev, bench.post_a, tol) {
+        Err(DuplicateFault::NoValue(standing)) => {
+            assert_eq!(standing, post_a, "the duplicate door, post_a");
+        }
+        other => panic!("the duplicate door refuses post_a, got {other:?}"),
+    }
+    match viewer::combine::duplicate_step(ev, boolean, tol) {
+        Err(DuplicateFault::NoValue(standing)) => {
+            assert_eq!(standing, two_hop, "the duplicate door, the boolean");
+        }
+        other => panic!("the duplicate door refuses the boolean, got {other:?}"),
+    }
+    let target = BlendTarget {
+        node: bench.post_a,
+        body: 0,
+    };
+    match BlendTool::new().load_all_edges(target, ev, &index) {
+        Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
+            assert_eq!(standing, post_a, "the blend loader");
+        }
+        other => panic!("the blend loader refuses post_a, got {other:?}"),
+    }
+    let product = match session.product_fault() {
+        Some(ProductError::RootFailed { node }) => NodeStanding::Failed { node: *node },
+        Some(ProductError::RootPoisoned { node, through }) => NodeStanding::Poisoned {
+            node: *node,
+            through: *through,
+        },
+        other => panic!("the gather refuses on a root, got {other:?}"),
+    };
+    assert_eq!(product, drawn(product.node()), "the gather's refusal");
+    match session.at_rest() {
+        Some(viewer::session::AtRestBadge::Refused { message }) => assert_eq!(
+            Some(message.as_str()),
+            session.product_fault().map(ToString::to_string).as_deref(),
+            "the at-rest badge carries the gather's refusal"
+        ),
+        other => panic!("the at-rest badge refuses, got {other:?}"),
+    }
+
+    std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
 // ---- The refusal that names no row ----
 
 /// The env var naming the child process that commits a bandless

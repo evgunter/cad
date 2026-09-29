@@ -712,8 +712,9 @@ pub enum DuplicateFault {
     /// the same id may name a different node altogether (issue #1384).
     Stale,
     /// The picture on screen — which answers the current document —
-    /// holds no value for the input, and the input's standing says why
-    /// and where the repair is.
+    /// holds no value for the input, and the input's standing, as the
+    /// feature tree draws it ([`crate::tree::standing_as_drawn`]), says
+    /// why and where the repair is.
     NoValue(NodeStanding),
     /// The input's VALUE is several bodies. A pattern of two over it
     /// would index the flat list of those bodies, so its two
@@ -818,7 +819,9 @@ pub fn duplicate_step(
     input: RecipeNodeId,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
-    let value = eval.usable(input).map_err(DuplicateFault::NoValue)?;
+    let value = eval.usable(input).map_err(|standing| {
+        DuplicateFault::NoValue(crate::tree::standing_as_drawn(standing, eval))
+    })?;
     let body = one_body(&value.payload).ok_or(DuplicateFault::NotOneBody { input })?;
     let measured = |chord: f64| {
         pncad::mesh::tessellate(body, chord, tol)

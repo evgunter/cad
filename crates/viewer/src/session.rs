@@ -748,8 +748,8 @@ impl DocSession {
     /// selection)** — recomputed, never cached, so it cannot be stale
     /// with respect to the state it describes. A face's verdict comes
     /// from the shipped `resolve` door; nothing here re-implements the
-    /// resolution ladder or interprets its answer beyond arranging it
-    /// beside the other two selection kinds.
+    /// resolution ladder, and the one reading made of its answer is the
+    /// feature tree's, of which node an indeterminate verdict waits on.
     pub fn standing(&self) -> Standing {
         match &self.derived.selection {
             Selection::None => Standing::Empty,
@@ -774,10 +774,15 @@ impl DocSession {
 
     /// One picked name's verdict against the landed run — the shipped
     /// `resolve` door, asked once and spelled once for both entity
-    /// kinds.
+    /// kinds, with the node it waits on named as the feature tree
+    /// names it ([`crate::tree::resolution_as_drawn`]).
     fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
-        self.landed_pair()
-            .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, name)))
+        self.landed_pair().map(|(doc, eval)| {
+            Box::new(crate::tree::resolution_as_drawn(
+                resolve(RunCtx { doc, eval }, name),
+                eval,
+            ))
+        })
     }
 
     /// The most recent evaluation that answered the current document.
@@ -802,7 +807,9 @@ impl DocSession {
 
     /// Why the landed evaluation's product does not gather, if it does
     /// not — every class, whichever channel reports it
-    /// (`frame::badge_site` decides that).
+    /// (`frame::badge_site` decides that), a root with no value named
+    /// as the feature tree names it
+    /// ([`crate::tree::product_fault_as_drawn`]).
     ///
     /// `None` both when the product is well formed and when nothing
     /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
@@ -1108,6 +1115,7 @@ impl DocSession {
                 (None, checks, at_rest, body)
             }
             Err(fault) => {
+                let fault = crate::tree::product_fault_as_drawn(fault, &done.evaluation);
                 // **The product's own verdict.** The gather is the only
                 // thing that answers "is this document's product well
                 // formed", so every class of refusal is kept here; which

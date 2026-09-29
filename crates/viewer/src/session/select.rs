@@ -299,7 +299,9 @@ pub enum Standing {
     Face {
         /// The selection.
         face: FaceSelection,
-        /// What the shipped resolution machinery answered — `None`
+        /// What the shipped resolution machinery answered, the node an
+        /// indeterminate verdict waits on named as the feature tree
+        /// names it ([`crate::tree::resolution_as_drawn`]) — `None`
         /// when there is no evaluation to answer against yet, which is
         /// neither "live" nor "vanished" and is not reported as
         /// either.
@@ -320,8 +322,9 @@ pub enum Standing {
     Edge {
         /// The selection.
         edge: EdgeSelection,
-        /// What the shipped resolution machinery answered — `None`
-        /// when there is no evaluation to answer against yet.
+        /// What the shipped resolution machinery answered, read as
+        /// [`Standing::Face`]'s is — `None` when there is no evaluation
+        /// to answer against yet.
         resolution: Option<Box<Resolution>>,
     },
 }

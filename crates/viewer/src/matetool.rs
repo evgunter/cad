@@ -265,7 +265,9 @@ pub enum MateToolError {
     },
     /// A picked face's frame could not be derived — the interrogation
     /// door's own refusal (an unresolved name, an N2 tie, a NURBS
-    /// face with no canonical frame), unaltered.
+    /// face with no canonical frame), with a node that has no value
+    /// named as the feature tree names it
+    /// ([`crate::tree::interrogation_as_drawn`]).
     Frame {
         /// Which pick.
         side: MateSide,
@@ -426,8 +428,9 @@ pub enum MateToolEvent {
         side: MateSide,
         /// The pick that was held.
         pick: FaceSelection,
-        /// The resolution machinery's own verdict (boxed for the same
-        /// width reason `Standing` boxes it).
+        /// The resolution machinery's own verdict, read as the feature
+        /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
+        /// for the same width reason `Standing` boxes it.
         resolution: Box<Resolution>,
     },
 }
@@ -534,7 +537,8 @@ impl MateTool {
     ) -> Vec<MateToolEvent> {
         let mut events = Vec::new();
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
-            let verdict = resolve(RunCtx { doc, eval }, &pick.name);
+            let verdict =
+                crate::tree::resolution_as_drawn(resolve(RunCtx { doc, eval }, &pick.name), eval);
             if resolves(&verdict) {
                 false
             } else {
@@ -640,8 +644,11 @@ impl MateTool {
             // node `read` is headed at and the node whose placement
             // pulls the pose back, so the pose and the placement
             // cannot come from different nodes.
-            let pose = face_frame(eval, member.instance, read)
-                .map_err(|error| MateToolError::Frame { side, error })?;
+            let pose =
+                face_frame(eval, member.instance, read).map_err(|error| MateToolError::Frame {
+                    side,
+                    error: crate::tree::interrogation_as_drawn(error, eval),
+                })?;
             let u_ref = pose.u_ref.ok_or(MateToolError::NoReference { side })?;
             let placement: Frame = poses
                 .placement(doc, member.instance)

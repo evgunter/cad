@@ -49,6 +49,13 @@
 //! is [`RowStatus::Poisoned`] through the blamed mate — the only thing
 //! read being which node the kernel's own words point at.
 //!
+//! **This is the viewer's one answer to which row a node's failure
+//! is.** Every other surface that says why a node has no value — a
+//! picked face's verdict, a tool's refusal, the product's gather —
+//! holds the kernel's `NodeStanding` and reads it through
+//! [`standing_as_drawn`], so no panel names a different row from the
+//! tree's.
+//!
 //! **The blamed node is the row that carries the fault's words, and
 //! it need not be the node an author edits.** This is the one
 //! statement of why; [`blamed_mates`] points here. Several arms name a
@@ -159,9 +166,10 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, Node, NodeError, NodeErrorKind, NodeResult,
-    ProfileProgram, RecipeNodeId,
+    NodeStanding, ProductError, ProfileProgram, RecipeNodeId,
 };
 use pncad::quantity::UnitDef;
+use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
@@ -742,6 +750,71 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
         Standing::Status(
             RowStatus::Poisoned { message: None, .. } | RowStatus::Ok | RowStatus::Unevaluated,
         ) => None,
+    }
+}
+
+/// **A kernel standing, re-read as this tree draws its node** (the
+/// module header's second section).
+///
+/// The kernel reports a node a cluster refusal reached as its own
+/// `Failed`, and a node poisoned through such a node as poisoned
+/// through it; the tree draws both as downstream of the mate the fault
+/// blames. Answered off [`cause_row`]: a node whose cause is another
+/// row reads `Poisoned` through that row, a node that is its own cause
+/// reads `Failed`. A standing [`cause_row`] has no row for — no
+/// evaluation entry, not in the document, a chain that ends at no
+/// failure — is the kernel's, unchanged.
+pub fn standing_as_drawn(standing: NodeStanding, evaluation: &Evaluation<f64>) -> NodeStanding {
+    match standing {
+        NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. } => {
+            match cause_row(node, evaluation) {
+                Some(cause) if cause == node => NodeStanding::Failed { node },
+                Some(through) => NodeStanding::Poisoned { node, through },
+                None => standing,
+            }
+        }
+        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => standing,
+    }
+}
+
+/// A name's [`Resolution`], its indeterminate standing re-read by
+/// [`standing_as_drawn`]; every other verdict is the resolution
+/// machinery's, unchanged.
+pub fn resolution_as_drawn(resolution: Resolution, evaluation: &Evaluation<f64>) -> Resolution {
+    match resolution {
+        Resolution::Indeterminate(ResolveIndeterminate { standing }) => {
+            Resolution::Indeterminate(ResolveIndeterminate {
+                standing: standing_as_drawn(standing, evaluation),
+            })
+        }
+        Resolution::Resolved(_) | Resolution::Failed(_) => resolution,
+    }
+}
+
+/// A product-gather refusal, a root's standing re-read by
+/// [`standing_as_drawn`]; every other refusal is the gather's,
+/// unchanged.
+pub fn product_fault_as_drawn(fault: ProductError, evaluation: &Evaluation<f64>) -> ProductError {
+    let standing = match fault {
+        ProductError::RootFailed { node } => NodeStanding::Failed { node },
+        ProductError::RootPoisoned { node, through } => NodeStanding::Poisoned { node, through },
+        other => return other,
+    };
+    ProductError::from(standing_as_drawn(standing, evaluation))
+}
+
+/// An interrogation refusal, its standing re-read by
+/// [`standing_as_drawn`]; every other refusal is the door's,
+/// unchanged.
+pub fn interrogation_as_drawn(
+    error: InterrogateError,
+    evaluation: &Evaluation<f64>,
+) -> InterrogateError {
+    match error {
+        InterrogateError::Standing(standing) => {
+            InterrogateError::Standing(standing_as_drawn(standing, evaluation))
+        }
+        other => other,
     }
 }
 
