@@ -19,7 +19,7 @@
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
-use profile::{ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use sweep::test_support::{revolved_about_y, stacked_at};
 use topo::pcurves::{SiteRowRefusal, validate_pcurves};
@@ -62,15 +62,8 @@ fn start_point(body: &Body<f64>, he: HalfEdgeKey) -> Point3<f64> {
 /// with the wall half-minted.
 #[test]
 fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    let sq = || {
-        vec![profile::ProfileLoop::new(vec![
-            v(0.0, 0.0),
-            v(2.0, 0.0),
-            v(2.0, 2.0),
-            v(0.0, 2.0),
-        ])]
-    };
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+    let sq = || vec![bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)])];
     let mut body = sweep::loft_body::<f64>(&[sq(), sq()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body;
@@ -102,7 +95,7 @@ fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
 /// re-run, agrees.
 #[test]
 fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let mut body = revolved_about_y(
         vec![v(1.0, 0.0), v(2.0, 0.0), v(1.5, 1.0), v(1.0, 1.0)],
         Revolution::Partial(core::f64::consts::FRAC_PI_2),

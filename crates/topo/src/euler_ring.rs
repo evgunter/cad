@@ -1187,10 +1187,9 @@ impl<T: Decide> Body<T> {
     /// [`Body::same_chart`] asked of a face-surface SPEC before a door
     /// mints its key: would a face given `spec` be on `from`'s chart?
     /// `Inherit` is `from` itself and `Shared` names a key the question
-    /// is already about. A `New` surface is minted a fresh key with no
-    /// recorded source, so of the three rungs only the shared payload
-    /// can hold for it — the answer `same_chart` gives the key once it
-    /// exists.
+    /// is already about. A `New` surface is minted a fresh key, so of
+    /// the two identity ties only the shared payload can hold for it —
+    /// the answer `same_chart` gives the key once it exists.
     pub(crate) fn same_chart_spec(&self, from: SurfaceKey, spec: &FaceSurface<T>) -> bool {
         match spec {
             FaceSurface::Inherit => true,
