@@ -208,7 +208,10 @@ impl FaceGeometry {
             // The plane is computed only on this arm: `Declined` is
             // for fixtures that decline geometry, and a profile whose
             // Newell plane does not certify is theirs to build.
-            Self::Certified => FaceSurface::New(plane(corners, tol)),
+            Self::Certified => FaceSurface::New {
+                surface: plane(corners, tol),
+                sense: true,
+            },
             Self::Declined => FaceSurface::Inherit,
         }
     }
@@ -311,7 +314,7 @@ pub fn prism_ops<T: geom_core::Decide>(
     let bot: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.0)).collect();
     let top: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.1)).collect();
 
-    let seed = body.mvfs(bot[0]).unwrap();
+    let seed = body.mvfs(bot[0], true).unwrap();
     // Bottom rim chain v0 → v1 → … → v_{n-1}.
     let mut chain = Vec::new();
     chain.push(
@@ -413,8 +416,14 @@ pub fn prism_ops<T: geom_core::Decide>(
     // placeholder every other face inherited, so the whole prism sits on
     // one surface key.
     if faces == FaceGeometry::Certified {
-        body.set_face_surface(seed.face, FaceSurface::New(plane(&top, tol)))
-            .unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: plane(&top, tol),
+                sense: true,
+            },
+        )
+        .unwrap();
     }
 
     PrismOps {
@@ -962,8 +971,14 @@ pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
                 *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
             })
             .collect();
-        body.set_face_surface(face, FaceSurface::New(plane(&corners, tol)))
-            .unwrap();
+        body.set_face_surface(
+            face,
+            FaceSurface::New {
+                surface: plane(&corners, tol),
+                sense: true,
+            },
+        )
+        .unwrap();
     }
 }
 
@@ -1187,10 +1202,16 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         frame.at(u1, v1),
         frame.at(u0, v1),
     );
-    let seed = body.mvfs(p00).unwrap();
+    let seed = body.mvfs(p00, true).unwrap();
     let cyl = match key {
         CylKey::OnSeed => body
-            .set_face_surface(seed.face, FaceSurface::New(frame.surface()))
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: frame.surface(),
+                    sense: true,
+                },
+            )
             .unwrap(),
         CylKey::Bare => body.add_surface(frame.surface()),
         CylKey::Shared(cyl) => cyl,
@@ -1276,7 +1297,10 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 he2: e_b.he_plus,
             },
             EdgeCurveSpec::line_between(p01, p00),
-            FaceSurface::Shared(cyl),
+            FaceSurface::Shared {
+                key: cyl,
+                sense: true,
+            },
             tol,
         )
         .unwrap()

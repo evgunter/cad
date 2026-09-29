@@ -1141,13 +1141,14 @@ pub(crate) fn bowed_offset_approx<T: geom_core::Real>() -> geom::ApproxSurface<T
 pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
     let mut body = Body::<T>::new();
     let created = body
-        .mvfs(Point3::new(T::zero(), T::zero(), T::zero()))
+        .mvfs(Point3::new(T::zero(), T::zero(), T::zero()), true)
         .expect("mvfs has no preconditions");
     body.set_face_surface(
         created.face,
-        crate::euler::FaceSurface::New(geom::Surface::Approx(std::sync::Arc::new(
-            bowed_offset_approx::<T>(),
-        ))),
+        crate::euler::FaceSurface::New {
+            surface: geom::Surface::Approx(std::sync::Arc::new(bowed_offset_approx::<T>())),
+            sense: true,
+        },
     )
     .expect("the seed face takes a fresh surface");
     (body, created.face)

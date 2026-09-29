@@ -360,8 +360,14 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
         |_, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
     )
     .unwrap();
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
-        .unwrap();
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(planted)),
+            sense: true,
+        },
+    )
+    .unwrap();
     let _ = topo::mint_pcurves(&mut body, Tol::witness());
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded curved fit must not validate");
@@ -432,8 +438,14 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
 
     let mut a = unit_box();
     let face = top_face(&a);
-    a.set_face_surface(face, FaceSurface::New(approx))
-        .expect("the attach-layer door accepts a live face");
+    a.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: approx,
+            sense: true,
+        },
+    )
+    .expect("the attach-layer door accepts a live face");
     let e = topo::union(&a, &moved_box(), Tol::witness())
         .expect_err("an Approx operand is unsupported-kind for the boolean gate");
     assert!(

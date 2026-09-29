@@ -82,37 +82,32 @@ fn first_ringed(body: &Body<f64>) -> (FaceKey, LoopKey, Vec<LoopKey>) {
 /// The inverted glue, through the doors: promote the ring to a face on
 /// the same chart (`mfkrh`), then glue the ORIGINAL face into it
 /// (`kfmrh`) so the larger boundary becomes a ring of the smaller
-/// face. The new face's sense is flipped, which is what makes both
-/// loops role-correct in the inverted assignment — and therefore what
-/// keeps check 6 silent.
+/// face. On the same chart `mfkrh` derives the new face's bit as the
+/// old face's negated, which is what makes both loops role-correct in
+/// the inverted assignment — and therefore what keeps check 6 silent.
 fn invert_the_glue(body: &Body<f64>) -> (Body<f64>, FaceKey, LoopKey) {
     let mut out = body.clone();
     let (face, outer, rings) = first_ringed(&out);
-    let (surface, sense) = {
-        let f = out.get_face(face).unwrap();
-        (f.surface, f.sense)
+    let sense = out.get_face(face).unwrap().sense;
+    let promote = |out: &mut Body<f64>, ring: LoopKey| {
+        let made = out
+            .mfkrh(ring, FaceSurface::Inherit)
+            .expect("the ring promotes to a face");
+        assert_eq!(
+            out.get_face(made.face).unwrap().sense,
+            !sense,
+            "the promoted face takes the parent's bit negated"
+        );
+        made.face
     };
     // Any further rings leave first, so the glue has one pair to make.
     for &extra in rings.iter().skip(1) {
-        let made = out
-            .mfkrh(extra, FaceSurface::Shared(surface))
-            .expect("the extra ring promotes");
-        out.set_face_sense(made.face, !sense).expect("its sense");
+        promote(&mut out, extra);
     }
-    let made = out
-        .mfkrh(rings[0], FaceSurface::Shared(surface))
-        .expect("the ring promotes to a face");
-    if !matches!(
-        out.get_surface(out.get_face(made.face).unwrap().surface),
-        Some(geom::Surface::Plane { .. })
-    ) {
-        out.set_face_surface(made.face, FaceSurface::Shared(surface))
-            .expect("the promoted face shares the chart");
-    }
-    let glued = out.kfmrh(made.face, face).expect("the inverted glue");
+    let made = promote(&mut out, rings[0]);
+    let glued = out.kfmrh(made, face).expect("the inverted glue");
     assert_eq!(glued.ring, outer, "the old outer loop is now the ring");
-    out.set_face_sense(made.face, !sense).expect("the flip");
-    (out, made.face, outer)
+    (out, made, outer)
 }
 
 /// The honest body validates and check 9 is silent on it; the inverted

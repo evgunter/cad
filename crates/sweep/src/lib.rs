@@ -106,7 +106,8 @@
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share
-//!   the surface **key** (`FaceSurface::Shared`), decided by the named
+//!   the surface **key** (`FaceSurface::Shared`, stating the wall's
+//!   own `sense` beside it), decided by the named
 //!   predicates `side_planes_cosurface` (margin: perpendicular distance
 //!   of the next chord's far endpoint from the previous carrier line)
 //!   and `side_cylinders_cosurface` (margin: center distance plus

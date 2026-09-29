@@ -95,9 +95,15 @@ fn one_seam_sphere() -> Body<f64> {
     let tol = Tol::witness();
     let seam = meridian_from_the_pole();
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(seam.eval(0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let start = body.mvfs(seam.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,
@@ -117,9 +123,15 @@ fn sphere_slit_on_two_coincident_edges() -> Body<f64> {
     let tol = Tol::witness();
     let seam = meridian_from_the_pole();
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(seam.eval(0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let start = body.mvfs(seam.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let m = body
         .mev(
             MevSite::Lone {
@@ -177,9 +189,15 @@ fn one_seam_cylinder() -> Body<f64> {
         u_ref: x_axis(),
     };
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(Point3::new(1.0, 0.0, 0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(cyl))
-        .unwrap();
+    let start = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: cyl,
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,
@@ -202,9 +220,15 @@ fn one_seam_cone() -> Body<f64> {
         u_ref: x_axis(),
     };
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(cone))
-        .unwrap();
+    let start = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: cone,
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,

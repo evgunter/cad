@@ -437,7 +437,10 @@ mod tests {
     fn revert_flips_sense_on_non_plane_faces_instead_of_refusing() {
         let cube = declined_cube::<f64>(Tol::witness());
         let before: Vec<bool> = cube.body.faces().map(|(_, f)| f.sense).collect();
-        assert!(before.iter().all(|s| *s), "mvfs/mef mint sense: true");
+        assert!(
+            before.iter().all(|s| *s),
+            "the seed states sense: true and every mef derives it"
+        );
         let reverted = cube.body.revert().expect("S12: curved revert is wired");
         let after: Vec<bool> = reverted.faces().map(|(_, f)| f.sense).collect();
         assert!(after.iter().all(|s| !*s), "every non-plane face flipped");
@@ -515,15 +518,20 @@ mod tests {
     /// cycle), built through the Euler door alone.
     fn lone_plane_face() -> crate::Body<f64> {
         let mut plane = crate::Body::<f64>::new();
-        let seed = plane.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = plane
+            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+            .unwrap();
         plane
             .set_face_surface(
                 seed.face,
-                crate::FaceSurface::New(geom::Surface::Plane {
-                    origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-                    normal: geom_core::Vec3::unit_z(),
-                    u_ref: geom_core::Vec3::unit_x(),
-                }),
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Plane {
+                        origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+                        normal: geom_core::Vec3::unit_z(),
+                        u_ref: geom_core::Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
             )
             .unwrap();
         plane
@@ -622,9 +630,15 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let mut body = crate::Body::<f64>::new();
-        let seed = body.mvfs(start).unwrap();
-        body.set_face_surface(seed.face, FaceSurface::New(plane))
-            .unwrap();
+        let seed = body.mvfs(start, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: plane,
+                sense: true,
+            },
+        )
+        .unwrap();
         let chart = body.get_face(seed.face).unwrap().surface;
         let spec = EdgeCurveSpec::arc_of_circle(circle, t0, t1)
             .unwrap()

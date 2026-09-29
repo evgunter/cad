@@ -148,7 +148,7 @@ pub(crate) enum Walk {
 /// use topo::Body;
 ///
 /// let mut body = Body::<f64>::new();
-/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
 /// // A `VertexKey` is not a `ShellKey`: this example must NOT compile.
 /// let _ = body.get_shell(seed.vertex);
 /// ```
@@ -1167,12 +1167,11 @@ impl<T: Real> Body<T> {
     /// actually honor the bit.
     ///
     /// Deliberately NOT a construction operator. Legitimate writers
-    /// keep the two orientation encodings coherent: constructors mint
-    /// the honest bit for the wall they are building (M5 S11,
-    /// [`Body::set_face_sense`] — the loop winding is already the
+    /// keep the two orientation encodings coherent: constructors state
+    /// the honest bit with the chart they give the face
+    /// ([`crate::FaceSurface`] — the loop winding is already the
     /// material-true one, so a concave wall's `false` agrees with it),
-    /// and curved `revert` (the follow-on unit) will flip *every* face
-    /// of a body at once. Flipping a single face makes the body
+    /// and [`Body::revert`] flips *every* face of a body at once. Flipping a single face makes the body
     /// **inside-out at that
     /// face** — geometrically incoherent by construction, which is
     /// exactly the point: it is the discriminating input for "does this
@@ -1713,7 +1712,7 @@ mod tests {
     fn faces_of_solid_restricts_the_face_arena_to_one_solid() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // Arena order, and a restriction: `faces` yields all three.
         assert_eq!(body.faces().count(), 3);
@@ -1754,7 +1753,7 @@ mod tests {
     fn faces_of_solid_answers_arena_order_where_the_shell_walk_would_not() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // One solid, two shells, the minted shell listed LAST; then
         // move `face_b` into it so the shells interleave with the
@@ -1807,7 +1806,7 @@ mod tests {
     fn shells_of_solid_answers_the_solids_own_list_order_not_the_arenas() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // The pillow's shell refiled under the MINTED solid, so that
         // solid lists its own shell first and its list runs against

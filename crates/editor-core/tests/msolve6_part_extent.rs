@@ -493,7 +493,7 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
 fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
     let mut body = topo::Body::<f64>::new();
     let made = body
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("the seed vertex-face-shell");
     let refusal = editor_core::mate::body_reach(&body).expect_err("the placeholder has no bound");
     assert_eq!(
