@@ -17,8 +17,8 @@ test_utils::gated_to![
     "crates/topo/src/face_normal.rs",
     "crates/geom-brep/src/implicit.rs",
     "crates/geom-brep/src/intersect.rs",
-    "crates/sweep/tests/common/operands.rs",
-    "crates/sweep/tests/common/revert_ops.rs",
+    "crates/sweep/tests/common/",
+    "crates/sweep/tests/revolve_common/",
 ];
 
 use std::collections::BTreeMap;
