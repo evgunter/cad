@@ -118,3 +118,14 @@ Two things to read before starting.
 A step maps to a SET (possibly empty — an entry verb or a
 direction-binding verb produces no segment), which is the union this
 row already anticipated.
+
+## Re-homed to VGEOM (2026-09-29, EDIT orchestrator)
+
+The work left is viewport marking in `crates/viewer/src/marks.rs`,
+which VGEOM claims. VIEW has left the tracker. EDIT's door is
+`ProfileProgram::profile_edges_of` (DM8). One correction to the
+"Unblocked" section above: since EMIT's #3223, profile names are
+`{ step, role }` pieces by minted step id, not segment-indexed refs. So
+"the drawn patches whose role path mentions this step's pieces" is now
+the filter, and a step's pieces are exactly what a profile step lights.
+Id kept; priority unchanged.
