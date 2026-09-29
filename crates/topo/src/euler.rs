@@ -720,8 +720,10 @@ pub enum EulerOpError {
     /// The clockwise vertex orbit walked from `he` failed to close, or
     /// reached a half-edge that does not start at `he`'s start vertex —
     /// tier-1-invalid input (fired by [`Body::kev`] and
-    /// [`Body::kev_describing`], which walk the far vertex's whole fan;
-    /// the mev-specific target-missing form is
+    /// [`Body::kev_describing`], which walk the far vertex's whole fan,
+    /// and by a fan [`Body::mev`] or [`Body::mev_null`] for a walk from
+    /// `he1` that leaves the split vertex; the mev-specific form for a
+    /// walk that fails to close or misses `he2` is
     /// [`EulerOpError::FanOrbitBroken`]).
     OrbitBroken {
         /// The half-edge whose start vertex's orbit is broken.
@@ -1590,7 +1592,10 @@ impl<T: Decide> Body<T> {
     /// equal start vertices ([`EulerOpError::FanStartMismatch`]); the
     /// start vertex and its point resolve (`StaleKey` /
     /// [`EulerOpError::StaleGeometry`]); the orbit from `he1` reaches
-    /// `he2` ([`EulerOpError::FanOrbitBroken`]); both `prev` links
+    /// `he2` ([`EulerOpError::FanOrbitBroken`]); every half-edge on it
+    /// starts at the start vertex ([`EulerOpError::OrbitBroken`] —
+    /// tier-1-invalid input: a torn `next` can walk it through another
+    /// vertex's half-edge); both `prev` links
     /// resolve (`StaleKey`). `Lone`: the loop resolves (`StaleKey`); it
     /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex and point
     /// resolve (`StaleKey` / `StaleGeometry`). Then, for both sites,
@@ -1984,6 +1989,16 @@ impl<T: Decide> Body<T> {
     /// [`MevSite::Fan`]'s precondition block, shared by [`Body::mev`]
     /// and [`Body::mev_null`] (which replaces the geometry gate with a
     /// null-scaffold mint). Pure — no mutation.
+    ///
+    /// Beyond resolving every key the split writes, it proves that
+    /// every half-edge the orbit walk from `he1` visits starts at the
+    /// split vertex, so the run `[he1 .. he2)` the surgery and the
+    /// re-basing gate re-base is a slice of that vertex's orbit. The
+    /// walk steps through `next(mate(·))` and reads no start vertex, so
+    /// a torn `next` can put another vertex's half-edge on it — in the
+    /// run, where the split would re-base it, or past `he2`, where the
+    /// split would splice into a torn orbit — and only this check sees
+    /// one.
     pub(crate) fn mev_fan_plan(
         &self,
         he1: HalfEdgeKey,
@@ -3332,7 +3347,9 @@ mod tests {
     use geom_core::Tol;
 
     use super::*;
-    use crate::fixtures::{NgonPillow, arena_snapshot, deep_snapshot, pillow, prov};
+    use crate::fixtures::{
+        NgonPillow, arena_snapshot, assert_err_deep_unchanged, deep_snapshot, pillow, prov,
+    };
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
@@ -5000,6 +5017,156 @@ mod tests {
             )
             .unwrap_err()
         });
+    }
+
+    /// A segment with a strut at its far end, torn by two `next`
+    /// writes so that the far vertex's clockwise walk from the strut is
+    /// `[strut+, seg+, seg−]`: it closes and reaches both halves at the
+    /// vertex, through `seg+`, which starts at the segment's other end.
+    fn torn_strutted_segment() -> (Body<f64>, MevCreated, MevCreated) {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                p(2.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        body.get_half_edge_mut(strut.he_minus).unwrap().next = seg.he_plus;
+        body.get_half_edge_mut(seg.he_minus).unwrap().next = seg.he_minus;
+        assert_eq!(
+            body.vertex_orbit(strut.he_plus),
+            Some(vec![strut.he_plus, seg.he_plus, seg.he_minus])
+        );
+        (body, seg, strut)
+    }
+
+    /// Every fan door at `(he1, he2)` on `body`, each refusing
+    /// `OrbitBroken` naming `he1` with the body untouched: `mev_null`,
+    /// `mev_line` to a moved point, and a certified `mev` that moves
+    /// nothing (a closed carrier at the old point, which the re-basing
+    /// gate passes wherever the run starts at the split vertex).
+    fn every_fan_door_refuses_the_torn_walk(
+        body: &mut Body<f64>,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+    ) {
+        let tol = Tol::witness();
+        let site = MevSite::Fan { he1, he2 };
+        let v = body.get_half_edge(he1).unwrap().start;
+        let at = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let torn = EulerOpError::OrbitBroken { he: he1 };
+        assert_err_deep_unchanged(body, &torn, |b| {
+            b.mev_null(site, crate::NewVertexSide::Above).unwrap_err()
+        });
+        assert_err_deep_unchanged(body, &torn, |b| {
+            b.mev_line(site, at + geom_core::Vec3::new(0.5, 0.0, 0.0), tol)
+                .unwrap_err()
+        });
+        assert_err_deep_unchanged(body, &torn, |b| {
+            b.mev(site, at, EdgeCurveSpec::self_loop_circle_at(at), tol)
+                .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn a_torn_orbit_at_a_fan_site_refuses_typed_in_every_fan_door() {
+        // From the strut the torn half is in the moved run, and a fan
+        // split would re-base `seg+` off the segment's other end; from
+        // the segment the run is `[seg−]` and the torn half follows
+        // `he2`, and a split would carry the torn walk into its
+        // result. Both are the split vertex's orbit only by the walk's
+        // say-so, and every door refuses in the plan phase.
+        let (mut body, seg, strut) = torn_strutted_segment();
+        every_fan_door_refuses_the_torn_walk(&mut body, strut.he_plus, seg.he_minus);
+        every_fan_door_refuses_the_torn_walk(&mut body, seg.he_minus, strut.he_plus);
+    }
+
+    #[test]
+    fn a_twice_torn_declined_cube_refuses_a_fan_split_typed() {
+        // The first counterexample a seeded search of two random `next`
+        // tears over `review_d18`'s fixtures found: the tears and the
+        // site, by position in the fixture's half-edge arena. The walk
+        // from either half closes through the other and leaves the
+        // split vertex on the way.
+        let tol = Tol::witness();
+        let mut body = crate::test_support_fixtures::declined_cube::<f64>(tol).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[19]).unwrap().next = halves[6];
+        body.get_half_edge_mut(halves[4]).unwrap().next = halves[11];
+        let (a, b) = (halves[5], halves[6]);
+        let v = body.get_half_edge(a).unwrap().start;
+        let orbit = body.vertex_orbit(a).unwrap();
+        assert!(orbit.contains(&b));
+        assert!(
+            orbit
+                .iter()
+                .any(|&h| body.get_half_edge(h).unwrap().start != v),
+            "the walk from the site leaves the split vertex"
+        );
+        every_fan_door_refuses_the_torn_walk(&mut body, a, b);
+        every_fan_door_refuses_the_torn_walk(&mut body, b, a);
+    }
+
+    #[test]
+    fn a_fan_split_on_the_untorn_cube_moves_exactly_its_orbit_slice() {
+        // The control: the counterexample's sites on the cube before
+        // the tears. Every door that moves nothing splits, the run
+        // `[he1 .. he2)` of the vertex's orbit moves to the new vertex
+        // and nothing else changes its start.
+        let tol = Tol::witness();
+        let cube = crate::test_support_fixtures::declined_cube::<f64>(tol).body;
+        let halves: Vec<HalfEdgeKey> = cube.half_edges().map(|(k, _)| k).collect();
+        let (a, b) = (halves[5], halves[6]);
+        for (he1, he2) in [(a, b), (b, a)] {
+            let site = MevSite::Fan { he1, he2 };
+            let v = cube.get_half_edge(he1).unwrap().start;
+            let at = *cube.get_point(cube.get_vertex(v).unwrap().point).unwrap();
+            let orbit = cube.vertex_orbit(he1).unwrap();
+            let run = &orbit[..orbit.iter().position(|&h| h == he2).unwrap()];
+            assert!(!run.is_empty());
+            let splits: [(&str, fn(&mut Body<f64>, MevSite, Point3<f64>) -> MevCreated); 2] = [
+                ("mev_null", |b, site, _| {
+                    b.mev_null(site, crate::NewVertexSide::Above).unwrap()
+                }),
+                ("mev", |b, site, at| {
+                    b.mev(
+                        site,
+                        at,
+                        EdgeCurveSpec::self_loop_circle_at(at),
+                        Tol::witness(),
+                    )
+                    .unwrap()
+                }),
+            ];
+            for (door, split) in splits {
+                let mut body = cube.clone();
+                let created = split(&mut body, site, at);
+                assert_eq!(validate(&body), Ok(()), "{door}");
+                for &h in &halves {
+                    let start = body.get_half_edge(h).unwrap().start;
+                    let expected = if run.contains(&h) {
+                        created.vertex
+                    } else {
+                        cube.get_half_edge(h).unwrap().start
+                    };
+                    assert_eq!(start, expected, "{door}: {h:?}");
+                }
+            }
+        }
     }
 
     #[test]
