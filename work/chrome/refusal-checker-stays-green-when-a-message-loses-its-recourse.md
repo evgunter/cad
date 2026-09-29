@@ -4,6 +4,8 @@ kind: issue
 title: test_utils::refusal::problems flags only a second recourse, so a message that loses its repair stays green
 status: open
 opened: 2026-09-26
+priority: P3
+cost: E
 ---
 
 

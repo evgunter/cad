@@ -4,6 +4,8 @@ kind: issue
 title: chrome: ~60 error variants forward Indeterminate whole, and which of them offer a declaration their door has no object for is untriaged
 status: open
 opened: 2026-09-28
+priority: P2
+cost: M
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3347; the review asked that
