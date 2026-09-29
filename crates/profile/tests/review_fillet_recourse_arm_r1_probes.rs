@@ -343,8 +343,8 @@ fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
     let err = replay_guided(&steps, &structure, tol()).expect_err("in band under guidance");
     let shown = err.to_string();
     assert!(
-        shown.contains("'fillet_offset_line_circle'"),
-        "names the gate: {shown}"
+        format!("{err:?}").contains("\"fillet_offset_line_circle\""),
+        "names the gate: {err:?}"
     );
     assert!(
         shown.contains(geom_core::COINCIDENCE_RECOURSE),

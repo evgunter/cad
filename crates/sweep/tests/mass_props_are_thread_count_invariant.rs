@@ -134,6 +134,9 @@ fn line(name: &str, body: &Body<f64>) -> String {
             m.volume_pad.to_bits(),
             m.area_pad.to_bits(),
         ),
+        // The refusal's sentence leaves the face's key out; the walk's
+        // choice of WHICH face refused is part of what is pinned.
+        Err(e @ topo::MassPropsError::Face { face, .. }) => format!("REFUSED at {face:?}: {e}"),
         Err(e) => format!("REFUSED {e}"),
     };
     format!("{name} {read} | {}", channels(&bracket.finish()))
@@ -301,6 +304,11 @@ fn digest() -> String {
 /// ε = 1e-6 / 1e-9 / 1e-12. Decisions, discharges, shapes and verdicts
 /// are unchanged: the pushforward shares the carrier's centre node, so
 /// fewer operands reach the walk as nodes absent from its table.
+///
+/// **Re-cut at all three ε when `MassPropsError`'s sentence dropped its
+/// stage prefix and the face's key.** Only the text after `REFUSED`
+/// moves; the refusing face stays pinned, now by the line's own
+/// `at FaceKey(…)`, and no verdict, pad or count changes.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

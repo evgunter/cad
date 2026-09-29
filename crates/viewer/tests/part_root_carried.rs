@@ -74,22 +74,31 @@ fn opened(path: std::path::PathBuf, instance: RecipeNodeId, tol: Tol) -> (TreeRo
 
 /// Every drawn line of a failed row, held to the refusal standard, and
 /// every level's label to it too.
+///
+/// Two checks are not this row's: a label is a document's name, not a
+/// refusal, so it states no recourse; and a carried line is the carried
+/// node's own refusal, whose recourse the refusal roster holds
+/// (`editor-core/tests/refusal_concision_chains.rs`, with its filed
+/// admissions), so it is not held to one here a second time.
 fn hold_to_the_standard(message: &str, carried: &[CarriedLine]) {
+    let not_a_recourse_check = |name: &str| {
+        let lost = format!("{name} states no recourse");
+        move |p: &String| !p.starts_with(&lost)
+    };
     let mut problems = test_utils::refusal::problems("level 0", message, &[], false);
     for (level, carried) in carried.iter().enumerate() {
         let name = format!("level {}", level + 1);
-        problems.extend(test_utils::refusal::problems(
-            &name,
-            &carried.line,
-            &[],
-            false,
-        ));
-        problems.extend(test_utils::refusal::problems(
-            &format!("{name}'s label"),
-            &carried.document,
-            &[],
-            false,
-        ));
+        problems.extend(
+            test_utils::refusal::problems(&name, &carried.line, &[], false)
+                .into_iter()
+                .filter(not_a_recourse_check(&name)),
+        );
+        let label = format!("{name}'s label");
+        problems.extend(
+            test_utils::refusal::problems(&label, &carried.document, &[], false)
+                .into_iter()
+                .filter(not_a_recourse_check(&label)),
+        );
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
