@@ -437,6 +437,8 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// anything and is not consulted.
     const WITNESS: crate::real::Witness = T::WITNESS;
 
+    const NAME: &'static str = "dual";
+
     /// A constant embed: `(T::from_f64(x), 0)`. Exact because `T`'s
     /// embedding is; the derivative of a constant is exactly zero.
     fn from_f64(x: f64) -> Self {

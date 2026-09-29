@@ -33,7 +33,6 @@ pub mod eval;
 pub mod expr;
 mod finding;
 pub mod ident;
-pub(crate) mod lane;
 pub mod mate;
 /// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
 /// replay over samples drawn from the document's own distributions.
@@ -119,11 +118,11 @@ pub use edit::{
     MaintenanceNet, apply, apply_logged, cascade_delete_order,
 };
 pub use eval::{
-    Arity, BooleanValue, CancelToken, CanonicalSegment, ContentBits, ContentKey, DatumValue,
-    DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement,
-    NamingKey, NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, PartReach,
-    PiecesFault, ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind,
-    evaluate, mate_reach,
+    Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
+    EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorKind, NodeRefusal,
+    NodeResult, NodeValue, PartFault, PartReach, PiecesFault, ProfileLift, ProfilePieces,
+    SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate, mate_reach,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
@@ -134,11 +133,10 @@ pub use expr::{
     eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
-pub use lane::{BracketEnd, Lane};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission,
     ClusterMaintenance, Coset, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
-    MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, ReachRefusal, RefusingReach,
+    MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, PlacerRow, ReachRefusal, RefusingReach,
     SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of,
     reading_edges, relative_freedom_components, solve_document, table_gap,
 };

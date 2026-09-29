@@ -1341,6 +1341,8 @@ impl Real for Probe {
     /// `f64`'s.
     const WITNESS: crate::real::Witness = <f64 as Real>::WITNESS;
 
+    const NAME: &'static str = "telemetry probe";
+
     fn from_f64(x: f64) -> Self {
         Self(x)
     }
