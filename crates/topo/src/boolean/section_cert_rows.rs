@@ -1506,10 +1506,11 @@ fn donut_sheet(corners: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
 /// **An L-shaped torus face refuses, never trims by its hull.** The face
 /// covers `t ∈ [−a, 0]` over `u ∈ [0, a]` and `t ∈ [−a, a]` over
 /// `u ∈ [a, 2a]`; the notch `t ∈ (0, a)` over `u ∈ (0, a)` has the same
-/// hull. The L is monotone in both channels, so a variation-to-span
-/// comparison passes it; `bool_torus_chart_box` compares areas and sees
-/// the notch, and the face door answers `None`. The U (two notches'
-/// worth, not monotone) refuses too, and the rectangle trims.
+/// hull, and the L, monotone in both channels, the same total variation.
+/// `bool_torus_chart_box` sees the notch (the polygon's area falls short
+/// of its box) and the face door answers `None` for the whole face. The
+/// U, notched from the middle of its top side, refuses too; the
+/// rectangle trims.
 #[test]
 fn an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull() {
     let a = PI / 4.0;
@@ -1523,12 +1524,12 @@ fn an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull() {
     ];
     let notch = donut_at(0.5 * a, 0.5 * a);
     let (body, face) = donut_sheet(&l);
+    assert_eq!(contain_at(&body, face, notch), None, "the L's notch");
     assert_eq!(
         contain_at(&body, face, donut_at(1.5 * a, 0.5 * a)),
-        Some(FaceContainment::In),
-        "the L holds its arm"
+        None,
+        "the L refuses as a face, its arm too"
     );
-    assert_eq!(contain_at(&body, face, notch), None, "the L's notch");
     let u = [
         (0.0, -a),
         (3.0 * a, -a),

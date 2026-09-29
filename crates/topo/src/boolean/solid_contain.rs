@@ -1486,8 +1486,8 @@ pub(super) fn cone_face_trim<T: Decide>(
 /// than a period AND the face is the chart rectangle it reports
 /// (`bool_cone_chart_box`, [`crate::chord_join::chart_box_defect`]): a
 /// face with a notch has the rectangle's hull, and the window would
-/// cover the notch. That is the torus trim's box check, spelled by area
-/// because the apex jump is one of the cone polygon's sides.
+/// cover the notch. The torus trim decides the same defect
+/// (`bool_torus_chart_box`).
 ///
 /// # Errors
 ///
@@ -1864,13 +1864,13 @@ pub(super) fn torus_face_windows<T: Decide>(
 /// * `bool_torus_chart_closure` — the last exit is the first entry, on
 ///   the branch the walk pinned. A nonzero difference means the chain
 ///   lost a branch and the window belongs to a different face;
-/// * `bool_torus_chart_box` — the total variation in each channel is
-///   `2·(hi − lo)` exactly when the polygon IS its bounding box. The
-///   L-shape has strictly more.
+/// * `bool_torus_chart_box` — the polygon's area is its bounding box's
+///   ([`crate::chord_join::chart_box_defect`]). An L or a U falls short
+///   by its notch, and an L is monotone in both channels, so neither
+///   its extents nor its total variation can see it.
 ///
-/// **This is a class.** [`cone_chart_trim`] carries the same check
-/// (`bool_cone_chart_box`, by area, since its polygon has the apex jump
-/// for a side). [`sphere_chart_trim`] builds its window the same way — a
+/// **This is a class.** [`cone_chart_trim`] decides the same defect
+/// (`bool_cone_chart_box`). [`sphere_chart_trim`] builds its window the same way — a
 /// fold over boundary images — and does not check that the boundary is
 /// the rectangle it reports; its premise is stated (ISO-BOUNDED, with a
 /// checked edge-class membership) but the box itself is not checked
@@ -1921,13 +1921,8 @@ fn torus_chart_windows<T: Decide>(
         return Ok(None);
     };
     let tau = T::tau();
-    let mut acc: Option<((T, T), (T, T))> = None;
     let mut prev_exit: Option<(T, T)> = None;
-    // The boundary's total variation in each channel, and where the walk
-    // started — the two things the box check below needs (see the
-    // header's "the window is a box" paragraph).
-    let mut variation = (T::zero(), T::zero());
-    let mut first_entry: Option<(T, T)> = None;
+    let mut images: Vec<crate::chord_join::AzimuthImage<T>> = Vec::new();
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
@@ -1984,34 +1979,27 @@ fn torus_chart_windows<T: Decide>(
             entry = (entry.0 + ku, entry.1 + kv);
             exit = (exit.0 + ku, exit.1 + kv);
         }
-        acc = Some(match acc {
-            None => (
-                (entry.0.min(exit.0), entry.0.max(exit.0)),
-                (entry.1.min(exit.1), entry.1.max(exit.1)),
-            ),
-            Some((u, v)) => (
-                (u.0.min(entry.0).min(exit.0), u.1.max(entry.0).max(exit.0)),
-                (v.0.min(entry.1).min(exit.1), v.1.max(entry.1).max(exit.1)),
-            ),
+        images.push(crate::chord_join::AzimuthImage {
+            he,
+            entry: entry.0,
+            exit: exit.0,
+            range: (entry.0.min(exit.0), entry.0.max(exit.0)),
+            v: (entry.1, exit.1),
         });
-        variation = (
-            variation.0 + (exit.0 - entry.0).abs(),
-            variation.1 + (exit.1 - entry.1).abs(),
-        );
-        if first_entry.is_none() {
-            first_entry = Some(entry);
-        }
         prev_exit = Some(exit);
     }
-    let (Some(window), Some(start), Some(end)) = (acc, first_entry, prev_exit) else {
-        return Ok(acc);
+    let (Some(first), Some(last)) = (images.first(), images.last()) else {
+        return Ok(None);
     };
     // **The walk must close.** A cycle's last exit is its first entry, in
     // both channels and on the branch the walk pinned — so a nonzero
     // difference means the chain lost a branch somewhere, and every
     // window read off it would be a different face's. Decided, not
     // assumed: the two channels' own levers, as everywhere else here.
-    for (delta, lev) in [(end.0 - start.0, lever), (end.1 - start.1, minor_radius)] {
+    for (delta, lev) in [
+        (last.exit - first.entry, lever),
+        (last.v.1 - first.v.0, minor_radius),
+    ] {
         if decide(
             "bool_torus_chart_closure",
             Margin::levered(delta, lev),
@@ -2023,30 +2011,23 @@ fn torus_chart_windows<T: Decide>(
             return Ok(None);
         }
     }
-    // **The window is a BOX, and this is what checks the face is one.**
-    // Every boundary edge's chart image is an axis-aligned segment (the
-    // affine guard above), so the boundary is a rectilinear chart
-    // polygon — and a rectilinear polygon traversed once has total
-    // variation `2·(hi − lo)` in each channel exactly when it IS the
-    // bounding box. An L-shaped face has strictly more, and without this
-    // it would pass every other guard here and be served a window
-    // covering the notch it does not occupy.
-    for (var, span, lev) in [
-        (variation.0, window.0.1 - window.0.0, lever),
-        (variation.1, window.1.1 - window.1.0, minor_radius),
-    ] {
-        if decide(
-            "bool_torus_chart_box",
-            Margin::levered(var - (span + span), lev),
-            band,
-        )
-        .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-            != Sign::Zero
-        {
-            return Ok(None);
-        }
+    // **The window is a BOX, and this is what checks the face is one**
+    // (header). The defect is an area in radian²; over the minor span it
+    // is the major angle the notch removes, levered like the major
+    // window.
+    let crate::chord_join::ChartBox { u, v, defect } =
+        crate::chord_join::chart_box_defect(&images).ok_or_else(corrupt)?;
+    if decide(
+        "bool_torus_chart_box",
+        Margin::levered(defect / (v.1 - v.0), lever),
+        band,
+    )
+    .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+        != Sign::Zero
+    {
+        return Ok(None);
     }
-    Ok(acc)
+    Ok(Some((u, v)))
 }
 
 /// **A point's elevation off a ring torus's tube**: `√((ρ − R)² + h²) − r`,
