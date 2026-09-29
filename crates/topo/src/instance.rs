@@ -207,7 +207,7 @@ pub const fn per_part_gate_owed(aggregate_solids: usize) -> bool {
 #[derive(Debug)]
 pub struct GraftKeys {
     solids: Vec<SolidKey>,
-    map: crate::boolean::combine::GraftMap,
+    pub(crate) map: crate::boolean::combine::GraftMap,
 }
 
 impl GraftKeys {

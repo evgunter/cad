@@ -347,6 +347,8 @@ pub mod test_support {
 mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
+#[cfg(test)]
+mod graft_r1_probes;
 pub mod transform;
 pub mod validate;
 
