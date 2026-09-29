@@ -716,7 +716,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ) -> Result<ChartOverlap, ChartRegionError> {
     // 1. Chart identity (fixed gate order, D9: identity → inventory →
     //    arms → seam → machinery).
-    let surface = same_chart(body_a, face_a, body_b, face_b)?;
+    let surface = declared_chart(body_a, face_a, body_b, face_b)?;
     overlap_on(
         body_a,
         face_a,
@@ -734,9 +734,10 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ///
 /// Three authorities answer the same question, in fixed order:
 ///
-/// - [`same_chart`] — the descriptions are structurally ONE chart
-///   (shared key / same `GeomSource`), so the trims are read in it
-///   directly. Strictly stronger, so it is asked first.
+/// - [`declared_chart`] — the recipe declared the descriptions ONE
+///   chart (shared key / same `GeomSource`, read bit-identical), so the
+///   trims are read in it directly. Strictly stronger, so it is asked
+///   first.
 /// - the **shared world carrier**, PLANAR pairs
 ///   ([`world_carrier`]): a representative frame, legitimate exactly
 ///   to the extent of that function's frame-invariance lemma, and only
@@ -748,7 +749,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ///   relation onto the other's, gated by that arm's own carrier
 ///   agreement at the pair's own extent.
 ///
-/// A pair with none of the three keeps [`same_chart`]'s typed
+/// A pair with none of the three keeps [`declared_chart`]'s typed
 /// divergence, per kind:
 ///
 /// - **sphere** — residue: the enclosure needs the fold on BOTH chart
@@ -791,7 +792,7 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     door_one: crate::contact::ContactVerdict,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
-    let divergence = match same_chart(body_a, face_a, body_b, face_b) {
+    let divergence = match declared_chart(body_a, face_a, body_b, face_b) {
         Ok(surface) => {
             return overlap_on(
                 body_a,
@@ -2277,12 +2278,14 @@ fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
     out
 }
 
-/// The structural chart-identity gate (module docs): the recipe
-/// declared the two surfaces one ([`crate::source::surface_declaration`]),
-/// and where that declaration is a shared [`crate::GeomSource`], the
-/// two descriptions read bit-identical through [`surface_bits_equal`].
-/// Anything weaker escalates typed.
-fn same_chart<T: Decide + Bounds>(
+/// **The chart the recipe declared the two faces share** (module
+/// docs' chart-identity gate): the recipe declared the two surfaces
+/// one ([`crate::source::surface_declaration`] — the gluing question,
+/// not [`Body::same_chart`]'s identity), and where that declaration is
+/// a shared [`crate::GeomSource`], the two descriptions read
+/// bit-identical through [`surface_bits_equal`]. Anything weaker
+/// escalates typed.
+fn declared_chart<T: Decide + Bounds>(
     body_a: &Body<T>,
     face_a: FaceKey,
     body_b: &Body<T>,
@@ -2303,11 +2306,10 @@ fn same_chart<T: Decide + Bounds>(
             .get_surface(key_a)
             .cloned()
             .ok_or(ChartRegionError::Corrupt),
-        // The stamp door compares a stamp against its own body's keys
-        // only, so two bodies' stamps were never compared: the chart is
-        // handed out only once the descriptions read bit-identical, and
-        // a same-source pair that does not refuses typed rather than
-        // certify overlap in an arbitrarily chosen chart.
+        // Two bodies' stamps were never compared (`crate::source`'s
+        // module docs): a same-source pair that does not read
+        // bit-identical refuses typed rather than certify overlap in an
+        // arbitrarily chosen chart.
         D::SameSource => {
             let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
             let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;

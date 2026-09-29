@@ -245,7 +245,19 @@ pub(crate) fn surface_declaration<T: geom_core::Real>(
     if core::ptr::eq(body_a, body_b) && a == b {
         return SurfaceDeclaration::SameKey;
     }
-    match (body_a.surface_source(a), body_b.surface_source(b)) {
+    source_declaration(body_a.surface_source(a), body_b.surface_source(b))
+}
+
+/// [`SurfaceDeclaration`] of two descriptions by their sources alone —
+/// [`surface_declaration`] past its key rung, and the whole question
+/// where the descriptions have no keys (a face's outward plane, whose
+/// source has the face's `sense` composed into `orient`). Never
+/// [`SurfaceDeclaration::SameKey`].
+pub(crate) fn source_declaration(
+    a: Option<&GeomSource>,
+    b: Option<&GeomSource>,
+) -> SurfaceDeclaration {
+    match (a, b) {
         (Some(x), Some(y)) if x == y => SurfaceDeclaration::SameSource,
         (Some(x), Some(y)) if x.same_base(y) => SurfaceDeclaration::Mirrored,
         (Some(_), Some(_)) => SurfaceDeclaration::DistinctSources,
@@ -778,6 +790,45 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// **What each declaration says, and how it is reached.** Only one
+    /// key or one source (orientation included) declares one surface;
+    /// a source and its reversal declare a surface and its mirror,
+    /// whose outward sides face apart, so a face on each does not glue.
+    #[test]
+    fn a_declaration_is_one_surface_only_for_one_key_or_one_source() {
+        use super::{GeomSource, SurfaceDeclaration as S, surface_declaration};
+        let plane = || Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let mut body = crate::Body::<f64>::new();
+        let [a, b, c, d, e] = [(); 5].map(|()| body.add_surface(plane()));
+        let source = GeomSource::minted(7, 0);
+        for (key, stamp) in [
+            (a, source.clone()),
+            (b, source.clone()),
+            (c, source.reverted()),
+            (d, GeomSource::minted(7, 1)),
+        ] {
+            assert_eq!(body.set_surface_source(key, stamp), Ok(()));
+        }
+        let other = crate::Body::<f64>::new();
+        for (x, y, on, declared, one) in [
+            (a, a, &body, S::SameKey, true),
+            (a, b, &body, S::SameSource, true),
+            (a, c, &body, S::Mirrored, false),
+            (a, d, &body, S::DistinctSources, false),
+            (a, e, &body, S::Unsourced, false),
+            // One key on two bodies is two arena slots, not one key.
+            (e, e, &other, S::Unsourced, false),
+        ] {
+            let answer = surface_declaration(&body, x, on, y);
+            assert_eq!(answer, declared, "{x:?} against {y:?}");
+            assert_eq!(answer.one_surface(), one, "{declared:?}.one_surface()");
         }
     }
 }

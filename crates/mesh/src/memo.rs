@@ -1541,4 +1541,84 @@ mod tests {
         assert_eq!(keys.stored_ids().count(), 0);
         assert_eq!(memo.len(), 0, "a refusal stores nothing");
     }
+
+    /// **The key reads every scalar the surface walk yields.** Each
+    /// analytic kind is built from a flat scalar list; the walk's own
+    /// scalars, flattened, must be that list, and every one of them,
+    /// changed alone, must change the key. The field list is the
+    /// walk's, so a field a kind gains is a row here the day the walk
+    /// names it.
+    #[test]
+    fn the_surface_key_reads_every_scalar_the_walk_yields() {
+        fn pt(x: &[f64]) -> Point3<f64> {
+            Point3::new(x[0], x[1], x[2])
+        }
+        fn dir(x: &[f64]) -> Vec3<f64> {
+            Vec3::new(x[0], x[1], x[2])
+        }
+        type Build = fn(&[f64]) -> Surface<f64>;
+        let kinds: [Build; 5] = [
+            |x| Surface::Plane {
+                origin: pt(&x[0..3]),
+                normal: dir(&x[3..6]),
+                u_ref: dir(&x[6..9]),
+            },
+            |x| Surface::Cylinder {
+                origin: pt(&x[0..3]),
+                axis: dir(&x[3..6]),
+                radius: x[6],
+                u_ref: dir(&x[7..10]),
+            },
+            |x| Surface::Cone {
+                apex: pt(&x[0..3]),
+                axis: dir(&x[3..6]),
+                half_angle: x[6],
+                u_ref: dir(&x[7..10]),
+            },
+            |x| Surface::Sphere {
+                center: pt(&x[0..3]),
+                radius: x[3],
+                axis: dir(&x[4..7]),
+                u_ref: dir(&x[7..10]),
+            },
+            |x| Surface::Torus {
+                center: pt(&x[0..3]),
+                axis: dir(&x[3..6]),
+                major_radius: x[6],
+                minor_radius: x[7],
+                u_ref: dir(&x[8..11]),
+            },
+        ];
+        let key = |s: &Surface<f64>| {
+            let mut w = KeyWriter::default();
+            w.surface(s);
+            w.0
+        };
+        let base: Vec<f64> = (1..=11).map(f64::from).collect();
+        for build in kinds {
+            let at_rest = build(&base);
+            let SurfaceData::Analytic(data) = at_rest.data() else {
+                panic!("{at_rest:?}: an analytic kind reads as analytic data")
+            };
+            let walked: Vec<(geom::SurfaceDatum, f64)> = data
+                .into_iter()
+                .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+                .collect();
+            assert_eq!(
+                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+                base[..walked.len()],
+                "{at_rest:?}: the builder lays the scalars out in the walk's order"
+            );
+            for (i, &(datum, _)) in walked.iter().enumerate() {
+                let mut moved = base.clone();
+                moved[i] += 0.5;
+                assert_ne!(
+                    key(&build(&moved)),
+                    key(&at_rest),
+                    "{at_rest:?}: the key missed a change to {} (scalar {i})",
+                    datum.name()
+                );
+            }
+        }
+    }
 }

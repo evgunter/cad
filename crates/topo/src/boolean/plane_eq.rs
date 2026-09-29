@@ -171,16 +171,21 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
     let d1 = p1.normal.dot(p1.origin - Point3::origin());
     let d2 = p2.normal.dot(p2.origin - Point3::origin());
 
-    // Rung 1: same source (N6) — syntactic identity, zero numerics.
-    // `orient` carries the DESCRIPTION's reversal, face sense
-    // included (see `PlaneIdentity::s1`): without that composition two
-    // faces of one surface with opposite senses would share a source
-    // bit-for-bit, read `SameOriented`, and blow the assertion below
-    // — their outward normals are exact negations.
-    if let (Some(s1), Some(s2)) = (id.s1, id.s2)
-        && s1.same_base(s2)
-    {
-        let opposite = s1.orient != s2.orient;
+    // Rung 1: same source (N6) — the declared-identity predicate over
+    // the two descriptions' sources, zero numerics. `orient` carries
+    // the DESCRIPTION's reversal, face sense included (see
+    // `PlaneIdentity::s1`), so a mirrored declaration is an opposite
+    // outward normal: without that composition two faces of one
+    // surface with opposite senses would read `SameSource`, then
+    // `SameOriented`, and blow the assertion below — their outward
+    // normals are exact negations.
+    use crate::source::SurfaceDeclaration as D;
+    let opposite = match crate::source::source_declaration(id.s1, id.s2) {
+        D::SameSource => Some(false),
+        D::Mirrored => Some(true),
+        D::SameKey | D::DistinctSources | D::Unsourced => None,
+    };
+    if let Some(opposite) = opposite {
         // Asserted only where the scalar HAS a bit channel: the rung is
         // syntactic (the source decides), the bits are its evidence,
         // and a scalar with no channel (`Dual`, `Sym`) offers none —
