@@ -69,3 +69,23 @@ the slate against the tree:
   rung. The row's own section has the measurement. A second designer
   pair is weighing what a shared key across solids means before it
   goes back to Ev; its blinding byte is on the same analysis branch.
+
+## 2026-09-29 — two implementer PRs in review; chart-in-one-solid to Ev
+
+- `graft-copies-provenance-keys-verbatim` → PR 3413. Measured live on
+  main (order-dependent `union` on the split donut), built as the
+  row's corrected shape: every key-carrying record forwarded at the
+  graft, a dead source key bridged by a dead-on-arrival destination
+  key, `chase_b`'s hand forwarding deleted; goldens moved in slot
+  versions only. The names-lane bridge landed, so the tier logged at
+  dispatch applies: DUAL review on frozen head `034006190`
+  (`docs/DUAL-REVIEW-PROTOCOL.md` at `cb47d67c4`).
+- The identity-only row doors → PR 3414, single FULL review on
+  `ad81a9039`. The lane measured every production row-moving path
+  re-minting afterwards and no corpus row moving; it removed two
+  ordering witnesses that only an `Arc` tie can now exercise, which
+  the review is asked to weigh as a possible blocker.
+- `a-chart-spans-solids-…`: the second designer pair both recommend
+  reversing ruling (A) to (B), charts body-wide and each door grouping
+  its own scope; no reconciliation needed. On Ev as PR 3412 (fork row
+  12), beside PR 3410.
