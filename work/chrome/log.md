@@ -2320,7 +2320,8 @@ work): `indeterminate-payload-shows-the-viewer-a-predicate-name-and-band-numbers
 P1, `escalations-forwarded-whole-are-untriaged-for-a-declarations-object`
 P2, `transform-certify-refusal-names-the-edge-by-arena-key` P2, and
 `refusal-checker-stays-green-when-a-message-loses-its-recourse` P3.
-That puts the slate at about 40 points against 30. Wave 6 is sized
-to take roughly half of it.
+The slate stands at 30 points against 30, at the ceiling under the
+2026-09-27 E/M/H scale (`work/README.md`, cost). Wave 6 is sized to
+take roughly half of it.
 
 Signed (CHROME orchestrator).
