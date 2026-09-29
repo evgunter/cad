@@ -49,3 +49,27 @@ For 1 and 2, rewrite at the source to the standard and drop the entry;
 the must-fire check turns a stale entry red. For 3, read the raise
 sites of `IntervalNotForward` and decide whether a definite reversal at
 a build should end in `KERNEL_DEFECT_ENDING`.
+
+## Escalations that offer a declaration the door cannot take (CHROME triage)
+
+(From the triage in `work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`.) `work.py territory` names no owner for these two files. Each
+renders the whole `Indeterminate`, so it ends in
+`COINCIDENCE_RECOURSE` ("declare the coincidence, …"), and each
+reaches doors that take no declaration:
+
+- `NewellError::Escalated` (`crates/geom-brep/src/newell.rs` near
+  :95, `Display` near :113): "whether vertex {vertex} lies on the
+  loop's plane is too close to call: {cause}". Wrapped whole by
+  `ExtrudeError::CapPlane`/`SidePlane`, `RevolveError::CapPlane`
+  and `LoftError::CapPlane` (`crates/sweep/src/`). No extrude,
+  revolve or loft node takes a declaration.
+- `PcurveMintError::Escalated` (`crates/topo/src/pcurves.rs` near
+  :415, `Display` near :476): "the pcurve at half-edge {half_edge:?}
+  escalated: {cause}", with an arena key as well. `PinMiss::Escalated`
+  becomes this (near :2450). It is wrapped by the loft, revolve, blend,
+  split (`SplitError::Pcurves`), shell, transform and STEP import
+  errors, none of which take a declaration, and by the Boolean, which
+  does.
+
+The repair is `payload()`, a subject in plain words and a routed
+recourse, as in `sweep::blend::BlendError::Escalated`'s `Display`.
