@@ -1154,7 +1154,7 @@ pub(super) fn wall_outline<T: Decide>(
     }
     if !narrower_than_period(face, az.1 - az.0, radius, band)? {
         return Err(escalate(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("bool_wall_trim_period"),
         }));
@@ -1582,7 +1582,7 @@ fn cone_nappe<T: Decide>(face: FaceKey, v: (T, T), band: Band) -> Result<bool, P
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
     let invalid = |predicate| {
         escalate(geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
         })
@@ -2265,7 +2265,7 @@ fn point_on_chart_wall<T: Decide>(
     let invalid = |predicate| PointInSolidError::Escalated {
         face,
         diag: Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
         },
@@ -2500,7 +2500,7 @@ fn chart_azimuth_margin<T: Decide>(
         return Err(PointInSolidError::Escalated {
             face,
             diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("bool_wall_trim_period"),
             },
@@ -2988,7 +2988,7 @@ fn latitude_extremes<T: Decide>(
 ) -> Result<Option<(Option<(T, T)>, Option<(T, T)>)>, Indeterminate> {
     let mut it = levels.iter().copied();
     let first = it.next().ok_or(Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
+        margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some("bool_sphere_trim_latitude"),
     })?;
@@ -3995,7 +3995,7 @@ pub(super) fn line_torus_roots<T: Decide>(
     let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
     let invalid = |predicate| Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
+        margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some(predicate),
     };

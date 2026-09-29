@@ -201,7 +201,7 @@ use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 
-use crate::predicate::{Band, Decide, Indeterminate, Margin, MarginDiag, Sign};
+use crate::predicate::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Sign};
 use crate::real::Real;
 // Only `Probe`'s impls name this.
 #[cfg(feature = "probe")]
@@ -255,7 +255,11 @@ struct Frame {
 /// miss the other, and an outcome cannot reach one channel of the
 /// frame and miss the other: a definite sign is a [`Verdict`], an
 /// indeterminate one an [`Escalation`], in one decision order.
-fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
+fn classify<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+) -> Result<Decided, Indeterminate> {
     classify_in(name, margin, band, true)
 }
 
@@ -324,7 +328,7 @@ fn classify_in<T: Decide>(
     margin: T,
     band: Band,
     logged: bool,
-) -> Result<Sign, Indeterminate> {
+) -> Result<Decided, Indeterminate> {
     // The name is SCOPED to this classification: it is restored on the
     // way out, so a decision taken outside any named door (a bare
     // `sign_within`, a comparison inside a builder) is recorded under
@@ -341,7 +345,10 @@ fn classify_in<T: Decide>(
     // reason it is a cargo feature rather than a runtime flag.
     #[cfg(feature = "identity-pass-testing")]
     let outcome = match outcome {
-        Err(_) if identity_pass(name) => Ok(Sign::Zero),
+        Err(e) if identity_pass(name) => Ok(Decided {
+            sign: Sign::Zero,
+            margin: e.margin,
+        }),
         o => o,
     };
     // Both channels of the innermost open bracket — a definite sign as
@@ -350,9 +357,9 @@ fn classify_in<T: Decide>(
     // records neither, for the reason at `check_unlogged`.
     if logged {
         match &outcome {
-            Ok(sign) => record_verdict(Verdict {
+            Ok(decided) => record_verdict(Verdict {
                 predicate: name,
-                sign: *sign,
+                sign: decided.sign,
             }),
             Err(source) => {
                 record_escalation(*source);
@@ -403,7 +410,7 @@ fn record_escalation(source: Indeterminate) -> Indeterminate {
 /// The gated body: classify through the funnel, then apply the sign
 /// requirement the calling predicate's question depends on. A definite
 /// sign the requirement rejects is an [`Indeterminate`] carrying
-/// [`MarginDiag::Invalid`] — "the question was never validly posed
+/// [`MarginKind::Invalid`](crate::MarginKind::Invalid) — "the question was never validly posed
 /// here" — recorded on the same frame and in the same decision order as
 /// the escalation `classify` itself would have produced.
 ///
@@ -423,11 +430,11 @@ fn classify_gated<T: Decide, R>(
     // would leave every caller converting an already-tested sign a
     // second time, with an arm for the answer this door escalated — the
     // shape these doors exist to remove, reproduced one level up.
-    if let Some(admitted) = admits(classify(name, margin, band)?) {
+    if let Some(admitted) = admits(classify(name, margin, band)?.sign) {
         return Ok(admitted);
     }
     Err(record_escalation(Indeterminate {
-        margin: MarginDiag::Invalid,
+        margin: MarginDiag::INVALID,
         band,
         predicate: Some(name),
     }))
@@ -457,7 +464,7 @@ pub fn check_unlogged<T: Decide>(
     ledger_row: &'static str,
 ) -> Result<Sign, Indeterminate> {
     let _ = ledger_row;
-    classify_in(name, margin, band, false)
+    classify_in(name, margin, band, false).map(|d| d.sign)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
@@ -492,6 +499,23 @@ pub fn decide<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
+    classify(name, margin.value(), band).map(|d| d.sign)
+}
+
+/// [`decide`], keeping the reporting margin the classifier decided on
+/// ([`Decided`]): for a decision whose refusal quotes it — a sized
+/// decision's tolerance offer (D4 ¶1 (i)). Classification and
+/// recording are [`decide`]'s; the margin is for error reporting only
+/// ([`MarginDiag`]).
+///
+/// # Errors
+///
+/// As [`decide`].
+pub fn decide_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<Decided, Indeterminate> {
     classify(name, margin.value(), band)
 }
 
@@ -535,7 +559,7 @@ pub fn decide_flagged<T: Decide>(
     // from the source text by `geom-core/tests/flagged_census.rs`, which
     // is where a citation can be checked against the document it cites.
     let _ = ledger_row;
-    classify(name, margin, band)
+    classify(name, margin, band).map(|d| d.sign)
 }
 
 /// The classify seam's **invariant lane** — [`decide`] for the
@@ -567,7 +591,7 @@ pub fn decide_invariant<T: Decide>(
     margin: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    classify(name, margin, band)
+    classify(name, margin, band).map(|d| d.sign)
 }
 
 /// **The collapsed-arm gate**: [`decide`] for a predicate whose
@@ -594,7 +618,7 @@ pub fn decide_invariant<T: Decide>(
 ///
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-positive sign, an [`Indeterminate`]
-/// carrying [`MarginDiag::Invalid`] under `name`.
+/// carrying [`MarginKind::Invalid`](crate::MarginKind::Invalid) under `name`.
 pub fn decide_positive<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
@@ -627,7 +651,7 @@ pub enum NonzeroSign {
 ///
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite `Zero`, an [`Indeterminate`] carrying
-/// [`MarginDiag::Invalid`] under `name`.
+/// [`MarginKind::Invalid`](crate::MarginKind::Invalid) under `name`.
 pub fn decide_nonzero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
@@ -653,7 +677,7 @@ pub fn decide_nonzero<T: Decide>(
 ///
 /// # Errors
 ///
-/// An [`Indeterminate`] carrying [`MarginDiag::Invalid`] under `name`
+/// An [`Indeterminate`] carrying [`MarginKind::Invalid`](crate::MarginKind::Invalid) under `name`
 /// when `value` is poison: the same payload the classifier produces for
 /// a poisoned margin, because it is the same fact.
 pub fn gate_measured<T: Real>(
@@ -663,7 +687,7 @@ pub fn gate_measured<T: Real>(
 ) -> Result<T, Indeterminate> {
     if value.is_poison() {
         return Err(record_escalation(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band,
             predicate: Some(name),
         }));
@@ -1450,14 +1474,12 @@ impl crate::spline::SpanLocate for Probe {
 
 #[cfg(feature = "probe")]
 impl Decide for Probe {
-    fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
+    fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         let outcome = self.0.sign_within(band);
         let sample = match &outcome {
-            Ok(sign) => SampleOutcome::Definite(*sign),
-            Err(e) => match e.margin {
-                crate::predicate::MarginDiag::Invalid => SampleOutcome::Invalid,
-                _ => SampleOutcome::Indeterminate,
-            },
+            Ok(decided) => SampleOutcome::Definite(decided.sign),
+            Err(e) if e.margin.is_invalid() => SampleOutcome::Invalid,
+            Err(_) => SampleOutcome::Indeterminate,
         };
         record(self.0, band, sample);
         outcome

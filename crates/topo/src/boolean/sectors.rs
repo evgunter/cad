@@ -271,7 +271,7 @@ pub(super) fn sector_face<T: Decide>(
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     BooleanError::Escalated {
         diag: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
         },

@@ -31,21 +31,29 @@ fn interval_classification_tracks_the_global_tolerance() {
     // Point enclosures land where their f64 margins would (the two
     // `Decide` instantiations implement the same decision table).
     assert_eq!(
-        Interval::from_f64(0.5 * eps).sign_within(band),
+        Interval::from_f64(0.5 * eps)
+            .sign_within(band)
+            .map(|d| d.sign),
         Ok(Sign::Zero)
     );
     assert_eq!(
-        Interval::from_f64(20.0 * eps).sign_within(band),
+        Interval::from_f64(20.0 * eps)
+            .sign_within(band)
+            .map(|d| d.sign),
         Ok(Sign::Positive)
     );
     assert_eq!(
-        Interval::from_f64(-20.0 * eps).sign_within(band),
+        Interval::from_f64(-20.0 * eps)
+            .sign_within(band)
+            .map(|d| d.sign),
         Ok(Sign::Negative)
     );
 
     // A genuine enclosure wholly inside the coincidence region.
     assert_eq!(
-        Interval::from_bounds(-0.5 * eps, 0.5 * eps).sign_within(band),
+        Interval::from_bounds(-0.5 * eps, 0.5 * eps)
+            .sign_within(band)
+            .map(|d| d.sign),
         Ok(Sign::Zero)
     );
 
@@ -57,10 +65,7 @@ fn interval_classification_tracks_the_global_tolerance() {
     assert_eq!(
         straddling,
         Indeterminate {
-            margin: MarginDiag::Enclosure {
-                lo: 0.5 * eps,
-                hi: 20.0 * eps,
-            },
+            margin: MarginDiag::enclosure(0.5 * eps, 20.0 * eps),
             band,
             predicate: None,
         }
@@ -71,13 +76,7 @@ fn interval_classification_tracks_the_global_tolerance() {
     let sliver = Interval::from_f64(3.0 * eps)
         .sign_within(band)
         .expect_err("3ε lies inside the ambiguity band (ε, 10ε)");
-    assert_eq!(
-        sliver.margin,
-        MarginDiag::Enclosure {
-            lo: 3.0 * eps,
-            hi: 3.0 * eps,
-        }
-    );
+    assert_eq!(sliver.margin, MarginDiag::enclosure(3.0 * eps, 3.0 * eps));
 
     // The decoration channel at the run's tolerance: sqrt of an
     // enclosure dipping below zero clamps (plausible bounds!) but must
@@ -85,9 +84,9 @@ fn interval_classification_tracks_the_global_tolerance() {
     let clamped = Interval::from_bounds(-eps, eps).sqrt();
     assert!(clamped.lo() >= 0.0, "clamped enclosure looks plausible");
     assert_eq!(
-        clamped.sign_within(band),
+        clamped.sign_within(band).map(|d| d.sign),
         Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band,
             predicate: None,
         })

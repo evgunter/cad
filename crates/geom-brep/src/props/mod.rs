@@ -726,7 +726,7 @@ mod tests {
 
         let msg = PropsError::Escalated {
             cause: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("props_face_extent"),
             },
@@ -761,7 +761,7 @@ mod tests {
         ];
         let escalated = PropsError::Escalated {
             cause: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("props_face_extent"),
             },

@@ -124,7 +124,9 @@ mod certified {
             panic!("expected a certification escalation, got {source:?}");
         };
         assert_eq!(check, geom_brep::CertCheck::MappedSource);
-        let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            cause.margin.diagnostic_f64_for_error_text()
+        else {
             panic!("expected an enclosure margin, got {:?}", cause.margin);
         };
         assert_eq!(lo, 0.0);

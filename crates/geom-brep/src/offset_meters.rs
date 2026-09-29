@@ -144,9 +144,11 @@ use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
-use crate::dihedral::decide;
+use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
-use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{
+    AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+};
 
 /// The refinement ladder the door walks, coarsest first (D9: a fixed
 /// geometric sequence in a fixed order — no value branch chooses it).
@@ -204,7 +206,9 @@ impl Meter {
                 size: "thinness",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: Some("if it has none, this may indicate a kernel bug worth reporting"),
+                at_zero: Some(AtZero::same(
+                    "if it has none, this may indicate a kernel bug worth reporting",
+                )),
             },
             Self::CurvatureHeadroom => SizedDecision {
                 lever: "use an offset distance of smaller magnitude, or offset to the other side",
@@ -666,9 +670,9 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
     let meter = Meter::NormalFloor;
     let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
-    let sign = decide(meter.predicate(), margin, band)
+    let decided = decide_reported(meter.predicate(), margin, band)
         .map_err(|source| MeterError::Escalated { meter, source })?;
-    match Refused::of(sign, margin.value(), band) {
+    match Refused::of(decided, band) {
         None => Ok(()),
         Some(verdict) => Err(MeterError::NormalFloor {
             floor: reg.floor,
@@ -902,9 +906,9 @@ pub enum MeterResult {
 /// ambiguity band or is poisoned.
 pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(), MeterError> {
     let meter = Meter::CurvatureHeadroom;
-    let sign = decide(meter.predicate(), Margin::of(coll.headroom), band)
+    let decided = decide_reported(meter.predicate(), Margin::of(coll.headroom), band)
         .map_err(|source| MeterError::Escalated { meter, source })?;
-    match Refused::of(sign, coll.headroom, band) {
+    match Refused::of(decided, band) {
         None => Ok(()),
         Some(verdict) => Err(MeterError::CurvatureHeadroom {
             reach: coll.reach,
@@ -937,19 +941,30 @@ mod tests {
 
     fn zero(margin: f64) -> Refused {
         Refused::Zero(Classified {
-            margin,
+            margin: MarginDiag::value(margin),
             band: band(),
         })
     }
 
-    /// `floor` is twice the thinness and the lever is 2, so a payload
-    /// that rendered one number for the other would read differently.
-    fn floor(verdict: Refused) -> MeterError {
+    fn negative(margin: f64) -> Refused {
+        Refused::Negative {
+            margin: MarginDiag::value(margin),
+        }
+    }
+
+    /// `floor` is twice the thinness `m` and the lever is 2, so a
+    /// payload that rendered one number for the other would read
+    /// differently.
+    fn floor_of(m: f64, verdict: Refused) -> MeterError {
         MeterError::NormalFloor {
-            floor: 2.0 * verdict.margin(),
+            floor: 2.0 * m,
             speed_lever: 2.0,
             verdict,
         }
+    }
+
+    fn floor_zero(m: f64) -> MeterError {
+        floor_of(m, zero(m))
     }
 
     fn headroom(verdict: Refused) -> MeterError {
@@ -982,22 +997,19 @@ mod tests {
     /// may mean.
     #[test]
     fn each_meter_arm_ends_in_its_decisions_recourse() {
-        let straddle = MarginDiag::Enclosure {
-            lo: -2e-9,
-            hi: 4e-9,
-        };
+        let straddle = MarginDiag::enclosure(-2e-9, 4e-9);
         let rows: [(MeterError, String); 16] = [
             (
-                floor(zero(5e-10)),
+                floor_zero(5e-10),
                 format!(
                     "{SPLIT}, or, if this thinness is intended, tighten the tolerance below \
                      5e-11 m"
                 ),
             ),
-            (floor(zero(0.0)), format!("{SPLIT}{REPORT}")),
-            (floor(Refused::Negative { margin: -1e-3 }), SPLIT.to_owned()),
+            (floor_zero(0.0), format!("{SPLIT}{REPORT}")),
+            (floor_of(-1e-3, negative(-1e-3)), SPLIT.to_owned()),
             (
-                escalated(Meter::NormalFloor, MarginDiag::Value(5e-9)),
+                escalated(Meter::NormalFloor, MarginDiag::value(5e-9)),
                 format!(
                     "{SPLIT}, or, if this thinness is intended, tighten the tolerance below \
                      5e-10 m"
@@ -1005,11 +1017,11 @@ mod tests {
             ),
             (escalated(Meter::NormalFloor, straddle), SPLIT.to_owned()),
             (
-                escalated(Meter::NormalFloor, MarginDiag::Value(-5e-9)),
+                escalated(Meter::NormalFloor, MarginDiag::value(-5e-9)),
                 SPLIT.to_owned(),
             ),
             (
-                escalated(Meter::NormalFloor, MarginDiag::Invalid),
+                escalated(Meter::NormalFloor, MarginDiag::INVALID),
                 format!("{SPLIT}{UNREAD}"),
             ),
             (
@@ -1021,22 +1033,16 @@ mod tests {
             ),
             (headroom(zero(-5e-10)), DISTANCE.to_owned()),
             (headroom(zero(0.0)), DISTANCE.to_owned()),
+            (headroom(negative(-1e-4)), DISTANCE.to_owned()),
             (
-                headroom(Refused::Negative { margin: -1e-4 }),
-                DISTANCE.to_owned(),
-            ),
-            (
-                escalated(Meter::CurvatureHeadroom, MarginDiag::Value(5e-9)),
+                escalated(Meter::CurvatureHeadroom, MarginDiag::value(5e-9)),
                 format!(
                     "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
                      5e-10 m"
                 ),
             ),
             (
-                escalated(
-                    Meter::CurvatureHeadroom,
-                    MarginDiag::Enclosure { lo: 2e-9, hi: 4e-9 },
-                ),
+                escalated(Meter::CurvatureHeadroom, MarginDiag::enclosure(2e-9, 4e-9)),
                 format!(
                     "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
                      2e-10 m"
@@ -1047,11 +1053,11 @@ mod tests {
                 DISTANCE.to_owned(),
             ),
             (
-                escalated(Meter::CurvatureHeadroom, MarginDiag::Value(-5e-9)),
+                escalated(Meter::CurvatureHeadroom, MarginDiag::value(-5e-9)),
                 DISTANCE.to_owned(),
             ),
             (
-                escalated(Meter::CurvatureHeadroom, MarginDiag::Invalid),
+                escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
                 format!("{DISTANCE}{UNREAD}"),
             ),
         ];
@@ -1073,7 +1079,7 @@ mod tests {
     fn each_meter_payload_renders_its_own_numbers() {
         let rows = [
             (
-                floor(zero(5e-10)),
+                floor_zero(5e-10),
                 "the face's normal cannot be proved non-zero (a chart 0.0000000005 m thin: \
                  normal length 0.000000001 m² per unit parameter area over speed 2 m), so it \
                  has no offset",
@@ -1084,7 +1090,7 @@ mod tests {
                  curvature on the side it bends toward (0.001 m), so the offset may fold",
             ),
             (
-                headroom(Refused::Negative { margin: -1e-4 }),
+                headroom(negative(-1e-4)),
                 "the offset distance's magnitude passes the face's radius of curvature on the \
                  side it bends toward (0.001 m), so the offset folds over itself",
             ),
@@ -1106,27 +1112,21 @@ mod tests {
         let mut rows = Vec::new();
         for meter in [Meter::NormalFloor, Meter::CurvatureHeadroom] {
             let lever = meter.decision().lever;
-            let build = |verdict| match meter {
-                Meter::NormalFloor => floor(verdict),
+            let build = |m, verdict| match meter {
+                Meter::NormalFloor => floor_of(m, verdict),
                 Meter::CurvatureHeadroom => headroom(verdict),
             };
             for margin in [5e-10, 1e-10, 0.0, -0.0, -5e-10, -1e-3] {
-                rows.push((build(zero(margin)), lever, margin > 0.0));
-                rows.push((build(Refused::Negative { margin }), lever, false));
+                rows.push((build(margin, zero(margin)), lever, margin > 0.0));
+                rows.push((build(margin, negative(margin)), lever, false));
             }
             let escalations = [
-                (MarginDiag::Value(5e-9), true),
-                (MarginDiag::Enclosure { lo: 2e-9, hi: 4e-9 }, true),
-                (
-                    MarginDiag::Enclosure {
-                        lo: -2e-9,
-                        hi: 4e-9,
-                    },
-                    false,
-                ),
-                (MarginDiag::Value(-5e-9), false),
-                (MarginDiag::Value(0.0), false),
-                (MarginDiag::Invalid, false),
+                (MarginDiag::value(5e-9), true),
+                (MarginDiag::enclosure(2e-9, 4e-9), true),
+                (MarginDiag::enclosure(-2e-9, 4e-9), false),
+                (MarginDiag::value(-5e-9), false),
+                (MarginDiag::value(0.0), false),
+                (MarginDiag::INVALID, false),
             ];
             for (margin, tightens) in escalations {
                 rows.push((escalated(meter, margin), lever, tightens));
@@ -1195,7 +1195,7 @@ mod tests {
         for (margin, want) in [
             (5e-10, zero(5e-10)),
             (-5e-10, zero(-5e-10)),
-            (-1e-3, Refused::Negative { margin: -1e-3 }),
+            (-1e-3, negative(-1e-3)),
         ] {
             let got = offset_curvature_headroom(&coll(margin), band).unwrap_err();
             assert_eq!(verdict(got), Some(want), "{margin}");

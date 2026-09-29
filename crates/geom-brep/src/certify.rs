@@ -59,12 +59,13 @@ use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
-use crate::dihedral::{DihedralClass, classify_dihedral, decide, decide_positive};
+use crate::dihedral::{DihedralClass, decide, decide_positive, decide_reported, wedge_decided};
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 use crate::recourse::{
-    Definite, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized, defect_ending,
+    AtZero, Classified, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    Unsized,
 };
 
 /// The fixed certification sample count (module docs): 9 uniform
@@ -251,11 +252,17 @@ impl core::fmt::Display for CertCheck {
 /// body-side attachment gates (`topo`'s operators and setters) wrap
 /// this; the tier-3 validator carries it inside its own error.
 ///
-/// Magnitude diagnostics ride on [`CertifyError::Escalated`]'s
-/// [`Indeterminate`] (band + margin view). Definite exceedances name
-/// the check and sample; the magnitude itself is scalar-typed and is
-/// not extracted into the error (no `f64`-projection of a generic `T`
-/// exists for every lane — the Dual lane in particular).
+/// A refused decision carries what its classifier saw: the reporting
+/// margin ([`geom_core::MarginDiag`], every lane's own view, `Dual`'s by
+/// delegation to its value part) rides [`CertifyError::Escalated`]'s
+/// [`Indeterminate`] and every band-decided verdict ([`Refused`]), for
+/// the words of the refusal only. A residual's sign-certain exceedance
+/// names the check and sample and carries no magnitude: the residual
+/// decisions are unsized, so no number changes their ending.
+///
+/// [`CertifyError::decision`] hands a door the verdict as structure,
+/// so an ending it composes for its own reading reads the decision
+/// rather than a rendered string.
 #[derive(Clone, Copy, Debug, PartialEq)]
 // The variant roster `topo`'s sample-coverage row reads (this
 // crate's `test-support` feature, test builds only).
@@ -313,20 +320,25 @@ pub enum CertifyError {
     /// A `Seam` description on a non-periodic surface (a plane) — no
     /// seam exists.
     SeamOnNonPeriodic,
-    /// The stored parameter interval is not forward (t₁ − t₀, metered
-    /// as arc length, is definitely ≤ 0 at tolerance): the ratified
+    /// The stored parameter interval is not forward: t₁ − t₀, metered
+    /// as arc length, did not classify positive. The ratified
     /// vertices-derive-bounds convention — increasing parameter runs
-    /// start → end of `he_plus` — is violated by a decreasing interval,
-    /// and a **degenerate** (zero-span) interval is refused by the same
-    /// gate (M2 PR 3 fix pass, N1/N2: no M2 construction mints
-    /// zero-length edges — coincident-endpoint chords are already
-    /// refused as poison, and self-loop scaffolding carries the full
-    /// period — so a zero span is always a defect, not data).
+    /// start → end of `he_plus` — is violated by a definitely reversed
+    /// interval, a sign-certain refusal.
+    ///
+    /// A **zero** verdict is band-decided, like every sized decision's
+    /// (D4 ¶1 (i)), and what it says depends on the span's own margin.
+    /// A span `0 < m ≤ ε` is a real edge shorter than the tolerance, a
+    /// size a user may intend, and a tolerance below `m/K` decides it
+    /// forward. A span `m ≤ 0` — none, or reversed within the tolerance
+    /// — has no size to tighten below, and no kernel construction mints
+    /// one (coincident-endpoint chords are refused as poison, and
+    /// self-loop scaffolding carries the full period): at a build it is
+    /// a kernel defect, over stored geometry a defect of the kernel or
+    /// the file.
     IntervalNotForward {
-        /// The span's verdict: `Zero` for a degenerate interval (an
-        /// edge of no length at this tolerance), `Negative` for a
-        /// reversed one.
-        verdict: Definite,
+        /// The span's verdict, with its reporting margin.
+        verdict: Refused,
     },
     /// A circle carrier's stored interval spans definitely more than
     /// one full period (arc length `(t₁ − t₀)·r > τ·r` beyond
@@ -355,6 +367,8 @@ pub enum CertifyError {
     NotTransverse {
         /// The interior sample index.
         sample: u32,
+        /// The verdict on the levered angle, with its reporting margin.
+        verdict: Refused,
     },
     /// `TangentIntersection` only: the second-order margin (relative
     /// transverse normal curvature, metered at the folded lever arm)
@@ -370,9 +384,10 @@ pub enum CertifyError {
     NotSecondOrderSeparated {
         /// The sample index.
         sample: u32,
-        /// The band the margin was classified against (the
-        /// two-tolerance pair's shared frame).
-        band: Band,
+        /// The verdict on the second-order margin, with its reporting
+        /// margin and, on the zero arm, the band (the two-tolerance
+        /// pair's shared frame).
+        verdict: Refused,
     },
     /// `TangentIntersection` only: the uniqueness tube's margin — the
     /// sampled `|κ_rel|` less its certified drift over the spans, as a
@@ -381,12 +396,10 @@ pub enum CertifyError {
     /// neither verdict is a stored contradiction: the certificate could
     /// not prove separation along the edge.
     TubeNotSeparated {
-        /// The band the margin was classified against.
-        band: Band,
         /// `Zero` where the lower bound is within the zero band;
         /// `Negative` where the drift definitely exceeds the sampled
-        /// separation.
-        verdict: Definite,
+        /// separation; with its reporting margin.
+        verdict: Refused,
     },
     /// `TangentIntersection` only: the (carrier kind, surface kinds)
     /// triple is outside the jet certificate's certified span-bound
@@ -452,14 +465,14 @@ impl core::fmt::Display for CertifyError {
                  seam)"
             ),
             Self::IntervalNotForward {
-                verdict: Definite::Zero,
+                verdict: Refused::Zero(_),
             } => write!(
                 f,
                 "the stored parameter interval spans no length at this tolerance — a \
                  degenerate zero-span interval, which the forward gate refuses"
             ),
             Self::IntervalNotForward {
-                verdict: Definite::Negative,
+                verdict: Refused::Negative { .. },
             } => write!(
                 f,
                 "the stored parameter interval runs backwards — increasing parameter must \
@@ -484,7 +497,7 @@ impl core::fmt::Display for CertifyError {
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
-            Self::NotTransverse { sample } => write!(
+            Self::NotTransverse { sample, .. } => write!(
                 f,
                 "the faces meet tangentially at sample {sample}, where the \
                  edge's description says they cross"
@@ -495,8 +508,7 @@ impl core::fmt::Display for CertifyError {
                  do not fix where the edge runs, which its description says they do"
             ),
             Self::TubeNotSeparated {
-                verdict: Definite::Zero,
-                ..
+                verdict: Refused::Zero(_),
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
@@ -504,8 +516,7 @@ impl core::fmt::Display for CertifyError {
                  the edge runs, which its description says they do"
             ),
             Self::TubeNotSeparated {
-                verdict: Definite::Negative,
-                ..
+                verdict: Refused::Negative { .. },
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
@@ -543,66 +554,47 @@ impl core::fmt::Display for CertifyError {
 impl std::error::Error for CertifyError {}
 
 impl CertifyError {
+    /// The decision this refusal is a refused arm of, and which arm, or
+    /// `None` for a refusal that is no decision's (an unresolved key, an
+    /// unimplemented kind, a band the tolerance cannot form).
+    ///
+    /// This is the verdict as structure: a door that composes its own
+    /// ending reads it here, with the arm's reporting margin, rather
+    /// than from a rendered string.
+    #[must_use]
+    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
+        Some(match self {
+            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
+            Self::NotTransverse { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            Self::NotSecondOrderSeparated { verdict, .. } => {
+                (CertCheck::TangentSecondOrder, verdict.arm())
+            }
+            Self::TubeNotSeparated { verdict } => (CertCheck::TangentTube, verdict.arm()),
+            Self::IntervalNotForward { verdict } => (CertCheck::ParamSpan, verdict.arm()),
+            Self::WindingExceeded => (CertCheck::ParamWinding, RefusedArm::SignCertain),
+            Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
+            Self::ChartImageUnavailable { .. } => (CertCheck::ChartImage, RefusedArm::SignCertain),
+            Self::PlaneNurbs(refusal) => return refusal.decision(),
+            Self::UnresolvedSurface { .. }
+            | Self::Unimplemented
+            | Self::IntersectionSameSurface { .. }
+            | Self::SeamOnNonPeriodic
+            | Self::TangentCertificateUnsupported
+            | Self::Band(_) => return None,
+        })
+    }
+
     /// The ending this refusal's decision gives it, read at `reading`
-    /// ([`recourse`]), or `None` for a refusal that is no decision's
-    /// refused arm (an unresolved key, an unimplemented kind, a band
-    /// the tolerance cannot form).
+    /// ([`recourse`] over [`CertifyError::decision`]), or `None` for a
+    /// refusal that is no decision's refused arm.
     ///
     /// `Display` renders the payload alone: where a refusal is read
     /// decides its ending (D4 ¶1 (i)), so the door that reports it
     /// appends this, or renders both through [`CertifyError::render`].
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
-        match self {
-            Self::ResidualExceeded { check, .. } => {
-                Some(recourse(*check, RefusedArm::SignCertain, reading))
-            }
-            Self::NotTransverse { .. } => Some(recourse(
-                CertCheck::Transversality,
-                RefusedArm::Zero(None),
-                reading,
-            )),
-            Self::NotSecondOrderSeparated { .. } => Some(recourse(
-                CertCheck::TangentSecondOrder,
-                RefusedArm::Zero(None),
-                reading,
-            )),
-            Self::TubeNotSeparated { verdict, .. } => {
-                Some(recourse(CertCheck::TangentTube, verdict.arm(), reading))
-            }
-            // No construction mints a zero-length edge, so a zero span
-            // is a defect wherever it is read (the variant's docs).
-            Self::IntervalNotForward {
-                verdict: Definite::Zero,
-            } => Some(defect_ending(reading).to_owned()),
-            Self::IntervalNotForward {
-                verdict: Definite::Negative,
-            } => Some(recourse(
-                CertCheck::ParamSpan,
-                RefusedArm::SignCertain,
-                reading,
-            )),
-            Self::WindingExceeded => Some(recourse(
-                CertCheck::ParamWinding,
-                RefusedArm::SignCertain,
-                reading,
-            )),
-            Self::Escalated { check, cause, .. } => {
-                Some(recourse(*check, RefusedArm::Undecided(cause), reading))
-            }
-            Self::ChartImageUnavailable { .. } => Some(recourse(
-                CertCheck::ChartImage,
-                RefusedArm::SignCertain,
-                reading,
-            )),
-            Self::PlaneNurbs(refusal) => refusal.ending(reading),
-            Self::UnresolvedSurface { .. }
-            | Self::Unimplemented
-            | Self::IntersectionSameSurface { .. }
-            | Self::SeamOnNonPeriodic
-            | Self::TangentCertificateUnsupported
-            | Self::Band(_) => None,
-        }
+        self.decision()
+            .map(|(check, arm)| recourse(check, arm, reading))
     }
 
     /// The payload and, where its decision gives one, the ending read at
@@ -631,12 +623,20 @@ impl CertCheck {
     /// its definite refusal ends.
     fn ending(self) -> Ending {
         match self {
+            // No kernel construction mints a span of no length or a
+            // reversed one (`CertifyError::IntervalNotForward`).
             Self::ParamSpan => Ending::Sized(SizedDecision {
                 lever: "move the geometry so this edge is not vanishingly short",
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                at_zero: Some(AtZero {
+                    build: "an edge of no length, or a reversed one, is one no kernel construction \
+                            mints, so this is a kernel defect worth reporting",
+                    stored: "an edge of no length, or a reversed one, is one no kernel \
+                             construction mints, so this is a kernel defect or a damaged file, \
+                             worth reporting",
+                }),
             }),
             Self::ParamWinding => Ending::Sized(SizedDecision {
                 lever: "move the geometry so this arc stays clearly short of a full turn",
@@ -737,9 +737,9 @@ fn tube_separation<T: Decide>(
     band: Band,
 ) -> Result<(), CertifyError> {
     let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
-    match decide("tangent_tube_margin", tube, band).map(Definite::of) {
+    match decide_reported("tangent_tube_margin", tube, band).map(|d| Refused::of(d, band)) {
         Ok(None) => Ok(()),
-        Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { band, verdict }),
+        Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { verdict }),
         Err(cause) => Err(CertifyError::Escalated {
             check: CertCheck::TangentTube,
             sample: 0,
@@ -1904,9 +1904,13 @@ fn run_checks<T: Decide>(
         sample: NOT_A_SAMPLE,
         cause,
     };
-    let forward = |sign: Sign| match Definite::of(sign) {
-        None => Ok(()),
-        Some(verdict) => Err(CertifyError::IntervalNotForward { verdict }),
+    let forward = |span: Margin<T>| -> Result<(), CertifyError> {
+        let decided =
+            decide_reported("interval_span_forward", span, band).map_err(span_escalated)?;
+        match Refused::of(decided, band) {
+            None => Ok(()),
+            Some(verdict) => Err(CertifyError::IntervalNotForward { verdict }),
+        }
     };
     let winding_escalated = |cause: Indeterminate| CertifyError::Escalated {
         check: CertCheck::ParamWinding,
@@ -1916,8 +1920,7 @@ fn run_checks<T: Decide>(
     match &spec.carrier {
         Curve3::Circle { radius, .. } => {
             let rate = InfSpeed::new(*radius);
-            let arc = Margin::metered(span, rate);
-            forward(decide("interval_span_forward", arc, band).map_err(span_escalated)?)?;
+            forward(Margin::metered(span, rate))?;
             // Winding bound: the remaining headroom to one full period.
             // Zero (exactly full period, the scaffolding/rim case) and
             // Positive (a partial arc) both pass; definitely negative
@@ -1944,8 +1947,7 @@ fn run_checks<T: Decide>(
             ..
         } => {
             let rate = InfSpeed::new(*minor);
-            let arc = Margin::metered(span, rate);
-            forward(decide("interval_span_forward", arc, band).map_err(span_escalated)?)?;
+            forward(Margin::metered(span, rate))?;
             let headroom = Margin::metered(T::tau() - span, rate);
             match decide("interval_span_winding", headroom, band).map_err(winding_escalated)? {
                 Sign::Positive | Sign::Zero => {}
@@ -1953,9 +1955,7 @@ fn run_checks<T: Decide>(
             }
         }
         Curve3::Line { .. } => {
-            forward(
-                decide("interval_span_forward", Margin::of(span), band).map_err(span_escalated)?,
-            )?;
+            forward(Margin::of(span))?;
         }
         // Rung-3 carriers (M5 PR 9): the span is metered through the
         // certified speed lower bound (`m/parameter`, the split-meter
@@ -1983,8 +1983,7 @@ fn run_checks<T: Decide>(
             let (d0, d1) = n.domain();
             let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
             decide_positive("nurbs_span_meter", net_length, band).map_err(span_escalated)?;
-            let arc = Margin::metered(span, meter);
-            forward(decide("interval_span_forward", arc, band).map_err(span_escalated)?)?;
+            forward(Margin::metered(span, meter))?;
         }
     }
 
@@ -2121,10 +2120,11 @@ fn run_checks<T: Decide>(
                     &mut max_residual,
                 )?;
                 if i > 0 && i < CERT_SAMPLES - 1 {
-                    match classify_dihedral(surf1, surf2, p, extent, band) {
-                        Ok(DihedralClass::Transverse) => {}
-                        Ok(DihedralClass::Smooth) => {
-                            return Err(CertifyError::NotTransverse { sample: i });
+                    match wedge_decided(surf1, surf2, p, extent, band) {
+                        Ok((DihedralClass::Transverse, _)) => {}
+                        Ok((DihedralClass::Smooth, margin)) => {
+                            let verdict = Refused::Zero(Classified { margin, band });
+                            return Err(CertifyError::NotTransverse { sample: i, verdict });
                         }
                         Err(cause) => {
                             return Err(CertifyError::Escalated {
@@ -2202,9 +2202,13 @@ fn run_checks<T: Decide>(
                         crate::tangent_second_order(surf1, surf2, p, tau, extent, band)
                     });
                     let (jet, arm) = (so.jet, so.arm);
-                    match so.verdict {
-                        Ok(Sign::Positive) => geom_core::k_stats::splice(second_order),
-                        refused => {
+                    let refused = match so.verdict {
+                        Ok(decided) => Refused::of(decided, band).map(Ok),
+                        Err(cause) => Some(Err(cause)),
+                    };
+                    match refused {
+                        None => geom_core::k_stats::splice(second_order),
+                        Some(refused) => {
                             // No lever `1/κ_rel` exists, so the
                             // parallelism defect is metered at the folded
                             // arm the sagitta was read over; a DEFINITE
@@ -2245,9 +2249,10 @@ fn run_checks<T: Decide>(
                                 },
                                 // A magnitude margin (`≥ 0`): Zero is the
                                 // G2/osculating zero side; Negative is
-                                // unreachable for a true magnitude and
-                                // refuses the same conservative way.
-                                Ok(_) => CertifyError::NotSecondOrderSeparated { sample: i, band },
+                                // unreachable for a true magnitude.
+                                Ok(verdict) => {
+                                    CertifyError::NotSecondOrderSeparated { sample: i, verdict }
+                                }
                             });
                         }
                     }
@@ -2463,8 +2468,8 @@ fn run_checks<T: Decide>(
             return Err(CertifyError::Unimplemented);
         };
         let limbs = lane(carrier, plane, wall, extent, band).map_err(|e| match e {
-            crate::edge_nurbs::PlaneNurbsRefusal::NotTransverse { sample } => {
-                CertifyError::NotTransverse { sample }
+            crate::edge_nurbs::PlaneNurbsRefusal::NotTransverse { sample, verdict } => {
+                CertifyError::NotTransverse { sample, verdict }
             }
             crate::edge_nurbs::PlaneNurbsRefusal::TransversalityEscalated { sample, cause } => {
                 CertifyError::Escalated {
@@ -2764,7 +2769,7 @@ mod tests {
         );
 
         let cause = Indeterminate {
-            margin: MarginDiag::Value(0.0),
+            margin: MarginDiag::value(0.0),
             band: band(),
             predicate: Some("a_probe"),
         };
@@ -3751,7 +3756,13 @@ mod tests {
         };
         assert_eq!(
             EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band()).unwrap_err(),
-            CertifyError::NotTransverse { sample: 1 }
+            CertifyError::NotTransverse {
+                sample: 1,
+                verdict: Refused::Zero(Classified {
+                    margin: MarginDiag::value(0.0),
+                    band: band(),
+                }),
+            }
         );
     }
 
@@ -3888,7 +3899,7 @@ mod tests {
 
     /// D4 ¶1 (i)/(iv), at every reading: the band-decided arms of one
     /// sized decision — its undecided margin and its Zero verdict — end
-    /// in one ending, the in-band one adding only the value it quotes;
+    /// in one ending, each quoting the tolerance its own margin gives;
     /// its sign-certain arm shares the lever at a build and ends in the
     /// file's defect ending over stored geometry (at rest, at adoption).
     /// The pairs: `NotTransverse` with the transversality check's
@@ -3900,10 +3911,14 @@ mod tests {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
         let band = Band::new(1e-9, 1e-8).unwrap();
         let cause = Indeterminate {
-            margin: MarginDiag::Value(5e-9),
+            margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("a_probe"),
         };
+        let zero = Refused::Zero(Classified {
+            margin: MarginDiag::value(5e-10),
+            band,
+        });
         let cross = "Recourse: move the geometry so the faces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
@@ -3918,49 +3933,52 @@ mod tests {
             let pairs = [
                 (
                     CertCheck::Transversality,
-                    end(CertifyError::NotTransverse { sample: 1 }),
+                    end(CertifyError::NotTransverse {
+                        sample: 1,
+                        verdict: zero,
+                    }),
                     end(escalated(CertCheck::Transversality)),
                     cross,
                     "angle",
                 ),
                 (
                     CertCheck::Transversality,
-                    lane(P::NotTransverse { sample: 1 }),
+                    lane(P::NotTransverse {
+                        sample: 1,
+                        verdict: zero,
+                    }),
                     lane(P::TransversalityEscalated { sample: 1, cause }),
                     cross,
                     "angle",
                 ),
                 (
                     CertCheck::TangentSecondOrder,
-                    end(CertifyError::NotSecondOrderSeparated { sample: 1, band }),
+                    end(CertifyError::NotSecondOrderSeparated {
+                        sample: 1,
+                        verdict: zero,
+                    }),
                     end(escalated(CertCheck::TangentSecondOrder)),
                     curve,
                     "curvature difference",
                 ),
                 (
                     CertCheck::TangentTube,
-                    end(CertifyError::TubeNotSeparated {
-                        band,
-                        verdict: Definite::Zero,
-                    }),
+                    end(CertifyError::TubeNotSeparated { verdict: zero }),
                     end(escalated(CertCheck::TangentTube)),
                     curve,
                     "curvature difference",
                 ),
             ];
-            for (check, zero, in_band, lever, size) in pairs {
-                let (shared, valued) = match reading {
-                    Reading::Build | Reading::AtRest => {
-                        let shared = format!(
-                            "{lever}, or, if this {size} is intended, tighten the tolerance"
-                        );
-                        let valued = format!("{shared} below 5e-10 m");
-                        (shared, valued)
-                    }
-                    Reading::Adopt => (lever.to_owned(), lever.to_owned()),
+            for (check, at_zero, in_band, lever, size) in pairs {
+                let offer = |below: &str| match reading {
+                    Reading::Build | Reading::AtRest => format!(
+                        "{lever}, or, if this {size} is intended, tighten the tolerance below \
+                         {below} m"
+                    ),
+                    Reading::Adopt => lever.to_owned(),
                 };
-                assert_eq!(zero, shared, "{reading:?}");
-                assert_eq!(in_band, valued, "{reading:?}");
+                assert_eq!(at_zero, offer("5e-11"), "{reading:?}");
+                assert_eq!(in_band, offer("5e-10"), "{reading:?}");
                 let definite = recourse(check, RefusedArm::SignCertain, reading);
                 match (reading, check) {
                     // The tube's margin is a lower bound: its definite
@@ -3973,7 +3991,7 @@ mod tests {
                         assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{reading:?}");
                     }
                 }
-                for msg in [&zero, &in_band, &definite] {
+                for msg in [&at_zero, &in_band, &definite] {
                     assert!(msg.matches("Recourse:").count() <= 1, "{msg}");
                     assert!(!msg.contains("declare"), "{msg}");
                 }
@@ -3982,49 +4000,81 @@ mod tests {
     }
 
     /// The tangent tube's construction site carries the verdict its
-    /// margin classified: a sagitta inside the zero band (positive, and
-    /// exactly zero) is `Zero`, a drift past the sampled separation is
-    /// `Negative`, a clear margin passes, at `f64` and at `Interval`.
+    /// margin classified, with the reporting margin: a sagitta inside the
+    /// zero band (positive, and exactly zero) is `Zero`, a drift past the
+    /// sampled separation is `Negative`, a clear margin passes, at `f64`
+    /// and at `Interval` (a point enclosure there).
     #[test]
     fn the_tangent_tube_site_carries_its_verdict() {
         use geom_core::Interval;
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let tube = |kappa_min: f64, drift: f64| {
-            let at_f64 = tube_separation(kappa_min, drift, 1.0, band);
-            let point = Interval::point;
-            let at_interval = tube_separation(point(kappa_min), point(drift), point(1.0), band);
-            assert_eq!(at_f64, at_interval, "κ_min {kappa_min:e}, drift {drift:e}");
-            at_f64
-        };
-        let refused = |verdict| Err(CertifyError::TubeNotSeparated { band, verdict });
+        let point = Interval::point;
+        let zero = |m| Refused::Zero(Classified { margin: m, band });
+        let rows = [
+            (
+                (1e-9, 0.0),
+                Some((
+                    zero(MarginDiag::value(5e-10)),
+                    zero(MarginDiag::enclosure(5e-10, 5e-10)),
+                )),
+                "5e-10 m: in the zero band",
+            ),
+            (
+                (1e-9, 1e-9),
+                Some((
+                    zero(MarginDiag::value(0.0)),
+                    zero(MarginDiag::enclosure(0.0, 0.0)),
+                )),
+                "exactly zero",
+            ),
+            (
+                (0.0, 1.0),
+                Some((
+                    Refused::Negative {
+                        margin: MarginDiag::value(-0.5),
+                    },
+                    Refused::Negative {
+                        margin: MarginDiag::enclosure(-0.5, -0.5),
+                    },
+                )),
+                "the drift swamps κ_min",
+            ),
+            ((1.0, 0.0), None, "a clear margin passes"),
+        ];
         // Sagitta `(κ_min − drift)·1²/2`.
-        assert_eq!(
-            tube(1e-9, 0.0),
-            refused(Definite::Zero),
-            "5e-10 m: in the zero band"
-        );
-        assert_eq!(tube(1e-9, 1e-9), refused(Definite::Zero), "exactly zero");
-        assert_eq!(
-            tube(0.0, 1.0),
-            refused(Definite::Negative),
-            "the drift swamps κ_min"
-        );
-        assert_eq!(tube(1.0, 0.0), Ok(()), "a clear margin passes");
+        for ((kappa_min, drift), want, why) in rows {
+            let refused = |verdict| Err(CertifyError::TubeNotSeparated { verdict });
+            let (at_f64, at_interval) = match want {
+                Some((f, i)) => (refused(f), refused(i)),
+                None => (Ok(()), Ok(())),
+            };
+            assert_eq!(
+                tube_separation(kappa_min, drift, 1.0, band),
+                at_f64,
+                "f64: {why}"
+            );
+            assert_eq!(
+                tube_separation(point(kappa_min), point(drift), point(1.0), band),
+                at_interval,
+                "Interval: {why}"
+            );
+        }
     }
 
     /// Each arm of a split verdict ends as its own arm, at every
-    /// reading. A zero span is a defect wherever it is read (no
-    /// construction mints one); a reversed span and the winding bound's
-    /// only refusal are stored contradictions (the lever at a build, the
-    /// file's defect ending over stored geometry). The tangent tube's
-    /// Zero is band-decided and its Negative the certificate's limit,
-    /// the lever alone everywhere; the plane × NURBS tube's Zero quotes
-    /// `m/K` where its clearance is positive. No Negative arm offers a
-    /// tolerance, and no valued Zero arm offers one without its value.
+    /// reading. A span a smaller tolerance decides forward quotes it; a
+    /// span of no length ends in the lever and the note that no
+    /// construction mints one, a kernel defect at a build and a kernel or
+    /// file defect over stored geometry; a reversed span and the winding
+    /// bound's only refusal are stored contradictions (the lever at a
+    /// build, the file's defect ending over stored geometry). The
+    /// tangent tube's Zero is band-decided and its Negative the
+    /// certificate's limit, the lever alone everywhere; the plane × NURBS
+    /// tube's Zero quotes `m/K` where its clearance is positive. No
+    /// Negative arm offers a tolerance.
     #[test]
     fn each_split_verdict_ends_as_its_own_arm() {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
-        use crate::recourse::{Classified, Refused};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let span = "Recourse: move the geometry so this edge is not vanishingly short";
         let winding = "Recourse: move the geometry so this arc stays clearly short of a full turn";
@@ -4032,13 +4082,22 @@ mod tests {
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
         let tube = |verdict| CertifyError::PlaneNurbs(P::TubeStraddles { verdict, boxes: 4 });
-        let separated = |verdict| CertifyError::TubeNotSeparated { band, verdict };
-        let zero = |margin| Refused::Zero(Classified { margin, band });
+        let separated = |verdict| CertifyError::TubeNotSeparated { verdict };
+        let forward = |verdict| CertifyError::IntervalNotForward { verdict };
+        let zero = |m| {
+            Refused::Zero(Classified {
+                margin: MarginDiag::value(m),
+                band,
+            })
+        };
+        let negative = |m| Refused::Negative {
+            margin: MarginDiag::value(m),
+        };
         for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
             let tightened = |lever: &str, size: &str, below: &str| match reading {
-                Reading::Build | Reading::AtRest => {
-                    format!("{lever}, or, if this {size} is intended, tighten the tolerance{below}")
-                }
+                Reading::Build | Reading::AtRest => format!(
+                    "{lever}, or, if this {size} is intended, tighten the tolerance below {below} m"
+                ),
                 Reading::Adopt => lever.to_owned(),
             };
             let definite = |lever: &str| match reading {
@@ -4046,67 +4105,45 @@ mod tests {
                 Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
             };
             let defect = match reading {
-                Reading::Build => KERNEL_DEFECT_ENDING,
-                Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
-            }
-            .to_owned();
+                Reading::Build => "a kernel defect",
+                Reading::AtRest | Reading::Adopt => "a kernel defect or a damaged file,",
+            };
+            let no_span = format!(
+                "{span}; an edge of no length, or a reversed one, is one no kernel construction \
+                 mints, so this is {defect} worth reporting"
+            );
             let rows = [
+                (forward(zero(5e-10)), tightened(span, "length", "5e-11")),
+                (forward(zero(0.0)), no_span.clone()),
+                (forward(zero(-5e-10)), no_span.clone()),
                 (
                     CertifyError::IntervalNotForward {
-                        verdict: Definite::Zero,
+                        verdict: Refused::Zero(Classified {
+                            margin: MarginDiag::enclosure(-2e-10, 3e-10),
+                            band,
+                        }),
                     },
-                    defect,
+                    no_span,
                 ),
-                (
-                    CertifyError::IntervalNotForward {
-                        verdict: Definite::Negative,
-                    },
-                    definite(span),
-                ),
+                (forward(negative(-1e-3)), definite(span)),
                 (CertifyError::WindingExceeded, definite(winding)),
                 (
-                    separated(Definite::Zero),
-                    tightened(curve, "curvature difference", ""),
+                    separated(zero(5e-10)),
+                    tightened(curve, "curvature difference", "5e-11"),
                 ),
-                (separated(Definite::Negative), curve.to_owned()),
-                (
-                    tube(zero(5e-10)),
-                    tightened(cross, "angle", " below 5e-11 m"),
-                ),
+                (separated(zero(0.0)), curve.to_owned()),
+                (separated(negative(-0.5)), curve.to_owned()),
+                (tube(zero(5e-10)), tightened(cross, "angle", "5e-11")),
                 (tube(zero(0.0)), cross.to_owned()),
-                (tube(Refused::Negative { margin: -5e-9 }), definite(cross)),
+                (tube(negative(-5e-9)), definite(cross)),
             ];
             for (error, want) in rows {
                 let got = error.ending(reading).unwrap();
                 assert_eq!(got, want, "{reading:?}: {error:?}");
-                let negative = matches!(
-                    error,
-                    CertifyError::IntervalNotForward {
-                        verdict: Definite::Negative
-                    } | CertifyError::WindingExceeded
-                        | CertifyError::TubeNotSeparated {
-                            verdict: Definite::Negative,
-                            ..
-                        }
-                        | CertifyError::PlaneNurbs(P::TubeStraddles {
-                            verdict: Refused::Negative { .. },
-                            ..
-                        })
-                );
-                if negative {
+                if let Some((_, RefusedArm::SignCertain)) = error.decision() {
                     assert!(
                         !got.contains("tighten"),
                         "a Negative arm offers a tolerance: {got}"
-                    );
-                }
-                if let CertifyError::PlaneNurbs(P::TubeStraddles {
-                    verdict: Refused::Zero(_),
-                    ..
-                }) = error
-                {
-                    assert!(
-                        !got.contains("tighten") || got.contains(" below "),
-                        "a valued Zero arm offers a tolerance without its value: {got}"
                     );
                 }
             }
@@ -4125,7 +4162,7 @@ mod tests {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
         let band = Band::new(1e-9, 1e-8).unwrap();
         let cause = Indeterminate {
-            margin: MarginDiag::Value(5e-9),
+            margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("a_probe"),
         };
@@ -4198,26 +4235,17 @@ mod tests {
             };
             recourse(check, RefusedArm::Undecided(&cause), Reading::Build)
         };
-        let straddle = MarginDiag::Enclosure {
-            lo: -2.0e-9,
-            hi: 4.0e-9,
-        };
-        let inside = MarginDiag::Enclosure {
-            lo: 2.0e-9,
-            hi: 4.0e-9,
-        };
-        let below = MarginDiag::Enclosure {
-            lo: -4.0e-9,
-            hi: -2.0e-9,
-        };
+        let straddle = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
+        let inside = MarginDiag::enclosure(2.0e-9, 4.0e-9);
+        let below = MarginDiag::enclosure(-4.0e-9, -2.0e-9);
         let rows = [
             (
-                undecided(CertCheck::ParamSpan, MarginDiag::Value(5e-9)),
+                undecided(CertCheck::ParamSpan, MarginDiag::value(5e-9)),
                 "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
                  length is intended, tighten the tolerance below 5e-10 m",
             ),
             (
-                undecided(CertCheck::ParamSpan, MarginDiag::Value(-5e-9)),
+                undecided(CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
                 "Recourse: move the geometry so this edge is not vanishingly short",
             ),
             (
@@ -4234,12 +4262,12 @@ mod tests {
                 "Recourse: move the geometry so the faces cross at a clearer angle",
             ),
             (
-                undecided(CertCheck::Transversality, MarginDiag::Invalid),
+                undecided(CertCheck::Transversality, MarginDiag::INVALID),
                 "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable \
                  or collapsed margin may indicate a kernel bug worth reporting",
             ),
             (
-                undecided(CertCheck::EndpointStart, MarginDiag::Value(5e-9)),
+                undecided(CertCheck::EndpointStart, MarginDiag::value(5e-9)),
                 KERNEL_DEFECT_ENDING,
             ),
             (
@@ -4247,29 +4275,23 @@ mod tests {
                 KERNEL_DEFECT_ENDING,
             ),
             (
-                undecided(CertCheck::Surface1Residual, MarginDiag::Value(5e-9)),
+                undecided(CertCheck::Surface1Residual, MarginDiag::value(5e-9)),
                 KERNEL_LIMIT_RECOURSE,
             ),
             (
-                undecided(CertCheck::PlaneNurbsCertificate, MarginDiag::Invalid),
+                undecided(CertCheck::PlaneNurbsCertificate, MarginDiag::INVALID),
                 KERNEL_LIMIT_RECOURSE,
             ),
             (
-                undecided(CertCheck::ParamSpan, MarginDiag::Value(0.0)),
+                undecided(CertCheck::ParamSpan, MarginDiag::value(0.0)),
                 "Recourse: move the geometry so this edge is not vanishingly short",
             ),
             (
-                undecided(CertCheck::ParamSpan, MarginDiag::Value(-0.0)),
+                undecided(CertCheck::ParamSpan, MarginDiag::value(-0.0)),
                 "Recourse: move the geometry so this edge is not vanishingly short",
             ),
             (
-                undecided(
-                    CertCheck::ParamWinding,
-                    MarginDiag::Enclosure {
-                        lo: 0.0,
-                        hi: 4.0e-9,
-                    },
-                ),
+                undecided(CertCheck::ParamWinding, MarginDiag::enclosure(0.0, 4.0e-9)),
                 "Recourse: move the geometry so this arc stays clearly short of a full turn",
             ),
             (
@@ -4292,15 +4314,21 @@ mod tests {
                 ),
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
-            // A zero span is a defect, not data (the variant's docs): it
-            // does not read the span decision's band-decided arm.
+            // A span of no length has no size to tighten below; no
+            // construction mints one, so over stored geometry it is the
+            // kernel's or the file's.
             (
                 CertifyError::IntervalNotForward {
-                    verdict: Definite::Zero,
+                    verdict: Refused::Zero(Classified {
+                        margin: MarginDiag::value(0.0),
+                        band,
+                    }),
                 }
                 .ending(Reading::AtRest)
                 .unwrap(),
-                KERNEL_OR_FILE_DEFECT_ENDING,
+                "Recourse: move the geometry so this edge is not vanishingly short; an edge of \
+                 no length, or a reversed one, is one no kernel construction mints, so this is a \
+                 kernel defect or a damaged file, worth reporting",
             ),
             (
                 CertifyError::ResidualExceeded {
@@ -4326,7 +4354,7 @@ mod tests {
             check: CertCheck::EndpointStart,
             sample: 0,
             cause: Indeterminate {
-                margin: MarginDiag::Value(5e-9),
+                margin: MarginDiag::value(5e-9),
                 band,
                 predicate: Some("a_probe"),
             },
@@ -4352,17 +4380,11 @@ mod tests {
     fn an_adoption_reading_names_no_tolerance_and_no_kernel_alone() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let margins = [
-            MarginDiag::Value(5e-9),
-            MarginDiag::Value(-5e-9),
-            MarginDiag::Enclosure {
-                lo: 2.0e-9,
-                hi: 4.0e-9,
-            },
-            MarginDiag::Enclosure {
-                lo: -2.0e-9,
-                hi: 4.0e-9,
-            },
-            MarginDiag::Invalid,
+            MarginDiag::value(5e-9),
+            MarginDiag::value(-5e-9),
+            MarginDiag::enclosure(2.0e-9, 4.0e-9),
+            MarginDiag::enclosure(-2.0e-9, 4.0e-9),
+            MarginDiag::INVALID,
         ];
         for check in ALL_CHECKS {
             let causes = margins.map(|margin| Indeterminate {
@@ -4383,14 +4405,20 @@ mod tests {
                 assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
             }
             endings.push(definite);
-            endings.push(recourse(check, RefusedArm::Zero(None), Reading::Adopt));
+            for m in [5e-10, 0.0, -5e-10] {
+                let zero = Classified {
+                    margin: MarginDiag::value(m),
+                    band,
+                };
+                endings.push(recourse(check, RefusedArm::Zero(zero), Reading::Adopt));
+            }
             for ending in endings {
                 assert!(!ending.contains("tolerance"), "{check:?}: {ending}");
                 assert_ne!(ending, KERNEL_DEFECT_ENDING, "{check:?}");
             }
         }
         let cause = Indeterminate {
-            margin: MarginDiag::Value(5e-9),
+            margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("a_probe"),
         };

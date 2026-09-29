@@ -25,7 +25,7 @@ use geom_brep::{
     CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
     must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Band, Margin, MarginDiag, Tol};
+use geom_core::{Band, ErrorTextReading, Margin, Tol};
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
 };
@@ -122,7 +122,7 @@ fn in_band(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> (f64, Str
                 panic!("{what}: not the rule's in-band escalation: {error}");
             };
             assert_eq!(source.predicate, Some("tangent_second_order"), "{what}");
-            let MarginDiag::Value(m) = source.margin else {
+            let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
                 panic!("{what}: the margin is not a value: {source:?}");
             };
             let b = band();

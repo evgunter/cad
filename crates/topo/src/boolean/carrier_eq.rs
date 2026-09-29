@@ -90,7 +90,7 @@ pub enum CarrierEqError {
     /// path.
     Undeclared {
         /// The coincidence predicate's diagnostics (a decided-zero
-        /// margin encodes as `MarginDiag::Invalid`; an in-band margin
+        /// margin encodes as `MarginKind::Invalid`; an in-band margin
         /// rides as measured).
         diag: Indeterminate,
         /// The decided orientation: [`CarrierRelation::SameOriented`]
@@ -334,7 +334,7 @@ pub fn carrier_eq_verdict<T: Decide>(
         _ => {
             if id.declared {
                 Err(CarrierEqError::Contradicted(Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
+                    margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("carrier_kind"),
                 }))
@@ -387,7 +387,7 @@ fn data_rungs<T: Decide>(
         match decide(name, margin, band) {
             Ok(Sign::Positive | Sign::Negative) => {
                 let diag = Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
+                    margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some(name),
                 };
@@ -423,7 +423,7 @@ fn data_rungs<T: Decide>(
     // would read as a measurement that never happened.
     Err(CarrierEqError::Undeclared {
         diag: any_in_band.unwrap_or(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(margins[0].0),
         }),

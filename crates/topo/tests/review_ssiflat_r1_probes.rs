@@ -169,12 +169,9 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
         }
         .to_string()
     };
-    let value = escalated(MarginDiag::Value(1.5e-12));
-    let enclosure = escalated(MarginDiag::Enclosure {
-        lo: 1.5e-12,
-        hi: 2.5e-12,
-    });
-    let poison = escalated(MarginDiag::Invalid);
+    let value = escalated(MarginDiag::value(1.5e-12));
+    let enclosure = escalated(MarginDiag::enclosure(1.5e-12, 2.5e-12));
+    let poison = escalated(MarginDiag::INVALID);
     let hole = PcurveCertifyError::FittedCertificate {
         limb: None,
         what: "probe",

@@ -343,7 +343,7 @@ fn in_band_shell_escalates_typed_never_guessed() {
 /// `V/A`) is in band and refuses the node.
 #[test]
 fn in_band_void_shell_escalates_with_its_valued_ending() {
-    use geom_core::{Band, MarginDiag};
+    use geom_core::{Band, ErrorTextReading};
     let tol = Tol::witness();
     let t = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
@@ -384,7 +384,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
     };
     assert_eq!(ind.predicate, Some("chk_shell_volume_sign"), "{finding}");
     assert_eq!(ind.band, Band::linear(tol).expect("the run's band"));
-    let MarginDiag::Value(m) = ind.margin else {
+    let ErrorTextReading::Value(m) = ind.margin.diagnostic_f64_for_error_text() else {
         panic!("expected a valued margin, got: {finding}");
     };
     // The cavity's own V/A on the void side: a unit square `h` deep,

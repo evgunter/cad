@@ -36,7 +36,7 @@ fn seeds() -> Vec<BlendError> {
     let band = Band::new(1e-9, 1e-6).expect("a band");
     let decided = |predicate, m: f64, sign| ClassifiedMargin {
         predicate,
-        reading: MarginDiag::Value(m),
+        reading: MarginDiag::value(m),
         band,
         sign,
     };
@@ -56,13 +56,13 @@ fn seeds() -> Vec<BlendError> {
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
             margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-            gap: MarginDiag::Value(0.2),
+            gap: MarginDiag::value(0.2),
             cross_chain: false,
         },
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
             margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-            gap: MarginDiag::Value(0.2),
+            gap: MarginDiag::value(0.2),
             cross_chain: true,
         },
         BlendError::TangentialEdge {
@@ -76,7 +76,7 @@ fn seeds() -> Vec<BlendError> {
         BlendError::ChainNotG1 {
             vertex: VertexKey::default(),
             margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
-            arm: MarginDiag::Value(0.5),
+            arm: MarginDiag::value(0.5),
         },
         BlendError::ConvexitySignFlip {
             edge: EdgeKey::default(),
@@ -104,7 +104,7 @@ fn seeds() -> Vec<BlendError> {
         BlendError::Escalated {
             site: BlendSite::Chain,
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_ring_clearance"),
             },
@@ -112,7 +112,7 @@ fn seeds() -> Vec<BlendError> {
         BlendError::Escalated {
             site: BlendSite::Chain,
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_radius_headroom"),
             },
@@ -126,7 +126,7 @@ fn seeds() -> Vec<BlendError> {
                 edge: EdgeKey::default(),
             },
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_ring_clearance"),
             },
@@ -136,7 +136,7 @@ fn seeds() -> Vec<BlendError> {
                 vertex: VertexKey::default(),
             },
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_chain_g1"),
             },

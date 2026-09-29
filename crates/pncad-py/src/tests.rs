@@ -807,7 +807,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // same way here.
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let escalated = |predicate| Indeterminate {
-        margin: MarginDiag::Value(2.0e-9),
+        margin: MarginDiag::value(2.0e-9),
         band,
         predicate,
     };
@@ -880,10 +880,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             error: FrameError::Degenerate {
                 input: FrameInput::RollReference,
                 indeterminate: Some(Indeterminate {
-                    margin: MarginDiag::Enclosure {
-                        lo: -1.0e-9,
-                        hi: 3.0e-9,
-                    },
+                    margin: MarginDiag::enclosure(-1.0e-9, 3.0e-9),
                     band,
                     predicate: None,
                 }),
@@ -908,7 +905,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             error: FrameError::Degenerate {
                 input: FrameInput::MirrorNormal,
                 indeterminate: Some(Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: None,
                 }),
@@ -2263,7 +2260,7 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
         (UnitVec3Error::UnderflowedLength, "underflowed_direction"),
         (
             UnitVec3Error::Escalated(Indeterminate {
-                margin: MarginDiag::Value(2.0e-9),
+                margin: MarginDiag::value(2.0e-9),
                 band,
                 predicate: Some("datum_unit_norm"),
             }),
@@ -3066,7 +3063,7 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
         let refused = BlendError::Escalated {
             site,
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_radius_headroom"),
             },
@@ -3313,6 +3310,10 @@ fn check_registry_tags_are_stable() {
 
     let refused = ShellClassifyError::ZeroVolume {
         shell: pncad::topo::ShellKey::default(),
+        verdict: pncad::geom_brep::recourse::Classified {
+            margin: pncad::geom_core::MarginDiag::value(5.0e-10),
+            band: pncad::geom_core::Band::new(1e-9, 1e-8).expect("a band"),
+        },
     };
     assert_eq!(
         check_evidence_tag(&CheckEvidence::Escalated {
@@ -3387,6 +3388,10 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     // its own word, which is the half a caller branches on.
     let refused = pncad::document::ShellClassifyError::ZeroVolume {
         shell: pncad::topo::ShellKey::default(),
+        verdict: pncad::geom_brep::recourse::Classified {
+            margin: pncad::geom_core::MarginDiag::value(5.0e-10),
+            band: pncad::geom_core::Band::new(1e-9, 1e-8).expect("a band"),
+        },
     };
     carries(
         &E::Escalated {
@@ -3760,7 +3765,7 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             face: FaceKey::default(),
             ring: Default::default(),
             source: Indeterminate {
-                margin: MarginDiag::Value(5e-9),
+                margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
                 predicate: Some("ring_contact"),
             },

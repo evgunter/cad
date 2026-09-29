@@ -213,7 +213,9 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
             source,
         }) => {
             assert_eq!(source.predicate, Some("fillet3_support_coaxiality"));
-            let geom_core::MarginDiag::Value(v) = source.margin else {
+            let geom_core::ErrorTextReading::Value(v) =
+                source.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("an f64 reading")
             };
             assert!(

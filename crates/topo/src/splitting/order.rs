@@ -91,7 +91,7 @@ pub(super) fn in_plane_frame<T: Decide>(
         }
     }
     Err(last.unwrap_or(Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
+        margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some("split_join_frame_arm"),
     }))

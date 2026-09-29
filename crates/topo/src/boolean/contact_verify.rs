@@ -163,7 +163,7 @@ fn rest_pair_verdict<T: Decide>(
         Ok((CarrierRelation::SameOpposite, verdict)) => Ok(verdict),
         Ok((CarrierRelation::SameOriented, _)) => Err(ContactRefusal::Contradicted {
             diag: Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("contact_rest_senses_opposed"),
             },
@@ -174,7 +174,7 @@ fn rest_pair_verdict<T: Decide>(
         // breaking its own contract.
         Ok((CarrierRelation::Distinct, _)) => Err(ContactRefusal::Escalated {
             diag: Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("contact_rest_ladder_invariant"),
             },
@@ -323,7 +323,7 @@ pub fn tangent_locus_relation<T: Decide>(
                 Ok(Sign::Positive) => {
                     return Err(ContactRefusal::Contradicted {
                         diag: Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
+                            margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some(name),
                         },
@@ -358,7 +358,7 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Positive) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_opposed"),
                     },
@@ -371,7 +371,7 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Zero) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_independent"),
                     },
@@ -420,7 +420,7 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_parallel"),
                     },
@@ -444,7 +444,7 @@ pub fn tangent_locus_relation<T: Decide>(
                 if !declared {
                     return Err(ContactRefusal::Escalated {
                         diag: Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
+                            margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some("contact_tangent_second_order"),
                         },
@@ -635,7 +635,7 @@ mod tests {
     #[test]
     fn fit_steer_fires_only_where_a_gap_could_help() {
         let diag = |p| Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band: band(),
             predicate: Some(p),
         };

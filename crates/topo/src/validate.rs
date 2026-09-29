@@ -381,8 +381,8 @@ use std::borrow::Cow;
 
 use geom::{NetState, Surface};
 use geom_brep::recourse::{
-    Definite, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-    UNREADABLE_MARGIN_NOTE, Unsized,
+    Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite, UNREADABLE_MARGIN_NOTE,
+    Unsized,
 };
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
@@ -416,6 +416,16 @@ pub(crate) fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
+}
+
+/// [`decide`], keeping the reporting margin for a sized decision's
+/// refusal ([`geom_core::k_stats::decide_reported`]).
+pub(crate) fn decide_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::Decided, Indeterminate> {
+    geom_core::k_stats::decide_reported(name, margin, band)
 }
 
 /// **What a census refusal is ABOUT** — the whole of the subject the
@@ -607,7 +617,7 @@ pub enum CensusUnsupportedCause {
     /// the census used to answer all three with
     /// [`ValidationError::CensusEscalated`] over an
     /// [`Indeterminate`] it MINTED: predicate `pm_census_containment`,
-    /// margin [`MarginDiag::Invalid`](geom_core::MarginDiag::Invalid).
+    /// margin [`MarginKind::Invalid`](geom_core::MarginKind::Invalid).
     /// That reads as "a named predicate was posed and came back
     /// poisoned", which is a claim about a measurement that never
     /// happened, in the one field a reader uses to judge how close the
@@ -836,8 +846,8 @@ pub enum ValidationError {
         /// The face whose torus is a horn or spindle.
         face: FaceKey,
         /// `R − r`'s verdict: zero at this tolerance (a horn), or
-        /// definitely negative (a spindle).
-        verdict: Definite,
+        /// definitely negative (a spindle), with its reporting margin.
+        verdict: Refused,
     },
     /// Tier 3: the ring-torus convention margin `R − r` landed in the
     /// ambiguity band (or was poison) — the classification is not
@@ -2190,7 +2200,7 @@ const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 /// prefixed by the input check a poisoned margin wants first.
 fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
     match margin {
-        Some(geom_core::MarginDiag::Invalid) => {
+        Some(margin) if margin.is_invalid() => {
             "Recourse: check the inputs that built this body, then declare the coincidence, \
              move the geometry, or lower the tolerance"
         }
@@ -2204,19 +2214,17 @@ fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
 /// decision's margin gives a tolerance to tighten below (D4 ¶1 (i)), or,
 /// for a poisoned margin (not a number at all), the kernel defect it is.
 fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static str {
-    match margin {
-        geom_core::MarginDiag::Invalid => DEFECT,
-        _ => lever,
-    }
+    if margin.is_invalid() { DEFECT } else { lever }
 }
 
 /// The ending of an undecided margin whose refusal does not carry which
 /// of its site's decisions it is: no lever, since none is known to reach
 /// it, and for a poisoned margin what that may mean.
 fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
-    match margin {
-        geom_core::MarginDiag::Invalid => format!("{NOT_YET}: {UNREADABLE_MARGIN_NOTE}").into(),
-        _ => NOT_YET.into(),
+    if margin.is_invalid() {
+        format!("{NOT_YET}: {UNREADABLE_MARGIN_NOTE}").into()
+    } else {
+        NOT_YET.into()
     }
 }
 
@@ -2394,10 +2402,15 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::SeamOnNonPeriodic
-        | CertifyError::IntervalNotForward { .. }
+        | CertifyError::IntervalNotForward {
+            verdict: Refused::Negative { .. },
+        }
         | CertifyError::WindingExceeded
         | CertifyError::ResidualExceeded { .. }
         | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. }) => MISMATCH,
+        CertifyError::IntervalNotForward {
+            verdict: Refused::Zero(_),
+        } => "its length is within the tolerance of zero",
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
@@ -2824,8 +2837,8 @@ impl fmt::Display for ValidationError {
                 f,
                 "a torus face's tube radius {}. {}",
                 match verdict {
-                    Definite::Zero => "equals its ring radius at this tolerance (a horn torus)",
-                    Definite::Negative => "is larger than its ring radius (a spindle torus)",
+                    Refused::Zero(_) => "equals its ring radius at this tolerance (a horn torus)",
+                    Refused::Negative { .. } => "is larger than its ring radius (a spindle torus)",
                 },
                 RING_TORUS.recourse(verdict.arm(), Reading::AtRest)
             ),
@@ -4712,7 +4725,7 @@ pub(crate) fn material_arm_error(
             edge,
             check: WedgeCheck::MaterialSide,
             cause: Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some(predicate),
             },
@@ -5347,15 +5360,13 @@ pub(crate) fn tier3_local_checks_marked<
                 } = surface
                 {
                     match geom::ring_torus(*major_radius, *minor_radius, band) {
-                        Ok(Sign::Positive) => {}
-                        Ok(sign @ (Sign::Zero | Sign::Negative)) => {
-                            errors.push(ValidationError::DegenerateTorus {
-                                face: face_key,
-                                verdict: match sign {
-                                    Sign::Zero => Definite::Zero,
-                                    _ => Definite::Negative,
-                                },
-                            });
+                        Ok(decided) => {
+                            if let Some(verdict) = Refused::of(decided, band) {
+                                errors.push(ValidationError::DegenerateTorus {
+                                    face: face_key,
+                                    verdict,
+                                });
+                            }
                         }
                         Err(cause) => {
                             errors.push(ValidationError::DegenerateTorusEscalated {
@@ -5842,7 +5853,7 @@ pub(crate) fn tier3_local_checks_marked<
                             edge: edge_key,
                             check: WedgeCheck::MaterialSide,
                             cause: Indeterminate {
-                                margin: geom_core::MarginDiag::Invalid,
+                                margin: geom_core::MarginDiag::INVALID,
                                 band,
                                 predicate: Some("material_cusp_side"),
                             },
@@ -9536,7 +9547,7 @@ mod tests {
         let menu = geom_core::COINCIDENCE_RECOURSE;
         assert_eq!(super::too_close(None), format!("Recourse: {menu}"));
         assert_eq!(
-            super::too_close(Some(&geom_core::MarginDiag::Invalid)),
+            super::too_close(Some(&geom_core::MarginDiag::INVALID)),
             format!("Recourse: check the inputs that built this body, then {menu}")
         );
     }
@@ -9596,6 +9607,7 @@ mod tests {
     /// side or the refusal does not carry its decision.
     #[test]
     fn own_close_endings_follow_their_decisions() {
+        use geom_brep::recourse::Classified;
         use geom_brep::{PcurveCertifyError, PcurveCheck};
         use geom_core::{KERNEL_LIMIT_RECOURSE, MarginDiag};
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -9604,11 +9616,8 @@ mod tests {
             band,
             predicate: Some("a_margin"),
         };
-        let in_band = diag(MarginDiag::Value(5e-9));
-        let straddles = diag(MarginDiag::Enclosure {
-            lo: -2e-9,
-            hi: 4e-9,
-        });
+        let in_band = diag(MarginDiag::value(5e-9));
+        let straddles = diag(MarginDiag::enclosure(-2e-9, 4e-9));
         let edge = EdgeKey::default();
         let face = FaceKey::default();
         let vertex = crate::entity::VertexKey::default();
@@ -9691,17 +9700,35 @@ mod tests {
                 "horn torus",
                 ValidationError::DegenerateTorus {
                     face,
-                    verdict: Definite::Zero,
+                    verdict: Refused::Zero(Classified {
+                        margin: MarginDiag::value(5e-10),
+                        band,
+                    }),
                 },
                 "Recourse: make the tube radius clearly smaller than the ring radius, or, if this \
-                 difference between the radii is intended, tighten the tolerance"
+                 difference between the radii is intended, tighten the tolerance below 5e-11 m"
+                    .to_owned(),
+            ),
+            (
+                "horn torus, radii equal",
+                ValidationError::DegenerateTorus {
+                    face,
+                    verdict: Refused::Zero(Classified {
+                        margin: MarginDiag::value(0.0),
+                        band,
+                    }),
+                },
+                "a torus face's tube radius equals its ring radius at this tolerance (a horn \
+                 torus). Recourse: make the tube radius clearly smaller than the ring radius"
                     .to_owned(),
             ),
             (
                 "spindle torus",
                 ValidationError::DegenerateTorus {
                     face,
-                    verdict: Definite::Negative,
+                    verdict: Refused::Negative {
+                        margin: MarginDiag::value(-1e-3),
+                    },
                 },
                 "a torus face's tube radius is larger than its ring radius (a spindle torus). \
                  Recourse: make the tube radius clearly smaller than the ring radius"
@@ -9768,7 +9795,7 @@ mod tests {
                 ValidationError::Pcurve {
                     finding: crate::pcurves::PcurveMintError::Escalated {
                         half_edge: crate::entity::HalfEdgeKey::default(),
-                        cause: diag(MarginDiag::Invalid),
+                        cause: diag(MarginDiag::INVALID),
                     },
                 },
                 format!("There is no way through yet: {UNREADABLE_MARGIN_NOTE}"),
@@ -12640,7 +12667,7 @@ mod tests {
 
         let escalated = ValidationError::CensusEscalated {
             cause: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("pm_census_vv_gap"),
             },
@@ -12908,7 +12935,12 @@ mod offset_fit_door_rows {
         const DISTANCE: &str =
             "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let zero = |margin| Refused::Zero(Classified { margin, band });
+        let zero = |m| {
+            Refused::Zero(Classified {
+                margin: MarginDiag::value(m),
+                band,
+            })
+        };
         let says = |error| {
             ValidationError::ApproxCertification {
                 face: FaceKey::default(),
@@ -12925,13 +12957,10 @@ mod offset_fit_door_rows {
             },
         };
         let close = "whether this face can be offset is too close to call at this tolerance";
-        let wide = MarginDiag::Enclosure {
-            lo: -2.0e-9,
-            hi: 4.0e-9,
-        };
+        let wide = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
         let rows = [
             (
-                says(escalated(Meter::NormalFloor, MarginDiag::Value(5.0e-9))),
+                says(escalated(Meter::NormalFloor, MarginDiag::value(5.0e-9))),
                 format!(
                     "{LEAD}: {close}. {SPLIT}, or, if this thinness is intended, tighten the \
                      tolerance below 5e-10 m"
@@ -12942,7 +12971,7 @@ mod offset_fit_door_rows {
                 format!("{LEAD}: {close}. {DISTANCE}"),
             ),
             (
-                says(escalated(Meter::NormalFloor, MarginDiag::Invalid)),
+                says(escalated(Meter::NormalFloor, MarginDiag::INVALID)),
                 format!(
                     "{LEAD}: {close}. {SPLIT}; an unreadable or collapsed margin may indicate a \
                      kernel bug worth reporting"
@@ -12986,7 +13015,9 @@ mod offset_fit_door_rows {
                 says(MeterError::CurvatureHeadroom {
                     reach: 0.5,
                     kappa: (2.0, 0.5),
-                    verdict: Refused::Negative { margin: -0.1 },
+                    verdict: Refused::Negative {
+                        margin: geom_core::MarginDiag::value(-0.1),
+                    },
                 }),
                 format!("{LEAD}: the offset folds over itself on this face. {DISTANCE}"),
             ),
@@ -13073,9 +13104,17 @@ mod offset_fit_door_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod certify_escalation_rows {
     use geom_brep::PlaneNurbsRefusal as P;
-    use geom_brep::recourse::{Classified, Definite, Refused};
+    use geom_brep::recourse::{Classified, Refused};
     use geom_brep::{CertCheck, CertifyError};
     use geom_core::{Band, Indeterminate, MarginDiag};
+
+    /// A band-decided zero verdict on `m` at the rows' fixed band.
+    fn zero(m: f64) -> Refused {
+        Refused::Zero(Classified {
+            margin: MarginDiag::value(m),
+            band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+        })
+    }
 
     use super::ValidationError;
     use crate::entity::EdgeKey;
@@ -13103,7 +13142,7 @@ mod certify_escalation_rows {
 
     fn tube_zero(margin: f64) -> Refused {
         Refused::Zero(Classified {
-            margin,
+            margin: MarginDiag::value(margin),
             band: Band::new(1.0e-9, 1.0e-8).unwrap(),
         })
     }
@@ -13111,7 +13150,7 @@ mod certify_escalation_rows {
     #[test]
     fn a_certify_refusal_renders_its_decisions_sentence() {
         const LEAD: &str = "an edge's stored curve does not certify against its faces: ";
-        let in_band = MarginDiag::Value(5.0e-9);
+        let in_band = MarginDiag::value(5.0e-9);
         let rows = [
             (
                 escalated(CertCheck::Transversality, in_band),
@@ -13132,7 +13171,7 @@ mod certify_escalation_rows {
                  file; report it",
             ),
             (
-                escalated(CertCheck::Surface1Residual, MarginDiag::Invalid),
+                escalated(CertCheck::Surface1Residual, MarginDiag::INVALID),
                 "whether it lies where its description says is too close to call at this \
                  tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
                  indicate a kernel bug worth reporting",
@@ -13140,22 +13179,31 @@ mod certify_escalation_rows {
             (
                 escalated(
                     CertCheck::ChartImage,
-                    MarginDiag::Enclosure {
-                        lo: -2.0e-9,
-                        hi: 4.0e-9,
-                    },
+                    MarginDiag::enclosure(-2.0e-9, 4.0e-9),
                 ),
                 "where it sits on its face's parameter chart is too close to call at this \
                  tolerance. There is no way through: this is a kernel defect or a damaged \
                  file; report it",
             ),
             // A zero verdict where zero does not pass is band-decided
-            // (D4 ¶1 (i)): the lever, and the conditional tolerance.
+            // (D4 ¶1 (i)): the lever, and the tolerance its margin gives.
             (
-                says(CertifyError::NotTransverse { sample: 4 }),
+                says(CertifyError::NotTransverse {
+                    sample: 4,
+                    verdict: zero(5.0e-10),
+                }),
                 "its faces are tangent where its description says they cross. Recourse: move \
                  the geometry so the faces cross at a clearer angle, or, if this angle is \
-                 intended, tighten the tolerance",
+                 intended, tighten the tolerance below 5e-11 m",
+            ),
+            // At exact tangency no tolerance decides it: the lever alone.
+            (
+                says(CertifyError::NotTransverse {
+                    sample: 4,
+                    verdict: zero(0.0),
+                }),
+                "its faces are tangent where its description says they cross. Recourse: move \
+                 the geometry so the faces cross at a clearer angle",
             ),
             // A definite stored contradiction no move or loosening
             // reaches: an approximation's residual, and the lane's limb.
@@ -13177,18 +13225,30 @@ mod certify_escalation_rows {
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
             ),
-            // A zero span is a defect, not data; a reversed one, and a
-            // winding past a full turn, are stored contradictions at rest.
+            // A span shorter than the tolerance is a length a user may
+            // intend; one of no length is one no construction mints; a
+            // reversed one, and a winding past a full turn, are stored
+            // contradictions at rest.
             (
                 says(CertifyError::IntervalNotForward {
-                    verdict: Definite::Zero,
+                    verdict: zero(5.0e-10),
                 }),
-                "its stored description does not match its geometry. There is no way through: \
-                 this is a kernel defect or a damaged file; report it",
+                "its length is within the tolerance of zero. Recourse: move the geometry so \
+                 this edge is not vanishingly short, or, if this length is intended, tighten \
+                 the tolerance below 5e-11 m",
+            ),
+            (
+                says(CertifyError::IntervalNotForward { verdict: zero(0.0) }),
+                "its length is within the tolerance of zero. Recourse: move the geometry so \
+                 this edge is not vanishingly short; an edge of no length, or a reversed one, is \
+                 one no kernel construction mints, so this is a kernel defect or a damaged \
+                 file, worth reporting",
             ),
             (
                 says(CertifyError::IntervalNotForward {
-                    verdict: Definite::Negative,
+                    verdict: Refused::Negative {
+                        margin: MarginDiag::value(-1.0e-3),
+                    },
                 }),
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
@@ -13202,8 +13262,9 @@ mod certify_escalation_rows {
             // the certificate's limit, which the lever reaches.
             (
                 says(CertifyError::TubeNotSeparated {
-                    band: Band::new(1.0e-9, 1.0e-8).unwrap(),
-                    verdict: Definite::Negative,
+                    verdict: Refused::Negative {
+                        margin: MarginDiag::value(-1.0e-3),
+                    },
                 }),
                 "its faces are not certainly curving apart along it, so the check cannot prove \
                  they fix where it runs, which its description says they do. Recourse: move the \
@@ -13232,7 +13293,9 @@ mod certify_escalation_rows {
             ),
             (
                 says(CertifyError::PlaneNurbs(P::TubeStraddles {
-                    verdict: Refused::Negative { margin: -3.0e-9 },
+                    verdict: Refused::Negative {
+                        margin: geom_core::MarginDiag::value(-3.0e-9),
+                    },
                     boxes: 4,
                 })),
                 "its faces are not certainly crossing along it, so they do not fix where it \

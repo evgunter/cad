@@ -592,10 +592,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
     assert_eq!(
         escalation_is_readable(&Indeterminate {
-            margin: MarginDiag::Enclosure {
-                lo: -1e-9,
-                hi: 1e-9
-            },
+            margin: MarginDiag::enclosure(-1e-9, 1e-9),
             band,
             predicate: Some("face_orientation"),
         }),
@@ -603,7 +600,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     );
     assert_eq!(
         escalation_is_readable(&Indeterminate {
-            margin: MarginDiag::Value(1e-12),
+            margin: MarginDiag::value(1e-12),
             band,
             predicate: None,
         })
@@ -612,7 +609,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     );
     assert_eq!(
         escalation_is_readable(&Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band,
             predicate: None,
         })
@@ -780,7 +777,7 @@ fn entity_and_geometry_sites_are_matchable(
 /// `MarginDiag` are on the same list, which is what makes the whole
 /// struct readable in one import.
 ///
-/// The margin's arm is matched EXHAUSTIVELY, and the three words are
+/// The margin's kind is matched EXHAUSTIVELY, and the three words are
 /// three different next moves: a value landed in the band (tighten ε),
 /// an enclosure straddles (subdivide), a poisoned margin was never a
 /// validly posed question (neither helps). Reading which one it is is
@@ -793,17 +790,10 @@ fn escalation_is_readable(
         band,
         predicate,
     } = escalation;
-    let seen = match margin {
-        MarginDiag::Value(m) => {
-            named::<f64>(*m);
-            "value"
-        }
-        MarginDiag::Enclosure { lo, hi } => {
-            named::<f64>(*lo);
-            named::<f64>(*hi);
-            "enclosure"
-        }
-        MarginDiag::Invalid => "invalid",
+    let seen = match margin.kind() {
+        MarginKind::Value => "value",
+        MarginKind::Enclosure => "enclosure",
+        MarginKind::Invalid => "invalid",
     };
     (*band, *predicate, seen)
 }

@@ -120,7 +120,9 @@ fn a_cone_edge_inside_the_legacy_band_now_escalates() {
             cause,
             ..
         } => {
-            let geom_core::MarginDiag::Value(v) = cause.margin else {
+            let geom_core::ErrorTextReading::Value(v) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("an f64 lane classifies a value, not an enclosure: {cause:?}");
             };
             let expected = d / alpha.cos();
@@ -174,7 +176,9 @@ fn the_cache_lane_already_imposed_the_collapsed_meter() {
                 Some("pcurve_map_residual"),
                 "the same predicate the collapsed description arm now meters"
             );
-            let geom_core::MarginDiag::Value(v) = cause.margin else {
+            let geom_core::ErrorTextReading::Value(v) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("an f64 lane classifies a value: {cause:?}");
             };
             let expected = d / alpha.cos();

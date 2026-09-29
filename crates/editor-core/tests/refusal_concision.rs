@@ -135,7 +135,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
 
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let diag = Indeterminate {
-        margin: MarginDiag::Value(3.0e-10),
+        margin: MarginDiag::value(3.0e-10),
         band,
         predicate: Some("side_of_plane"),
     };

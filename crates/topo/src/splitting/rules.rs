@@ -144,7 +144,7 @@ pub(super) fn apply_rule_a<T: Decide>(
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
+                    margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("split_sector_extent"),
                 }));
@@ -221,7 +221,7 @@ pub(super) fn apply_rule_a<T: Decide>(
             // escalate rather than guess.
             Ok(EntersMaterial::Tangent) => {
                 return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
+                    margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("enters_material"),
                 }));

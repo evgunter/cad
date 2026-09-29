@@ -1706,13 +1706,13 @@ impl core::fmt::Display for BooleanError {
                     f.write_str("a face of the first operand and a face of the second")?;
                 }
                 f.write_str(" coincide, or nearly (")?;
-                // The rung-4 definite arm synthesizes `MarginDiag::Invalid`
+                // The rung-4 definite arm synthesizes `MarginKind::Invalid`
                 // for a decided-zero offset (plane_eq keeps the decision
                 // machinery); rendering that payload verbatim would claim a
                 // poisoned margin on clean geometry. Say the honest thing
                 // instead: the measure is definitely zero (S6 review,
                 // MAJOR-1).
-                if matches!(diag.margin, MarginDiag::Invalid) {
+                if diag.margin.is_invalid() {
                     match diag.predicate {
                         Some(name) => write!(
                             f,
@@ -2312,7 +2312,7 @@ fn verify_tangent_declaration<T: Decide>(
                     declaration,
                     steer: None,
                     margin: Indeterminate {
-                        margin: MarginDiag::Invalid,
+                        margin: MarginDiag::INVALID,
                         band,
                         // Display-only by design: no `decide` ran here
                         // (the sameness was STRUCTURAL), so this label
@@ -2375,7 +2375,7 @@ fn verify_tangent_declaration<T: Decide>(
                 declaration,
                 steer: None,
                 margin: Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("tangent_locus_gap"),
                 },
@@ -2435,7 +2435,7 @@ fn verify_tangent_declaration<T: Decide>(
                             declaration,
                             steer: None,
                             margin: Indeterminate {
-                                margin: MarginDiag::Invalid,
+                                margin: MarginDiag::INVALID,
                                 band,
                                 // Display-only, the `contact_tangent_
                                 // conformal` precedent: the deciding
@@ -2694,7 +2694,7 @@ mod tests {
         // for every margin shape, including Invalid (the reachable
         // bool_plane_orient Zero path synthesizes one; S6 review,
         // MINOR-1).
-        for margin in [MarginDiag::Value(5e-9), MarginDiag::Invalid] {
+        for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
             let msg = BooleanError::Escalated { diag: diag(margin) }.to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
@@ -2708,7 +2708,7 @@ mod tests {
             (Operand::A, FaceKey::default()),
             (Operand::B, FaceKey::default()),
         ];
-        for margin in [MarginDiag::Invalid, MarginDiag::Value(5e-9)] {
+        for margin in [MarginDiag::INVALID, MarginDiag::value(5e-9)] {
             let msg = BooleanError::UndeclaredCoincidence {
                 diag: diag(margin),
                 pair,
@@ -2721,7 +2721,7 @@ mod tests {
         // statement, never the poisoned-margin text (S6 review,
         // MAJOR-1).
         let msg = BooleanError::UndeclaredCoincidence {
-            diag: diag(MarginDiag::Invalid),
+            diag: diag(MarginDiag::INVALID),
             pair,
             relation: PlaneRelation::SameOpposite,
         }
@@ -2833,7 +2833,7 @@ mod tests {
     fn sample_errors() -> Vec<BooleanError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let diag = Indeterminate {
-            margin: MarginDiag::Value(5e-9),
+            margin: MarginDiag::value(5e-9),
             band,
             predicate: Some("bool_plane_offset"),
         };

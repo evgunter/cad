@@ -156,9 +156,9 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
     let zeroed = decide_nonzero("gate_d", Margin::of(0.0f64), b).unwrap_err();
     let recorded = bracket.finish();
 
-    assert_eq!(rejected.margin, MarginDiag::Invalid);
+    assert_eq!(rejected.margin, MarginDiag::INVALID);
     assert_eq!(rejected.predicate, Some("gate_b"));
-    assert_eq!(zeroed.margin, MarginDiag::Invalid);
+    assert_eq!(zeroed.margin, MarginDiag::INVALID);
     assert_eq!(zeroed.predicate, Some("gate_d"));
     assert_eq!(
         recorded.verdicts,
@@ -202,7 +202,7 @@ fn a_gate_over_an_in_band_margin_records_one_escalation_with_its_margin() {
     let bracket = Bracket::open();
     let escalated = decide_positive("gate_in_band", Margin::of(mid), b).unwrap_err();
     let recorded = bracket.finish();
-    assert_eq!(escalated.margin, MarginDiag::Value(mid));
+    assert_eq!(escalated.margin, MarginDiag::value(mid));
     assert!(recorded.verdicts.is_empty());
     assert_eq!(
         recorded.escalations,
@@ -221,7 +221,7 @@ fn the_measurement_gate_records_only_its_escalation() {
     assert_eq!(gate_measured("measured", 0.5f64, b), Ok(0.5f64));
     let poisoned = gate_measured("measured", f64::NAN, b).unwrap_err();
     let recorded = bracket.finish();
-    assert_eq!(poisoned.margin, MarginDiag::Invalid);
+    assert_eq!(poisoned.margin, MarginDiag::INVALID);
     assert_eq!(poisoned.predicate, Some("measured"));
     assert!(
         recorded.verdicts.is_empty(),

@@ -96,7 +96,7 @@
 //!   the unforced window. Face-interior and convex-corner crossings
 //!   of the same shape succeed exactly.
 
-use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -1293,9 +1293,7 @@ pub(super) fn volume_backstop<T: Decide>(
         match geom_core::k_stats::decide_invariant("volume_backstop_operand", v / area, band) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Zero | Sign::Negative) => Ok(false),
-            Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
-                Err(BooleanError::Escalated { diag })
-            }
+            Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated { diag }),
             Err(_) => Ok(false),
         }
     };
@@ -1331,9 +1329,7 @@ pub(super) fn volume_backstop<T: Decide>(
             match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
                 Ok(Sign::Negative) => Err(implausible()),
                 Ok(Sign::Zero | Sign::Positive) => Ok(()),
-                Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
-                    Err(BooleanError::Escalated { diag })
-                }
+                Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated { diag }),
                 Err(_) => Ok(()),
             }
         };

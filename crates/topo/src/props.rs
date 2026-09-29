@@ -39,9 +39,11 @@ use geom_brep::props::quad::{RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
-use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use geom_brep::recourse::{
+    Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+};
 use geom_core::k_stats::Detached;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::Key;
 
 use crate::body::Body;
@@ -1943,6 +1945,8 @@ pub enum ShellClassifyError {
     ZeroVolume {
         /// The unclassifiable shell.
         shell: ShellKey,
+        /// The zero end's verdict, with its reporting margin.
+        verdict: Classified,
     },
     /// The shell's certified volume bracket straddles zero at this
     /// tolerance: its low end classified to the void side and its high
@@ -2000,14 +2004,17 @@ impl ShellClassifyError {
     /// decision's. A flux refusal ends in its own payload's recourse,
     /// and a band failure is the run's configuration.
     ///
-    /// The decision has no sign-certain refusal: an escalation, a zero
-    /// and a straddle are each decided by the band, so each ends the
-    /// same read over a body at rest ([`StoredDefinite::Lever`]).
+    /// An escalation and a zero are band-decided and end with the value
+    /// the margin gives. A straddle is two definite verdicts on
+    /// opposite sides, which no smaller tolerance reconciles, so it
+    /// ends in the lever alone; each ends the same read over a body at
+    /// rest ([`StoredDefinite::Lever`]).
     #[must_use]
     pub fn ending(&self) -> Option<String> {
         let arm = match self {
             Self::Escalated { source, .. } => RefusedArm::Undecided(source),
-            Self::ZeroVolume { .. } | Self::Straddles { .. } => RefusedArm::Zero(None),
+            Self::ZeroVolume { verdict, .. } => RefusedArm::Zero(*verdict),
+            Self::Straddles { .. } => RefusedArm::SignCertain,
             Self::Props { .. } | Self::Band { .. } => return None,
         };
         Some(SHELL_ROLE.recourse(arm, Reading::Build))
@@ -2020,7 +2027,7 @@ impl fmt::Display for ShellClassifyError {
             Self::Band { .. } => write!(f, "shell classification: {}", self.payload()),
             Self::Props { shell, .. }
             | Self::Escalated { shell, .. }
-            | Self::ZeroVolume { shell }
+            | Self::ZeroVolume { shell, .. }
             | Self::Straddles { shell } => write!(
                 f,
                 "shell classification: shell {shell:?}: {}",
@@ -2171,10 +2178,16 @@ fn classify_shells_via<T: Decide>(
         // convention): the mean displacement of this shell's boundary
         // that the volume defect corresponds to.
         let sign_at = |end: T| {
-            crate::validate::decide("chk_shell_volume_sign", Margin::over_lever(end, area), band)
+            crate::validate::decide_reported(
+                "chk_shell_volume_sign",
+                Margin::over_lever(end, area),
+                band,
+            )
         };
-        let role_at = |end, sign: Result<Sign, Indeterminate>| {
-            sign.ok().and_then(|sign| ShellRole::decided_at(end, sign))
+        let role_at = |end, decided: Result<Decided, Indeterminate>| {
+            decided
+                .ok()
+                .and_then(|decided| ShellRole::decided_at(end, decided.sign))
         };
         // The low end first; the high end only when the low end decides
         // nothing. Closed-form shells (pad = 0) reuse the one verdict.
@@ -2189,7 +2202,7 @@ fn classify_shells_via<T: Decide>(
                 };
                 match role_at(BracketEnd::High, hi) {
                     Some(role) => role,
-                    None => return Err(shell_role_refusal(shell_key, lo, hi)),
+                    None => return Err(shell_role_refusal(shell_key, lo, hi, band)),
                 }
             }
         };
@@ -2207,18 +2220,31 @@ fn classify_shells_via<T: Decide>(
 }
 
 /// The refusal of a shell whose bracket `[lo, hi]` classified to neither
-/// side (`lo` not outer, `hi` not void), read from the decided signs
-/// alone: an escalated end is the refusal (the high end's first), ends
-/// decided to opposite sides straddle zero, and otherwise an end is zero.
+/// side (`lo` not outer, `hi` not void), read from the decided signs:
+/// an escalated end is the refusal (the high end's first), ends decided
+/// to opposite sides straddle zero, and otherwise an end is zero (the
+/// low end's first), carried with its reporting margin.
 fn shell_role_refusal(
     shell: ShellKey,
-    lo: Result<Sign, Indeterminate>,
-    hi: Result<Sign, Indeterminate>,
+    lo: Result<Decided, Indeterminate>,
+    hi: Result<Decided, Indeterminate>,
+    band: Band,
 ) -> ShellClassifyError {
     match (lo, hi) {
         (_, Err(source)) | (Err(source), _) => ShellClassifyError::Escalated { shell, source },
-        (Ok(Sign::Negative), Ok(Sign::Positive)) => ShellClassifyError::Straddles { shell },
-        (Ok(_), Ok(_)) => ShellClassifyError::ZeroVolume { shell },
+        (Ok(lo), Ok(hi)) => match (lo.sign, hi.sign) {
+            (Sign::Negative, Sign::Positive) => ShellClassifyError::Straddles { shell },
+            _ => {
+                let zero = if lo.sign == Sign::Zero { lo } else { hi };
+                ShellClassifyError::ZeroVolume {
+                    shell,
+                    verdict: Classified {
+                        margin: zero.margin,
+                        band,
+                    },
+                }
+            }
+        },
     }
 }
 
@@ -3985,10 +4011,10 @@ mod shell_role_refusal_tests {
     use geom_core::MarginDiag;
 
     /// Every bracket that classifies to neither side, as `(lo, hi)`
-    /// reads, and the refusal it takes, read from decided signs alone:
-    /// any escalated end is the refusal (the high end's first, whatever
-    /// its margin says), ends decided to opposite sides straddle, and
-    /// otherwise an end is zero.
+    /// reads, and the refusal it takes, read from decided signs: any
+    /// escalated end is the refusal (the high end's first, whatever its
+    /// margin says), ends decided to opposite sides straddle, and
+    /// otherwise an end is zero and its reporting margin rides along.
     #[test]
     fn a_bracket_refuses_by_its_decided_ends() {
         let shell = ShellKey::default();
@@ -4003,13 +4029,15 @@ mod shell_role_refusal_tests {
             shell,
             source: diag(margin),
         };
-        let v = MarginDiag::Value;
-        let across = MarginDiag::Enclosure {
-            lo: -2e-9,
-            hi: 3e-9,
-        };
+        let v = MarginDiag::value;
+        let ok = |sign, m| Ok(Decided { sign, margin: v(m) });
+        let across = MarginDiag::enclosure(-2e-9, 3e-9);
         let straddles = ShellClassifyError::Straddles { shell };
-        let zero = ShellClassifyError::ZeroVolume { shell };
+        // The zero end's verdict rides the refusal, the low end's first.
+        let zero = |m| ShellClassifyError::ZeroVolume {
+            shell,
+            verdict: Classified { margin: v(m), band },
+        };
         let rows = [
             // Closed form: one read for both ends.
             (
@@ -4032,11 +4060,11 @@ mod shell_role_refusal_tests {
             ),
             (
                 "unreadable",
-                esc(MarginDiag::Invalid),
-                esc(MarginDiag::Invalid),
-                escalated(MarginDiag::Invalid),
+                esc(MarginDiag::INVALID),
+                esc(MarginDiag::INVALID),
+                escalated(MarginDiag::INVALID),
             ),
-            ("zero", Ok(Sign::Zero), Ok(Sign::Zero), zero.clone()),
+            ("zero", ok(Sign::Zero, 0.0), ok(Sign::Zero, 0.0), zero(0.0)),
             // Padded: the high end's escalation first, else the low end's.
             (
                 "both ends in band",
@@ -4046,43 +4074,43 @@ mod shell_role_refusal_tests {
             ),
             (
                 "high end in band",
-                Ok(Sign::Negative),
+                ok(Sign::Negative, -1.0),
                 esc(v(3e-9)),
                 escalated(v(3e-9)),
             ),
             (
                 "low end in band",
                 esc(v(-2e-9)),
-                Ok(Sign::Positive),
+                ok(Sign::Positive, 1.0),
                 escalated(v(-2e-9)),
             ),
             (
                 "low end in band, high zero",
                 esc(v(2e-9)),
-                Ok(Sign::Zero),
+                ok(Sign::Zero, 0.0),
                 escalated(v(2e-9)),
             ),
             (
                 "decided straddle",
-                Ok(Sign::Negative),
-                Ok(Sign::Positive),
+                ok(Sign::Negative, -1.0),
+                ok(Sign::Positive, 1.0),
                 straddles,
             ),
             (
                 "zero low, high outer",
-                Ok(Sign::Zero),
-                Ok(Sign::Positive),
-                zero.clone(),
+                ok(Sign::Zero, 5e-10),
+                ok(Sign::Positive, 1.0),
+                zero(5e-10),
             ),
             (
                 "void low, zero high",
-                Ok(Sign::Negative),
-                Ok(Sign::Zero),
-                zero,
+                ok(Sign::Negative, -1.0),
+                ok(Sign::Zero, -5e-10),
+                zero(-5e-10),
             ),
         ];
         for (name, lo, hi, want) in rows {
-            assert_eq!(shell_role_refusal(shell, lo, hi), want, "{name}");
+            assert_eq!(shell_role_refusal(shell, lo, hi, band), want, "{name}");
         }
     }
 }

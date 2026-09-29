@@ -698,7 +698,7 @@ pub enum PcurveCheck {
 /// The SSI door's definite refusals each measured something different,
 /// and each had already projected it out of an enclosure before the
 /// error was minted. Flattening the three onto one anonymous `f64` —
-/// or worse, onto [`geom_core::MarginDiag::Value`], which additionally
+/// or worse, onto an escalation's [`geom_core::MarginDiag`], which additionally
 /// claims the classifier judged it and found it in the band — loses
 /// the only thing a reader needs: what the number means. Naming each
 /// follows `edge_nurbs`' `TubeStraddles` precedent, where the same SSI
@@ -717,8 +717,9 @@ pub enum FittedMagnitude {
     /// The box count is the informative companion (`edge_nurbs`'
     /// `TubeStraddles` carries the same pair, with the verdict).
     CertifiedClearance {
-        /// The certified zero-free clearance in metres (0 = none).
-        certified_clearance: f64,
+        /// The certified zero-free clearance in metres (0 = none), as
+        /// the classifier read it: for the message only.
+        certified_clearance: geom_core::MarginDiag,
         /// Boxes in the tube chain.
         boxes: u32,
     },
@@ -844,7 +845,7 @@ pub enum PcurveCertifyError {
         /// Deliberately NOT a classified margin. Every value reaching
         /// here is a definite refusal's own quantity, already projected
         /// out of an enclosure when the SSI error was minted, so
-        /// dressing it as [`geom_core::MarginDiag::Value`] would assert
+        /// dressing it as an escalation's margin would assert
         /// two false things at once: that it is a margin the classifier
         /// judged, and that it landed inside the band. Escalations —
         /// the only refusals that DO carry a classified margin — are a
@@ -2573,7 +2574,7 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] carrying [`geom_core::MarginDiag::Invalid`] when
+/// [`Indeterminate`] carrying [`geom_core::MarginKind::Invalid`] when
 /// the subtended length is not definitely positive; the classifier's
 /// own escalation otherwise.
 fn param_rate_gate<T: Decide>(
@@ -4979,7 +4980,7 @@ mod tests {
     fn the_azimuth_gate_ends_as_the_edge_winding_gate() {
         use crate::certify::{CertifyError, recourse};
         let cause = Indeterminate {
-            margin: geom_core::MarginDiag::Value(5e-9),
+            margin: geom_core::MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("pcurve_azimuth_period"),
         };
@@ -5601,7 +5602,7 @@ mod tests {
         );
         let cause = param_rate_gate(&carrier, band())
             .expect_err("a poison meter cannot license a metered span");
-        assert!(matches!(cause.margin, geom_core::MarginDiag::Invalid));
+        assert!(cause.margin.is_invalid());
         assert_eq!(cause.predicate, Some("pcurve_interval_meter"));
         // A HEALTHY net of the same shape licenses its span, so the
         // refusal above is the meter's, not the lane's.

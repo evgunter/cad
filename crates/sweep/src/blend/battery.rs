@@ -53,8 +53,8 @@ use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, de
 ///
 /// `f64` and `Interval` present a thin reading identically (`lo ==
 /// hi`) and spell it differently: `f64::sign_within` reports a reading
-/// it cannot classify as [`MarginDiag::Value`], `Interval`'s reports
-/// one as [`MarginDiag::Enclosure`] even when the enclosure is a point
+/// it cannot classify as [`MarginKind::Value`](geom_core::MarginKind::Value), `Interval`'s reports
+/// one as [`MarginKind::Enclosure`](geom_core::MarginKind::Enclosure) even when the enclosure is a point
 /// (`geom-core`'s interval suite pins the pair `Value(m)` /
 /// `Enclosure { lo: m, hi: m }` for one margin at the two scalars). So
 /// the shape cannot be read off the bracket, and the payload has to
@@ -121,11 +121,11 @@ enum Spelling {
 pub(crate) fn measured<T: Bounds>(value: T) -> MarginDiag {
     let (lo, hi) = (value.lo(), value.hi());
     if lo.is_nan() || hi.is_nan() {
-        return MarginDiag::Invalid;
+        return MarginDiag::INVALID;
     }
     match holds_enclosures::<T>() {
-        Spelling::Value => MarginDiag::Value(lo),
-        Spelling::Enclosure => MarginDiag::Enclosure { lo, hi },
+        Spelling::Value => MarginDiag::value(lo),
+        Spelling::Enclosure => MarginDiag::enclosure(lo, hi),
     }
 }
 
@@ -667,7 +667,7 @@ pub fn convexity_at<T: Decide + Bounds>(
             return Err(esc(
                 site,
                 Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("fillet3_chain_arm"),
                 },
@@ -731,7 +731,7 @@ pub fn chain_g1<T: Decide + Bounds>(
             return Err(esc(
                 site,
                 Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("fillet3_chain_arm"),
                 },

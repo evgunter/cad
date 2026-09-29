@@ -496,7 +496,9 @@ mod tests {
         assert_eq!((collapsed.x, collapsed.y, collapsed.z), (0.0, 0.0, 0.0));
         let tripwire = Band::new(1e-9, 2e-9).expect("a well-ordered band");
         assert_eq!(
-            (collapsed.dot(collapsed) - 1.0).sign_within(tripwire),
+            (collapsed.dot(collapsed) - 1.0)
+                .sign_within(tripwire)
+                .map(|d| d.sign),
             Ok(Sign::Negative)
         );
     }
@@ -660,7 +662,7 @@ mod interval_tests {
                 .get();
             let off = u.norm() - Interval::from_f64(1.0);
             assert_eq!(
-                off.sign_within(band()),
+                off.sign_within(band()).map(|d| d.sign),
                 Ok(Sign::Zero),
                 "the normalized enclosure must DECIDE unit length: {off:?}"
             );
@@ -689,7 +691,10 @@ mod interval_tests {
         // side from it.
         let off = u.norm() - Interval::from_f64(1.0);
         assert!(
-            !matches!(off.sign_within(band()), Ok(Sign::Positive | Sign::Negative)),
+            !matches!(
+                off.sign_within(band()).map(|d| d.sign),
+                Ok(Sign::Positive | Sign::Negative)
+            ),
             "an overflowed enclosure must not DECIDE off-unit: {off:?}"
         );
         let poisoned = Vec3::new(

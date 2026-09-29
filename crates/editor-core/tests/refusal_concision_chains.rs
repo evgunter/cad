@@ -68,6 +68,7 @@ const KERNEL_KEYED: &[&str] = &[
     // work/chrome/transform-certify-refusal-names-the-edge-by-arena-key.md
     "Transform/Certify/Routed/transversality",
     "Transform/Certify/Routed/not-transverse",
+    "Transform/Certify/Routed/not-transverse, tangent",
     "Transform/Certify/Routed/span",
     "Transform/Certify/Routed/invalid",
     "Transform/Certify/Routed/endpoint",
@@ -205,9 +206,21 @@ mod payloads {
     /// meets most.
     pub(super) fn diag() -> Indeterminate {
         Indeterminate {
-            margin: MarginDiag::Value(3.0e-10),
+            margin: MarginDiag::value(3.0e-10),
             band: band(),
             predicate: Some("side_of_plane"),
+        }
+    }
+
+    /// A shell whose volume bracket classified zero, with the zero
+    /// end's reporting margin.
+    pub(super) fn zero_volume(shell: topo::ShellKey) -> topo::ShellClassifyError {
+        topo::ShellClassifyError::ZeroVolume {
+            shell,
+            verdict: geom_brep::recourse::Classified {
+                margin: MarginDiag::value(5.0e-10),
+                band: band(),
+            },
         }
     }
 
@@ -939,7 +952,9 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             E::Certify {
                 edge: topo::EdgeKey::default(),
                 source: geom_brep::CertifyError::IntervalNotForward {
-                    verdict: geom_brep::recourse::Definite::Negative,
+                    verdict: geom_brep::recourse::Refused::Negative {
+                        margin: geom_core::MarginDiag::value(-1.0),
+                    },
                 },
             },
         ),
@@ -1001,7 +1016,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             predicate: Some("dihedral_wedge"),
         },
     };
-    let in_band = MarginDiag::Value(5.0e-9);
+    let in_band = MarginDiag::value(5.0e-9);
     vec![
         (
             "transversality",
@@ -1011,9 +1026,26 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         ),
         (
             "not-transverse",
-            CertifyError::NotTransverse { sample: 4 },
+            CertifyError::NotTransverse {
+                sample: 4,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(5.0e-10),
+                    band,
+                }),
+            },
             "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
-             angle is intended, tighten the tolerance",
+             angle is intended, tighten the tolerance below 5e-11 m",
+        ),
+        (
+            "not-transverse, tangent",
+            CertifyError::NotTransverse {
+                sample: 4,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                }),
+            },
+            "Recourse: move the geometry so the faces cross at a clearer angle",
         ),
         (
             "span",
@@ -1023,7 +1055,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         ),
         (
             "invalid",
-            escalated(CertCheck::Transversality, MarginDiag::Invalid),
+            escalated(CertCheck::Transversality, MarginDiag::INVALID),
             "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable or \
              collapsed margin may indicate a kernel bug worth reporting",
         ),
@@ -1113,11 +1145,8 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
             },
         })
     };
-    let in_band = MarginDiag::Value(5.0e-9);
-    let wide = MarginDiag::Enclosure {
-        lo: -2.0e-9,
-        hi: 4.0e-9,
-    };
+    let in_band = MarginDiag::value(5.0e-9);
+    let wide = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
     let tighten = |lever: &str, size: &str| {
         format!("{lever}, or, if this {size} is intended, tighten the tolerance below 5e-10 m")
     };
@@ -1144,7 +1173,7 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
         ),
         (
             "invalid",
-            escalated(Meter::CurvatureHeadroom, MarginDiag::Invalid),
+            escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
             format!(
                 "{DISTANCE}; an unreadable or collapsed margin may indicate a kernel bug worth \
                  reporting"
@@ -1414,7 +1443,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
     let (face, edge, vertex) = (FaceKey::default(), EdgeKey::default(), VertexKey::default());
     let decided = |predicate, m: f64, sign| ClassifiedMargin {
         predicate,
-        reading: MarginDiag::Value(m),
+        reading: MarginDiag::value(m),
         band: band(),
         sign,
     };
@@ -1438,7 +1467,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             E::FaceClearanceUncertified {
                 face,
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-                gap: MarginDiag::Value(0.2),
+                gap: MarginDiag::value(0.2),
                 cross_chain: false,
             },
         ),
@@ -1447,7 +1476,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             E::FaceClearanceUncertified {
                 face,
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-                gap: MarginDiag::Value(0.2),
+                gap: MarginDiag::value(0.2),
                 cross_chain: true,
             },
         ),
@@ -1470,7 +1499,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             E::ChainNotG1 {
                 vertex,
                 margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
-                arm: MarginDiag::Value(0.5),
+                arm: MarginDiag::value(0.5),
             },
         ),
         (
@@ -2798,7 +2827,7 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
         (
             "Roles",
             S::Roles {
-                error: topo::ShellClassifyError::ZeroVolume { shell },
+                error: payloads::zero_volume(shell),
             },
         ),
         (
@@ -3042,7 +3071,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     let pinned = [
         (
             "in band, outer side",
-            escalated(MarginDiag::Value(5e-9)),
+            escalated(MarginDiag::value(5e-9)),
             format!(
                 "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
                 in_band("5e-9")
@@ -3050,7 +3079,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         ),
         (
             "in band, void side",
-            escalated(MarginDiag::Value(-2e-9)),
+            escalated(MarginDiag::value(-2e-9)),
             format!(
                 "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
                 in_band("-2e-9")
@@ -3058,10 +3087,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         ),
         (
             "in band, bracket across zero",
-            escalated(MarginDiag::Enclosure {
-                lo: -2e-9,
-                hi: 3e-9,
-            }),
+            escalated(MarginDiag::enclosure(-2e-9, 3e-9)),
             format!(
                 "{head}predicate 'chk_shell_volume_sign' indeterminate: enclosure [-2e-9, 3e-9] \
                  cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
@@ -3069,7 +3095,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         ),
         (
             "invalid margin",
-            escalated(MarginDiag::Invalid),
+            escalated(MarginDiag::INVALID),
             format!(
                 "{head}predicate 'chk_shell_volume_sign' indeterminate: margin is invalid (NaN \
                  or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
@@ -3078,11 +3104,31 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         ),
         (
             "zero",
-            S::ZeroVolume { shell },
+            S::ZeroVolume {
+                shell,
+                verdict: geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(-5.0e-10),
+                    band,
+                },
+            },
             format!(
                 "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
                  this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
-                 tolerance"
+                 tolerance below 5e-11 m"
+            ),
+        ),
+        (
+            "zero, of no size",
+            S::ZeroVolume {
+                shell,
+                verdict: geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                },
+            },
+            format!(
+                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
+                 this tolerance. {LEVER}"
             ),
         ),
         (
@@ -3090,7 +3136,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             S::Straddles { shell },
             format!(
                 "{head}a shell's certified volume bracket straddles zero at this tolerance. \
-                 {LEVER}, or, if this thickness is intended, tighten the tolerance"
+                 {LEVER}"
             ),
         ),
     ];
@@ -3184,7 +3230,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(
                 CheckId::Connectedness,
                 E::Escalated {
-                    source: ShellClassifyError::ZeroVolume { shell },
+                    source: payloads::zero_volume(shell),
                 },
             ),
         ),
@@ -3205,7 +3251,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                     source: ShellClassifyError::Escalated {
                         shell,
                         source: Indeterminate {
-                            margin: MarginDiag::Invalid,
+                            margin: MarginDiag::INVALID,
                             ..diag()
                         },
                     },

@@ -3414,7 +3414,8 @@ impl<T: Decide> Cone<T> {
                 rays[(k + 1) % n]
                     .cross(rays[k])
                     .dot(normals[k])
-                    .sign_within(band),
+                    .sign_within(band)
+                    .map(|d| d.sign),
                 Ok(Sign::Negative | Sign::Zero)
             )),
             "a fan piece of 180° or more"
@@ -6843,7 +6844,7 @@ mod tests {
         for e in &errors {
             if let ValidationError::CensusEscalated { cause } = e {
                 assert!(
-                    !matches!(cause.margin, geom_core::MarginDiag::Invalid)
+                    !cause.margin.is_invalid()
                         && !matches!(
                             cause.predicate,
                             Some("pm_census_containment" | "bool_contfp_boundary")

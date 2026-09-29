@@ -412,7 +412,7 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 assert_eq!(source.band, b);
                 // `==`, not a ceiling: the replica above and the
                 // kernel's own arithmetic must agree bit for bit.
-                assert_eq!(source.margin, MarginDiag::Value(margin));
+                assert_eq!(source.margin, MarginDiag::value(margin));
                 println!(
                     "[r1e] delta={delta:e}: chord_side margin {margin:e} IN BAND ({:e}, {:e}) \
                      — the profile escalates honestly; the conditioning meter is not reached",

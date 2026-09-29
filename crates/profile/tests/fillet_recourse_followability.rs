@@ -387,7 +387,7 @@ fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
         });
         let err = PathError::<f64>::Escalated {
             source: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::Value(-5.0 * tol().eps()),
+                margin: geom_core::MarginDiag::value(-5.0 * tol().eps()),
                 band: geom_core::Band::linear(tol()).expect("the run's band forms"),
                 predicate: Some(predicate),
             },
