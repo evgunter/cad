@@ -1591,12 +1591,13 @@ impl<T: Decide> Body<T> {
     /// `Fan`: `he1` resolves, `he2` resolves ([`EulerOpError::StaleKey`]);
     /// equal start vertices ([`EulerOpError::FanStartMismatch`]); the
     /// start vertex and its point resolve (`StaleKey` /
-    /// [`EulerOpError::StaleGeometry`]); the orbit from `he1` reaches
-    /// `he2` ([`EulerOpError::FanOrbitBroken`]); every half-edge on it
-    /// starts at the start vertex ([`EulerOpError::OrbitBroken`] —
-    /// tier-1-invalid input: a torn `next` can walk it through another
-    /// vertex's half-edge); both `prev` links
-    /// resolve (`StaleKey`). `Lone`: the loop resolves (`StaleKey`); it
+    /// [`EulerOpError::StaleGeometry`]); the orbit walk from `he1`
+    /// closes and reaches `he2` ([`EulerOpError::FanOrbitBroken`]);
+    /// every half-edge on it starts at the start vertex
+    /// ([`EulerOpError::OrbitBroken`] — tier-1-invalid input: a torn
+    /// `next` can walk it through another vertex's half-edge), a
+    /// strut's walk included, since the strut splices into that orbit;
+    /// both `prev` links resolve (`StaleKey`). `Lone`: the loop resolves (`StaleKey`); it
     /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex and point
     /// resolve (`StaleKey` / `StaleGeometry`). Then, for both sites,
     /// the geometry gate: `curve` certifies
@@ -1992,13 +1993,12 @@ impl<T: Decide> Body<T> {
     ///
     /// Beyond resolving every key the split writes, it proves that
     /// every half-edge the orbit walk from `he1` visits starts at the
-    /// split vertex, so the run `[he1 .. he2)` the surgery and the
-    /// re-basing gate re-base is a slice of that vertex's orbit. The
-    /// walk steps through `next(mate(·))` and reads no start vertex, so
-    /// a torn `next` can put another vertex's half-edge on it — in the
-    /// run, where the split would re-base it, or past `he2`, where the
-    /// split would splice into a torn orbit — and only this check sees
-    /// one.
+    /// split vertex ([`Body::require_orbit_starts_at`]), so the run
+    /// `[he1 .. he2)` the surgery and the re-basing gate re-base is a
+    /// slice of that vertex's orbit and the new halves splice into
+    /// that orbit. A torn half-edge in the run would be re-based; one
+    /// past `he2`, or anywhere on a strut's walk (whose run is empty),
+    /// would have the split splice into a torn orbit.
     pub(crate) fn mev_fan_plan(
         &self,
         he1: HalfEdgeKey,
@@ -2016,25 +2016,16 @@ impl<T: Decide> Body<T> {
         // certification's start endpoint (he_plus runs old → new).
         let p_old = self.resolve_vertex_point(v)?;
         // The clockwise run [he1 .. he2): members of the next(mate(·))
-        // orbit walk. The walk is bounded (D9) and resolves every member
-        // it returns.
-        let run: Vec<HalfEdgeKey> = if he1 == he2 {
-            Vec::new() // strut: empty run, no walk needed
-        } else {
-            let orbit = self
-                .vertex_orbit(he1)
-                .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
-            let position = orbit
-                .iter()
-                .position(|&he| he == he2)
-                .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
-            for &member in &orbit {
-                if self.resolve_half_edge(member)?.start != v {
-                    return Err(EulerOpError::OrbitBroken { he: he1 });
-                }
-            }
-            orbit[..position].to_vec()
-        };
+        // orbit walk (bounded, D9), empty for a strut.
+        let orbit = self
+            .vertex_orbit(he1)
+            .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
+        let position = orbit
+            .iter()
+            .position(|&he| he == he2)
+            .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
+        self.require_orbit_starts_at(&orbit, v, he1)?;
+        let run = orbit[..position].to_vec();
         // The splice writes through both prev links; prove them now so
         // the mutation below cannot fail midway (atomicity).
         let he1_prev = self.require_live(he1_prev)?;
@@ -2561,6 +2552,32 @@ impl<T: Decide> Body<T> {
     /// the proof it earns rather than re-earning it.
     pub(crate) fn resolve_half_edge(&self, he: HalfEdgeKey) -> Result<HalfEdge, EulerOpError> {
         self.resolve_half_edge_live(he).map(|(_, data)| data)
+    }
+
+    /// Proves that every member of a closed orbit walk
+    /// ([`Body::vertex_orbit`]) starts at `v`, refusing
+    /// [`EulerOpError::OrbitBroken`] naming the walk's origin otherwise.
+    ///
+    /// The walk steps `next(mate(·))` and reads no start vertex, so a
+    /// torn `next` can close it through another vertex's half-edges; a
+    /// plan that moves or splices into a vertex's orbit proves its walk
+    /// here. The validator's pass 6 ([`crate::validate::validate`])
+    /// reports the same fault. A closed walk holds only live keys, so
+    /// the lookup never misses.
+    pub(crate) fn require_orbit_starts_at(
+        &self,
+        members: &[HalfEdgeKey],
+        v: VertexKey,
+        origin: HalfEdgeKey,
+    ) -> Result<(), EulerOpError> {
+        if members
+            .iter()
+            .all(|&member| self.half_edges.get(member).map(|he| he.start) == Some(v))
+        {
+            Ok(())
+        } else {
+            Err(EulerOpError::OrbitBroken { he: origin })
+        }
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
@@ -3352,42 +3369,11 @@ mod tests {
     use geom_core::Tol;
 
     use super::*;
-    use crate::fixtures::{
-        NgonPillow, arena_snapshot, assert_err_deep_unchanged, deep_snapshot, pillow, prov,
-    };
+    use crate::fixtures::{NgonPillow, assert_err_deep_unchanged, deep_snapshot, pillow, prov};
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
         Point3::new(x, 0.0, 0.0)
-    }
-
-    /// Runs `op` on `body`, asserts it fails with exactly `expected`,
-    /// and asserts the body is untouched: identical arena counts and an
-    /// identical spot-checked half-edge (when one exists).
-    fn assert_err_and_unchanged(
-        body: &mut Body<f64>,
-        expected: &EulerOpError,
-        op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
-    ) {
-        let counts_before = arena_snapshot(body);
-        let probe = body.half_edges().next().map(|(k, he)| (k, he.clone()));
-        let err = op(body);
-        assert_eq!(&err, expected);
-        assert_eq!(
-            arena_snapshot(body),
-            counts_before,
-            "arena counts changed on Err"
-        );
-        if let Some((key, before)) = probe {
-            let after = body
-                .get_half_edge(key)
-                .expect("probe key must still resolve");
-            assert_eq!(after.edge, before.edge);
-            assert_eq!(after.start, before.start);
-            assert_eq!(after.parent_loop, before.parent_loop);
-            assert_eq!(after.next, before.next);
-            assert_eq!(after.prev, before.prev);
-        }
     }
 
     // ------------------------------------------------------------------
@@ -4905,7 +4891,7 @@ mod tests {
         let expected = EulerOpError::StaleKey {
             key: EntityId::HalfEdge(dead),
         };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mev_line(
                 MevSite::Fan {
                     he1: dead,
@@ -4917,7 +4903,7 @@ mod tests {
             .unwrap_err()
         });
         // Same rejection through mef's addressing.
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: dead,
@@ -4945,11 +4931,11 @@ mod tests {
         let expected = EulerOpError::StaleKey {
             key: EntityId::Loop(dead),
         };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mev_line(MevSite::Lone { r#loop: dead }, p(9.0), Tol::witness())
                 .unwrap_err()
         });
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mef_chord(MefSite::Lone { r#loop: dead }, Tol::witness())
                 .unwrap_err()
         });
@@ -4968,7 +4954,7 @@ mod tests {
         // a0 starts at v0 (whose point is now gone); every earlier
         // precondition (same loop, cycle walk, prevs, face, shell)
         // passes, so the anchor resolution is what fires.
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],
@@ -4988,7 +4974,7 @@ mod tests {
             he1: t.hes_a[0],
             he2: t.hes_a[1],
         };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mev_line(
                 MevSite::Fan {
                     he1: t.hes_a[0],
@@ -5011,7 +4997,7 @@ mod tests {
             he1: t.hes_a[0],
             he2: t.hes_b[1],
         };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mev_line(
                 MevSite::Fan {
                     he1: t.hes_a[0],
@@ -5100,30 +5086,66 @@ mod tests {
         every_fan_door_refuses_the_torn_walk(&mut body, seg.he_minus, strut.he_plus);
     }
 
-    #[test]
-    fn a_twice_torn_declined_cube_refuses_a_fan_split_typed() {
-        // The first counterexample a seeded search of two random `next`
-        // tears over `review_d18`'s fixtures found: the tears and the
-        // site, by position in the fixture's half-edge arena. The walk
-        // from either half closes through the other and leaves the
-        // split vertex on the way.
+    /// The declined cube torn by two `next` writes, by position in its
+    /// half-edge arena, with the arena's keys. A static witness: the
+    /// walk from `halves[5]` closes through `halves[6]` and leaves its
+    /// start vertex on the way, and so does the walk from `halves[6]`.
+    fn twice_torn_cube() -> (Body<f64>, Vec<HalfEdgeKey>) {
         let tol = Tol::witness();
         let mut body = crate::test_support_fixtures::declined_cube::<f64>(tol).body;
         let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
         body.get_half_edge_mut(halves[19]).unwrap().next = halves[6];
         body.get_half_edge_mut(halves[4]).unwrap().next = halves[11];
+        for (from, to) in [(halves[5], halves[6]), (halves[6], halves[5])] {
+            let v = body.get_half_edge(from).unwrap().start;
+            let orbit = body.vertex_orbit(from).unwrap();
+            assert!(orbit.contains(&to), "the walk from {from:?} reaches {to:?}");
+            assert!(
+                orbit
+                    .iter()
+                    .any(|&h| body.get_half_edge(h).unwrap().start != v),
+                "the walk from {from:?} leaves its start vertex"
+            );
+        }
+        (body, halves)
+    }
+
+    #[test]
+    fn a_twice_torn_declined_cube_refuses_a_fan_split_typed() {
+        let (mut body, halves) = twice_torn_cube();
         let (a, b) = (halves[5], halves[6]);
-        let v = body.get_half_edge(a).unwrap().start;
-        let orbit = body.vertex_orbit(a).unwrap();
-        assert!(orbit.contains(&b));
-        assert!(
-            orbit
-                .iter()
-                .any(|&h| body.get_half_edge(h).unwrap().start != v),
-            "the walk from the site leaves the split vertex"
-        );
         every_fan_door_refuses_the_torn_walk(&mut body, a, b);
         every_fan_door_refuses_the_torn_walk(&mut body, b, a);
+    }
+
+    #[test]
+    fn a_strut_on_a_torn_orbit_refuses_typed_in_every_fan_door() {
+        // A strut moves no half-edge but splices its new plus half into
+        // the walk from `he1`; on a walk that leaves the vertex that is
+        // a torn orbit, and every door refuses in the plan phase.
+        let (mut body, seg, strut) = torn_strutted_segment();
+        for he in [strut.he_plus, seg.he_minus] {
+            every_fan_door_refuses_the_torn_walk(&mut body, he, he);
+        }
+        let (mut cube, halves) = twice_torn_cube();
+        for he in [halves[5], halves[6]] {
+            every_fan_door_refuses_the_torn_walk(&mut cube, he, he);
+        }
+    }
+
+    #[test]
+    fn a_torn_walk_refuses_ahead_of_a_dangling_prev_link() {
+        // The orbit proof precedes the `prev` links in the documented
+        // order, so a torn walk with a dangling `prev(he1)` or
+        // `prev(he2)` names the torn walk, not the stale link.
+        let (body, seg, strut) = torn_strutted_segment();
+        for (he1, he2) in [(strut.he_plus, seg.he_minus), (seg.he_minus, strut.he_plus)] {
+            for dangling in [he1, he2] {
+                let mut body = body.clone();
+                body.get_half_edge_mut(dangling).unwrap().prev = HalfEdgeKey::default();
+                every_fan_door_refuses_the_torn_walk(&mut body, he1, he2);
+            }
+        }
     }
 
     #[test]
@@ -5172,7 +5194,7 @@ mod tests {
             he1: t.hes_a[0],
             he2: t.hes_b[0],
         };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],
@@ -5191,7 +5213,7 @@ mod tests {
         // reach a1 (nor return to a0).
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = t.hes_b[0];
         let expected = EulerOpError::LoopCycleBroken { r#loop: t.loop_a };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],
@@ -5207,11 +5229,11 @@ mod tests {
     fn non_empty_loop_is_rejected_by_lone_sites() {
         let mut t = pillow(Tol::witness());
         let expected = EulerOpError::LoopNotEmpty { r#loop: t.loop_a };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mev_line(MevSite::Lone { r#loop: t.loop_a }, p(9.0), Tol::witness())
                 .unwrap_err()
         });
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mef_chord(MefSite::Lone { r#loop: t.loop_a }, Tol::witness())
                 .unwrap_err()
         });
@@ -5239,7 +5261,7 @@ mod tests {
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = empty;
         t.body.get_half_edge_mut(t.hes_a[1]).unwrap().parent_loop = empty;
         let expected = EulerOpError::LoopNotCycle { r#loop: empty };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],
@@ -5262,7 +5284,7 @@ mod tests {
         let expected = EulerOpError::StaleKey {
             key: EntityId::Vertex(t.vertices[1]),
         };
-        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+        assert_err_deep_unchanged(&mut t.body, &expected, |body| {
             body.mef_chord(
                 MefSite::Chords {
                     he1: t.hes_a[0],

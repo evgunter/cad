@@ -854,12 +854,8 @@ impl<T: Decide> Body<T> {
         let orbit_w = self
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
+        self.require_orbit_starts_at(&orbit_w, w, m)?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
-        for &moved in &fan {
-            if self.resolve_half_edge(moved)?.start != w {
-                return Err(EulerOpError::OrbitBroken { he: m });
-            }
-        }
         let members = self.run_edges(&fan)?;
         // The unsplice writes through all four neighbor links; prove
         // them now so the mutation below cannot fail midway (atomicity).

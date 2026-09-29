@@ -208,17 +208,7 @@ impl<T: geom_core::Decide> Body<T> {
     ///
     /// # Precondition check order
     ///
-    /// [`Body::mev`]'s site list, and nothing after it. `Fan`: `he1`
-    /// and `he2` resolve ([`EulerOpError::StaleKey`]); equal start
-    /// vertices ([`EulerOpError::FanStartMismatch`]); the start vertex
-    /// and its point resolve (`StaleKey` /
-    /// [`EulerOpError::StaleGeometry`]); the orbit from `he1` reaches
-    /// `he2` ([`EulerOpError::FanOrbitBroken`]); every half-edge on it
-    /// starts at the start vertex ([`EulerOpError::OrbitBroken`] —
-    /// tier-1-invalid input); both `prev` links
-    /// resolve (`StaleKey`). `Lone`: the loop resolves (`StaleKey`); it
-    /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex and point
-    /// resolve (`StaleKey` / `StaleGeometry`).
+    /// [`Body::mev`]'s site list, and nothing after it.
     ///
     /// # Errors
     ///
