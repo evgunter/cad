@@ -79,8 +79,8 @@
 //!   door's mint, as the witnesses are re-minted, rather than refused.
 //!   A meter that goes in-band in the new frame, and an edge that rode
 //!   the replaced fit net, can still refuse (`map_approx` says which).
-//!   A scalar with no fit lane refuses
-//!   [`TransformError::ApproxLaneUnsupported`] naming it, and a fit
+//!   A run with no fit door refuses
+//!   [`TransformError::ApproxLaneUnsupported`] naming its scalar, and a fit
 //!   door that refuses — the image of a face that does not certify
 //!   where it stands, or the moved description itself — refuses
 //!   [`TransformError::ApproxRecertify`] with its own error verbatim;
@@ -164,8 +164,8 @@ pub enum TransformError {
     /// Where `Some` comes from, and what its absence means:
     /// [`crate::AtRestPolicy::offset_fit_lane`].
     ApproxLaneUnsupported {
-        /// The scalar's lane name, as the lane itself reports it.
-        lane: &'static str,
+        /// The scalar the map ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// The fit door refused a mapped approximating surface: the image
     /// of a fit that does not certify in its own frame either (a limb
@@ -209,10 +209,12 @@ impl core::fmt::Display for TransformError {
                 "edge {edge:?} carries a transient null-scaffold curve, which a body at rest \
                  never does"
             ),
-            Self::ApproxLaneUnsupported { lane } => write!(
+            Self::ApproxLaneUnsupported { scalar } => write!(
                 f,
-                "an approximating surface cannot be moved on the {lane} lane, which has no \
-                 fit to re-certify it with"
+                "an approximating surface cannot be moved at the {scalar} scalar with no \
+                 offset-fit door in hand: its certificate is re-derived on the moved pair, and \
+                 only f64 holds that door (the fit is derived there alone). Recourse: move the \
+                 body at f64"
             ),
             Self::ApproxRecertify { source } => write!(
                 f,
@@ -395,7 +397,6 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
             a,
             tol,
             <T as crate::props::AtRestPolicy>::offset_fit_lane(),
-            <T as crate::props::AtRestPolicy>::scalar_name(),
         )?),
     })
 }
@@ -439,18 +440,15 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
 /// frame — is `ApproxRecertify` with the mint door's error. `offset_fit`
 /// is the door, as a parameter ([`crate::AtRestPolicy::offset_fit_lane`]
 /// says what `None` means); with none the map refuses typed rather than
-/// carry a certificate across a geometry change, naming the scalar by
-/// `scalar` — the name the same seam hands out
-/// ([`crate::AtRestPolicy::scalar_name`]).
+/// carry a certificate across a geometry change.
 fn map_approx<T: Decide>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
     tol: Tol,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
-    scalar: &'static str,
 ) -> Result<Arc<geom::ApproxSurface<T>>, TransformError> {
     let Some(lane) = offset_fit else {
-        return Err(TransformError::ApproxLaneUnsupported { lane: scalar });
+        return Err(TransformError::ApproxLaneUnsupported { scalar: T::NAME });
     };
     let old = a.spec();
     let geom::SurfaceDescription::Offset { ref base, d } = old.description;
@@ -941,22 +939,16 @@ mod offset_fit_door_rows {
         Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 0.7)
     }
 
-    /// **No door: the map refuses**, with the variant and the payload
-    /// the absence has always had — the certificate is never carried
-    /// across a geometry change.
+    /// **No door: the map refuses**, naming the scalar it ran at — here
+    /// `f64`, the door's own scalar, handed none — and the certificate
+    /// is never carried across a geometry change.
     #[test]
     fn no_door_refuses_the_mapped_surface_by_name() {
         let tol = Tol::witness();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        match map_approx(
-            &turned(),
-            &approx,
-            tol,
-            None,
-            <f64 as crate::AtRestPolicy>::scalar_name(),
-        ) {
-            Err(TransformError::ApproxLaneUnsupported { lane }) => assert_eq!(lane, "f64"),
-            other => panic!("the absence must name the lane: {other:?}"),
+        match map_approx(&turned(), &approx, tol, None) {
+            Err(TransformError::ApproxLaneUnsupported { scalar }) => assert_eq!(scalar, "f64"),
+            other => panic!("the absence must name the scalar the map ran at: {other:?}"),
         }
     }
 
@@ -977,14 +969,8 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let map = turned();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        let mapped = map_approx(
-            &map,
-            &approx,
-            tol,
-            Some(OffsetFitLane::fit()),
-            <f64 as crate::AtRestPolicy>::scalar_name(),
-        )
-        .expect("a rigid map of a certified fit re-certifies at the run's ε");
+        let mapped = map_approx(&map, &approx, tol, Some(OffsetFitLane::fit()))
+            .expect("a rigid map of a certified fit re-certifies at the run's ε");
         let spec = mapped.spec();
         let reference =
             geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol)

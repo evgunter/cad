@@ -6,7 +6,7 @@
 //! One scalar answers the seam and four do not, and the rows say what
 //! that costs at each public door: the transform door and the offset
 //! mint reach the seam and refuse by their own typed variant, naming
-//! the scalar's lane; the two validators do NOT reach it on this
+//! the scalar; the two validators do NOT reach it on this
 //! subject — an `mvfs` seed carries an empty loop and tier 2 refuses
 //! first — which is recorded here as an assertion rather than left as
 //! a thing a reader would have to run the suite to learn.
@@ -77,7 +77,8 @@ fn turned<T: Real>() -> Affine3<T> {
 }
 
 /// The public doors at one scalar. `lane` is the name the transform
-/// door reports for it, or `None` where the scalar answers the seam.
+/// door and the mint report for it, or `None` where the scalar answers
+/// the seam.
 fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option<&str>) {
     let (body, face) = approx_seed::<T>();
 
@@ -114,14 +115,11 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
             lane.is_none(),
             "{label}: this scalar has no fit, so the map may not carry the certificate"
         ),
-        Err(topo::TransformError::ApproxLaneUnsupported { lane: named }) => {
+        Err(topo::TransformError::ApproxLaneUnsupported { scalar: named }) => {
             let expected = lane.unwrap_or_else(|| {
                 panic!("{label}: this scalar answers the seam, so the map must re-derive")
             });
-            assert_eq!(
-                named, expected,
-                "{label}: the refusal names the scalar's lane"
-            );
+            assert_eq!(named, expected, "{label}: the refusal names the scalar");
         }
         Err(other) => panic!("{label} transform_rigid: {other:?}"),
     }
@@ -130,14 +128,16 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
     let (mut nurbs, nface) = nurbs_seed::<T>();
     let minted = topo::replace_faces_offset(&mut nurbs, &[nface], T::from_f64(0.05), tol());
     match minted {
-        Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f }) => {
-            assert!(
-                lane.is_some(),
-                "{label}: this scalar answers the seam, so the mint must not report its absence"
-            );
+        Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f, scalar }) => {
+            let expected = lane.unwrap_or_else(|| {
+                panic!(
+                    "{label}: this scalar answers the seam, so the mint must not report its absence"
+                )
+            });
             assert_eq!(
-                f, nface,
-                "{label}: the refusal names the face it could not mint"
+                (f, scalar),
+                (nface, expected),
+                "{label}: the refusal names the face it could not mint and the scalar"
             );
         }
         other => assert!(

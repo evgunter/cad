@@ -469,7 +469,7 @@ pub enum MeasureUnavailableAt {
         /// Which primitive.
         verb: &'static str,
         /// The scalar this build ran at, in its own name
-        /// ([`crate::lane::Lane::NAME`]).
+        /// ([`geom_core::Real::NAME`]).
         scalar: &'static str,
         /// The door that answers it, named so the recourse is in the
         /// refusal rather than in a reader's memory.

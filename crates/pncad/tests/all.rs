@@ -6242,7 +6242,7 @@ mod the_hollowed_box_through_the_facade {
             panic!("the shell did not refuse at a dual: {head:?}");
         };
         assert!(
-            matches!(e.kind, NodeErrorKind::ShellLaneUnsupported { lane: "Dual" }),
+            matches!(e.kind, NodeErrorKind::ShellLaneUnsupported { lane: "dual" }),
             "the refusal is not the typed shell-door absence: {:?}",
             e.kind
         );

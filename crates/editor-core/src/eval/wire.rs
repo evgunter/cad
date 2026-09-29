@@ -1991,10 +1991,8 @@ fn wire_shell<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPo
     let flow = built.param_flow();
     // A scalar that may not certify has no shell door and refuses here
     // rather than at an unvalidated hollow.
-    let door =
-        <T as topo::AtRestPolicy>::shell_door().ok_or(NodeErrorKind::ShellLaneUnsupported {
-            lane: <T as crate::lane::Lane>::NAME,
-        })?;
+    let door = <T as topo::AtRestPolicy>::shell_door()
+        .ok_or(NodeErrorKind::ShellLaneUnsupported { lane: T::NAME })?;
     let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
@@ -2415,7 +2413,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
                     ValuePayload::MeasureUnavailable {
                         reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
                             verb: prim.verb(),
-                            scalar: <T as crate::lane::Lane>::NAME,
+                            scalar: T::NAME,
                             door: "clearance::min_separation",
                         },
                         dim: expr.dim(),

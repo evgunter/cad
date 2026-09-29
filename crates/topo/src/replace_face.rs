@@ -204,6 +204,8 @@ pub enum ReplaceFaceError<T: Real> {
     ApproxLaneUnsupported {
         /// The face whose kind needs the (`f64`-only) fit door.
         face: FaceKey,
+        /// The scalar the mint ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// **The operand's surface key is SHARED within its solid.** Another
     /// face of the same solid carries the same surface, so replacing the
@@ -568,10 +570,11 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "replace_face_offset: {face:?}'s approximating-surface fit refused: {error}"
             ),
-            Self::ApproxLaneUnsupported { face } => write!(
+            Self::ApproxLaneUnsupported { face, scalar } => write!(
                 f,
-                "replace_face_offset: {face:?} carries a NURBS surface and this scalar has no \
-                 fit lane, so its offset cannot be minted"
+                "replace_face_offset: {face:?} carries a NURBS surface, and the mint at the \
+                 {scalar} scalar had no offset-fit door to fit its offset with; only f64 holds \
+                 that door (the fit is derived there alone). Recourse: offset the face at f64"
             ),
             Self::SharedSurfaceKey { face, other } => write!(
                 f,
@@ -1428,7 +1431,10 @@ fn mint_offset<T: Decide>(
             return Err(ReplaceFaceError::PlaceholderSurface { face });
         }
         return match offset_fit {
-            None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
+            None => Err(ReplaceFaceError::ApproxLaneUnsupported {
+                face,
+                scalar: T::NAME,
+            }),
             Some(lane) => lane
                 .mint(Arc::clone(base), d, tol)
                 .map(Surface::Approx)
@@ -2412,15 +2418,17 @@ mod offset_fit_door_rows {
         mint_offset(face, &base, 0.05, band, tol, door)
     }
 
-    /// **No door: the mint refuses**, with the variant and the payload
-    /// the absence has always had — never an analytic fallback and
-    /// never a pass.
+    /// **No door: the mint refuses**, naming the face and the scalar it
+    /// ran at — here `f64`, the door's own scalar, handed none — never
+    /// an analytic fallback and never a pass.
     #[test]
     fn no_door_refuses_the_mint_by_name() {
         let (_, face) = crate::fixtures::approx_faced_body::<f64>();
         match mint(None) {
-            Err(ReplaceFaceError::ApproxLaneUnsupported { face: f }) => assert_eq!(f, face),
-            other => panic!("the absence must name the face: {other:?}"),
+            Err(ReplaceFaceError::ApproxLaneUnsupported { face: f, scalar }) => {
+                assert_eq!((f, scalar), (face, "f64"));
+            }
+            other => panic!("the absence must name the face and the scalar: {other:?}"),
         }
     }
 

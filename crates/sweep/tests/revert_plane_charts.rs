@@ -213,7 +213,6 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
             mirrored.pcurve().chart_box(t0, t1),
             band,
             <f64 as topo::AtRestPolicy>::fitted_lane(),
-            <f64 as topo::AtRestPolicy>::scalar_name(),
         )
         .expect("the mirrored row certifies on the reverted plane");
     assert_eq!(
@@ -228,7 +227,6 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         window,
         band,
         <f64 as topo::AtRestPolicy>::fitted_lane(),
-        <f64 as topo::AtRestPolicy>::scalar_name(),
     );
     assert!(
         matches!(

@@ -178,24 +178,19 @@ fn a_line_carrier_leaves_the_face_uncached<T: AtRestPolicy>() {
         Ok(0),
         "a stated General image over a line carrier is outside every route: the \
          faces are left uncached, at {}",
-        T::scalar_name()
+        T::NAME
     );
     assert_eq!(
         topo::mint_pcurves(&mut body, tol),
         Ok(()),
         "the whole-body mint answers as the per-face one, at {}",
-        T::scalar_name()
+        T::NAME
     );
     let rows = body
         .half_edges()
         .filter(|(he, _)| body.pcurve(*he).is_some())
         .count();
-    assert_eq!(
-        rows,
-        0,
-        "no half-edge carries a row, at {}",
-        T::scalar_name()
-    );
+    assert_eq!(rows, 0, "no half-edge carries a row, at {}", T::NAME);
 }
 
 /// A spline carrier passes check 1 and refuses on its missing mate —
@@ -215,7 +210,7 @@ fn a_spline_carrier_without_a_mate_refuses_on_the_pair<T: AtRestPolicy>() {
             ),
             "{door}: a stated General image over a spline carrier with no mate \
              refuses on the pair, at {}: {got:?}",
-            T::scalar_name()
+            T::NAME
         );
     };
     missing(

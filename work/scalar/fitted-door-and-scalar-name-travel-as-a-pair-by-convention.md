@@ -2,7 +2,9 @@
 id: fitted-door-and-scalar-name-travel-as-a-pair-by-convention
 kind: issue
 title: The fitted door and the scalar's name travel as two parameters tied by convention (recertify, certify_general, map_approx)
-status: open
+status: review
+branch: scalar/scalar-name
+pr: TBD
 opened: 2026-09-25
 priority: P4
 cost: D
@@ -44,14 +46,29 @@ takes `Result<FittedLane<T>, &'static str>` privately), which changes
 three public or crate signatures and every caller. That is its own
 unit, not a fix-pass item.
 
-## Proposed
+## Decided (SCALAR-NAME)
 
-One value per door family that carries the door or the absent
-scalar's name (formed only at the policy seam), taken by
-`recertify`, `certify_general` and `map_approx` in place of the pair;
-`recertify`'s closed-form callers stop threading the fitted door.
+The bundled door-or-name value is rejected: its public constructor
+would let any caller write the absent arm's name, so the convention
+would only move. Instead the name lives on the scalar:
+
+- `geom_core::Real` declares `const NAME: &'static str`, with no
+  default, beside `WITNESS` in each impl (`"f64"`, `"interval"`,
+  `"telemetry probe"`, `"symbolic"`, `"dual"`);
+- `topo::AtRestPolicy::scalar_name()` and `editor_core::lane::Lane::NAME`
+  are deleted, and every refusal that names a scalar reads `T::NAME`
+  off its own type parameter;
+- the `scalar` parameter leaves `recertify`, `certify_general` and
+  `map_approx`; the door stays an `Option` (H5 ruling 3), `recertify`
+  keeps one signature taking it on every arm, and an absent door still
+  refuses at check 4;
+- the fitted and offset-fit refusals' text is true whether `None` means
+  the scalar lacks the right or a caller at a certifying scalar
+  withheld the door, and the three offset-fit refusals name the scalar
+  in a `scalar` field.
 
 ## Cost
 
-D: three signatures, their callers in topo/sweep tests and the
-`r2_p2_consumer` example, and one constructor on the policy.
+D: one `Real` const in five impls, three signatures and their callers
+in topo/sweep tests and the `r2_p2_consumer` example, two name homes
+deleted, and three offset-fit refusal shapes.

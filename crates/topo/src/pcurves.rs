@@ -1084,7 +1084,7 @@ fn derive_general_image<T: AtRestPolicy>(
     };
     let Some(lane) = T::fitted_lane() else {
         return Err(certify(PcurveCertifyError::FittedLaneUnsupported {
-            scalar: T::scalar_name(),
+            scalar: T::NAME,
         }));
     };
     lane.general_image(spline, wall).map_err(certify)
@@ -1997,7 +1997,6 @@ fn mint_face<T: AtRestPolicy>(
                 window,
                 band,
                 T::fitted_lane(),
-                T::scalar_name(),
             ),
             _ => PcurveCache::certify(
                 w.pcurve.clone(),
@@ -2488,7 +2487,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
     // read off the scalar's policy once: the certified and the
     // structural validation doors reach this pass alike, so neither
     // moves a verdict at any scalar.
-    let (lane, scalar) = (T::fitted_lane(), T::scalar_name());
+    let lane = T::fitted_lane();
     for (face_key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
             continue;
@@ -2545,15 +2544,9 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     }
                 };
                 let mate = mate_surface(body, he);
-                if let Err(error) = cache.recertify(
-                    &carrier,
-                    &surface,
-                    mate.as_ref(),
-                    window,
-                    band,
-                    lane,
-                    scalar,
-                ) {
+                if let Err(error) =
+                    cache.recertify(&carrier, &surface, mate.as_ref(), window, band, lane)
+                {
                     findings.push(PcurveMintError::Certify {
                         half_edge: he,
                         error,

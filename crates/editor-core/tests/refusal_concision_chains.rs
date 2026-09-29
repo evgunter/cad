@@ -980,7 +980,7 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
         ("NurbsPlaceholder", E::NurbsPlaceholder),
         (
             "ApproxLaneUnsupported",
-            E::ApproxLaneUnsupported { lane: "interval" },
+            E::ApproxLaneUnsupported { scalar: "interval" },
         ),
         ("Corrupt", E::Corrupt { what: "face" }),
     ]

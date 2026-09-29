@@ -1,14 +1,8 @@
-//! **What an evaluation scalar declares about itself as a LANE**: its
-//! name, and how a bracket it carries reads as one `f64` when a
-//! refusal has to cross into the scalar-free document vocabulary.
-//!
-//! Every per-scalar capability seam — `MinClearanceLane`, and the
-//! shell's refusal fold (`crate::verbs::shell::fold_shell_error_at`,
-//! a function over this trait rather than a seam of its own) — needs
-//! both, and each used to spell the name for itself; this is the one
-//! home, so `"f64"`, `"Probe"`, `"Interval"`, `"Sym"` and `"Dual"` are
-//! written once and a refusal that names a lane cannot disagree with
-//! its neighbour about what the lane is called.
+//! **What an evaluation scalar declares about itself as a LANE**: how
+//! a bracket it carries reads as one `f64` when a refusal has to cross
+//! into the scalar-free document vocabulary. The scalar's name is not
+//! here: it is the scalar's own ([`geom_core::Real::NAME`]), which the
+//! kernel's refusals read too.
 //!
 //! # The bracket end, declared by the field and read by the lane
 //!
@@ -36,19 +30,14 @@ pub enum BracketEnd {
     Supremum,
 }
 
-/// A scalar's lane identity (module docs).
+/// How a scalar's refused number crosses the seam (module docs).
 pub trait Lane: Real {
-    /// This lane's own name, for the refusal that names it.
-    const NAME: &'static str;
-
     /// The `f64` this scalar reports for a refused number at the given
     /// bracket end. A point scalar answers its value for either end.
     fn end(x: Self, end: BracketEnd) -> f64;
 }
 
 impl Lane for f64 {
-    const NAME: &'static str = "f64";
-
     fn end(x: Self, _end: BracketEnd) -> f64 {
         x
     }
@@ -58,8 +47,6 @@ impl Lane for f64 {
 /// exactly what `f64` carries.
 #[cfg(feature = "probe")]
 impl Lane for geom_core::Probe {
-    const NAME: &'static str = "Probe";
-
     fn end(x: Self, _end: BracketEnd) -> f64 {
         x.0
     }
@@ -68,8 +55,6 @@ impl Lane for geom_core::Probe {
 /// The certified interval scalar has two ends, and reports the one the
 /// field asked for.
 impl Lane for geom_core::Interval {
-    const NAME: &'static str = "Interval";
-
     fn end(x: Self, end: BracketEnd) -> f64 {
         use geom_core::Bounds;
         match end {
@@ -85,8 +70,6 @@ impl<T: Lane> Lane for geom_core::Sym<T>
 where
     geom_core::Sym<T>: Real,
 {
-    const NAME: &'static str = "Sym";
-
     fn end(x: Self, end: BracketEnd) -> f64 {
         T::end(x.value, end)
     }
@@ -98,8 +81,6 @@ impl<T: Lane> Lane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Real,
 {
-    const NAME: &'static str = "Dual";
-
     fn end(x: Self, end: BracketEnd) -> f64 {
         T::end(x.value, end)
     }

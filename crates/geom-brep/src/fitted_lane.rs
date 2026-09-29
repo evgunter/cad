@@ -41,7 +41,7 @@
 //! `Some(FittedLane::certified())` and a dual answers `None`, and a
 //! consumer holding `None` refuses typed with
 //! [`crate::PcurveCertifyError::FittedLaneUnsupported`], naming the
-//! scalar by the name the same seam hands it.
+//! scalar by its [`geom_core::Real::NAME`].
 //!
 //! **A `None` door refuses where the door is first needed.** Every
 //! fitted cache's certificate is derived by check 4 of the fitted

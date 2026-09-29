@@ -2130,7 +2130,7 @@ fn shell_refusal_tags_are_stable() {
     use pncad::topo::ShellError;
     let op = NodeErrorKind::Shell(Box::new(ShellError::Thickness { thickness: -0.5 }));
     assert_eq!(node_error_tag(&op), "shell");
-    let lane = NodeErrorKind::ShellLaneUnsupported { lane: "Dual" };
+    let lane = NodeErrorKind::ShellLaneUnsupported { lane: "dual" };
     assert_eq!(node_error_tag(&lane), "shell_lane_unsupported");
 }
 

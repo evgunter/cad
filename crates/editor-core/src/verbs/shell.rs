@@ -235,7 +235,7 @@ fn fold_replace_face_error<T: Real>(
             error: fold_offset_error(error, end),
         },
         R::Fit { face, error } => R::Fit { face, error },
-        R::ApproxLaneUnsupported { face } => R::ApproxLaneUnsupported { face },
+        R::ApproxLaneUnsupported { face, scalar } => R::ApproxLaneUnsupported { face, scalar },
         R::SharedSurfaceKey { face, other } => R::SharedSurfaceKey { face, other },
         R::EmptyGroup => R::EmptyGroup,
         R::GroupChartsDiffer { face, other } => R::GroupChartsDiffer { face, other },
