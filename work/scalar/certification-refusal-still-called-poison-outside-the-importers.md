@@ -2,10 +2,11 @@
 id: certification-refusal-still-called-poison-outside-the-importers
 kind: issue
 title: outside the certification importers, holders and tests still call the certification refusal 'poison'
-status: review
+status: closed
 branch: scalar/cert-names
 pr: 3448
 opened: 2026-09-24
+closed: 2026-09-29
 priority: P4
 cost: D
 ---
@@ -44,3 +45,7 @@ cell"), which is now "…refused over a cell".
 The same sweep over the holders and the certification test files:
 each hit read, the certification refusal re-worded, evaluation's poison
 left. Naming hygiene (P4); no number moves unless a pinned message does.
+
+## Closed (2026-09-29) — PR 3448 (CERT-NAMES)
+
+Landed with the unit after a single review and its fix pass; the PR body has the classification table.

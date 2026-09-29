@@ -2,10 +2,11 @@
 id: certification-refusal-called-poison-in-the-remaining-certification-tests
 kind: issue
 title: certification test files outside CERT-NAMES' list still call the certification refusal 'poison'
-status: review
+status: closed
 branch: scalar/cert-names
 pr: 3448
 opened: 2026-09-29
+closed: 2026-09-29
 priority: P4
 cost: M
 ---
@@ -98,3 +99,6 @@ names and the three sets it excludes, is 18. The nineteenth was most
 likely `geom-brep/src/ssi/certify.rs`, which the row reports reading
 in full and moves to its "Not listed" paragraph.
 
+## Closed (2026-09-29) — PR 3448 (CERT-NAMES)
+
+Landed with the unit after a single review and its fix pass; the PR body has the classification table.
