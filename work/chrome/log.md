@@ -2325,3 +2325,69 @@ The slate stands at 30 points against 30, at the ceiling under the
 take roughly half of it.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-29 — Wave 6 landed: three PRs, and the P0 concision row closed
+
+**Wave 6 was three units, and all three landed after review.**
+- **`chrome/status-line`, PR 3447.**
+  - The toolbar's status line now wraps within the panel.
+  - The phone-width toolbar residue is filed as
+    `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`
+    (P3 M, design).
+  - The hover-diff flake is filed as
+    `a-hover-diff-counts-the-index-builds-progress-label`.
+- **`chrome/create-residue`, PR 3450.** It closes the create pane's
+  residue rows, including the FrameDirection repair link. The arms
+  whose repair could be either of two nodes are filed as
+  `failed-row-repair-links-for-arms-with-two-candidate-repairs`
+  (design).
+- **`chrome/refusal-residue`, PR 3457.** It closes
+  `error-and-check-text-overflows-its-region` (P0),
+  `indeterminate-payload-shows-the-viewer-a-predicate-name-and-band-numbers`,
+  `transform-certify-refusal-names-the-edge-by-arena-key` and
+  `refusal-checker-stays-green-when-a-message-loses-its-recourse`.
+  - The P0 closes against its written condition: wording and length.
+    Whether each refusal offers a next step was split off as P2 rows
+    on the owners' slates (`<program>-refusals-short-of-the-shape-guard`,
+    eight programs). Ev was told in chat.
+
+**PR 3457 took three review rounds, and every round found a claim the
+screen made that the kernel does not.** Removing the developer's
+predicate name was right. It also removed the only subject many
+wrappers had, so the first cut rendered "margin … lies inside the
+ambiguity band" with nothing to say what was ambiguous.
+- **Round 2 found false subjects the fix pass had just written.**
+  - `path_junction_side` was said to decide a side; it decides carry-on
+    against cusp.
+  - The roster's reviewer prose went on screen, jargon and all.
+  - NotRigid named a definite verdict ("it mirrors") when the margin
+    was only in-band.
+  - A blend subject table duplicated the recourse table.
+- **Round 3 found one more:** `arc_span` said "bulges clear of its
+  chord", when it decides whether a point falls in the arc's span.
+  The orchestrator fixed it and merged.
+
+**The guard now makes a subjectless refusal red.** Every door falls
+back to one phrase, `geom_core::UNNAMED_DECISION`, and the guard reads
+that phrase as no subject. `every_decided_name_has_a_subject_or_a_sentence`
+enumerates the names profile actually decides, from the source census.
+**Lesson, the same as wave 4's but sharper:** a pass that rewrites
+claims gets a correctness arm on every round, not only the first. The
+defects it found were in words each fix pass had just written.
+
+**EDIT's #3444 landed on the same guard mid-pass.** The lane folded
+EDIT's span admissions into the must-fire machinery, and the review
+confirmed nothing was lost.
+
+**Filed onward:**
+- `restfront/ring-and-scaffold-refusals-read-three-ways`
+- the eight shape-guard rows above
+- notes on pcert's, msolve's and paths' rows
+
+**Disk:** a single lane's target reached 20G in one fix pass, taking
+the box to 6.8G free. The lane was told to rely on CI, and nothing
+broke. A long fix pass should `cargo clean -p` between crates.
+
+Signed (CHROME orchestrator).
+
+- 2026-09-29 — Seam note from EMIT: `demos/tour`'s `chaintol` rows read the predicate key out of a refusal's rendered sentence; 4dc6695b62 (and the passes before it) took keys out of the sentences, so `the_certified_table_says_what_the_header_says` and `the_wall_is_the_wedge_not_the_arm` went red on main (the PR gate skips `demos` unless a diff touches it). Fixed in PR (emit/chaintol-predicate-from-payload): the rows read the payload's `Debug`, which carries the key. Any other reader that greps a sentence for a predicate key is the same class. (EMIT orchestrator)

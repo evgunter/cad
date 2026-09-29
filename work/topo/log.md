@@ -2114,6 +2114,27 @@ drops the block machinery and names the queue behind them.
 - 2026-09-29 — Seam note from ORIGIN: `three-spellings-of-one-chart-answer-the-same-question-differently` moved to `work/origin/` (id unchanged). It is the same question as ORIGIN's `two-provenance-free-keys-…` and `set-surface-source-…` (what decides two surface keys are one chart), which a designer pair is weighing now. Separately, ORIGIN's unit `a-chart-spans-solids-after-move-shells-to-new-solid` (Ev's ruling (A), PR 2527) is in flight on `origin/chart-spans-solids-remint` and edits `movefac.rs`. (ORIGIN orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 
+## Both implementer lanes died on the weekly limit; continued as fresh lanes (2026-09-29)
+
+Both lanes stopped on the weekly usage limit on 2026-09-24, about an
+hour in. Each had pushed its work and opened its PR. The worktrees were
+clean and no build was left running.
+- **PR 3161 (`kev`'s two doors)**: full body; first CI run red.
+  - `bit-identity-debug-only`'s pin for `euler_kill.rs`'s arena-delta
+    uses reads 19 against 18.
+  - `review_d18`'s spent-graft exposure has `kev` reaching 0 mutation
+    phases against its pinned 50: plain `kev` now refuses before
+    mutating.
+  - Nine interval-lane tests are red.
+- **PR 3160 (mint-at-site)**: code and rows pushed. The body is a
+  placeholder, and the red-first proof, mutants, receipt, full local
+  runs and CI read are still owed.
+
+Relaunched as two fresh lanes on the same branches, each merging main
+forward first, with the same build targets as before. Their first
+lanes' tokens and wall time are lost with their reports and are
+recorded as missing data. Neither PR's dual has started: each
+dispatches on its head once that is green.
 ## `[ev]` PR 3156 answered: no door, and `query.rs`'s compare is a violation (2026-09-29)
 
 Ev answered on 2026-09-24.
@@ -2133,6 +2154,159 @@ Meanwhile both implementer lanes (`kev`'s two doors and mint-at-site)
 died on the weekly usage limit on 2026-09-24. Their recovery is the
 next entry.
 
+## Both continuation lanes delivered green; PR 3160's dual dispatched, PR 3161's queued (2026-09-29)
+
+**PR 3160 (mint-at-site)** is green at `86c73b069b` (run 36550393394);
+the lane used 394,182 tokens and 101 min (harness).
+- Phase 1 split the closed-form derivation under `Decide` (0 signatures
+  move). A complete analytic face is re-minted whole with the pass's
+  own rows, and a spline chart refuses typed before mutating.
+- Five deviations, the weightiest being that a complete face the
+  closed-form lane cannot mint after the surgery is cleared to
+  rowless, not refused. Refusing reds 20 sweep rows mid-surgery.
+- Tier DUAL: dispatched 09:59 UTC, concurrently, on the frozen head.
+  - Both reviewers' targets are identical copies of the lane's trimmed
+    warm build, so their method is equal.
+  - The briefs are stored with sha256; they differ only in lane label,
+    target and scratch.
+  - PR 3160's thread was empty at dispatch.
+
+**PR 3161 (`kev`'s two doors)** is green at `ec29ce898` (run
+36550392070); the lane used 342,027 tokens and 106 min (harness). The
+first run's four reds, fixed:
+- the debug-only gate pin, re-pinned 17 → 19 with the same enclosures;
+- `review_d18`'s hammer, routed through `kev_describing` so it reaches
+  the mutation phase again, with the exposure pin unchanged at 50;
+- nine interval 1e-12 rows, where the blend's closure kills now pass
+  the merged member's chord (the arc's scaffold residual was
+  undecidable at interval), and `attach_contact` states the arc at the
+  close.
+
+Its dual is **queued behind PR 3160's**: the disk holds two reviewer
+targets at a time, and the protocol reduces simultaneous duals rather
+than a reviewer's method. The brief is written.
+
+**Gate note.** Main's CI-latency cut (Ev, #3340, 2026-09-28) narrowed
+the per-PR gate. The interval eps rows now run in the nightly, and the
+nightly's reds are the orchestrator's. Both reviewer briefs ask for
+the interval rows the unit touches to be re-run locally.
+
+**Correction to the gate note above.** The interval LANE no longer
+exists. RING-4 deleted the feature, leaving one compile mode
+(`scripts/ci-filter.py`, "THE LANE AXIS IS GONE"), so a
+`CONFIG_SOURCE` with no `lane:` entry is complete. What the latency cut
+leaves to the nightly is sweep's eps 1e-6/1e-12 rows. PR 3161's
+first-run reds were the pre-RING-4 interval jobs. PR 3161's queued
+brief is re-worded to eps rather than lanes before it dispatches.
+
+## PR 3160's dual concluded; fix pass dispatched. PR 3161's dual dispatched (2026-09-29)
+
+**PR 3160.** Both reviews of `86c73b069b` came back APPROVE-WITH-FIXES,
+with no MAJOR from either (6 and 5 MINOR). The harness figures are
+374,979 tokens / 86 min and 384,273 tokens / 46 min. The reports are
+archived privately, coded attribution-stripped with blinding byte 225.
+
+Every executed correctness claim held:
+- the site rows equal the pass's byte for byte on cone, cylinder,
+  sphere and torus, seam-wrapping loops included;
+- the refusals are atomic at all five sites;
+- the red-first rows reproduce;
+- no production path persists a cleared face, since every Clear is
+  followed by a producer's closing mint.
+
+Bilateral, executed:
+- the mutant W5 is a live gap, and each review built a fixture that
+  kills it;
+- the headline "no Euler operator returns a face half-minted" is false
+  (`kfmrh`, `ring_move`, `kef`, `mev_null`), and `MissingCache`'s door
+  list is incomplete;
+- `Maintains` overstates, because the op clears where the pass refuses;
+- the precondition paragraphs omit `PcurveMint`, which sits last;
+- the per-face re-walk is quadratic under repeated ops (4.3× at
+  N=200), and that is undisclosed.
+
+Also bilateral: the window hull and "complete" re-spelled in
+`site_rows` (a fresh instance of the class the fix closes), a dead
+`Corrupt` arm, `SiteHalf` exported for no one, and stale prose.
+
+One review alone:
+- deviation 1's figure is about 6,000 Clears reaching 161 tests, not
+  "20 rows";
+- the unminted control reaches only the fast path;
+- whether a corrupt body errors depends on rows held elsewhere.
+
+The two reviews contradicted each other on the gate. One said only the
+default lane ran; the other said the lane axis is gone, and that one
+is right (RING-4).
+
+**Deviation 1 (clear, don't refuse) is ruled the operator's answer.**
+It is consistent with Ev's ruling (never half-minted; a typed refusal
+only at the fitted frontier), and every production Clear is followed
+by a closing mint. It gets its row. The fix pass is dispatched on the
+union: rows for W5 (both fixtures), the `kef` probe and C2 across the
+charts; the headline scoped; `Maintains` re-worded; the order
+paragraphs completed; the kept-ring re-walk cut and the remaining
+quadratic filed; one home each for the window and "complete"; the rest
+of the prose. The tally is unchanged. The pair is fair: identical
+targets and briefs.
+
+**PR 3161's dual dispatched** at 11:30 UTC on the frozen head
+`ec29ce898`. Briefs are stored with sha256; PR 3161's thread was empty.
+R1's target is the implementer's warm build of this head. R2's is the
+trimmed copy warm on PR 3160's head, so R2 rebuilds more. That is a
+wall-clock asymmetry only; the method is identical.
+
+## PR 3161's dual concluded, one tally candidate; fix pass dispatched (2026-09-29)
+
+Both reviews of `ec29ce898` came back APPROVE-WITH-FIXES. The harness
+figures are 311,864 tokens / 28 min and 288,648 tokens / 32 min. The
+reports are archived privately, coded attribution-stripped with
+blinding byte 200.
+
+**The one MAJOR, which one review raised alone by execution:**
+`kev_describing`'s write loop has an `unreachable!` that a torn body
+reaches. Two `next` tears put the killed half into the dying vertex's
+orbit, so the member set includes the killed edge, and after
+`kev_execute` removes it the loop panics. Plain `kev` refuses typed on
+the same body, naming the killed edge as a member. A seeded search on
+a `review_d18` fixture found 22 panics per 96,000 kills, and the
+release corrupt-input job's varying-seed torn sweep drives this door.
+It is code class, deduped, executed, and the pair is fair, so it is
+**a tally candidate**: the unit's plan phase did not prove what its
+mutation phase `unreachable!`s. The other review measured the torn
+row's reach and found no panic on its fixture.
+
+Bilateral, executed:
+- plain `kev` refuses every certified fan merge, including a zero-move
+  one (the exact inverse of a certified `mev` refuses);
+- the describing door's precondition order is false (the survivor's
+  point is resolved first);
+- "`rebased_endpoints` is the only home" is false (four new
+  derivations, one of them a different rule in sweep);
+- two gate arms are unpinned (the null-kill skip, and the member
+  dedupe);
+- the walk lists every member, so the unlisted gate and the keys-only
+  refusal are unfuzzed.
+
+One review alone measured the torn row reaching `kev`'s mutation phase
+zero times, at base and head.
+
+**Ruled:** plain `kev`'s narrowing is forced by Ev's rulings (the
+keys-only door, the witness rule, the retired bit-identity question).
+It is written onto the item's `## Ruled` at merge, not re-asked; the
+docs and PR title are to state the code's semantics.
+
+The fix pass is dispatched on the union, the MAJOR first: the plan
+proves the member set excludes the killed edge, and a torn orbit
+refuses typed in both doors. With it:
+- a public read door for the merged members and their endpoints, so
+  callers stop re-deriving them;
+- rows for the unpinned arms;
+- fuzz draws for the unlisted gate and the keys-only refusal;
+- one home each for the null arm, run order and the write half;
+- the arc-scaffold width filed.
+
+Tally after this pair: +1.
 ## Mint-at-site merged: PR 3160 closes `half-edge-minting-euler-ops-…` (2026-09-29)
 
 The fix pass (478,158 tokens / 71 min, harness) took all ten
@@ -2157,3 +2331,67 @@ Head `e14f763548` is green (run 36568174959). Main was merged forward
 at close; that merge was clean. The DR-23 row rides as this PR's last
 commit. The pair has no MAJOR, so it advances neither the tally nor
 the found-a-MAJOR count under the 2026-09-28 readout rule.
+
+## `kev`'s two doors merged: PR 3161 closes `kevs-fan-merge-…` and `S93` (2026-09-29)
+
+The fix pass (447,998 tokens / 79 min, harness) took all nine
+adjudicated items and refuted none, declining one sub-part with a
+reason.
+- **The MAJOR is closed at its root.** `kev_plan` proves every
+  merged-fan half starts at the dying vertex, so the killed edge is
+  out of its own members by construction and a torn orbit refuses
+  `OrbitBroken` in both doors. The orchestrator read the proof.
+- Rowed: the reproduction, and the seeded search's first
+  counterexample pinned deterministically.
+- The release selection is clean at five fuzz seeds.
+- `kev_merged_members` is the public read door, and the callers'
+  re-derivations route through it.
+- The generator now asks the keys-only refusal and the unlisted-member
+  gate on clones before each kill.
+- One home each for the null arm, run order and the curve write.
+- The lane-door variant was declined: `mev` takes none, and no kill
+  caller has a plane × NURBS member.
+
+Head `06413b6ed` is green (run 36572774874).
+
+The lane disclosed that `mev_fan_plan` trusts the orbit's start
+vertices the same way. It carries the corruption rather than
+panicking, and is filed now (`mev-fan-plan-trusts-the-orbits-start-vertices`,
+P2), since a PR-body disclosure is not a slate row. The ruling as
+built (plain `kev` refuses every certified fan merge, forced by Ev's
+standing rulings) is written onto the item. `S93` closes with PROBE's
+log noted. The DR-24 row rides as this PR's last commit: **one tally
+candidate**, and the pair advances both counts.
+
+## `kev`'s two doors merged; the next two units out (2026-09-29)
+
+PR 3161 merged (`6666d3c5c`) with DR-24 as its last commit. The pair
+carries one tally candidate, so the running tally is 4 of 8 and pairs
+that found a MAJOR number 9 toward twelve. `S93` is closed, and the
+ruling as built is written onto the `kev` item.
+
+In flight:
+- **`mint-face-surface-and-sense-…`** (P1, E; tier SINGLE, full): a
+  face minted on the parent's chart inherits its `sense` through
+  `same_chart`. After ORIGIN's PR 3414, the disagreement is narrowed
+  to the shared-`Arc` case.
+- **`mev-fan-plan-trusts-the-orbits-start-vertices`** (P2, E; tier
+  SINGLE, full): `kev_plan`'s torn-orbit proof, one door over, with a
+  receipt of every orbit walk that trusts start vertices.
+
+Two rows the minting unit filed get their missing `priority`/`cost`
+(P2, D): `loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`
+and `mev-null-leaves-a-complete-curved-face-half-minted`.
+
+## The sense unit delivered as PR 3467; its single review dispatched (2026-09-29)
+
+PR 3467 is green at `a7224a17d0` (216,631 tokens / 45 min, harness).
+- `mint_face_surface_and_sense` inherits the parent's `sense` exactly
+  when `same_chart` holds, and the orientation argument is written.
+- Two consequences, both rowed: `Shared(second key, one Arc)` now
+  inherits, and so does `New(parent's own Arc)`. The second is a
+  disclosed deviation from the brief's control.
+- The mutant (key equality) reds exactly the two new rows.
+
+Tier SINGLE, full: one Opus reviewer dispatched on the frozen head,
+using the lane's warm target. PR 3467's thread was empty.

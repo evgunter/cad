@@ -160,10 +160,38 @@ fn every_decided_name_is_routed_or_listed_with_its_reason() {
         // A listed name must reach the door's shared-clause arm, not a
         // routed sentence: the list is a claim about which arm answers.
         if listed.contains(name) {
+            let what = profile::decision_subject(name).expect("a listed name has a subject");
             assert!(
-                rendered(name).starts_with("escalated at the path door:"),
+                rendered(name).starts_with(&format!("{what} is too close to call:")),
                 "`{name}` is listed as shared-clause-only but a routed arm answers it: {}",
                 rendered(name)
+            );
+        }
+    }
+}
+
+/// **Every name the crate decides has a subject a refusal can state.**
+/// `validate::decision_subject` is the one home of the words a door puts
+/// before a margin it could not call; a name missing from it renders
+/// `UNNAMED_DECISION`, which the shape guard reads as no subject. The
+/// fillet constructor's gates are the one exception: the path door
+/// routes each to a sentence of its own, and validation never decides
+/// them.
+#[test]
+fn every_decided_name_has_a_subject_or_a_sentence() {
+    for name in &census().names {
+        assert!(
+            profile::decision_subject(name).is_some()
+                || profile::fillet_recourse_for(name).is_some(),
+            "`{name}` is decided by this crate and has no subject in \
+             `validate::decision_subject`"
+        );
+        if let Some(subject) = profile::decision_subject(name) {
+            assert!(
+                !subject.contains(": ")
+                    && !subject.contains('—')
+                    && subject == subject.to_lowercase(),
+                "`{name}`'s subject is not a plain clause that stands alone: {subject}"
             );
         }
     }
@@ -172,7 +200,7 @@ fn every_decided_name_is_routed_or_listed_with_its_reason() {
 /// **A name no arm carries and `src` has not listed renders the gap
 /// sentence — and no category.**
 ///
-/// "path junction classification" is a claim about the two junction
+/// The junction subjects are claims about the two junction
 /// keys. This row constructs an escalation under a name the crate does
 /// not decide and reads what comes back: the hole, named, and no label
 /// over it.
@@ -190,18 +218,19 @@ fn an_unknown_name_names_the_hole_and_asserts_nothing() {
         "the refusal names the hole: {text}"
     );
     assert!(
-        !text.contains("path junction classification"),
+        !text.contains("at this junction"),
         "the refusal asserts a category over a name nothing classified: {text}"
     );
     assert!(
-        text.contains(unknown),
-        "the refusal names the predicate that escalated: {text}"
+        !text.contains(unknown),
+        "the predicate's name is routing and stays out of the sentence: {text}"
     );
     // The two junction keys are the names that label IS true for, and
     // they keep it.
     for key in ["path_junction_turn", "path_junction_side"] {
+        let subject = profile::decision_subject(key).expect("a junction key has a subject");
         assert!(
-            rendered(key).starts_with("path junction classification:"),
+            rendered(key).starts_with(subject),
             "the junction keys keep their label: {}",
             rendered(key)
         );

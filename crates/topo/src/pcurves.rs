@@ -3255,6 +3255,12 @@ pub(crate) mod staleness_posture {
             ),
             ("kemr", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
+            (
+                "kev_describing",
+                Neither,
+                "kill op; the members it re-describes keep their rows, as \
+             `set_edge_curve` leaves them",
+            ),
             ("kvfs", Neither, "kill op"),
             // ---- Maintains: the half-edge-minting Euler operators,
             // whose re-mint is the site mint, not a pass call. ----

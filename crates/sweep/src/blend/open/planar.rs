@@ -522,6 +522,12 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
         } else {
             hp
         };
+        // A spur's far vertex has valence one, so the keys-only kill
+        // merges no fan.
+        debug_assert!(
+            body.kev_merged_members(dying).is_ok_and(|m| m.is_empty()),
+            "corner kev: the spur's far vertex has valence one"
+        );
         body.kev(dying).map_err(|e| op("corner kev", e))?;
         // The corner patch is whatever face the first arc's non-blend
         // half now bounds.

@@ -55,7 +55,9 @@ from pncad import (
     Expr,
     Node,
     NodePick,
+    Open,
     PncadError,
+    Start,
     deg,
     evaluate,
     m,
@@ -288,25 +290,26 @@ class TestAFailedVerdict(unittest.TestCase):
     def test_a_vanished_name_fails_while_its_node_still_evaluates(self):
         """The other way: the minting node is alive and well and the
         NAME is gone from its table — a side face of a square plate has
-        no counterpart on a triangular one.
+        no counterpart once the plate is reshaped into a triangle.
 
-        The two documents are the same recipe with one argument
-        changed, so the node ids match; the test asserts that, because
-        a comparison between two unrelated recipes would prove
-        nothing. It also asserts the extrude still SUCCEEDS on the
-        second, which is what makes this a `failed` and not an
-        `indeterminate`."""
-        wide = Doc()
-        _, wide_extrude = plate(wide, SQUARE)
-        narrow = Doc()
-        _, narrow_extrude = plate(narrow, TRIANGLE)
-        self.assertEqual(str(wide_extrude), str(narrow_extrude))
+        The reshaping keeps every step but the fourth corner's leg, so
+        every other name keeps its spelling and the one on the dropped
+        step is the only one to go. It also asserts the extrude still
+        SUCCEEDS after the edit, which is what makes this a `failed`
+        and not an `indeterminate`."""
+        doc = Doc()
+        profile, extrude = plate(doc, SQUARE)
+        before = evaluate(doc)
+        (s,) = doc.step_ids(profile)
+        triangle = Open.at((0 * m, 0 * m))
+        for x, y in TRIANGLE[1:]:
+            triangle = triangle.line_to((x * m, y * m))
+        doc.apply(DocEdit.set_program(profile, triangle.line_to(Start), [[s[0], s[1], s[2], s[4]]]))
+        after = evaluate(doc)
+        self.assertTrue(after.succeeded(extrude))
 
-        before, after = evaluate(wide), evaluate(narrow)
-        self.assertTrue(after.succeeded(narrow_extrude))
-
-        was = set(before.all_faces(wide_extrude))
-        now = set(after.all_faces(narrow_extrude))
+        was = set(before.all_faces(extrude))
+        now = set(after.all_faces(extrude))
         vanished = sorted(was - now)
         self.assertEqual(len(vanished), 1)
 
@@ -431,7 +434,7 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
                 self.assertEqual(verdict.status, "indeterminate")
                 # The arm says which node to look at: this one's own.
                 self.assertEqual(verdict.variant, "target_failed")
-                self.assertIn("failed this evaluation", verdict.detail)
+                self.assertIn("failed, so it has no value", verdict.detail)
                 # Not a rebind candidate: there is nothing to rebind to
                 # and nothing to suggest.
                 self.assertIsNone(verdict.offers)

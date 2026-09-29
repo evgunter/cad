@@ -243,6 +243,10 @@ pub use editor_core::DocParamField;
 // it is the one payload every pairing door carries (DI3; which doors
 // those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
 // spelled for the QUESTION rather than for any one door.
+// `NodeStanding` rides with `Evaluation` by the same rule: it is
+// `Evaluation::usable`'s refusal and the payload every door that
+// needs a node's value refuses with, so a consumer can match those
+// arms but not read which node, or which standing, without naming it.
 // `NodeErrorClass` rides with `NodeErrorKind`: it is `NodeErrorKind::class`'s
 // answer, the refusal's class a consumer can clone, compare and hash where
 // the refusal itself cannot be.
@@ -256,8 +260,8 @@ pub use editor_core::DocParamField;
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
     DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, ProfileLift,
-    SplitSide, ValuePayload, VerbKind, evaluate,
+    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.

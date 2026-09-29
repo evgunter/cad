@@ -71,11 +71,10 @@ use geom_core::Decide;
 use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError};
 
 use crate::doc::Doc;
-use crate::eval::{Evaluation, NodeResult, ValuePayload};
+use crate::eval::{Evaluation, ValuePayload};
 use crate::mate::{
     ClassAdmission, ContactClass, MateSide, NO_AT_REST_RECORD_RECOURSE, class_admission,
 };
-use crate::names::interrogate::value_of;
 use crate::names::{Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId, SitedFace};
 use crate::product::{Product, ProductError, product_recorded};
@@ -974,10 +973,10 @@ pub(crate) fn mint<P, T: Decide>(
         };
         // A mate that is not a live value of this evaluation declares
         // nothing here (see the doc comment).
-        if !matches!(
-            evaluation.result(id),
-            Some(NodeResult::Ok(v)) if matches!(v.payload, ValuePayload::Mate(_))
-        ) {
+        if !evaluation
+            .value(id)
+            .is_some_and(|v| matches!(v.payload, ValuePayload::Mate(_)))
+        {
             continue;
         }
         let (face_a, face_b) = match (
@@ -1089,8 +1088,8 @@ fn resolve_face<P, T: Decide>(
 /// **The operand's answer**, asked only once the product's table is
 /// silent on a reference: does the OPERAND the mate reads at spell
 /// the name? Its own table is the `name_table` of `at`'s live value,
-/// read through the same door the name interrogation doors read it
-/// ([`value_of`]). One match, three answers, in this order:
+/// read through the one door every node read takes
+/// ([`Evaluation::usable`]). One match, three answers, in this order:
 ///
 /// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
 ///    nothing where the mate reads it.
@@ -1124,8 +1123,8 @@ fn operand_answer<P, T: Decide>(
 ) -> RefusedRef {
     let at = reference.at;
     let rooted = doc.roots().contains(&at);
-    let entry = value_of(evaluation, at)
-        .ok()
+    let entry = evaluation
+        .value(at)
         .and_then(|value| value.name_table.lookup(&reference.name));
     match entry {
         None => RefusedRef::Vanished,

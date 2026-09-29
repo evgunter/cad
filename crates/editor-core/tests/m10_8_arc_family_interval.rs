@@ -110,7 +110,9 @@ pub(crate) fn documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
 }
 
 /// One replay at `Sym<Interval>` over `box_` with the shape report on:
-/// every decision recorded, and the first refusal, if any.
+/// every decision recorded, and the first refusal, if any, as its
+/// sentence and then its `Debug`, which names the predicate that ended
+/// the replay.
 pub(crate) fn replay(
     doc: &ProfileDoc,
     box_: &ParamBox,
@@ -130,7 +132,9 @@ pub(crate) fn replay(
         let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
             evaluate(doc, None, &CancelToken::new(), &opts, tol);
         ev.order.iter().find_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            Some(NodeResult::Failed(e)) => {
+                Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+            }
             _ => None,
         })
     });

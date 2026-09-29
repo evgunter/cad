@@ -46,7 +46,7 @@
 
 use geom_core::{Band, Decide, Tol};
 
-use crate::eval::{Evaluation, NodeResult};
+use crate::eval::Evaluation;
 use crate::expr::ParamEnv;
 use crate::node::RecipeNodeId;
 
@@ -651,12 +651,20 @@ impl Selector {
 /// deduped), ready for [`crate::Node::fillet`]. Empty if `node` has
 /// no value, no table, or nothing matching — the fillet node is where
 /// an empty selection refuses.
+///
+/// **"No value" answers "no names" here, deliberately**: the question
+/// is which names `node`'s table holds, and a node with no value holds
+/// no table. The empty list is not the last word on it — the node that
+/// consumes the stored selection reads `node` as its input, so it is
+/// poisoned through it while it has no value, and refuses the empty
+/// selection once it has one.
 pub fn select<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
     sel: &Selector,
 ) -> Vec<StableName> {
-    let Some(NodeResult::Ok(value)) = ev.nodes.get(&node) else {
+    // No value, no names: this function's doc.
+    let Some(value) = ev.value(node) else {
         return Vec::new();
     };
     let mut out: Vec<StableName> = value
@@ -727,7 +735,8 @@ pub fn select_where<T: Decide>(
     params: &ParamEnv<T>,
     tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal> {
-    let Some(NodeResult::Ok(value)) = ev.nodes.get(&node) else {
+    // No value, no names: `select`'s doc.
+    let Some(value) = ev.value(node) else {
         return Ok(Vec::new());
     };
     let atoms = geompred::prepare(ev, geom, params)?;

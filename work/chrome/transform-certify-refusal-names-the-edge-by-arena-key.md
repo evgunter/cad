@@ -2,10 +2,12 @@
 id: transform-certify-refusal-names-the-edge-by-arena-key
 kind: issue
 title: topo: TransformError::Certify's Display names the mapped edge by arena key in the feature tree
-status: open
+status: closed
 opened: 2026-09-28
 priority: P2
 cost: E
+closed: 2026-09-29
+pr: 3457
 ---
 
 
@@ -28,3 +30,14 @@ escalated arms end in a user lever.
 Name the edge in words ("an edge the map moved") and keep the key in
 `Debug`; then drop the seven rows from `KERNEL_KEYED`, which is the check
 that this is done.
+
+## Closed 2026-09-29 (`chrome/refusal-residue`)
+
+`TransformError::Certify` reads "an edge the map moved failed
+re-certification: …"; the key stays in `Debug`. `Transform/Certify`
+and the seven `Transform/Certify/Routed/*` rows are out of
+`KERNEL_KEYED`, and the chain test is green without them. The same pass
+gave `TransformError`'s other arms that stated no recourse one
+(`NotRigid` and `NonFiniteMap` lost their predicate names; `Corrupt`
+and `NullScaffold` end in `KERNEL_OR_FILE_DEFECT_ENDING`;
+`ApproxLaneUnsupported` says there is no way through yet).

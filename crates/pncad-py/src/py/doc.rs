@@ -3847,8 +3847,11 @@ impl DocEdit {
     /// `DocEdit.rebind` repairs it.
     ///
     /// Refuses `step_ids_refused` before the program is replayed —
-    /// `inner_variant` says which way the ids are wrong (`shape`,
-    /// `not_this_profiles`, `repeated`) — `set_program_on_non_profile`
+    /// `inner_variant` says which way the ids are wrong (`loop_count`,
+    /// `shape`, `not_this_profiles`, `repeated`, or `collides` for a new
+    /// id the document's mint log already holds; `not_minted`, an id the
+    /// log lacks, is the load door's word for the same family) —
+    /// `set_program_on_non_profile`
     /// for a node holding no program, and then everything an insert
     /// refuses of a profile: `slot_unknown_doc_param` and its siblings
     /// over every argument, `profile_program_refused` for a program

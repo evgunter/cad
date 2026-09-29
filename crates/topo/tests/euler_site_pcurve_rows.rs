@@ -633,7 +633,8 @@ fn a_secant_strut_then_killed_leaves_the_wall_unminted_until_the_pass() {
         if kill == "kemr" {
             body.kemr(s.he_plus, s.he_minus).unwrap();
         } else {
-            body.kev(s.he_minus).unwrap();
+            // The strut kill, from its base: the tip dies with no fan.
+            body.kev(s.he_plus).unwrap();
         }
         assert_eq!(rows_of(&body, face), (0, 5), "{kill}");
         assert_eq!(validate_pcurves(&body, band()), vec![], "{kill}");
