@@ -506,7 +506,8 @@ pyo3::create_exception!(
      classifier's diagnostic: `margin` (or `margin_low` / \
      `margin_high` for an enclosure), the band's `zero` and \
      `escalate`, and the deciding `predicate`, for error text only \
-     and not a decision input. A definite zero carries none of it. The band arm carries its own word on \
+     and not a decision input. A definite zero carries none of it. \
+     The band arm carries its own word on \
      `inner_variant`, with `field` and `value` beside it."
 );
 

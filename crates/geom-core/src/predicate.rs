@@ -1281,17 +1281,27 @@ pub struct Indeterminate {
     /// the margin was invalid — for error reporting only
     /// ([`MarginDiag`]).
     pub margin: MarginDiag,
-    /// **The classifier's verdict on curability**, recorded where the
-    /// escalation is minted, as a definite outcome records its sign:
-    /// `true` when interval classification found the enclosure wholly
-    /// inside one open sliver band, `(zero, escalate)` or its mirror,
-    /// where no subdivision decides it — interval enclosures shrink
-    /// monotonically, so a sub-box's stays inside the band its parent's
-    /// was inside (DESIGN D4's row-1 note; the subdivision driver's
-    /// terminal refusal). `false` for every other escalation: a
-    /// straddling enclosure, a point margin, a poisoned one, and every
-    /// escalation minted outside the classifier. The driver reads this,
-    /// never the margin.
+    /// **The classifier's verdict: is subdivision futile?** Recorded
+    /// where the escalation is minted, as a definite outcome records its
+    /// sign: `true` when interval classification found the enclosure
+    /// wholly inside one open sliver band, `(zero, escalate)` or its
+    /// mirror, where no subdivision decides it — interval enclosures
+    /// shrink monotonically, so a sub-box's stays inside the band its
+    /// parent's was inside (DESIGN Q1: such an enclosure is *terminal*
+    /// for the driver). `false` for every other escalation: a straddling
+    /// enclosure, a point margin, a poisoned one, and every escalation
+    /// minted outside the classifier. The driver reads this, never the
+    /// margin.
+    ///
+    /// It answers that one question, not D9's row-1 terminal-vs-curable
+    /// axis in full: a `Value`-kind escalation is terminal there (a
+    /// statement about the input), and reads `false` here, because no
+    /// box is being subdivided.
+    ///
+    /// The field is public like its neighbours, so what keeps a caller
+    /// from writing `true` on a straddle is
+    /// `scripts/gates/reporting-margin-door.sh`, which pins such
+    /// literals in production code to none: gate-held, not type-held.
     pub terminal_sliver: bool,
     /// The band the margin was classified against.
     pub band: Band,

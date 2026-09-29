@@ -24,6 +24,11 @@
 # sites are a second list here: a new one is a red, and a review reads
 # what it mints for.
 #
+# THE CURABILITY VERDICT IS HELD HERE TOO, rather than by the type.
+# `Indeterminate::terminal_sliver` tells the subdivision driver that
+# subdividing is futile; its fields are public, so a production literal
+# `terminal_sliver: true` is pinned to no site at all.
+#
 # THE SENTENCE IS A THIRD ROUTE, and it is counted too.
 # `MarginDiag::sized_recourse` chooses its words from the number, so a
 # caller that asked it and searched the sentence for "tighten" would
@@ -49,6 +54,9 @@
 # production source text, so:
 #   * a call reached through a macro, or a re-export or `use … as`
 #     alias under another name, is invisible to it;
+#   * so is a path spelled with whitespace inside it —
+#     `MarginDiag :: value(`, or the path split across lines — since
+#     the matcher reads each record's text as written;
 #   * rendering the reading as text — `Display`, `LowerExp`, or the
 #     derived `Debug` every payload carries — and parsing the text back
 #     is a door it cannot see, as obviously wrong as it is long;
@@ -93,6 +101,16 @@ SIZED_ALLOWLIST=(
 )
 SIZED_RE='sized_recourse([^A-Za-z0-9_]|$)'
 
+# `path count why` — production files that may write the classifier's
+# verdict `terminal_sliver: true` on an escalation of their own. None:
+# only the interval classifier decides that an escalation's subdivision
+# is futile, inside the definition home's crate (`interval.rs` computes
+# the flag, and never spells the literal). The field is public like its
+# neighbours, so this list is what holds it — a forged `true` on a
+# straddle would make the subdivision driver refuse terminally.
+FORGE_ALLOWLIST=()
+FORGE_RE='terminal_sliver[[:space:]]*:[[:space:]]*true'
+
 # The `mod` files a crate mounts under
 # `#[cfg(any(test, feature = "test-support"))]`, one path per line: the
 # attribute, any further attributes, then `mod name;`, resolved beside
@@ -131,7 +149,7 @@ check_list() {
     | cut -c1-200)
   local entry path want why have bad=
   local -a listed=()
-  for entry in "$@"; do
+  for entry in ${@+"$@"}; do
     read -r path want why <<<"$entry"
     listed+=("$path")
     [ -f "$path" ] || bad+="  [$path]: the allowlisted file is gone"$'\n'
@@ -141,7 +159,11 @@ check_list() {
     fi
   done
   local outside
-  outside=$(printf '%s\n' "$hits" | gate_grep -vE "$(gate_record_anchor_any "${listed[@]}")" || true)
+  if [ "${#listed[@]}" -gt 0 ]; then
+    outside=$(printf '%s\n' "$hits" | gate_grep -vE "$(gate_record_anchor_any "${listed[@]}")" || true)
+  else
+    outside=$hits
+  fi
   if [ -n "$outside" ]; then
     printf '%s\n' "$outside"
     return 1
@@ -182,6 +204,11 @@ gate() {
     2) gate_error "$(gate_name): an allowlisted mint site's count moved. Move the pin in the change that carries the argument"
        exit 1 ;;
   esac
+  check_list verdict "$FORGE_RE" ${FORGE_ALLOWLIST[@]+"${FORGE_ALLOWLIST[@]}"} || rc=$?
+  case $rc in
+    1) gate_error "$(gate_name): terminal_sliver: true written outside the classifier (this file's header says why). Whether subdivision is futile is the interval classifier's verdict, recorded when it mints the escalation; an escalation minted anywhere else carries false"
+       exit 1 ;;
+  esac
   check_list sentence "$SIZED_RE" "${SIZED_ALLOWLIST[@]}" || rc=$?
   case $rc in
     1) gate_error "$(gate_name): MarginDiag::sized_recourse asked outside the allowlisted sites (this file's header says what a site owes). Its sentence is chosen from the number, so reading it is reading the margin; end a sized decision through geom_brep::recourse::SizedDecision instead, or add the site here with its reason"
@@ -189,7 +216,7 @@ gate() {
     2) gate_error "$(gate_name): an allowlisted sentence site's count moved. Move the pin in the change that carries the argument"
        exit 1 ;;
   esac
-  gate_ok "the reporting margin's door is called only at the ${#DOOR_ALLOWLIST[@]} allowlisted site(s), a valued reading minted only at the ${#MINT_ALLOWLIST[@]} allowlisted mint site(s), and its sized sentence asked only at the ${#SIZED_ALLOWLIST[@]} allowlisted site(s), at the counts they pin (${#support[@]} test-support mount path(s) skipped)"
+  gate_ok "the reporting margin's door is called only at the ${#DOOR_ALLOWLIST[@]} allowlisted site(s), a valued reading minted only at the ${#MINT_ALLOWLIST[@]} allowlisted mint site(s), and its sized sentence asked only at the ${#SIZED_ALLOWLIST[@]} allowlisted site(s), no forged terminal-sliver verdict, at the counts they pin ($((${#support[@]} / 2)) test-support mount(s) skipped)"
 }
 
 # The clean fixture: the definition home and every allowlisted file,
@@ -307,6 +334,14 @@ plant_sentence_oracle_outside() {
     > "$1/crates/topo/src/props.rs"
 }
 
+# A forged curability verdict on an escalation minted outside the
+# classifier.
+plant_forged_sliver() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f(b: Band) -> Indeterminate { Indeterminate { margin: MarginDiag::INVALID, band: b, predicate: None, terminal_sliver: true } }\n' \
+    > "$1/crates/topo/src/props.rs"
+}
+
 gate_selftest() {
   local outside="a call to MarginDiag::diagnostic_f64_for_error_text outside the allowlisted sites"
   local minted="a valued MarginDiag minted outside the allowlisted sites"
@@ -320,9 +355,10 @@ gate_selftest() {
   gate_selftest_case "$minted" plant_qualified_mint_outside
   gate_selftest_case "$minted" plant_mint_in_a_plain_mount
   gate_selftest_case "MarginDiag::sized_recourse asked outside the allowlisted sites" plant_sentence_oracle_outside
+  gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, and on the sized sentence asked outside its table; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence asked outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
