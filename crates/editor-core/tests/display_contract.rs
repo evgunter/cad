@@ -926,7 +926,8 @@ test_utils::f6_variants! {
         AssertionBound,
         MetadataUnversioned,
         StepIds,
-        NameStepBeyondCounter,
+        MintLogOrder,
+        NameStepNotMinted,
     ];
 }
 
@@ -1168,7 +1169,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::NameStepBeyondCounter {
+            SnapshotError::MintLogOrder { step: StepId(6) },
+            vec!["not strictly ascending at id 6", "which no mint writes"],
+        ),
+        (
+            SnapshotError::NameStepNotMinted {
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
                     node,
@@ -1178,9 +1183,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     })],
                 }),
                 step: StepId(8),
-                next_step: 6,
             },
-            vec!["minted by node 5", "profile step id #8", "step counter 6"],
+            vec![
+                "minted by node 5",
+                "profile step id #8",
+                "mint log does not hold",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
@@ -2805,7 +2813,8 @@ test_utils::f6_variants! {
         Shape,
         NotThisProfiles,
         Repeated,
-        BeyondCounter,
+        NotMinted,
+        Collides,
     ];
 }
 
@@ -2843,11 +2852,16 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             vec!["step id 4 stands for two steps"],
         ),
         (
-            StepIdFault::BeyondCounter {
-                step: StepId(12),
-                next_step: 10,
-            },
-            vec!["step id 12", "step counter 10", "never minted it"],
+            StepIdFault::NotMinted { step: StepId(12) },
+            vec![
+                "step id 12",
+                "not in the document's mint log",
+                "never minted it",
+            ],
+        ),
+        (
+            StepIdFault::Collides { step: StepId(7) },
+            vec!["drew step id 7", "mint log already holds"],
         ),
     ];
     assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);
@@ -2876,13 +2890,12 @@ fn a_step_id_fault_names_the_id_or_the_count() {
                 )],
             },
             step: StepId(9),
-            next_step: 5,
         },
         &[
             "edge name minted by node 3",
             "profile step id #9",
             "never minted",
-            "step counter is 5",
+            "mint log does not hold it",
         ],
         &["NameStepNeverMinted"],
     );

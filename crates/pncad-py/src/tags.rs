@@ -1773,7 +1773,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
         SnapshotError::StepIds { .. } => "step_ids",
-        SnapshotError::NameStepBeyondCounter { .. } => "name_step_beyond_counter",
+        SnapshotError::MintLogOrder { .. } => "mint_log_order",
+        SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
         SnapshotError::DeclareInput { .. } => "declare_input",
@@ -3031,7 +3032,8 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::Shape { .. } => "shape",
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
-        StepIdFault::BeyondCounter { .. } => "beyond_counter",
+        StepIdFault::NotMinted { .. } => "not_minted",
+        StepIdFault::Collides { .. } => "collides",
     }
 }
 

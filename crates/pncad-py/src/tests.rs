@@ -2629,7 +2629,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         E::NameStepNeverMinted {
             name: named(),
             step: StepId(9),
-            next_step: 4,
         },
         E::RebindTargetMissingNode { name: named() },
         E::RebindUnknownName { name: named() },
@@ -5386,7 +5385,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_alignment",
             "measure_refs",
             "metadata_unversioned",
-            "name_step_beyond_counter",
+            "mint_log_order",
+            "name_step_not_minted",
             "order_mismatch",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
@@ -5443,8 +5443,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "step_id_fault_tag",
         values: &[
-            "beyond_counter",
+            "collides",
             "loop_count",
+            "not_minted",
             "not_this_profiles",
             "preminted",
             "repeated",
