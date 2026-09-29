@@ -2,8 +2,9 @@
 id: edit-refusals-short-of-the-shape-guard
 kind: issue
 title: edit: refusals the viewer draws that state no recourse, by the shape guard's census
-status: open
+status: spec
 pr: 3490
+branch: edit/part-refusal-recourse
 opened: 2026-09-29
 priority: P2
 cost: M
@@ -123,3 +124,28 @@ this row, so it stays open, and the unit sets the `## Built` section.
 - Its status-line count was 65. The file held 63 under this row's comment, because the bare `MaintenanceRefused` and `MateRefused` sit under MSOLVE's comment.
 - The roster misses three `EditError` arms. They are filed as `edit-refusal-roster-renders-no-program-or-step-id-arm`.
 - The viewer's own `Refusal` arms are held to no shape guard. That gap is filed on CHROME as `viewer-own-refusals-are-held-to-no-shape-guard`.
+
+## Ruled and spec'd (2026-09-29, EDIT orchestrator) — the feature-tree half, single review
+
+**Tier:** single review (one Opus FULL).
+
+**Scope.**
+- **The six `Part` rows still in `refusal_concision_chains.rs`'s `FILED_NO_RECOURSE`:** `Part/DepthExceeded`, `Part/NoResolver`, `Part/ReferenceCycle`, and `Part/Unresolved` over `EpsilonSeam`, `PinMismatch` and `Unresolved`. These are `PartFault`'s arms in `eval/parts.rs`.
+- **Rides with it:** `part-unresolved-refusal-draws-the-workspaces-stage-prefix`. Real-text rows for `Part/Unresolved`, and the store's stage word (`workspace:`) not drawn inside the part's sentence. This is the same move #3482 made for `PartProduct` with `ProductError::sentence()`.
+- **Also rides with it:** `edit-refusal-roster-renders-no-program-or-step-id-arm`. Add the missing status-line rows (`SetProgramOnNonProfile`, `StepIdsRefused` over each `StepIdFault` arm through an exhaustive witness, `NameStepNeverMinted`), and give each the recourse its raise site supports. The `StepIdFault` recourse goes in the `StepIdsRefused` wrapper, matched on the fault, as `Roots` does.
+- **Not in scope:**
+  - the seven placement arms, which stay for the placement unit;
+  - the hex ids `ReferenceCycle` prints (`part-refusals-name-documents-by-hex-id`, held until the viewer has an id-to-file mapping). Its admitted spans stay.
+
+**Rule.** Same as the status-line half, PR 3490:
+- read every raise site, including secondary doors;
+- write only a recourse the user can take from that door, or the shared ending where there is none;
+- use `InThePart` (from #3482) for the part-side recourse;
+- keep Python tag words frozen;
+- re-baseline and name any pinned text.
+
+**Rows.**
+- The chains roster is green with the six entries gone.
+- Real-text `Part/Unresolved` rows are built through a real `Workspace` / `DirResolver`.
+- The three new status-line rows exist.
+- One planted mutant per class reds.
