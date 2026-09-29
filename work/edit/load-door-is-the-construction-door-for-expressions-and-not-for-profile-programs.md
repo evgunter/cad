@@ -2,8 +2,11 @@
 id: load-door-is-the-construction-door-for-expressions-and-not-for-profile-programs
 kind: issue
 title: persist/wire.rs carries two rebuild policies and states one: expressions rebuild through their constructors, profile programs do not
-status: open
+status: spec
 opened: 2026-09-15
+priority: P4
+cost: E
+branch: edit/load-door-program-policy
 ---
 
 
@@ -74,3 +77,27 @@ accounted there.
 - `crates/editor-core/src/program.rs` — `ProgramRefusal`'s four arms.
 - `crates/pncad-py/src/tags.rs` — `path_error_tag`; its one caller is
   `crates/pncad-py/src/py/path.rs`.
+
+## Ruled and spec'd (2026-09-29, EDIT orchestrator) — E-class, orchestrator's read
+
+**Tier:** orchestrator's read. It is one sentence, one probe and one pinning
+row, with no correctness risk beyond what the probe measures.
+
+1. **The prose.** Beside `impl Deserialize for ProfileProgram` in
+   `persist/wire.rs`, add one sentence. It says that this rebuild trusts
+   the structure, unlike `WireExpr`/`WireMeasureExpr`, and names the
+   validator that re-checks it.
+2. **The probe settles `ProgramRefusal::Validate`.**
+   - Save a document whose loop program is a bowtie (or any program
+     whose replay fails `Profile::validate`), then load it.
+   - **If it loads clean and refuses typed at evaluation:** that is
+     class 2, legal at rest. Say so in `ProgramFault`'s doc beside the
+     `Geometry`/`Resolve` accounting, and pin it with a row: the load
+     succeeds, and evaluation answers the typed refusal.
+   - **If the load door refuses it:** name where, in the same doc, and
+     pin that instead.
+   - **If it loads clean and evaluation is NOT typed** (a panic, a
+     silent wrong body, or an untyped error): stop. That is a defect;
+     file it with the probe and report it rather than document it.
+3. **The row.** Red on `origin/main` where the fact was unwritten: the
+   doc sentence does not exist and no row pins the arm. Green after.
