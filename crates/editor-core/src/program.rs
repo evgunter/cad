@@ -211,7 +211,7 @@ pub enum ProgramTarget {
 /// be discharged in `from_recorded`'s error arm.
 ///
 /// Fields are public data (the node-slot pattern: dimensions are
-/// checked at the edit door via [`ProfileProgram::slots`] +
+/// checked at the edit door via [`ProfilePayload::rows`] +
 /// [`StepArg::dimension`], and at the persistence doors' shared
 /// validator — never trusted from a parsed file).
 ///
@@ -1250,8 +1250,8 @@ fn step_rows(s: &ProgramStep, step: u32) -> Vec<((u32, StepArg), &Expr)> {
     out
 }
 
-/// **The role the table pairs with `e`**, found by identity among
-/// `roles` — rows built from the same reference the resolver is
+/// **The `(step, role)` the table pairs with `e`**, found by identity
+/// among `roles` — rows built from the same reference the resolver is
 /// reading `e` out of ([`res_chain_step`] and [`LoopProgram::resolve`]'s
 /// carrier arms, through [`leaf`], each build both from one binding).
 ///
@@ -1389,9 +1389,7 @@ impl LoopProgram {
             .map(|(address, _)| address)
             .collect()
     }
-}
 
-impl LoopProgram {
     row_readers!(loop_roles -> (u32, StepArg));
 }
 
@@ -2992,7 +2990,7 @@ impl LoopProgram {
     /// `25 mm` and `0.025 m` hold the same bits and differ only in what
     /// they say they were written in.
     ///
-    /// Each entry is applied through this type's own `expr_mut`, the
+    /// Each entry is applied through this type's own role table, the
     /// addressing `SlotId::Profile` reads, so an argument whose author
     /// wrote a unit is minted with it and every other argument is the
     /// literal [`LoopProgram::from_recorded`] mints. An EMPTY notation

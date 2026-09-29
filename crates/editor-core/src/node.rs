@@ -976,9 +976,9 @@ pub enum TubeWindow {
 
 /// **THE slot table of a tube window: which [`SlotId`] each of its
 /// expressions carries, in enumeration order** — none for a full ring,
-/// the two angles for an arc. Read by [`node_rows`] for both tube kinds,
-/// so neither can come to disagree with the other about which angle is
-/// which.
+/// the two angles for an arc. Both tube kinds read it through
+/// `tube_rows`, so neither can come to disagree with the other about
+/// which angle is which.
 macro_rules! window_rows {
     ($window:expr, $out:expr) => {{
         match $window {
