@@ -1841,3 +1841,21 @@ scalars (R2's surviving mutant must red). The orchestrator log had not
 reached main since #2700 (R1's NOTE); landed by #3197. Fix pass
 dispatched on Opus ~23:30Z. DR row drafted (`lane4-dual-row.md`).
 Running tally: 1 of 8.
+
+**2026-09-29 — resumed after the account's weekly usage limit.** The
+LANE-4 fix pass died on the limit (HTTP 429) on 2026-09-25, after its
+three item commits (local only) and mid-gates. It was resumed from its
+transcript, with instructions to push, merge main (~2,200 commits) and
+re-read the changed implementer discipline. Ev signed off RING-5 on
+2026-09-25 ("looks great!"). A test merge of main into `scalar/ring-5`
+conflicts in 13 files, so a merge-main lane is dispatched (Opus; brief
+kept in scratch). Main's protocol changes read:
+- rule 9's readout now counts fair pairs that found any MAJOR (Ev,
+  PR 3342), and the held rows are re-spelled to the new foot;
+- the designer pair weighs a design fork before an `[ev]` PR;
+- `cost` is E/M/H, with `design` as its own flag;
+- runners are a budget, and friction is a finding;
+- the per-PR gate is latency-sized (`gate ok` is the one check);
+- a test costing ≥1 s goes in the slow set.
+
+Main's tally is 2 of 8, so LANE-4's candidate makes 3, not 1.
