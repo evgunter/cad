@@ -133,3 +133,29 @@ With its two riders, as one unit.
 
 Sibling found by the sweep and filed:
 `part-unresolved-refusal-draws-the-workspaces-stage-prefix`.
+
+## Fix pass (2026-09-29, review `partprod-rev`)
+
+- **One sentence for a root with no value**: `root {standing}`
+  (`NodeStanding::of_root`), under the gather's `product:` and the
+  checks registry's `checks:`. The viewer's at-rest badge renders the
+  root's standing re-read by `standing_as_drawn` through the same
+  sentence, and its own "is a root with no value" wording went.
+- **The class is read in one place**, `ProductError::kind`:
+  `product_error_tag` and the viewer read it; the kernel census's
+  expected classes are literals. `NodeStanding::failed_node` answers
+  which node's failure explains a standing (`product_fault`,
+  `Evaluation::node_error`).
+- **`ProductError::sentence` (now public) strips the gather's labels**:
+  a carried `RootInvalid` names its roots in its header and lists the
+  findings bare; `Graft` is a sentence everywhere.
+- **One recourse per `PartProduct`**: the wrapper adds one only where
+  the gather's sentence states none (`NoBodyRoots`, `Naming`), through
+  one helper; `PlacedUnderTwoRoots` labels its own.
+- The roster gained `Part/PartProduct(Naming)` from a real part, and
+  `RootInvalid`, `ProductInvalid` and `Graft` rows built from the
+  gather's own error, which no document reaches.
+- `PartRootFailed` and `PartRootPoisoned` stay two arms: a
+  `PartRoot { standing, refusal }` would admit the two standings that
+  carry no failure beside a carried failure, with no honest class or
+  sentence for them.

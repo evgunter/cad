@@ -803,37 +803,26 @@ pub fn resolution_as_drawn(resolution: Resolution, evaluation: &Evaluation<f64>)
 }
 
 /// **The words a product-gather refusal is shown in**: the gather's
-/// own, except for a root this tree draws downstream of a row the
-/// refusal does not name. That root gets the tree's pointer
-/// ([`downstream_wording`]), because the gather's sentence would name
-/// the wrong row, or call a mate a failed ancestor.
+/// own, with a root's standing re-read by [`standing_as_drawn`], so a
+/// root this tree draws downstream of a row the refusal does not name
+/// is refused as downstream of that row, in the standing's one sentence.
 ///
 /// Words and not a re-attributed [`ProductError`]: the refusal's own
 /// value stays the gather's, and only what is drawn from it is the
 /// tree's.
 pub fn product_refusal_wording(fault: &ProductError, evaluation: &Evaluation<f64>) -> String {
-    let (root, named) = match fault {
-        ProductError::Root(NodeStanding::Failed { node }) => (*node, *node),
-        ProductError::Root(NodeStanding::Poisoned { node, through }) => (*node, *through),
-        ProductError::Root(
-            NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. },
-        )
-        | ProductError::EvaluationOfAnotherDocument { .. }
+    match fault {
+        ProductError::Root(standing) => AssemblyError::product_refusal(&ProductError::Root(
+            standing_as_drawn(*standing, evaluation),
+        )),
+        ProductError::EvaluationOfAnotherDocument { .. }
         | ProductError::PlacedUnderTwoRoots { .. }
         | ProductError::Naming { .. }
         | ProductError::NoBodyRoots
         | ProductError::Graft { .. }
         | ProductError::RootInvalid { .. }
         | ProductError::ProductInvalid { .. }
-        | ProductError::ContactLineage { .. } => return AssemblyError::product_refusal(fault),
-    };
-    match cause_row(root, evaluation) {
-        Some(cause) if cause != named => format!(
-            "product: {} is a root with no value: {}",
-            node_number(root),
-            downstream_wording(cause)
-        ),
-        Some(_) | None => AssemblyError::product_refusal(fault),
+        | ProductError::ContactLineage { .. } => AssemblyError::product_refusal(fault),
     }
 }
 

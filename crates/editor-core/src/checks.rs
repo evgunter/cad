@@ -795,7 +795,7 @@ impl ChecksError {
 impl fmt::Display for ChecksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Root(standing) => write!(f, "checks: a root has no value: {standing}"),
+            Self::Root(standing) => write!(f, "checks: {}", standing.of_root()),
             Self::Band { error } => write!(f, "checks: {error}"),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,

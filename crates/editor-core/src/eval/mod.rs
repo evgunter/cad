@@ -189,9 +189,7 @@ impl<T: Decide> Evaluation<T> {
             // propagation writes nothing else there); answering `None`
             // on a broken invariant is fail-honest — the caller sees
             // "no root cause", not a wrong one.
-            Err(NodeStanding::Failed { node } | NodeStanding::Poisoned { through: node, .. }) => {
-                self.nodes.get(&node)?.error()
-            }
+            Err(standing) => self.nodes.get(&standing.failed_node()?)?.error(),
         }
     }
 }
@@ -250,6 +248,35 @@ impl NodeStanding {
             Self::Poisoned { through, .. } => Some(through),
             Self::NotEvaluated { .. } | Self::NotInDocument { .. } | Self::Failed { .. } => None,
         }
+    }
+
+    /// The node whose failure explains the standing, which is where
+    /// the repair is: the node itself when it failed, its nearest
+    /// failed ancestor when it was poisoned, and `None` when the node
+    /// has no entry.
+    #[must_use]
+    pub fn failed_node(self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Failed { node } | Self::Poisoned { through: node, .. } => Some(node),
+            Self::NotEvaluated { .. } | Self::NotInDocument { .. } => None,
+        }
+    }
+
+    /// The standing of a document ROOT, as a door whose subject is the
+    /// document's roots states it under its own stage word: `root`,
+    /// then the standing.
+    pub(crate) fn of_root(self) -> RootStanding {
+        RootStanding(self)
+    }
+}
+
+/// [`NodeStanding::of_root`]'s rendering: the one sentence for a root
+/// with no value.
+pub(crate) struct RootStanding(NodeStanding);
+
+impl core::fmt::Display for RootStanding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "root {}", self.0)
     }
 }
 

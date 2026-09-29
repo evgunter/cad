@@ -306,33 +306,45 @@ impl crate::finding::Finding for SourceLine<'_> {
 // composed with its root and output as the subject. Node ids render
 // plain, names as kind + minting node.
 //
-// The stage word `product:` is written once, here; the sentence after
-// it is [`ProductError::sentence`], which a carrier that names the
-// stage itself renders bare.
+// The stage word `product:` is written once, here, and so is the
+// `root N output M` label each listed finding opens with: both are the
+// gather's own labels, legitimate where the gather's refusal is drawn
+// under its own name. [`ProductError::sentence`] is the refusal a
+// carrier that names the stage itself renders, and it carries neither.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "product: {}", self.sentence())
+        f.write_str("product: ")?;
+        self.fmt_sentence(f, Labels::Kept)
     }
 }
 
+/// Whether a rendering keeps the gather's own labels: its stage word
+/// and the `root N output M` subject of each listed finding.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Labels {
+    Kept,
+    Stripped,
+}
+
 /// [`ProductError::sentence`]'s rendering.
-pub(crate) struct Sentence<'a>(&'a ProductError);
+struct Sentence<'a>(&'a ProductError);
 
 impl core::fmt::Display for Sentence<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt_sentence(f)
+        self.0.fmt_sentence(f, Labels::Stripped)
     }
 }
 
 impl ProductError {
-    /// The refusal without the gather's stage word: what a carrier
-    /// that names the stage itself renders
-    /// ([`crate::PartFault::PartProduct`]).
-    pub(crate) fn sentence(&self) -> Sentence<'_> {
+    /// The refusal without the gather's labels — its stage word, and
+    /// the per-finding `root N output M` subjects, whose roots it names
+    /// in its header instead: what a carrier that names the stage
+    /// itself renders ([`crate::PartFault::PartProduct`]'s `message`).
+    pub fn sentence(&self) -> impl core::fmt::Display + '_ {
         Sentence(self)
     }
 
-    fn fmt_sentence(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt_sentence(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
         let list = crate::finding::render_lines::<&ValidationError, _>;
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
@@ -340,7 +352,7 @@ impl ProductError {
                 "the evaluation is of document {found}, not of \
                  document {expected}",
             ),
-            Self::Root(standing) => write!(f, "root {standing}"),
+            Self::Root(standing) => write!(f, "{}", standing.of_root()),
             Self::PlacedUnderTwoRoots {
                 placed,
                 select,
@@ -365,8 +377,8 @@ impl ProductError {
                     f,
                     "{what} is placed under two roots, {} and {} — \
                      a transform or part selection mints no name, so both \
-                     would carry its names; place it under one root, or \
-                     union the two",
+                     would carry its names. Recourse: place it under one \
+                     root, or union the two",
                     first.0, second.0
                 )
             }
@@ -398,26 +410,45 @@ impl ProductError {
                 name.kind.noun(),
                 name.node.0
             ),
-            Self::Graft { node, source } => {
-                write!(f, "grafting root {} refused: {source}", node.0)
-            }
+            Self::Graft { node, source } => write!(
+                f,
+                "the kernel could not graft root {}'s body: {source}",
+                node.0
+            ),
             Self::RootInvalid { findings } => {
-                let lines: Vec<SourceLine<'_>> = findings
-                    .iter()
-                    .flat_map(|source| {
-                        source
-                            .errors
-                            .iter()
-                            .map(move |error| SourceLine { source, error })
-                    })
-                    .collect();
                 // Findings arrive in gather order, so one root's outputs
                 // are adjacent and `dedup` counts roots.
                 let mut roots: Vec<RecipeNodeId> = findings.iter().map(|s| s.node).collect();
                 roots.dedup();
-                let noun = if roots.len() == 1 { "root" } else { "roots" };
-                write!(f, "{} {noun} not valid at rest:", roots.len())?;
-                crate::finding::render_list(f, &lines)
+                match labels {
+                    Labels::Kept => {
+                        let noun = if roots.len() == 1 { "root" } else { "roots" };
+                        write!(f, "{} {noun} not valid at rest:", roots.len())?;
+                        let lines: Vec<SourceLine<'_>> = findings
+                            .iter()
+                            .flat_map(|source| {
+                                source
+                                    .errors
+                                    .iter()
+                                    .map(move |error| SourceLine { source, error })
+                            })
+                            .collect();
+                        crate::finding::render_list(f, &lines)
+                    }
+                    Labels::Stripped => {
+                        if let [root] = roots.as_slice() {
+                            write!(f, "root {} is not valid at rest:", root.0)?;
+                        } else {
+                            let named: Vec<String> =
+                                roots.iter().map(|r| r.0.to_string()).collect();
+                            write!(f, "roots {} are not valid at rest:", named.join(", "))?;
+                        }
+                        crate::finding::render_lines(
+                            f,
+                            findings.iter().flat_map(|source| &source.errors),
+                        )
+                    }
+                }
             }
             Self::ProductInvalid { errors } => {
                 write!(
@@ -1318,13 +1349,10 @@ mod tests {
     /// Neither exhaustiveness objects to an arm PROJECTED to the wrong
     /// kind, which type-checks. That is what the errors below are for:
     /// each is built, projected, and its kind's name compared with the
-    /// name `Debug` prints for the error itself — the variant, or under
-    /// [`ProductError::Root`] the standing's, read as the feature tree
-    /// reads it (no entry is `UnknownNode`, the rest `Root` and the
-    /// standing) — so a mis-projected arm and a mis-labelled arm both
-    /// fail here with no expected value written down twice. Two arms
-    /// projected onto one kind fail it too: `label` names a kind once,
-    /// and the two arms' names differ.
+    /// class written beside it in [`every_arm`]'s order. The expected
+    /// classes are literals, not a reading of the error: a census that
+    /// derived them would restate the projection it checks. Two arms
+    /// projected onto one kind fail it too, because the literals differ.
     ///
     /// The census is complete as measured: every arm of
     /// [`ProductError`] and every standing is built here, so no
@@ -1349,29 +1377,31 @@ mod tests {
                 ProductErrorKind::ContactLineage => "ContactLineage",
             }
         }
-        /// The variant name `Debug` opens `debug` with.
-        fn variant_of(debug: &str) -> String {
-            debug
-                .chars()
-                .take_while(|c| c.is_alphanumeric() || *c == '_')
-                .collect()
-        }
-        /// The class name the error's own spelling states.
-        fn class_of(err: &ProductError) -> String {
-            match err {
-                ProductError::Root(standing) => match variant_of(&format!("{standing:?}")).as_str()
-                {
-                    "NotEvaluated" | "NotInDocument" => "UnknownNode".to_owned(),
-                    state => format!("Root{state}"),
-                },
-                _ => variant_of(&format!("{err:?}")),
-            }
-        }
-        for err in &every_arm() {
+        let expected = [
+            "EvaluationOfAnotherDocument",
+            "UnknownNode",
+            "UnknownNode",
+            "RootFailed",
+            "RootPoisoned",
+            "PlacedUnderTwoRoots",
+            "Naming",
+            "NoBodyRoots",
+            "Graft",
+            "RootInvalid",
+            "ProductInvalid",
+            "ContactLineage",
+        ];
+        let arms = every_arm();
+        assert_eq!(
+            arms.len(),
+            expected.len(),
+            "one expected class per built arm"
+        );
+        for (err, class) in arms.iter().zip(expected) {
             assert_eq!(
                 label(err.kind()),
-                class_of(err),
-                "kind() projects each arm to its own kind, and label names it: {err:?}"
+                class,
+                "kind() projects each arm to its own kind: {err:?}"
             );
         }
     }

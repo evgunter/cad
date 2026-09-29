@@ -705,9 +705,11 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
         Some(viewer::session::AtRestBadge::Refused { message }) => assert_eq!(
             *message,
             format!(
-                "product: {} is a root with no value: {}",
-                tree::node_number(root),
-                tree::downstream_wording(offender)
+                "product: root {}",
+                NodeStanding::Poisoned {
+                    node: root,
+                    through: offender
+                }
             ),
             "the at-rest badge points where the tree points"
         ),
@@ -889,10 +891,9 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
 }
 
 /// **A root the tree does NOT redraw keeps the gather's own words** —
-/// the fallback of `tree::product_refusal_wording`, pinned by its
-/// literal text so the guard that picks the tree's pointer cannot widen
-/// to a root that is its own cause, or one poisoned through a real DAG
-/// ancestor.
+/// `tree::product_refusal_wording`'s re-read, pinned by its literal
+/// text so it cannot re-point a root that is its own cause, or one
+/// poisoned through a real DAG ancestor.
 #[test]
 fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
     use pncad::document::{Node, NodeStanding, ProductError, RecipeNodeId};

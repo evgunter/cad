@@ -131,8 +131,8 @@ fn speaks(door: &str, prefix: &str, refusal: &dyn core::fmt::Display, standing: 
 /// **Every standing renders one way through every door that carries
 /// it**, each under that door's own subject: the hit test, the
 /// pick-index build, the name lookup, the name read, the resolution
-/// verdict, the distance and flush queries, the checks registry and the
-/// clearance engine's selection (`pncad`'s suite holds the export door
+/// verdict, the distance and flush queries, the checks registry, the
+/// product gather and the clearance engine's selection (`pncad`'s suite holds the export door
 /// to the same shape, and `viewer`'s the duplicate and the blend tool).
 /// Each door's payload IS the standing [`Evaluation::usable`] answers,
 /// so no door can name a different node, lose `through`, or word the
@@ -230,12 +230,10 @@ fn every_standing_renders_one_way_through_every_door() {
         let checks = run_checks(&rooted, eval, &ChecksConfig::default(), Tol::witness())
             .expect_err("a root with no value refuses the registry");
         assert_eq!(checks, ChecksError::Root(standing));
-        speaks(
-            "the checks registry",
-            "checks: a root has no value: ",
-            &checks,
-            standing,
-        );
+        speaks("the checks registry", "checks: root ", &checks, standing);
+        let gather = editor_core::product(&rooted, eval, Tol::witness())
+            .expect_err("a root with no value refuses the gather");
+        speaks("the product gather", "product: root ", &gather, standing);
     }
 
     // The clearance engine replays the document itself, so its
@@ -364,12 +362,7 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
     let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
         .expect_err("a failed root refuses the registry");
     assert_eq!(refusal, ChecksError::Root(standing));
-    speaks(
-        "the checks registry",
-        "checks: a root has no value: ",
-        &refusal,
-        standing,
-    );
+    speaks("the checks registry", "checks: root ", &refusal, standing);
 }
 
 /// **No door that runs no hit test says it ran one.** The pick-index

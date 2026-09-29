@@ -286,13 +286,15 @@ class TestTheResolutionRefusals(CorpusCase):
     """The seam's refusal family, each reached THROUGH `resolver=`.
 
     THREE arms are exercised here — `part_no_resolver` (the class
-    above), `part_pin_mismatch` and `part_unresolved` — and a fourth,
-    `part_root_failed`, by `TestAPartWhoseRootFails` below. The rest of
+    above), `part_pin_mismatch` and `part_unresolved` — and two more
+    below: `part_root_failed` by `TestAPartWhoseRootFails` and
+    `part_root_poisoned` by `TestAPartWhoseRootIsPoisoned`. The rest of
     the family is typed and tagged but UNREACHED from Python today, each
     for its own reason, and none of them is singled out:
     `part_epsilon_seam` needs a stored document recording a different
     ε; `part_product` needs a part whose own product is broken for a
-    reason other than a failed root; `part_root_failure_unrecorded` is
+    reason other than a failed or poisoned root;
+    `part_root_failure_unrecorded` is
     a kernel bug no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
@@ -464,6 +466,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
             )
         )
         self.store.create(part)
+        self.part = part
         self.part_ref = DocRef(part.id, pncad.content_pin(part))
         self.assembly = pncad.Doc("pncad-partpoison-assembly")
         self.instance = self.assembly.insert(Node.instantiate_part(self.part_ref))
@@ -485,6 +488,49 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         )
         self.assertIsNone(cause.__cause__, "the chain ends at the refusing node")
         self.assertNotIn(str(cause), text, "the instance never quotes it")
+
+    def test_the_parts_own_gather_names_the_root_and_its_failed_ancestor(self):
+        """`ProductError.node` and `.through` are the standing's."""
+        with self.assertRaises(pncad.ProductError) as caught:
+            pncad.product(self.part, evaluate(self.part))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "root_poisoned")
+        self.assertEqual(
+            (refusal.node, refusal.through),
+            (self.root, self.extrude),
+            "the poisoned root, and the failed ancestor that poisoned it",
+        )
+
+    def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
+        """A bracket whose root is a transform over an instance of the
+        part: the bracket's root is poisoned through that failed
+        instance, and the chain runs instance, instance, extrude."""
+        bracket = pncad.Doc("pncad-partpoison-bracket")
+        inner = bracket.insert(Node.instantiate_part(self.part_ref))
+        bracket.insert(
+            Node.transform(
+                inner,
+                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
+            )
+        )
+        self.store.create(bracket)
+        bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
+        assembly = pncad.Doc("pncad-partpoison-deep-assembly")
+        instance = assembly.insert(Node.instantiate_part(bracket_ref))
+
+        refusal = failures(evaluate(assembly, resolver=self.store))[instance]
+        self.assertEqual(refusal.kind, "part_root_poisoned")
+        middle = refusal.__cause__
+        self.assertIsInstance(middle, pncad.EvaluationError)
+        self.assertEqual(middle.kind, "part_root_poisoned")
+        self.assertEqual((middle.node, middle.document), (inner, bracket_ref))
+        last = middle.__cause__
+        self.assertIsInstance(last, pncad.EvaluationError)
+        self.assertEqual(last.kind, "extrude")
+        self.assertEqual((last.node, last.document), (self.extrude, self.part_ref))
+        self.assertIsNone(last.__cause__, "the chain ends at the refusing node")
 
 
 class TestTheMemoIsObservable(CorpusCase):

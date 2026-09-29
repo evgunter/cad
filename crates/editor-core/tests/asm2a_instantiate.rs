@@ -1142,39 +1142,8 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
 #[test]
 fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let tol = Tol::witness();
-    let part = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-part"), tol);
-    let (part, profile) = on_frame(
-        part,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
-    );
-    let (part, extrude) = insert(
-        part,
-        Node::Extrude {
-            profile,
-            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
-        },
-    );
-    let (part, moved) = insert(
-        part,
-        Node::Transform {
-            input: extrude,
-            translation: [len(0.1), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
-    );
-    assert_eq!(
-        part.roots(),
-        &[moved],
-        "the transform is the part's one root"
-    );
-    let own = match run(&part, &EvalOptions::default()).result(extrude) {
-        Some(NodeResult::Failed(e)) => e.to_string(),
-        other => panic!("the part's extrude refuses on its own: {other:?}"),
-    };
+    let (part, extrude, moved) = poisoned_part("asm2a-poisoned-part");
+    let own = own_line(&part, extrude, &EvalOptions::default());
     let mut store = StubStore::default();
     let part_ref = store.insert(part, tol);
     let (doc, ids) = assembly("asm2a-poisoned-asm", &[part_ref]);
@@ -1215,6 +1184,112 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     assert!(
         !rendered.contains(refused),
         "the instance never quotes the refusal it carries: {rendered}"
+    );
+}
+
+/// A transform over `input`: the root a part's move makes.
+fn moved_over(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    insert(
+        doc,
+        Node::Transform {
+            input,
+            translation: [len(0.1), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    )
+}
+
+/// A part whose extrude refuses (its distance is 1/0) and whose one
+/// root is a transform over it: the extrude, then the root.
+fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let part = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (part, profile) = on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (part, extrude) = insert(
+        part,
+        Node::Extrude {
+            profile,
+            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+        },
+    );
+    let (part, moved) = moved_over(part, extrude);
+    assert_eq!(
+        part.roots(),
+        &[moved],
+        "the transform is the part's one root"
+    );
+    (part, extrude, moved)
+}
+
+/// `node`'s own refusal line, as `doc`'s own evaluation draws it.
+fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String {
+    match run(doc, opts).result(node) {
+        Some(NodeResult::Failed(e)) => e.to_string(),
+        other => panic!("node {} refuses on its own: {other:?}", node.0),
+    }
+}
+
+/// **Two documents down, the chain still ends at the failing node.**
+/// The bracket's root is a transform over an instance of the poisoned
+/// part, so the bracket's root is poisoned through a failed INSTANCE,
+/// whose own fault is the part's poisoned root in turn. The assembly's
+/// instance carries both levels, typed, each drawn as its own document
+/// draws it, and the last is the extrude's line.
+#[test]
+fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
+    let tol = Tol::witness();
+    let mut store = StubStore::default();
+    let (part, extrude, part_root) = poisoned_part("asm2a-poisoned-deep-part");
+    let broken_line = own_line(&part, extrude, &EvalOptions::default());
+    let part_ref = store.insert(part, tol);
+
+    let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
+    let (bracket, inner) = insert(bracket, Node::instantiate_part(part_ref));
+    let (bracket, bracket_root) = moved_over(bracket, inner);
+    let bracket_ref = store.insert(bracket.clone(), tol);
+
+    let (doc, ids) = assembly("asm2a-poisoned-deep-asm", &[bracket_ref]);
+    let opts = with_resolver(store);
+    let ev = run(&doc, &opts);
+
+    let fault = part_fault(&ev, ids[0]);
+    let PartFault::PartRootPoisoned {
+        root,
+        through,
+        refusal,
+    } = &fault
+    else {
+        panic!("expected PartRootPoisoned, got {fault:?}");
+    };
+    assert_eq!(
+        (*root, *through),
+        (bracket_root, inner),
+        "the bracket's root, poisoned through its failed instance"
+    );
+    assert!(
+        matches!(refusal.kind(), NodeErrorKind::Part {
+            fault: PartFault::PartRootPoisoned { root, through, .. }, ..
+        } if (*root, *through) == (part_root, extrude)),
+        "the carried refusal is the inner instance's own poisoned root: {refusal:?}"
+    );
+    let bracket_line = own_line(&bracket, inner, &opts);
+    let levels: Vec<_> = failure(&ev, ids[0])
+        .carried_chain()
+        .map(|level| (level.document, level.node, level.line()))
+        .collect();
+    assert_eq!(
+        levels,
+        vec![
+            (CarriedIn::Part(&bracket_ref), inner, bracket_line),
+            (CarriedIn::Part(&part_ref), extrude, broken_line),
+        ],
+        "one level per document, ending at the failing node"
     );
 }
 

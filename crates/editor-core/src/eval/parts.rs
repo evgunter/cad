@@ -174,8 +174,9 @@ pub enum PartFault {
     PartProduct {
         /// Which arm of the product door refused.
         kind: crate::product::ProductErrorKind,
-        /// The product door's diagnosis, without the gather's stage
-        /// word: this sentence names the stage itself.
+        /// The product door's diagnosis without the gather's labels
+        /// (its stage word, and the `root N output M` subject of a
+        /// listed finding): this sentence names the stage itself.
         message: String,
     },
     /// The reference CHAIN returned to a document it had already
@@ -239,29 +240,36 @@ impl core::fmt::Display for PartFault {
             },
             Self::PartRootFailed { node, .. } => write!(
                 f,
-                "the part's node {n} failed, so the part has no body. Recourse: open the part \
-                 and repair node {n}",
-                n = node.0
+                "the part's node {} failed, so the part has no body. {}",
+                node.0,
+                InThePart(format_args!("repair node {}", node.0)),
             ),
             Self::PartRootPoisoned { root, through, .. } => write!(
                 f,
-                "the part's node {t} failed and poisoned its root, node {r}, so the part has \
-                 no body. Recourse: open the part and repair node {t}",
-                t = through.0,
-                r = root.0
+                "the part's node {} failed and poisoned its root, node {}, so the part has \
+                 no body. {}",
+                through.0,
+                root.0,
+                InThePart(format_args!("repair node {}", through.0)),
             ),
             Self::RootFailureUnrecorded { node } => write!(
                 f,
-                "the part's product names its node {n} as failed and the part's evaluation holds \
-                 no failure there; the two disagree, so this is a kernel bug. Recourse: report \
-                 it with the part's file, and open the part to see node {n} as it evaluates",
-                n = node.0
+                "the part's product names its node {} as failed and the part's evaluation holds \
+                 no failure there; the two disagree, so this is a kernel bug. {}",
+                node.0,
+                InThePart(format_args!(
+                    "see node {} as it evaluates, then report it with the part's file",
+                    node.0
+                )),
             ),
             Self::PartProduct { kind, message } => {
                 write!(f, "the part has no product: {message}")?;
                 match product_recourse(*kind) {
-                    Some(recourse) => write!(f, ". {recourse}"),
-                    None => Ok(()),
+                    ProductRecourse::InThePart(action) => write!(f, ". {}", InThePart(action)),
+                    ProductRecourse::KernelDefect => {
+                        write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
+                    }
+                    ProductRecourse::Carried => Ok(()),
                 }
             }
             Self::ReferenceCycle { cycle } => {
@@ -286,24 +294,45 @@ impl core::fmt::Display for PartFault {
     }
 }
 
-/// The recourse a part with no product states after the gather's own
-/// sentence, by the gather's class: where the repair is, for a class
-/// the author repairs in the part; nothing, for a class whose sentence
-/// forwards the kernel's own refusal, which states its recourse; and
-/// the kernel-defect ending for a class a nested evaluation cannot
-/// reach — it evaluates its own document to completion, and the failed
-/// and poisoned roots cross as their own arms.
-fn product_recourse(kind: crate::product::ProductErrorKind) -> Option<&'static str> {
+/// The recourse of a repair the author makes inside the part: open it,
+/// and act there.
+struct InThePart<A>(A);
+
+impl<A: core::fmt::Display> core::fmt::Display for InThePart<A> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Recourse: open the part and {}", self.0)
+    }
+}
+
+/// What a part with no product states after the gather's own sentence.
+enum ProductRecourse {
+    /// The repair is in the part, and the gather's sentence does not
+    /// say what it is.
+    InThePart(&'static str),
+    /// The gather's sentence already states the one recourse: its own,
+    /// or the kernel refusal it forwards.
+    Carried,
+    /// A class a nested evaluation cannot reach.
+    KernelDefect,
+}
+
+/// [`ProductRecourse`] by the gather's class. A nested evaluation runs
+/// its own document to completion, and the failed and poisoned roots
+/// cross as their own arms, so the classes it cannot reach end in the
+/// kernel-defect recourse.
+fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     use crate::product::ProductErrorKind as K;
     match kind {
-        K::NoBodyRoots => Some("Recourse: open the part and give it a root that denotes a body"),
-        K::PlacedUnderTwoRoots | K::Naming => Some("Recourse: open the part and repair it there"),
-        K::Graft | K::RootInvalid | K::ProductInvalid => None,
+        K::NoBodyRoots => ProductRecourse::InThePart("give it a root that denotes a body"),
+        K::Naming => ProductRecourse::InThePart("repair it there"),
+        K::PlacedUnderTwoRoots | K::Graft | K::RootInvalid | K::ProductInvalid => {
+            ProductRecourse::Carried
+        }
         K::ContactLineage
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
         | K::RootFailed
-        | K::RootPoisoned => Some(geom_core::KERNEL_DEFECT_ENDING),
+        | K::RootPoisoned => ProductRecourse::KernelDefect,
     }
 }
 
@@ -514,33 +543,25 @@ fn product_fault<T: Decide>(
     mut evaluation: super::Evaluation<T>,
 ) -> PartFault {
     use super::NodeStanding;
-    let standing = match error {
-        crate::product::ProductError::Root(
-            standing @ (NodeStanding::Failed { .. } | NodeStanding::Poisoned { .. }),
-        ) => *standing,
-        _ => {
-            return PartFault::PartProduct {
-                kind: error.kind(),
-                message: error.sentence().to_string(),
-            };
+    let mut refusal_at = |failed: RecipeNodeId| match evaluation.nodes.remove(&failed) {
+        Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
+        _ => Err(PartFault::RootFailureUnrecorded { node: failed }),
+    };
+    let carried = match *error {
+        crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
+            refusal_at(node).map(|refusal| PartFault::PartRootFailed { node, refusal })
         }
+        crate::product::ProductError::Root(NodeStanding::Poisoned { node, through }) => {
+            refusal_at(through).map(|refusal| PartFault::PartRootPoisoned {
+                root: node,
+                through,
+                refusal,
+            })
+        }
+        _ => Ok(PartFault::PartProduct {
+            kind: error.kind(),
+            message: error.sentence().to_string(),
+        }),
     };
-    // The node that failed: the root itself, or the ancestor it was
-    // poisoned through.
-    let failed = standing.through().unwrap_or_else(|| standing.node());
-    let Some(super::NodeResult::Failed(failure)) = evaluation.nodes.remove(&failed) else {
-        return PartFault::RootFailureUnrecorded { node: failed };
-    };
-    let refusal = super::NodeRefusal::from(failure.kind);
-    match standing.through() {
-        None => PartFault::PartRootFailed {
-            node: standing.node(),
-            refusal,
-        },
-        Some(through) => PartFault::PartRootPoisoned {
-            root: standing.node(),
-            through,
-            refusal,
-        },
-    }
+    carried.unwrap_or_else(|unrecorded| unrecorded)
 }
