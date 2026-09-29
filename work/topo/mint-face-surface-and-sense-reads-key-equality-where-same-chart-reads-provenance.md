@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P1
 cost: E
+needs_ev: true
 ---
 
 
@@ -62,3 +63,25 @@ keys sharing one NURBS/`Approx` payload carry rows through
 `same_chart` but reset `sense` to `true` in `mint_face_surface_and_sense`.
 The title's "where same_chart reads provenance" is no longer true.
 (ORIGIN orchestrator)
+
+## What PR 3467's review found (2026-09-29)
+
+The first fix (PR 3467) widened the inheritance test from key
+equality to `same_chart`. Its reviewer measured that inheritance is
+wrong for `mfkrh` under either test: on `holed_block(3, [1.5])`, the
+bore circle promoted by `mfkrh(ring, Inherit)` with the parent's
+`true` is refused by tier 3 with `LoopRoleInverted`, and validates
+with `false` (probe: the reviewer's `senser-probe.patch`). A ring is
+wound clockwise about the parent's outward normal, so promoted to an
+outer loop on the same chart it faces the other way. A `mef` fragment
+across the same face validates with the parent's bit. The defect
+predates PR 3467; production same-chart promotions override the bit
+afterwards (`crates/topo/src/shell.rs`, `crates/topo/src/splitting/finish.rs`),
+and the boolean's transient promotions (`boolean/finish.rs`,
+`boolean/rest.rs`, `splitting/reassembly.rs`) carry the wrong bit
+until they are zipped or killed.
+
+The rule is D1's fragment bullet, so the question is D1's: what
+`sense` a minted or re-charted face carries, and who decides it. The
+item's original seam (key equality against `same_chart`) is one part
+of that answer.
