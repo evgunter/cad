@@ -5,8 +5,7 @@ title: mint_face_surface_and_sense decides 'the parent's own surface' by key equ
 status: open
 opened: 2026-09-24
 priority: P1
-cost: E
-needs_ev: true
+cost: M
 ---
 
 
@@ -85,3 +84,19 @@ The rule is D1's fragment bullet, so the question is D1's: what
 `sense` a minted or re-charted face carries, and who decides it. The
 item's original seam (key equality against `same_chart`) is one part
 of that answer.
+
+## Ruled (2026-09-29, PR 3480)
+
+Ev took the recommendation: "i agree with your recommendation!". D1's
+bullet now reads as PR 3480 wrote it.
+- On the parent's chart (`same_chart`), the operator derives the bit:
+  `mef` takes the parent's, `mfkrh` the parent's negated.
+- On any other chart, the caller states it in the spec
+  (`FaceSurface::New { surface, sense }`, `Shared { key, sense }`). No
+  operator stamps a default.
+- A stated bit that contradicts the derived one on the parent's chart
+  is refused, typed, before mutating. The test is `same_chart`.
+- `set_face_surface` takes the same spec, and
+  `set_face_surface_and_sense` folds into it.
+
+The implementation re-aims PR 3467.
