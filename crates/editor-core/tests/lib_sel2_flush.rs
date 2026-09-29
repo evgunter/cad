@@ -26,8 +26,8 @@ use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, ContactClass, DeclareError, EvalOptions, FlushRung, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SelectRefusal, ValuePayload, declare,
-    declare_all, evaluate, find_flush_candidates,
+    NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal, ValuePayload,
+    declare, declare_all, evaluate, find_flush_candidates,
 };
 use topo::{PlaneRelation, mass_properties};
 
@@ -136,9 +136,10 @@ fn flush_walls_are_same_oriented_findings() {
 /// detector reports COSURFACING, and chart-space overlap is
 /// deliberately not in the carrier-level ladder, exactly as at the
 /// verify-at-use site.) And a node with no value in the evaluation
-/// answers EMPTY (the `select` posture), not an error.
+/// REFUSES under its standing: "no flush pair" about a node that did
+/// not build would read as a fact about its geometry.
 #[test]
-fn separated_and_unevaluated_answer_empty() {
+fn separated_answers_empty_and_a_node_with_no_value_refuses() {
     let (doc, base) = box_at(
         ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),
         0.0,
@@ -153,12 +154,18 @@ fn separated_and_unevaluated_answer_empty() {
             .unwrap()
             .is_empty()
     );
-    // A foreign id has no value here.
+    // A foreign id has no value here, and says which standing.
     let foreign = RecipeNodeId(999);
+    let standing = NodeStanding::NotInDocument { node: foreign };
+    let refusal = find_flush_candidates(&ev, base, foreign, Tol::witness())
+        .expect_err("a node with no value refuses");
     assert!(
-        find_flush_candidates(&ev, base, foreign, Tol::witness())
-            .unwrap()
-            .is_empty()
+        matches!(refusal, SelectRefusal::NodeHasNoValue(carried) if carried == standing),
+        "{refusal:?}"
+    );
+    assert_eq!(
+        refusal.to_string(),
+        format!("select: the flush query's node has no value: {standing}")
     );
 }
 

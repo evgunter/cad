@@ -2,7 +2,10 @@
 id: the-standing-ladder-speaks-as-a-hit-test-at-every-door
 kind: issue
 title: The standing arms of HitTestError say "hit test:" through NodePick::build and the name doors, where no hit test runs
-status: open
+status: closed
+closed: 2026-09-29
+pr: 3463
+branch: edit/node-standing-one-type
 opened: 2026-09-29
 priority: P4
 cost: M
@@ -61,3 +64,20 @@ which forward unchanged.
 The standing becomes one type whose `Display` names the standing and no
 door. That is the "no usable value" member of `C6`, specced there. This
 row closes when that unit merges.
+
+## Built (2026-09-29) — PR 3463
+
+The standing is `eval::NodeStanding`, whose `Display` names the node,
+its state and where the repair is, and no door. `HitTestError::Standing`
+renders it as `hit test: {standing}`; `NodePickError::Standing` (the
+`NodePick::build`/`build_all` refusal) as `pick: {standing}`; and the
+name doors' refusal of the whole call is its own type,
+`NameLookupError`, rendering `name lookup: {standing}` — its pairing
+arm says `name lookup:` too, where it used to say `hit test:`. The
+viewer's `PickIndexError::Names` carries `NameLookupError`, and the
+`frame_policy.rs` badge pin is re-baselined. The Python binding raises
+the name doors' refusal as `HitTestError` under the same tags
+(`node_standing_tag`, `name_lookup_error_tag`), with the lookup's own
+message. Rows: `crates/editor-core/tests/node_standing.rs`
+(`no_standing_refusal_says_hit_test_outside_the_hit_test`,
+`every_standing_renders_one_way_through_every_door`).

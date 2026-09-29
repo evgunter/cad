@@ -140,3 +140,13 @@ out of `crates/geom-brep/src/ssi/certify.rs` into
 ~436-444), which `probe_tube_chart` still calls. The move was pure:
 `speed_sup`'s round-to-nearest `sqrt` is unchanged, so the finding
 stands as written at its new address. This is the SSI slate's P0.
+
+## Note from SCALAR (2026-09-29)
+
+"The fix shape"'s premise, operands that are `T: Real` magnitudes
+rather than `RingInterval`s and so need lifting into point intervals,
+no longer holds: RING-3 (#3153) dissolved `RingInterval` into
+`Interval`, and `Box3`'s sides in `crates/geom-brep/src/ssi/enclose.rs`
+are `Interval`s, read by `speed_sup` through `Certification::mag`.
+`offset_meters::norm_sup` takes `&[Interval; 3]`, so it can be handed
+the three sides with no lift. The finding stands.

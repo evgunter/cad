@@ -482,7 +482,10 @@ fn a_declared_name_that_denotes_nothing_refuses() {
     // does not have: the site routes, the lookup finds nothing.
     let named2 = vec![(
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-        SitedRef::new(b, fname(b, RoleSeg::Lateral(crate::fixture::no_piece()))),
+        SitedRef::new(
+            b,
+            fname(b, RoleSeg::Lateral(crate::fixture::no_piece_of(&doc))),
+        ),
     )];
     let (doc, union, _) = declared_union(doc, &[a, b], named2);
     let ev = run(&doc);

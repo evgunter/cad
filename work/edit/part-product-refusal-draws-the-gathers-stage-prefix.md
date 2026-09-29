@@ -2,7 +2,9 @@
 id: part-product-refusal-draws-the-gathers-stage-prefix
 kind: issue
 title: editor-core: a part with no product draws the gather's own 'product:' stage prefix inside PartFault::PartProduct, which the concision roster's made-up message hides
-status: open
+status: spec
+rides_with: product-error-root-arms-re-spell-the-standing
+branch: edit/part-product-refusals
 opened: 2026-09-29
 priority: P3
 cost: E
@@ -40,3 +42,7 @@ is not repeated inside the part's: the part's wrapper names the class
 carried. `the-refusal-shape-guard-has-blind-spots` item 9 already
 notes that `PartProduct` states no recourse of its own; the two are
 one rewrite.
+
+## Ruled (2026-09-29, EDIT orchestrator) — rides with `product-error-root-arms-re-spell-the-standing`
+
+One unit with its two siblings; the spec is in that row.

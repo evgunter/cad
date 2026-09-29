@@ -23,7 +23,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, Doc, Evaluation, Expr, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    BooleanOp, Doc, Evaluation, Expr, Node, NodeStanding, PartSelect, PatternKind, ProfileProgram,
+    RecipeNodeId,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::SplitHalf;
@@ -711,12 +712,9 @@ pub enum DuplicateFault {
     /// the same id may name a different node altogether (issue #1384).
     Stale,
     /// The picture on screen — which answers the current document —
-    /// holds no value for the input: its evaluation failed, or was
-    /// poisoned by a failure upstream.
-    NoValue {
-        /// The node picked.
-        input: RecipeNodeId,
-    },
+    /// holds no value for the input, and the input's standing says why
+    /// and where the repair is.
+    NoValue(NodeStanding),
     /// The input's VALUE is several bodies. A pattern of two over it
     /// would index the flat list of those bodies, so its two
     /// projections would select two of the ORIGINAL bodies in place and
@@ -755,11 +753,7 @@ impl core::fmt::Display for DuplicateFault {
                 "the picture is older than the document — wait for the latest edit to evaluate, \
                  so the copy's step is measured off the body as it now is",
             ),
-            Self::NoValue { input } => write!(
-                f,
-                "feature {} did not evaluate, so there is no body to copy",
-                input.0
-            ),
+            Self::NoValue(standing) => write!(f, "there is no body to copy: {standing}"),
             Self::NotOneBody { input } => write!(
                 f,
                 "feature {}'s value is several bodies; a duplicate copies ONE — project the one \
@@ -824,7 +818,7 @@ pub fn duplicate_step(
     input: RecipeNodeId,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
-    let value = eval.value(input).ok_or(DuplicateFault::NoValue { input })?;
+    let value = eval.usable(input).map_err(DuplicateFault::NoValue)?;
     let body = one_body(&value.payload).ok_or(DuplicateFault::NotOneBody { input })?;
     let measured = |chord: f64| {
         pncad::mesh::tessellate(body, chord, tol)

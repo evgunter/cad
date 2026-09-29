@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::NodeStanding;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 use test_utils::refusal::Admission;
 
@@ -3171,22 +3172,22 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let interrogate = [
         (
             "NodeNotEvaluated",
-            InterrogateError::NodeNotEvaluated {
+            InterrogateError::Standing(NodeStanding::NotEvaluated {
                 node: RecipeNodeId(3),
-            },
+            }),
         ),
         (
             "NodeFailed",
-            InterrogateError::NodeFailed {
+            InterrogateError::Standing(NodeStanding::Failed {
                 node: RecipeNodeId(3),
-            },
+            }),
         ),
         (
             "NodePoisoned",
-            InterrogateError::NodePoisoned {
+            InterrogateError::Standing(NodeStanding::Poisoned {
                 node: RecipeNodeId(3),
                 through: RecipeNodeId(2),
-            },
+            }),
         ),
         ("NoSuchName", InterrogateError::NoSuchName),
         ("Ambiguous", InterrogateError::Ambiguous { candidates: 2 }),

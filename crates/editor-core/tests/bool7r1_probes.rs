@@ -93,7 +93,7 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
     let Some(value) = ev.value(cut) else {
         return Vec::new();
     };
-    value
+    let fragments = value
         .name_table
         .iter()
         .filter_map(|(n, e)| {
@@ -101,7 +101,8 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
                 matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
             (discriminated && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
-        .collect()
+        .collect();
+    fixture::left_to_right(ev, cut, fragments)
 }
 
 /// Sign histogram of the node's `name_frag_side_of` population.
