@@ -77,21 +77,26 @@
 //! everywhere on the carrier (`F = 2r·res·Q` with `Q ≥ R² − r²`). The
 //! ladder certifies the count of the COMPUTED `F`; it agrees in sign
 //! with the true one wherever `|residual|` exceeds that error, so the
-//! two counts can differ only at an extremum within it of zero. That is
-//! a graze inside the band — the band's to call — only when the error
-//! is itself inside the band (`bool_circle_torus_noise`, which must
-//! decide `Zero`). Otherwise the door refuses: the representation cannot
-//! resolve what the band asks of it. The same error moves each root by
-//! `error/|F′|` radians, which must be inside the band as arc length
-//! (`bool_circle_torus_root_slack`), or a caller's span and trim
-//! decisions would be made on the wrong point.
+//! two counts can differ only at an extremum within it of zero. The
+//! door refuses when that error is DEFINITELY past the band's
+//! escalation threshold (`bool_circle_torus_noise` deciding
+//! `Positive`): the representation cannot resolve what the band asks
+//! of it. Below that threshold, every extremum the answer could get
+//! wrong is within the escalation threshold of zero — inside the gap
+//! where the band itself declines to call a sign, and where every other
+//! `f64` door of the kernel lives with its own rounding. So the
+//! guarantee is: **no wrong answer about any crossing or clearance
+//! deeper than the escalation threshold.** The same error moves each
+//! root by `error/|F′|` radians; that arc length is held to the same
+//! threshold (`bool_circle_torus_root_slack`), or a caller's span and
+//! trim decisions would be made on the wrong point.
 //!
 //! **What that costs, measured.** Against a torus `R = 1, r = 0.25` at
-//! the default band, circles up to `ρ ≈ 10` are answered (grazes too
-//! shallow to locate still refuse on the root slack), and from `ρ ≈ 30`
-//! every pose refuses — where the unmetered door certified misses on
+//! the default band, grazing circles at `ρ = 10` are answered (the
+//! shallowest grazes refuse on their root slack), and from `ρ = 30`
+//! every one refuses — where the unmetered door certified misses on
 //! real dips and phantom pairs on clearances from `ρ = 100`. The
-//! threshold scales as `ρ⁴ ≲ ε·r·R²/(u·NOISE_ULPS)`.
+//! threshold scales as `ρ⁴ ≲ 10ε·r·R²/(u·NOISE_ULPS)`.
 //!
 //! The `Interval` lane needs none of this to be sound: its coefficients
 //! are enclosures of the true ones, and the ladder decides on the
@@ -432,8 +437,8 @@ pub(super) fn half_angle_roots<T: Decide>(
     // error is itself inside the band. Otherwise the representation
     // cannot resolve what the band asks, and the door refuses.
     match decide(rows.noise, Margin::of(noise / f_per_metre), band) {
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) | Err(_) => return Ok(HalfAngleRoots::Uncertain),
+        Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
     }
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
@@ -524,10 +529,8 @@ pub(super) fn half_angle_roots<T: Decide>(
                             Margin::of(radius * noise / slope.abs()),
                             band,
                         ) {
-                            Ok(Sign::Zero) => {}
-                            Ok(Sign::Positive | Sign::Negative) | Err(_) => {
-                                return Ok(HalfAngleRoots::Uncertain);
-                            }
+                            Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
+                            Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
                         }
                     }
                     HalfAngleRoots::Certified { count, thetas }
@@ -739,10 +742,11 @@ fn parallel_axes_roots<T: Decide>(
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
         match decide("bool_circle_torus_root_slack", Margin::of(slack), band) {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) | Err(_) => {
-                return Ok(CircleTorusRoots::Uncertain);
-            }
+            Ok(Sign::Positive) => return Ok(CircleTorusRoots::Uncertain),
+            // A NaN slack (a zero slope, which the placements above have
+            // already refused as a graze) is `Err` and refuses too.
+            Ok(Sign::Zero | Sign::Negative) => {}
+            Err(_) => return Ok(CircleTorusRoots::Uncertain),
         }
         for theta in [theta0 + spread, theta0 - spread] {
             thetas[count] = mid + (theta - mid).reduce_periodic_centred(T::tau());
@@ -1405,7 +1409,19 @@ mod tests {
             2,
             "the pose dips into the tube at θ = 0: {dip:?}"
         );
-        let got = door(pose, 0.5017, 3.7658);
+        // The dip is chosen against the default band, pinned: at a band
+        // wider than 9.8e-8 m it is a graze the band calls touching.
+        let got = circle_torus_roots(
+            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            v3(pose.n),
+            pose.rho,
+            v3(pose.u),
+            0.5017,
+            3.7658,
+            &torus(),
+            fixed_band(),
+        )
+        .unwrap();
         assert!(
             !matches!(got, CircleTorusRoots::Miss),
             "a real dip is not a certified miss: {got:?}"
@@ -1427,7 +1443,7 @@ mod tests {
             Interval::from_f64(0.5017),
             Interval::from_f64(3.7658),
             &torus(),
-            band(),
+            fixed_band(),
         );
         assert!(
             !matches!(got, Ok(CircleTorusRoots::Miss)),
@@ -1458,8 +1474,10 @@ mod tests {
     }
 
     /// **The ρ-sweep: no wrong certified answer at any radius** (delta
-    /// review of PR 3375). Circles grazing the tube with an extremum
-    /// depth of ±{1.6e-8, 1e-7, 1e-6, 1e-5} m, at radii 10, 30, 100 and
+    /// review of PR 3375). At the default band, pinned (the depths are
+    /// chosen against it: the shallowest just past its escalation
+    /// threshold), circles grazing the tube with an extremum depth of
+    /// ±{1.6e-8, 1e-7, 1e-6, 1e-5} m, at radii 10, 30, 100 and
     /// 300 m and four azimuths. Every answer the door gives must match
     /// the direct-residual oracle on the arc — a dip's two roots, or a
     /// clearance's none; `Uncertain` is always allowed. Unmetered, the
@@ -1480,7 +1498,18 @@ mod tests {
                         "the fixture: ρ {rho}, α {alpha}, depth {depth}: {truth:?}"
                     );
                     let label = format!("ρ {rho}, α {alpha}, depth {depth}");
-                    match door(pose, t0, t1) {
+                    let got = circle_torus_roots(
+                        Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+                        v3(pose.n),
+                        pose.rho,
+                        v3(pose.u),
+                        t0,
+                        t1,
+                        &torus(),
+                        fixed_band(),
+                    )
+                    .unwrap();
+                    match got {
                         CircleTorusRoots::Uncertain => {}
                         CircleTorusRoots::Coaxial => panic!("{label}: not coaxial"),
                         CircleTorusRoots::Miss => {
@@ -1497,9 +1526,9 @@ mod tests {
                             assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
                             for (a, b) in got.iter().zip(&truth) {
                                 // A certified root must be the truth's
-                                // point to within the band (1e-9 m at the
-                                // default ε, with the escalation gap's
-                                // room): span and trim decide on it.
+                                // point to within the band's escalation
+                                // threshold (the fixture's band): span and
+                                // trim decide on it.
                                 assert!(
                                     (a - b).abs() * rho < 1e-8,
                                     "{label}: root {a} vs {b}, {} m apart",
@@ -1551,7 +1580,21 @@ mod tests {
                 fixed_band(),
             );
             if tilt == 0.0 {
-                assert_matches_oracle("untilted", pose, -0.5, 0.5, 4);
+                let Ok(CircleTorusRoots::Certified { count, thetas }) = got else {
+                    panic!("untilted: a certified count, got {got:?}");
+                };
+                assert_eq!(count, 4, "untilted: both contours");
+                let mut ts: Vec<f64> = thetas[..count]
+                    .iter()
+                    .copied()
+                    .filter(|t| (-0.5..=0.5).contains(t))
+                    .collect();
+                ts.sort_by(f64::total_cmp);
+                let want = direct_roots(pose, -0.5, 0.5, 200_000);
+                assert_eq!(ts.len(), want.len(), "untilted: {ts:?} vs {want:?}");
+                for (a, b) in ts.iter().zip(&want) {
+                    assert!((a - b).abs() * rho < 1e-8, "untilted: root {a} vs {b}");
+                }
             } else {
                 assert!(
                     matches!(got, Ok(CircleTorusRoots::Uncertain)),
