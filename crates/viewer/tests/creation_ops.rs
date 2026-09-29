@@ -519,15 +519,30 @@ fn the_rectangle_template_is_the_centred_polygon() {
             })],
         },
     );
+    // The session's only profile: its five steps (the start and four
+    // legs) are every id the document has minted.
+    let doc = session.committed_doc();
+    let Some(Node::Profile(minted)) = doc.node(profile) else {
+        panic!("the profile is live");
+    };
+    assert_eq!(
+        minted
+            .ids
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>(),
+        doc.step_mint().log().iter().copied().collect(),
+        "the profile's steps are the document's only mints"
+    );
+    assert_eq!(minted.ids.iter().flatten().count(), 5, "five steps");
     let want = Node::Profile(ProfileProgram {
         plane,
         loops: vec![
             LoopProgram::polygon([(-0.02, -0.01), (0.02, -0.01), (0.02, 0.01), (-0.02, 0.01)])
                 .expect("finite corners"),
         ],
-        // The session's only profile: its five steps (the start and
-        // four legs) are the document's first minted.
-        ids: vec![(0..5).map(pncad::document::StepId).collect()],
+        ids: minted.ids.clone(),
     });
     assert!(
         session

@@ -128,7 +128,9 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
     ev.order
         .iter()
         .filter_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            Some(NodeResult::Failed(e)) => {
+                Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+            }
             Some(NodeResult::Poisoned { through }) => {
                 Some(format!("node {} poisoned through {}", id.0, through.0))
             }

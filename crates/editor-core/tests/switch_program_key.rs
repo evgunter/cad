@@ -17,7 +17,7 @@ use crate::fixture::{ang, len, len2, scl, xy_frame};
 use editor_core::{
     CancelToken, ContentKey, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
     ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, evaluate, parse_expr,
+    RecipeNodeId, SlotId, StepArg, evaluate, parse_expr,
 };
 use geom_core::Tol;
 
@@ -65,6 +65,37 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
         &editor_core::RefusingReach,
     )
     .expect("the frame inserts")
+    .doc
+}
+
+/// `doc` with the one expression of its profile at argument `arg`
+/// re-spelled as `expr`, through the value door: the steps keep the ids
+/// the insert minted, so two documents compared here differ in that one
+/// spelling and nothing else. (Two documents authored apart with
+/// different spellings mint their steps from different edits, so their
+/// ids — and so their keys — differ; a display unit alone is not a
+/// different spelling, D6.)
+fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Expr) -> ProfileDoc {
+    let slots: Vec<SlotId> = doc
+        .node(PROFILE)
+        .expect("the profile at node 1")
+        .slots()
+        .into_iter()
+        .filter(|s| matches!(*s, SlotId::Profile { arg: a, .. } if a == arg))
+        .collect();
+    let [slot] = slots.as_slice() else {
+        panic!("one {arg:?} slot, got {slots:?}");
+    };
+    doc.apply(
+        &DocEdit::SetParam {
+            node: PROFILE,
+            slot: *slot,
+            expr,
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the re-spelling applies")
     .doc
 }
 
@@ -203,7 +234,7 @@ fn a_carrier_centre_respelled_keys_identically() {
         )
         .unwrap()
         .doc;
-    let literal = doc_with(vec![LoopProgram::circle(1.0, 0.0, 0.5).unwrap()]);
+    let literal = respelled(&parameterized, StepArg::CenterX, len(1.0));
     assert_eq!(
         key_of(&parameterized),
         key_of(&literal),
@@ -320,7 +351,7 @@ fn a_straight_chain_respelled_keys_identically() {
             Dimension::Length,
         ))],
     );
-    let literal = doc_with_r(4.0, vec![straight(len(4.0))]);
+    let literal = respelled(&parameterized, StepArg::Length, len(4.0));
     assert_eq!(
         key_of(&parameterized),
         key_of(&literal),

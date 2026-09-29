@@ -25,6 +25,7 @@
 use crate::common;
 use common::{inserted, len, session_insert};
 
+use pncad::document::NodeStanding;
 use pncad::document::{Datum, Doc, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, SurfaceKind, attribute};
@@ -481,7 +482,7 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
     assert_eq!(
         face_frame_seat(session.landed_pair(), Some(&picked)),
         Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::NodeNotEvaluated { node: cube },
+            error: InterrogateError::Standing(NodeStanding::NotInDocument { node: cube }),
         }),
         "the face is gone, and that is what it is told"
     );

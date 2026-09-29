@@ -2,10 +2,11 @@
 id: escalations-forwarded-whole-are-untriaged-for-a-declarations-object
 kind: issue
 title: chrome: ~60 error variants forward Indeterminate whole, and which of them offer a declaration their door has no object for is untriaged
-status: open
+status: closed
 opened: 2026-09-28
 priority: P2
 cost: M
+closed: 2026-09-29
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3347; the review asked that
@@ -80,3 +81,201 @@ dihedral). `ssi::SsiError::Escalated` and
 `intersect`'s `Escalated(diag)` render `{diag}` whole under a comment
 that says so on purpose (S6); `edge_nurbs`'s is the
 `work/iso/plane-nurbs-…` row above. The rest are for the triage.
+
+## The shape guard counts the forwarded menu (CHROME, 2026-09-29)
+
+`test_utils::refusal::recourse_markers` now counts the shared
+unlabelled repairs (`BARE_RECOURSES`: `COINCIDENCE_RECOURSE` and the
+two no-declaration forms), so an `Indeterminate` forwarded whole counts
+as one recourse, and a second recourse beside it is red. The first
+problem this row names is closed by that. The second, a "declare"
+lever at a door that takes no declaration, is untouched, and the
+triage stands.
+
+## Closed (CHROME triage, 2026-09-29)
+
+At `ec6bf25`, the two greps hit 88 sites outside `tests/`: 62 field-shaped
+and 26 tuple-shaped. Every one is classed below.
+
+These are the declarations a door can take:
+
+- `BooleanDeclarations` (`crates/topo/src/boolean/mod.rs` near :378): a
+  face pair and its class. In the recipe it is the `declare` input of
+  `Node::Boolean` and `Node::Union` (`crates/editor-core/src/node.rs`
+  near :2036 and :2144).
+- A mate's contact declaration: `Node::Mate` carries a face pair and a
+  `ContactClass` (`node.rs` near :2417). The at-rest gate mints it into
+  the assembly's contact records (`crates/pncad/src/document.rs`
+  :368–380).
+- STEP import's `ImportOptions::declared_contacts`
+  (`crates/pncad/src/prelude.rs` :568–592). Only the Rust door has it:
+  Python's `import_step` withholds the field.
+- A profile's tangent joints (`ProfileLoop::tangent_joints`).
+
+The viewer draws `NodeErrorKind`'s `Display` (`crates/viewer/src/tree.rs`).
+
+Classes:
+
+- **(a)** The door takes a declaration **that can name the decision
+  that failed**: a coincidence or contact between faces, or a tangency
+  at a profile joint. There the menu's "declare" lever is real advice.
+- **(b)** The door takes no declaration, or takes one that cannot name
+  the failed decision. A mate's contact pair says nothing about a
+  direction's length, and a Boolean face pair says nothing about where
+  a crossing lands on an edge. The site owes `payload()`, a subject and
+  a routed `Recourse:`.
+- **(c)** It is never shown: it is caught and re-wrapped (the wrapper is
+  cited).
+- **(d)** It is done or filed.
+
+A door that takes a declaration is a fact about the door. It is not a
+verdict on every site the door raises, so an entry whose raise sites
+differ says so.
+
+Counts: **a 11, b 27, c 26, d 24.** Two entries are mixed, and each is
+counted by its main class: `BooleanError::Escalated` (a, with its
+non-coincidence raisers filed) and `ValidationError::CensusEscalated`
+(b at the doors that take no declaration). None of the (b) sites is on
+CHROME's ground (`crates/viewer`). They are filed on these programs'
+slates and on `work/issues/`:
+
+- `work/carve/carve-refusals-short-of-the-shape-guard.md`: 13
+- `work/shell/shell-refusals-short-of-the-shape-guard.md`: 3
+- `work/wire/wire-refusals-short-of-the-shape-guard.md`: 3
+- `work/paths/paths-refusals-short-of-the-shape-guard.md`: 1, plus a
+  question on `SHARED_CLAUSE_ONLY`
+- `work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md`: 2
+- `work/topo/topo-escalations-offer-a-declaration-the-door-cannot-take.md`: 1
+- `work/trim/trim-escalations-offer-a-declaration-the-door-cannot-take.md`: 1
+- `work/curved/curved-escalations-offer-a-declaration-the-door-cannot-take.md`: 1
+- `work/linalg/linalg-escalations-offer-a-declaration-the-door-cannot-take.md`: 1,
+  plus `FrameError::Degenerate`, which the second pass found
+- `work/lib/lib-escalations-offer-a-declaration-the-door-cannot-take.md`:
+  `CensusEscalated` at Python's `import_step` and `Body.validate_geometric`
+- `work/topo/topo-escalations-offer-a-declaration-the-door-cannot-take.md`
+  also takes `BooleanError::Escalated`'s raisers that no face pair names
+
+### The table
+
+editor-core
+- `eval/measure.rs:298` `PrimitiveRefusal::Escalated`: c (`eval/wire.rs` near :2438 → `NodeErrorKind::Escalated`)
+- `eval/mod.rs:1420` `NodeErrorKind::Escalated`: b, WIRE (direction norms, revolve full turn, measure parallelism; none declares)
+- `eval/mod.rs:1580` `NodeErrorKind::UndeclaredContact`: a (Boolean/Union `declare`; payload with its own two-armed recourse)
+- `eval/mod.rs:1604` `NodeErrorKind::UndeclarableContact`: d (payload with a no-declare recourse)
+- `names/emit.rs:360` `NamingError::Escalated`: b, WIRE/EMIT (no declaration names a naming discriminator)
+- `names/geompred.rs:213` `SelectRefusal::InBand`: b, WIRE (reached through `pncad::select` and Python, not the viewer; the filing answers the argument at `geompred.rs` :307–312)
+- `names/geompred.rs:277` `SelectRefusal::PairInBand`: a (the flush pair is declarable on the Boolean's `declare` input)
+
+geom-brep
+- `certify.rs:424` `CertifyError::Escalated`: d (`work/encl/certify-escalation-renders-the-coincidence-menu-unlabelled.md`)
+- `dihedral.rs:500` `MustCarryVerdict::InBand`: c (`sweep/src/extrude.rs` near :1044, `blend/surgery.rs` near :4158, `revolve/upgrade.rs` near :183)
+- `edge_nurbs.rs:176` `PlaneNurbsRefusal::TransversalityEscalated`: d (`work/iso/plane-nurbs-escalation-renders-the-coincidence-menu-unlabelled.md`)
+- `edge_nurbs.rs:180` `PlaneNurbsRefusal::Escalated`: d (same row)
+- `intersect.rs:636` `SectionError::Escalated`: c (`topo/src/boolean/join.rs` → `BooleanError::Escalated`; `chord_join.rs` near :751 → `SplitJoinError::Escalated`; `replace_face.rs` near :1926 → `ReplaceFaceError::Escalated`)
+- `newell.rs:95` `NewellError::Escalated`: b, unowned (`work/issues/`)
+- `nurbs_iso.rs:239` `IsoRowError::Escalated`: b, TRIM (shell op)
+- `offset.rs:273` `OffsetError::Escalated`: b, SHELL/OFFSET (shell op)
+- `offset_meters.rs:294` `MeterError::Escalated`: d (PR 3347)
+- `pcurve_cache.rs:871` `PcurveCertifyError::FittedEscalated`: d (`work/pcert/pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled.md`)
+- `pcurve_cache.rs:906` `PcurveCertifyError::Escalated`: d (same row)
+- `props/mod.rs:490` `PropsError::Escalated`: d (`work/props/props-escalation-renders-the-coincidence-menu-unlabelled.md`)
+- `ssi.rs:394` `SsiError::Escalated`: c (`edge_nurbs.rs` near :685, `pcurve_cache.rs` near :1450)
+
+geom-core
+- `linalg/unit_vec.rs:143` `UnitVec3Error::Escalated`: b, LINALG (the viewer's route re-wraps it at `eval::wire::refusal`, but Python's `FrameError` shows it whole through `OrthoFrameError`)
+
+geom
+- `curves.rs:265` `EllipseInvalid::Escalated`: b, CURVED (split, via `SplitJoinError::Section`)
+- `curves.rs:322` `SpiricInvalid::Escalated`: c (`topo/src/offset_axial.rs` near :2113 → `ReplaceFaceError::Escalated`)
+- `curves/compose.rs:174` `ComposeError::SeamEscalated`: c (no product crate calls `compose_chain`)
+
+profile
+- `path.rs:1332` `PathError::Escalated`: a (junction arm: `.tangent()` is the declaration; the other routed arms render payload with their own recourse; the fall-through question is on PATHS)
+- `path/arc_fillet.rs:204` `GateRefusal::Escalated`: c (`arc_fillet.rs` near :701 → `StructureRefusal`, near :723 → `PathError::Escalated`)
+- `seg.rs:102` `SegIssue::Escalated`: c (`validate.rs` near :1908, `path.rs` near :3224)
+- `structure.rs:685` `StructureRefusalKind::Indeterminate`: b, PATHS
+- `sugar.rs:204` `TrimRefusal::Escalated`: c (`path.rs` near :3099)
+- `sugar.rs:443` `ArcTrimRefusal::Escalated`: c (`arc_fillet.rs` near :441, :763)
+- `validate.rs:995` `ProfileError::Escalated`: a (tangent joints; the `SHARED_CLAUSE_ONLY` question is on PATHS)
+
+sweep
+- `blend/mod.rs:1059` `BlendError::Escalated`: d (PR 3457)
+- `extrude.rs:199, :215, :227, :244` (`ExtrusionEscalated`, `CosurfaceEscalated`, `SliverJoin`, `SliverRim`): b, CARVE
+- `loft.rs:179` `LoftError::StackingEscalated`: b, CARVE
+- `revolve/mod.rs:374, :385, :404, :424, :491, :502, :513` (`AxisEscalated`, `AngleEscalated`, `SliverRadius`, `SliverAxisClearance`, `CosurfaceEscalated`, `SliverJoin`, `SliverRim`): b, CARVE
+- `revolve/tube.rs:149` `TubeError::Escalated`: b, CARVE
+
+topo
+- `boolean/carrier_eq.rs:82, :95, :103` (`Escalated`, `Undeclared`, `Contradicted`): c, also reached as `plane_eq`'s `PlaneEqError` alias (`boolean/mod.rs` near :2250–:2340, `reduce.rs` :627–641, `rest.rs` :998–1016, `vtxfac.rs` :322–331, `recl.rs` :139–148, `contact_verify.rs` near :184–:189, `flush.rs` near :263–:291)
+- `boolean/contain.rs:57` `ContainError::Escalated`: c (`reduce.rs` :1967 and :2274 → `BooleanError::Escalated`; `census.rs` near :1397; `validate.rs` `classify_contain`)
+- `boolean/join.rs:729` `FrameError::Escalated`: c (`join.rs` near :707 → `BooleanError::Escalated`)
+- `boolean/mod.rs:843` `BooleanError::Escalated`: a, mixed. It is right for its coincidence raisers (the `carrier_eq`/`plane_eq` rungs, the tangent locus, the section escalations). The raisers a face pair cannot name (`sectors.rs` :235 sector rung, `vtxfac.rs` :145 pierce normal, `reduce.rs` :1967/:2274 containment) are filed on `work/topo/topo-escalations-offer-a-declaration-the-door-cannot-take.md`, the same case as `EulerOpError`'s Boolean route
+- `boolean/mod.rs:857` `BooleanError::UndeclaredCoincidence`: a
+- `boolean/mod.rs:873` `BooleanError::DeclarationContradicted`: a (but its `{diag}` is a definite verdict carried as an `INVALID` margin, rendered whole beside the arm's own recourse, and its fixed "planes" wording is false for the non-planar pairs `recl.rs` :148 raises: `work/topo/declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu.md`)
+- `boolean/rest.rs:685` `TangentLocusError::Escalated`: c (`boolean/mod.rs` near :2371, `insert.rs` near :298, `sectors.rs` near :548)
+- `boolean/solid_contain.rs:167` `PointInSolidError::Escalated`: a (`BooleanError::Containment`)
+- `chart_region.rs:302` `ChartRegionError::Escalated`: c (`census.rs` near :2392, :5688 → `ValidationError::CensusEscalated`)
+- `chord_join.rs:184` `SplitJoinError::OrderEscalated`: d (payload and `NO_DECLARATION_RECOURSE`; the Boolean's wrapper adds the declaration back)
+- `chord_join.rs:191` `SplitJoinError::Escalated`: d (same)
+- `contact.rs:206, :217, :223` (`Contradicted`, `Escalated`, `Undeclared`): d (payload and `CONTACT_RECOURSE` or the contradiction recourse)
+- `euler.rs:852` `EulerOpError::SplitParamEscalated`: b, TOPO (split and blend take no declaration; the Boolean's face pairs cannot name a crossing's place on an edge)
+- `face_normal.rs:112` `NormalAtError::Escalated`: c (`boolean/vtxfac.rs` near :145)
+- `flush.rs:195` `FlushRefusal::PairInBand`: c (no product crate calls `topo::flush::find_flush_candidates`; editor-core's detector goes through `pair_finding` → `SelectRefusal::PairInBand`)
+- `merge_faces.rs:419` `MergeCoplanarError::DeclarationContradicted`: a (verifies declared pairs at the Boolean's merge; same defect, same row)
+- `merge_faces.rs:471` `MergeCoplanarError::Escalated`: a (same)
+- `pcurves.rs:415` `PcurveMintError::Escalated`: b, unowned (`work/issues/`)
+- `pcurves.rs:2489` `PinMiss::Escalated`: c (`pcurves.rs` near :2450 → `PcurveMintError::Escalated`)
+- `props.rs:1937` `ShellClassifyError::Escalated`: d (PR 3457: payload and `ending`)
+- `replace_face.rs:525` `ReplaceFaceError::Escalated`: b, SHELL
+- `replace_face.rs:787` `TransportError::Escalated`: c (`replace_face.rs` near :1806)
+- `sector_shape.rs:207` `SectorFault::Rung`: c (`boolean/sectors.rs` near :235, `splitting/neighborhood.rs` near :319)
+- `shell.rs:520` `ShellError::Escalated`: b, SHELL
+- `splitting/containment.rs:134` `PointInLoopError::Escalated`: a (whole only through `PointInSolidError::Loop` at the Boolean; `contain.rs` near :80 and `SplitJoinError::RingHoming` re-wrap it)
+- `splitting/containment.rs:489` `ConicArcError::Escalated`: c (`containment.rs` near :995)
+- `splitting/finish.rs:181` `SplitFinishError::DescribeEscalated`: d (`Display` at `finish.rs:246`: payload and `SPLIT_COINCIDENCE_RECOURSE`)
+- `splitting/mod.rs:214, :244, :254` (`CrossingEscalated`, `SliverVertex`, `SliverSector`): d (payload and `SPLIT_COINCIDENCE_RECOURSE`)
+- `validate.rs:861, :1008, :1033, :1050, :1360` (`DegenerateTorusEscalated`, `PlanarFaceEscalated`, `PlanarBoundaryEscalated`, `SliverDihedral`, `RingContactEscalated`): d (each decision's own ending)
+- `validate.rs:1500` `ValidationError::CensusEscalated`: b, mixed by door. It renders `too_close`'s declare menu wherever it is shown:
+  - (a) at the product and assembly gates, whose contact records carry mate declarations (`crates/editor-core/src/product.rs`, `assembly.rs`);
+  - (a) at Rust STEP import, which takes `ImportOptions::declared_contacts`;
+  - (b) at Python's `import_step`, which withholds that field (`crates/step-import/src/error.rs` :485–492 `TierInvalid` renders each verdict);
+  - (b) at Python's `Body.validate_geometric` (`crates/pncad-py/src/py/value.rs` :465), which takes no declaration;
+  - (c) at the shell op's closing gate (`crates/topo/src/shell.rs` :1715), whose `NotValid` renders only a count.
+
+  Filed on `work/lib/lib-escalations-offer-a-declaration-the-door-cannot-take.md`.
+- `validate.rs:6340, :6809, :6819` (`RingOuterVerdict::Escalated`, `EdgePair::Unsure`, `Window::Unsure`): c (`validate.rs` near :6298 → `RingContactEscalated`; `shell.rs` near :1594 → `ShellError::Escalated`)
+
+### What the greps cannot see
+
+The two patterns match a field or tuple of exactly `Indeterminate`.
+They miss other field names, `Box<>` and `Option<>` wrappers, and
+multi-field tuples. A second pass over any field or variant whose type
+mentions `Indeterminate` found seven more:
+
+- `editor-core` `MateFault::Indeterminate` (`mate.rs` near :793):
+  payload only, with no menu. That it states no recourse at all is the
+  shape guard's business.
+- `mate/coset.rs` `FoldStop::Indeterminate`: c (`mate/solve.rs` near
+  :839).
+- `topo` `SplitFinishError::SectionWindingUndecided` (`finish.rs` near
+  :193): d.
+- `splitting/classify.rs` `Roots`: internal.
+- `geom_core::FrameError::Degenerate` (`linalg/frame.rs` near :277):
+  b, filed on LINALG.
+- `BooleanError::ContactContradicted` (`margin: Indeterminate`,
+  `boolean/mod.rs` :889) and `ValidationError::ContactContradicted`
+  (`validate.rs` :1484): neither `Display` renders the margin, so there
+  is nothing to class.
+
+The pass reads only single-line field and variant declarations, so a
+type split across lines is not covered. It also cannot see a type that
+holds an `Indeterminate` behind another error type's field (for example `error: UnitVec3Error`). Those
+were followed by hand from each hit's type (`OrthoFrameError`,
+`DirectionRefusal`).
+
+The classing asks whether the declaration can name the failed
+decision, not only whether the door takes one. The profile names such
+as `loop_orientation` fall on the wrong side of that test. They are
+left (a) as `ProfileError`'s entry and raised on PATHS as a question,
+because `validate::SHARED_CLAUSE_ONLY` records that choice as a
+decision the program made.
