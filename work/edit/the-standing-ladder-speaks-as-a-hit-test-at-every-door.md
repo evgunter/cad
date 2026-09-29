@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-29
 priority: P4
 cost: M
-design: true
+rides_with: C6
 ---
 
 Filed by `edit/unnamed-patch-is-a-lookup`
@@ -55,3 +55,9 @@ stable words and do not move.
 the forwarding readers are `NodePickError`'s `Display` (same file)
 and the viewer's `PickIndexError` (`crates/viewer/src/pickindex.rs`),
 which forward unchanged.
+
+## Ruled (2026-09-29, EDIT orchestrator) — rides with C6
+
+The standing becomes one type whose `Display` names the standing and no
+door. That is the "no usable value" member of `C6`, specced there. This
+row closes when that unit merges.
