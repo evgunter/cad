@@ -2,7 +2,8 @@
 id: an-unnamed-patch-is-reported-as-a-hit-test
 kind: issue
 title: patch_names reports a patch with no name through HitTestError, so the sentence names a hit test that did not happen
-status: review
+status: closed
+closed: 2026-09-29
 branch: edit/unnamed-patch-is-a-lookup
 pr: 3439
 opened: 2026-09-25
