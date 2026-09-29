@@ -832,3 +832,59 @@ fn every_node_kinds_slots_are_all_readable() {
         }
     }
 }
+
+/// **`expr_mut` reaches the field `expr` reads, for every slot of every
+/// node shape.** The edit door writes through `expr_mut` and every
+/// reader reads through `expr`, so a slot the two resolve to different
+/// fields is an edit that lands where no reader looks.
+///
+/// Each slot takes a sentinel through `expr_mut` on a fresh copy of its
+/// node; the copy must read the sentinel back at that slot through
+/// `expr` and read every other slot unchanged. Across the union of
+/// every shape's slots, `expr_mut` answers exactly where `expr` does.
+/// The shapes are `one_of_every_node_shape`'s, which
+/// `every_node_kinds_slots_are_all_readable` welds to the roster.
+#[test]
+fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
+    let nodes = one_of_every_node_shape();
+    let sentinel = scl(-271.828);
+    let every_slot: std::collections::BTreeSet<SlotId> =
+        nodes.iter().flat_map(ProfileNode::slots).collect();
+    for node in &nodes {
+        let slots = node.slots();
+        for &slot in &slots {
+            let mut written = node.clone();
+            let Some(target) = written.expr_mut(slot) else {
+                panic!(
+                    "{node:?} names the slot {} and `expr_mut` does not answer for it",
+                    slot.label()
+                )
+            };
+            *target = sentinel.clone();
+            assert_eq!(
+                written.expr(slot),
+                Some(&sentinel),
+                "{node:?}: a write to {} through `expr_mut` is not what `expr` reads there",
+                slot.label()
+            );
+            for &other in slots.iter().filter(|&&other| other != slot) {
+                assert_eq!(
+                    written.expr(other),
+                    node.expr(other),
+                    "{node:?}: a write to {} through `expr_mut` moved {}",
+                    slot.label(),
+                    other.label()
+                );
+            }
+        }
+        let mut probe = node.clone();
+        for &slot in &every_slot {
+            assert_eq!(
+                probe.expr_mut(slot).is_some(),
+                node.expr(slot).is_some(),
+                "{node:?}: `expr_mut` and `expr` disagree on whether {} is carried",
+                slot.label()
+            );
+        }
+    }
+}

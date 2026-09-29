@@ -974,38 +974,64 @@ pub enum TubeWindow {
     },
 }
 
+/// **THE slot table of a tube window: which [`SlotId`] each of its
+/// expressions carries, in enumeration order** — none for a full ring,
+/// the two angles for an arc.
+///
+/// The one declaration [`TubeWindow::slots`], [`TubeWindow::expr`] and
+/// [`TubeWindow::expr_mut`] read, and the one [`node_rows`] reads for
+/// both tube kinds, so no two readers can come to disagree about which
+/// angle is which. A macro because it is borrow-generic: match
+/// ergonomics bind `&Expr` or `&mut Expr` from the same rows.
+macro_rules! window_rows {
+    ($window:expr, $out:expr) => {{
+        match $window {
+            TubeWindow::Full => {}
+            TubeWindow::Arc { t0, t1 } => {
+                $out.push((SlotId::TubeWindowStart, t0));
+                $out.push((SlotId::TubeWindowEnd, t1));
+            }
+        }
+    }};
+}
+
 impl TubeWindow {
     /// This window's slots, deterministic order — empty for a full
     /// ring, the two angles for an arc.
-    ///
-    /// The one door every "which window slots" question goes through,
-    /// so the two node kinds cannot come to disagree about it
-    /// ([`PatternKind::placements`] is the same shape for the same
-    /// reason).
     pub fn slots(&self) -> Vec<SlotId> {
-        match self {
-            TubeWindow::Full => Vec::new(),
-            TubeWindow::Arc { .. } => vec![SlotId::TubeWindowStart, SlotId::TubeWindowEnd],
-        }
+        self.rows().into_iter().map(|(slot, _)| slot).collect()
     }
 
     /// The expression in one of this window's slots.
     pub fn expr(&self, slot: SlotId) -> Option<&Expr> {
-        match (self, slot) {
-            (TubeWindow::Arc { t0, .. }, SlotId::TubeWindowStart) => Some(t0),
-            (TubeWindow::Arc { t1, .. }, SlotId::TubeWindowEnd) => Some(t1),
-            (TubeWindow::Full | TubeWindow::Arc { .. }, _) => None,
-        }
+        find_row(self.rows(), slot)
     }
 
     /// Mutable access to one of this window's slots.
     pub fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr> {
-        match (self, slot) {
-            (TubeWindow::Arc { t0, .. }, SlotId::TubeWindowStart) => Some(t0),
-            (TubeWindow::Arc { t1, .. }, SlotId::TubeWindowEnd) => Some(t1),
-            (TubeWindow::Full | TubeWindow::Arc { .. }, _) => None,
-        }
+        find_row(self.rows_mut(), slot)
     }
+
+    fn rows(&self) -> Vec<(SlotId, &Expr)> {
+        let mut out = Vec::new();
+        window_rows!(self, out);
+        out
+    }
+
+    fn rows_mut(&mut self) -> Vec<(SlotId, &mut Expr)> {
+        let mut out = Vec::new();
+        window_rows!(self, out);
+        out
+    }
+}
+
+/// The expression a slot table's rows pair with `slot`, `None` when no
+/// row names it — the one lookup every table in this file is read
+/// through, for either borrow.
+fn find_row<E>(rows: Vec<(SlotId, E)>, slot: SlotId) -> Option<E> {
+    rows.into_iter()
+        .find(|(s, _)| *s == slot)
+        .map(|(_, expr)| expr)
 }
 
 /// A pattern's replication rule (F4: LinearPattern/CircularPattern;
@@ -2543,85 +2569,185 @@ impl Axis3 {
     }
 }
 
-fn comp(v: &[Expr; 3], axis: Axis3) -> &Expr {
-    &v[axis.index()]
+/// The rows of a vector of expressions stored in [`Axis3::ALL`] order:
+/// component `ax` carries the slot `$slot(ax)`. A pair authored in a
+/// sketch frame's 2-D coordinates yields `X` and `Y` alone, because a
+/// point in a plane has two components and `Z` names none of them.
+macro_rules! axis_rows {
+    ($slot:path, $v:expr, $out:expr) => {{
+        for (ax, e) in Axis3::ALL.into_iter().zip($v) {
+            $out.push(($slot(ax), e));
+        }
+    }};
 }
 
-fn comp_mut(v: &mut [Expr; 3], axis: Axis3) -> &mut Expr {
-    &mut v[axis.index()]
-}
-
-/// [`comp`] for a pair authored in a sketch frame's 2-D coordinates:
-/// `Z` names no component, because a point in a plane has two.
-fn comp2(v: &[Expr; 2], axis: Axis3) -> Option<&Expr> {
-    v.get(axis.index())
-}
-
-/// [`comp2`]'s mutable twin.
-fn comp2_mut(v: &mut [Expr; 2], axis: Axis3) -> Option<&mut Expr> {
-    v.get_mut(axis.index())
-}
-
-/// A placement-rule node's slot lookup, shared by [`Node::Pattern`] and
-/// [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping, so
-/// the two nodes can never drift apart on what a slot means.
+/// **THE slot table of a placement rule**, shared by [`Node::Pattern`]
+/// and [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping,
+/// so the two nodes cannot drift apart on what a slot means.
 ///
-/// `count` is the node's structural count slot when it has one.
-/// `Explicit` answers `None` for EVERY slot including `Count`: its
-/// placements are the count and carry no expressions, which is exactly
-/// what [`Node::slots`] reports for it.
-/// A placement-rule node's slot LIST, the domain of [`rule_expr`]
-/// above the same two nodes — `has_count` says whether the node holds
-/// a count expression at all, which only [`Node::PlacedUnion`] can
-/// answer `false` to.
-///
-/// The two are one mapping read two ways, so a slot listed here is a
-/// slot `rule_expr` answers for: `Explicit` carries listed placements
-/// rather than a rule, so it has no count slot (the list's length IS
-/// the count) and no expressions (the frames are structural data, D8);
-/// and a parametric rule with no count is a node
+/// `$count` is the node's count expression when it holds one (an
+/// `Option` of it, borrowed either way). `Explicit` carries listed
+/// placements rather than a rule, so it has no count slot (the list's
+/// length IS the count) and no expressions (the frames are structural
+/// data, D8). A parametric rule with no count is a node
 /// [`Node::placement_rule_fault`] refuses, not a node with a count
 /// slot nothing can read.
-fn rule_slots(has_count: bool, kind: &PatternKind) -> Vec<SlotId> {
-    let count = has_count.then_some(SlotId::Count);
-    match kind {
-        PatternKind::Linear { .. } => count
-            .into_iter()
-            .chain(Axis3::ALL.map(SlotId::Direction))
-            .chain([SlotId::Spacing])
-            .collect(),
-        PatternKind::Circular { .. } => count.into_iter().chain([SlotId::Step]).collect(),
-        PatternKind::Explicit(_) => Vec::new(),
-    }
-}
-
-fn rule_expr<'a>(count: Option<&'a Expr>, kind: &'a PatternKind, slot: SlotId) -> Option<&'a Expr> {
-    match (kind, slot) {
-        (PatternKind::Explicit(_), _) => None,
-        (_, SlotId::Count) => count,
-        (PatternKind::Linear { direction, .. }, SlotId::Direction(ax)) => Some(comp(direction, ax)),
-        (PatternKind::Linear { spacing, .. }, SlotId::Spacing) => Some(spacing),
-        (PatternKind::Circular { step, .. }, SlotId::Step) => Some(step),
-        _ => None,
-    }
-}
-
-/// [`rule_expr`]'s mutable twin — same mapping, same `Explicit` rule.
-fn rule_expr_mut<'a>(
-    count: Option<&'a mut Expr>,
-    kind: &'a mut PatternKind,
-    slot: SlotId,
-) -> Option<&'a mut Expr> {
-    match (kind, slot) {
-        (PatternKind::Explicit(_), _) => None,
-        (_, SlotId::Count) => count,
-        (PatternKind::Linear { direction, .. }, SlotId::Direction(ax)) => {
-            Some(comp_mut(direction, ax))
+macro_rules! rule_rows {
+    ($count:expr, $kind:expr, $out:expr) => {{
+        let count = $count;
+        match $kind {
+            PatternKind::Linear { direction, spacing } => {
+                if let Some(count) = count {
+                    $out.push((SlotId::Count, count));
+                }
+                axis_rows!(SlotId::Direction, direction, $out);
+                $out.push((SlotId::Spacing, spacing));
+            }
+            PatternKind::Circular { step, .. } => {
+                if let Some(count) = count {
+                    $out.push((SlotId::Count, count));
+                }
+                $out.push((SlotId::Step, step));
+            }
+            PatternKind::Explicit(_) => {}
         }
-        (PatternKind::Linear { spacing, .. }, SlotId::Spacing) => Some(spacing),
-        (PatternKind::Circular { step, .. }, SlotId::Step) => Some(step),
-        _ => None,
-    }
+    }};
+}
+
+/// The rows both tube kinds share: the reference direction, the two
+/// radii, then whatever the window carries ([`window_rows`]). The
+/// hollow kind appends its wall after them.
+macro_rules! tube_rows {
+    ($u_ref:expr, $major:expr, $minor:expr, $window:expr, $out:expr) => {{
+        axis_rows!(SlotId::Direction, $u_ref, $out);
+        $out.push((SlotId::TubeMajorRadius, $major));
+        $out.push((SlotId::TubeMinorRadius, $minor));
+        window_rows!($window, $out);
+    }};
+}
+
+/// **THE slot table of a node: which [`SlotId`] each of its
+/// expressions carries, in enumeration order** — the node's own field
+/// order, deterministic.
+///
+/// The one declaration [`Node::slots`], [`Node::expr`] and
+/// [`Node::expr_mut`] read, so a slot the enumeration lists is a slot
+/// the addressing answers for, and the shared and exclusive borrows
+/// reach the same field. A macro rather than a function because it is
+/// borrow-generic: match ergonomics bind `&Expr` under [`Node::rows`]
+/// and `&mut Expr` under [`Node::rows_mut`] from the same rows.
+///
+/// A profile contributes no rows: its slots are its program's, whose
+/// table the payload holds ([`crate::ProfilePayload`]).
+///
+/// Exhaustive on the node vocabulary, so a new node kind is classified
+/// here or the compile breaks.
+macro_rules! node_rows {
+    ($node:expr, $out:expr) => {{
+        use SlotId as S;
+        match $node {
+            Node::Datum(Datum::Plane { origin, normal }) => {
+                axis_rows!(S::Origin, origin, $out);
+                axis_rows!(S::Normal, normal, $out);
+            }
+            Node::Datum(Datum::Axis { origin, direction }) => {
+                axis_rows!(S::Origin, origin, $out);
+                axis_rows!(S::Direction, direction, $out);
+            }
+            Node::Datum(Datum::Point { position }) => axis_rows!(S::Origin, position, $out),
+            // X and Y only: the frame supplies the third coordinate,
+            // and a slot for it would be a number nobody may set.
+            Node::Datum(Datum::AxisInPlane {
+                origin, direction, ..
+            }) => {
+                axis_rows!(S::Origin, origin, $out);
+                axis_rows!(S::Direction, direction, $out);
+            }
+            Node::Datum(Datum::Frame { origin, u, v }) => {
+                axis_rows!(S::Origin, origin, $out);
+                axis_rows!(S::U, u, $out);
+                axis_rows!(S::V, v, $out);
+            }
+            // Origin and normal come off the face; the spin is the
+            // one number an author chooses.
+            Node::Datum(Datum::FaceFrame { spin, .. }) => $out.push((S::Spin, spin)),
+            Node::Profile(_) => {}
+            Node::Extrude { distance, .. } => $out.push((S::Distance, distance)),
+            Node::Fillet { radius, .. } => $out.push((S::Radius, radius)),
+            Node::Chamfer { distance, .. } => $out.push((S::ChamferDistance, distance)),
+            Node::Shell { thickness, .. } => $out.push((S::ShellThickness, thickness)),
+            Node::Revolve { angle, .. } => $out.push((S::RevolveAngle, angle)),
+            Node::Tube {
+                u_ref,
+                major_radius,
+                minor_radius,
+                window,
+                ..
+            } => tube_rows!(u_ref, major_radius, minor_radius, window, $out),
+            Node::HollowTube {
+                u_ref,
+                major_radius,
+                minor_radius,
+                window,
+                wall,
+                ..
+            } => {
+                tube_rows!(u_ref, major_radius, minor_radius, window, $out);
+                $out.push((S::TubeWall, wall));
+            }
+            Node::Loft { v_degree, .. } => $out.push((S::VDegree, v_degree)),
+            Node::Sweep {
+                stations, v_degree, ..
+            } => {
+                $out.push((S::Stations, stations));
+                $out.push((S::VDegree, v_degree));
+            }
+            Node::Transform {
+                translation,
+                rotation_axis,
+                rotation_angle,
+                ..
+            } => {
+                axis_rows!(S::Translation, translation, $out);
+                axis_rows!(S::RotationAxis, rotation_axis, $out);
+                $out.push((S::RotationAngle, rotation_angle));
+            }
+            // A pattern's count is a field, so it is always there; a
+            // placed union's is an `Option`, and a rule missing the
+            // count it needs carries no count SLOT either — the
+            // mismatch is `PlacementRuleFault::CountSpelling`, refused
+            // at both doors, and not a slot address that answers
+            // nothing.
+            Node::Pattern { count, kind, .. } => rule_rows!(Some(count), kind, $out),
+            Node::PlacedUnion { count, kind, .. } => rule_rows!(count, kind, $out),
+            // A half is recipe payload, not a number anyone sets; an
+            // index is the one structural slot the projection carries.
+            Node::Part { select, .. } => match select {
+                PartSelect::SplitHalf(_) => {}
+                PartSelect::Instance(index) => $out.push((S::Instance, index)),
+            },
+            // AQ4: an instance takes no arguments in v1 — the
+            // referenced document evaluates at its OWN parameters.
+            Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Declare { .. }
+            // A11: the alignment datum is authored geometry, not a
+            // continuous slot — a mate has no expression to drive.
+            | Node::Mate { .. }
+            | Node::InstantiatePart { .. } => {}
+            // Neither carries a SLOT. A slot's address fixes its
+            // dimension ([`SlotId::dimension`]) — that is the
+            // vocabulary's contract, read by the edit door, the load
+            // re-check and the GUI alike. A measured expression is not
+            // an `Expr` at all, and an assertion's bound takes its
+            // dimension from the MEASURE it constrains, which no slot
+            // address can state. Both are recipe payload instead, fed
+            // to the content key where a fillet's selection is fed and
+            // evaluated in their own stage.
+            Node::Measure { .. } | Node::Assertion { .. } => {}
+        }
+    }};
 }
 
 impl<P> Node<P> {
@@ -3016,99 +3142,9 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        let vec3 = |f: fn(Axis3) -> SlotId| Axis3::ALL.map(f);
         match self {
-            Node::Datum(Datum::Plane { .. }) => {
-                let mut s = vec3(SlotId::Origin).to_vec();
-                s.extend(vec3(SlotId::Normal));
-                s
-            }
-            Node::Datum(Datum::Axis { .. }) => {
-                let mut s = vec3(SlotId::Origin).to_vec();
-                s.extend(vec3(SlotId::Direction));
-                s
-            }
-            Node::Datum(Datum::Point { .. }) => vec3(SlotId::Origin).to_vec(),
-            // X and Y only: the frame supplies the third coordinate,
-            // and a slot for it would be a number nobody may set.
-            Node::Datum(Datum::AxisInPlane { .. }) => vec![
-                SlotId::Origin(Axis3::X),
-                SlotId::Origin(Axis3::Y),
-                SlotId::Direction(Axis3::X),
-                SlotId::Direction(Axis3::Y),
-            ],
-            Node::Datum(Datum::Frame { .. }) => {
-                let mut s = vec3(SlotId::Origin).to_vec();
-                s.extend(vec3(SlotId::U));
-                s.extend(vec3(SlotId::V));
-                s
-            }
-            // Origin and normal come off the face; the spin is the
-            // one number an author chooses.
-            Node::Datum(Datum::FaceFrame { .. }) => vec![SlotId::Spin],
             Node::Profile(p) => p.slots(),
-            // AQ4: an instance takes no arguments in v1 — the
-            // referenced document evaluates at its OWN parameters.
-            Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Union { .. }
-            | Node::Declare { .. }
-            // A11: the alignment datum is authored geometry, not a
-            // continuous slot — a mate has no expression to drive.
-            | Node::Mate { .. }
-            | Node::InstantiatePart { .. } => Vec::new(),
-            // Neither carries a SLOT. A slot's address fixes its
-            // dimension ([`SlotId::dimension`]) — that is the
-            // vocabulary's contract, read by the edit door, the load
-            // re-check and the GUI alike. A measured expression is not
-            // an `Expr` at all, and an assertion's bound takes its
-            // dimension from the MEASURE it constrains, which no slot
-            // address can state. Both are recipe payload instead, fed
-            // to the content key where a fillet's selection is fed and
-            // evaluated in their own stage.
-            Node::Measure { .. } | Node::Assertion { .. } => Vec::new(),
-            Node::Extrude { .. } => vec![SlotId::Distance],
-            Node::Fillet { .. } => vec![SlotId::Radius],
-            Node::Chamfer { .. } => vec![SlotId::ChamferDistance],
-            Node::Shell { .. } => vec![SlotId::ShellThickness],
-            Node::Revolve { .. } => vec![SlotId::RevolveAngle],
-            // The two kinds enumerate the SAME shared head — the
-            // reference direction, then the two radii, then whatever
-            // the window carries — and the hollow kind appends its
-            // wall. Written as one arm plus one push, so the shared
-            // half cannot drift between them.
-            Node::Tube { window, .. } | Node::HollowTube { window, .. } => {
-                let mut s = vec3(SlotId::Direction).to_vec();
-                s.push(SlotId::TubeMajorRadius);
-                s.push(SlotId::TubeMinorRadius);
-                s.extend(window.slots());
-                if matches!(self, Node::HollowTube { .. }) {
-                    s.push(SlotId::TubeWall);
-                }
-                s
-            }
-            Node::Loft { .. } => vec![SlotId::VDegree],
-            Node::Sweep { .. } => vec![SlotId::Stations, SlotId::VDegree],
-            Node::Transform { .. } => {
-                let mut s = vec3(SlotId::Translation).to_vec();
-                s.extend(vec3(SlotId::RotationAxis));
-                s.push(SlotId::RotationAngle);
-                s
-            }
-            // A pattern's count is a field, so it is always there; a
-            // placed union's is an `Option`, and a rule missing the
-            // count it needs carries no count SLOT either — the
-            // mismatch is `PlacementRuleFault::CountSpelling`, refused
-            // at both doors, and not a slot address that answers
-            // nothing.
-            Node::Pattern { kind, .. } => rule_slots(true, kind),
-            Node::PlacedUnion { count, kind, .. } => rule_slots(count.is_some(), kind),
-            // A half is recipe payload, not a number anyone sets; an
-            // index is the one structural slot the projection carries.
-            Node::Part { select, .. } => match select {
-                PartSelect::SplitHalf(_) => Vec::new(),
-                PartSelect::Instance(_) => vec![SlotId::Instance],
-            },
+            _ => self.rows().into_iter().map(|(slot, _)| slot).collect(),
         }
     }
 
@@ -3118,96 +3154,9 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        use SlotId as S;
-        match (self, slot) {
-            (Node::Profile(p), S::Profile { .. }) => p.expr(slot),
-            (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
-                Some(comp(origin, ax))
-            }
-            (Node::Datum(Datum::Plane { normal, .. }), S::Normal(ax)) => Some(comp(normal, ax)),
-            (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
-                Some(comp(direction, ax))
-            }
-            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp(u, ax)),
-            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp(v, ax)),
-            (Node::Datum(Datum::FaceFrame { spin, .. }), S::Spin) => Some(spin),
-            // `comp2` answers None for `Z`, which is the honest
-            // "this node does not carry that slot" this match is open
-            // on — not a panic and not a silent zero.
-            (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => comp2(origin, ax),
-            (Node::Datum(Datum::AxisInPlane { direction, .. }), S::Direction(ax)) => {
-                comp2(direction, ax)
-            }
-            (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
-            (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
-            (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
-            (Node::Shell { thickness, .. }, S::ShellThickness) => Some(thickness),
-            (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
-            (Node::Tube { u_ref, .. } | Node::HollowTube { u_ref, .. }, S::Direction(ax)) => {
-                Some(comp(u_ref, ax))
-            }
-            (
-                Node::Tube { major_radius, .. } | Node::HollowTube { major_radius, .. },
-                S::TubeMajorRadius,
-            ) => Some(major_radius),
-            (
-                Node::Tube { minor_radius, .. } | Node::HollowTube { minor_radius, .. },
-                S::TubeMinorRadius,
-            ) => Some(minor_radius),
-            (Node::HollowTube { wall, .. }, S::TubeWall) => Some(wall),
-            // The window answers for its own two slots, so "which
-            // angle is which" has one home ([`TubeWindow::expr`]).
-            (Node::Tube { window, .. } | Node::HollowTube { window, .. }, s) => window.expr(s),
-            (Node::Loft { v_degree, .. }, S::VDegree)
-            | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
-            (Node::Sweep { stations, .. }, S::Stations) => Some(stations),
-            (Node::Transform { translation, .. }, S::Translation(ax)) => {
-                Some(comp(translation, ax))
-            }
-            (Node::Transform { rotation_axis, .. }, S::RotationAxis(ax)) => {
-                Some(comp(rotation_axis, ax))
-            }
-            (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
-            (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
-            (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
-            (
-                Node::Part {
-                    select: PartSelect::Instance(index),
-                    ..
-                },
-                S::Instance,
-            ) => Some(index),
-            // EXHAUSTIVE on the NODE axis, open on the slot axis: a new
-            // node kind must be classified here or the compile breaks,
-            // while "this node does not carry that slot" stays the
-            // honest answer for a slot the listed arms did not claim.
-            // `Pattern`, `PlacedUnion` and the two tube kinds are
-            // absent because their arms above already bind every slot.
-            (
-                Node::Datum(..)
-                | Node::Profile(..)
-                | Node::Extrude { .. }
-                | Node::Revolve { .. }
-                | Node::Loft { .. }
-                | Node::Sweep { .. }
-                | Node::Fillet { .. }
-                | Node::Chamfer { .. }
-                | Node::Shell { .. }
-                | Node::Split { .. }
-                | Node::Boolean { .. }
-                | Node::Union { .. }
-                | Node::Transform { .. }
-                | Node::Part { .. }
-                | Node::Declare { .. }
-                | Node::InstantiatePart { .. }
-                | Node::Mate { .. }
-                | Node::Measure { .. }
-                | Node::Assertion { .. },
-                _,
-            ) => None,
+        match self {
+            Node::Profile(p) => p.expr(slot),
+            _ => find_row(self.rows(), slot),
         }
     }
 
@@ -3217,90 +3166,24 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        use SlotId as S;
-        match (self, slot) {
-            (Node::Profile(p), S::Profile { .. }) => p.expr_mut(slot),
-            (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
-                Some(comp_mut(origin, ax))
-            }
-            (Node::Datum(Datum::Plane { normal, .. }), S::Normal(ax)) => Some(comp_mut(normal, ax)),
-            (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
-                Some(comp_mut(direction, ax))
-            }
-            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp_mut(u, ax)),
-            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp_mut(v, ax)),
-            (Node::Datum(Datum::FaceFrame { spin, .. }), S::Spin) => Some(spin),
-            (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => {
-                comp2_mut(origin, ax)
-            }
-            (Node::Datum(Datum::AxisInPlane { direction, .. }), S::Direction(ax)) => {
-                comp2_mut(direction, ax)
-            }
-            (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
-            (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
-            (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
-            (Node::Shell { thickness, .. }, S::ShellThickness) => Some(thickness),
-            (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
-            (Node::Tube { u_ref, .. } | Node::HollowTube { u_ref, .. }, S::Direction(ax)) => {
-                Some(comp_mut(u_ref, ax))
-            }
-            (
-                Node::Tube { major_radius, .. } | Node::HollowTube { major_radius, .. },
-                S::TubeMajorRadius,
-            ) => Some(major_radius),
-            (
-                Node::Tube { minor_radius, .. } | Node::HollowTube { minor_radius, .. },
-                S::TubeMinorRadius,
-            ) => Some(minor_radius),
-            (Node::HollowTube { wall, .. }, S::TubeWall) => Some(wall),
-            (Node::Tube { window, .. } | Node::HollowTube { window, .. }, s) => window.expr_mut(s),
-            (Node::Loft { v_degree, .. }, S::VDegree)
-            | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
-            (Node::Sweep { stations, .. }, S::Stations) => Some(stations),
-            (Node::Transform { translation, .. }, S::Translation(ax)) => {
-                Some(comp_mut(translation, ax))
-            }
-            (Node::Transform { rotation_axis, .. }, S::RotationAxis(ax)) => {
-                Some(comp_mut(rotation_axis, ax))
-            }
-            (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
-            (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
-            (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
-            (
-                Node::Part {
-                    select: PartSelect::Instance(index),
-                    ..
-                },
-                S::Instance,
-            ) => Some(index),
-            // EXHAUSTIVE on the NODE axis, open on the slot axis (the
-            // `expr` rule).
-            (
-                Node::Datum(..)
-                | Node::Profile(..)
-                | Node::Extrude { .. }
-                | Node::Revolve { .. }
-                | Node::Loft { .. }
-                | Node::Sweep { .. }
-                | Node::Fillet { .. }
-                | Node::Chamfer { .. }
-                | Node::Shell { .. }
-                | Node::Split { .. }
-                | Node::Boolean { .. }
-                | Node::Union { .. }
-                | Node::Transform { .. }
-                | Node::Part { .. }
-                | Node::Declare { .. }
-                | Node::InstantiatePart { .. }
-                | Node::Mate { .. }
-                | Node::Measure { .. }
-                | Node::Assertion { .. },
-                _,
-            ) => None,
+        match self {
+            Node::Profile(p) => p.expr_mut(slot),
+            _ => find_row(self.rows_mut(), slot),
         }
+    }
+
+    /// The rows of [`node_rows`], shared.
+    fn rows(&self) -> Vec<(SlotId, &Expr)> {
+        let mut out = Vec::new();
+        node_rows!(self, out);
+        out
+    }
+
+    /// The rows of [`node_rows`], exclusive.
+    fn rows_mut(&mut self) -> Vec<(SlotId, &mut Expr)> {
+        let mut out = Vec::new();
+        node_rows!(self, out);
+        out
     }
 
     /// The [`StableName`]s this payload REFERENCES — `Declare` pairs, a
