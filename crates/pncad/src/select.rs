@@ -172,10 +172,13 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // is: `Standing` carries a curated `HitTestError`, `Tessellate` a
 // prelude-curated `TessellateError`, the two the door owns carry a
 // `RecipeNodeId` and a `u32`. Carrying the payload alone leaves the
-// index unbuildable and closes that one exception.
+// index unbuildable and closes that one exception. `UnnamedEntity` is
+// carried by the same rule: it is what `HitTestError::Unnamed` holds
+// and the whole per-slot refusal of `NodePick::patch_names` and
+// `boundary_names`, so a slot read through this façade is matchable.
 pub use editor_core::{
     HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray,
-    pick_face,
+    UnnamedEntity, pick_face,
 };
 
 // **The resolution verdict a stored name gets at the next
