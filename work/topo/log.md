@@ -2153,3 +2153,40 @@ Ev answered on 2026-09-24.
 Meanwhile both implementer lanes (`kev`'s two doors and mint-at-site)
 died on the weekly usage limit on 2026-09-24. Their recovery is the
 next entry.
+
+## Both continuation lanes delivered green; PR 3160's dual dispatched, PR 3161's queued (2026-09-29)
+
+**PR 3160 (mint-at-site)** is green at `86c73b069b` (run 36550393394);
+the lane used 394,182 tokens and 101 min (harness).
+- Phase 1 split the closed-form derivation under `Decide` (0 signatures
+  move). A complete analytic face is re-minted whole with the pass's
+  own rows, and a spline chart refuses typed before mutating.
+- Five deviations, the weightiest being that a complete face the
+  closed-form lane cannot mint after the surgery is cleared to
+  rowless, not refused. Refusing reds 20 sweep rows mid-surgery.
+- Tier DUAL: dispatched 09:59 UTC, concurrently, on the frozen head.
+  - Both reviewers' targets are identical copies of the lane's trimmed
+    warm build, so their method is equal.
+  - The briefs are stored with sha256; they differ only in lane label,
+    target and scratch.
+  - PR 3160's thread was empty at dispatch.
+
+**PR 3161 (`kev`'s two doors)** is green at `ec29ce898` (run
+36550392070); the lane used 342,027 tokens and 106 min (harness). The
+first run's four reds, fixed:
+- the debug-only gate pin, re-pinned 17 → 19 with the same enclosures;
+- `review_d18`'s hammer, routed through `kev_describing` so it reaches
+  the mutation phase again, with the exposure pin unchanged at 50;
+- nine interval 1e-12 rows, where the blend's closure kills now pass
+  the merged member's chord (the arc's scaffold residual was
+  undecidable at interval), and `attach_contact` states the arc at the
+  close.
+
+Its dual is **queued behind PR 3160's**: the disk holds two reviewer
+targets at a time, and the protocol reduces simultaneous duals rather
+than a reviewer's method. The brief is written.
+
+**Gate note.** Main's CI-latency cut (Ev, #3340, 2026-09-28) narrowed
+the per-PR gate. The interval eps rows now run in the nightly, and the
+nightly's reds are the orchestrator's. Both reviewer briefs ask for
+the interval rows the unit touches to be re-run locally.
