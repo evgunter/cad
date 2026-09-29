@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-21
 priority: P0
 cost: H
+needs_ev: true
 ---
 
 Filed by the AUTHOR orchestrator at Ev's direction (in chat,
@@ -123,3 +124,43 @@ MSOLVE's ground. Whether `Transform` stops being a node and becomes an
 edited slot is not decided. It stays this row's later question, with
 the two obstacles recorded above (`roots` as the sink set, and names as
 role paths through the node).
+
+## Put to Ev (2026-09-29) — the unit's design, after the designer pair
+
+Ev's "yes" settled that a placement is parametric, not the design of the
+unit that follows. That design went to a designer pair
+(`docs/DESIGN-FORK-PROTOCOL.md`, row 14 of `docs/DESIGN-FORK-LOG.md`)
+and then to Ev on the `[ev]` PR from `edit/ev-placement-design`.
+
+**What the designers converged on.** A11 rule (2) now states it.
+- **The row.** It is `Transform`'s parametric triple (the motion)
+  applied over a literal frame.
+- **Maintenance** re-mints only the literal, so a parameter keeps
+  driving a cluster after its gauge moves. This revises the
+  agent-written "minted frames are literals" clause.
+- **`Join`** carries the absorbed row and reports the drive it drops.
+- **Addressing.** One address owner, `Placement(any member)`, and one
+  `Doc::exprs()` walk that reaches every expression the document holds.
+- **`SetPlacement`** is continuous, not structural.
+- **Inline** refuses typed a placed host over a parametric part row.
+- **Old files** refuse typed at load.
+- **`PatternKind::Explicit`** is untouched.
+
+**The split Ev rules on.** Where does the literal live?
+- **Option (i): inside `Placement { motion, frame }`.**
+  - `Transform` can carry a matrix.
+  - A6 stands unchanged.
+  - Matrix constructors stay bit-exact.
+- **Option (ii): only on the registry row, as a solver-owned gauge offset.**
+  - `Placement` is proper by construction, so a mirror is unrepresentable.
+  - A6's refusal moves to a `from_frame` door, and a new axis-angle
+    extraction rounds once, at authoring.
+- Each designer's first report took one of these, and each moved to the
+  other's in reconciliation.
+
+**Sequencing (orchestrator).** Box and seed runs solve mates at the
+nominal. That is a silent class which predates this unit, so it is
+filed on MSOLVE as
+`work/msolve/a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`.
+The unit ships no parametric placement into the lanes without that
+refusal.
