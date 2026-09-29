@@ -56,6 +56,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// direction is 1e200), over the given leg and top references.
 fn fold_doc(label: &str, leg: DocRef, top: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive(label), tol);
+    // The cap first, so it is the first root the product door reads.
+    let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
     let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
     let (doc, pattern) = common::inserted(
         &doc,
@@ -69,7 +71,6 @@ fn fold_doc(label: &str, leg: DocRef, top: DocRef, tol: Tol) -> (ProfileDoc, Rec
         },
         tol,
     );
-    let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
@@ -116,6 +117,19 @@ fn probe_a_placer_line_inside_a_part_names_the_parts_file() {
         tol,
     );
     eprintln!("sub roots: {:?} pattern {pattern:?} mate {mate:?}", sub.roots());
+    {
+        let mut ps = PartStore::default();
+        ps.insert(leg.clone(), tol);
+        ps.insert(top.clone(), tol);
+        let ev = evaluate::<f64>(&sub, None, &CancelToken::new(), &with_resolver(ps), tol);
+        for id in sub.order() {
+            eprintln!("  sub {id:?}: {:?}", ev.result(*id).map(|r| match r {
+                NodeResult::Ok(_) => "ok".to_string(),
+                NodeResult::Failed(e) => e.to_string(),
+                NodeResult::Poisoned { through } => format!("poisoned via {through:?}"),
+            }));
+        }
+    }
     store.save_at(&sub, "sub.pncad", tol).expect("stores");
     let mut assembly = Doc::empty_derived("partroot-rev-a-asm", tol);
     let instance = common::insert_into(
@@ -268,7 +282,7 @@ fn probe_c_poisoned_part_root_carries_nothing() {
 #[test]
 fn probe_d_prefix_words_on_a_carried_line() {
     let words = |s: &str| s.split_whitespace().count();
-    let inner = NodeErrorKind::Part {
+    let inner = || NodeErrorKind::Part {
         doc_ref: DocRef {
             id: DocumentId::derive("partroot-rev-d-inner"),
             pin: pncad::document::ContentPin([7u8; 32]),
@@ -282,11 +296,11 @@ fn probe_d_prefix_words_on_a_carried_line() {
         },
         fault: pncad::document::PartFault::PartRootFailed {
             node: RecipeNodeId(2),
-            refusal: inner.clone().into(),
+            refusal: inner().into(),
         },
     };
     let lines = tree::carried_lines(&kind, &PartFiles::default());
-    let own = pncad::document::NodeRefusal::from(inner).line_at(RecipeNodeId(2));
+    let own = pncad::document::NodeRefusal::from(inner()).line_at(RecipeNodeId(2));
     eprintln!("PROBE-D line: {} words vs own {} words\n{}", words(&lines[0]), words(&own), lines[0]);
     assert!(
         words(&lines[0]) <= words(&own),
