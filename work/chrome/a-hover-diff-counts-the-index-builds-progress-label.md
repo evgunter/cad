@@ -2,7 +2,8 @@
 id: a-hover-diff-counts-the-index-builds-progress-label
 kind: issue
 title: app's whole-app hover diff counts the toolbar's indexing label when the index build changes state between its two frames
-status: open
+status: dispatched
+branch: chrome/viewer-small
 opened: 2026-09-29
 priority: P3
 cost: E

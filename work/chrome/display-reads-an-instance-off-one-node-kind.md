@@ -2,7 +2,8 @@
 id: display-reads-an-instance-off-one-node-kind
 kind: issue
 title: display::instances_by_root asks which nodes are instances with a matches! over one Node kind, beside session's exhaustive answer
-status: open
+status: dispatched
+branch: chrome/viewer-small
 opened: 2026-09-29
 priority: P3
 cost: E
