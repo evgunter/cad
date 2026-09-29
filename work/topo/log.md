@@ -2728,3 +2728,19 @@ The orchestrator read the diff:
 
 The item closes on the branch. Merge after CI on the closing head.
 Single tier, so there is no DR row.
+
+## The two CHROME refusal-text rows go out as one unit (2026-09-29)
+
+Dispatched **`topo-escalations-offer-a-declaration-the-door-cannot-take`**
+and **`declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu`**
+together (P2; cost E each, M together). Both route topo's refusal
+subject and recourse by `diag.predicate` and share
+`BooleanError`'s `Display`. The unit covers:
+- `SplitParamEscalated` stops offering the declare menu to doors that
+  take no declaration;
+- `BooleanError::Escalated` routes its non-coincidence raisers;
+- both `DeclarationContradicted` arms drop the false `INVALID`-margin
+  text for a clause naming the contradicting predicate, with one
+  labelled lever.
+
+It builds on a fresh non-incremental target. Tier: SINGLE, full.
