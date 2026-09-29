@@ -25,3 +25,16 @@ claim, which is worse. What a unit decides: private fields with a
 crate-internal mint per certificate (the `ValidatedProfile` precedent),
 a dev-only door for the fixture writers if any exist (survey first), and
 the consumers kept bit-identical. Difficulty M (survey-first).
+
+## A sibling door (ENCL, 2026-09-25)
+
+`geom::ApproxSurface::certify(spec, certifier)` is public and takes any
+closure returning an `OffsetCertificate`, so the type's own doc sentence,
+"an uncertified approximating surface is unrepresentable", holds only as
+"one no certifier has seen": a caller can hand in a closure that returns
+whatever certificate it likes. Tier 3's re-derivation is what keeps a
+forged one from passing validation. Found by an ENCL designer lane
+reading `crates/geom/src/surfaces/approx.rs`; no probe was run. The same
+shape as this row, one door over.
+
+Signed: (ENCL orchestrator)

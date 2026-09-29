@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does not carry is a helper of its own that another
 //! suite also carries: the shared helper tree is declared once, below, as a
 //! module of THIS root, and a suite that wants a piece of it says
@@ -83,6 +83,8 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
+#[path = "germ_pose_gate.rs"]
+mod germ_pose_gate;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
@@ -133,11 +135,10 @@ mod cert10_r1_probes;
 #[path = "cert10r2_probes.rs"]
 mod cert10r2_probes;
 
-#[path = "r2_quad_digit_probe.rs"]
-mod r2_quad_digit_probe;
-
 #[path = "offset_fit.rs"]
 mod offset_fit;
+#[path = "offset_fit_band_probes.rs"]
+mod offset_fit_band_probes;
 #[path = "ring2_r2_probes.rs"]
 mod ring2_r2_probes;
 

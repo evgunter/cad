@@ -92,7 +92,7 @@ and undoes. `Doc.save()` / `load()` round-trip bit-identically.
 Three things to expect, all treated at length in the guide:
 
 - **Typed quantities.** `25 * mm` is a `Length`, not a float. Mixing
-  dimensions raises `DimensionError` with `op`, `left`, `right`.
+  dimensions raises `QuantityOpMismatch` with `op`, `left`, `right`.
 - **`evaluate` is total** — it never raises. Every node either has a
   value or has failed; ask with `ev.succeeded(node)`. Reading a failed
   node raises `EvaluationError`, and a node poisoned by an upstream

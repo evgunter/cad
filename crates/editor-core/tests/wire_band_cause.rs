@@ -35,7 +35,7 @@ use editor_core::{
     CancelToken, DocEdit, EvalOptions, NamePat, NamingError, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SelectRefusal, Selector, evaluate, select_where,
 };
-use fixture::{desc, frame, insert};
+use fixture::{desc, insert, xy_frame};
 use geom_core::tolerance::{DEFAULT_K, Tolerance};
 use geom_core::{Band, BandError, BandField, Tol};
 
@@ -206,7 +206,7 @@ fn child_band_row() {
 fn bare_frame() -> (ProfileDoc, RecipeNodeId) {
     insert(
         ProfileDoc::empty_derived("wire_band_cause", Tol::witness()),
-        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        xy_frame(),
     )
 }
 

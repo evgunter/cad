@@ -8,7 +8,7 @@
 //! [`editor_core::eval::ContentBits`] feeding BOTH channels (DL2), and
 //! the scalar-policy seam that makes certified validation structurally
 //! absent at a dual (`topo::AtRestPolicy`, DL3). This suite pins that
-//! `Dual64` — and, under the `interval` feature, `Dual<Interval>` —
+//! `Dual64` — and `Dual<Interval>` —
 //! satisfies **every** bound `evaluate` asks for, so the door's state
 //! is a compiler fact rather than prose.
 //!
@@ -157,9 +157,8 @@ fn dual64_meets_every_evaluate_bound() {
 }
 
 /// The derivative-enclosure instantiation (DL1's third use): the
-/// generic impls open the same door for `Dual<Interval>` under the
-/// `interval` feature, with nothing scalar-specific added.
-#[cfg(feature = "interval")]
+/// generic impls open the same door for `Dual<Interval>`, with nothing
+/// scalar-specific added.
 #[test]
 fn dual_interval_meets_every_evaluate_bound() {
     requires_every_evaluate_bound::<geom_core::DualInterval>();

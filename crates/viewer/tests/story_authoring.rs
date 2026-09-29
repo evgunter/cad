@@ -41,7 +41,7 @@ use crate::common;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{BooleanOp, Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -141,7 +141,7 @@ fn carved_volume(v_plinth: f64, drum_h: f64) -> f64 {
 /// The sketch frame at `origin`, spanned by world +x and +y — the
 /// plane a profile is drawn on, minted through the datum door.
 fn frame_at(session: &mut DocSession, origin: [f64; 3]) -> RecipeNodeId {
-    insert(
+    session_insert(
         session,
         SessionOp::AddDatum {
             datum: DatumSpec::Frame {
@@ -156,7 +156,7 @@ fn frame_at(session: &mut DocSession, origin: [f64; 3]) -> RecipeNodeId {
 /// A circle profile of `radius` on the plane `z` up the rook's axis.
 fn circle_at(session: &mut DocSession, radius: f64, z: f64) -> RecipeNodeId {
     let plane = frame_at(session, [0.0, 0.0, z]);
-    insert(
+    session_insert(
         session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -184,24 +184,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert_eq!(session.history().len(), 1, "a fresh root, no edits yet");
 
     // ── The plinth: a square pad, then all twelve edges chamfered ───
-    let plane = common::xy_frame_in(&mut session);
-    let plinth_profile = insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: PLINTH_SIDE,
-                height: PLINTH_SIDE,
-            })],
-        },
-    );
-    let plinth = insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: plinth_profile,
-            distance: len(PLINTH_H),
-        },
-    );
+    let plinth = common::xy_box_in(&mut session, [PLINTH_SIDE, PLINTH_SIDE, PLINTH_H]);
     let v_pad = body_volume(&mut session, plinth, tol);
     assert!(
         near(v_pad, PLINTH_SIDE * PLINTH_SIDE * PLINTH_H),
@@ -217,7 +200,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         assert_eq!(edges.len(), 12, "a box has twelve edges");
         edges
     };
-    let softened = insert(
+    let softened = session_insert(
         &mut session,
         SessionOp::AddChamfer {
             target: plinth,
@@ -237,7 +220,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── The base disc, and a mis-pick at the boolean door ───────────
     let base_profile = circle_at(&mut session, BASE_R, BASE_Z);
-    let base = insert(
+    let base = session_insert(
         &mut session,
         SessionOp::AddExtrude {
             profile: base_profile,
@@ -265,7 +248,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert!(mispick.committed.is_empty(), "a refusal commits nothing");
     assert_eq!(session.history().len(), states, "and mints no state");
 
-    let u1 = insert(
+    let u1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -284,14 +267,14 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── The shaft and the crown drum, stacked the same way ──────────
     let shaft_profile = circle_at(&mut session, SHAFT_R, SHAFT_Z);
-    let shaft = insert(
+    let shaft = session_insert(
         &mut session,
         SessionOp::AddExtrude {
             profile: shaft_profile,
             distance: len(SHAFT_H),
         },
     );
-    let u2 = insert(
+    let u2 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -312,24 +295,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // docs carry the ruling), so its slots stay in the crossing-slots
     // class.
     let plane = frame_at(&mut session, [0.0, 0.0, DRUM_Z]);
-    let drum_profile = insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: DRUM_S,
-                height: DRUM_S,
-            })],
-        },
-    );
-    let drum = insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: drum_profile,
-            distance: len(DRUM_H),
-        },
-    );
-    let u3 = insert(
+    let (_, drum) = common::box_in(&mut session, plane, [DRUM_S, DRUM_S, DRUM_H]);
+    let u3 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -350,24 +317,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     //    quarter-turned about the axis (one cutter body, consumed by
     //    both the subtract and the transform — the DAG's sharing) ────
     let plane = frame_at(&mut session, [0.0, 0.0, CUT_Z]);
-    let cutter_profile = insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: CUT_W,
-                height: CUT_T,
-            })],
-        },
-    );
-    let cutter = insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: cutter_profile,
-            distance: len(CUT_H),
-        },
-    );
-    let cut1 = insert(
+    let (_, cutter) = common::box_in(&mut session, plane, [CUT_W, CUT_T, CUT_H]);
+    let cut1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Subtract,
@@ -380,7 +331,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         near(v_cut1, v_u3 - slab_area() * (DRUM_Z + DRUM_H - CUT_Z)),
         "the first slot removes a chord slab of the drum: {v_cut1}"
     );
-    let cutter2 = insert(
+    let cutter2 = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: cutter,
@@ -389,7 +340,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             rotation_angle: ang(FRAC_PI_2),
         },
     );
-    let carved = insert(
+    let carved = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Subtract,
@@ -414,7 +365,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // ── The crenellation experiment: a merlon block, patterned round
     //    the axis — instances are not a body, and the fused door is
     //    what the refusal points at ─────────────────────────────────
-    let axis = insert(
+    let axis = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
@@ -430,24 +381,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         [MERLON_OFF, MERLON_OFF, DRUM_Z + DRUM_H - MERLON_SINK],
     );
-    let block_profile = insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: MERLON_S,
-                height: MERLON_S,
-            })],
-        },
-    );
-    let block = insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: block_profile,
-            distance: len(MERLON_H),
-        },
-    );
-    let pattern = insert(
+    let (block_profile, block) =
+        common::box_in(&mut session, plane, [MERLON_S, MERLON_S, MERLON_H]);
+    let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: block,
@@ -492,7 +428,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // The door that refusal points at: the same prototype and the
     // same rule, said FUSED — one body out instead of four, which the
     // boolean seat takes without complaint.
-    let merlons = insert(
+    let merlons = session_insert(
         &mut session,
         SessionOp::AddPlacedUnion {
             input: block,
@@ -517,7 +453,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         near(v_merlons, 4.0 * MERLON_S * MERLON_S * MERLON_H),
         "four disjoint merlons as one body: {v_merlons}"
     );
-    let crenellated = insert(
+    let crenellated = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,

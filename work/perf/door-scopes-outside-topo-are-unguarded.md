@@ -74,7 +74,8 @@ depth exactly right and the check gone. What catches that is a
 corruption row per door class, and there are three
 (`surgery::tests::{a_corruption_planted_mid_sequence_is_caught_when_the_door_closes,
 an_operator_called_directly_still_sweeps, only_the_outermost_close_sweeps}`)
-plus `shell10_r2_probes`'s. No door outside those has one.
+plus `offset_together::scope_walks::the_door_panics_on_an_out_of_scope_malformed_solid`.
+No door outside those has one.
 
 **What would close this.** For (b): a shared door walk the other
 crates' suites can mount — `source_walk::mutation_doors` is

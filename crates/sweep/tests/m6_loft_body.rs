@@ -210,7 +210,6 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
 /// genuinely enclosure-valued scalar), and the certified volume
 /// ENCLOSURE brackets the derived 9 m³ — asserted enclosure-style,
 /// never by equality.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::interval::Interval;
 

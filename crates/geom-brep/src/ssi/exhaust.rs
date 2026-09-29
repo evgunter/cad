@@ -57,7 +57,8 @@
 //! the pruning does.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Point3, RingInterval, SupSpeed, Vec3};
+use geom_core::Bounds;
+use geom_core::{Interval, Point3, SupSpeed, Vec3};
 
 use super::SsiError;
 use super::enclose::{Box3, NurbsBoxes, implicit_enclosure};
@@ -554,7 +555,7 @@ fn sweep_r3(
     sweep(root, duty, floor, |cell| {
         let e1 = implicit_enclosure(s1, cell);
         let e2 = implicit_enclosure(s2, cell);
-        if e1.is_poison() || e2.is_poison() {
+        if !e1.is_certified() || !e2.is_certified() {
             // The kind list in this sentence is held true by the lane
             // gate: `cylinder_sphere_ssi` refuses `WrongLane` for
             // every operand that is not a cylinder or a sphere.
@@ -572,8 +573,8 @@ fn sweep_r3(
     })
 }
 
-fn excludes_zero(i: RingInterval) -> bool {
-    !i.is_poison() && (i.lo() > 0.0 || i.hi() < 0.0)
+fn excludes_zero(i: Interval) -> bool {
+    i.is_certified() && (i.lo() > 0.0 || i.hi() < 0.0)
 }
 
 /// A rectangle in a surface's parameter domain — the chart lane's cell.
@@ -725,10 +726,10 @@ fn sweep_chart_plane(
     let boxes = NurbsBoxes::new(surface);
     sweep(root, duty, floor_uv, |cell| {
         let b = boxes.rect_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1);
-        let phi = RingInterval::point(plane_normal.x) * (b.x - RingInterval::point(plane_origin.x))
-            + RingInterval::point(plane_normal.y) * (b.y - RingInterval::point(plane_origin.y))
-            + RingInterval::point(plane_normal.z) * (b.z - RingInterval::point(plane_origin.z));
-        if phi.is_poison() {
+        let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
+            + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
+            + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
+        if !phi.is_certified() {
             // The one measured route here is weight underflow: the
             // seeding guard refuses every net whose homogeneous
             // arithmetic leaves the finite range before this sweep

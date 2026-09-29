@@ -16,7 +16,6 @@
 //! surfaced a real laundering door in `Dual::powi(0)`'s derivative
 //! channel. See its own comment — it is pre-existing and
 //! backend-independent, so it is pinned as-is rather than fixed here.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
@@ -28,9 +27,9 @@ fn band() -> Band {
 
 #[track_caller]
 fn assert_still_poisoned(name: &str, x: Interval) {
-    match x.sign_within(band()) {
+    match x.sign_within(band()).map(|d| d.sign) {
         Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             ..
         }) => {}
         other => panic!("LAUNDERED at {name}: {other:?}"),
@@ -95,8 +94,8 @@ fn laundering_attempts_all_fail() {
 
     // Healthy sanity rows: the paths above do not poison healthy inputs.
     let m = Real::min(dvar(h(2.0)), dvar(h(5.0)));
-    assert!(m.value.sign_within(band()).is_ok());
-    assert!(m.deriv.sign_within(band()).is_ok());
+    assert!(m.value.sign_within(band()).map(|d| d.sign).is_ok());
+    assert!(m.deriv.sign_within(band()).map(|d| d.sign).is_ok());
     // Bounds stays poison-visible: NaN brackets for empty AND NaI.
     assert!(empty().lo().is_nan() && empty().hi().is_nan());
     assert!(nai().lo().is_nan() && nai().hi().is_nan());
@@ -127,8 +126,11 @@ fn powi_zero_conserves_both_channels_poison_fixed_126() {
     // A healthy pair keeps the honest exact-zero tangent (the fix must
     // not manufacture poison for describable values).
     let clean = dvar(h(2.0)).powi(0);
-    assert_eq!(clean.deriv.sign_within(band()), Ok(Sign::Zero));
-    assert!(clean.value.sign_within(band()).is_ok());
+    assert_eq!(
+        clean.deriv.sign_within(band()).map(|d| d.sign),
+        Ok(Sign::Zero)
+    );
+    assert!(clean.value.sign_within(band()).map(|d| d.sign).is_ok());
     // The nonzero-exponent contrast (kept from the pre-fix pin): every
     // other exponent conserves derivative poison too.
     for (tag, p) in [("Trv", clamped()), ("NaI", nai()), ("Empty", empty())] {

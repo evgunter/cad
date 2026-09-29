@@ -1,5 +1,5 @@
 //! Issue 1011, the torus half: the torus containment doors at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! The point of the lane is that the arm's margins are honest
 //! enclosures rather than `f64` luck, and the ray×torus quartic asks
@@ -37,39 +37,27 @@
 //! Probes are dyadic where the geometry allows, so the enclosures are
 //! points and every margin decides definitely.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::{iv, p2, p3, v2};
 use geom_core::Tol;
-use geom_core::{Band, Interval, Point2, Point3, Real};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Band, Interval};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
-    Point3::new(iv(x), iv(y), iv(z))
-}
 
 /// The donut at the certified scalar: a circle of radius 0.25 about
 /// `(1, 0)` revolved fully about the y axis — `R = 1`, `r = 0.25`, both
 /// dyadic, so the torus's own data are exact intervals and every margin
 /// below is the arm's arithmetic rather than the fixture's.
 fn donut() -> topo::Body<Interval> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(iv(1.0), iv(-0.25)), iv(1.0)),
-        ProfileVertex::new(Point2::new(iv(1.0), iv(0.25)), iv(1.0)),
-    ]);
+    let lp = bulge_loop(vec![(p2(1.0, -0.25), iv(1.0)), (p2(1.0, 0.25), iv(1.0))]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: Point2::new(iv(0.0), iv(0.0)),
-        dir: geom_core::Vec2::new(iv(0.0), iv(1.0)),
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
     };
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()

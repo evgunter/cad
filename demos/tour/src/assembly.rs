@@ -339,6 +339,7 @@ fn prism_part(
                 [width, height.clone()],
                 [zero.clone(), height],
             ])],
+            ids: Vec::new(),
         }),
         tol,
     );

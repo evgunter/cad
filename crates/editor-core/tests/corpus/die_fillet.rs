@@ -16,7 +16,7 @@
 //!
 //! This document is listed in `corpus/mod.rs::documents()`, so it
 //! carries the full registry battery, INTERVAL lane included
-//! (`m4_pr8_corpus_interval.rs`, `m4_pr6_roundtrip_interval.rs`), and
+//! (`m4_pr8_corpus_interval.rs`), and
 //! `Fillet` is a COVERED node kind in the vocabulary tally.
 //!
 //! It spent PR 12 outside that registry, deliberately, because the
@@ -85,6 +85,7 @@ pub fn document() -> CorpusDoc {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![square],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile,
@@ -95,7 +96,7 @@ pub fn document() -> CorpusDoc {
     // the cube without minting or retiring an edge, so the frozen
     // selection still resolves, which is what makes this document a
     // covariance row as well as a shape row.
-    let blank = r.insert(Node::fillet(cube, len(R), prism_edges(cube, 4)));
+    let blank = r.insert(Node::fillet(cube, len(R), prism_edges(&r.doc, cube, 4)));
 
     CorpusDoc {
         name: "die_fillet",

@@ -16,12 +16,15 @@ that agreed on shape and not on bytes would author a selection that
 resolves to nothing, which is exactly the failure a hand-written name
 has.
 
-EVERY DOOR TAKES ITS LOOP. `loop_index` is the profile's canonical
-loop — 0 the outer one, then the holes in the order the profile
-describes them — and `seg`/`vertex` index THAT loop's canonical chain.
-No loop is privileged, which is why the third scene below has a hole
-and names its bands the same way the first scene names the outer
-ones.
+EVERY DOOR TAKES A PIECE. A profile's segments are named by the
+pieces that draw them — the step that authored the segment, by the id
+the document minted for it, and its role in that step — and
+`Doc.pieces(profile)[loop][k]` is the piece canonical segment `k` of
+canonical loop `loop` is (0 the outer one, then the holes in the order
+the profile describes them); a rim or meridian vertex is spelled by
+the piece that starts at it. No loop is privileged, which is why the
+third scene below has a hole and names its bands the same way the
+first scene names the outer ones.
 
 The first two scenes are the two shapes a full revolve takes. A
 profile that CLEARS the axis sweeps to one face per meridian segment,
@@ -30,7 +33,7 @@ profile that TOUCHES the axis sweeps to a pole, and the kernel splits
 every band into its `[0, pi)` and `[pi, 2pi)` halves — which is what
 `band_pi` exists for, and why the second scene is here at all. The
 third carries a HOLE, so the emitter mints a second loop's worth of
-bands, rims and meridian vertices at `loop_index` 1.
+bands, rims and meridian vertices on its second loop.
 """
 
 import math
@@ -97,7 +100,9 @@ def ring(doc):
         .line_to(Start)
     )
     profile = doc.insert(Node.profile(chain, plane=frame))
-    return doc.insert(Node.revolve(profile, axis_of(doc, frame), Expr.angle_in(2 * math.pi, rad)))
+    return profile, doc.insert(
+        Node.revolve(profile, axis_of(doc, frame), Expr.angle_in(2 * math.pi, rad))
+    )
 
 
 def frustum(doc):
@@ -113,7 +118,9 @@ def frustum(doc):
         .line_to(Start)
     )
     profile = doc.insert(Node.profile(chain, plane=frame))
-    return doc.insert(Node.revolve(profile, axis_of(doc, frame), Expr.angle_in(2 * math.pi, rad)))
+    return profile, doc.insert(
+        Node.revolve(profile, axis_of(doc, frame), Expr.angle_in(2 * math.pi, rad))
+    )
 
 
 def holed_ring(doc):
@@ -136,13 +143,19 @@ def holed_ring(doc):
         .line_to(Start)
     )
     profile = doc.insert(Node.profile([outer, hole], plane=frame))
-    return doc.insert(
+    return profile, doc.insert(
         Node.revolve(
             profile,
             axis_of(doc, frame),
             Expr.angle_in(2 * math.pi, rad),
         )
     )
+
+
+def piece(doc, profile, lp, k):
+    """The piece canonical segment `k` of loop `lp` is — and the one
+    starting at canonical vertex `k`."""
+    return doc.pieces(profile)[lp][k]
 
 
 def of_role(ev, node, kind, tag, side=None):
@@ -160,84 +173,84 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
 
     def test_band_and_its_rims_and_meridian_vertices_on_a_ring(self):
         doc = Doc()
-        node = ring(doc)
+        profile, node = ring(doc)
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         self.assertEqual(len(bands), 4, "one band per meridian segment")
-        self.assertEqual(bands, [band(node, 0, seg) for seg in range(4)])
+        self.assertEqual(bands, [band(node, piece(doc, profile, 0, seg)) for seg in range(4)])
         # No pole, so no `[pi, 2pi)` half exists to name.
         self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
         # A rim per meridian vertex, and a seam vertex under each.
         rims = of_role(ev, node, EntityKind.Edge, SegTag.BandRim)
-        self.assertEqual(rims, [band_rim(node, 0, v) for v in range(4)])
+        self.assertEqual(rims, [band_rim(node, piece(doc, profile, 0, v)) for v in range(4)])
         seam = of_role(
             ev, node, EntityKind.Vertex, SegTag.MeridianVertex, MeridianEnd.Seam
         )
         self.assertEqual(
-            seam, [meridian_vertex(MeridianEnd.Seam, node, 0, v) for v in range(4)]
+            seam, [meridian_vertex(MeridianEnd.Seam, node, piece(doc, profile, 0, v)) for v in range(4)]
         )
         # The names denote what the door says they denote: `band` 2 is
         # the top annulus, and rim 2 the circle standing on it.
         self.assertEqual(
-            ev.face_carrier_kind(node, band(node, 0, 2)), SurfaceKind.Plane
+            ev.face_carrier_kind(node, band(node, piece(doc, profile, 0, 2))), SurfaceKind.Plane
         )
         self.assertEqual(
-            ev.face_frame(node, band(node, 0, 2)).origin[1].meters, H
+            ev.face_frame(node, band(node, piece(doc, profile, 0, 2))).origin[1].meters, H
         )
-        self.assertEqual(ev.edge_frame(node, band_rim(node, 0, 2)).origin[1].meters, H)
+        self.assertEqual(ev.edge_frame(node, band_rim(node, piece(doc, profile, 0, 2))).origin[1].meters, H)
 
     def test_band_pi_is_the_half_a_pole_splits_off(self):
         doc = Doc()
-        node = frustum(doc)
+        profile, node = frustum(doc)
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         halves = of_role(ev, node, EntityKind.Face, SegTag.BandPi)
         self.assertEqual(len(bands), 3, "the fourth segment lies on the axis")
         self.assertEqual(len(halves), 3, "and each band has its pi half")
-        self.assertEqual(bands, [band(node, 0, seg) for seg in range(3)])
-        self.assertEqual(halves, [band_pi(node, 0, seg) for seg in range(3)])
+        self.assertEqual(bands, [band(node, piece(doc, profile, 0, seg)) for seg in range(3)])
+        self.assertEqual(halves, [band_pi(node, piece(doc, profile, 0, seg)) for seg in range(3)])
         # A door answering the other door's text would pass every
         # count above; these are two roles and two texts.
-        self.assertNotEqual(band(node, 0, 0), band_pi(node, 0, 0))
+        self.assertNotEqual(band(node, piece(doc, profile, 0, 0)), band_pi(node, piece(doc, profile, 0, 0)))
 
     def test_a_holes_bands_are_named_at_its_own_loop(self):
         """The claim the outer-loop signature could not make: the
-        emitter mints a hole's band, rim and meridian vertex at
-        `loop_index` 1, and the door answers those bytes for the same
-        arguments. Compared as SETS over the loop's four segments,
+        emitter mints a hole's band, rim and meridian vertex on the
+        hole's own pieces, and the door answers those bytes for the
+        same pieces. Compared as SETS over the loop's four segments,
         because which corner the canonical chain starts at is the
         profile crate's business and not this file's."""
         doc = Doc()
-        node = holed_ring(doc)
+        profile, node = holed_ring(doc)
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         self.assertEqual(len(bands), 8, "four meridian segments per loop")
         self.assertEqual(
-            set(bands), {band(node, lp, s) for lp in (0, 1) for s in range(4)}
+            set(bands), {band(node, piece(doc, profile, lp, s)) for lp in (0, 1) for s in range(4)}
         )
         rims = of_role(ev, node, EntityKind.Edge, SegTag.BandRim)
         self.assertEqual(
-            set(rims), {band_rim(node, lp, v) for lp in (0, 1) for v in range(4)}
+            set(rims), {band_rim(node, piece(doc, profile, lp, v)) for lp in (0, 1) for v in range(4)}
         )
         seam = of_role(
             ev, node, EntityKind.Vertex, SegTag.MeridianVertex, MeridianEnd.Seam
         )
         self.assertEqual(
             set(seam),
-            {meridian_vertex(MeridianEnd.Seam, node, lp, v) for lp in (0, 1) for v in range(4)},
+            {meridian_vertex(MeridianEnd.Seam, node, piece(doc, profile, lp, v)) for lp in (0, 1) for v in range(4)},
         )
         # Neither loop clears into a pole, so nothing is split at pi
         # and no `band_pi` name exists on either loop.
         self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
-        # The loop index is READ, not decoration: the same segment on
-        # the two loops is two names.
-        self.assertNotEqual(band(node, 0, 0), band(node, 1, 0))
+        # The same position on the two loops is two pieces, and two
+        # names.
+        self.assertNotEqual(band(node, piece(doc, profile, 0, 0)), band(node, piece(doc, profile, 1, 0)))
         # And the names denote faces of the shape the section has:
         # two horizontal segments sweep to annuli and two vertical
         # ones to cylinders, on each loop.
         for lp in (0, 1):
             kinds = [
-                ev.face_carrier_kind(node, band(node, lp, s)) for s in range(4)
+                ev.face_carrier_kind(node, band(node, piece(doc, profile, lp, s))) for s in range(4)
             ]
             self.assertEqual(kinds.count(SurfaceKind.Plane), 2)
             self.assertEqual(kinds.count(SurfaceKind.Cylinder), 2)
@@ -257,10 +270,10 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
 
     def test_carried_is_the_name_a_survivor_of_the_next_op_wears(self):
         doc = Doc()
-        node = ring(doc)
+        profile, node = ring(doc)
         # The top annulus opened: the other three bands survive the
         # hollowing, and each wears its own name under the shell.
-        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, 0, 2)]))
+        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, piece(doc, profile, 0, 2))]))
         ev = evaluate(doc)
         survivors = ev.select(
             hollow,
@@ -270,15 +283,15 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         )
         self.assertEqual(
             sorted(survivors),
-            sorted(carried(hollow, band(node, 0, seg)) for seg in (0, 1, 3)),
+            sorted(carried(hollow, band(node, piece(doc, profile, 0, seg))) for seg in (0, 1, 3)),
         )
         # The kind is the inner name's, never re-decided: a carried
         # face resolves as a face.
-        self.assertEqual(ev.resolve(carried(hollow, band(node, 0, 0))).status, "resolved")
+        self.assertEqual(ev.resolve(carried(hollow, band(node, piece(doc, profile, 0, 0)))).status, "resolved")
 
     def test_text_that_is_not_a_name_refuses_at_the_boundary(self):
         doc = Doc()
-        node = ring(doc)
+        _profile, node = ring(doc)
         with self.assertRaises(ValueError):
             carried(node, "the bottom face")
 
@@ -291,10 +304,10 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
 
     def test_a_shell_opened_at_a_band_named_before_the_revolve_ran(self):
         doc = Doc()
-        node = ring(doc)
+        profile, node = ring(doc)
         # Authored against the recipe alone — nothing is evaluated
         # until the assertion below.
-        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, 0, 2)]))
+        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, piece(doc, profile, 0, 2))]))
         ev = evaluate(doc)
         body = ev.value(hollow).body()
         body.validate()
@@ -315,16 +328,16 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         faces = NamePat.of_kind(EntityKind.Face)
         rim = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))
         self.assertEqual(len(rim), 1)
-        self.assertIn(band(node, 0, 2), rim[0], "the rim wears the opened face's name")
+        self.assertIn(band(node, piece(doc, profile, 0, 2)), rim[0], "the rim wears the opened face's name")
 
     def test_a_fillet_on_rims_named_before_the_revolve_ran(self):
         doc = Doc()
-        node = ring(doc)
+        profile, node = ring(doc)
         rolled = doc.insert(
             Node.fillet(
                 node,
                 Expr.length_in(ROLL, m),
-                [band_rim(node, 0, 2), band_rim(node, 0, 3)],
+                [band_rim(node, piece(doc, profile, 0, 2)), band_rim(node, piece(doc, profile, 0, 3))],
             )
         )
         ev = evaluate(doc)

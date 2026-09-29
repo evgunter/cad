@@ -1,4 +1,4 @@
-//! M5 PR 10 §2, the Interval lane (feature `interval`).
+//! M5 PR 10 §2, the Interval lane.
 //!
 //! Q8's claim is that the produced NURBS **is** the definition — its
 //! control bits are DATA, not a measurement. The consequence this row
@@ -8,7 +8,6 @@
 //! structure at `Interval`; that would be a different surface, and the
 //! definitional posture forbids it.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;

@@ -499,3 +499,103 @@ lands second must carry `refusable_button` into `part_entry`. Keeping
 compile error.
 
 (CHROME implementer lane, chrome/create-messages)
+
+## 2026-09-24 — a VNEWS lane crosses into `pane/profile.rs` and `pane/headless`
+
+`vnews/gated-controls-say-why-while-disabled` closes
+`clear-picks-hover-text-is-invisible-while-disabled`. **Announced
+crossings:**
+- `pane/profile.rs` is claimed by no program. The four step-row glyph
+  controls now go through a private `step_control`. Revert moves out
+  of `edit_profile_ui` into a free `revert_button`, which the method
+  calls.
+- In `pane/create.rs`, `blend_commit_row`'s Clear picks moves into a
+  free `clear_picks_button`.
+- `crate::pane::headless` gains `painted_while_hovering`, and its
+  `hit` takes an occurrence index. The three drives now share one
+  private `frame`, so the module's *"one drive"* claim is true again.
+  It had not been since `painted_after_clicking` inlined its own copy.
+
+Tier: style review, no correctness arm. The failure mode is a wrong
+or missing tooltip. That is visible, and every disabled sentence is
+asserted by its text.
+
+The fix pass on #3216 (2026-09-25) also crosses into
+`crates/viewer/src/forms.rs`, which belongs to author, chrome, forms and
+vseam. Only doc text changed there: `SHAPE_LOCKED`'s doc and
+`ShapeEdits`'s doc no longer say the notice is drawn "once" above the
+list, because the step controls' disabled hovers now read it too.
+`pane/profile.rs`'s Revert moved into `apply_and_revert`, and Apply
+moved with it.
+
+## 2026-09-25 — the tone unit's two residue rows close; a VNEWS lane crosses into `session/select.rs`
+
+`vnews/salience-read-from-the-value` (#3230) closes
+`a-tree-rows-message-line-picks-its-affordance-by-hand` and
+`resolution-and-standing-pick-their-tone-by-hand`. Each row states its
+decision. **Announced crossings:**
+- `crates/viewer/src/session/select.rs`, which CHROME and VSEAM own:
+  `Standing` gains `tone()`, and the file gains a test module for it.
+- `pane/properties.rs`, shared with AUTHOR, CHROME and VGEOM: every
+  standing verdict is drawn by one free `standing_verdict`;
+  `entity_standing_ui` becomes the header-only `entity_header_ui`; the
+  parameter panel's duplicate `"that parameter is gone"` line is
+  deleted, and a deleted node no longer claims to carry no parameters.
+- `crates/viewer/src/session/refuse.rs`: `FaceFrameFault` gains
+  `tone()`.
+- `crates/viewer/src/parts.rs`: `PartChooser` gains `tone()`.
+- `pane/create.rs`: the part chooser's body becomes the free
+  `part_listing`, reading `PartChooser::tone`, and drops its quiet
+  `"no directory"` header; the face-frame fault reads
+  `FaceFrameFault::tone`; the add-profile form's held reason is a typed
+  `Held`.
+- `app.rs`, which CHROME and VSEAM own: `toned`'s doc only.
+- `crate::pane::headless` gains `Landed::ink`, `Voices`,
+  `landed_voiced` and `find_opening`.
+
+Filed: `a-verdict-drawn-outside-a-tone-has-no-value-to-read`. Moved
+from `work/issues/`: `preview-error-picks-its-tone-by-hand-in-a-comment`,
+because `pane/profile.rs` is VNEWS-claimed today.
+Filed on VDOC: `viewer-readme-counts-one-tone-function-outside-frame`
+(the README is VDOC's carve-out).
+Final pass: `app.rs` gains a test module, `properties_pane_tests`, which
+drives the real app frame headlessly (`ViewerApp::assemble`, eframe's
+`Frame::_new_kittest`). Filed: `add-profile-held-reason-is-overwritten-not-first`,
+`part-census-dir-iff-refusal-is-held-in-prose`.
+
+## 2026-09-25 — P0 `rank-one-discards-the-frames-other-news`: the first dual on this slate (DR-9)
+
+**Tier: dual**, under `memories/orchestration-model.md`'s tiers, which this program adopted at #3261. Reason: the unit puts a classification (`frame::Retold`) on every status-line `Message`, with no default, so every producer in the crate must answer it — a design decision that is broad and hard to reverse. **Chosen after spec, not at it**: the unit was dispatched expecting a single style review, and that review showed its first rule tested the wrong property (whether the *state* comes back, when the question is whether the *news* does). The fix pass then made the rule broad enough to earn a dual. Recorded as such in the row.
+
+The pair (R1 NOT-MERGEABLE-AS-IS, R2 APPROVE-WITH-FIXES) both found, by independent probes, that a `Strand` on a `Declare` carrier is lost beside a refusal. R1 rated it MAJOR and R2 MINOR, so it is bilateral and not a tally candidate. The fix pass answered every strand `Never` under a new stated burden — *a door answers `Again` only when it can show the retelling from what it holds* — because a carrier poisoned upstream defeats a per-carrier answer. Tally unchanged at 0; fair pairs 6.
+
+## 2026-09-28 — batch 1: six units in one PR, to spare CI
+
+Ev, 2026-09-26: *"you can combine unrelated units of yours into a single
+pr in order to reduce the burden on ci"*, after the P0 (#3235) merged
+on its own. From here, lanes push branches without PRs; the
+orchestrator merges each reviewed unit into `vnews/batch-1` and opens
+one PR for the lot. #3281 (the seats cluster) was already open, and it
+closes in favour of the batch.
+
+| unit | tier and reason | review outcome |
+|---|---|---|
+| seats cluster (`one-seat-line`, #3281's branch) | style: a vocabulary fold, readable | mergeable; fix pass on the mate's two nouns (the fix minted "feature 3" in the panel beside "node 3" in the refusal), overclaiming docs and two mutations that survived |
+| the unit picker reads its refusal | full: a new session admission shared with the op, and a vector-partial write | mergeable after fixes: the "nowhere else" overclaim (the op's `GestureInFlight` layer), the live hover's framing, the all-driven row; the vector decision accepted |
+| the chooser says why it is unusable | style: an API reshape over one closed enum | mergeable; fix pass on a doubly-projected Option at the call site and four false doc claims |
+| a ranked verdict is its own type | full: the status line's two doors change type | mergeable, no claim fell; the dispatch premise was wrong (`cursor_status` never had a `Show` arm); `LineVerdict` renamed `RankedVerdict` |
+| the add-profile form's held reason | orchestrator's read: an E-cost fold with its rule in one function | the rule chosen: a refused input outranks a missing one; ties go to form order |
+| the preview error reads its tone | style: a salience move onto the value | mergeable; fix pass put sentence and tone on one partition of the value (`ProfilePreview::hold`) |
+
+The whole-app harness in `app.rs`'s `properties_pane_tests` grew three
+more helpers across these units. On the batch branch they draw through
+one `app_frame`, except the add-profile helper's taller window; the
+race and the copies are one row,
+`the-whole-app-harness-paints-before-the-evaluation-lands` (P2), which
+absorbed a duplicate the ranked-verdict lane filed.
+
+Build slot: several lanes waited hours for the machine-wide slot behind
+other programs' runs, and the express slot cannot finish a cold
+`editor-core` build inside its 590 s. Each unit's local run is its
+lane's; on the batch branch the orchestrator ran clippy after every
+merge and left the tests to CI.

@@ -1232,3 +1232,32 @@ a narrow arm.
   lane had to restore one edit by hand, which it did and verified. It
   called the scratch "emptied from outside the lane"; that was me.
   **Reclaim a lane's directories only once I will not resume it.**
+
+## 2026-09-29 — AUTH-5 and AUTH-6 dispatched in parallel; Ev declined the discipline line
+
+**Ev declined** the proposed implementer-discipline addition (check
+every new constant, literal and format against the tree before
+pushing), on the grounds that the reviews already catch it. They have,
+four units out of four. The style review stays the net for that class;
+no `[ev]` PR was opened.
+
+**AUTH-5** is the path preview's prefix half (`path-preview-draws-nothing-for-a-refused-step`,
+Ev's own report). **AUTH-6** is the profile lock
+(`the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`),
+triaged to P0 today. It was filed onto VIEW with no priority and
+re-homed here, and it is a door a person cannot get through:
+`SetProgram` exists in the kernel, but the viewer still draws a
+committed sketch's shape controls disabled under a sentence saying it
+doesn't. The two units run in parallel. They share `sketch.rs`,
+`drafts.rs` and `pane/profile.rs`, but in different functions; each
+spec names the other.
+
+**Checked before specifying**: every site both rows name is present,
+and `SetProgram` is in `edit.rs`. One citation was stale: the fused-step
+design item moved from `work/paths/` to `work/round/`. It is still a
+design question for Ev and is not dispatchable, so AUTH-5 draws only
+the prefix before a refused fused step and changes nothing about what
+`replay` returns.
+
+`paths` gains `app.rs`, `pane/profile.rs` and `pane/viewport.rs`: the
+rows name all three, and two merged AUTHOR units have edited `app.rs`.

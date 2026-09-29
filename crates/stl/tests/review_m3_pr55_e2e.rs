@@ -18,10 +18,6 @@ use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, mass_properties, subtract, validate, validate_closed};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
     Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -37,7 +33,12 @@ fn slab(
     h: (f64, f64),
     depth: f64,
 ) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(w.0, h.0), p2(w.1, h.0), p2(w.1, h.1), p2(w.0, h.1)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(w.0, h.0),
+        Point2::new(w.1, h.0),
+        Point2::new(w.1, h.1),
+        Point2::new(w.0, h.1),
+    ]);
     extrude(
         &validated(sketch_from_axes(origin, u, v, Tol::witness()), lp),
         Extrusion::Distance(depth),

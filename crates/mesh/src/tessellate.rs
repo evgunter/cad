@@ -413,13 +413,16 @@ fn tessellate_impl(
                 // `tessellate` see what a serial walk would have
                 // written, element for element, at any thread count.
                 //
-                // NO PORTABILITY GATE, unlike `topo::props`' face walk,
-                // and the reason is this crate's scalar policy: `mesh`
-                // takes `&Body<f64>` and instantiates nothing else, so
-                // a lane's decisions never reach `Sym::sign_within` and
-                // never consult a symbolic session. What a session
-                // makes non-portable there — the decision itself, its
-                // receipt, the shape report — cannot arise here.
+                // NO PORTABILITY GATE (`geom_core::sym::
+                // decisions_are_thread_portable`, which the evaluator's
+                // node map and `topo::props`' face walks read), and the
+                // reason is this crate's scalar policy: `mesh` takes
+                // `&Body<f64>` and instantiates nothing else, so a
+                // lane's decisions never reach `Sym::sign_within`. Both
+                // halves of that test are writes from there — the
+                // session (the decision itself and its receipt) and the
+                // shape report (a row per decision, session or not) —
+                // so neither can arise here.
                 let (((memo_work, place), meter), decided) = k_stats::detached(|| {
                     budget::record(arming, || {
                         let Some(surface) = body.get_surface(face.surface) else {

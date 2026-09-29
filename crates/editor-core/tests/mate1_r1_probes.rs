@@ -17,7 +17,7 @@ use editor_core::{
     MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, StableName, clusters,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{in_copy, insert, len, on_frame, run, scl, solve, step};
+use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -279,7 +279,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
             count: Expr::count(3),
             kind: PatternKind::Circular {
                 axis,
-                step: Expr::literal(theta, editor_core::Dimension::Angle).expect("an angle"),
+                step: ang(theta),
             },
         },
     );
@@ -698,7 +698,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
             input: li,
             translation: [len(0.0), len(0.0), len(0.5)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, editor_core::Dimension::Angle).expect("an angle"),
+            rotation_angle: ang(0.0),
         },
     );
     let (doc2, pat) = insert(

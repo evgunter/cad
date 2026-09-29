@@ -1,7 +1,7 @@
 ---
 id: crates-cite-work-view-rows-that-moved-in-the-rescope
 kind: issue
-title: 26 citations under crates/ name work/view/ rows that the 2026-09-17 re-scope moved
+title: Citations under crates/ name work/view/ rows that the 2026-09-17 re-scope moved
 status: open
 opened: 2026-09-19
 refs: [stale-file-citations-after-the-split, renamed-module-leaves-citations-in-two-other-programs]
@@ -20,8 +20,11 @@ the class reaches four further crates.
 ## The sweep and its result
 
 `grep -rno 'work/view/[a-z0-9-]*' crates/`, each id then checked for
-`work/view/<id>.md` on this tree. **36 citation sites; 10 still
-resolve; 26 do not.** VIEW's re-scope of 2026-09-17 moved rows to `vnews`, `vgeom`,
+`work/view/<id>.md` on this tree. **At that base, 36 citation sites:
+10 resolved and 26 did not.** Those figures are a receipt of that one
+run and are not kept current; the table below is the live population —
+a line is struck from it when its sites are repaired, and the repair is
+recorded in a dated section at the end. VIEW's re-scope of 2026-09-17 moved rows to `vnews`, `vgeom`,
 `vseam` and `vdoc` by `git mv`, and the `props` cut moved others to
 `ciw`, `guard` and `dup`; nothing repointed the in-tree citations.
 
@@ -29,7 +32,6 @@ resolve; 26 do not.** VIEW's re-scope of 2026-09-17 moved rows to `vnews`, `vgeo
 |---|---|---|
 | `crates/viewer/src/session/op.rs:1083` | `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere` | `work/vnews/` |
 | `crates/viewer/tests/gesture_table.rs:908` | the same | `work/vnews/` |
-| `crates/viewer/src/frame.rs:657`, `:704` | `one-line-one-subject-loses-a-mixed-frames-expiry` | `work/vnews/` |
 | `crates/viewer/src/app.rs:1986` | `projection-fault-has-no-sweeper` | `work/vseam/` |
 | `crates/viewer/src/frame.rs:1895` | the same | `work/vseam/` |
 | `crates/viewer/src/pane/viewport.rs:390`, `:597` | the same | `work/vseam/` |
@@ -58,7 +60,8 @@ stable-name`, `frame-module-has-eight-concerns-and-no-holds-row`,
 through-the-session`, `startup-notices-need-holding-to-badge`,
 `the-dying-seam-fakes-mirror-a-machine-they-do-not-share`,
 `the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer` —
-eight ids still in `work/view/`, at ten citation sites.
+eight ids in `work/view/` at that base, at ten citation sites
+(`startup-notices-need-holding-to-badge` has moved since; see the end).
 
 ## What the sweep could not match
 
@@ -86,8 +89,8 @@ with announced crossings rather than a drive-by. **And the standing
 half is the more valuable one**: nothing stops the next `git mv`
 repeating this, and `work/guard/` is where a gate asserting *"every
 `work/<program>/<id>` cited under `crates/` resolves"* would live. That
-gate is cheap — the tracker is files — and would have caught all 26 the
-day they broke.
+gate is cheap — the tracker is files — and would have caught every one
+the day it broke.
 
 ## Relation to the two rows this refs
 
@@ -96,3 +99,21 @@ rows citing moved CODE); this is code citing moved TRACKER rows.
 `renamed-module-leaves-citations-in-two-other-programs` is the same
 direction as that one at a smaller scale. Neither ranges over `work/`
 paths written inside `crates/`.
+
+## Crossing from VNEWS, 2026-09-24 (`vnews/frame-rs-prose-pass`)
+
+VNEWS's `frame.rs` prose pass rewrote the sentence at `frame.rs:657`
+(`frame_status`'s doc) under
+`work/vnews/frame-rs-says-the-per-subject-line-is-a-question-for-ev`,
+whose own text gave it the choice of repairing the path or leaving it.
+It repaired it, at both `frame.rs` sites of
+`one-line-one-subject-loses-a-mixed-frames-expiry` (`frame_status`'s
+and `joined_subject`'s docs), and struck that line from the table
+above, so this row's pass does not repoint them a second time.
+
+**One more, since this row's sweep.** `startup-notices-need-holding-to-badge`,
+listed above as still resolving in `work/view/`, has since moved to
+`work/vseam/`. Its `frame.rs` citation (the module header's *"The line:
+news, ranked"* section) was repointed by the same pass; its
+`crates/viewer/README.md` citation (the status-line section, ~`:859`)
+is this row's and is not fixed.

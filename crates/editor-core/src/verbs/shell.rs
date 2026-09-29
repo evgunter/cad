@@ -228,6 +228,7 @@ fn fold_replace_face_error<T: Real>(
     use BracketEnd::{Infimum, Supremum};
     use ReplaceFaceError as R;
     match error {
+        R::Band { error } => R::Band { error },
         R::StaleFace { face } => R::StaleFace { face },
         R::Corrupt => R::Corrupt,
         R::Offset { face, error } => R::Offset {
@@ -279,6 +280,17 @@ fn fold_replace_face_error<T: Real>(
             edge,
             kind,
             other_kind,
+        },
+        R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
+        } => R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
         },
         R::FittedBoundaryUnsupported { edge, what } => R::FittedBoundaryUnsupported { edge, what },
         R::CarrierLaneUnsupported { edge, what } => R::CarrierLaneUnsupported { edge, what },
@@ -414,7 +426,6 @@ mod tests {
     /// ends differ: the refused thickness and a clearance gap at their
     /// infimum, the needed wall at its supremum. A fold that read one
     /// end everywhere would red here on the field it got wrong.
-    #[cfg(feature = "interval")]
     #[test]
     fn the_interval_witness_reports_the_end_each_field_declares() {
         use geom_core::{Interval, Point2, Tol};

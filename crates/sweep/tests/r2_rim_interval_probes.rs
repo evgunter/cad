@@ -1,5 +1,5 @@
 //! **Reviewer probes for the rim door at the certified scalar** (PR
-//! 1821 review lane r2, feature `interval`) — the row that can go RED
+//! 1821 review lane r2) — the row that can go RED
 //! when [`topo::query::rim_of`]'s bit test stops reading the UPPER
 //! bracket end.
 //!
@@ -20,14 +20,14 @@
 //! so the door must refuse. With `hi` dropped they match and the door
 //! answers a rim.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};
 
+use crate::common::interval::{iv, p3, v3};
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
+use geom_core::{Bounds, Interval, Point3, Tol};
 use topo::query::rim_of;
 use topo::{Body, EdgeKey, FaceSurface, MefSite, MevSite, RimError};
 
@@ -35,18 +35,6 @@ const RIM_Z: f64 = 0.5;
 
 fn rim_r() -> f64 {
     (1.0 - RIM_Z * RIM_Z).sqrt()
-}
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
-    Point3::new(iv(x), iv(y), iv(z))
-}
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
-    Vec3::new(iv(x), iv(y), iv(z))
 }
 
 fn at(theta: f64) -> Point3<Interval> {

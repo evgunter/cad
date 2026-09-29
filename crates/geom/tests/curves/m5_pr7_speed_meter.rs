@@ -454,7 +454,6 @@ fn the_conservative_frontier_is_stated_not_hidden() {
 /// Adopted from R1's review probes for PR #306
 /// (`kernel/span-review-probes`, `review_span_probe.rs`) — the review
 /// noticed the rational arm had no interval-bracket row and wrote one.
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_meter_brackets_the_f64_meter() {
     use geom_core::{Bounds, Interval};

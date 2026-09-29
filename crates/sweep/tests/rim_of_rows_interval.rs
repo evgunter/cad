@@ -1,4 +1,4 @@
-//! **The rim door at the certified scalar** (feature `interval`) — the
+//! **The rim door at the certified scalar** — the
 //! interval twin of `rim_of_rows`' order and end-to-end rows.
 //!
 //! What this lane is FOR: the door's numeric comparison is bit
@@ -29,7 +29,6 @@
 //! whole door — match, walk, order — and the carve behind it run at the
 //! certified scalar at all, and agree with `f64` end to end.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Interval, Real, Tol};

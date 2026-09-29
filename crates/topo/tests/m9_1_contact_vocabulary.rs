@@ -123,12 +123,12 @@ fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
 }
 
 /// A declared `Rest` whose carriers are DEFINITELY distinct is
-/// contradicted at use, and the message names the margin that decided
-/// plus the two-arm recourse — not a bare "contradicted".
+/// contradicted at use, and the message names the reason the margin
+/// decided, in words, plus the recourse — not a bare "contradicted".
 ///
 /// AQ6's steer rides here too: the counter-evidence is a plane OFFSET
 /// (a separation), which is exactly the shape a designed clearance
-/// has, so the recourse names `Fit { gap }` AND names its deferral
+/// has, so the message says a designed gap cannot be declared yet
 /// rather than pointing at a variant that does not exist.
 #[test]
 fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
@@ -170,15 +170,19 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
         }
         other => panic!("expected ContactContradicted, got {other:?}"),
     }
-    assert!(msg.contains(topo::CONTACT_RECOURSE), "{msg}");
     assert!(
-        !msg.contains("lower the tolerance"),
-        "a contact refusal has no tolerance arm (SELECT §3d): {msg}"
+        msg.contains(&format!("contradicted: {}", topo::CONTRADICTION_REASON)),
+        "the one reason true at every site, not the margin payload: {msg}"
     );
-    assert!(msg.contains("Fit { gap }"), "{msg}");
+    assert!(msg.contains(topo::CONTRADICTION_RECOURSE), "{msg}");
     assert!(
-        msg.contains("not yet built"),
-        "the deferral is NAMED, never a dead pointer: {msg}"
+        !msg.contains("lower the tolerance") && !msg.contains("indeterminate"),
+        "a contact refusal has no tolerance arm (SELECT §3d), and a definite \
+         contradiction does not read as indeterminate: {msg}"
+    );
+    assert!(
+        msg.ends_with("a designed gap between the faces cannot be declared yet"),
+        "the deferral is NAMED, in the user's words, never a dead pointer: {msg}"
     );
 }
 

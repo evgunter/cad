@@ -46,13 +46,12 @@ fn eps() -> f64 {
 /// The prism build, generic over the scalar lane. Sketch triangle
 /// a(0,0) b(1,0) c(0.3,0.8) placed at identity, extruded along +z by 1.
 fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated; 4]) {
-    let f = T::from_f64;
-    let sp = |x: f64, y: f64| Point2::new(f(x), f(y));
-    let wp = |x: f64, y: f64, z: f64| Point3::new(f(x), f(y), f(z));
+    let sp = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
+    let wp = common::identity_map::<T>;
     let (sa, sb, sc) = (sp(0.0, 0.0), sp(1.0, 0.0), sp(0.3, 0.8));
     let (a, b, c) = (wp(0.0, 0.0, 0.0), wp(1.0, 0.0, 0.0), wp(0.3, 0.8, 0.0));
     let (a1, b1, c1) = (wp(0.0, 0.0, 1.0), wp(1.0, 0.0, 1.0), wp(0.3, 0.8, 1.0));
-    let w = Vec3::new(f(0.0), f(0.0), f(1.0));
+    let w = Vec3::new(0.0, 0.0, 1.0).map(T::from_f64);
     let place_bottom = Affine3::identity();
     let place_top = Affine3::translation(w);
 
@@ -235,11 +234,10 @@ fn e2e_prism_dual_lane_matches_f64() {
     let (mut d, _, _) = triangle_prism::<Dual64>();
     common::describe_as_intersections(&mut f, Tol::witness());
     common::describe_as_intersections(&mut d, Tol::witness());
-    // The dual takes the structural half — checks 1-6, 8 and 9, which
-    // is where every certificate compared below is produced. The +V
-    // volume invariant reads an enclosure a dual may not certify and
-    // reads none of these certificates; the f64 row beside it runs the
-    // composed door on the same construction.
+    // The dual takes the `_structural` twin — the whole battery holding
+    // no certified lane, check 7 through the closed form — which is
+    // where every certificate compared below is produced; the f64 row
+    // beside it runs the composed door on the same construction.
     assert_eq!(
         topo::validate_geometric_structural(&d, Tol::witness()),
         Ok(())
@@ -937,10 +935,9 @@ fn fixed_n4_raw_mef_precondition_paths() {
 // Interval lane: the e2e prism and the setters, at the certified
 // interval scalar (target 6 + 3d).
 // =====================================================================
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
-    use geom_core::{Interval, Real};
+    use geom_core::Interval;
 
     /// FIXED (was `finding_interval_lane_refuses_non_dyadic_rims`,
     /// BLOCKER B1): the mini-extrude e2e could not run at the interval
@@ -967,14 +964,6 @@ mod interval_lane {
         // At rest the interval lane names all nine chords, once by each
         // of the two rules they break, and nothing else — the same
         // bijection its f64 twin asserts, at the interval scalar.
-        //
-        // **Re-expressed at PCURVE P-1b, and this row is why the
-        // interval lane has to be gated deliberately.** Its f64 twin
-        // was re-expressed with the rest of the census; this one is
-        // behind `cfg(feature = "interval")`, so a default-features
-        // battery never compiles it and every local run reported green
-        // over a row that was red. Hosted CI at a NAMED lane
-        // (`CI-Config: lane=both`, #1136) is what surfaced it.
         let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
         common::assert_every_chord_named_by_both_rules(&body, &errs);
         // The prefer-intrinsic upgrade at the interval scalar.
@@ -995,15 +984,14 @@ mod interval_lane {
     /// Q1's replay-shares-topology story intact.
     #[test]
     fn fixed_interval_lane_certifies_self_loop_scaffolding() {
-        let f = Interval::from_f64;
         let mut body = Body::<Interval>::new();
-        let seed = body.mvfs(Point3::new(f(0.0), f(0.0), f(0.0))).unwrap();
+        let seed = body.mvfs(common::identity_map(0.0, 0.0, 0.0)).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                Point3::new(f(1.0), f(0.0), f(0.0)),
+                common::identity_map(1.0, 0.0, 0.0),
                 Tol::witness(),
             )
             .unwrap(); // axis-aligned dyadic: certifies

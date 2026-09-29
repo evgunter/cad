@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, ParamName,
-    ProfileProgram, RecipeNodeId, SitedFace, SlotId,
+    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, Maintenance,
+    ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -1412,6 +1412,31 @@ pub struct OpOutcome {
     /// selection, a hover — because there was no transition to prune
     /// against.
     pub withdrawn: PruneReport,
+    /// **What the committed edits did that the user did not ask for by
+    /// name** — the edit door's `Applied::maintenance`, every row of
+    /// every edit the action applied, in the order they applied and
+    /// each edit's rows in the door's own order.
+    ///
+    /// The log keeps only the cluster acts (replay re-applies them and
+    /// re-derives the rest), so this is the one place the other rows —
+    /// a name stranded or rewritten in place, an appearance key
+    /// stranded, a declaration left with no consumer — leave the
+    /// session. The chrome words them through
+    /// [`crate::frame::outcome_notices`].
+    ///
+    /// **Net over the action, not per edit.** One action can apply
+    /// several edits (a cascade delete, a profile edit's one-slot
+    /// writes), and a row an earlier edit reported can be made moot by
+    /// a later one — a strand the action went on to repair or whose
+    /// carrier it deleted, an orphan it consumed again, a name it moved
+    /// twice. The rows are folded through
+    /// `pncad::document::MaintenanceNet`, which states which survive,
+    /// so this holds what is true of the document the action ended at.
+    ///
+    /// Empty on every operation that committed nothing, and on a
+    /// gesture's previews: a preview enters no history, so nothing it
+    /// did has happened yet.
+    pub maintenance: Vec<Maintenance>,
 }
 
 impl OpOutcome {
@@ -1462,16 +1487,17 @@ impl OpOutcome {
 /// evaluation are, and disabled rather than absent when it can do
 /// nothing.
 ///
-/// **How it says so is the OTHER precedent**, and the two part company
-/// exactly here: the dialog controls hand
-/// `platform::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
-/// button — to `on_disabled_hover_text`, which is the shape
-/// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
-/// reason-elsewhere.md` is open about. The one this follows is
-/// [`crate::pane::create`]'s catalogue entry: *carrying the op's own refusal —
-/// read off the entry, not minted here*. So [`CancelDoor::blocked`] is
-/// a [`Refusal`] and not a sentence, and the disabled control's words
-/// are the refused operation's own.
+/// **How it says so is where the two part company.** A dialog
+/// control's refusal is the environment's and comes before any
+/// operation: with no chooser backend no path is ever chosen, so the
+/// `SessionOp::Open` or `SessionOp::Save` a click would push is never
+/// built, and the control reads its words off the probe's value,
+/// `platform::ChooserBackend::unusable`. A cancel door's refusal is its
+/// operation's own, and follows [`crate::pane::create`]'s catalogue entry:
+/// *carrying the op's own refusal — read off the entry, not minted
+/// here*. So [`CancelDoor::blocked`] is a [`Refusal`] and not a
+/// sentence, and the disabled control's words are the refused
+/// operation's own.
 #[derive(Debug)]
 pub struct CancelDoor {
     /// What the control is called.

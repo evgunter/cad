@@ -123,6 +123,46 @@ pub const CONTACT_RECOURSE: &str = "declare the named contact class, or move the
 pub const FIT_DEFERRAL: &str = "a designed nonzero clearance is `Fit { gap }`, whose variant is \
      specified but not yet built — it lands with its first consumer";
 
+/// [`CONTACT_RECOURSE`] with the recourse marker, as a finding the
+/// viewer shows ends on it (`contact_recourse_is_one_sentence` holds
+/// the two spellings to one).
+pub(crate) const CONTACT_RECOURSE_MARKED: &str =
+    "Recourse: declare the named contact class, or move the geometry";
+
+/// What a person at the viewer reads for [`FIT_DEFERRAL`]. The constant
+/// itself is the wire's and the mate door's sentence (quoted verbatim
+/// by `editor-core`), so it cannot change; a rendered contradiction
+/// that carries it as its steer says this instead, in the user's terms
+/// rather than as a variant name and a roadmap note.
+pub const FIT_DEFERRAL_FOR_USERS: &str = "a designed gap between the faces cannot be declared yet";
+
+/// The recourse for a contradicted declaration. The declaration is
+/// what the geometry refutes, so re-declaring it is no way through:
+/// the declaration is corrected or removed, or the geometry is moved
+/// until it holds.
+pub const CONTRADICTION_RECOURSE: &str =
+    "Recourse: correct or remove the declaration, or move the geometry so it holds";
+
+/// A contradiction's reason, as the message states it. One sentence
+/// for every contradiction site, because it is the one that is true at
+/// all of them: the sites carry different margins (a definite relation
+/// at the carrier and tangent tables, an in-band coincidence margin at
+/// the Boolean's conformal screen), and the same carrier predicate
+/// means "apart" at one and "one surface" at another, so no reading of
+/// the predicate is true everywhere. The margin and its predicate ride
+/// in the payload and `Debug`.
+pub const CONTRADICTION_REASON: &str = "the geometry does not match it";
+
+/// A steer as the rendered contradiction says it: `FIT_DEFERRAL` in the
+/// user's words, any other steer as written.
+pub(crate) fn steer_clause(steer: Option<&'static str>) -> String {
+    match steer {
+        Some(s) if s == FIT_DEFERRAL => format!("; {FIT_DEFERRAL_FOR_USERS}"),
+        Some(s) => format!("; {s}"),
+        None => String::new(),
+    }
+}
+
 /// **The trilean a contact verification returns** (C4's per-class
 /// tables, AQ6's shape): every declaration states three lists, and
 /// this is the verdict that says which one the geometry landed in.
@@ -150,6 +190,12 @@ pub enum ContactVerdict {
 /// and compare a whole report. No `Eq` — the diagnostics carry `f64`
 /// margins, which is why `ValidationError` has none either.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(ContactRefusalKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum ContactRefusal {
     /// Definite counter-evidence: the declaration is contradicted
     /// where the lie meets geometry. Every definite verdict wins over
@@ -206,33 +252,32 @@ pub enum ContactRefusal {
 impl core::fmt::Display for ContactRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Contradicted { diag, steer } => write!(
+            // The one reason true at every site, never the margin
+            // payload, which would render a definite contradiction as
+            // "indeterminate" (`CONTRADICTION_REASON`).
+            Self::Contradicted { steer, .. } => write!(
                 f,
-                "contact: the declaration is contradicted by {} — every definite \
-                 verdict wins over every declaration; {CONTACT_RECOURSE}{}",
-                diag.payload(),
-                steer.map(|s| format!(" — {s}")).unwrap_or_default(),
+                "the declared contact is contradicted: {CONTRADICTION_REASON}. \
+                 {CONTRADICTION_RECOURSE}{}",
+                steer_clause(*steer),
             ),
             Self::Escalated { diag } => write!(
                 f,
-                "contact: {} — the margin escalated with no declaration able to \
-                 bridge it, which is terminal rather than guessed at; \
-                 {CONTACT_RECOURSE}",
+                "whether the declared faces touch escalated ({}), and no declaration can \
+                 bridge it; {CONTACT_RECOURSE}",
                 diag.payload()
             ),
             Self::Undeclared { diag } => write!(
                 f,
-                "contact: the faces touch on the geometry's own evidence ({}) \
-                 with no declaration behind them — near-coincidence never \
-                 silently becomes contact; {CONTACT_RECOURSE}",
+                "the faces touch on the geometry's own evidence ({}) with no declaration \
+                 behind them — near-coincidence never silently becomes contact; \
+                 {CONTACT_RECOURSE}",
                 diag.payload()
             ),
             Self::NotCertifiable { what } => write!(
                 f,
-                "contact: the configuration is outside this class's certifiable \
-                 set ({what}) — the demanded set IS the certifiable set, so this \
-                 refuses rather than sampling for a verdict it cannot stand \
-                 behind"
+                "this contact cannot be certified ({what}), and a declaration cannot move a \
+                 configuration into the certifiable set"
             ),
         }
     }
@@ -288,6 +333,10 @@ mod tests {
     #[test]
     fn recourse_has_two_arms_and_no_tolerance_lever() {
         assert!(CONTACT_RECOURSE.contains("declare"), "{CONTACT_RECOURSE}");
+        assert_eq!(
+            CONTACT_RECOURSE_MARKED,
+            format!("Recourse: {CONTACT_RECOURSE}")
+        );
         assert!(CONTACT_RECOURSE.contains("move the geometry"));
         assert!(
             !CONTACT_RECOURSE.contains("tolerance"),

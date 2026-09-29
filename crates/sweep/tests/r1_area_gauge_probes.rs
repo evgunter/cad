@@ -78,7 +78,7 @@ fn debug_assertions_are_on() -> bool {
 }
 
 /// The same body at the OTHER scalar lane. `Interval` is the second
-/// `Decide` substrate; the gauge reads the same `RingInterval`
+/// `Decide` substrate; the gauge reads the same `Interval`
 /// enclosure either way, so this is the cross-lane half of the E2E.
 /// **Lane posture (added when this row was adopted).** On THIS body
 /// the `Interval` lane does not reach the quadrature at all: the
@@ -91,7 +91,6 @@ fn debug_assertions_are_on() -> bool {
 /// this lane. What it can still read is what it was written to read:
 /// the gauge never fires. A typed refusal reaches this line; a gauge
 /// fire would not.
-#[cfg(feature = "interval")]
 #[test]
 fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
     use geom_core::Interval;

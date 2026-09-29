@@ -1,16 +1,15 @@
 //! **The control-net bracket seam follows the certified door** — the
 //! surface half of `tests/curves/decoration_ring_coords.rs`.
 //!
-//! `NurbsSurface::ring_coords` lifts the control net into the C9 ring,
-//! one `RingInterval` per coefficient, by reading each coefficient's
+//! `NurbsSurface::ring_coords` lifts the control net into certification arithmetic,
+//! one `Interval` per coefficient, by reading each coefficient's
 //! bracket. At the `Interval` scalar a bracket can be sound and still
 //! inadmissible: `sqrt([−1, 4])` clamps to `[0, 2]` and records the
-//! domain violation only in its decoration. `RingInterval` has no
+//! domain violation only in its decoration. `Interval` has no
 //! decoration channel, so a coefficient that cannot certify must be
 //! refused at the crossing or the composite residual bound built from
 //! it describes an expression nobody evaluated.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;
@@ -61,7 +60,7 @@ fn the_fixture_is_a_finite_bracket_that_cannot_certify() {
 fn surface_ring_coords_refuses_a_violated_coefficient_per_channel() {
     let coords = patch(trv()).ring_coords();
     assert!(
-        coords[0][0].is_poison(),
+        !coords[0][0].is_certified(),
         "the violated coefficient crossed as {:?} — the lift read the \
          BRACKET door, so a clamped `sqrt` reaches the tensor composite \
          bound as a healthy control coordinate",
@@ -78,7 +77,7 @@ fn surface_ring_coords_refuses_a_violated_coefficient_per_channel() {
 fn a_certified_net_crosses_unchanged() {
     for ch in patch(healthy()).ring_coords() {
         for r in ch {
-            assert!(!r.is_poison(), "a certified net must cross whole");
+            assert!(r.is_certified(), "a certified net must cross whole");
         }
     }
     let coords = patch(healthy()).ring_coords();

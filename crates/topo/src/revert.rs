@@ -395,7 +395,12 @@ impl<T: Real> Body<T> {
         // EXPRESSION a stored scalar came from, and a radius is the
         // same number whichever side of the surface the material is on.
         // The channel carries no orientation to flip
-        // (`crate::param_source`).
+        // (`crate::param_source`). The axis rows are untouched too: a
+        // reversal negates planes only, which store no axis, so every
+        // axis line is where it was. PREMISE: the token names an
+        // UNDIRECTED line, and coaxiality — its one reading — does not
+        // see orientation. A directed reading (a signed axis or normal)
+        // would owe a flip here, as `GeomSource`'s `orient` does.
         for (_, origin) in out.surface_origins.iter_mut() {
             if let crate::GeomOrigin::Recipe(gs) = origin {
                 *gs = gs.reverted();

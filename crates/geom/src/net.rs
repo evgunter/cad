@@ -12,7 +12,7 @@
 use core::ops::{Mul, Sub};
 
 use geom_core::spline::SplineError;
-use geom_core::{CertifiedBounds, Point2, Point3, Real, RingInterval, Vec2, Vec3};
+use geom_core::{CertifiedBounds, Interval, Point2, Point3, Real, Vec2, Vec3};
 
 /// A control point as the rank-blind net helpers see it: coordinates
 /// addressed by index, and the displacement algebra the perturbation
@@ -159,13 +159,13 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
         .any(|p| p.channels().into_iter().any(Real::is_poison))
 }
 
-/// The net's coordinate channels as ring enclosures, in channel order
+/// The net's coordinate channels as certification enclosures, in channel order
 /// — `[x, y]` for a plane net, `[x, y, z]` for a space net, each in
 /// the net's own flat index order.
 ///
 /// **The bracket seam.** Knots, weights and degree are `f64`
 /// structure, so the only scalar-typed data in a payload is the
-/// control net — and a control point enters the C9 ring through its
+/// control net — and a control point enters certification arithmetic through its
 /// own bracket, never through an evaluation. At `f64` the bracket is
 /// the value (`lo` = `hi`), so this is bitwise what an `f64`-only form
 /// produces; at the interval scalar each coefficient carries its
@@ -173,19 +173,19 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
 /// a lifted payload honest.
 pub(crate) fn ring_coords<T: CertifiedBounds, P: ControlPoint<T>>(
     control: &[P],
-) -> Vec<Vec<RingInterval>> {
+) -> Vec<Vec<Interval>> {
     // One lane per channel. The lane count is read off the channel
     // array of a point this impl mints itself, so it is the SAME
     // statement of the count every `channels()` below makes — one
     // array type, one length — and the zip cannot drop or pad.
-    let mut lanes: Vec<Vec<RingInterval>> = P::splat(T::zero())
+    let mut lanes: Vec<Vec<Interval>> = P::splat(T::zero())
         .channels()
         .into_iter()
         .map(|_| Vec::with_capacity(control.len()))
         .collect();
     for p in control {
         for (lane, c) in lanes.iter_mut().zip(p.channels()) {
-            lane.push(RingInterval::from_certified(c));
+            lane.push(Interval::from_certified(c));
         }
     }
     lanes

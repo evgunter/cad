@@ -16,7 +16,6 @@
 //! file is the ceiling-plus-δ half, which is a second whole-box replay
 //! of each — too heavy for the gate and cheap to re-take by hand.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
@@ -38,7 +37,10 @@ const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("r1_annulus", [328, 140, 209, 1056]),
     ("r2_link", [214, 76, 175, 556]),
     ("r2_filleted_bracket", [428, 141, 341, 1096]),
-    ("r2_rounded_pad", [854, 128, 971, 2750]),
+    // +28 `symbolic_zero` and +84 `numeric` from the must-carry rule's
+    // per-station dihedral gate (16 edges x 7 stations of
+    // `dihedral_wedge`).
+    ("r2_rounded_pad", [882, 128, 1055, 2750]),
 ];
 
 /// One whole-box replay at `Sym<Interval>`, ON ITS OWN THREAD: the

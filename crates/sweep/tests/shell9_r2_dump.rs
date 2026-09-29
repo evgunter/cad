@@ -7,16 +7,20 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use geom_core::{Point2, Tol};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
+use super::common::bulge;
 use super::common::latitude_seam::two_arc_sphere;
-use super::shell7_common::{drum, p2, revolved, tol, tube_torus, tube_torus_hollow};
+use super::common::shell_operands::{tube, vessel};
+use super::shell7_common::{revolved, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::beside;
-use super::verbs_shell::{tube, vessel};
 
+/// Every stored row of `body` under the `[r2rows]` tag, then its count
+/// and its tier-3 verdict. NOT `common::pcurve_rows::print_rows`: a
+/// different dump (no face column, a tier-3 line) this suite diffs.
 fn rows(label: &str, body: &Body<f64>) {
     let mut n = 0;
     for (he, cache) in body.pcurves() {
@@ -41,19 +45,17 @@ fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) {
     }
 }
 
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
-
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
-    let c = p2(0.0, h / 2.0);
+    let c = Point2::new(0.0, h / 2.0);
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (
+                Point2::new(r, 0.0),
+                bulge(Point2::new(r, 0.0), Point2::new(r, h), c),
+            ),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -61,11 +63,11 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
 
 fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
     revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r0, 0.0), 0.0),
-            ProfileVertex::new(p2(r1, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r0, 0.0), 0.0),
+            (Point2::new(r1, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -103,7 +105,7 @@ fn r2_dump_the_corpus() {
         &cap_at_y(&frustum, 2.0),
     );
 
-    let d = drum(1.0, 2.0);
+    let d = vessel(1.0, 2.0);
     shelled("drum", &d, 0.1, &[]);
 
     let tt = tube_torus(2.0, 0.5);
@@ -136,7 +138,7 @@ fn r2_dump_the_corpus() {
     );
 
     let dsplit = {
-        let mut d2 = drum(1.0, 2.0);
+        let mut d2 = vessel(1.0, 2.0);
         let edges: Vec<_> = d2.edges().map(|(k, _)| k).collect();
         let seam = edges
             .into_iter()

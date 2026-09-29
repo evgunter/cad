@@ -5,7 +5,6 @@
 //! `j` of the inner instance `i` alone. The documents and the bits
 //! instrument are that suite's own, so the two lanes pin one thing.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::eval6_placers_over_instances::{

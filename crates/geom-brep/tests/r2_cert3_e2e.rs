@@ -3,9 +3,9 @@
 //! a PARTIAL sweep, nested `restrict` (a stored placement round trip
 //! through two compositions), and an angle NEAR but not AT zero.
 //!
-//! Runs at BOTH lanes. The unit's own consumer file is
-//! `#![cfg(feature = "interval")]`, so nothing it ships exercises
-//! `RevolvedPoint` at `f64`; this file does.
+//! Runs at BOTH lanes. The unit's own consumer file runs at the
+//! interval scalar only, so nothing it ships exercises `RevolvedPoint`
+//! at `f64`; this file does.
 //!
 //! Not a unit deliverable; a reviewer's instrument.
 
@@ -58,7 +58,6 @@ fn r2_e2e_stored_placement_round_trip_f64() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
     use geom_core::{Bounds, Interval};
@@ -96,7 +95,6 @@ mod interval_lane {
     }
 }
 
-#[cfg(feature = "interval")]
 mod restrict_accumulation {
     use super::*;
     use geom_core::{Bounds, Interval};

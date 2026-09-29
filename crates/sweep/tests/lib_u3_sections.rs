@@ -24,10 +24,10 @@
 
 use geom_core::Point2;
 use profile::ProfileError;
-use profile::RawLoop;
+use profile::{RawLoop, test_support::bulge_loop};
 use sweep::skin::SkinError;
 use sweep::test_support::{loft_prism, loft_prism_sections, stacked_at};
-use sweep::{LoftError, ProfileLoop, ProfileVertex, Section, loft_body};
+use sweep::{LoftError, Section, loft_body};
 
 use geom_core::Tol;
 
@@ -37,8 +37,8 @@ use geom_core::Tol;
 /// bottom edge at `(2, 0)` and to the outgoing top edge at `(2, 2)`
 /// — two joints the profile door demands declarations for.
 fn tangent_bite(declared: bool) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    let mut lp = ProfileLoop::new(vec![
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+    let mut lp = bulge_loop(vec![
         v(0.0, 0.0, 0.0),
         v(2.0, 0.0, 1.0),
         v(2.0, 2.0, 0.0),
@@ -126,7 +126,7 @@ fn u3_differential_loft_prism_is_bit_identical_to_the_recorded_base() {
         let lp = &section[0];
         assert_eq!(lp.vertices().len(), 4, "section {i} is a quad");
         assert!(
-            lp.vertices().iter().all(|v| v.bulge() == 0.0),
+            lp.bulges().iter().all(|&b| b == 0.0),
             "section {i} carries an arc: the pinned bits are a POLYLINE loft's"
         );
         assert!(

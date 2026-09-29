@@ -29,7 +29,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::doc::{NodeId, name_from_text, name_text};
+use crate::py::doc::{NodeId, name_from_text, name_text, piece_from_text};
 use crate::py::expr::Expr;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
@@ -112,6 +112,9 @@ pub(crate) enum SegTag {
     RimEdge,
     LateralEdge,
     CapVertex,
+    // Loft
+    LoftWall,
+    LoftSeam,
     // Revolve
     Band,
     BandRim,
@@ -168,6 +171,8 @@ impl SegTag {
             Self::RimEdge => s::SegTag::RimEdge,
             Self::LateralEdge => s::SegTag::LateralEdge,
             Self::CapVertex => s::SegTag::CapVertex,
+            Self::LoftWall => s::SegTag::LoftWall,
+            Self::LoftSeam => s::SegTag::LoftSeam,
             Self::Band => s::SegTag::Band,
             Self::BandRim => s::SegTag::BandRim,
             Self::BandRimPi => s::SegTag::BandRimPi,
@@ -918,6 +923,8 @@ mod growth_tripwire {
             s::SegTag::RimEdge => SegTag::RimEdge,
             s::SegTag::LateralEdge => SegTag::LateralEdge,
             s::SegTag::CapVertex => SegTag::CapVertex,
+            s::SegTag::LoftWall => SegTag::LoftWall,
+            s::SegTag::LoftSeam => SegTag::LoftSeam,
             s::SegTag::Band => SegTag::Band,
             s::SegTag::BandRim => SegTag::BandRim,
             s::SegTag::BandRimPi => SegTag::BandRimPi,
@@ -1022,72 +1029,54 @@ mod growth_tripwire {
 // side of the boundary.
 //
 // The text stays opaque either way. A caller composes a name by
-// naming a ROLE — the op's own vocabulary, `seg` and `vertex` indices
-// into the profile's canonical chain — never by assembling the
+// naming a ROLE — the op's own vocabulary — and the profile PIECE it
+// sweeps, a text `Doc.pieces` answers, never by assembling the
 // serialization, which is the representation-dependence `name_text`'s
 // contract refuses.
-//
-// `loop_index` is the profile's canonical loop — 0 the outer loop,
-// then holes in description order — and `seg`/`vertex` index THAT
-// loop's canonical chain, exactly as the Rust builders take them: a
-// hole's band is reachable from either alphabet, at its own loop.
 // ---------------------------------------------------------------
 
-/// **The `[0, pi)` band face swept from segment `seg` of profile loop
-/// `loop_index`** on the revolve at `node`, as the name TEXT the
-/// selections take.
+/// **The `[0, pi)` band face swept from the profile piece `piece`** on
+/// the revolve at `node`, as the name TEXT the selections take.
 ///
-/// `loop_index` is 0 for the outer loop and 1.. for the holes, in the
-/// profile's description order; `seg` indexes that loop's canonical
-/// chain. The kind is fixed at the role's own — a face — which is the
-/// field a hand-written name gets wrong silently until emission
-/// refuses it.
+/// `piece` is a piece's text, from `Doc.pieces`. The kind is fixed at
+/// the role's own — a face — which is the field a hand-written name
+/// gets wrong silently until emission refuses it.
 #[pyfunction]
-pub(crate) fn band(py: Python<'_>, node: &NodeId, loop_index: u32, seg: u32) -> PyResult<String> {
-    name_text(py, &s::band(node.0, loop_index, seg))
+pub(crate) fn band(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
+    name_text(py, &s::band(node.0, piece_from_text(piece)?))
 }
 
-/// **The `[pi, 2pi)` band face swept from segment `seg` of loop
-/// `loop_index`** — [`band`]'s twin, where a full revolve emits a
-/// segment as two faces. A face, as [`band`] is.
+/// **The `[pi, 2pi)` band face swept from the profile piece `piece`**
+/// — [`band`]'s twin, where a full revolve emits a segment as two
+/// faces. A face, as [`band`] is.
 #[pyfunction]
-pub(crate) fn band_pi(
-    py: Python<'_>,
-    node: &NodeId,
-    loop_index: u32,
-    seg: u32,
-) -> PyResult<String> {
-    name_text(py, &s::band_pi(node.0, loop_index, seg))
+pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
+    name_text(py, &s::band_pi(node.0, piece_from_text(piece)?))
 }
 
-/// **The latitude rim at vertex `vertex` of loop `loop_index`** — the
-/// edge between the bands of segments `vertex - 1` and `vertex` on
-/// that loop. An edge.
+/// **The latitude rim at the vertex the profile piece `piece` starts
+/// at** — the edge between the band of the piece ending there and the
+/// piece's own. An edge.
 #[pyfunction]
-pub(crate) fn band_rim(
-    py: Python<'_>,
-    node: &NodeId,
-    loop_index: u32,
-    vertex: u32,
-) -> PyResult<String> {
-    name_text(py, &s::band_rim(node.0, loop_index, vertex))
+pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
+    name_text(py, &s::band_rim(node.0, piece_from_text(piece)?.start()))
 }
 
-/// **The meridian vertex at `end`**: the copy of vertex `vertex` of
-/// loop `loop_index` on a wedge cap plane (`MeridianEnd.Start`,
-/// `MeridianEnd.End`) on a partial revolve, or the surviving meridian
-/// vertex (`MeridianEnd.Seam`) on a full one. A vertex.
+/// **The meridian vertex at `end`**: the copy of the vertex the
+/// profile piece `piece` starts at, on a wedge cap plane
+/// (`MeridianEnd.Start`, `MeridianEnd.End`) on a partial revolve, or
+/// the surviving meridian vertex (`MeridianEnd.Seam`) on a full one. A
+/// vertex.
 #[pyfunction]
 pub(crate) fn meridian_vertex(
     py: Python<'_>,
     end: MeridianEnd,
     node: &NodeId,
-    loop_index: u32,
-    vertex: u32,
+    piece: &str,
 ) -> PyResult<String> {
     name_text(
         py,
-        &s::meridian_vertex(end.to_kernel(), node.0, loop_index, vertex),
+        &s::meridian_vertex(end.to_kernel(), node.0, piece_from_text(piece)?.start()),
     )
 }
 
