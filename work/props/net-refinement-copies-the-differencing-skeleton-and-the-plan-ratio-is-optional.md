@@ -22,7 +22,7 @@ scatters the answer back into a net of the new extent, poisoning what it
 cannot fill. They differ in three things: which direction's lines
 (`column(j)` versus `row(i)`), the new extent (`n - 1` for differencing,
 the plan chain's count for refinement), and the step (a caller's closure
-versus a fold of `apply_ring`).
+versus a fold of `apply_certified`).
 
 All three are parameters, so one
 
@@ -43,7 +43,7 @@ consolidation with its tests already in place.
 
 ## 2. `Step::Combo.ratio: Option<Ratio>` is an invariant by convention
 
-`CurvePlan::apply_ring` is defined only for an INSERTION plan: removal
+`CurvePlan::apply_certified` is defined only for an INSERTION plan: removal
 and degree elevation combine with coefficients that are not ratios of
 knots, so their steps carry `ratio: None` and the applier poisons the
 target. That is fail-loud and correct, but the thing it is protecting
@@ -53,7 +53,7 @@ could refuse instead.
 The shape that would: a `RefinementPlan` (or an `InsertionPlan`) that
 `insert_knot_plan` and `refine_plan` return and `remove_knot_plan` /
 `elevate_plan` do not, carrying `Ratio` unconditionally, with
-`apply_ring` a method on it. `apply_ring` becomes total in the strong
+`apply_certified` a method on it. `apply_certified` becomes total in the strong
 sense — no arm of it can refuse — and `Option` leaves `Step::Combo`
 entirely. The cost is a second plan type and a conversion for the
 `apply_points` path, which all four kinds share.

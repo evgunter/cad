@@ -2151,7 +2151,7 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// monotone on [0, π], so the equivalence is exact for every window
 /// narrower than a period — guarded). No `atan2`, no periodic
 /// reduction: under the Interval scalar an `atan2` enclosure near the
-/// chart seam is honest poison, and the pre-fix trim escalated
+/// chart seam is honestly refused, and the pre-fix trim escalated
 /// `Invalid` on probe points every f64 run decides cleanly — the
 /// whole Interval boolean lane died on it. The cone margin is metered
 /// `· radius` (its displacement scale at the window edge is

@@ -330,7 +330,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    transversally; a tilted cylinder and a parallel-but-OFFSET one \
                    both cut a QUARTIC and route to the general rung, whose \
                    cone×cylinder arm has not retired — the cone's meters composite \
-                   needs a certified root the exact-arithmetic ring lacks, so its \
+                   needs a certified root, which certification arithmetic does not \
+                   take, so its \
                    certificate, not its trace, is what is missing (arms retire one \
                    at a time, each with its proof)",
         },
@@ -2269,9 +2270,9 @@ pub fn cone_cylinder_section<T: Decide>(
                 pair: "cone×cylinder",
                 why: "a cylinder tilted off the cone's axis cuts a QUARTIC, not a \
                       circle, and the pair's general-rung arm has not retired — the \
-                      cone's meters composite needs a certified root the \
-                      exact-arithmetic ring lacks (arms retire one at a time, each \
-                      with its proof)",
+                      cone's meters composite needs a certified root, which \
+                      certification arithmetic does not take (arms retire one at a \
+                      time, each with its proof)",
             });
         }
     }
@@ -2331,8 +2332,9 @@ pub fn cone_cylinder_section<T: Decide>(
             pair: "cone×cylinder",
             why: "a cylinder parallel to the cone's axis but OFF it cuts a QUARTIC, \
                   not a circle, and the pair's general-rung arm has not retired — the \
-                  cone's meters composite needs a certified root the exact-arithmetic \
-                  ring lacks (arms retire one at a time, each with its proof)",
+                  cone's meters composite needs a certified root, which certification \
+                  arithmetic does not take (arms retire one at a time, each with its \
+                  proof)",
         }),
     }
 }

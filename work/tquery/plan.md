@@ -31,3 +31,7 @@ kernel units; Ev took S-TCOST off the protocol entirely on 2026-09-12
 and protocol v7 (`docs/MODEL-AB-LOG.md`) runs the dual on triaged-in
 units only. Nobody has re-asked the question for this ground, so the
 first orchestrator answers it here rather than inheriting an answer.
+
+## Note from SCALAR (2026-09-29)
+
+The table's summary of `split-edge-cannot-carry-a-fitted-or-general-pcurve-row` ("its certification doors carry the PcurveFittedLane bound") no longer holds: LANE-4 (PR #3194) put `certify_fitted`, `certify_general` and `recertify` in an `impl<T: Decide>` block taking the fitted door (`FittedLane`) as a value, which `AtRestPolicy::fitted_lane()` answers; the row's own "Reshaped by LANE-4" paragraph says what that opens.

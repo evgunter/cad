@@ -147,16 +147,16 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         vol.hi() - vol.lo()
     );
 
-    // ---- poison path end-to-end: a domain violation at interval type
+    // ---- refusal path end-to-end: a domain violation at interval type
     // flows through arithmetic/transcendentals into a REFUSED verdict.
-    let poisoned = Interval::from_bounds(-1.0, 4.0).sqrt(); // clamped [0,2] @ Trv
-    let chained = (poisoned * Interval::pi()).sin() + Interval::from_f64(10.0);
+    let refused = Interval::from_bounds(-1.0, 4.0).sqrt(); // clamped [0,2] @ Trv
+    let chained = (refused * Interval::pi()).sin() + Interval::from_f64(10.0);
     match chained.sign_within(band).map(|d| d.sign) {
         Err(Indeterminate {
             margin: MarginDiag::INVALID,
             ..
-        }) => println!("e2e poison: refused with Invalid margin, as contracted"),
-        other => panic!("poison leaked to a verdict: {other:?}"),
+        }) => println!("e2e refusal: refused with Invalid margin, as contracted"),
+        other => panic!("the refusal leaked to a verdict: {other:?}"),
     }
     println!("review-e2e: ALL CHECKS PASSED");
 }

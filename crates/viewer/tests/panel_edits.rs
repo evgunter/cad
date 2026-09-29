@@ -661,12 +661,7 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
 
 test_utils::f6_variants! {
     /// Every `Refusal` arm's identifier, as the ban list the six
-    /// sampled renderings are held to. The `match` the macro writes is
-    /// exhaustive, so an arm added to `Refusal` stops this file
-    /// compiling until it is listed here and the ban covers it. No
-    /// count is written down: the `match` is what holds the roster
-    /// complete, and a number beside it would be a second claim with
-    /// nothing checking it.
+    /// sampled renderings are held to.
     ///
     /// **The roster is the enum's, not the sample's.** A rendering that
     /// leaks a SIBLING arm's identifier is as much a dump as one that
@@ -724,12 +719,9 @@ const REFUSAL_FIELDS: &[&str] = &["node:", "name:", "\""];
 /// construction. The two vocabulary-wide halves live elsewhere, and
 /// are named here so this row is not read as holding them:
 ///
-/// * **that every arm renders at all** is the compiler's.
-///   `Display for Refusal` and `Refusal::rank` are exhaustive matches
-///   with no wildcard, so a nineteenth arm reds both until it is
-///   given a sentence and a rank. That is the obligation an `ALL`
-///   over this vocabulary was wanted for, and the type has it already
-///   — which is why there is no `Refusal::ALL` to walk.
+/// * **that every arm renders at all** is the compiler's
+///   (`crates/viewer/README.md`, *A policy over an enum names every
+///   variant*), which is why there is no `Refusal::ALL` to walk.
 /// * **that no rendering carries the field-brace fingerprint** is
 ///   `prose_census`'s, a census over SITES rather than samples.
 ///

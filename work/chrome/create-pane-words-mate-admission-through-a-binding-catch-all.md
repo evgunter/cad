@@ -2,10 +2,13 @@
 id: create-pane-words-mate-admission-through-a-binding-catch-all
 kind: issue
 title: pane/create.rs words a mate class's admission through a binding catch-all over ClassAdmission
-status: open
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: E
+closed: 2026-09-29
+branch: chrome/create-residue
+pr: 3450
 ---
 
 
@@ -37,3 +40,10 @@ shape, one arm.
 Found by the `chrome/subset-policy` sweep's second pass (bare binding
 catch-alls, `^\s*[a-z_]+ =>`). `pane/create.rs` was fenced out of that
 lane because `chrome/create-messages` was working in it.
+
+## Closed 2026-09-29 (`chrome/create-residue`, PR 3450)
+
+The mate form's admission line now names every `ClassAdmission`:
+`Mints` is worded, and `caveat @ (NoAtRestRecord { .. } | NotAdmitted)`
+takes `no_record_reason` — `tree::node_note`'s shape. Behaviour
+unchanged; a fourth admission is now E0004 at the form.

@@ -11,7 +11,8 @@ cost: D
 The E12 symbolic identity tier (`geom_core::sym`) replays a driver leaf
 at `Sym<Interval>`. Every lane trait it has to satisfy is scalar-generic
 and runs there unaltered — `topo::props::{PropsQuadLane, AtRestPolicy}`,
-`topo::chart_region::ChartRegionLane` and `geom_brep::PcurveFittedLane` —
+`topo::chart_region::ChartRegionLane` and the fitted door
+(`geom_brep::FittedLane`), which `AtRestPolicy::fitted_lane()` answers —
 with one exception. (The plane × NURBS lane is no longer a trait: its
 certified body `geom_brep::plane_nurbs_limbs` is bounded
 `Decide + Bounds + CertifiedEnclosure`, and `Sym<T>` satisfies each of
@@ -73,3 +74,7 @@ behind `interval` — the same question from the other end. SYM owns the tier si
 the `Sym<Interval>` replay that asks for it.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## Note from SCALAR (2026-09-29)
+
+`PropsQuadLane` and `ChartRegionLane` are gone as well (LANE-1, LANE-2): the quadrature and region doors are values (`topo::QuadLane`, `topo::RegionLane`) formed at `Sym<T>` like the fitted door, so the paragraph's "lane traits" are now one policy trait (`AtRestPolicy`) and three door values; its conclusion (all run at `Sym<Interval>` unaltered, `MinClearanceLane` excepted) is unchanged.

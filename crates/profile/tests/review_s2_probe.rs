@@ -92,9 +92,18 @@ fn gate_sequence_is_data_independent_within_a_class() {
     let c = seq_arc_arc(0.5);
     let d = seq_arc_arc(0.3);
     assert_eq!(c, d, "arc-by-arc gate sequence varies with data");
-    // The last derived corner's per-candidate block: reach, reach,
-    // fit, fit — all four, both candidates, no short-circuit.
-    let tail: Vec<_> = c.iter().rev().take(8).rev().copied().collect();
+    // After the resolution, one emission reads the fillet's arrival
+    // carrier: the run out the fillet arc hands on, which the carrier
+    // run to the anchor rides.
+    assert_eq!(
+        c.last().copied(),
+        Some("path_run_out_carrier"),
+        "full sequence: {c:?}"
+    );
+    // The last derived corner's per-candidate block, just before it:
+    // reach, reach, fit, fit — all four, both candidates, no
+    // short-circuit.
+    let tail: Vec<_> = c.iter().rev().skip(1).take(8).rev().copied().collect();
     assert_eq!(
         tail,
         [
