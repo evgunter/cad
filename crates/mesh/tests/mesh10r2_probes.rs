@@ -226,7 +226,11 @@ fn m10r2_split_lineage_after_graft() {
         Ok(Some(Ok(v))) => Some(v.to_bits()),
         _ => None,
     };
-    assert_eq!(bits(&u3), bits(&u4), "and both operand orders agree bitwise");
+    assert_eq!(
+        bits(&u3),
+        bits(&u4),
+        "and both operand orders agree bitwise"
+    );
 }
 
 /// **`set_edge_curve` on a split child.** The second child of the

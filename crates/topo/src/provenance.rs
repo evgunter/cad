@@ -165,9 +165,11 @@ impl Provenance {
             }
         }
         match self {
-            Self::Primordial { op } => Self::Primordial { op: *op },
+            Self::Primordial { op } => Self::Primordial { op },
             Self::Mvfs => Self::Mvfs,
-            Self::Mev { site } => Self::Mev { site: mev(f, *site) },
+            Self::Mev { site } => Self::Mev {
+                site: mev(f, *site),
+            },
             Self::MevNull { site, new_side } => Self::MevNull {
                 site: mev(f, *site),
                 new_side: *new_side,

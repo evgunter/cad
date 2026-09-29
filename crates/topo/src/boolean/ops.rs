@@ -2671,8 +2671,7 @@ fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
                 &desc,
             );
             gate(&body)?;
-            let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) =
-                graft_rows(&graft);
+            let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
                 a_keys: OperandKeys::Direct,
                 b_keys: OperandKeys::Grafted,

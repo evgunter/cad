@@ -503,15 +503,31 @@ mod tests {
             let (t0, t1) = b.get_curve_geom(c).unwrap().certified().unwrap().params();
             t0 + f * (t1 - t0)
         };
-        let e1 = src.split_edge(e0, param(&src, e0, 0.5), tol).unwrap().new_edge;
-        let e2 = src.split_edge(e1, param(&src, e1, 0.5), tol).unwrap().new_edge;
-        let e3 = src.split_edge(e0, param(&src, e0, 0.5), tol).unwrap().new_edge;
+        let e1 = src
+            .split_edge(e0, param(&src, e0, 0.5), tol)
+            .unwrap()
+            .new_edge;
+        let e2 = src
+            .split_edge(e1, param(&src, e1, 0.5), tol)
+            .unwrap()
+            .new_edge;
+        let e3 = src
+            .split_edge(e0, param(&src, e0, 0.5), tol)
+            .unwrap()
+            .new_edge;
         let he0 = src.get_edge(e0).unwrap().he_plus;
         src.kev(he0).expect("the first child dies");
         let mut dst = cube();
         let keys = graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a graft");
-        let dead_root = *keys.map.dead_edges.get(&e0).expect("the dead parent has a row");
-        assert!(dst.get_edge(dead_root).is_none(), "the dead root resolves nowhere");
+        let dead_root = *keys
+            .map
+            .dead_edges
+            .get(&e0)
+            .expect("the dead parent has a row");
+        assert!(
+            dst.get_edge(dead_root).is_none(),
+            "the dead root resolves nowhere"
+        );
         for e in [e1, e2, e3] {
             assert_eq!(
                 dst.split_root(keys.edge(e).unwrap(), |_| false),
@@ -542,7 +558,8 @@ mod tests {
         crate::instance::graft_disjoint_all_onto_keyed(&mut src, &[first], &cube(), tol)
             .expect("a second shell under the first solid");
         let moved = src.shells_of_solid(first).unwrap()[1];
-        src.move_shells_to_new_solid(&[moved]).expect("a second solid");
+        src.move_shells_to_new_solid(&[moved])
+            .expect("a second solid");
         let mut dst = cube();
         let keys = graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a graft");
         assert_eq!(keys.solids.len(), 2);
