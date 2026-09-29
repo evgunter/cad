@@ -8,8 +8,13 @@
 //! door that reads it ([`Reading`]) decide the rest. Edge certification
 //! (`crate::certify::recourse`) and the offset meters
 //! (`crate::offset_meters::Meter`) both end their sized decisions here.
+//!
+//! A decision with no size the user chose ([`Unsized`]) ends here too.
 
-use geom_core::{Band, Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, Sign};
+use geom_core::{
+    Band, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING,
+    MarginDiag, Sign,
+};
 
 /// Where a refusal is read: the door that reports it, which decides the
 /// ending (D4 ¶1 (i)).
@@ -30,6 +35,53 @@ pub enum Reading {
     /// lever is why, not a D4 prohibition on tightening. A band-decided
     /// arm names its decision's geometry lever alone.
     Adopt,
+}
+
+/// The defect ending at `reading`: a build's is the kernel's alone; over
+/// stored geometry a damaged file reaches it as surely.
+#[must_use]
+pub fn defect_ending(reading: Reading) -> &'static str {
+    match reading {
+        Reading::Build => KERNEL_DEFECT_ENDING,
+        Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
+    }
+}
+
+/// A decision with no size the user chose: a residual (it passes only at
+/// zero, so a refused margin is a miss) or a form selection (it passes on
+/// any definite sign). No smaller tolerance is its recourse (D4 ¶1 (i)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unsized {
+    /// The kernel built what it claims exactly, so a miss is a defect.
+    Defect,
+    /// The kernel approximated (a fitted carrier, a certified bound), so
+    /// a miss may be the approximation's limit (D4 ¶1 (i)'s last resort).
+    LastResort,
+}
+
+impl Unsized {
+    /// The one ending a refusal of this decision carries on `arm`, read
+    /// at `reading`.
+    ///
+    /// Every arm of an exact decision ends in the defect ending. Where
+    /// the kernel approximated, an arm read at a build, and an undecided
+    /// arm read at rest, end in the last resort; a definite arm at rest,
+    /// and every arm at adoption, end in the file's defect ending, since
+    /// no loosening repairs a stored contradiction.
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+        let defect = defect_ending(reading);
+        match self {
+            Self::Defect => defect.to_owned(),
+            Self::LastResort => match (reading, arm) {
+                (Reading::Build, _) | (Reading::AtRest, RefusedArm::Undecided(_)) => {
+                    KERNEL_LIMIT_RECOURSE.to_owned()
+                }
+                (Reading::AtRest, RefusedArm::Zero(_) | RefusedArm::SignCertain)
+                | (Reading::Adopt, _) => defect.to_owned(),
+            },
+        }
+    }
 }
 
 /// The margin a band classified, where the variant reporting the

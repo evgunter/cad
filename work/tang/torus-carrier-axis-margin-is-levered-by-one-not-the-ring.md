@@ -41,3 +41,15 @@ with it.
 
 TANG (`carrier_eq.rs`; `rest.rs` is shared with ZIP). Filed from the
 review of PR #3265 (GERM torus doors).
+
+## The plane arm shares the lever (CONTACT-9)
+
+`rest::carrier_pair_verdict` passes the same `T::one()` into the plane
+arm (`oriented_plane_eq`), so a declared plane pair tilted by `θ` is
+verified at `θ · 1 m`, not at the faces' extent. CONTACT-9 probed a
+10 m wedge whose bottom was declared `Rest` against a block's top,
+tilted so that the far end stood 12 to 90 ε below. No op returned a
+wrong answer. Each refused: in band (`bool_contact_edge`,
+`bool_sector_within`), at the join, or `ContactContradicted`. The
+metric readings downstream caught what the door's lever bridged. The
+fix above should lever the plane arm by the face extent too.

@@ -1237,3 +1237,10 @@ class of 65 sites is PRED's row.
   - Fix lane dispatched. Both break the `test` job for 3398 and 3402.
 - 2026-09-29 — PR 3407 merged (`4b47a29dd9`): main's two red geom-core census rows are fixed. `ssi/certify.rs` endpoint reads go 16→15 (3392 spelled one as a path; blind spot 7 is documented). The `section_cert.rs` copysign site is registered as UNMEASURED, with evidence added to GERM's P1 row. Ported into 3402 before the merge.
 - 2026-09-29 — `[ev]` PR 3402 merged (`f20c3276e1`) on Ev's answer: Bounds clause 2 now carries the reporting-only margin, and fork-log row 10 is complete. `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M) is held until 3398 lands.
+- 2026-09-29 — PR 3398 merged (`3aac59af62`, head `fd666f46c8`, hosted green). Row `validate-own-close-levers-…` closed.
+  - **CI:** red on the payload-rung gate (`WedgeCheck`; fixed by an argued non-carriage) and on main's census tests (3407).
+  - **Full review:** approve-with-fixes, all nine taken. The planar corner ends as a defect. Azimuth is pinned against winding. No invented lever where the decision isn't carried. Neutral wedge and separation levers, each with its own `SizedDecision`. Per-check leads. The torus carries its verdict. Constructor pins. The exemption is scoped.
+  - Seam notes posted.
+- 2026-09-29 — Dispatched `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M; Ev's structural-fence condition; full review) on `encl/zero-verdicts-reporting-margin`. Held behind it, because they touch the same code:
+  - `adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` needs the structured verdict;
+  - `certify-collapsed-arm-gates-…` touches the same `decide_positive` gates.

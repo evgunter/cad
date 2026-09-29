@@ -1070,3 +1070,420 @@ fn a_declaration_exempts_its_own_pair_only() {
     assert!(!ops::declares_pair(&decls, fa[0], fb[1]));
     assert!(!ops::declares_pair(&decls, fa[1], fb[0]));
 }
+
+// -------------------------------------------------------------------
+// W2 on apex-closed cone faces: the apex closure
+// -------------------------------------------------------------------
+
+/// The unit cone about `z`, apex at the origin, half-angle π/4: the
+/// rim at `z = 1` has radius 1.
+fn unit_cone() -> Surface<f64> {
+    Surface::Cone {
+        apex: p(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        half_angle: PI / 4.0,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// The rim point at azimuth `t`.
+fn rim_at(t: f64) -> Point3<f64> {
+    p(t.cos(), t.sin(), 1.0)
+}
+
+/// **A bow-tie**: one face of the unit cone whose outline runs through
+/// the apex twice, bounding the sectors `[π/2, 3π/4]` and `[0, π/4]`,
+/// beside the two single-sector faces cut from it. Returns the body,
+/// the bow-tie and one sector.
+fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(p(0.0, 0.0, 0.0)).unwrap();
+    let cone = body
+        .set_face_surface(seed.face, FaceSurface::New(unit_cone()))
+        .unwrap();
+    let arc = |body: &mut Body<f64>, t0: f64, t1: f64| {
+        let rim_plane = body.add_surface(plane(p(0.0, 0.0, 1.0), Vec3::unit_z()));
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: cone,
+                s2: rim_plane,
+                witness: rim_at(0.5 * (t0 + t1)),
+            },
+            carrier: Curve3::Circle {
+                center: p(0.0, 0.0, 1.0),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            param_start: t0,
+            param_end: t1,
+        }
+    };
+    let e1 = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim_at(0.0),
+            tol,
+        )
+        .unwrap();
+    let spec = arc(&mut body, 0.0, PI / 4.0);
+    let e2 = body
+        .mev(
+            MevSite::Fan {
+                he1: e1.he_minus,
+                he2: e1.he_minus,
+            },
+            rim_at(PI / 4.0),
+            spec,
+            tol,
+        )
+        .unwrap();
+    let e3 = body
+        .mev_line(
+            MevSite::Fan {
+                he1: e1.he_plus,
+                he2: e1.he_plus,
+            },
+            rim_at(PI / 2.0),
+            tol,
+        )
+        .unwrap();
+    let spec = arc(&mut body, PI / 2.0, 0.75 * PI);
+    let e4 = body
+        .mev(
+            MevSite::Fan {
+                he1: e3.he_minus,
+                he2: e3.he_minus,
+            },
+            rim_at(0.75 * PI),
+            spec,
+            tol,
+        )
+        .unwrap();
+    let sector = body
+        .mef(
+            MefSite::Chords {
+                he1: e2.he_minus,
+                he2: e3.he_plus,
+            },
+            EdgeCurveSpec::line_between(rim_at(PI / 4.0), p(0.0, 0.0, 0.0)),
+            FaceSurface::Shared(cone),
+            tol,
+        )
+        .unwrap()
+        .face;
+    body.mef(
+        MefSite::Chords {
+            he1: e4.he_minus,
+            he2: e1.he_plus,
+        },
+        EdgeCurveSpec::line_between(rim_at(0.75 * PI), p(0.0, 0.0, 0.0)),
+        FaceSurface::Shared(cone),
+        tol,
+    )
+    .unwrap();
+    (body, seed.face, sector)
+}
+
+/// **A face through the apex twice has no single lift, and does not
+/// describe.** Its two sectors' gap lies between them on the cone, and
+/// no one window can exclude it. A single sector cut from the same
+/// sheet does describe. The mutant that relaxes "exactly one apex
+/// visit" lifts the bow-tie from its first visit and clears W2 on it.
+#[test]
+fn a_bow_tie_through_the_apex_twice_does_not_describe() {
+    use crate::chord_join::{ApexClosure, cone_apex_closure};
+    let (body, bow_tie, sector) = cone_bow_tie();
+    let cone = unit_cone();
+    let crate::LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(bow_tie).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("the bow-tie's outline is a cycle");
+    };
+    let apex_visits = body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .filter(|&he| {
+            let v = body.get_half_edge(he).unwrap().start;
+            (crate::readback::vertex_point_ref(&body, v).unwrap() - p(0.0, 0.0, 0.0)).norm() == 0.0
+        })
+        .count();
+    assert_eq!(
+        apex_visits, 2,
+        "the fixture's outline visits the apex twice"
+    );
+    assert!(matches!(
+        cone_apex_closure(&body, &cone, bow_tie, band()).unwrap(),
+        ApexClosure::Open
+    ));
+    let mut charts = ops::ChartCache::default();
+    assert!(
+        !charts.describes(Operand::A, &body, bow_tie, &cone, band()),
+        "the bow-tie must not describe"
+    );
+    assert!(
+        matches!(
+            cone_apex_closure(&body, &cone, sector, band()).unwrap(),
+            ApexClosure::Closed { .. }
+        ),
+        "one sector visits the apex once"
+    );
+    assert!(
+        charts.describes(Operand::A, &body, sector, &cone, band()),
+        "a single sector describes"
+    );
+}
+
+/// One step of a [`cone_sheet`] chain.
+#[derive(Clone, Copy)]
+enum Step {
+    /// A straight edge to the point.
+    Line(Point3<f64>),
+    /// A rim arc at height `h` (radius `|h|`), azimuth `t0` to `t1`,
+    /// either way round.
+    Arc(f64, f64, f64),
+}
+
+/// The point at height `h` and azimuth `t` on [`unit_cone`] (either
+/// nappe: `h < 0` is the mirror one).
+fn cone_at(h: f64, t: f64) -> Point3<f64> {
+    p(h.abs() * t.cos(), h.abs() * t.sin(), h)
+}
+
+/// **One face of the unit cone, bounded by a chain of edges from
+/// `start` closed back to it by a straight edge.** The chain is grown by
+/// `mev` from the seed vertex and closed by `mef`; the face returned is
+/// the one the chain bounds in its own order.
+fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(start).unwrap();
+    let cone = body
+        .set_face_surface(seed.face, FaceSurface::New(unit_cone()))
+        .unwrap();
+    let mut edges: Vec<crate::MevCreated> = Vec::new();
+    for &step in steps {
+        let site = match edges.last() {
+            None => MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Some(e) => MevSite::Fan {
+                he1: e.he_minus,
+                he2: e.he_minus,
+            },
+        };
+        edges.push(match step {
+            Step::Line(to) => body.mev_line(site, to, tol).unwrap(),
+            Step::Arc(h, t0, t1) => {
+                let rim_plane = body.add_surface(plane(p(0.0, 0.0, h), Vec3::unit_z()));
+                let spec = EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        s1: cone,
+                        s2: rim_plane,
+                        witness: cone_at(h, 0.5 * (t0 + t1)),
+                    },
+                    // A descending arc runs forward on the reversed
+                    // axis, its seam moved to `t0`.
+                    carrier: Curve3::Circle {
+                        center: p(0.0, 0.0, h),
+                        axis: if t1 > t0 {
+                            Vec3::unit_z()
+                        } else {
+                            -Vec3::unit_z()
+                        },
+                        radius: h.abs(),
+                        u_ref: if t1 > t0 {
+                            Vec3::unit_x()
+                        } else {
+                            v(t0.cos(), t0.sin(), 0.0)
+                        },
+                    },
+                    param_start: if t1 > t0 { t0 } else { 0.0 },
+                    param_end: if t1 > t0 { t1 } else { t0 - t1 },
+                };
+                body.mev(site, cone_at(h, t1), spec, tol).unwrap()
+            }
+        });
+    }
+    let (first, last) = (edges[0], edges[edges.len() - 1]);
+    let end = crate::readback::vertex_point_ref(&body, last.vertex).unwrap();
+    let face = body
+        .mef(
+            MefSite::Chords {
+                he1: first.he_plus,
+                he2: last.he_minus,
+            },
+            EdgeCurveSpec::line_between(start, end),
+            FaceSurface::Shared(cone),
+            tol,
+        )
+        .unwrap()
+        .face;
+    (body, face)
+}
+
+fn contain_at(body: &Body<f64>, face: FaceKey, q: Point3<f64>) -> Option<FaceContainment> {
+    crate::curved_face_containment(body, face, q, band()).unwrap()
+}
+
+/// **An L-shaped cone face refuses, never trims by its hull.** The face
+/// covers `z < 1` over `[0, w]` and `z < 2` over `[w, 2w]`; the notch
+/// `1 < z < 2` over `[0, w]` has the same hull, so a window read off the
+/// hull answers `In` there. `bool_cone_chart_box` sees the notch (the
+/// polygon's area falls short of its box) and the face door answers
+/// `None`. Narrow (`w = π/8`, the nearest-branch walk's class, wrong on
+/// main too) and wide (`w = 3π/4`, the apex closure's), and one clear of
+/// the apex (the notch cut from a frustum band).
+#[test]
+fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
+    let o = p(0.0, 0.0, 0.0);
+    for w in [PI / 8.0, 0.75 * PI] {
+        let (body, face) = cone_sheet(
+            o,
+            &[
+                Step::Line(cone_at(1.0, 0.0)),
+                Step::Arc(1.0, 0.0, w),
+                Step::Line(cone_at(2.0, w)),
+                Step::Arc(2.0, w, 2.0 * w),
+            ],
+        );
+        assert_eq!(
+            contain_at(&body, face, cone_at(1.5, 0.5 * w)),
+            None,
+            "w {w}: the notch"
+        );
+    }
+    let (body, face) = cone_sheet(
+        cone_at(0.5, 0.0),
+        &[
+            Step::Arc(0.5, 0.0, PI / 2.0),
+            Step::Line(cone_at(2.0, PI / 2.0)),
+            Step::Arc(2.0, PI / 2.0, PI / 4.0),
+            Step::Line(cone_at(1.0, PI / 4.0)),
+            Step::Arc(1.0, PI / 4.0, 0.0),
+        ],
+    );
+    assert_eq!(
+        contain_at(&body, face, cone_at(1.5, 0.1)),
+        None,
+        "the frustum L's notch"
+    );
+    // The same frustum band without its notch trims: the rectangle.
+    let (body, face) = cone_sheet(
+        cone_at(0.5, 0.0),
+        &[
+            Step::Arc(0.5, 0.0, PI / 2.0),
+            Step::Line(cone_at(2.0, PI / 2.0)),
+            Step::Arc(2.0, PI / 2.0, 0.0),
+        ],
+    );
+    assert_eq!(
+        contain_at(&body, face, cone_at(1.5, 0.1)),
+        Some(FaceContainment::In),
+        "the rectangle holds the point"
+    );
+    assert_eq!(
+        contain_at(&body, face, cone_at(1.5, PI / 2.0 + 0.1)),
+        Some(FaceContainment::Out),
+        "the rectangle trims past its window"
+    );
+}
+
+/// **A ringed apex-closed face has no single lift.** The quarter sector
+/// with a lone-vertex ring closes `Open`; without the ring it closes.
+#[test]
+fn a_ringed_apex_face_does_not_close() {
+    use crate::chord_join::{ApexClosure, cone_apex_closure};
+    let (mut body, face) = cone_sheet(
+        p(0.0, 0.0, 0.0),
+        &[Step::Line(cone_at(1.0, 0.0)), Step::Arc(1.0, 0.0, PI / 2.0)],
+    );
+    let cone = unit_cone();
+    assert!(matches!(
+        cone_apex_closure(&body, &cone, face, band()).unwrap(),
+        ApexClosure::Closed { .. }
+    ));
+    let crate::LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(face).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("a cycle")
+    };
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: first,
+                he2: first,
+            },
+            cone_at(0.5, PI / 4.0),
+            Tol::witness(),
+        )
+        .unwrap();
+    body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    assert!(
+        !body.get_face(face).unwrap().rings.is_empty(),
+        "the kill leaves a ring"
+    );
+    assert!(matches!(
+        cone_apex_closure(&body, &cone, face, band()).unwrap(),
+        ApexClosure::Open
+    ));
+    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
+}
+
+/// **An apex face reaching both nappes has no single lift.** Its
+/// outline leaves the apex on the upper nappe, crosses to the mirror
+/// nappe along one straight line through the apex (no vertex there), and
+/// returns: one apex visit, vertices on both nappes. It closes `Open`
+/// and does not describe.
+#[test]
+fn an_apex_face_on_both_nappes_does_not_close() {
+    use crate::chord_join::{ApexClosure, cone_apex_closure};
+    let (body, face) = cone_sheet(
+        p(0.0, 0.0, 0.0),
+        &[
+            Step::Line(cone_at(1.0, 0.0)),
+            Step::Arc(1.0, 0.0, PI / 4.0),
+            Step::Line(cone_at(-1.0, 1.25 * PI)),
+            Step::Arc(-1.0, 1.25 * PI, 1.5 * PI),
+        ],
+    );
+    let cone = unit_cone();
+    assert!(matches!(
+        cone_apex_closure(&body, &cone, face, band()).unwrap(),
+        ApexClosure::Open
+    ));
+    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
+}
+
+/// **A face wound past a full turn neither describes nor trims.** Its
+/// rim runs `[0, 5π/2]` in two arcs, so the closure lifts it to a window
+/// wider than a period: `describes` refuses it (`bool_cone_closure_period`)
+/// and the face door answers `None`.
+#[test]
+fn an_apex_face_wound_past_a_turn_neither_describes_nor_trims() {
+    use crate::chord_join::{ApexClosure, cone_apex_closure};
+    let (body, face) = cone_sheet(
+        p(0.0, 0.0, 0.0),
+        &[
+            Step::Line(cone_at(1.0, 0.0)),
+            Step::Arc(1.0, 0.0, 1.5 * PI),
+            Step::Arc(1.0, 1.5 * PI, 2.5 * PI),
+        ],
+    );
+    let cone = unit_cone();
+    let ApexClosure::Closed { window, .. } = cone_apex_closure(&body, &cone, face, band()).unwrap()
+    else {
+        panic!("one apex visit, no ring: the closure lifts it");
+    };
+    assert!(window.1 - window.0 > TAU, "{window:?}");
+    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
+    assert_eq!(contain_at(&body, face, cone_at(0.5, 0.25 * PI)), None);
+}

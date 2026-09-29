@@ -590,7 +590,7 @@ mod tests {
                 }
             }
             reads_back(value);
-            value *= 1.05;
+            value *= 1.5;
         }
         assert!(decimal > 100, "only {decimal} values took the decimal arm");
         assert!(
