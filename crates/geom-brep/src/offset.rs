@@ -401,7 +401,10 @@ pub fn offset_surface<T: geom_core::Decide>(
         } => {
             let realized = *minor_radius + d;
             floor(SurfaceKind::Torus, realized)?;
-            match geom::ring_torus(*major_radius, realized, band).map_err(esc)? {
+            match geom::ring_torus(*major_radius, realized, band)
+                .map_err(esc)?
+                .sign
+            {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(OffsetError::TorusRing {

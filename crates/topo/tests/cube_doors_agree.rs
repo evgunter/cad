@@ -289,7 +289,7 @@ fn assert_prism_shaped<T: Decide>(
             .expect("every face of a prism is planar")
             .vec();
         assert_eq!(
-            got.dot(want).sign_within(band),
+            got.dot(want).sign_within(band).map(|d| d.sign),
             Ok(geom_core::Sign::Positive),
             "face {fk:?}'s outward normal must agree with the side its \
              corners put the material on — got {got:?}, outward is {want:?}"

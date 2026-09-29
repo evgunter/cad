@@ -5222,7 +5222,7 @@ mod tests {
                     "{row}: only the convergence predicate may escalate here: {cause:?}"
                 );
                 assert!(
-                    matches!(cause.margin, geom_core::MarginDiag::Value(m) if m.is_finite()),
+                    matches!(cause.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(m) if m.is_finite()),
                     "{row}: the escalation must carry a finite in-band margin: {cause:?}"
                 );
                 EpsPosture::Escalated

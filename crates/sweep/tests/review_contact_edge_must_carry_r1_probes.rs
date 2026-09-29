@@ -34,7 +34,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{EdgeDescription, SurfaceKind};
-use geom_core::{Band, MarginDiag, Point2, Tol};
+use geom_core::{Band, ErrorTextReading, Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;
 use sweep::blend::{
@@ -73,7 +73,7 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
                 panic!("{what}: refused, but not as the rule's in-band escalation: {error}");
             };
             assert_eq!(source.predicate, Some("tangent_second_order"), "{what}");
-            let MarginDiag::Value(m) = source.margin else {
+            let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
                 panic!("{what}: the deciding station's margin is a value, got {source:?}");
             };
             let b = band();

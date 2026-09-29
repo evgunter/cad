@@ -154,7 +154,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
             } => {
                 assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     Some(0.0),
                     "a co-surface seam has exactly no wedge"
                 );

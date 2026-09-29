@@ -40,7 +40,7 @@ use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
-use geom_brep::recourse::{Classified, Definite, Refused};
+use geom_brep::recourse::{Classified, Refused};
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
 use strum::IntoEnumIterator as _;
 
@@ -72,14 +72,12 @@ fn diags() -> [Indeterminate; 3] {
         margin,
         band: band(),
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
     };
     [
-        with(MarginDiag::Value(5e-9)),
-        with(MarginDiag::Enclosure {
-            lo: -2e-9,
-            hi: 4e-9,
-        }),
-        with(MarginDiag::Invalid),
+        with(MarginDiag::value(5e-9)),
+        with(MarginDiag::enclosure(-2e-9, 4e-9)),
+        with(MarginDiag::INVALID),
     ]
 }
 
@@ -87,13 +85,30 @@ fn diag() -> Indeterminate {
     diags()[0]
 }
 
+/// A band-decided zero verdict on `margin`, as `f64` classification
+/// reports it.
+fn zero_verdict(margin: f64) -> Refused {
+    Refused::Zero(Classified {
+        margin: MarginDiag::value(margin),
+        band: band(),
+    })
+}
+
+/// A sign-certain negative verdict on `margin`.
+fn negative_verdict(margin: f64) -> Refused {
+    Refused::Negative {
+        margin: MarginDiag::value(margin),
+    }
+}
+
 /// The margin every `ContactRefusal::Contradicted` raise site carries:
 /// invalid, naming the contact predicate that decided.
 fn contradiction_margin(predicate: &'static str) -> Indeterminate {
     Indeterminate {
-        margin: MarginDiag::Invalid,
+        margin: MarginDiag::INVALID,
         band: band(),
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -189,7 +204,10 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             sample: 3,
             last_distance: 1e-7,
         },
-        PlaneNurbsRefusal::NotTransverse { sample: 3 },
+        PlaneNurbsRefusal::NotTransverse {
+            sample: 3,
+            verdict: zero_verdict(0.0),
+        },
         PlaneNurbsRefusal::PcurveFit,
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
@@ -197,13 +215,15 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         },
         PlaneNurbsRefusal::TubeStraddles {
             verdict: Refused::Zero(Classified {
-                margin: 5e-10,
+                margin: MarginDiag::value(5e-10),
                 band: band(),
             }),
             boxes: 12,
         },
         PlaneNurbsRefusal::TubeStraddles {
-            verdict: Refused::Negative { margin: -1e-7 },
+            verdict: Refused::Negative {
+                margin: MarginDiag::value(-1e-7),
+            },
             boxes: 12,
         },
         PlaneNurbsRefusal::TransversalityEscalated {
@@ -228,29 +248,35 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::IntersectionSameSurface { key },
         CertifyError::SeamOnNonPeriodic,
+        // Both zero-span stories: a length a smaller tolerance decides,
+        // and a span of no length, which none does.
         CertifyError::IntervalNotForward {
-            verdict: Definite::Zero,
+            verdict: zero_verdict(5e-10),
         },
         CertifyError::IntervalNotForward {
-            verdict: Definite::Negative,
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::IntervalNotForward {
+            verdict: negative_verdict(-1e-3),
         },
         CertifyError::WindingExceeded,
         CertifyError::ResidualExceeded {
             check: CertCheck::Surface1Residual,
             sample: 4,
         },
-        CertifyError::NotTransverse { sample: 4 },
+        CertifyError::NotTransverse {
+            sample: 4,
+            verdict: zero_verdict(5e-10),
+        },
         CertifyError::NotSecondOrderSeparated {
             sample: 4,
-            band: band(),
+            verdict: zero_verdict(0.0),
         },
         CertifyError::TubeNotSeparated {
-            band: band(),
-            verdict: Definite::Zero,
+            verdict: zero_verdict(5e-10),
         },
         CertifyError::TubeNotSeparated {
-            band: band(),
-            verdict: Definite::Negative,
+            verdict: negative_verdict(-1e-7),
         },
         CertifyError::TangentCertificateUnsupported,
         CertifyError::Escalated {
@@ -284,7 +310,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             limb: Some(geom_brep::SsiLimb::Tube),
             what: "the uniqueness tube straddles a second branch",
             magnitude: Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: 1e-7,
+                certified_clearance: MarginDiag::value(1e-7),
                 boxes: 12,
             }),
         },
@@ -387,12 +413,7 @@ fn mass_props_errors() -> Vec<MassPropsError> {
 fn offset_fit_errors() -> Vec<OffsetFitError> {
     use geom_brep::offset_meters::{Meter, MeterError};
     use geom_brep::patch_bound::PatchBoundError;
-    let zero = |margin| {
-        Refused::Zero(Classified {
-            margin,
-            band: band(),
-        })
-    };
+    let zero = zero_verdict;
     let mut v = vec![
         // Both zero-floor stories: a thinness a smaller tolerance
         // decides, and a floor of exactly zero, which none does.
@@ -411,7 +432,9 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
         OffsetFitError::Meter(MeterError::CurvatureHeadroom {
             reach: 0.5,
             kappa: (2.0, 0.5),
-            verdict: Refused::Negative { margin: -0.1 },
+            verdict: Refused::Negative {
+                margin: MarginDiag::value(-0.1),
+            },
         }),
         OffsetFitError::Meter(MeterError::CurvatureHeadroom {
             reach: 0.5,
@@ -739,11 +762,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::ApproxLaneUnsupported { face },
         ValidationError::DegenerateTorus {
             face,
-            verdict: Definite::Zero,
+            verdict: zero_verdict(5e-10),
         },
         ValidationError::DegenerateTorus {
             face,
-            verdict: Definite::Negative,
+            verdict: negative_verdict(-1e-3),
         },
         ValidationError::DescriptionNotAdjacent { edge },
         ValidationError::PlanarFaceResidual { face, vertex },
@@ -1083,7 +1106,8 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     use geom_brep::offset_fit::OffsetFitErrorKind;
     use geom_brep::pcurve_cache::PcurveCertifyErrorKind;
     use geom_brep::props::PropsErrorKind;
-    use geom_core::predicate::{BandErrorKind, MarginDiagKind};
+    use geom_core::MarginKind;
+    use geom_core::predicate::BandErrorKind;
     let causes: Vec<CensusUnsupportedCause> = validation_error_samples()
         .into_iter()
         .filter_map(|(_, e)| match e {
@@ -1135,7 +1159,7 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &offset_fit_errors(),
     ));
     out.extend(gaps::<_, BandErrorKind>("BandError", &band_errors()));
-    out.extend(gaps::<_, MarginDiagKind>("MarginDiag", &margins));
+    out.extend(gaps::<_, MarginKind>("MarginDiag", &margins));
     out.extend(gaps::<_, CensusContactKind>(
         "CensusContact",
         &census_contacts(),

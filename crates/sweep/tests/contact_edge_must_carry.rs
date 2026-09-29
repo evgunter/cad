@@ -71,7 +71,7 @@ use geom_brep::{
     CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
     must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Band, Margin, MarginDiag, Sign, Tol, Vec3};
+use geom_core::{Band, ErrorTextReading, Margin, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
@@ -161,7 +161,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
                 let margin = Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value();
-                let tag = match reading.verdict {
+                let tag = match reading.verdict.map(|d| d.sign) {
                     Ok(Sign::Positive) => "+",
                     Ok(Sign::Zero) => "0",
                     Ok(Sign::Negative) => "-",
@@ -390,7 +390,7 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
                 Some("tangent_second_order"),
                 "{what}: the escalation names the metered predicate"
             );
-            let MarginDiag::Value(m) = source.margin else {
+            let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
                 panic!("{what}: the deciding station's margin is a value, got {source:?}");
             };
             let b = band();

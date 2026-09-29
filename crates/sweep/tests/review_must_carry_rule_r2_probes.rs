@@ -120,8 +120,8 @@ fn check_payload(source: &geom_core::Indeterminate, margin: f64) {
         "the refusal names the rule's one metered predicate"
     );
     let b = band();
-    match source.margin {
-        geom_core::MarginDiag::Value(m) => assert!(
+    match source.margin.diagnostic_f64_for_error_text() {
+        geom_core::ErrorTextReading::Value(m) => assert!(
             m.abs() > b.zero() && m.abs() < b.escalate(),
             "the reported margin is inside the band at the rung asking for {margin:e}: \
              {m:e} against ({:e}, {:e})",
@@ -315,7 +315,7 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
     );
     let deciding = stations
         .iter()
-        .position(|s| !matches!(s.verdict, Ok(Sign::Positive)))
+        .position(|s| !matches!(s.verdict.map(|d| d.sign), Ok(Sign::Positive)))
         .expect("the arm is derived so that a later station is not definitely positive");
     assert!(
         deciding > 0,

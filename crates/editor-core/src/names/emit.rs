@@ -1408,9 +1408,10 @@ mod display_tests {
 
     fn escalation() -> Indeterminate {
         Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band: Band::new(1e-9, 1e-6).unwrap(),
             predicate: Some("side_of_plane"),
+            terminal_sliver: false,
         }
     }
 

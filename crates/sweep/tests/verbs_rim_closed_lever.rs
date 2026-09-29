@@ -156,7 +156,7 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a co-surface seam's sine is structurally zero"
             );

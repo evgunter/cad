@@ -344,7 +344,11 @@ fn an_open_three_link_chain_refuses_chain_g1_at_its_first_junction() {
                 "refused at the first junction"
             );
             assert!(
-                margin.value().is_some_and(|m| (m - 1.0).abs() < 1e-12),
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| (m - 1.0).abs() < 1e-12),
                 "sin 90° at a 1 m arm: {margin:?}"
             );
         }
