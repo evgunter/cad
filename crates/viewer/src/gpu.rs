@@ -34,9 +34,11 @@
 //! software adapter CI installs. One builds every pipeline
 //! [`ViewportRenderer::new`] builds, so a pipeline this module cannot
 //! build is a red row. The other renders one frame of a cube through
-//! [`ViewportCallback`]'s `prepare` and `paint` and reads back the id
-//! pass's answer and the shaded pass's depth at every face that faces
-//! the eye, so a pass that culls a face it should draw is a red row.
+//! [`ViewportCallback`]'s `prepare` and `paint`. At the projected
+//! centre of every face that faces the eye it asserts the id pass
+//! answers that face's id, and the shaded pass's depth at that pixel
+//! is the depth of that face's own plane there. So a pass that culls
+//! a face it should draw is a red row.
 //! Nothing compares colours: which pixels are which shade is not
 //! asserted anywhere.
 //!
@@ -2193,35 +2195,35 @@ mod tests {
     /// No adapter is a FAILURE, never a skip: see
     /// [`every_pass_builds_on_a_real_device`].
     fn app_device() -> (wgpu::Device, wgpu::Queue) {
-        // `_from_env` so `WGPU_BACKEND` can steer this row at an
+        // `_from_env` so `WGPU_BACKEND` can steer these rows at an
         // operator's hand; with the variable unset it is every
-        // backend the build has. No display handle: this row opens
-        // no surface, so there is no window to hand one from.
+        // backend the build has. No display handle: neither row opens
+        // a surface, so there is no window to hand one from.
         let instance =
             wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let adapter =
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
                 .expect(
-                    "NO WGPU ADAPTER. This row builds every pipeline in this module on a real \
-                     device and can report nothing without one, so it fails rather than passing \
-                     emptily. Install a software ICD: `mesa-vulkan-drivers` supplies lavapipe, \
+                    "NO WGPU ADAPTER. The rows that open this device build and draw this \
+                     module's passes on a real device and can report nothing without one, so \
+                     they fail rather than passing emptily. Install a software ICD: `mesa-vulkan-drivers` supplies lavapipe, \
                      which needs no display (crates/viewer/README.md, headless).",
                 );
         let info = adapter.get_info();
         println!(
-            "viewer::gpu pipeline smoke: adapter {:?} / {} ({:?}, driver {:?})",
+            "viewer::gpu real device: adapter {:?} / {} ({:?}, driver {:?})",
             info.backend, info.name, info.device_type, info.driver
         );
 
         // THE APP'S DEVICE, NOT A PERMISSIVE ONE. This crate never
         // builds a `DeviceDescriptor`: `NativeOptions`' default
         // `wgpu_options` carries `egui_wgpu`'s own closure, and that
-        // is what the running app requests. So the row ASKS THAT
+        // is what the running app requests. So this door ASKS THAT
         // CLOSURE rather than restating its limits or handing itself
         // `adapter.limits()` — at the adapter's limits a pipeline that
         // fits the hardware and exceeds what egui asks for builds
-        // green here and panics at startup, which is the one failure
-        // this row exists to close.
+        // green here and panics at startup, which is the failure the
+        // smoke row exists to close.
         let egui_wgpu::WgpuSetup::CreateNew(setup) =
             egui_wgpu::WgpuConfiguration::default().wgpu_setup
         else {
@@ -2336,9 +2338,9 @@ mod tests {
     ///   answers the one behind it, and a pass that culled nothing
     ///   would still answer correctly, so this reads the cull's
     ///   direction and not its presence;
-    /// - the shaded pass left a depth nearer the eye than the cube's
-    ///   centre, which only the near face has. The far face behind
-    ///   it, or no face, leaves a farther one.
+    /// - the shaded pass left, at that pixel, the depth of that face's
+    ///   own plane under the pixel's centre. The far face behind it,
+    ///   a neighbouring face, or no face leaves a different one.
     ///
     /// **Which faces face the eye is decided without the winding**: a
     /// face's outward direction is its centre minus the cube's, which
@@ -2454,6 +2456,8 @@ mod tests {
             };
             let callback = |id_query: Option<IdQuery>| ViewportCallback {
                 scene: Arc::clone(&scene),
+                // One scene for both eyes, so one revision: the second
+                // eye draws the buffers the first uploaded.
                 revision: 1,
                 view_projection,
                 light_direction: [0.0, 0.0, -1.0],
