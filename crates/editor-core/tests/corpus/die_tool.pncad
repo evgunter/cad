@@ -3,6 +3,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
     "next_id": 9,
+    "next_step": 8,
     "nodes": {
       "0": {
         "Datum": {
@@ -168,6 +169,15 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
                 }
               ]
             }
+          ],
+          "ids": [
+            [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
           ]
         }
       },
@@ -357,6 +367,13 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
                 }
               ]
             }
+          ],
+          "ids": [
+            [
+              5,
+              6,
+              7
+            ]
           ]
         }
       },

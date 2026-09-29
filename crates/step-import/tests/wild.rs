@@ -529,9 +529,11 @@ fn wild_refusals_are_typed_and_name_their_class() {
             // The shared at-rest gate's verdict names the
             // `MANIFOLD_SOLID_BREP` it was asked about, and each
             // verdict inside names the kernel entity it is about —
-            // the same "go and look at it" obligation, one layer in
-            // (dm1 since #327: its D7 half is retired and what refuses
-            // is the rational patch-flux round budget).
+            // the same "go and look at it" obligation, one layer in.
+            // A quadrature that runs out of schedule is not among
+            // them: check 7 decides a SIGN, and an admitted body whose
+            // volume is unmeasurable imports with the refusal on its
+            // enclosure.
             StepImportError::TierInvalid { solid, errors } => {
                 solid.is_some_and(|id| id > 0) && !errors.is_empty()
             }

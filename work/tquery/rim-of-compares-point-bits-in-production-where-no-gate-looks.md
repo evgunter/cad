@@ -77,3 +77,20 @@ crates/topo/src/query.rs` finds that commit only).
   stated, with the ruling, so the m7-8 row's gate can cite it.
 
 Either answer is Ev's: it reads a ratified retirement.
+
+## Ruled (2026-09-24, PR 3156)
+
+Ev: "(b), nice catch" — **it is a consumer.** `same_circle` decides
+that two stored carriers are one locus from their bits, the
+coincidence decision the retirement closed; N6 names recipe
+provenance (`GeomSource`) as the channel that answers it. The repair
+is this row's first shape: replace the identity by a `GeomSource`
+read (preferred; it is the ratified mechanism), or, if some rim has no
+recipe to read, route that case through `bit_identity::eq_bits`,
+allowlisted with a retirement-scheduled note. The gate half is filed
+on GUARD's slate:
+`work/guard/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`.
+The related cost row
+(`rim-of-refuses-extruded-multi-arc-rims`, extruded arcs differing by
+ulps) is decided by the same repair, since a recipe read does not see
+ulps.

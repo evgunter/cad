@@ -101,11 +101,7 @@ fn fit_image(radius: f64, t0: f64, t1: f64) -> NurbsCurve2<f64> {
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
@@ -174,7 +170,9 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
         "an escalation names no limb, only its predicate"
     );
     assert_eq!(what, "ssi_hull_sup");
-    let Some(geom_core::MarginDiag::Enclosure { lo, hi }) = margin else {
+    let Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) =
+        margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text)
+    else {
         panic!("the escalation must carry its enclosure: {margin:?}");
     };
     assert!(
@@ -231,8 +229,8 @@ fn the_interval_hull_bound_is_span_dependent() {
             Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
                 if cause.predicate == Some("ssi_hull_sup") =>
             {
-                match cause.margin {
-                    geom_core::MarginDiag::Enclosure { hi, .. } => Some(hi),
+                match cause.margin.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Enclosure { hi, .. } => Some(hi),
                     other => panic!("unexpected margin shape at div={div}: {other:?}"),
                 }
             }
@@ -259,7 +257,7 @@ fn the_interval_hull_bound_is_span_dependent() {
 /// when the tube ladder is EMPTY — a structural refusal with no margin
 /// at all, reachable on a legal body whose feature extent is under
 /// `64·ε`. The PR's rewritten `ssi_refusal` turns that into
-/// `Some(MarginDiag::Value(NaN))`, which is exactly the manufactured
+/// `Some(MarginKind::Value(NaN))`, which is exactly the manufactured
 /// poison #925 was filed as, wearing the label the classifier reserves
 /// for a real f64 margin — and the text still says a limb "exceeded ε".
 ///

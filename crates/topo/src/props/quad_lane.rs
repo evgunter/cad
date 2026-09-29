@@ -13,7 +13,7 @@ use geom_core::interval::certification::Certification;
 // `Decide + Bounds + CertifiedEnclosure`, which no `Dual`
 // implements — a dual carries a bracket since D1 (2026-08-19) and
 // still may not certify — and [`super::QuadLane::certified`], the
-// one door from the reporting walks into `cut_face`, carries the
+// one door from the face walks into `cut_face_rounds`, carries the
 // same bound. So the module stays uninstantiable at a dual.
 use geom::Curve3;
 use geom::Surface;
@@ -130,25 +130,14 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// The certified flux/area enclosures of one curved-cut face
-/// (module docs of `geom_brep::props::quad`): the cylinder chart's
-/// closed-form lane plus the described-NURBS patch lane (M6-3);
-/// cone/sphere/torus charts MINT stored pcurves since M6-3 (walk
-/// row 4) but their chart-normal flux algebra is not written —
-/// they refuse typed naming that true blocker.
-pub(super) fn cut_face<T: Decide + Bounds + CertifiedEnclosure>(
-    body: &Body<T>,
-    surface: &Surface<T>,
-    outer: &[LoopEdge<T>],
-    hes: &[HalfEdgeKey],
-    band: Band,
-    tol: Tol,
-) -> Result<FaceCutBounds, PropsError> {
-    cut_face_rounds(body, surface, outer, hes, band, tol, RoundWindow::SCHEDULE)?.into_target()
-}
-
-/// [`cut_face`] over a [`RoundWindow`] — the same lanes, entered
-/// and left where the window says (the quadrature module's two
-/// levels).
+/// (module docs of `geom_brep::props::quad`) over a [`RoundWindow`]
+/// — the cylinder chart's closed-form lane plus the described-NURBS
+/// patch lane (M6-3), entered and left where the window says (the
+/// quadrature module's two levels); [`super::QuadLane`] holds this
+/// and reads it at either level. Cone/sphere/torus charts MINT
+/// stored pcurves since M6-3 (walk row 4) but their chart-normal
+/// flux algebra is not written — they refuse typed naming that true
+/// blocker.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,

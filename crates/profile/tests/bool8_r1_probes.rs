@@ -14,10 +14,6 @@ use geom_core::{Point2, Tol};
 use profile::path::{HasPos, NoAng, WithIncoming};
 use profile::{Bulge, Open, PartialPath, PathError, Profile, SketchPlane, Start};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 // ==================================================================
 // Claim 1 — the transition: bitwise tangent inheritance, no junction
 // minted, nothing declared, structural subdivision.
@@ -39,7 +35,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 fn probe_inheritance_is_bitwise_across_many_legs_of_unequal_length() {
     let lens = [0.5, 1.0, 2.0, 4.0, 0.25];
     let mut chain = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(3.0, 7.0, Tol::witness())
         .unwrap()
         .line(lens[0], Tol::witness())
@@ -48,7 +44,7 @@ fn probe_inheritance_is_bitwise_across_many_legs_of_unequal_length() {
         chain = chain.line(*l, Tol::witness()).unwrap();
     }
     let lp = chain
-        .line_to(p2(-40.0, 3.0), Tol::witness())
+        .line_to(Point2::new(-40.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .map(pinned)
@@ -57,19 +53,16 @@ fn probe_inheritance_is_bitwise_across_many_legs_of_unequal_length() {
     // Recover `u` from the FIRST leg only, where it is exact: the chain
     // starts at the origin and `lens[0]` is a power of two, so
     // `(v[1]-v[0])/lens[0]` is lossless.
-    let u = (
-        (v[1].pos().x - v[0].pos().x) / lens[0],
-        (v[1].pos().y - v[0].pos().y) / lens[0],
-    );
+    let u = ((v[1].x - v[0].x) / lens[0], (v[1].y - v[0].y) / lens[0]);
     // Now assert every later vertex is EXACTLY `prev + u*len`, using
     // that same recovered `u`. This isolates the direction from the
     // position arithmetic: the `+` is replicated here, so a mismatch
     // can only mean a different direction value was used.
     for i in 1..lens.len() {
-        let want = (v[i].pos().x + u.0 * lens[i], v[i].pos().y + u.1 * lens[i]);
+        let want = (v[i].x + u.0 * lens[i], v[i].y + u.1 * lens[i]);
         assert_eq!(
             (want.0.to_bits(), want.1.to_bits()),
-            (v[i + 1].pos().x.to_bits(), v[i + 1].pos().y.to_bits()),
+            (v[i + 1].x.to_bits(), v[i + 1].y.to_bits()),
             "leg {i} did not use the SAME direction value: the tangent was \
              re-derived somewhere instead of moved wholesale"
         );
@@ -87,7 +80,7 @@ fn probe_inheritance_is_bitwise_across_many_legs_of_unequal_length() {
 fn probe_realized_displacements_do_round_even_though_the_direction_does_not() {
     let lens = [0.5_f64, 1.0, 2.0, 4.0, 0.25];
     let mut chain = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(3.0, 7.0, Tol::witness())
         .unwrap()
         .line(lens[0], Tol::witness())
@@ -96,22 +89,16 @@ fn probe_realized_displacements_do_round_even_though_the_direction_does_not() {
         chain = chain.line(*l, Tol::witness()).unwrap();
     }
     let lp = chain
-        .line_to(p2(-40.0, 3.0), Tol::witness())
+        .line_to(Point2::new(-40.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
     let v = lp.vertices();
-    let u = (
-        (v[1].pos().x - v[0].pos().x) / lens[0],
-        (v[1].pos().y - v[0].pos().y) / lens[0],
-    );
+    let u = ((v[1].x - v[0].x) / lens[0], (v[1].y - v[0].y) / lens[0]);
     let mut drifted = 0usize;
     for i in 0..lens.len() {
-        let d = (
-            v[i + 1].pos().x - v[i].pos().x,
-            v[i + 1].pos().y - v[i].pos().y,
-        );
+        let d = (v[i + 1].x - v[i].x, v[i + 1].y - v[i].y);
         if d.0.to_bits() != (u.0 * lens[i]).to_bits() || d.1.to_bits() != (u.1 * lens[i]).to_bits()
         {
             drifted += 1;
@@ -146,21 +133,21 @@ fn probe_unequal_legs_need_not_have_a_vanishing_cross_product() {
         (0.123_456_789, 9.876_543_21),
     ] {
         let lp = Open
-            .at(p2(0.0, 0.0))
+            .at(Point2::new(0.0, 0.0))
             .toward(3.0, 7.0, Tol::witness())
             .unwrap()
             .line(l1, Tol::witness())
             .unwrap()
             .line(l2, Tol::witness())
             .unwrap()
-            .line_to(p2(-40.0, 3.0), Tol::witness())
+            .line_to(Point2::new(-40.0, 3.0), Tol::witness())
             .unwrap()
             .line_to(Start, Tol::witness())
             .map(pinned)
             .unwrap();
         let v = lp.vertices();
-        let d1 = (v[1].pos().x - v[0].pos().x, v[1].pos().y - v[0].pos().y);
-        let d2 = (v[2].pos().x - v[1].pos().x, v[2].pos().y - v[1].pos().y);
+        let d1 = (v[1].x - v[0].x, v[1].y - v[0].y);
+        let d2 = (v[2].x - v[1].x, v[2].y - v[1].y);
         let cross = d1.0 * d2.1 - d1.1 * d2.0;
         total += 1;
         if cross != 0.0 {
@@ -178,7 +165,7 @@ fn probe_unequal_legs_need_not_have_a_vanishing_cross_product() {
 #[test]
 fn probe_no_junction_is_minted_and_nothing_is_declared() {
     let lp = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .line(1.0, Tol::witness())
@@ -189,7 +176,7 @@ fn probe_no_junction_is_minted_and_nothing_is_declared() {
         .unwrap()
         .line(1.0, Tol::witness())
         .unwrap()
-        .line_to(p2(4.0, 3.0), Tol::witness())
+        .line_to(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .map(pinned)
@@ -202,11 +189,7 @@ fn probe_no_junction_is_minted_and_nothing_is_declared() {
         &[1, 2, 3],
         "each continuation declares its own joint"
     );
-    let v: Vec<_> = lp
-        .vertices()
-        .iter()
-        .map(|x| (x.pos().x, x.pos().y))
-        .collect();
+    let v: Vec<_> = lp.vertices().iter().map(|x| (x.x, x.y)).collect();
     assert_eq!(
         v,
         vec![
@@ -251,7 +234,7 @@ fn probe_the_data_gate_accepts_awkward_subdivided_runs() {
     for (dx, dy) in dirs {
         for legs in legsets {
             let mut chain = Open
-                .at(p2(0.0, 0.0))
+                .at(Point2::new(0.0, 0.0))
                 .toward(dx, dy, Tol::witness())
                 .unwrap()
                 .line(legs[0], Tol::witness())
@@ -266,7 +249,7 @@ fn probe_the_data_gate_accepts_awkward_subdivided_runs() {
             let total: f64 = legs.iter().sum();
             let head = (dx / nrm * total, dy / nrm * total);
             let scale = total.max(1.0);
-            let away = p2(head.0 - scale * dy / nrm, head.1 + scale * dx / nrm);
+            let away = Point2::new(head.0 - scale * dy / nrm, head.1 + scale * dx / nrm);
             let lp = chain
                 .line_to(away, Tol::witness())
                 .unwrap()
@@ -301,7 +284,7 @@ fn probe_the_data_gate_accepts_awkward_subdivided_runs() {
 fn probe_no_spelling_sneaks_an_authored_tangency_through() {
     let t = Tol::witness();
     let base = || {
-        Open.at(p2(0.0, 0.0))
+        Open.at(Point2::new(0.0, 0.0))
             .toward(1.0, 0.0, t)
             .unwrap()
             .line(2.0, t)
@@ -358,7 +341,7 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
     // (g) an authored collinear TARGET.
     assert!(
         matches!(
-            base().line_to(p2(4.0, 0.0), t),
+            base().line_to(Point2::new(4.0, 0.0), t),
             Err(PathError::JunctionTangent { .. })
         ),
         "an authored collinear target must still refuse"
@@ -368,7 +351,10 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
     // next authored direction is accepted.
     assert!(
         matches!(
-            base().line(2.0, t).unwrap().line_to(p2(6.0, 0.0), t),
+            base()
+                .line(2.0, t)
+                .unwrap()
+                .line_to(Point2::new(6.0, 0.0), t),
             Err(PathError::JunctionTangent { .. })
         ),
         "the continuation must not launder a later authored tangency"
@@ -389,7 +375,7 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
 fn probe_curved_zero_turn_and_cusp_still_refuse_off_a_continuation() {
     let t = Tol::witness();
     let after = || {
-        Open.at(p2(0.0, 0.0))
+        Open.at(Point2::new(0.0, 0.0))
             .toward(1.0, 0.0, t)
             .unwrap()
             .line(2.0, t)
@@ -419,10 +405,10 @@ fn probe_curved_zero_turn_and_cusp_still_refuse_off_a_continuation() {
 fn probe_a_declared_departure_then_continuations_declares_exactly_once() {
     let t = Tol::witness();
     let lp = Open
-        .at(p2(-1.0, 0.0))
+        .at(Point2::new(-1.0, 0.0))
         .arc_to(
             Bulge {
-                p: p2(1.0, 0.0),
+                p: Point2::new(1.0, 0.0),
                 b: 1.0,
             },
             t,
@@ -474,9 +460,13 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
     let mut checked = 0usize;
     for b in bulges {
         for len in lens {
-            let arc = Open
-                .at(p2(-1.0, 0.0))
-                .arc_to(Bulge { p: p2(1.0, 0.0), b }, t);
+            let arc = Open.at(Point2::new(-1.0, 0.0)).arc_to(
+                Bulge {
+                    p: Point2::new(1.0, 0.0),
+                    b,
+                },
+                t,
+            );
             let Ok(arc) = arc else { continue };
             let lp = match arc.line(len, t) {
                 Ok(c) => match c.line_to(Start, t).map(pinned) {
@@ -568,7 +558,7 @@ fn lily_outline(width: f64, ridge: f64, keel: f64, shoulder: f64) -> Vec<Point2<
         sh(keel_p, right),
     ]
     .iter()
-    .map(|&(x, y)| p2(x, y))
+    .map(|&(x, y)| Point2::new(x, y))
     .collect()
 }
 
@@ -783,7 +773,7 @@ fn probe_positive_control_and_the_uneven_distribution_that_escapes_the_wall() {
     let octagon: Vec<Point2<f64>> = (0..8)
         .map(|k| {
             let a = core::f64::consts::TAU * (k as f64) / 8.0;
-            p2(a.cos(), a.sin())
+            Point2::new(a.cos(), a.sin())
         })
         .collect();
     assert!(
@@ -795,14 +785,14 @@ fn probe_positive_control_and_the_uneven_distribution_that_escapes_the_wall() {
     // side carries two interior vertices, whose top and bottom carry
     // one each, and whose left side carries none.
     let uneven = [
-        p2(1.0, -1.0),  // corner
-        p2(1.0, -0.25), // subdivision
-        p2(1.0, 0.25),  // subdivision (same side)
-        p2(1.0, 1.0),   // corner
-        p2(0.0, 1.0),   // subdivision
-        p2(-1.0, 1.0),  // corner
-        p2(-1.0, -1.0), // corner  <- left side NOT subdivided
-        p2(0.0, -1.0),  // subdivision
+        Point2::new(1.0, -1.0),  // corner
+        Point2::new(1.0, -0.25), // subdivision
+        Point2::new(1.0, 0.25),  // subdivision (same side)
+        Point2::new(1.0, 1.0),   // corner
+        Point2::new(0.0, 1.0),   // subdivision
+        Point2::new(-1.0, 1.0),  // corner
+        Point2::new(-1.0, -1.0), // corner  <- left side NOT subdivided
+        Point2::new(0.0, -1.0),  // subdivision
     ];
     // The escape needs the UNSUBDIVIDED side to be the closing one, so
     // try every rotation exactly as the seam hunt does. The lily
@@ -964,14 +954,14 @@ fn probe_reproduce_the_measured_seam_wall_in_both_rotations() {
 fn probe_reproduce_the_quoted_margin_on_the_suites_own_fixture() {
     let t = Tol::witness();
     let ring = [
-        p2(1.0, 0.0),
-        p2(0.5, 0.75),
-        p2(0.0, 1.5),
-        p2(-0.5, 0.75),
-        p2(-1.0, 0.0),
-        p2(-0.5, -0.5),
-        p2(0.0, -1.0),
-        p2(0.5, -0.5),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.5, 0.75),
+        Point2::new(0.0, 1.5),
+        Point2::new(-0.5, 0.75),
+        Point2::new(-1.0, 0.0),
+        Point2::new(-0.5, -0.5),
+        Point2::new(0.0, -1.0),
+        Point2::new(0.5, -0.5),
     ];
     let err = author_to_the_closer(&ring, t);
     println!("probe: PR-fixture rotation A margin -> {err:?}");

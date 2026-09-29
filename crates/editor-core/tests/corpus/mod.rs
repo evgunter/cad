@@ -268,7 +268,7 @@ pub fn documents() -> Vec<CorpusDoc> {
 /// The transitive downstream cone of `root` (inclusive) over the
 /// recipe DAG's input edges — computed independently of the
 /// evaluator, so the counted-reuse assertions have a real oracle.
-pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut set = BTreeSet::new();
     set.insert(root);
     // `order` is insertion order and inputs must pre-exist, so one
@@ -317,7 +317,33 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     }
 }
 
+/// **The node kinds no document can evaluate to a value** — the
+/// evaluation frontier, read by every suite that requires each kind
+/// evaluated somewhere (`m4_pr8_corpus`, `names_verbatim_edge_evaluator`).
+///
+/// - `Sweep`: every recipe-expressible sweep refuses at one door, for
+///   the reason `eval::wire::SWEEP_FRONTIER` states.
+///
+/// Each reader holds its entries in both directions, so a kind that
+/// starts evaluating reds until it is removed here.
+pub const NEVER_EVALUATES: [&str; 1] = ["Sweep"];
+
+/// **The node kinds that evaluate, but only in documents beside this
+/// registry** — so [`documents`] cannot cover them while
+/// [`NEVER_EVALUATES`] does not list them.
+///
+/// - `Shell`: its documents ([`cup`], [`vessel`]) evaluate, and
+///   `lib_g17_shell_node.rs` runs them, but registry membership requires
+///   `Dual64`, and a dual has no shell door (`lib_g17_shell_node.rs`
+///   pins the typed refusal). It leaves this list when the registry's
+///   dual row can name a document whose lowering has no dual lane, or
+///   when the door gains one.
+pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
+
 /// The node kinds a document exercises (the coverage tally's domain).
+///
+/// Hand-written, not welded to `Node`, and without `InstantiatePart`
+/// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
 pub const NODE_KINDS: [&str; 21] = [
     "Datum",
     "Profile",

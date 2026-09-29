@@ -16,43 +16,11 @@ mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
-    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
-    use sweep::{Revolution, RevolveAxis, revolve};
-    use topo::{Body, mass_properties};
+    use geom_core::{Bounds, Interval};
+    use sweep::test_support::ball_poled_y;
+    use topo::mass_properties;
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
-
-    fn p2(x: f64, y: f64) -> Point2<Interval> {
-        Point2::new(iv(x), iv(y))
-    }
-
-    fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
-        Profile::new(SketchPlane::xy(), loops)
-            .validate(Tol::witness())
-            .unwrap()
-    }
-
-    /// A radius-`r` ball at `centre` (horizontal polar axis — the §1
-    /// re-cut's own chart shape).
-    fn ball_at(r: f64, centre: Vec3<Interval>) -> Body<Interval> {
-        // The half-disc lamina: a semicircle out of the south pole and
-        // the straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -r), iv(1.0)),
-            ProfileVertex::new(p2(0.0, r), iv(0.0)),
-        ]);
-        let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
-        };
-        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
-            .unwrap()
-            .body;
-        topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
-    }
+    use crate::common::interval::{iv, v3};
 
     fn encloses(vol: Interval, analytic: f64, what: &str) {
         assert!(
@@ -91,7 +59,7 @@ mod certified {
     /// comparing ε to this constant.
     ///
     /// A both-sides pin on the same quantity does exist, on a different
-    /// fixture: `m5_s12_curved_ops_interval`'s `RECUT_MAPPED_ENCLOSURE_HI`.
+    /// fixture: `common::sphere_recut`'s `RECUT_MAPPED_ENCLOSURE_HI`.
     /// A paragraph claiming this constant was pinned that way too stood
     /// here until 2026-09-19; it was left behind by the change the body
     /// comment records and contradicted the assertion six lines below
@@ -137,7 +105,7 @@ mod certified {
     #[test]
     fn interval_finding_union_is_bracketed() {
         let a = slab();
-        let b = ball_at(1.0, Vec3::new(iv(2.0), iv(2.0), iv(0.5)));
+        let b = ball_poled_y(iv(1.0), v3(2.0, 2.0, 0.5), Tol::witness());
         let joined = topo::union(&a, &b, Tol::witness());
         // **The crossover is an enclosure width, and enclosure widths
         // move.** This row used to select its arm by comparing ε to a
@@ -167,7 +135,9 @@ mod certified {
             };
             assert_eq!(check, geom_brep::CertCheck::MappedSource);
             assert_eq!(cause.predicate, Some("carrier_matches_mapped_source"));
-            let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+            let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!(
                     "the escalation must carry an enclosure, got {:?}",
                     cause.margin
@@ -209,7 +179,7 @@ mod certified {
     fn interval_pip_pair_is_bracketed_and_additive() {
         let a = slab();
         let (r, h) = (0.5, 0.3);
-        let b = ball_at(r, Vec3::new(iv(2.0), iv(2.0), iv(1.0 + r - h)));
+        let b = ball_poled_y(iv(r), v3(2.0, 2.0, 1.0 + r - h), Tol::witness());
 
         let cut = topo::subtract(&a, &b, Tol::witness()).expect("the pip decides at Interval");
         let cut = &cut.body().expect("a body").body;

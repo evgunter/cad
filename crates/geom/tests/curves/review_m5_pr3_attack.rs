@@ -77,13 +77,7 @@ fn lift_dual(c: &NurbsCurve3<f64>) -> NurbsCurve3<Dual64> {
     let ctrl = c
         .control()
         .iter()
-        .map(|p| {
-            Point3::new(
-                Dual64::constant(p.x),
-                Dual64::constant(p.y),
-                Dual64::constant(p.z),
-            )
-        })
+        .map(|p| p.map(Dual64::constant))
         .collect();
     NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap()
 }

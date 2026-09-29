@@ -1,7 +1,12 @@
-//! **One home for the surface-group scan**: is the set of faces sharing
-//! one curved surface key CLOSED against the rest of the body, so that
-//! their union covers the whole chart (or the whole of one chart
-//! coordinate) and a trim has nothing left to do?
+//! **One home for the surface-group scan**: is the set of a scope's
+//! faces sharing one curved surface key CLOSED against the rest of the
+//! body, so that their union covers the whole chart (or the whole of one
+//! chart coordinate) and a trim has nothing left to do?
+//!
+//! The members are the CALLER's scope's wearers of the key
+//! ([`ChartGroups`]), never the body's: a chart is body-wide, and a
+//! wearer outside the scope bounds material the caller is not asking
+//! about.
 //!
 //! Three containment arms ask that question and they ask the SAME
 //! question, differing only in which boundary edges are allowed to go
@@ -33,6 +38,7 @@
 //! and a ring is a boundary the sharing scan cannot see.
 
 use crate::body::Body;
+use crate::chart_groups::ChartGroups;
 use crate::entity::{FaceKey, LoopBoundary};
 use geom_core::Decide;
 
@@ -53,7 +59,7 @@ pub(super) enum RimExemption {
     Circles,
 }
 
-/// A closed group: its members in face-arena order, and the
+/// A closed group: its members in the scope's order, and the
 /// REPRESENTATIVE the arms act for.
 ///
 /// Acting for one member is not an optimization. The group's members
@@ -61,9 +67,11 @@ pub(super) enum RimExemption {
 /// the same root once per member and tie the closest-hit rule into a
 /// permanent graze.
 pub(super) struct SurfaceGroup {
-    /// Every face carrying this surface key, arena order.
+    /// Every face of the scope carrying this surface key, in the
+    /// scope's order.
     pub(super) members: Vec<FaceKey>,
-    /// The lowest face key in arena order — the member the arms act for.
+    /// The first member in the scope's order — the member the arms act
+    /// for.
     pub(super) representative: FaceKey,
 }
 
@@ -78,22 +86,26 @@ pub(super) struct SurfaceGroup {
 ///   it; one whose class simply does not apply to a body it cannot walk
 ///   maps it to `None`.
 ///
+/// `charts` is the caller's scope grouped by key, and `face` is one of
+/// its faces.
+///
 /// # Errors
 ///
-/// The face key whose walk could not be completed.
+/// The face key whose walk could not be completed, or `face` itself
+/// when the scope does not hold it.
 pub(super) fn surface_group<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
+    charts: &ChartGroups,
     exempt: RimExemption,
 ) -> Result<Option<SurfaceGroup>, FaceKey> {
     let Some(surface) = body.get_face(face).map(|f| f.surface) else {
         return Err(face);
     };
-    let members: Vec<FaceKey> = body
-        .faces()
-        .filter(|(_, f)| f.surface == surface)
-        .map(|(k, _)| k)
-        .collect();
+    let members: Vec<FaceKey> = charts.of(surface).to_vec();
+    if !members.contains(&face) {
+        return Err(face);
+    }
     for &member in &members {
         let Some(f) = body.get_face(member) else {
             return Err(member);

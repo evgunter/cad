@@ -188,7 +188,7 @@ What is true: every mint of either arm's kind is in `eval::wire`, inside
 `eval_node`'s bracket, so no live path reaches them — and that is a
 search, not a licence to delete, because read (2) speaks for the log's
 FIRST escalation where an arm speaks for the one the error carried.
-`work/props/should-classify-replays-error-enum-arms-be-deleted.md`
+`work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`
 holds the question with both arms' searches recorded.
 
 ### What this item was right about, restated

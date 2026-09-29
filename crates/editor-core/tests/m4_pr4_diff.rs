@@ -30,7 +30,7 @@ use geom_core::Tol;
 /// The realized sweep prunes the disjoint side's pair space empty
 /// (its job); that production-path degradation is pinned in
 /// `m4_pr4_banked` (both strategies) — see `fixture/pr4.rs`'s note.
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     let opts = EvalOptions {
         boolean_sweep: topo::SweepStrategy::Idealized,
         ..EvalOptions::default()

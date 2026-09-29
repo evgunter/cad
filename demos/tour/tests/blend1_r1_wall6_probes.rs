@@ -120,7 +120,7 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a co-surface seam, not a near-tangency"
             );

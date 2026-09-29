@@ -2,11 +2,13 @@
 id: name-ordered-positions-in-a-path-have-no-single-home
 kind: issue
 title: Name-ordered positions in a role path have no single home, and each rewrite re-establishes a different subset
-status: dispatched
+status: closed
 opened: 2026-09-23
 priority: P1
 cost: D
 branch: emit/name-order-home
+closed: 2026-09-24
+pr: 3173
 ---
 
 

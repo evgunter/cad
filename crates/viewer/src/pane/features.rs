@@ -89,33 +89,27 @@ pub(crate) fn failure_lines(
     theme: &Theme,
 ) -> Option<RecipeNodeId> {
     let message = row.status.message()?;
-    // Where the WORDS go, and where a line under them goes. Exhaustive
-    // on purpose: which row a status links to is decided per state.
-    let (words_to, then_to) = match &row.status {
-        RowStatus::Poisoned { through, .. } => (Some(*through), None),
-        // The words are this row's own cause; the link, when the tree
-        // drew one, is to the node those words say to repair.
-        RowStatus::Failed { .. } => (None, row.repair_at),
-        // No line to link ([`RowStatus::message`]).
-        RowStatus::Ok | RowStatus::Unevaluated => (None, None),
-    };
     let mut clicked = None;
     ui.horizontal(|ui| {
         ui.add_space(message_indent(ui, row.depth));
         // A payload's own words are a sentence, so
         // `widgets::message`, not `ui.link`/`ui.weak`.
-        match words_to {
+        match row.status.jump() {
             Some(to) => {
                 if crate::widgets::message_link(ui, message).clicked() {
                     clicked = Some(to);
                 }
             }
+            // Advisory whatever the status: how loud a row is, is its
+            // badge's, read off `RowStatus::tone` on the row above.
+            // The line under it is that verdict's words, and a failed
+            // row drawn loud twice would be the one loud row twice.
             None => {
                 crate::widgets::message_toned(ui, message, theme, frame::Tone::Advisory);
             }
         }
     });
-    if let Some(to) = then_to {
+    if let Some(to) = row.repair_at {
         ui.horizontal(|ui| {
             ui.add_space(message_indent(ui, row.depth));
             if crate::widgets::message_link(ui, tree::repair_wording(to)).clicked() {
@@ -218,7 +212,9 @@ mod tests {
     use super::{INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, indent, message_indent, row_label};
     use crate::app::GLYPH_ROOT;
     use crate::pane::headless::SLACK;
-    use crate::pane::headless::{landed, painted_after_clicking, painted_text};
+    use crate::pane::headless::{
+        find, landed, landed_voiced, painted_after_clicking, painted_text,
+    };
     use crate::theme::Theme;
     use crate::tree;
     use crate::tree::{RowStatus, TreeRow};
@@ -441,6 +437,17 @@ mod tests {
         });
         assert!(drawn.contains(FAILURE), "{drawn}");
         assert!(!drawn.contains("see "), "no link line: {drawn}");
+    }
+
+    /// **A failed row's words are said quietly**: the row is loud once,
+    /// at its badge, and the line under it is that verdict's words —
+    /// egui's weak text, not the theme's unresolved colour.
+    #[test]
+    fn a_failed_rows_words_are_weak_under_its_loud_badge() {
+        let (painted, voices) = landed_voiced(|ui| {
+            failure_lines(ui, &placer_refused_row(None), &Theme::DEFAULT);
+        });
+        assert_eq!(find(&painted, FAILURE).ink, Some(voices.weak));
     }
 
     /// A poisoned row's pointer is still the click to `through`.

@@ -300,7 +300,7 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// entry.)
 ///
 /// **So no row here sees a partial blindness inside a file**, for this
-/// file's 22 or any of them: `hull.rs`, `knots.rs` and
+/// file's 23 or any of them: `hull.rs`, `knots.rs` and
 /// `surfaces/nurbs.rs` each hold a second impl that would vanish
 /// unremarked. What closes it is a per-impl population, which is the
 /// tally this row declines above. The trade is recorded rather than
@@ -312,7 +312,7 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// **A new line is the arrival this row exists to detect.** Adding one
 /// is a deliberate act and the message below says which acts are
 /// honest.
-const IMPL_FILES_TODAY: [&str; 22] = [
+const IMPL_FILES_TODAY: [&str; 23] = [
     "crates/editor-core/src/clearance.rs",
     "crates/editor-core/src/eval/mod.rs",
     "crates/editor-core/src/expr.rs",
@@ -331,6 +331,7 @@ const IMPL_FILES_TODAY: [&str; 22] = [
     "crates/profile/src/lib.rs",
     "crates/topo/src/param_source.rs",
     "crates/topo/src/props.rs",
+    "crates/topo/src/source.rs",
     "crates/topo/src/validate.rs",
     "crates/viewer/src/camera.rs",
     "crates/viewer/src/pickcache.rs",

@@ -2,12 +2,15 @@
 id: live-guard-proves-ordering-not-identity
 kind: issue
 title: the Live guard compares the spelling of the key looked up, not the key
-status: open
+status: closed
 opened: 2026-09-05
 refs: [D50]
 track: P
-priority: P0
-cost: D
+priority: P3
+cost: M
+design: true
+closed: 2026-09-29
+pr: 3424
 ---
 
 ## What
@@ -63,3 +66,27 @@ closed should decide the scan question first.
 
 Track P — `crates/topo/src/live.rs`, and `source_walk.rs` if the item
 scan has to learn to recurse.
+
+## Re-banded P0 → P3 (2026-09-29, ORIGIN orchestrator)
+
+A guard does not inherit the band of what it guards (`work/README.md`,
+Priority): this row is a test that cannot go red on two shapes, which
+is P3's "tooling that prevents SILENT bugs", not a live wrong answer.
+`design: true` for the scan question above, which a taker decides
+first.
+
+## Closed (2026-09-29, PR 3424)
+
+Gap 2 closed: `CodeOnly::fns` recurses into item bodies, a nested fn is
+an item of its own (named by itself in every violation, two deep and
+inside a nested `impl` alike), and every guard reads a host's OWN text
+(`FnItem::own_body`, nested items blanked) — one reading, in
+`source_walk`. A `pub` fn nested in a fn body is not a door (E0433); a
+`pub` method of an `impl` nested there is. The construction needles no
+longer require `(`, so a point-free `Live::new` reds. Gap 1 (a `Live`
+proven in one body and spliced into another) is not a textual guard's:
+the guard and `live.rs`'s header now say it is UNCAUGHT, and it has its
+own row, `a-live-spliced-into-another-body-is-caught-by-nothing`. The
+mutation-door guard's `(`-terminated needles stay (a `use` line must
+not satisfy them); where a point-free call is silent is
+`point-free-surgery-openers-read-as-no-scope`.

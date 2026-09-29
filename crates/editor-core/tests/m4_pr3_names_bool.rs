@@ -124,10 +124,7 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
         let inner = minted(
             EntityKind::Face,
             node,
-            RoleSeg::Lateral(editor_core::ProfileEdgeRef {
-                loop_index: 0,
-                segment: seg,
-            }),
+            RoleSeg::Lateral(crate::fixture::piece(&doc, node, 0, seg as usize)),
         );
         let seg = if wrap_a {
             RoleSeg::FromA(inner.into())

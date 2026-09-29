@@ -30,9 +30,10 @@ use sweep::blend::{BlendError, BlendSite};
 fn escalation(name: Option<&'static str>) -> Indeterminate {
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
     Indeterminate {
-        margin: MarginDiag::Value((band.zero() + band.escalate()) / 2.0),
+        margin: MarginDiag::value((band.zero() + band.escalate()) / 2.0),
         band,
         predicate: name,
+        terminal_sliver: false,
     }
 }
 

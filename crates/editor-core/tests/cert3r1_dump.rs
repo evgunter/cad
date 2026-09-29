@@ -1,145 +1,59 @@
-//! CERT-3 review lane R1 — the fence differential, reproduced.
+//! **The fence's diff instrument.** When an `m10_p_fence` digest
+//! moves, the digest says only THAT the corpus's evaluation moved;
+//! this file says WHAT moved. It runs the fence's own walk
+//! (`m10_p_fence::walk`) and prints every observable the digest hashes
+//! instead of folding it: one `RSTRUCT` line per fixture program and
+//! per node (its outcome), and one `RCOORD` line per coordinate, bits
+//! in hex. Run it on the tree whose digest moved and on the tree it
+//! moved from, keep the `RSTRUCT`/`RCOORD` lines, and diff them. The
+//! fence header's re-derivation paragraphs quote measurements taken
+//! this way.
 //!
-//! Replicates the m10-p fence's exact walk (`corpus_digest`), but
-//! PRINTS every observable instead of digesting it: structure lines
-//! (`RSTRUCT`) and coordinate lines (`RCOORD`, bits in hex). Run on
-//! this tree and on a tree with only `affine.rs`/`mat.rs` reverted,
-//! grep the prefixes, diff. Local-only; never pushed.
+//! `#[ignore]`d: it asserts nothing and gates nothing, so it runs only
+//! when asked. Run it with
+//!
+//! ```text
+//! cargo test -p editor-core --test all \
+//!     -- --ignored --nocapture cert3r1_dump
+//! ```
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus;
+use crate::m10_p_fence::{Outcome, Seen, walk};
 
-use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
-use geom_core::Tol;
-
-fn walk<T, F, S>(lane: &str, coord: F, scalar: S)
-where
-    T: editor_core::EvalScalar,
-    F: Fn(&str, &geom_core::Point3<T>),
-    S: Fn(&str, T),
-{
-    fixture_walk::<T>(lane, &scalar);
-    for doc in corpus::documents() {
-        let ev = evaluate::<T>(
-            &doc.doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            Tol::witness(),
-        );
-        for (id, result) in ev.nodes.iter() {
-            match result {
-                NodeResult::Poisoned { through } => {
-                    println!(
-                        "RSTRUCT {lane} {} {} poisoned {}",
-                        doc.name, id.0, through.0
-                    );
-                }
-                NodeResult::Failed(_) => println!("RSTRUCT {lane} {} {} failed", doc.name, id.0),
-                NodeResult::Ok(v) => {
-                    println!(
-                        "RSTRUCT {lane} {} {} ok {}",
-                        doc.name,
-                        id.0,
-                        v.payload.kind_name()
-                    );
-                    if let ValuePayload::Body(b) = &v.payload {
-                        for (i, (_, p)) in b.points().enumerate() {
-                            coord(&format!("{lane} {} {} {i}", doc.name, id.0), p);
-                        }
-                    }
-                }
+/// Print the fence's walk at `T`, tagging every line with `lane`.
+/// `coord` prints one body point, `scalar` one fixture scalar.
+fn dump<T: editor_core::EvalScalar>(
+    lane: &str,
+    coord: impl Fn(&str, &geom_core::Point3<T>),
+    scalar: impl Fn(&str, T),
+) {
+    walk::<T>(|seen| match seen {
+        Seen::Fixture(_) | Seen::Document(_) => {}
+        Seen::FixtureLoop { i, vertices } => {
+            println!("RSTRUCT {lane} fixture{i} ok {vertices}");
+        }
+        Seen::FixtureVertex { i, j, x, y, bulge } => {
+            scalar(&format!("{lane} fixture{i} v{j} x"), x);
+            scalar(&format!("{lane} fixture{i} v{j} y"), y);
+            scalar(&format!("{lane} fixture{i} v{j} b"), bulge);
+        }
+        Seen::FixtureRefused(i) => println!("RSTRUCT {lane} fixture{i} refused"),
+        Seen::Node { doc, id, outcome } => match outcome {
+            Outcome::Poisoned { through } => {
+                println!("RSTRUCT {lane} {doc} {id} poisoned {through}");
             }
-        }
-    }
-}
-
-/// The fence's arc-carrier fixture, replicated verbatim from
-/// `m10_p_fence.rs` with prints in place of digest feeds.
-fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str, T)) {
-    use geom_core::Point2;
-    use profile::{ArcData, ArcSweep, Center, Open, Start, Step, Target};
-    let p2 = |x: f64, y: f64| Point2::new(x, y);
-    let tip = 0.75_f64.sqrt();
-    let programs = [
-        Open.arc_fillet_arc(
-            Center {
-                c: p2(-0.5, 0.0),
-                winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
-            },
-            0.35,
-            Center {
-                c: p2(0.5, 0.0),
-                winding: ArcSweep::Ccw,
-                p: Start,
-            },
-            Tol::witness(),
-        ),
-        Open.arc_fillet_arc(
-            Center {
-                c: p2(-1.0, 0.0),
-                winding: ArcSweep::Ccw,
-                p: p2(0.0, -3.0_f64.sqrt()),
-            },
-            0.5,
-            Center {
-                c: p2(1.0, 0.0),
-                winding: ArcSweep::Ccw,
-                p: Start,
-            },
-            Tol::witness(),
-        ),
-    ];
-    let embed = |step: &Step<f64>| -> Step<T> {
-        let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
-        let tgt = |t: Target<f64>| match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        };
-        let spec = |a: ArcData<f64>| match a {
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            _ => unreachable!("this fixture authors Center-mode arcs only"),
-        };
-        match *step {
-            Step::ArcFilletArc {
-                spec: a,
-                radius,
-                spec2,
-            } => Step::ArcFilletArc {
-                spec: spec(a),
-                radius: T::from_f64(radius),
-                spec2: spec(spec2),
-            },
-            _ => unreachable!("this fixture is one fused step"),
-        }
-    };
-    for (i, built) in programs.into_iter().enumerate() {
-        let closed = built.expect("the arc-carrier fixture constructs at f64");
-        let steps: Vec<Step<T>> = closed.program.iter().map(embed).collect();
-        match profile::replay(&steps, Tol::witness()) {
-            Ok(lp) => {
-                println!("RSTRUCT {lane} fixture{i} ok {}", lp.vertices().len());
-                for (j, v) in lp.vertices().iter().enumerate() {
-                    scalar(&format!("{lane} fixture{i} v{j} x"), v.pos().x);
-                    scalar(&format!("{lane} fixture{i} v{j} y"), v.pos().y);
-                    scalar(&format!("{lane} fixture{i} v{j} b"), v.bulge());
-                }
-            }
-            Err(_) => println!("RSTRUCT {lane} fixture{i} refused"),
-        }
-    }
+            Outcome::Failed => println!("RSTRUCT {lane} {doc} {id} failed"),
+            Outcome::Ok { kind } => println!("RSTRUCT {lane} {doc} {id} ok {kind}"),
+        },
+        Seen::Point { doc, id, i, p, .. } => coord(&format!("{lane} {doc} {id} {i}"), p),
+    });
 }
 
 #[test]
+#[ignore = "the fence's diff instrument; asserts nothing, run with --ignored"]
 fn r1_dump_f64() {
-    walk::<f64, _, _>(
+    dump::<f64>(
         "f64",
         |tag, p| {
             for (a, c) in [("x", p.x), ("y", p.y), ("z", p.z)] {
@@ -151,9 +65,10 @@ fn r1_dump_f64() {
 }
 
 #[test]
+#[ignore = "the fence's diff instrument; asserts nothing, run with --ignored"]
 fn r1_dump_interval() {
     use geom_core::{Bounds, Interval};
-    walk::<Interval, _, _>(
+    dump::<Interval>(
         "iv",
         |tag, p| {
             for (a, c) in [("x", p.x), ("y", p.y), ("z", p.z)] {

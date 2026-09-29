@@ -13,25 +13,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Vec3;
-use topo::{Body, FaceKey, VertexKey};
+use topo::{Body, FaceKey};
 
-use crate::shell8_common::{cap, face_of_he, tol};
-use crate::verbs_shell::{hollow_box, outer_and_void, two_void_box, vessel};
-
-fn faces_at(body: &Body<f64>, v: VertexKey) -> Vec<FaceKey> {
-    let Some(em) = body.get_vertex(v).unwrap().emanating else {
-        return Vec::new();
-    };
-    let mut out: Vec<FaceKey> = body
-        .vertex_orbit(em)
-        .unwrap()
-        .into_iter()
-        .map(|he| face_of_he(body, he))
-        .collect();
-    out.sort();
-    out.dedup();
-    out
-}
+use crate::common::shell_operands::{hollow_box, outer_and_void, two_void_box, vessel};
+use crate::shell8_common::{cap, tol};
 
 fn dump(label: &str, body: &Body<f64>) {
     println!(
@@ -53,7 +38,10 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     for (k, e) in body.edges() {
-        let (fa, fb) = (face_of_he(body, e.he_plus), face_of_he(body, e.he_minus));
+        let (fa, fb) = (
+            body.face_of_half_edge(e.he_plus).unwrap(),
+            body.face_of_half_edge(e.he_minus).unwrap(),
+        );
         let start = body.get_half_edge(e.he_plus).unwrap().start;
         let end = body.half_edge_end(e.he_plus).unwrap();
         let c = body
@@ -68,7 +56,8 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     for (k, v) in body.vertices() {
-        let faces = faces_at(body, k);
+        let mut faces = body.faces_of_vertex(k).unwrap();
+        faces.sort();
         let mut surfaces: Vec<_> = faces
             .iter()
             .map(|f| body.get_face(*f).unwrap().surface)
@@ -91,7 +80,7 @@ fn dump(label: &str, body: &Body<f64>) {
         "[dump8] {label}: tier3={:?}",
         topo::validate_geometric(body, tol())
     );
-    super::shell9_rows::print_rows(label, body);
+    crate::common::pcurve_rows::print_rows(label, body);
 }
 
 fn opened(label: &str, body: &Body<f64>, t: f64, faces: &[FaceKey]) {

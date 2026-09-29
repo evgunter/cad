@@ -30,34 +30,37 @@ test_utils::gated_to![
 use crate::common;
 
 use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
-use profile::{Profile, ProfileLoop, RawLoop};
+use profile::{Profile, ProfileLoop, RawLoop, test_support::bulge_loop};
 use proptest::prelude::*;
 
 /// Rotates a loop's starting vertex by `r` (a pure reindexing — the
 /// same closed chain).
 fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
     let n = lp.vertices().len();
-    ProfileLoop::new((0..n).map(|k| lp.vertices()[(r + k) % n]).collect())
-        // Declared joints follow their vertex through the reindexing.
-        .with_tangent_joints(
-            lp.tangent_joints()
-                .iter()
-                .map(|&j| (j + n - r) % n)
-                .collect(),
-        )
+    bulge_loop(
+        (0..n)
+            .map(|k| {
+                let j = (r + k) % n;
+                (lp.vertices()[j], lp.bulges()[j])
+            })
+            .collect(),
+    )
+    // Declared joints follow their vertex through the reindexing.
+    .with_tangent_joints(
+        lp.tangent_joints()
+            .iter()
+            .map(|&j| (j + n - r) % n)
+            .collect(),
+    )
 }
 
 /// Translates a loop rigidly (fixture plumbing).
 fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(
+    bulge_loop(
         lp.vertices()
             .iter()
-            .map(|v| {
-                profile::ProfileVertex::new(
-                    geom_core::Point2::new(v.pos().x + dx, v.pos().y + dy),
-                    v.bulge(),
-                )
-            })
+            .zip(lp.bulges())
+            .map(|(v, &b)| (geom_core::Point2::new(v.x + dx, v.y + dy), b))
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())
@@ -125,14 +128,14 @@ proptest! {
             // Every input loop's authored vertex 0 is some canonical
             // loop's vertex 0 — the start is the author's.
             let bits = |p: geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
-            let starts: Vec<_> = canon2.loops().iter().map(|cl| bits(cl.vertices()[0].pos())).collect();
+            let starts: Vec<_> = canon2.loops().iter().map(|cl| bits(cl.vertices()[0])).collect();
             for (i, lp) in turned.iter().enumerate() {
                 prop_assert!(
-                    starts.contains(&bits(lp.vertices()[0].pos())),
+                    starts.contains(&bits(lp.vertices()[0])),
                     "{}: input loop {} was authored from {:?}, and no canonical loop starts there",
                     name,
                     i,
-                    lp.vertices()[0].pos()
+                    lp.vertices()[0]
                 );
             }
         }
@@ -152,9 +155,18 @@ proptest! {
         );
         let back = lp.reversed().reversed();
         for (a, b) in lp.vertices().iter().zip(back.vertices().iter()) {
-            prop_assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
-            prop_assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
-            prop_assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
+            prop_assert_eq!(a.x.to_bits(), b.x.to_bits());
+            prop_assert_eq!(a.y.to_bits(), b.y.to_bits());
+        }
+        for (a, b) in lp.bulges().iter().zip(back.bulges().iter()) {
+            prop_assert_eq!(a.to_bits(), b.to_bits());
+        }
+        // The segments too: kind, centre, radius and sweep, to the bit
+        // (`Debug` prints every f64 bit pattern apart, signed zeros
+        // included).
+        prop_assert_eq!(lp.segments().len(), back.segments().len());
+        for (a, b) in lp.segments().iter().zip(back.segments().iter()) {
+            prop_assert_eq!(format!("{a:?}"), format!("{b:?}"));
         }
     }
 }

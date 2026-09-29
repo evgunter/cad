@@ -2,10 +2,12 @@
 id: a-param-jump-that-swaps-the-outer-loop-renumbers-names-unreported
 kind: issue
 title: A SetParam that jumps a hole past its outer loop (or flips a loop's sense) renumbers every name on the swapped loops, unreported
-status: open
+status: closed
 opened: 2026-09-24
 priority: P0
 cost: D
+closed: 2026-09-24
+pr: 3180
 ---
 
 

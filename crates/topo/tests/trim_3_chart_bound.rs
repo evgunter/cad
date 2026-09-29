@@ -42,7 +42,7 @@ fn iv(x: f64) -> Interval {
 }
 
 fn p2(u: f64, v: f64) -> Point2<Interval> {
-    Point2::new(iv(u), iv(v))
+    Point2::new(u, v).map(iv)
 }
 
 /// A closed chord polygon of exact-structural segments.

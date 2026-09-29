@@ -99,6 +99,11 @@
 //!    without the module's name somewhere in the file. The routes the
 //!    gate states it cannot see (its KNOWN GAPs 4 and 5: a public
 //!    subtrait, a macro-written path) this census cannot see either.
+//! 7. **A read spelled as a path** — `Bounds::lo(x)`, or `Bounds::lo`
+//!    handed on as a function — carries no `.lo()` and is not counted.
+//!    The production ones in the population are `Bounds` reads on the
+//!    evaluation scalar (`ssi.rs`'s `TubeScale::uniform`) or the type's
+//!    own body (`interval.rs`'s `from_certified` and span locator).
 //!
 //! # Where it lives, and why here
 //!
@@ -306,14 +311,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        12,
+        11,
         4,
         "the 4 that ask are the transversality span-hull window (2: \
          `probe_tube_chart` refuses either window \
          hull by name before reading it — a refused hull is NaI, and a NaN window end \
          would land on the first span), and two `T: Bounds` reads of the pcurve's \
          tangent that share that function and count only by blind spot 2. The other \
-         8 are `T: Bounds` reads on the evaluation scalar and not certification \
+         7 are `T: Bounds` reads on the evaluation scalar and not certification \
          endpoints at all — blind spot 1",
     ),
     (

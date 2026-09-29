@@ -45,19 +45,14 @@
 
 use geom::Surface;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Bounds, Interval, MarginDiag, Point2, Real, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Bounds, ErrorTextReading, Interval, Real, Tol};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::vacuity::stood_down;
 use topo::{Body, ShellError, ValidationError};
 
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
+use crate::common::charts::hollow_moves;
+use crate::common::interval::{iv, p2, v2};
 
 /// The tour's own wall thickness, the one `torax_axial` hollows by.
 const T: f64 = 1.0 / 128.0;
@@ -70,7 +65,7 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
+            dir: v2(0.0, 1.0),
         },
         turn,
         Tol::witness(),
@@ -122,16 +117,17 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
 #[test]
 fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
     let tol = Tol::witness();
+    // NOT `common::torus_walls::torus_barrel`: its `Interval` twin, the bulge enclosed.
     let c = p2(6.0 / 64.0, 1.0 / 16.0);
     let (lo, hi) = (p2(3.0 / 64.0, 0.0), p2(3.0 / 64.0, 8.0 / 64.0));
     let (u, v) = (lo - c, hi - c);
     let bulge = (u.perp_dot(v).atan2(u.dot(v)) / iv(4.0)).tan();
     let body = revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(lo, bulge),
-            ProfileVertex::new(hi, iv(0.0)),
-            ProfileVertex::new(p2(0.0, 8.0 / 64.0), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (lo, bulge),
+            (hi, iv(0.0)),
+            (p2(0.0, 8.0 / 64.0), iv(0.0)),
         ]),
         Revolution::Full,
     );
@@ -144,7 +140,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
     let hollow = match topo::shell(&body, iv(T), tol) {
         Ok(hollow) => hollow.body,
         Err(ShellError::NotValid { errors }) if tol.eps() < DEFAULT_EPS => {
-            let [ValidationError::SliverDihedral { edge, cause }] = errors.as_slice() else {
+            let [ValidationError::SliverDihedral { edge, check, cause }] = errors.as_slice() else {
                 panic!(
                     "at ε = {:e} the hollow refused with something other than ONE sliver \
                      dihedral: {errors:?}",
@@ -157,11 +153,18 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
                 "the escalation at {edge:?} is not the dihedral classifier's own"
             );
             assert_eq!(
+                *check,
+                topo::WedgeCheck::SecondOrder,
+                "the escalation at {edge:?} names another decision"
+            );
+            assert_eq!(
                 cause.band.zero(),
                 tol.eps(),
                 "the band is the run's own ε, not a number the fixture carries"
             );
-            let MarginDiag::Enclosure { lo, hi } = cause.margin else {
+            let ErrorTextReading::Enclosure { lo, hi } =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!(
                     "the sliver margin at {edge:?} is not an enclosure: {:?}",
                     cause.margin
@@ -265,9 +268,9 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     let tol = Tol::witness();
     let profile = Profile::new(
         SketchPlane::<Interval>::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -0.3), iv(0.0)),
-            ProfileVertex::new(p2(0.0, 0.3), iv(-1.0)),
+        vec![bulge_loop(vec![
+            (p2(0.0, -0.3), iv(0.0)),
+            (p2(0.0, 0.3), iv(-1.0)),
         ])],
     )
     .validate(tol)
@@ -276,7 +279,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
+            dir: v2(0.0, 1.0),
         },
         Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
         tol,
@@ -284,23 +287,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     .expect("the lune revolves")
     .body;
 
-    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    let moves: Vec<topo::ChartMove<Interval>> = charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { iv(-0.05) } else { iv(0.05) },
-            }
-        })
-        .collect();
+    let moves = hollow_moves(&body, iv(0.05));
     let mut cavity = body.clone();
     let band = geom_core::Band::linear(tol).expect("band");
     match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
@@ -340,9 +327,9 @@ fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let r = 0.275_f64;
     let profile = Profile::new(
         SketchPlane::<Interval>::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(-r, 0.0), iv(1.0)),
-            ProfileVertex::new(p2(r, 0.0), iv(1.0)),
+        vec![bulge_loop(vec![
+            (p2(-r, 0.0), iv(1.0)),
+            (p2(r, 0.0), iv(1.0)),
         ])],
     )
     .validate(tol)
@@ -351,7 +338,7 @@ fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
         &profile,
         RevolveAxis {
             origin: p2(1.2, 0.0),
-            dir: Vec2::new(iv(0.0), iv(-1.0)),
+            dir: v2(0.0, -1.0),
         },
         Revolution::Partial(iv(-core::f64::consts::FRAC_PI_2)),
         tol,

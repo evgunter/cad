@@ -20,10 +20,7 @@ use crate::common;
 use std::path::{Path, PathBuf};
 
 use common::asm;
-use pncad::document::{
-    Alignment, AxisSense, Doc, DocumentId, MateFrame, MatePrimitive, Node, NodeResult,
-    RecipeNodeId, SlotId,
-};
+use pncad::document::{Doc, DocumentId, Node, NodeResult, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
@@ -31,30 +28,6 @@ use viewer::display::AdmissionFault;
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
-
-/// The seat mate the acceptance authors: the post's top cap under the
-/// shelf's underside, frames in each part's own coordinates.
-fn seat_alignment() -> Alignment {
-    Alignment {
-        a: MateFrame {
-            origin: [
-                asm::POST_SECTION / 2.0,
-                asm::POST_SECTION / 2.0,
-                asm::POST_HEIGHT,
-            ],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
-}
 
 /// A session over a NEW empty document, saved into the bench's
 /// directory — which is what gives it a resolver, and therefore a
@@ -66,31 +39,6 @@ fn authored_session(bench: &asm::Bench, label: &str, tol: Tol) -> (DocSession, P
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     (session, path)
-}
-
-/// Perform one `AddInstance` and answer the node it minted, asserting
-/// the op's own contract: no refusal, exactly one committed edit.
-fn add_instance(session: &mut DocSession, id: DocumentId) -> RecipeNodeId {
-    let before: Vec<RecipeNodeId> = session.doc().order().to_vec();
-    let outcome = session.perform(SessionOp::AddInstance { id });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
-        outcome.committed.len(),
-        1,
-        "an instance is exactly one committed edit"
-    );
-    session.pump();
-    let minted: Vec<RecipeNodeId> = session
-        .doc()
-        .order()
-        .iter()
-        .copied()
-        .filter(|id| !before.contains(id))
-        .collect();
-    match minted.as_slice() {
-        [only] => *only,
-        other => panic!("one insert mints one node, got {other:?}"),
-    }
 }
 
 /// The instance's node, as the document holds it.
@@ -109,8 +57,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let bench = asm::bench("gauth3-author", tol);
     let (mut session, path) = authored_session(&bench, "gauth3-authored", tol);
 
-    let post_i = add_instance(&mut session, bench.post.id);
-    let shelf_i = add_instance(&mut session, bench.shelf.id);
+    let post_i = common::instance_in(&mut session, bench.post.id);
+    let shelf_i = common::instance_in(&mut session, bench.shelf.id);
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
@@ -168,12 +116,13 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(session.display().free_move_of(shelf_i).is_some());
 
     // The shipped mate tool's op takes them from here.
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(post_i, &bench.post_top)),
-        b: common::head(asm::in_part(shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
+    let outcome = session.perform(asm::seat_op_under(
+        &bench,
+        post_i,
+        shelf_i,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     let [superseded] = &outcome.withdrawn.superseded[..] else {
@@ -402,8 +351,8 @@ fn two_instances_of_one_part_insert_and_evaluate() {
     let bench = asm::bench("gauth3-twice", tol);
     let (mut session, _) = authored_session(&bench, "gauth3-twice-asm", tol);
 
-    let first = add_instance(&mut session, bench.post.id);
-    let second = add_instance(&mut session, bench.post.id);
+    let first = common::instance_in(&mut session, bench.post.id);
+    let second = common::instance_in(&mut session, bench.post.id);
     assert_ne!(first, second, "each insert mints its own node");
     assert_eq!(instance_of(&session, first).0, bench.post);
     assert_eq!(
@@ -567,7 +516,7 @@ fn the_chooser_holds_a_snapshot_and_rescan_re_reads_it() {
 fn one_instance(tag: &str, label: &str, tol: Tol) -> (asm::Bench, PathBuf, RecipeNodeId) {
     let bench = asm::bench(tag, tol);
     let (mut session, path) = authored_session(&bench, label, tol);
-    let instance = add_instance(&mut session, bench.post.id);
+    let instance = common::instance_in(&mut session, bench.post.id);
     let saved = session.perform(SessionOp::Save(path.clone()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     (bench, path, instance)

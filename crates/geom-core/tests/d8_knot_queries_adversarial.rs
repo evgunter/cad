@@ -210,7 +210,7 @@ fn interior_values(lo: f64, hi: f64, count: usize) -> Vec<f64> {
 }
 
 /// The written-down cases: every shape a draw is not guaranteed to
-/// produce (test-suite-cost shape 2 — construct, do not hunt).
+/// produce (implementer-discipline §8 shape 2 — construct, do not hunt).
 fn enumerated() -> Vec<(String, KnotVector)> {
     let mut out = Vec::new();
     let mut push = |name: String, kv: Option<KnotVector>| {

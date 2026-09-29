@@ -31,7 +31,7 @@
 
 use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
 
-use super::super::fixture::len;
+use super::super::fixture::{ang, len, scl};
 use super::{CorpusDoc, Recorder};
 
 /// The spine circle's radius, meters (dyadic).
@@ -57,15 +57,15 @@ pub fn document() -> CorpusDoc {
     // that assumed one world axis has two documents to disagree with.
     let spine = r.insert(Node::Datum(Datum::Axis {
         origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scalar(0.0), scalar(1.0), scalar(0.0)],
+        direction: [scl(0.0), scl(1.0), scl(0.0)],
     }));
     let bend = r.insert(Node::Tube {
         spine,
-        u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
         major_radius: len(R),
         window: TubeWindow::Arc {
-            t0: angle(T0),
-            t1: angle(T1),
+            t0: ang(T0),
+            t1: ang(T1),
         },
         minor_radius: len(MINOR),
     });
@@ -81,18 +81,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: bend,
             slot: SlotId::TubeWindowEnd,
-            expr: angle(T1_BUMPED),
+            expr: ang(T1_BUMPED),
         },
         bump_root: bend,
     }
-}
-
-/// A dimensionless component, the spelling a direction takes.
-fn scalar(v: f64) -> editor_core::Expr {
-    editor_core::Expr::literal(v, editor_core::Dimension::Scalar).expect("finite")
-}
-
-/// An angle in radians, the spelling a window bound takes.
-fn angle(v: f64) -> editor_core::Expr {
-    editor_core::Expr::literal(v, editor_core::Dimension::Angle).expect("finite")
 }

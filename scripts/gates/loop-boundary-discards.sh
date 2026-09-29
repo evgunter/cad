@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # loop-boundary-discards.sh — every place a `LoopBoundary` value is
 # thrown away is in the register below, at a pinned count, audited or
-# not. ONE home; ci.yml's "LoopBoundary deferral register" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# not. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE INVARIANT. A `continue` carrying a paragraph of justification and
 # a `continue` carrying none are the same six characters. The paragraph
@@ -141,7 +140,6 @@ REGISTER=(
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
-  "crates/topo/src/boolean/contain.rs|iso_bounded_wall||1|unaudited"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/finish.rs|classify_shell||1|unaudited"
   "crates/topo/src/boolean/join.rs|face_vertex_points||1|unaudited"
@@ -171,7 +169,7 @@ REGISTER=(
   "crates/topo/src/census.rs|face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its five callers says what that means"
   "crates/topo/src/chart_region.rs|face_boundary_points||1|unaudited"
   "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
-  "crates/topo/src/chord_join.rs|face_azimuth_window||1|unaudited"
+  "crates/topo/src/chord_join.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
   "crates/topo/src/coherence.rs|traversals||1|unaudited"
   "crates/topo/src/euler.rs|find_half_edge||1|unaudited"
   "crates/topo/src/euler.rs|mef_chord||1|unaudited"
@@ -182,7 +180,15 @@ REGISTER=(
   "crates/topo/src/euler_ring.rs|mekr_both_empty||2|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_ring||1|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
-  "crates/topo/src/merge_faces.rs|loop_winding||1|unaudited"
+  "crates/topo/src/loop_winding.rs|planar_loop_winding||1|unaudited"
+  # The pruning's bridge target: the survivor's outline is read for a
+  # half-edge to join a lone-vertex ring to, and an EMPTY outline is not
+  # skipped but refused typed (LoopNotCycle naming that loop).
+  # The survivor choice reads each member's rings for the faces they
+  # border; a lone-vertex ring borders none, so passing it over answers
+  # the question it asks.
+  "crates/topo/src/merge_faces.rs|outermost_survivor||1|audited: the discarded variant is a lone-vertex ring, which has no half-edge and so borders no face; the question the walk asks (which member sits in this ring) has the answer none for it"
+  "crates/topo/src/merge_faces.rs|merge_group||1|audited: the discarded variant is refused, not passed over — an empty outline has no half-edge to bridge from, and the arm returns LoopNotCycle naming the outline"
   "crates/topo/src/movefac.rs|movefac||1|unaudited"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
@@ -213,6 +219,7 @@ REGISTER=(
   "crates/topo/src/shell.rs|rename_loop_surface||1|unaudited"
   "crates/topo/src/shell.rs|ring_rows||1|unaudited"
   "crates/topo/src/shell.rs|split_cycle||1|unaudited"
+  "crates/topo/src/splitting/containment.rs|carrier_loop||1|audited: the discard is answered as CorruptLoop, and point_in_face, the one caller, answers an Empty outer loop (no region) and steps over an Empty ring (no area) before asking"
   "crates/topo/src/splitting/containment.rs|loop_points||1|unaudited"
   "crates/topo/src/splitting/finish.rs|classify_shell||1|unaudited"
   "crates/topo/src/splitting/finish.rs|describe_section_boundary||1|unaudited"
@@ -220,7 +227,7 @@ REGISTER=(
   "crates/topo/src/splitting/join.rs|loop_starts||1|unaudited"
   "crates/topo/src/validate.rs|loop_cycle_of||1|unaudited"
   "crates/topo/src/validate.rs|tier1||1|unaudited"
-  "crates/topo/src/validate.rs|tier3_local_checks_marked||2|unaudited"
+  "crates/topo/src/validate.rs|tier3_local_checks_marked||1|unaudited"
 )
 
 # The matchers, in one place. Anchored at the start of a record, because

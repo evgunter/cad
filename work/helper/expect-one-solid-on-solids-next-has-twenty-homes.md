@@ -54,10 +54,13 @@ messages and other recovery. `grep -rn 'solids()\.next()'` over
 `crates/` finds **56** sites in all — the other 36 spell `.unwrap()`,
 `.unwrap().0`, `.is_none()` or a message of their own
 (`crates/topo/tests/void_door.rs` alone has eleven, and
-`crates/topo/src/instance.rs`, `movefac.rs`, `shell10_r2_probes.rs`,
+`crates/topo/src/instance.rs`, `movefac.rs`, `separation.rs`,
 `offset_together.rs`, `crates/sweep/src/blend/surgery.rs` and
-`crates/editor-core/src/product.rs` are the non-test homes). A door
-would want all 56, not the 20 that share a string.
+`crates/editor-core/src/product.rs` are the homes outside `tests/`,
+some of them `#[cfg(test)]` modules in `src/`). A door
+would want all 56, not the 20 that share a string. (Still 56 on
+2026-09-24, same instrument: `shell10_r2_probes.rs`'s copy left with
+that module, and `separation.rs`'s `owner_index` fixture arrived.)
 
 **The work**: decide whether `Body` should answer "the one solid of
 this body" — a `Result`/`Option` door that refuses a body holding none

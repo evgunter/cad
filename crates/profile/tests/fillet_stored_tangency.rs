@@ -23,7 +23,7 @@
 
 use crate::common;
 
-use common::{p2, tol};
+use common::tol;
 use geom_core::{Point2, Tol};
 use profile::{
     ArcSweep, Center, Open, PathError, Profile, ProfileError, ProfileLoop, SketchPlane, Start,
@@ -55,8 +55,8 @@ const CLEAR: f64 = 32.0;
 /// origin, the corner sits at `(4, 0)`, the arrival leaves it at
 /// `theta`, anchored three units along.
 fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-    Open.at(p2(0.0, 0.0))
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?
@@ -69,16 +69,16 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
 /// The centre of the **line × arc** corner's arrival circle: radius 2,
 /// counterclockwise tangent `(cos θ, sin θ)` at the corner `(4, 0)`.
 fn line_arc_centre(theta: f64) -> Point2<f64> {
-    p2(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
+    Point2::new(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
 }
 
 /// A **line × arc** corner turning by `theta`: the east ray from the
 /// origin meets that circle at `(4, 0)`, and the fillet closes along it.
 fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let c = line_arc_centre(theta);
-    let start = c + (p2(2.0 * theta.cos(), 2.0 * theta.sin()) - p2(0.0, 0.0));
+    let start = c + (Point2::new(2.0 * theta.cos(), 2.0 * theta.sin()) - Point2::new(0.0, 0.0));
     Open.at(start)
-        .line_to(p2(0.0, 0.0), tol())?
+        .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(1.0, 0.0, tol())?
         .fillet_arc(
             radius,
@@ -99,15 +99,15 @@ fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
 fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-theta, 0.0),
+            c: Point2::new(-theta, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(2.0 - theta, 0.0),
+            p: Point2::new(2.0 - theta, 0.0),
         },
         radius,
         Center {
-            c: p2(theta, 0.0),
+            c: Point2::new(theta, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(theta - 2.0, 0.0),
+            p: Point2::new(theta - 2.0, 0.0),
         },
         tol(),
     )?
@@ -334,10 +334,10 @@ fn the_recourse_the_refusal_names_builds_and_validates() {
         .unwrap_or_else(|e| panic!("the larger radius {bigger:e} m validates, got {e}"));
 
     // Lever 3: drop the fillet. The corner stays sharp and validates.
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     let sharp = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(4.0, 0.0), tol())
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(4.0, 0.0), tol())
         .and_then(|p| p.line_to(anchor, tol()))
         .and_then(|p| p.line_to(Start, tol()))
         .expect("the sharp corner builds")
@@ -452,7 +452,12 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
     };
     for radius in [0.1, 0.25, 0.5] {
         must(format!("rounded square with a seam fillet r={radius}"), {
-            let m = [p2(0.0, -1.0), p2(1.0, 0.0), p2(0.0, 1.0), p2(-1.0, 0.0)];
+            let m = [
+                Point2::new(0.0, -1.0),
+                Point2::new(1.0, 0.0),
+                Point2::new(0.0, 1.0),
+                Point2::new(-1.0, 0.0),
+            ];
             let north = std::f64::consts::FRAC_PI_2;
             let th = [0.0, north, std::f64::consts::PI, -north];
             Open.at(m[0])
@@ -471,14 +476,14 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                 .map(|c| c.loop_)
         });
         must(format!("line x arc internal r={radius}"), {
-            Open.at(p2(0.0, 2.0))
-                .line_to(p2(0.0, 0.0), tol())
+            Open.at(Point2::new(0.0, 2.0))
+                .line_to(Point2::new(0.0, 0.0), tol())
                 .and_then(|p| p.toward(2.0, 0.0, tol()))
                 .and_then(|p| {
                     p.fillet_arc(
                         radius,
                         Center {
-                            c: p2(0.0, 0.0),
+                            c: Point2::new(0.0, 0.0),
                             winding: ArcSweep::Ccw,
                             p: Start,
                         },
@@ -490,32 +495,32 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
         must(format!("arc x line r={radius}"), {
             Open.arc_fillet(
                 Center {
-                    c: p2(0.0, 0.0),
+                    c: Point2::new(0.0, 0.0),
                     winding: ArcSweep::Cw,
-                    p: p2(0.0, 2.0),
+                    p: Point2::new(0.0, 2.0),
                 },
                 radius,
                 tol(),
             )
             .and_then(|p| p.toward(1.0, 0.0, tol()))
-            .and_then(|p| p.to(p2(4.0, 0.0), tol()))
-            .and_then(|p| p.line_to(p2(4.0, 3.0), tol()))
-            .and_then(|p| p.line_to(p2(-1.0, 3.0), tol()))
+            .and_then(|p| p.to(Point2::new(4.0, 0.0), tol()))
+            .and_then(|p| p.line_to(Point2::new(4.0, 3.0), tol()))
+            .and_then(|p| p.line_to(Point2::new(-1.0, 3.0), tol()))
             .and_then(|p| p.line_to(Start, tol()))
             .map(|c| c.loop_)
         });
         must(format!("arc x arc vesica r={radius}"), {
             Open.arc_fillet_arc(
                 Center {
-                    c: p2(-1.0, 0.0),
+                    c: Point2::new(-1.0, 0.0),
                     winding: ArcSweep::Ccw,
-                    p: p2(1.0, 0.0),
+                    p: Point2::new(1.0, 0.0),
                 },
                 radius,
                 Center {
-                    c: p2(1.0, 0.0),
+                    c: Point2::new(1.0, 0.0),
                     winding: ArcSweep::Ccw,
-                    p: p2(-1.0, 0.0),
+                    p: Point2::new(-1.0, 0.0),
                 },
                 tol(),
             )
@@ -573,12 +578,13 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
             let verts: Vec<String> = lp
                 .vertices()
                 .iter()
-                .map(|v| {
+                .zip(lp.bulges())
+                .map(|(v, b)| {
                     format!(
                         "{:016x},{:016x},{:016x}",
-                        v.pos().x.to_bits(),
-                        v.pos().y.to_bits(),
-                        v.bulge().to_bits()
+                        v.x.to_bits(),
+                        v.y.to_bits(),
+                        b.to_bits()
                     )
                 })
                 .collect();
@@ -682,14 +688,14 @@ fn the_transition_is_bracketed_on_both_sides_at_this_eps() {
 fn an_exact_outgoing_fit_leaves_its_joint_undeclared_and_still_validates() {
     // r = 1 consumes the line × arc corner's outgoing side exactly.
     let lp = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), tol())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), tol())
         .and_then(|p| p.toward(2.0, 0.0, tol()))
         .and_then(|p| {
             p.fillet_arc(
                 1.0,
                 Center {
-                    c: p2(0.0, 0.0),
+                    c: Point2::new(0.0, 0.0),
                     winding: ArcSweep::Ccw,
                     p: Start,
                 },

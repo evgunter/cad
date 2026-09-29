@@ -193,7 +193,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
 /// header carries its provenance.
 pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     use geom_core::{Point2, Point3, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    use profile::{Profile, SketchPlane, test_support::bulge_loop};
     use sweep::{Extrusion, extrude};
     use topo::splitting::{SplitPart, SplitPlane, split};
 
@@ -203,9 +203,9 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
 
     let disc = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(-R, 0.0), 1.0),
-            ProfileVertex::new(Point2::new(R, 0.0), 1.0),
+        vec![bulge_loop(vec![
+            (Point2::new(-R, 0.0), 1.0),
+            (Point2::new(R, 0.0), 1.0),
         ])],
     )
     .validate(Tol::witness())

@@ -905,15 +905,17 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
-    # The whole-program edit's two payload types. `LoopProvenance` is
-    # what `DocEdit.set_program` takes as its `provenance` argument —
-    # a list of `(from, steps)` tuples, one per loop, which is the
-    # struct's two fields spelled as Python data rather than a class
-    # of its own. `ProvenanceFault` is what
-    # `EditError::ProvenanceMalformed` carries, and its seven arms
-    # cross at the carrier's second word.
-    "LoopProvenance": "DocEdit.set_program",
-    "ProvenanceFault": "EditError.inner_variant",
+    # The profile step ids. A `StepId` is what `Doc.step_ids` answers
+    # and `DocEdit.set_program` takes, one int per authored step (a
+    # kept id, or `None` for a new step), which is the newtype spelled
+    # as Python data rather than a class of its own. `StepIdFault` is
+    # what `EditError::StepIdsRefused` carries, and its arms cross at
+    # the carrier's second word.
+    "StepId": "Doc.step_ids",
+    "StepIdFault": "EditError.inner_variant",
+    # `PiecesFault` is what `NodeErrorKind::ProfilePieces` carries, and
+    # its arms cross at that carrier's second word.
+    "PiecesFault": "EvaluationError.inner_kind",
     # `MetaVersionError` is the same row one arm over, and it arrives
     # by the same reading failing. It was `NOT_CARRIED` under "the
     # curated face is a different shape", qualified: it is a nested
@@ -1009,10 +1011,11 @@ BOUND_AS = {
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
-    # `escalated` or `zero_volume`. `CheckEvidence.reason` is the same
-    # refusal's sentence — the kernel's own prose — and this is the
-    # branchable half beside it, so a caller stops substring-matching
-    # the sentence to learn which shell refusal escalated the count.
+    # `escalated`, `zero_volume` or `straddles`. `CheckEvidence.reason`
+    # is the same refusal's sentence — the kernel's own prose — and
+    # this is the branchable half beside it, so a caller stops
+    # substring-matching the sentence to learn which shell refusal
+    # escalated the count.
     #
     # Its own fields do not cross: which shell, and the mass-properties
     # failure under `props`, are the shell door's vocabulary and this
@@ -1227,8 +1230,19 @@ BOUND_AS = {
     "SlotId": "EditError.slot",
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
+    "StepMap": "SplitOutcome.step_map",
+    # What a `StepMapDiverged` refusal carries; the arm crosses as its
+    # tag word.
+    "StepMapDivergence": "SplitError.variant",
+    # A profile's pieces cross as opaque text, one per canonical
+    # segment, which is what the role-name doors take.
+    "ProfilePieces": "Doc.pieces",
     "PlacementRuleFault": "EditError.variant",
     "RootFault": "EditError.variant",
+    # What a `RootInvalid` refusal lists, one per failing source body;
+    # the arm crosses as its tag word, its first failing root as
+    # `node`, and every root, output and finding in its message.
+    "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
@@ -1318,7 +1332,7 @@ BOUND_AS = {
     # They cross exactly as their carrier does — flattened to the tag
     # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
     # one level in. An `f64` evaluation cannot produce either today,
-    # which is the same sentence `MinClearanceRefusal` carries one
+    # which is the same sentence `ClearanceRefusal` carries one
     # roster down: the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
@@ -1477,6 +1491,24 @@ FAMILIES: dict[str, str] = {
         "asserting that a leg authored `25 * mm` reads back `mm` off "
         "the document slot — the disagreement with `Node.polygon` that "
         "opened the family, inverted."
+    ),
+    # THE SIXTH ARRIVED WITH ITS DOOR. `MaintenanceNet` (DM7's
+    # net-over-an-action rule) landed in `editor-core` with EMIT's
+    # `the-viewer-drops-every-dm7-rename-report`, and the stub's
+    # `orphaned_declare` paragraph already tells a Python caller that a
+    # cascade's net is read off the document the walk ended at — by
+    # hand, since nothing bound folds the rows. `crates/pncad-py/*` is
+    # LIB's ground; `work/lib/python-has-no-maintenance-net-door`
+    # carries the finding.
+    "B-MAINT-NET": (
+        "the net of a sequence of accepted edits' maintenance rows — "
+        "`MaintenanceNet`, pushed one applied edit at a time and "
+        "finished against the end document. Closing it needs a Python "
+        "door that folds each `Doc.apply` result with the document it "
+        "produced, a `pncad.pyi` entry the `orphaned_declare` paragraph "
+        "points at instead of 'read it off the document', and one "
+        "Python row cascading a declared union's `Declare` away and "
+        "asserting an empty net."
     ),
 }
 
@@ -1660,7 +1692,7 @@ FAMILIES: dict[str, str] = {
 #: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
-#: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
+#: profile ladder's rungs (`Profile`, `ProfileLoop`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
 #: `FilletLegShape`, `validated`) and the recorded program the node
 #: stores (`ProfileProgram`, `LoopProgram`, `ProgramStep`,
@@ -2196,6 +2228,7 @@ NOT_BOUND = {
     # bind.
     "LoggedEdit": SHAPE,
     "apply_logged": SHAPE,
+    "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
@@ -2273,6 +2306,14 @@ NOT_BOUND = {
     "GeomRef": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
+    # `StepImport::Solid::enclosure`'s refusal arm and the bracket it
+    # carries cross the way `MassPropsError` does: as the measurement
+    # refusal `ImportReport.enclosure` and
+    # `Body.validate_geometric_measured` raise, with the bracket as its
+    # `volume_lo`/`volume_hi`/`surface_area` attributes (`None` unless
+    # the schedule ran out) rather than as values Python holds.
+    "TargetUnreached": SHAPE,
+    "VolumeEnclosure": SHAPE,
     # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
     # `Indeterminate` that holds it — and a discriminant that crosses
     # as WHICH ATTRIBUTE IS SET rather than as a word.
@@ -2289,6 +2330,10 @@ NOT_BOUND = {
     # word beside them would publish one fact twice, the
     # `frame_error_tag` rule at the arm one rung up.
     "MarginDiag": SHAPE,
+    # The same three arms, named as the margin's kind with no number
+    # (`MarginDiag::kind`): the attribute set above IS that kind in
+    # Python, so it crosses the same way and is not a second word.
+    "MarginKind": SHAPE,
     # WHAT A LEVERED CLASH MEASURED, curated at `pncad::document`
     # beside the `MateFault` arm that carries it (`mate_contradictory`)
     # — and, like `MarginDiag`, a discriminant that crosses as WHICH
@@ -2347,12 +2392,6 @@ NOT_BOUND = {
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
-    # The floor of the retired index space — the coordinate
-    # `SetProgram` retires a stranded name to. A Python caller reads
-    # the retired spelling off the `strand` row's `name` and rebinds
-    # from it; it never mints one, so the number is not a door here
-    # (`test_document.py`'s strand row pins the spelling by value).
-    "RETIRED_FLOOR": SHAPE,
     "Real": SHAPE,
     "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,
@@ -2601,6 +2640,14 @@ NOT_BOUND = {
     "Mispaired": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
+    # `BooleanError::CurvedPairUnsupported`'s SITE: which door refused
+    # the pair (the operand gate, the ∖/∩ revert roster, or the
+    # crossings path's interior-loop guard). Carried in Rust so a
+    # consumer matching that variant can name the field's type;
+    # interior here because Python never holds one. The refusal crosses
+    # as its tag word plus prose, and the guard's prose is its own
+    # sentence, so a Python caller reads the site in the message.
+    "PairRefusalSite": INTERIOR,
     # The frame WITNESS — an origin and a right-handed orthonormal
     # triple, minted where its axes were decided. Python never holds
     # one: `SketchPlane.from_frame` takes the two directions a caller
@@ -2625,9 +2672,10 @@ NOT_BOUND = {
     "ParamEnv": INTERIOR,
     "Profile": INTERIOR,
     "ProfileEdgeRef": INTERIOR,
+    "PieceRole": INTERIOR,
+    "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
-    "ProfileVertex": INTERIOR,
     "ProfileVertexRef": INTERIOR,
     "ProgramArcData": INTERIOR,
     "ProgramStep": INTERIOR,
@@ -2655,6 +2703,8 @@ NOT_BOUND = {
     "StepArg": INTERIOR,
     "StepSegmentsError": f"{GAP}: B-STEP-SEGMENTS the refusal of the door "
     "that says which profile edges an authored step became",
+    "CanonicalSegment": f"{GAP}: B-STEP-SEGMENTS the canonical position that "
+    "door answers in",
     "Surface": INTERIOR,
     "ValidatedLoop": INTERIOR,
     "ValidatedProfile": INTERIOR,
@@ -2788,8 +2838,10 @@ NOT_BOUND = {
     # as `EvaluationError.kind == "measure_clearance_refused"`
     # (`src/tags.rs`), which is this bullet's ordinary shape. What is
     # NOT ordinary is that no Python evaluation can produce one: the
-    # refusal's only producer is
-    # `impl MinClearanceLane for geom_core::Interval`, and the binding
+    # refusal's only producer on the measure path is
+    # `impl MinClearanceLane for geom_core::Interval` (the leaf-level
+    # query engine refuses with it too, and the façade does not carry
+    # that engine at all), and the binding
     # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
     # what gates it. That is `profile_lift`'s
     # sentence above arriving on the refusal side: the door starts
@@ -2802,9 +2854,15 @@ NOT_BOUND = {
     # Its SIBLING went the other way and the pair is the measurement:
     # `MeasureUnavailableAt` is what the `f64` lane answers a
     # `min_clearance` WITH, so it is reachable today and is bound
-    # top-level under rule 1. One kernel file, one verb, two refusals,
-    # and the lane decides which of them a Python caller can ever see.
-    "MinClearanceRefusal": SHAPE,
+    # top-level under rule 1. One verb, two refusals, and the lane
+    # decides which of them a Python caller can ever see.
+    "ClearanceRefusal": SHAPE,
+    # Its `Budget` and `Selection` payloads, curated beside it so a
+    # Rust consumer can read the arm it matched. They cross exactly as
+    # their carrier does — inside the one tag — and no `f64` evaluation
+    # reaches them for the same reason.
+    "CellBudget": SHAPE,
+    "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -2883,6 +2941,12 @@ NOT_BOUND = {
     #     type whose two halves are what the doors take, the other a
     #     refusal flattened to a tag no `f64` evaluation can raise.
     #
+    #     (2026-09-24, PR #3188: `MinClearanceRefusal` is deleted — the
+    #     measure path carries the engine's own `ClearanceRefusal` — and
+    #     its entry is now `ClearanceRefusal`'s, with the two payloads
+    #     curated beside it, `CellBudget` and `SelectionRefusal`, all
+    #     three `SHAPE` for the same reason.)
+    #
     # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
     # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS
     # one unit earlier, and this family's `MeasureUnavailableAt` is a
@@ -2895,8 +2959,9 @@ NOT_BOUND = {
     # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
     # every name this family owns is curated in
     # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit is a
-    # LANE — see the `MinClearanceRefusal` entry — and it bites one
-    # refusal out of the family's whole surface.
+    # LANE — see the `ClearanceRefusal` entry — and it bites one
+    # refusal, with the two payloads curated beside it, out of the
+    # family's whole surface.
     #
     # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
     # and `Node::Assertion` are ARMS of `Node`, which rule 1 accounts
@@ -3041,7 +3106,7 @@ NOT_BOUND = {
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
     # shape: a Python surface that evaluates at a certified scalar. On
     # that day these are doors a caller can reach and every one of them
-    # owes a spelling or a `gap:`. `MinClearanceRefusal`'s entry two
+    # owes a spelling or a `gap:`. `ClearanceRefusal`'s entry two
     # screens up is the same sentence from the refusal side, and it is
     # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,
@@ -3202,12 +3267,6 @@ MEMBERS_BOUND_AS = {
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::OrphanedDeclare": "Maintenance.variant",
-    # `Maintenance::Rebound` needs a profile name a reshaping moved:
-    # `Node.fillet` takes a name selection and `DocEdit.set_program`
-    # is bound, and `test_document.py`'s
-    # `test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it`
-    # is the Python program that makes one appear.
-    "Maintenance::Rebound": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3220,7 +3279,8 @@ MEMBERS_BOUND_AS = {
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
-    "EditError::ProvenanceMalformed": "EditError.variant",
+    "EditError::StepIdsRefused": "EditError.variant",
+    "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
@@ -3304,7 +3364,9 @@ MEMBERS_BOUND_AS = {
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
+    "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
+    "InlineError::StepMapDiverged": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Frame": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
@@ -3383,12 +3445,13 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
     "ProductError::UnknownNode": "ProductError.variant",
+    "ProductError::PlacedUnderTwoRoots": "ProductError.variant",
     "ProductError::Naming": "ProductError.variant",
     "ProductError::RootFailed": "ProductError.variant",
     "ProductError::RootPoisoned": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::SolidInvalid": "ProductError.variant",
+    "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ReadbackError::Dangling": "ReadbackError.variant",
@@ -3424,10 +3487,12 @@ MEMBERS_BOUND_AS = {
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
+    "SplitError::NameOnDroppedStep": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
     "SplitError::PartEdit": "SplitError.variant",
     "SplitError::RemainderEdit": "SplitError.variant",
+    "SplitError::StepMapDiverged": "SplitError.variant",
     "StepImportError::Syntax": "StepImportError.variant",
     "StepImportError::DanglingReference": "StepImportError.variant",
     "StepImportError::WrongEntityType": "StepImportError.variant",
@@ -3495,7 +3560,10 @@ MEMBERS_BOUND_AS = {
     "ValidationError::ApproxLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::DegenerateTorus": "ValidationFinding.variant",
     "ValidationError::DegenerateTorusEscalated": "ValidationFinding.variant",
-    "ValidationError::NonpositiveTorusTube": "ValidationFinding.variant",
+    "ValidationError::PoisonedSurfaceDatum": "ValidationFinding.variant",
+    "ValidationError::UnrepresentableSurfaceDatum": "ValidationFinding.variant",
+    "ValidationError::PoisonedCurveDatum": "ValidationFinding.variant",
+    "ValidationError::UnrepresentableCurveDatum": "ValidationFinding.variant",
     "ValidationError::EdgeCertification": "ValidationFinding.variant",
     "ValidationError::DescriptionNotAdjacent": "ValidationFinding.variant",
     "ValidationError::PlanarFaceResidual": "ValidationFinding.variant",
@@ -3506,7 +3574,6 @@ MEMBERS_BOUND_AS = {
     "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
     "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
     "ValidationError::TangentNotIntrinsic": "ValidationFinding.variant",
-    "ValidationError::UndeclaredCusp": "ValidationFinding.variant",
     "ValidationError::LaminaWedge": "ValidationFinding.variant",
     "ValidationError::LoopRoleInverted": "ValidationFinding.variant",
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
@@ -3517,6 +3584,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",
     "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
+    "ValidationError::ShellWinding": "ValidationFinding.variant",
     "ValidationError::UndeclaredContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",

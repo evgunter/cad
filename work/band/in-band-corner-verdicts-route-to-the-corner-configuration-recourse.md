@@ -4,6 +4,8 @@ kind: issue
 title: blend: an in-band corner-independence or cap-transverse verdict is routed to FILLET3_CORNER_RECOURSE, which the refused corner already satisfies
 status: open
 opened: 2026-09-23
+priority: P1
+cost: E
 ---
 
 

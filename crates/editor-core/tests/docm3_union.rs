@@ -431,7 +431,7 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .order()
         .iter()
         .map(|id| DocEdit::InsertNode {
-            node: doc.node(*id).expect("an ordered node").clone(),
+            node: crate::fixture::as_authored(doc.node(*id).expect("an ordered node")),
         })
         .collect();
     edits.push(DocEdit::SetMembers {
@@ -843,7 +843,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
 }
 
 /// How many names a blend node's selection carries.
-fn selection_len(doc: &ProfileDoc, blend: RecipeNodeId) -> usize {
+fn selection_len(doc: &editor_core::ProfileDoc, blend: RecipeNodeId) -> usize {
     match doc.node(blend) {
         Some(Node::Fillet { selection, .. }) => selection.len(),
         other => panic!("expected a fillet, got {other:?}"),

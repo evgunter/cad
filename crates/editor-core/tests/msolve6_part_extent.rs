@@ -168,7 +168,7 @@ fn mated(
 /// The reach of every instance in `ids`, through the public door:
 /// each instance's part, read off the document the way the solve
 /// reads it.
-fn reaches(doc: &ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
+fn reaches(doc: &editor_core::ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
     let reach = mate_reach::<f64>(opts, Tol::witness());
     ids.iter()
         .map(|&id| {
@@ -290,7 +290,7 @@ enum Verdict {
 /// strictness moves this expectation with the solve rather than
 /// leaving the row testing a copied rule.
 fn verdict(band: Band, theta: f64, arm: f64) -> Verdict {
-    match (theta * arm).sign_within(band) {
+    match (theta * arm).sign_within(band).map(|d| d.sign) {
         Ok(Sign::Zero) => Verdict::Parallel,
         Ok(Sign::Positive | Sign::Negative) => Verdict::Refused,
         Err(_) => Verdict::Indeterminate,

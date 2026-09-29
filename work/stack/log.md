@@ -13,3 +13,11 @@ components that can be worked on in parallel."*
 unchanged. ENCL keeps its band 5800-5899; band 9100-9199 is claimed
 for this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched.
+
+## Announced from ENCL (2026-09-25)
+
+Evidence appended to `certificate-types-have-public-fields-and-are-forgeable`:
+`geom::ApproxSurface::certify` takes any closure, so an `OffsetCertificate`
+can be forged through it too. This is an addition to the row, not a claim on it.
+
+Signed: (ENCL orchestrator)

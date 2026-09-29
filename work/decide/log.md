@@ -395,3 +395,289 @@ suspended the A/B protocol on 2026-09-23, so it finishes under it and
 its row is recorded on `main`; the orchestrator field spans Fable →
 Opus 5.5. **Block DECIDE-B1 closes** with slot 2 (DECIDE-4) unconsumed,
 per the suspension; DECIDE-4 runs on Opus under the review tiers.
+
+## 2026-09-24 — DECIDE-4 spec'd: rule D past the unit bulge, DUAL
+
+`rule-d-reaches-the-unit-bulge-only` is cut as DECIDE-4
+(`docs/DECIDE-4-SPEC.md`, branch `decide/4-bulge-reach` from
+`props/sign-hull` at `7f3c0cc3f`, the PR targeting `props/sign-hull`).
+Opus implementer.
+
+**Review tier: DUAL**, class M / NUMERIC. The reason: the unit changes
+what the tier decides across a family (every fillet, `Via` and tangent
+arc, `CircleSplit(n ≠ 2)` and every `restrict`-minted sub-arc — a
+third of the tour). The change is also a value-free rewrite over
+`abs`, which is where the record has found unsound folds before
+(SYM-8's `copysign` narrowing; DECIDE-3's side-condition source). If
+the unit closes at its Phase 1 measurement, the tier drops to a single
+STYLE review, and this log will say so when it happens.
+
+**The DR row's home, decided here:** `docs/DUAL-REVIEW-LOG.md` lives
+on `main` and not on `props/sign-hull`, so rule 8's "the row rides the
+unit's own PR as its last commit" cannot hold for a unit whose PR
+targets a props branch. The row rides the orchestrator's carry PR to
+`main` instead, as its last commit, and takes its DR number when that
+PR merges. The alternative, merging `main` into the unit's branch to
+carry the log, was rejected. It would bring `main` into
+`props/sign-hull` ahead of PROPS's own merge, which DECIDE-3 and SYM-9
+both avoided.
+
+**The route A / route B fork on the bulge's sign** is not decided here.
+The item leaves it to Ev with the orchestrator. The spec has Phase 1
+count both routes on today's tree, and stops before either is
+implemented. The sign-free part (Phase 2a) does not wait on it.
+
+## 2026-09-25 — DECIDE-4 merged into `props/sign-hull` (#3192)
+
+**What landed.**
+- Phase 1's attribution, and rule G's exact quotient (a root whose
+  argument's denominator divides its numerator exactly is minted over
+  the quotient).
+- The boss's last value-free residual is taken. The boss now certifies
+  0.73 of its real study, bounded by a real margin (`dihedral_wedge`).
+- No other split moves on nine documents, at +0–3% leaf cost.
+
+**What was filed.** The trade: a root re-keyed to `sqrt(Q)` no longer
+meets the split spelling `sqrt(N)/sqrt(D)`. It is filed as
+`the-exact-quotient-re-keys-a-root-the-split-met` (P2); the remedy is a
+canonical factorisation of a root's argument.
+
+**What is still open.** The bulge's sign waits on Ev's fork (`[ev]`
+#3186), and `rule-d-reaches-the-unit-bulge-only` stays open on it. If
+the ruling is route B, it is its own unit, since DECIDE-4 closed before
+the ruling.
+
+**The review.**
+- The dual on `334bb2aa2` gave APPROVE-WITH-FIXES twice: R1 0/7/4 and
+  R2 0/5/5. It was coded blind, byte 19, with no tally candidate and a
+  fair pair.
+- The adjudicated union fix pass A–L ran at `bfb059b7f`.
+- R1's delta found that the budget-sized step cap made one declined
+  division cost 0.78 s at the drive's budget. It was fixed at
+  `de02c07a1`: two necessary monomial conditions before any step, and a
+  remainder map so a step is linear in `|d|`. It now takes 0.3 ms.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer, first pass | 481k | 250 min |
+| implementer, fix pass | 171k | 100 min |
+| implementer, second pass | 39k | 35 min |
+| R1 | 287k | 52 min |
+| R1's delta | 88k | 32 min |
+| R2 | 292k | 51 min |
+| coder | 73k | — |
+## 2026-09-24 — DECIDE-4 stops on the sign: the fork goes to Ev
+
+DECIDE-4's Phase 1 is pushed on `decide/4-bulge-reach` (`200123f29`).
+The evidence is the item's section "What stands on DECIDE-3's and
+SYM-9's tree (DECIDE-4)" on that branch: the per-cause tables, the
+renders, both routes counted and costed, and the leaf times.
+
+- **(ii) is empty.** DECIDE-3's `abs_square` and canonical root took
+  what SYM-3 counted.
+- **One value-free decision is left:** the boss's `arc_span`, which
+  bounds the boss's ceiling (`1.0309e3·ε`). It is a polynomial common
+  factor under a root, which rule E's monomial factor misses. That is
+  Phase 2a, and it proceeds.
+- **(iii) is non-empty:** four decisions on the `0.5` parameter
+  control, with eight frozen behind them. Phase 2b stops.
+
+The fork is written into the item (`needs_ev: true`) on the `[ev]` PR.
+The recommendation is route B, the span spelled from the decided turn.
+Route A as the dial stands is rejected: it raises `numeric` on every
+document. The apothem's sign is a second, smaller question, proposed as
+its own item.
+
+Also measured, not asked: on the plate and the bracket, `restrict`'s
+sub-arcs meet no arc-family decision. That closes the sweep's blind
+spot (i) for those two documents only.
+
+## 2026-09-25 — Ev rules the bulge's sign (#3186): route B, and the apothem as its own item
+
+Ev, on #3186: "both recommendations sound good!"
+
+- **Decision 1.** The sweep spells the carrier's span from the turn it
+  already decided, `4·atan(σ·b)` in `placed_segment_spec`. DECIDE-4 had
+  merged its review cycle before the ruling, so per its spec this is its
+  own unit, DECIDE-5, cut from `props/sign-hull` once #3192 lands.
+- **Decision 2.** The apothem's sign is filed as
+  `the-apothems-sign-is-a-value-read` (P2, cost H). Its candidate is a
+  narrowed rule C behind the door, with a structural look first.
+
+`rule-d-reaches-the-unit-bulge-only` clears `needs_ev` and closes when
+DECIDE-5 lands.
+
+
+## 2026-09-25 — DECIDE-5 spec'd: the arc's span from the decided turn (route B), single FULL review
+
+Ev's Decision 1 on #3186 is cut as DECIDE-5 (`docs/DECIDE-5-SPEC.md`).
+The branch is `decide/5-span-from-the-turn`, from `props/sign-hull` at
+`bd2bf0c85`, and its PR targets `props/sign-hull`. Opus implementer.
+
+**Review tier: single FULL review.** The design is ruled. The change is
+a few lines at one constructor site, and whether it is right can be
+settled by reading plus a handful of probes: the value channel's
+bit-identity, the `Zero`-turn convention, the span identity's proof
+comment, and the re-baselines, the link's four lost theorems above all.
+None of that needs a second independent reviewer to believe.
+
+## 2026-09-25 — DECIDE-5 merged into `props/sign-hull` (#3214); the bulge-reach item closes
+
+**The change.** The arc carrier's span is spelled `4·atan(σ·b)` from the
+decided turn, and the value channel is bit-identical. It takes the `0.5`
+parameter control's sign-blocked decisions and 22 on R2's link.
+
+**The link's net of four.** The link's `carrier_on_surface_2` nets four
+fewer theorems: eight go to the door on the ring and four come back, and
+two answers go numeric. Those two freeze on terms and degree past a
+32,768-term budget and are on the census.
+
+**Cost.** The link's leaf is 19.1 → 10.7 s and the pad's 142.8 → 88.6 s.
+
+**Review.** Single FULL review on `3a99b1b71`: APPROVE-WITH-FIXES 0/2/7.
+It found the tube's `Zero` convention with the opposite arm and a missed
+retraction. Fix pass A–J at `e9bc401b5`, including the tour's caption
+made true.
+
+**Closed.** `rule-d-reaches-the-unit-bulge-only` closes. Its ring and
+term-budget residue is the census's, and the apothem's sign is its own
+row.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 394k | 307 min |
+| implementer, fix pass | 81k | 82 min |
+| reviewer | 248k | 54 min |
+
+
+## 2026-09-25 — DECIDE-6 spec'd: the decision read's cost, single FULL review
+
+**Why this unit.** Both P1 rows on the slate are gated:
+- `declared-tangency-needs-the-registered-identity-door` waits on ROUND's
+  `fillet-tangency-is-not-the-constructors-node`, which is still open;
+- `revolve-carriers-state-only-the-rim` stays filed until a measured
+  document is bounded by a revolve carrier (E6).
+
+The next unit is therefore a P2. DECIDE-6 takes
+`decision-read-triples-the-plate-pin-suites-wall-time` (cost D): a
+measured 3.7× on the plate's dev pin suite, with three cheap answers
+written in the row. It comes before the H rows because it is the
+cheapest, it is measured, and none of its answers changes a decision.
+The apothem's value read and the quotient's factorisation are the
+alternatives, both H.
+
+**Review tier: single FULL review.** The change is a cost change behind
+an invariant that the pins and a receipt-equality row check. Whether the
+invariant holds takes executing the pre-pass against the enclosure, not
+only reading it, hence FULL. It is reversible and not a design decision,
+so it is not DUAL.
+
+Spec `docs/DECIDE-6-SPEC.md`. Branch `decide/6-read-cost` from
+`props/sign-hull` at `1264640fa`.
+
+## 2026-09-25 — DECIDE-6 merged into `props/sign-hull` (#3229): the read is not the cost; rule G is
+
+DECIDE-6 closed at its measurement.
+- The decision read is under 0.4% of every replay. Shut, or run ten
+  times over, it moves no suite.
+- None of the three answers was taken.
+- What ships is the profiling instrument behind `sym-profile-testing`,
+  with the decline's cause noted at the enclosure's own refusal arms,
+  plus its rows.
+
+**Where the cost went.** The review measured the separation: rule G shut
+takes the pad's dev leaf 280.6 → 122.4 s, and the pad's release leaf
+73.8 → 17.2 s. The exact quotient and A0's `min`/`max` folds are flat.
+`decision-read-triples-the-plate-pin-suites-wall-time` closes, and
+`rule-g-is-the-link-and-pads-leaf-cost` (P2) carries the cost.
+
+**Review.** Single FULL review on `cadc16eaf`: APPROVE-WITH-FIXES 0/5/6.
+Fix pass at `25f64b906`.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 237k | 139 min |
+| implementer, fix pass | 100k | 70 min |
+| reviewer | 213k | 97 min |
+
+
+## 2026-09-25 — DECIDE-7 spec'd: rule G's leaf cost, single FULL review
+
+DECIDE-6 moved the pin suites' cost from the decision read to rule G, so
+`rule-g-is-the-link-and-pads-leaf-cost` is next, as DECIDE-7. It is the
+largest measured cost on the slate: 73.8 → 17.2 s on the pad's release
+leaf. Both P1 rows are still gated (ROUND's Fillet centre; E6).
+
+**Review tier: single FULL review.** It is a cost change behind a
+receipt-equality invariant, as DECIDE-6 was. A stop clause sends any
+decision-changing answer to Ev, since rule G is Ev's ruling on #2970.
+
+Spec `docs/DECIDE-7-SPEC.md`. Branch `decide/7-rule-g-cost` from
+`props/sign-hull` at `a7dd5c520`.
+
+## 2026-09-26 — DECIDE-7 merged into `props/sign-hull` (#3246): rule G's cost was the repeated reduction, now memoised
+
+**Where the time was.** Rule G's own mint site is 0.35% of what it
+costs. The rest is the per-node rule A/B reduction over the larger
+forms rule G leaves: 45 s of the pad's 57 s re-reduces inputs the
+session had already reduced, mostly the door walk redoing the early
+walk.
+
+**What ships.** `reduce_per_node` memoises that reduction per session,
+keyed on the form, the rules and the ring bound. It is exact by
+construction: an entry keeps the atom ids its reduction missed. No form
+moved.
+- The pad's release leaf goes 74.18 → 28.30 s.
+- The link's goes 8.56 → 4.78 s.
+- `m10_10_pins` in dev goes 339 → 174 s.
+
+`rule-g-is-the-link-and-pads-leaf-cost` closes. What rule G still costs
+on the pad is 17.8 s, and 10.6 s of it is filed on SYM's slate (P3,
+`the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`).
+The magnitude-door reading is filed at P3
+(`rule-gs-magnitude-door-never-asks-rule-c`).
+
+**Review.** Single FULL review on `5ad40726b`: APPROVE-WITH-FIXES,
+0 MAJOR / 2 MINOR / 6 NOTE. The two MINORs:
+- no row guarded the whole-form compare;
+- the memo had no cap, and peak memory rose 11–29%.
+
+The fix pass A–K is at `0c20aef42`. It brought peak memory back within
+1–5% of the base, and replaced the memo's reliance on mint-before-reference
+with an absent-id check.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 336k | 229 min |
+| implementer, fix pass | 427k | 181 min |
+| reviewer | 270k | 73 min |
+
+## 2026-09-26 — DECIDE-8 spec'd: the apothem's sign; the review tier is set by Phase 1
+
+Both P1 rows are still gated (ROUND's Fillet centre; E6). Of the three P2
+rows, `the-apothems-sign-is-a-value-read` is the one where a measured
+document loses decisions: six on the parameter bulge documents.
+- `the-exact-quotient-re-keys-a-root-the-split-met` moves no measured
+  document, and its remedy is a multivariate factorisation.
+- `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`'s residue
+  after DECIDE-5 is the coefficient ring's width and the term budget.
+
+**Review tier: set by Phase 1.**
+- If the sign is decided upstream and the sweep states it as route B
+  states the turn: a single FULL review, as DECIDE-5 had.
+- If only a new read on the box reaches the six: the unit stops. Two
+  designers weigh the fork (`docs/prompts/designer.md`), and it goes
+  to Ev as an `[ev]` PR, since whether the tier answers on the box
+  there is Ev's call (#3186 rejected rule C's dial as it stands).
+
+Spec `docs/DECIDE-8-SPEC.md`. Branch `decide/8-apothem-sign` from
+`props/sign-hull` at DECIDE-7's merge.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

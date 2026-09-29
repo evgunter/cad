@@ -30,7 +30,7 @@ fn deg(d: f64) -> f64 {
 /// numbers: root at the origin heading +z (in the xz-plane), left turn
 /// of 22 degrees on a 5 m ring — so the ring centre is (-5, 0, 0), the
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
-fn stem() -> Body<f64> {
+pub(crate) fn stem() -> Body<f64> {
     tube_along_arc(
         tube_frame(
             Point3::new(-STEM_RING, 0.0, 0.0),
@@ -53,15 +53,15 @@ fn stem() -> Body<f64> {
 /// The fork point (the stem's end / the arch's start), its tangent,
 /// the arch's ring centre and start radial — the turtle math of
 /// `lily.rs` (`Turtle::arc`), reproduced independently.
-struct ArchFrame {
-    fork: Point3<f64>,
-    center: Point3<f64>,
-    radial: Vec3<f64>,
+pub(crate) struct ArchFrame {
+    pub(crate) fork: Point3<f64>,
+    pub(crate) center: Point3<f64>,
+    pub(crate) radial: Vec3<f64>,
     /// The arch's END point (the far cap's centre).
-    far: Point3<f64>,
+    pub(crate) far: Point3<f64>,
 }
 
-fn arch_frame() -> ArchFrame {
+pub(crate) fn arch_frame() -> ArchFrame {
     let a = deg(22.0);
     // at_fork (xz): p = stem centre + 5·rot((1,0), 22°); t = rot((0,1), 22°).
     let fork2 = (-STEM_RING + STEM_RING * a.cos(), STEM_RING * a.sin());
@@ -86,7 +86,7 @@ fn arch_frame() -> ArchFrame {
 
 /// The lily's arch, continuing G1 from the stem's end: 170 degrees on
 /// a 1.1 m ring, tube 0.052.
-fn arch() -> Body<f64> {
+pub(crate) fn arch() -> Body<f64> {
     let f = arch_frame();
     tube_along_arc(
         tube_frame(
@@ -132,7 +132,10 @@ fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
 /// The selection here is by POSITION, not by flushness: it picks the
 /// caps at the fork and lets the op verify them, which is why it is
 /// not a second spelling of the detector's decisions.
-fn weld_declarations(stem: &Body<f64>, arch: &Body<f64>) -> (BooleanDeclarations, usize) {
+pub(crate) fn weld_declarations(
+    stem: &Body<f64>,
+    arch: &Body<f64>,
+) -> (BooleanDeclarations, usize) {
     let fork = arch_frame().fork;
     let mut decls = BooleanDeclarations::none();
     let mut pairs = 0;
@@ -168,42 +171,57 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 ///
 /// PR #1477's deviation 1 measured the wall-1 refusal as the stem's
 /// tube wall against the arch's FAR cap, 2.08 m from any contact,
-/// overlapping only because the wall's box was the WHOLE RING. The
-/// ring box is gone (`boolean::boxes`'s `TorusWindow` arm), so what
-/// this row re-derives now is: (a) the refusal names the stem's tube
-/// wall against the arch's WELD cap; (b) the far cap is no longer
-/// inside the wall's box at all; (c) the named pair is a real
-/// approach at the weld's 8 mm annular gap; (d) the weld still has no
+/// overlapping only because the wall's box was the WHOLE RING. Three
+/// things have moved since: the ring box is gone
+/// (`boolean::boxes`'s `TorusWindow` arm), the torus is on the operand
+/// gate's KIND roster, so the gate names no pair at all, and the
+/// crossing layer has a circle × torus root lane, so the two seams that
+/// cross the other tube's carrier (the stem's inner equator, the arch's
+/// outer equator) are decided rather than refused. What this row
+/// re-derives now is: (a) wall 1 is past the gate AND the crossing
+/// layer, and stops at the join on the plane × torus germ frame; (b)
+/// the far cap stands ~2 m clear of the stem wall's exact locus; (c) it
+/// is no longer inside the wall's box either; (d) the weld still has no
 /// torus×torus contact to declare (tube 0.060 vs 0.052 — the walls
 /// share only the weld plane). No `if let` skip-hazard: the far cap
-/// MUST exist and MUST NOT be the named face.
+/// MUST exist.
 #[test]
-fn p1_wall1_named_pair_is_the_welds_annular_gap_not_the_far_cap() {
+fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     let (s, a) = (stem(), arch());
     let (decls, pairs) = weld_declarations(&s, &a);
     assert_eq!(pairs, 1, "exactly one coplanar cross cap pair at the fork");
 
     let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("wall 1 must still refuse (the PR's own headline deviation)");
-    let (face, other_face) = match err {
-        BooleanError::CurvedPairUnsupported {
-            op: None,
-            kind: geom_brep::SurfaceKind::Torus,
-            other_kind: geom_brep::SurfaceKind::Plane,
-            face,
-            other_face,
-            ..
-        } => (face, other_face),
-        other => panic!("wall 1 must be the gate's torus-against-plane pair, got {other:?}"),
+        .expect_err("the stem glue still refuses, two doors further on");
+    // **Wall 1 is no longer the crossing layer's.** The circle × torus
+    // root lane (`topo::boolean::circle_torus`) certifies that each
+    // seam crosses the other tube's carrier only outside that face's
+    // window, so neither pair is an event; the op reaches the join, whose
+    // germ pair of the stem's weld cap against the arch's wall has no
+    // section frame arm. The far-cap claims below are geometry and
+    // stand on their own.
+    let BooleanError::GermFrameUnsupported {
+        a_face,
+        a_kind: SurfaceKind::Plane,
+        b_face,
+        b_kind: SurfaceKind::Torus,
+    } = err
+    else {
+        panic!("wall 1 stops at the join's plane × torus germ frame: {err:?}");
     };
+    // The stem's face in the pair is its weld cap (the plane at the
+    // fork); the arch's is one of its tube walls.
+    let fork = arch_frame().fork;
     assert!(
-        torus_faces(&s).contains(&face),
-        "the named A face is the stem's tube wall"
+        plane_faces(&s)
+            .iter()
+            .any(|&(k, o, _)| k == a_face && (o - fork).norm() < 1e-9),
+        "the stem's face is its weld cap at the fork: {a_face:?}"
     );
-
-    // (a) The named plane is the arch's WELD cap, not its far one —
-    // no `if let` escape: the far cap must exist, and must not be the
-    // named face.
+    assert!(
+        torus_faces(&a).contains(&b_face),
+        "the arch's face is its tube wall: {b_face:?}"
+    );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)
         .into_iter()
@@ -213,22 +231,9 @@ fn p1_wall1_named_pair_is_the_welds_annular_gap_not_the_far_cap() {
         (far_cap.1 - frame.far).norm() < 1e-9,
         "that cap sits at the turtle math's arch end point"
     );
-    assert_ne!(
-        other_face, far_cap.0,
-        "the whole-ring box artifact is gone: the gate must no longer name the FAR cap"
-    );
-    let weld_cap = plane_faces(&a)
-        .into_iter()
-        .find(|&(_, o, _)| (o - frame.fork).norm() < 1e-9)
-        .expect("the arch has a cap at the fork — the weld disc");
-    assert_eq!(
-        other_face, weld_cap.0,
-        "the gate names the stem wall against the arch's WELD cap"
-    );
 
-    // (b) The far cap's loci still never approach — every point of its
-    // disc is more than 1.9 m from the stem's windowed tube wall — and
-    // THAT is now why it is not the named pair. Lower bound: distance
+    // (b) The far cap's loci never approach — every point of its disc
+    // is more than 1.9 m from the stem's windowed tube wall. Lower bound: distance
     // to the tube-CENTRE arc minus the tube radius, over a dense disc
     // sampling.
     let (e1, e2) = {

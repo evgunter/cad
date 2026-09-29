@@ -10,18 +10,15 @@
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
 use profile::RawLoop;
 
+use crate::common::interval::{p2, v2};
 use geom_core::Tol;
-use geom_core::{Bounds, Interval, Point2, Real, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use geom_core::{Bounds, Interval, Point2, Real};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, mass_properties};
 
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-}
-
-fn v(x: f64, y: f64, b: f64) -> ProfileVertex<Interval> {
-    ProfileVertex::new(p2(x, y), Interval::from_f64(b))
+fn v(x: f64, y: f64, b: f64) -> (Point2<Interval>, Interval) {
+    (p2(x, y), Interval::from_f64(b))
 }
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
@@ -33,7 +30,7 @@ fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
 fn axis_y() -> RevolveAxis<Interval> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
+        dir: v2(0.0, 1.0),
     }
 }
 
@@ -98,7 +95,7 @@ fn cup_interval_encloses_reviewer_forms() {
 
 #[test]
 fn quarter_donut_interval_encloses_reviewer_forms() {
-    let lp = ProfileLoop::new(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
+    let lp = bulge_loop(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -112,7 +109,7 @@ fn quarter_donut_interval_encloses_reviewer_forms() {
 #[test]
 fn dome_wedge_interval_encloses_reviewer_forms() {
     let b = (PI / 8.0).tan();
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, 1.0, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, 1.0, 0.0)]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -126,7 +123,7 @@ fn dome_wedge_interval_encloses_reviewer_forms() {
 #[test]
 fn major_arc_prism_interval_encloses_reviewer_forms() {
     let b = (3.0 * PI / 8.0).tan();
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(Interval::from_f64(1.0)),
@@ -139,7 +136,7 @@ fn major_arc_prism_interval_encloses_reviewer_forms() {
 #[test]
 fn two_hole_plate_interval_encloses_reviewer_forms() {
     let outer = ProfileLoop::polygon([p2(-3.0, -3.0), p2(3.0, -3.0), p2(3.0, 3.0), p2(-3.0, 3.0)]);
-    let round = ProfileLoop::new(vec![v(-0.5, 0.0, 1.0), v(-2.5, 0.0, 1.0)]);
+    let round = bulge_loop(vec![v(-0.5, 0.0, 1.0), v(-2.5, 0.0, 1.0)]);
     let square = ProfileLoop::polygon([p2(0.5, -1.0), p2(2.5, -1.0), p2(2.5, 1.0), p2(0.5, 1.0)]);
     let t = extrude(
         &validated(vec![outer, round, square]),

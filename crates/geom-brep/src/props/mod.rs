@@ -374,6 +374,13 @@ pub struct FaceContribution<T: Real> {
 /// residual is definitely nonzero, or a structural classification
 /// escalated. Never a silent fallback.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PropsErrorKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum PropsError {
     /// A carrier or surface this closed-form inventory has no arm for
     /// and never will in this lane: the `Nurbs` placeholder, and a
@@ -719,9 +726,10 @@ mod tests {
 
         let msg = PropsError::Escalated {
             cause: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("props_face_extent"),
+                terminal_sliver: false,
             },
         }
         .to_string();
@@ -754,9 +762,10 @@ mod tests {
         ];
         let escalated = PropsError::Escalated {
             cause: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("props_face_extent"),
+                terminal_sliver: false,
             },
         };
         let arms = [

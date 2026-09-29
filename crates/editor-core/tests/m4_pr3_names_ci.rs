@@ -84,11 +84,11 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// renumbers nodes moves every row). The companion below tells the
 /// two apart only in part — it drops the entry keys, not the ids — so
 /// a re-pin states which of the two it is.
-const DIE_TABLE_DIGEST: u64 = 0xfdf3_d13d_4782_a4e5;
+const DIE_TABLE_DIGEST: u64 = 0xe743_2c17_9253_7939;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0xc4e5_6d52_f732_d1c7;
+const DIE_NAMES_DIGEST: u64 = 0xb0f0_74ea_aec8_4807;
 
 #[test]
 fn die_name_tables_are_golden() {

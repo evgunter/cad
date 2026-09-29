@@ -642,7 +642,7 @@ fn parity<T: Decide>(verts: &[Point2<T>], q: Point2<T>, band: Band) -> Option<bo
         return None;
     }
     for m in &SCHEDULE_2D {
-        let d = Vec2::new(T::from_f64(m[0]), T::from_f64(m[1]));
+        let d = m.map(T::from_f64);
         // The in-plane perpendicular of a 2-D member, which is in-plane
         // by construction and of fixed nonzero `f64` length — so there
         // is no arm predicate to decide (`SCHEDULE_2D`'s own docs).

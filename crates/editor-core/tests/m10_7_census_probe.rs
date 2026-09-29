@@ -1,7 +1,7 @@
 //! **M10-7's honesty instruments, as runnable evidence.**
 //!
 //! Two probes, both `#[ignore]`d because they REPORT rather than gate
-//! ([[test-suite-cost]]: a row that only prints cannot fail, so it must
+//! (implementer-discipline §8: a row that only prints cannot fail, so it must
 //! not sit in the ε matrix):
 //!
 //! - `census_which_predicates_decide_symbolically` names, per funnel

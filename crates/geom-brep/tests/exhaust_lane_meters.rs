@@ -40,7 +40,7 @@ use geom_core::SupSpeed;
 /// Every value a rate or a length can be, including the ones only a
 /// bit comparison can tell apart. Written down rather than drawn: a
 /// witness set, not a counterexample search
-/// (`memories/test-suite-cost.md`), so it is the same set every run.
+/// (implementer-discipline §8), so it is the same set every run.
 fn sample() -> Vec<f64> {
     vec![
         0.0,
