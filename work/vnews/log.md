@@ -603,6 +603,7 @@ From here:
   branch in a free pool slot instead of a fresh worktree, so its builds
   are incremental and usually fit the express slot. A finished lane's
   worktree and target become a pool slot instead of being deleted.
-- **P4 rows are batched into one implementer lane** covering several
-  rows (Ev: "batch a bunch of them together into a single implementer
-  lane"), rather than one lane each.
+- **The slate's focus is P1 and P2** (Ev: "focus on p1 and p2"). P3 and
+  P4 rows are taken only when easy, and then batched several to one
+  implementer lane (Ev: "batch a bunch of them together into a single
+  implementer lane"), never one lane each.
