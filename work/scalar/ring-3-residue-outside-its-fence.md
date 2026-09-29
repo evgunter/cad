@@ -2,12 +2,13 @@
 id: ring-3-residue-outside-its-fence
 kind: issue
 title: RING-3 residue outside its fence: prose and one gate entry still name the retired ring
-status: review
+status: closed
 branch: scalar/hygiene
 pr: 3449
 priority: P4
 cost: E
 opened: 2026-09-24
+closed: 2026-09-29
 refs: [ring-3-ring-dissolves-into-interval, H5]
 ---
 
@@ -72,3 +73,7 @@ Past-tense mentions are true as written and need nothing:
 
 Re-word each to what is true, in whichever PR next touches the file;
 the manifest comment rides RING-4.
+
+## Closed (2026-09-29) — PR 3449 (SCALAR-HYGIENE)
+
+Landed with the unit; the PR body says what was done for this row.

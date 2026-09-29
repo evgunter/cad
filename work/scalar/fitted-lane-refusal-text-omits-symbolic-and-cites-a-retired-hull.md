@@ -2,10 +2,11 @@
 id: fitted-lane-refusal-text-omits-symbolic-and-cites-a-retired-hull
 kind: issue
 title: FittedLaneUnsupported's Display omits the symbolic tier from its replay list and cites the retired exact-arithmetic-ring hull
-status: review
+status: closed
 branch: scalar/hygiene
 pr: 3449
 opened: 2026-09-25
+closed: 2026-09-29
 priority: P4
 cost: E
 ---
@@ -41,3 +42,7 @@ text moved.
 ## Cost
 
 E: one string and the one row that reads it.
+
+## Closed (2026-09-29) — PR 3449 (SCALAR-HYGIENE)
+
+Landed with the unit; the PR body says what was done for this row.

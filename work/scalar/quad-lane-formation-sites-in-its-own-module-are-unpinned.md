@@ -2,10 +2,11 @@
 id: quad-lane-formation-sites-in-its-own-module-are-unpinned
 kind: issue
 title: QuadLane is formed in the module that owns its private field and nothing pins those sites against a literal
-status: review
+status: closed
 branch: scalar/hygiene
 pr: 3449
 opened: 2026-09-24
+closed: 2026-09-29
 priority: P3
 cost: D
 ---
@@ -47,3 +48,7 @@ have the same question.
 ## Found by
 
 LANE-4P's single review (PR 3165), style finding S3.
+
+## Closed (2026-09-29) — PR 3449 (SCALAR-HYGIENE)
+
+Landed with the unit; the PR body says what was done for this row.

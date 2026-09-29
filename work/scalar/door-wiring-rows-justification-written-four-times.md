@@ -2,10 +2,11 @@
 id: door-wiring-rows-justification-written-four-times
 kind: issue
 title: The function-pointer wiring rows' justification is written out at four door modules
-status: review
+status: closed
 branch: scalar/hygiene
 pr: 3449
 opened: 2026-09-25
+closed: 2026-09-29
 priority: P4
 cost: E
 ---
@@ -37,3 +38,7 @@ have each module's `wiring_rows` doc cite it in one line.
 ## Cost
 
 E: four doc comments.
+
+## Closed (2026-09-29) — PR 3449 (SCALAR-HYGIENE)
+
+Landed with the unit; the PR body says what was done for this row.

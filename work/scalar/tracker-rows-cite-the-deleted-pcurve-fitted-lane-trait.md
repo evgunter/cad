@@ -2,10 +2,11 @@
 id: tracker-rows-cite-the-deleted-pcurve-fitted-lane-trait
 kind: issue
 title: Open tracker rows on other slates still cite PcurveFittedLane, which LANE-4 deleted
-status: review
+status: closed
 branch: scalar/hygiene
 pr: 3449
 opened: 2026-09-25
+closed: 2026-09-29
 priority: P4
 cost: E
 ---
@@ -56,3 +57,7 @@ so. A historical quotation may stay as quotation.
 ## Cost
 
 E: prose in nine files, owned by eight programs.
+
+## Closed (2026-09-29) — PR 3449 (SCALAR-HYGIENE)
+
+Landed with the unit; the PR body says what was done for this row.

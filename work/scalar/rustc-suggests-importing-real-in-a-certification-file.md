@@ -2,10 +2,11 @@
 id: rustc-suggests-importing-real-in-a-certification-file
 kind: issue
 title: rustc's own help steers a certification author to use geom_core::Real, the one import the certification gate forbids
-status: review
+status: closed
 branch: scalar/hygiene
 pr: 3449
 opened: 2026-09-24
+closed: 2026-09-29
 priority: P4
 cost: E
 ---
@@ -42,3 +43,7 @@ Not a code change to the doors. Candidates, cheapest first:
   evaluation, `Interval::from_certified` for the crossing.
 
 Filed by RING-5's fix pass on the SCALAR slate, which owns the trait.
+
+## Closed (2026-09-29) — PR 3449 (SCALAR-HYGIENE)
+
+Landed with the unit; the PR body says what was done for this row.
