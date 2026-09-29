@@ -2424,14 +2424,8 @@ impl<T: Decide> ShellDoor<T> {
 /// [`QuadLane::certified`] and [`ShellDoor::certified`] hold, rather
 /// than what they answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// routine that agrees on the fixture in front of it; these rows
-/// compare the stored function pointer instead, so a re-point is a
-/// failure no matter what it computes. Function-pointer identity is
-/// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
-/// (identical bodies may be merged), which costs nothing here: a false
-/// PASS would need the re-pointed routine to be instruction-identical
-/// to the one it replaced.
+/// Why a wiring row compares pointers rather than outputs:
+/// `certified_enclosure_impl_census`'s module doc.
 ///
 /// Each door has one helper, instantiated once per certifying scalar.
 /// `certified_enclosure_impl_census` counts those instantiations

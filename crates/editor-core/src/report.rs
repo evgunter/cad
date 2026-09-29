@@ -113,7 +113,7 @@ impl core::fmt::Display for MassBasis {
                  masses are what set theory forces on any measure consistent with those \
                  limits, and none of them is a probability",
                 by.iter()
-                    .map(|p| p.0.clone())
+                    .map(|p| p.as_str().to_owned())
                     .collect::<Vec<_>>()
                     .join(", "),
                 if by.len() == 1 { "ies" } else { "y" }
@@ -170,7 +170,7 @@ impl MassBudget {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "band {}", p.0);
+                let _ = writeln!(s, "band {}", p.as_str());
             }
         }
         let _ = writeln!(s, "certified {}", mass_bits(&self.certified));
@@ -501,7 +501,7 @@ pub fn report_key(
     h.write_u64((slice >> 64) as u64);
     h.write_u64(slice as u64);
     for (name, axis) in box_.axes() {
-        h.write_str(&name.0);
+        h.write_str(name.as_str());
         let (lo, hi) = axis.span();
         h.write_f64_bits(lo);
         h.write_f64_bits(hi);
@@ -566,7 +566,7 @@ pub(crate) fn mass_bits(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("band:{}", param.0)
+            format!("band:{}", param.as_str())
         }
     }
 }

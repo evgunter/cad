@@ -35,8 +35,8 @@ use geom_core::Tol;
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// The ε-scaled half-width the driver can certify over.

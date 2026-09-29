@@ -515,12 +515,12 @@ pub(crate) fn eval_err(py: Python<'_>, err: &d::EvalError) -> PyErr {
     };
 
     let (name, expected, found, count) = match err {
-        E::UnknownParam(param) => (text(&param.0), none(), none(), none()),
+        E::UnknownParam(param) => (text(param.as_str()), none(), none(), none()),
         E::ParamDimensionMismatch {
             name,
             expected,
             found,
-        } => (text(&name.0), dim(*expected), dim(*found), none()),
+        } => (text(name.as_str()), dim(*expected), dim(*found), none()),
         E::ContinuousExprInCountEval { found } => (none(), none(), dim(*found), none()),
         E::CountToScalarOutOfRange(value) => (none(), none(), none(), int(*value)),
         E::CountExprInContinuousEval | E::CountOverflow | E::NonFiniteResult => {

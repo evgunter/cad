@@ -2,8 +2,10 @@
 id: node-slot-tables-are-spelled-three-times-in-node-rs
 kind: issue
 title: Node, TubeWindow and the placement rule each spell their slot roles three times in node.rs - slots(), expr() and a hand-copied expr_mut() - where program.rs now reads one role table
-status: spec
+status: closed
+closed: 2026-09-29
 branch: edit/slot-tables-one-home
+pr: 3438
 opened: 2026-09-25
 priority: P1
 cost: D
@@ -73,3 +75,36 @@ claim.
    does, root-cause it before re-baselining.
 3. **Not in scope:** the wider verb-seat family
    (`work/wire/two-verb-seats-do-not-compose.md` item (a)).
+
+## Built (2026-09-29)
+
+Each shape has one borrow-generic row list, and every door reads it.
+In `crates/editor-core/src/node.rs`: `node_rows!` (every node kind),
+with `rule_rows!` (`Node::Pattern` and `Node::PlacedUnion`),
+`tube_rows!` and `window_rows!` (both tube kinds) and `axis_rows!`
+(every 3- or 2-vector, held to that arity at compile time) under it.
+The profile arm reads `ProfilePayload::rows`, which is keyed by
+`(loop, step, arg)`, so a profile node answers only `SlotId::Profile`
+addresses. In `crates/editor-core/src/program.rs`: `loop_roles!` (a
+whole loop, keyed `(step, role)`) and `program_rows!` (a program, over
+its loops). `row_readers!` writes each `rows`/`rows_mut` pair
+(`Node`, `LoopProgram`, `ProfileProgram`), and `find_row` is the one
+lookup in both files. `Node::slots`, `expr` and `expr_mut` are each
+one line over `Node::rows`, and `slot_dimension_fault` reads the rows
+directly, so it has no unreachable arm. `TubeWindow`'s uncalled doors
+went.
+
+The guards, all in `switch_slots`:
+- `every_node_kinds_expr_mut_writes_the_field_expr_reads`: a sentinel
+  written through `expr_mut` at every slot reads back through `expr`,
+  and no other slot moves. A transposed `U` arm reds it.
+- `every_node_kinds_slots_are_all_readable`: also checks that `slots()`
+  lists no slot twice.
+- `every_node_shapes_slot_table_is_pinned`: the golden
+  `crates/editor-core/tests/golden/slot_tables.txt` holds every shape's
+  slots in order and the field each one addresses (a distinct tag per
+  slot, written through `expr_mut`). It reds on a same-dimension field
+  swap (Sweep `Stations`/`v_degree`) and on an order-only swap
+  (Transform translation/rotation axis), which every other row passes.
+  It is green on the pre-change sources, so no slot order or mapping
+  moved.

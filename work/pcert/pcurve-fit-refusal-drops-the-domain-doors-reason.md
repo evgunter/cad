@@ -32,7 +32,7 @@ Two answers are on the table, both TRIM's: give `PcurveFit` a payload
 split a `CarrierDomain { lo, hi }` refusal off it. `PlaneNurbsRefusal`
 is `Copy + PartialEq`, and `SplineError` is neither `Copy` nor `Eq`, so
 the payload choice is a design choice for the enum's derives too. The
-same producer feeds `crate::PcurveFittedLane::general_image`, so the
+same producer feeds `crate::FittedLane::general_image`, so the
 mint's vocabulary moves with it.
 
 A twin on the same seam: `chart_image`'s schedule now ASSIGNS its end

@@ -40,7 +40,7 @@ use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
+        name: ParamName::from_static("w"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 2.0,
@@ -51,7 +51,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             }),
         },
     });
-    let w = || Expr::param(ParamName::new("w"), Dimension::Length);
+    let w = || Expr::param(ParamName::from_static("w"), Dimension::Length);
     let plane = r.insert(xy_frame());
     let pt = |x: Expr, y: Expr| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {

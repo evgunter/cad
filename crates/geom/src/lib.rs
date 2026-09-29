@@ -145,17 +145,24 @@
 mod azimuth;
 mod convention;
 pub mod curves;
+mod datum;
 mod net;
 mod projection_policy;
 mod scalar_lift;
 pub mod surfaces;
+// Test fixtures; see the module's docs. `doc(hidden)` because the
+// rustdoc gate runs `--all-features`.
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod test_support;
 
 pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin};
 pub use curves::{
-    ComposeError, Curve3, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
+    ComposeError, Curve3, CurveData, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3,
     ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain, spiric_f_range,
 };
+pub use datum::{AnalyticData, DatumValue};
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
 // public names both halves' callers have always used.
@@ -163,9 +170,8 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    AnalyticData, AnalyticPairs, ApproxSurface, ApproxWindow, DatumValue, KnotMirrorError,
-    NetState, NurbsSurface, OffsetCertificate, Surface, SurfaceData, SurfaceDatum,
-    SurfaceDescription, SurfaceJet, SurfaceJet3, SurfacePairing, SurfaceProjection,
-    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, require_ring_torus, ring_torus,
-    torus_tube,
+    AnalyticPairs, ApproxSurface, ApproxWindow, KnotMirrorError, NetState, NurbsSurface,
+    OffsetCertificate, Surface, SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet,
+    SurfaceJet3, SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec,
+    SurfaceWindow, require_ring_torus, ring_torus, torus_tube,
 };

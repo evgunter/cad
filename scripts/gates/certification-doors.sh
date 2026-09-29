@@ -97,7 +97,16 @@
 #             or a local method of that name — and in certification code
 #             either is the wrong question: the refusal is
 #             `!is_certified()`;
-#   HOME      the trait's home is gone, or no longer declares the trait.
+#   HOME      the trait's home is gone, or no longer declares the trait;
+#   INCLUDE   `include!` in ANY production file (`include_str!` and
+#             `include_bytes!` are other names): the reader does not
+#             follow it, so the included text is read by no rule
+#             (KNOWN GAP 5);
+#   MACRO     a `macro_rules!` body, in ANY production file, naming
+#             `certification` or `Certification` as a word: the reader
+#             reads a macro as written, never as expanded, so a route to
+#             the doors a macro writes is invisible to UNLISTED and
+#             REEXPORT (KNOWN GAP 5).
 #
 # THE TRAIT'S HOME is exempt from REAL and from the key, and from
 # nothing else: it defines the doors as delegates of `Real`'s own
@@ -131,7 +140,14 @@
 #
 # KNOWN GAP 3: A VALUE HANDED ON. A listed file may pass an `Interval`
 # to a helper in an unlisted file with `Real` in scope; the helper is a
-# holder (GAP 2) or, if it calls a door, UNLISTED.
+# holder (GAP 2) or, if it calls a door, UNLISTED. Telling that value
+# from an evaluation `Interval` takes name resolution, and the
+# instrument that has it is a certification type. The RING-3 decision
+# declined one: Ev kept `Interval` as the one type in both roles (C9)
+# and chose the imported `Certification` trait over a
+# `Certified(Interval)` view type, which would be a second type again.
+# This gap is the accepted consequence of that choice, and nothing is
+# scheduled against it.
 #
 # KNOWN GAP 4: A ROUTE TO THE DOORS THAT IS NOT A `use`. REEXPORT reads
 # `pub … use` statements, and every re-export chain starts at one: a
@@ -145,7 +161,13 @@
 # KNOWN GAP 5: MACROS AND `include!`. `lib.sh`'s reader lexes a
 # `macro_rules!` body as written and does not follow `include!`
 # (its header, "WHAT IT CANNOT DO"); a route to the trait assembled from
-# token fragments is invisible.
+# token fragments is invisible. INCLUDE and MACRO keep the tree where
+# that costs nothing: no production file includes another, and no
+# production macro body names the module or the trait. What they do
+# not see: a macro body that assembles the name from fragments
+# (`$m::Certification` with `certification` passed at the call site
+# names the trait and reds; `$m::$t` names neither), a proc macro, and
+# test code (GAP 1).
 #
 # KNOWN GAP 6: THE LANE ROUTE. `Bounds`, `CertifiedBounds` and `Decide`
 # are `Real` subtraits, so generic code over a lane `T` bounded by any
@@ -226,14 +248,17 @@ CERT_DECL_RE='(^|[^A-Za-z0-9_])trait[[:space:]]+Certification([^A-Za-z0-9_]|$)'
 # the `-v` reason above), and the module's or the trait's name as a word.
 CERT_PUBUSE_RE='(^|[^A-Za-z0-9_])pub[[:space:]]*([(][^)]*[)])?[[:space:]]*use[[:space:]]'
 CERT_NAME_RE='(^|[^A-Za-z0-9_])[Cc]ertification([^A-Za-z0-9_]|$)'
+# INCLUDE's and MACRO's keys: the macro name as a word, then its `!`.
+CERT_INCLUDE_RE='(^|[^A-Za-z0-9_])include[[:space:]]*!'
+CERT_MACRO_RE='(^|[^A-Za-z0-9_])macro_rules[[:space:]]*!'
 
 # The rule tags, in the order the diagnoses print. The self-test reads
 # the same list to prove each plant fires its own rule and no other.
-CERT_RULES=(UNLISTED REEXPORT STALE REAL GLOB EVALHULL POISON HOME)
+CERT_RULES=(UNLISTED REEXPORT STALE REAL GLOB EVALHULL POISON HOME INCLUDE MACRO)
 
 cert_rule_message() {
   case "$1" in
-    UNLISTED) printf '%s' "a production file names geom_core::interval::certification and is not on this gate's importer list — add it to CERT_IMPORTERS (it is then held to every rule in this gate's header), or reach certification arithmetic from a file that is" ;;
+    UNLISTED) printf '%s' "a production file names geom_core::interval::certification and is not on this gate's importer list — add it to CERT_IMPORTERS (it is then held to every rule in this gate's header), or reach certification arithmetic from a file that is. Listing it also forbids use geom_core::Real, which rustc's own help suggests for sqrt and is_poison on an Interval: certification calls neither, and the Certification trait's module doc says what to write instead" ;;
     REEXPORT) printf '%s' "a pub-qualified use re-exports the certification doors (it names the certification module or the Certification trait) — a file importing through it names neither, so this gate's key, its importer list and the census cannot see it; import the trait by its own path, use geom_core::interval::certification::Certification, in each file that calls a door" ;;
     STALE) printf '%s' "a listed importer's production code no longer names geom_core::interval::certification — drop its entry in the change that stopped it importing the doors" ;;
     REAL) printf '%s' "a certification file names Real in its production code — a value typed Interval there can then reach Real::is_poison (a silent pass on a Trv bracket) and the transcendentals. Do not name Real here: build brackets through the Certification doors, evaluate on a lane T through the bound it already has (Bounds, CertifiedBounds, Decide), and cross a lane value into certification arithmetic through Interval::from_certified" ;;
@@ -241,6 +266,8 @@ cert_rule_message() {
     EVALHULL) printf '%s' "the evaluation hull (enclosure_hull / SpanLocate) in a certification file's production code — a refusal flows through it as a bracket with real endpoints; the certification hull is Certification::hull, which refuses it" ;;
     POISON) printf '%s' "is_poison in a certification file's production code — the certification refusal is !is_certified(), and is_poison is evaluation's weaker question" ;;
     HOME) printf '%s' "$CERT_HOME no longer declares trait Certification — move this gate's home with the trait" ;;
+    INCLUDE) printf '%s' "include! in production code under crates/*/src — the shared reader does not follow it, so a route to the certification doors in the included text is invisible to every rule here; write the code in a module file (mod name;), which every rule reads" ;;
+    MACRO) printf '%s' "a macro_rules! body names certification or Certification — the shared reader reads a macro as written, never as expanded, so a route to the doors it writes is invisible to UNLISTED and REEXPORT; import the trait by its path, outside any macro, in each file that calls a door" ;;
   esac
 }
 
@@ -334,7 +361,51 @@ gate() {
     [ "$status" -eq 0 ] || gate_reader_died_refusal "the re-export walk over the line view" "$status" \
       "What it did not read is unknown."
   fi
-  verdicts=$(printf '%s\n%s\n' "$verdicts" "$reexports")
+  # INCLUDE and MACRO, over ANY production file, narrowed by the raw
+  # words and read in the line view. A macro's body runs from the first
+  # bracket after `macro_rules!` to the one that balances it, across
+  # lines; literals and comments are already gone, so every bracket is
+  # a real one.
+  local expanders=() macros=""
+  mapfile -t expanders < <(gate_grep -lE -e "$CERT_INCLUDE_RE" -e "$CERT_MACRO_RE" "${GATE_PRODUCTION_FILES[@]}")
+  if [ "${#expanders[@]}" -gt 0 ]; then
+    if ! lines=$(gate_rust_code --skip-cfg-test "${expanders[@]}"); then
+      gate_error "$(gate_name): the shared Rust reader could not build the line view of the files naming include! or macro_rules!, so what they expand is unknown — that is not a pass"
+      exit 1
+    fi
+    status=0
+    macros=$(printf '%s\n' "$lines" | gate_record_awk \
+      -v INCLUDE_RE="$CERT_INCLUDE_RE" -v MACRO_RE="$CERT_MACRO_RE" -v NAME_RE="$CERT_NAME_RE" '
+      {
+        if (!gate_record_split($0)) next
+        if (GR_FILE != cur) { cur = GR_FILE; inmac = 0 }
+        t = GR_TEXT
+        if (t ~ INCLUDE_RE) {
+          s = t; gsub(/[ \t]+/, " ", s); sub(/^ /, "", s)
+          print "INCLUDE " GR_FILE ":" GR_LINE ": " s
+        }
+        while (t != "") {
+          if (!inmac) {
+            if (!match(t, MACRO_RE)) break
+            inmac = 1; depth = 0; body = ""; at = GR_LINE
+            t = substr(t, RSTART + RLENGTH)
+            continue
+          }
+          c = substr(t, 1, 1); t = substr(t, 2)
+          if (index("({[", c)) depth++
+          else if (index(")}]", c) && --depth == 0) {
+            if (body ~ NAME_RE) print "MACRO " cur ":" at ": a macro_rules! body names the certification module or trait"
+            inmac = 0
+            continue
+          }
+          if (depth > 0) body = body c
+        }
+        if (inmac) body = body " "
+      }') || status=$?
+    [ "$status" -eq 0 ] || gate_reader_died_refusal "the include!/macro_rules! walk over the line view" "$status" \
+      "What it did not read is unknown."
+  fi
+  verdicts=$(printf '%s\n%s\n%s\n' "$verdicts" "$reexports" "$macros")
   # ONE DIAGNOSIS PER RULE THAT FIRED, carrying its tag, with the
   # offending records printed above it under the same tag.
   local rule line hit any=false
@@ -351,7 +422,7 @@ gate() {
     fi
   done
   [ "$any" = false ] || exit 1
-  gate_ok "the ${#CERT_IMPORTERS[@]} listed certification files are exactly the production files that name the Certification module, none of them has Real, a glob import, the evaluation hull or is_poison in its production code, and no production file re-exports the doors"
+  gate_ok "the ${#CERT_IMPORTERS[@]} listed certification files are exactly the production files that name the Certification module, none of them has Real, a glob import, the evaluation hull or is_poison in its production code, no production file re-exports the doors, and no production file has an include! or a macro_rules! body naming certification"
 }
 
 # --- SELF-TEST ---------------------------------------------------------
@@ -462,6 +533,19 @@ plant_spanlocate() { printf 'use geom_core::SpanLocate;\n' >> "$(cert_first_list
 plant_poison() {
   printf 'pub fn g(x: Local) -> bool {\n    x.is_poison()\n}\n' >> "$(cert_first_listed "$1")"
 }
+plant_include() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'include!("doors.rs");\n' > "$1/crates/planted/src/lib.rs"
+}
+plant_macro_trait() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'macro_rules! doors {\n    ($m:ident) => {\n        use geom_core::interval::$m::Certification;\n    };\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+plant_macro_module() {
+  printf 'macro_rules! doors {\n    () => {{\n        let _ = [0; 1];\n        (certification)\n    }};\n}\n' \
+    >> "$(cert_first_listed "$1")"
+}
 plant_home_undeclared() {
   printf 'use super::Interval;\npub fn zero() -> Interval {\n    Interval::from_bounds(0.0, 0.0)\n}\n' \
     > "$1/$CERT_HOME"
@@ -494,12 +578,18 @@ plant_near_misses() {
     printf '#[cfg(test)]\npub(crate) use geom_core::interval::certification::Certification as T;\n'
     printf '#[cfg(test)]\nmod tests {\n    use super::*;\n    use geom_core::Real;\n'
     printf '    fn t(x: Interval) -> bool {\n        x.is_poison()\n    }\n}\n'
+    printf 'pub const TEXT: &str = include_str!("x.txt");\npub const BYTES: &[u8] = include_bytes!("x.bin");\n'
+    printf 'pub const MACROS: &str = "include!(x) macro_rules! m { () => { certification } }";\n'
+    printf '// include!("x.rs"); macro_rules! m { () => { Certification } }\n'
+    printf '#[cfg(test)]\nmod expanded {\n    include!("fixture.rs");\n'
+    printf '    macro_rules! m {\n        () => { certification };\n    }\n}\n'
   } >> "$(cert_first_listed "$1")"
   mkdir -p "$1/crates/planted/src"
   {
     printf 'use geom_core::*;\nuse geom_core::Real;\n'
     printf 'pub mod certification;\n'
     printf 'pub enum EulerOpError {\n    Certification { error: u8 },\n}\n'
+    printf 'macro_rules! margin {\n    () => { certification_margin() };\n}\n'
     printf 'pub struct Edit {\n    certification: u8,\n}\n'
     printf 'pub fn f(e: &EulerOpError, x: Interval) -> bool {\n'
     printf '    matches!(e, EulerOpError::Certification { .. }) && x.is_poison()\n}\n'
@@ -576,16 +666,19 @@ gate_selftest() {
   cert_case_alone EVALHULL plant_spanlocate
   cert_case_alone POISON plant_poison
   cert_case_alone HOME plant_home_undeclared
+  cert_case_alone INCLUDE plant_include
+  cert_case_alone MACRO plant_macro_trait
+  cert_case_alone MACRO plant_macro_module
   # The `T: Decide` bound below MUST pass: a lane bound carries `Real`'s
   # methods without the token, and that is lane evaluation, which a
   # certification file does legitimately (the header's KNOWN GAP 6). A
   # gate that refused the bound would refuse `quad_lane` itself.
-  gate_selftest_passes "prose, a trailing comment and a string literal carrying every forbidden token, Realm/RealLike, a T: Decide bound, a product and a deref, enclosure_hull_of and is_poisoned, a pub use naming neither the module nor the trait, a longer name, a commented-out re-export, a private import after a pub item, a function-local import in a pub fn, a cfg(test) re-export, Real and is_poison in a cfg(test) module; and, in an unlisted file, a glob, Real, is_poison, a mod certification declaration, an EulerOpError::Certification variant and a certification: field" \
+  gate_selftest_passes "prose, a trailing comment and a string literal carrying every forbidden token, Realm/RealLike, a T: Decide bound, a product and a deref, enclosure_hull_of and is_poisoned, a pub use naming neither the module nor the trait, a longer name, a commented-out re-export, a private import after a pub item, a function-local import in a pub fn, a cfg(test) re-export, Real and is_poison in a cfg(test) module, include_str! and include_bytes!, include! and a certification-naming macro in a literal, a comment and a cfg(test) module; and, in an unlisted file, a glob, Real, is_poison, a mod certification declaration, an EulerOpError::Certification variant, a macro naming certification_margin and a certification: field after it" \
     plant_near_misses
   gate_selftest_test_module_homes "$(gate_name) UNLISTED: " plant_breach_at
   gate_selftest_homes --narrowed --subject "$CERT_HOME_SUBJECT" "$CERT_HOME" \
     --subject "$CERT_IMPORTERS_SUBJECT" "${CERT_IMPORTERS[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the home (Real in scope, exempt) and every listed importer; fires, each plant on its OWN rule and no other, on an unlisted importer by name, by module alias, by module glob, inside a braced group and through a fully-qualified call; on a re-export at pub, pub(crate) renamed, pub(super) braced over lines and pub(in path), of the module alone from an unlisted file, and from the home; on a listed file that stopped importing; on Real in a listed file as a use, an alias, a grouped import, a path, a qualified path, a bound, an impl and a rustfmt-wrapped bound; on a glob of a crate, of super, and inside a braced list at either end; on enclosure_hull and SpanLocate; on is_poison; and on a home that stopped declaring the trait; passes every near miss the rules read past; places a cfg(test) breach where rustc mounts it; reds on each home gone or out of the scan; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the home (Real in scope, exempt) and every listed importer; fires, each plant on its OWN rule and no other, on an unlisted importer by name, by module alias, by module glob, inside a braced group and through a fully-qualified call; on a re-export at pub, pub(crate) renamed, pub(super) braced over lines and pub(in path), of the module alone from an unlisted file, and from the home; on a listed file that stopped importing; on Real in a listed file as a use, an alias, a grouped import, a path, a qualified path, a bound, an impl and a rustfmt-wrapped bound; on a glob of a crate, of super, and inside a braced list at either end; on enclosure_hull and SpanLocate; on is_poison; on a home that stopped declaring the trait; on include!; and on a macro_rules! body naming the trait by a fragment-assembled path and naming the module inside nested brackets over lines; passes every near miss the rules read past; places a cfg(test) breach where rustc mounts it; reds on each home gone or out of the scan; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
