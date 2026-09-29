@@ -2,7 +2,8 @@
 id: part-root-failure-nests-a-whole-refusal-past-the-budget
 kind: issue
 title: editor-core: a part's root failure renders the part's own node refusal inside an 11-word wrapper, so it can outgrow the viewer's 75-word budget by construction
-status: open
+status: spec
+branch: edit/part-root-carried-refusal
 priority: P3
 cost: M
 opened: 2026-09-23
@@ -107,3 +108,50 @@ per document level under the instance row.
 Everything under "What the designers converged on" stands. If the block
 proves too long in use, the value supports drawing fewer lines without a
 kernel change.
+
+## Ruled and spec'd (2026-09-29, EDIT orchestrator) — branch `edit/part-root-carried-refusal`
+
+**Tier: single review** (one Opus FULL). The reason: the unit changes a
+payload type the kernel, the mate vocabulary, the viewer and the binding
+all read, so correctness is at real risk, but it is one idea applied
+at three sites. This section is the spec. Treat every premise below as
+a hypothesis: verify it against the tree and report any correction.
+
+**The kernel value** (`eval/parts.rs`, `eval/mod.rs`):
+1. **The fault.** It becomes `PartFault::PartRootFailed { node: RecipeNodeId, refusal: NodeRefusal }`.
+   - `message` and `cause` go.
+   - A part inside a part is `refusal.kind() == NodeErrorKind::Part { doc_ref, fault: PartRootFailed { .. } }`, so every level keeps its `doc_ref`.
+   - `product_fault`'s "records no cause" placeholder becomes a typed kernel-bug arm, or a restructure that cannot reach it.
+   - `PartFault` drops `Eq` unless `NodeRefusal` honestly gains it.
+2. **Its `Display`.**
+   - It is the instance's own bounded sentence. It never renders the inner refusal and never prints the hex `DocRef`; the payload and `Debug` keep both.
+   - It names the part's failed node and gives this document's recourse (open the part and repair node N).
+   - It adds no "accept the updated version": the viewer has no door for `DocEdit::UpdateReference`, and `PinMismatch` says it when it applies.
+3. **The same rule for the class.**
+   - `MateFault::PlacerRefused` names the placer node and points to it. Its row already draws the refusal, and the tree draws "see feature N".
+   - `LeverRefusal::PartUnresolved` does not re-render `PartFault`'s carried refusal.
+   - The F6 forwarding comment over `NodeErrorKind`'s `Display` gains the one exception, in one place: a carried refusal is another node's, with its own recourse, and is drawn as its own line, never inside this one.
+
+**The viewer** (`tree.rs`, `pane/features.rs`, announced crossing):
+4. **The carried lines.** `RowStatus::Failed` carries the carried refusals, one per document level. `failure_lines` draws them under the row's own line, indented, each exactly as that node's own tree would draw it (Ev's (a), the full traceback).
+5. **File names.** The instance row names its part by file name, read from the session's directory store (id → path). Each carried line's subject names its level's file. Where no file is known, say so plainly and never print hex.
+
+**Python** (announced crossing):
+6. **The binding.**
+   - `str(exc)` is the bounded sentence.
+   - The carried refusal is exposed typed as `__cause__`.
+   - The `part_root_failed` tag does not change.
+   - The census, the tag inventory and the stubs move with it.
+
+**Rows.** Each is red on `origin/main`, then green.
+- The concision chain's `Part/PartRootFailed` rows are re-baselined to the bounded sentence.
+- A depth-3 nested row, and a row whose inner refusal is the longest on the roster, are each within the budget at every drawn line.
+- `PlacerRefused` on the longest inner refusal is within the budget.
+- A viewer test builds a depth-2 workspace, takes the tree rows, and holds every drawn line to `test_utils::refusal::problems`, including each level's file name.
+- Python: `str` is bounded and `__cause__` is the typed refusal.
+- `test_utils::refusal::arena_key` also flags a hex document id. It is red on today's text.
+
+**File as rows** (not this unit):
+- The shape check never flags a refusal with no recourse (`NoResolver`, `DepthExceeded`, `ReferenceCycle`, `PartProduct`).
+- The viewer has no door for `DocEdit::UpdateReference`.
+- The kernel says "node N" where the tree says "feature N".
