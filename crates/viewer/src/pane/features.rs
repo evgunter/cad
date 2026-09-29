@@ -160,10 +160,8 @@ impl ViewerBehavior<'_> {
                     });
                 }
             }
-            // **Exhaustive on purpose**: whether a row draws a badge
-            // at all is this pane's decision, so a status the kernel
-            // grows has to answer it here rather than fall into a
-            // wildcard and draw.
+            // Whether a row draws a badge at all is this pane's
+            // decision.
             //
             // How LOUD a drawn badge is, is not decided here — that is
             // `RowStatus::tone()`, read below.
