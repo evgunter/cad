@@ -2,7 +2,7 @@
 id: kill-ops-loop-anchor-on-an-unproven-next-step
 kind: issue
 title: kef, kemr and kev re-anchor a surviving loop's first on a next step whose loop no plan proves: a torn next carries a loop anchored in another loop through Ok
-status: dispatched
+status: review
 opened: 2026-09-29
 refs: [kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
 priority: P2
