@@ -9,6 +9,7 @@ priority: P1
 cost: M
 branch: chrome/poisoned-panels
 closed: 2026-09-29
+pr: 3477
 ---
 
 Found by CHROME's style lane on PR 1769, as a class rather than an
