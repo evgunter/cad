@@ -178,24 +178,6 @@ use pncad::geom_core::Tol;
 
 use crate::plate::{Plate, WEB, plate};
 
-/// **Stop 1's leaf budget, and why it is not the default.**
-///
-/// At ±0.05 mm every leaf REPLAYS now (0.2–0.4 s each, release), and
-/// the driver splits toward the surface where the web crosses the
-/// asserted floor, so the default 65,536 leaves would spend hours
-/// refining a boundary the answer does not depend on. 512 leaves
-/// certify 83% of the study's mass in about three and a half minutes
-/// and already reach the violating corner (256 leaves certify 79% and
-/// do not; 1024 certify 89%, measured in
-/// `editor-core/tests/m10_10_evidence_interval`). The cell caps it and
-/// says so, which is a statement about the COST rather than a thumb
-/// on the answer: a reader who doubts it can raise the number and
-/// watch the certified mass grow and the verdict not change.
-///
-/// **Parallel**, because those leaves are independent replays and the
-/// driver's two schedules give bit-identical verdicts
-/// ([`DriveConfig::parallel`]): the drive is the cell's cost, and the
-/// serial one was most of `demo-tour certified`'s wall time.
 /// The hull's padding below and above the true range over the
 /// certified leaves at stop 1's budget (512 leaves, 193 certified),
 /// MEASURED at the default ε in metres — `2.125e-5` below and
@@ -214,6 +196,29 @@ fn at_the_ci_row(tol: Tol) -> bool {
     (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3
 }
 
+/// **Stop 1's leaf budget, and why it is not the default.**
+///
+/// At ±0.05 mm every leaf REPLAYS now (0.2–0.4 s each, release), and
+/// the driver splits toward the surface where the web crosses the
+/// asserted floor, so the default 65,536 leaves would spend hours
+/// refining a boundary the answer does not depend on. 512 leaves
+/// certify 83% of the study's mass in about three and a half minutes
+/// and already reach the violating corner (256 leaves certify 79% and
+/// do not; 384 reach it with 7e-6 of the study's mass violated against
+/// 512's 1.75e-4, a corner a shift in the split order could lose; 1024
+/// certify 89%, measured in `editor-core/tests/m10_10_evidence_interval`
+/// and, for 128–512, by a probe on this cell on 2026-09-24). At 256 and
+/// below the requirement reads `Holds` and every stop-1 assertion on the
+/// violated corner fails, so the budget is not a dial for CI time:
+/// halving it loses the stop's finding. The cell caps it and says so,
+/// which is a statement about the COST rather than a thumb on the
+/// answer: a reader who doubts it can raise the number and watch the
+/// certified mass grow and the verdict not change.
+///
+/// **Parallel**, because those leaves are independent replays and the
+/// driver's two schedules give bit-identical verdicts
+/// ([`DriveConfig::parallel`]): the drive is the cell's cost, and the
+/// serial one was most of `demo-tour certified`'s wall time.
 fn starved() -> DriveConfig {
     DriveConfig {
         max_leaves: 512,
