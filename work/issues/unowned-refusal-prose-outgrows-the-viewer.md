@@ -2,7 +2,9 @@
 id: unowned-refusal-prose-outgrows-the-viewer
 kind: issue
 title: topo/geom-brep: the refusals over 50 words on ground no program owns (Ev's concision request)
-status: open
+status: closed
+closed: 2026-09-29
+pr: PRNUM
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 ---
@@ -83,3 +85,14 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## Closed 2026-09-29 (`chrome/refusal-residue`)
+
+Both halves the row stayed open on are gone. `certify.rs`'s
+`certification:` prefix was already removed by ENCL's certify pass
+(its `FILED` entry was stale). `ShellClassifyError` and
+`MassPropsError` in `topo/src/props.rs` were rewritten at the source by
+CHROME's `refusal-residue` pass: no stage prefix and no arena key, with
+`Shell/Roles` and `Check/Unsupported` out of `KERNEL_KEYED` and `FILED`
+(the row's own check). What the structural guard found next on unowned
+ground is `work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md`.

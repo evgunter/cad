@@ -2,10 +2,12 @@
 id: the-refusal-shape-guard-has-blind-spots
 kind: issue
 title: chrome: the refusal shape guard (test_utils::refusal and its callers) has blind spots that stay green
-status: open
+status: closed
 opened: 2026-09-23
 priority: P3
-cost: D
+cost: M
+closed: 2026-09-29
+pr: PRNUM
 ---
 
 
@@ -62,3 +64,53 @@ split (`SplitJoinError::Section`), a plane×cylinder section at a
 near-circular tilt reaches it, and a split takes no declaration. The
 chain test admits exactly this on `Split/Join/Section(Carrier)` and
 `Boolean/Join/Section(Carrier)` (`FILED`, `FILED_DECLARE`).
+
+## Closed 2026-09-29 (`chrome/refusal-residue`)
+
+1–3. **The prefix check reads a label's shape, not its length.** A
+   clause now opens after `. `, `, ` and a line break as well, a
+   parenthetical that closes before the colon never opens one, and a
+   clause is a stage prefix when it carries none of the words only a
+   sentence has (`SENTENCE_WORDS`: articles, determiners, pronouns,
+   auxiliaries, negations, and the wrappers' own "failed", "refused",
+   "escalated"). So `declared-REST union zip:`, `A/B lockstep
+   invariant violated:` and `path junction classification:` are red,
+   and `the Boolean op refused:` and `node 5 failed:` are not. Unit
+   rows: `the_prefix_shapes_the_first_reading_missed_are_red`.
+   It found, on rows already rendered, every `predicate 'x'
+   indeterminate:` (the payload's name; decided in
+   `indeterminate-payload-shows-the-viewer-a-predicate-name-and-band-numbers`),
+   `shell ShellKey(…):`, and the labels now filed on `paths`, `reach`,
+   `carve` and the unowned row (`*-refusals-short-of-the-shape-guard`).
+4. **Labels are scoped.** `ALLOWED_LABELS` is `(row namespace,
+   label)`: the check labels and `root 4 output 0` on `Check/`,
+   `mate 9` on `Mate/`, `at corner` on the corner-pair rows. The
+   at-rest and edit suites scope theirs the same way.
+5. **Every exemption list must fire.** `KERNEL_KEYED`,
+   `ALLOWED_LABELS`, `FILED`, `FILED_NAMESPACES`, `FILED_DEBUG`,
+   `FILED_DECLARE` and `FILED_NO_RECOURSE` are checked by
+   `every_admission_admits_a_row_it_is_needed_for`; the at-rest and
+   edit suites check their own lists in the same test. The entry
+   `("Transform/Certify", "certification")` was already stale on main
+   (ENCL's certify pass had removed the prefix); put back, it turns the
+   check red.
+6. **The blend-detail reader** has a count floor (`BLEND_DETAIL_FLOOR`,
+   187) and also reads the four arms built directly with a `detail:`
+   field. That found eight raise sites the helper reader never
+   rendered: four in `battery.rs` (two `BodyNotIntact`, two
+   `UnsupportedRunOut`) and four in `mod.rs`'s sample list. All fit.
+7. **`BodyNotIntact` is keyed by the arm**, read from the helper the
+   detail was raised through, not by a row-name prefix.
+8. **Recourses without a marker.** The shared unlabelled repairs
+   (`BARE_RECOURSES`) now count, so `Indeterminate`'s "— a
+   near-coincidence; declare …" tail is one recourse, and a second one
+   beside it is red.
+
+**What the guard still cannot see.** A bespoke recourse phrased
+without a marker and outside the shared vocabulary ("blend in
+SEQUENTIAL calls", "narrow the parameter box and try again") is not
+counted: by shape it is a clause like any other, and no list of such
+phrases would see the next one. A stage label that happens to contain a
+sentence word (`the section stage:`) passes. A sentence with no such
+word reads as a label: `two instances overlap:` on the at-rest
+`InstanceInterference` row, admitted there by name.

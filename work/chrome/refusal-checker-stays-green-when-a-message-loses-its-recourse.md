@@ -2,10 +2,12 @@
 id: refusal-checker-stays-green-when-a-message-loses-its-recourse
 kind: issue
 title: test_utils::refusal::problems flags only a second recourse, so a message that loses its repair stays green
-status: open
+status: closed
 opened: 2026-09-26
 priority: P3
 cost: E
+closed: 2026-09-29
+pr: PRNUM
 ---
 
 
@@ -76,3 +78,35 @@ through yet" (`topo::validate`'s `NOT_YET`, the `census` arms; "…
 through this in the kernel yet" at `boolean/mod.rs:1722`) is a second
 dead-end spelling with no shared
 home beside `geom_core::KERNEL_DEFECT_ENDING`.
+
+## Closed 2026-09-29 (`chrome/refusal-residue`)
+
+`test_utils::refusal::problems` flags a refusal that states no
+recourse, and every caller holds both directions. The at-rest suite's
+own `== 0` check moved into the shared tool.
+
+**The marker vocabulary, settled for counting.** `recourse_markers`
+counts `Recourse:`, "there is no way through" in either case (so
+`boolean/mod.rs`'s lowercase mid-sentence spelling and `NOT_YET`'s
+"There is no way through yet" both count), and each shared unlabelled
+repair in `BARE_RECOURSES` — `COINCIDENCE_RECOURSE`,
+`SPLIT_PLANE_RECOURSE`, `NO_DECLARATION_RECOURSE` — stated in a
+sentence no `Recourse:` opened. `test-utils` has no dependencies, so the
+phrases are restated there.
+
+**The census it turned red** (the first measurement the row asked for):
+208 feature-tree rows and 90 status-line rows state no recourse. None
+was rewritten here: each needs its raise sites read before a recourse
+is written, and they sit on eight programs' ground. They are admitted
+by exact id (`FILED_NO_RECOURSE` in `refusal_concision_chains.rs` and
+`refusal_concision_edits.rs`) and filed:
+`work/wire/wire-refusals-short-of-the-shape-guard.md` (94),
+`work/paths/paths-refusals-short-of-the-shape-guard.md`,
+`work/reach/reach-refusals-short-of-the-shape-guard.md` (24),
+`work/carve/carve-refusals-short-of-the-shape-guard.md` (18),
+`work/shell/shell-refusals-short-of-the-shape-guard.md` (12),
+`work/msolve/msolve-refusals-short-of-the-shape-guard.md`,
+`work/edit/edit-refusals-short-of-the-shape-guard.md` and
+`work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md` (8).
+Each list has a must-fire check, so an entry its owner's fix makes
+stale goes red.
