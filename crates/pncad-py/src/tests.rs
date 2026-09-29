@@ -503,7 +503,11 @@ fn the_fourth_verbs_two_refusals_are_stable() {
         b: FaceKey::default(),
     });
     for e in [&empty, &unpaired, &unsupported, &poison] {
-        assert_eq!(node_error_tag(e), "measure_clearance_refused", "{e}");
+        assert_eq!(
+            node_error_tag(e.class()),
+            "measure_clearance_refused",
+            "{e}"
+        );
     }
     // The prose is pinned on the two arms whose rendering is a
     // sentence. `Unsupported` and `PoisonEnclosure` print their faces
@@ -2241,9 +2245,159 @@ fn shell_refusal_tags_are_stable() {
     use pncad::document::NodeErrorKind;
     use pncad::topo::ShellError;
     let op = NodeErrorKind::Shell(Box::new(ShellError::Thickness { thickness: -0.5 }));
-    assert_eq!(node_error_tag(&op), "shell");
+    assert_eq!(node_error_tag(op.class()), "shell");
     let lane = NodeErrorKind::ShellLaneUnsupported { scalar: "dual" };
-    assert_eq!(node_error_tag(&lane), "shell_lane_unsupported");
+    assert_eq!(node_error_tag(lane.class()), "shell_lane_unsupported");
+}
+
+/// **Every node-refusal class answers the word it has always answered.**
+///
+/// `EvaluationError.kind` is read off [`pncad::document::NodeErrorClass`]
+/// alone, so this table is the whole mapping, class by class, and each
+/// word in it is a public Python contract: a caller branching on it
+/// breaks the day it moves. [`TAG_INVENTORY`] pins which words the map
+/// speaks; this pins which class speaks which, and a swapped pair — two
+/// classes trading words — is green there and red here. That every
+/// refusal reaches its class is `editor_core`'s own census, over one
+/// witness per class.
+///
+/// The split classes' words are shared with the other doors that
+/// publish the same fault by delegation, not by this table: the seam
+/// classes read [`crate::tags::resolve_fault_tag`], and
+/// `placement_rule_fault_tag` and `mate_fault_tag` read
+/// [`crate::tags::node_error_tag`] through the fault's class.
+#[test]
+fn node_error_tags_are_the_published_words() {
+    use crate::tags::node_error_tag;
+    use pncad::document::NodeErrorClass as C;
+
+    // Declared ONCE for two uses: the table the row walks, and an
+    // exhaustive match over the class, so a class with no row here is a
+    // non-exhaustive match (E0004) and a class with two an unreachable
+    // pattern.
+    macro_rules! published {
+        ($($v:ident => $w:literal),* $(,)?) => {
+            const PUBLISHED: &[(C, &str)] = &[$((C::$v, $w)),*];
+            #[deny(unreachable_patterns)]
+            #[allow(dead_code)]
+            fn every_class_has_one_row(c: C) {
+                match c {
+                    $(C::$v)|* => {}
+                }
+            }
+        };
+    }
+
+    published! {
+        Expr => "expr",
+        Profile => "profile",
+        ProfileReplay => "profile_replay",
+        ProfileLaneReplay => "profile_lane_replay",
+        ProfileAnchor => "profile_anchor",
+        ProfilePieces => "profile_pieces",
+        Extrude => "extrude",
+        Revolve => "revolve",
+        Tube => "tube",
+        Split => "split",
+        Fillet => "fillet",
+        Chamfer => "chamfer",
+        Boolean => "boolean",
+        Transform => "transform",
+        Skin => "skin",
+        Loft => "loft",
+        CurvedSolidFrontier => "curved_solid_frontier",
+        MissingInput => "missing_input",
+        ToleranceConflict => "tolerance_conflict",
+        ParamBox => "param_box",
+        Seed => "seed",
+        SeedPinnedSection => "seed_pinned_section",
+        WrongOperand => "wrong_operand",
+        EmptyOperand => "empty_operand",
+        EmptyHalf => "empty_half",
+        InstanceOutOfRange => "instance_out_of_range",
+        DegenerateDirection => "degenerate_direction",
+        NonFiniteDirection => "non_finite_direction",
+        UnderflowedDirection => "underflowed_direction",
+        Band => "band",
+        MissingSlot => "missing_slot",
+        VerbArity => "verb_arity",
+        Escalated => "escalated",
+        AxisInDifferentPlane => "axis_in_different_plane",
+        NonPositiveCount => "non_positive_count",
+        PlacementsUncertified => "placements_uncertified",
+        PlacementRuleCountSpelling => "placement_rule_mismatch",
+        PlacementRuleNoPlacements => "empty_placement_list",
+        PlacementRuleNonFiniteFrame => "non_finite_placement",
+        PlacementRuleImproperFrame => "improper_placement",
+        UnschedulableCycle => "unschedulable_cycle",
+        Naming => "naming",
+        ParamSourceAttach => "param_source_attach",
+        DeclareResolve => "declare_resolve",
+        DeclareSiteNotAnOperand => "declare_site_not_an_operand",
+        DeclareUnsupportedPair => "declare_unsupported_pair",
+        UndeclaredContact => "undeclared_contact",
+        UndeclarableContact => "undeclarable_contact",
+        FilletSelectionResolve => "fillet_selection_resolve",
+        ChamferSelectionResolve => "chamfer_selection_resolve",
+        FilletSelectionKind => "fillet_selection_kind",
+        ChamferSelectionKind => "chamfer_selection_kind",
+        FilletSelectionEmpty => "fillet_selection_empty",
+        ChamferSelectionEmpty => "chamfer_selection_empty",
+        Shell => "shell",
+        ShellOpenResolve => "shell_open_resolve",
+        ShellOpenKind => "shell_open_kind",
+        ShellLaneUnsupported => "shell_lane_unsupported",
+        FaceFrameResolve => "face_frame_resolve",
+        FaceFrameKind => "face_frame_kind",
+        FaceFrameNotPlanar => "face_frame_not_planar",
+        FaceFrameReadback => "face_frame_readback",
+        DerivedFrameSection => "derived_frame_section",
+        FrameDirectionDegenerate => "degenerate_direction",
+        FrameDirectionNonFiniteLength => "non_finite_direction",
+        FrameDirectionUnderflowedLength => "underflowed_direction",
+        FrameDirectionEscalated => "escalated",
+        WitnessBifurcation => "witness_bifurcation",
+        PartNoResolver => "part_no_resolver",
+        PartPinMismatch => "part_pin_mismatch",
+        PartEpsilonSeam => "part_epsilon_seam",
+        PartUnresolved => "part_unresolved",
+        PartRootFailed => "part_root_failed",
+        PartRootFailureUnrecorded => "part_root_failure_unrecorded",
+        PartProduct => "part_product",
+        PartReferenceCycle => "part_reference_cycle",
+        PartDepthExceeded => "part_depth_exceeded",
+        MatePosesOfAnotherDocument => "mate_poses_of_another_document",
+        MateFrame => "mate_frame_degenerate",
+        MateClassNotAdmitted => "mate_class_not_admitted",
+        MateTableLacks => "mate_table_lacks",
+        MateIndeterminate => "mate_indeterminate",
+        MateBand => "mate_band",
+        MateContradictory => "mate_contradictory",
+        MateUnder => "mate_under",
+        MateDanglingHead => "mate_dangling_head",
+        MatePlacerRefused => "mate_placer_refused",
+        MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
+        MateSelf => "mate_self",
+        MateUnleverable => "mate_unleverable",
+        CrossingUnverified => "crossing_unverified",
+        MeasureRefResolve => "measure_ref_resolve",
+        MeasureRefUnreadable => "measure_ref_unreadable",
+        MeasureNonFinite => "measure_non_finite",
+        MeasureNotParallel => "measure_not_parallel",
+        MeasureUnsupported => "measure_unsupported",
+        MeasureMalformed => "measure_malformed",
+        PayloadExpr => "payload_expr",
+        MeasureSelectionKind => "measure_selection_kind",
+        MeasureClearanceRefused => "measure_clearance_refused",
+        AssertionDimension => "assertion_dimension",
+    }
+    for &(class, word) in PUBLISHED {
+        assert_eq!(
+            node_error_tag(class),
+            word,
+            "{class:?} stopped answering the word Python callers branch on"
+        );
+    }
 }
 
 /// **The two words a refusal puts on the wire, together.** The carrier
@@ -2272,7 +2426,7 @@ fn inner_arm_tags_are_stable() {
     use pncad::sweep::{ExtrudeError, RevolveError, TubeError};
     use pncad::topo::{ShellError, TransformError};
 
-    let pair = |kind: &NodeErrorKind| (node_error_tag(kind), node_inner_kind_tag(kind));
+    let pair = |kind: &NodeErrorKind| (node_error_tag(kind.class()), node_inner_kind_tag(kind));
 
     assert_eq!(
         pair(&NodeErrorKind::Revolve(RevolveError::DegenerateAxis)),
@@ -2389,15 +2543,10 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
         }
         .node_error();
         assert_eq!(
-            node_error_tag(&carried(error)),
+            node_error_tag(carried(error).class()),
             word,
             "the carried refusal stopped answering the word this fact has \
              always answered, so every Python caller matching it breaks"
-        );
-        assert_eq!(
-            node_error_tag(&carried(error)),
-            node_error_tag(&direct),
-            "the carried refusal and the frame's own raise have diverged"
         );
         // Compared, not pinned: today both are `None`, and if the
         // direction family ever projects an inner discriminant, the
@@ -4840,22 +4989,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "mate_fault_tag",
-        values: &[
-            "mate_band",
-            "mate_class_not_admitted",
-            "mate_contradictory",
-            "mate_dangling_head",
-            "mate_frame_degenerate",
-            "mate_indeterminate",
-            "mate_part_selects_another_copy",
-            "mate_placer_refused",
-            "mate_poses_of_another_document",
-            "mate_self",
-            "mate_table_lacks",
-            "mate_under",
-            "mate_unleverable",
-        ],
-        delegates: &[],
+        values: &[],
+        delegates: &["node_error_tag"],
     },
     TagEntry {
         function: "mate_primitive_tag",
@@ -4943,6 +5078,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "derived_frame_section",
             "empty_half",
             "empty_operand",
+            "empty_placement_list",
             "escalated",
             "expr",
             "extrude",
@@ -4954,8 +5090,22 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fillet_selection_empty",
             "fillet_selection_kind",
             "fillet_selection_resolve",
+            "improper_placement",
             "instance_out_of_range",
             "loft",
+            "mate_band",
+            "mate_class_not_admitted",
+            "mate_contradictory",
+            "mate_dangling_head",
+            "mate_frame_degenerate",
+            "mate_indeterminate",
+            "mate_part_selects_another_copy",
+            "mate_placer_refused",
+            "mate_poses_of_another_document",
+            "mate_self",
+            "mate_table_lacks",
+            "mate_under",
+            "mate_unleverable",
             "measure_clearance_refused",
             "measure_malformed",
             "measure_non_finite",
@@ -4968,10 +5118,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "missing_slot",
             "naming",
             "non_finite_direction",
+            "non_finite_placement",
             "non_positive_count",
             "param_box",
             "param_source_attach",
+            "part_depth_exceeded",
+            "part_no_resolver",
+            "part_product",
+            "part_reference_cycle",
+            "part_root_failed",
+            "part_root_failure_unrecorded",
             "payload_expr",
+            "placement_rule_mismatch",
             "placements_uncertified",
             "profile",
             "profile_anchor",
@@ -4999,10 +5157,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wrong_operand",
         ],
         delegates: &[
-            "mate_fault_tag",
             "node_error_tag",
-            "part_fault_tag",
-            "placement_rule_fault_tag",
+            "resolve_fault_tag",
+            "resolve_fault_tag",
+            "resolve_fault_tag",
         ],
     },
     TagEntry {
@@ -5103,18 +5261,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "part_fault_tag",
-        values: &[
-            "part_depth_exceeded",
-            "part_no_resolver",
-            "part_product",
-            "part_reference_cycle",
-            "part_root_failed",
-            "part_root_failure_unrecorded",
-        ],
-        delegates: &["resolve_fault_tag"],
-    },
-    TagEntry {
         function: "path_error_tag",
         values: &[
             "arc_center_not_equidistant",
@@ -5180,13 +5326,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "placement_rule_fault_tag",
-        values: &[
-            "empty_placement_list",
-            "improper_placement",
-            "non_finite_placement",
-            "placement_rule_mismatch",
-        ],
-        delegates: &[],
+        values: &[],
+        delegates: &["node_error_tag"],
     },
     TagEntry {
         function: "product_error_tag",
@@ -6438,6 +6579,11 @@ pub fn third_tag(reason: EvalReason) -> &'static str {
     }
 }
 
+// A whole body handed to another map, which is a delegation too.
+pub fn fourth_tag(reason: EvalReason) -> &'static str {
+    second_tag(reason.inner())
+}
+
 pub fn maybe_tag(reason: EvalReason) -> Option<&'static str> {
     match reason {
         EvalReason::Poisoned => None,
@@ -6450,7 +6596,16 @@ pub const SAMPLE_WORD: &str = "sample_word";
     let table = read_tag_table(source);
 
     let names: Vec<&str> = table.functions.keys().map(String::as_str).collect();
-    assert_eq!(names, ["first_tag", "maybe_tag", "second_tag", "third_tag"]);
+    assert_eq!(
+        names,
+        [
+            "first_tag",
+            "fourth_tag",
+            "maybe_tag",
+            "second_tag",
+            "third_tag"
+        ]
+    );
 
     let (values, delegates) = &table.functions["first_tag"];
     // Sorted, so the literal, the nested `match`'s two words and the
@@ -6467,6 +6622,11 @@ pub const SAMPLE_WORD: &str = "sample_word";
     // wildcard-only `match` would still report both functions.
     assert_eq!(table.functions["second_tag"].0, ["second"]);
     assert_eq!(table.functions["third_tag"].0, ["third"]);
+    assert_eq!(
+        table.functions["fourth_tag"],
+        (Vec::new(), vec!["second_tag".to_owned()]),
+        "a body that is one delegation reads as that delegation"
+    );
 
     // `None` contributes nothing; `Some` is the wrapper, not a
     // delegation, so what it wraps is what reaches the inventory.
@@ -6534,6 +6694,9 @@ fn the_tag_table_reader_refuses_a_const_fn_map() {
 
 /// One tag function's body, read into (values, delegates) — and the
 /// arm shapes the reader dispatched on getting there.
+///
+/// The body is read as ONE arm body: a `match` over the input, or a
+/// call handing the whole input to another map.
 fn parse_tag_body(
     name: &str,
     text: &str,
@@ -6561,11 +6724,11 @@ fn parse_tag_body(
     }
     let mut values = Vec::new();
     let mut delegates = Vec::new();
-    cursor.parse_match(&mut values, &mut delegates);
+    cursor.parse_arm_body(&mut values, &mut delegates);
     cursor.skip_ws();
     assert!(
         cursor.rest().is_empty(),
-        "tags.rs: `{name}`'s body has text after its `match`: {:?} — \
+        "tags.rs: `{name}`'s body has text after its one expression: {:?} — \
          I do not understand this",
         cursor.rest().chars().take(60).collect::<String>()
     );
