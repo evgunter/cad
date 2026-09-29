@@ -1253,7 +1253,7 @@ area `kernel`; prefix `origin/`; tag `(ORIGIN orchestrator)`; ab_band `6300-6399
 | P1 | `axis-per-component-source-beside-geom-source` | issue | H | open | The axis channel's per-component source beside GeomSource (step 3 of WIRE's ratified axis-channel cut) |  |  |
 | P2 | `three-spellings-of-one-chart-answer-the-same-question-differently` | issue | M +design | open | three predicates in topo answer 'are these one chart' with different rungs and different bounds, and the pcurve doors use the weakest |  |  |
 | P3 | `live-guard-proves-ordering-not-identity` | issue | M +design | open | the Live guard compares the spelling of the key looked up, not the key |  |  |
-| P3 | `set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree` | issue | M +design | open | set_surface_source stamps a GeomSource on any live key without checking the description agrees with the recipe's other holders, while GeomSource equality now licenses a row carry at five doors |  |  |
+| P3 | `set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree` | issue | M +design | open | set_surface_source stamps a GeomSource without refusing a description that disagrees with the recipe's other holders; the merge door's declared rung still trusts the stamp in release |  |  |
 
 ## `paths` — PATHS — the profile lattice: the authoring algebra's carriers, closers, joints and its two-plane frame
 
