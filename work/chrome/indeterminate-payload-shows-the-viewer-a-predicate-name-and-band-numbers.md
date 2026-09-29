@@ -4,6 +4,8 @@ kind: issue
 title: chrome: every escalation the viewer draws names its predicate and the band's numbers through IndeterminatePayload; the standard does not say whether that is the user's or the developer's
 status: open
 opened: 2026-09-28
+priority: P1
+cost: E
 ---
 
 (ENCL implementer, raised by the review of PR 3347.)

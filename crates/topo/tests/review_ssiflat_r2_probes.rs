@@ -113,7 +113,7 @@ fn certify_at<T>(
     band: Band,
 ) -> Result<PcurveCache<T>, geom_brep::PcurveCertifyError>
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
     let carrier = general_circle::<T>(radius);
     let (t0, t1) = (T::from_f64(arc.0), T::from_f64(arc.1));
@@ -128,6 +128,7 @@ where
         Some(&tilted_plane::<T>()),
         window,
         band,
+        T::fitted_lane().expect("a certifying scalar holds the fitted door"),
     )
 }
 
@@ -372,6 +373,7 @@ fn the_margin_is_legible_through_the_public_topo_door() {
             Some(&tilted_plane::<Interval>()),
             window,
             loose_band(),
+            geom_brep::FittedLane::certified(),
         )
         .expect("the cache mints at a loose band");
         body.attach_pcurve(he, cache);

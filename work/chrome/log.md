@@ -2271,3 +2271,58 @@ Signed (S-DUP orchestrator).
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 
 - 2026-09-29 — Seam note from AUTH-6 (`author/profile-reshape`). `pane/profile.rs` no longer draws the lock: `SHAPE_LOCKED`'s advisory above the edit door and its line under each step control's disabled hover are gone, and every step control is live on a committed profile. The edit door's body is the free function `edit_door_ui`, which a headless row drives. When a program drops a step names are on, its Apply reads `Apply, stranding N name(s)`, and the hover lists each carrier and name (`apply_and_revert`, fed by `DocSession::edit_profile_report`). The Apply/Revert disabled hovers say "the steps and numbers are the committed profile's". `Refusal::ProfileRestructure`, `ProfileEditOrder` and `ProfileEditOrderCapped` are removed from `session/refuse.rs`, and `ProfileEditStale` says "the editor's program was not written". `pane.rs`'s headless harness gains `painted_after_clicking_nth`. (AUTH-6 implementer)
+## 2026-09-29 — Wave 5 landed after a five-day stall; three PRs, one README clause Ev signed off
+
+**Ev said on 2026-09-24** that CHROME may edit files open PRs touch
+when the conflicts are not semantic, especially the paused VNEWS
+orchestrator's. Wave 5 was dispatched on the ground those PRs had held
+for four waves.
+
+- **`chrome/create-messages`, PR 3139** — the create.rs half of the P0
+  overflow row, which closes it. It converted 25 sentences and moved
+  two in-row sentences to their own lines. The "Add part" window's
+  width is re-applied on every open (min and max width, each frame),
+  because egui persists a window's size and only lets it grow. The part
+  id is drawn as a name that truncates, with the full id on hover. The
+  review caught the reopen defect and the id being wrapped mid-string.
+- **`chrome/empty-doc-badge`, PR 3135** — a body-less assembly takes no
+  at-rest badge (`means_no_body`), and six restatements now cite their
+  home. The review confirmed every `ProductErrorKind` still draws a
+  loud mark somewhere, and found the kept `Refused` arm unpinned; it is
+  pinned now.
+- **`chrome/subset-policy`, PR 3140** — every viewer policy over an
+  enum is an exhaustive match, and the argument lives once in
+  `crates/viewer/README.md`, "A policy over an enum names every
+  variant". **Ev signed the clause off in chat on 2026-09-29**: *"sure,
+  it's a bit long but fine for a crate README"*. The review caught the
+  fix minting the defect it closes: `ToolKind::commits` no longer went
+  red on a new tool. Both enums red again now.
+
+**The stall, and what it cost.** Both 3135 and 3140 were green on
+09-24 and sat for five days: 3140 waiting on Ev's answer, 3135 on
+phantom conflicts. In that time #3052, #2960, #2961, #2934 and #2927
+landed.
+- 3140 then needed a real semantic merge. Every new variant got the
+  answer main's code already gave it, and `frame_status` was checked
+  arm by arm against main.
+- 3135 needed a one-line import that main had dropped and its new rows
+  used.
+
+**GitHub reported a merge conflict on 3135 three times when git found
+none.** The branch had merged main repeatedly, which leaves criss-cross
+merge bases, and GitHub's merge engine resolves those differently from
+local `ort`. What got it through each time was merging the current
+main in and merging the PR as soon as its run went green. A branch
+that has merged main more than once should be merged promptly once
+green.
+
+**Rows priced on arrival** (filed here by ENCL from its concision
+work): `indeterminate-payload-shows-the-viewer-a-predicate-name-and-band-numbers`
+P1, `escalations-forwarded-whole-are-untriaged-for-a-declarations-object`
+P2, `transform-certify-refusal-names-the-edge-by-arena-key` P2, and
+`refusal-checker-stays-green-when-a-message-loses-its-recourse` P3.
+The slate stands at 30 points against 30, at the ceiling under the
+2026-09-27 E/M/H scale (`work/README.md`, cost). Wave 6 is sized to
+take roughly half of it.
+
+Signed (CHROME orchestrator).
