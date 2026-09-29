@@ -867,6 +867,68 @@ impl Declared {
     fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
+
+    /// [`Declared::vf_face_backed`] at the UNIFIED strength: a declared
+    /// pair `(g, f)` holding `v` on `g`'s boundary backs the event at
+    /// `q` only where the pair answers for it — `q` on both carriers
+    /// and within both closed regions ([`pair_holds_point`]), and the
+    /// pair's own overlap verified ([`pair_region_verified`], in either
+    /// frame order). The side condition is vacuous: a touching event
+    /// carries no crossing to take a side on. Every candidate pair is
+    /// read, so which escalations are pushed does not depend on key
+    /// order.
+    #[allow(clippy::too_many_arguments)] // the confinement's whole state
+    fn vf_face_backed_confined<T: Decide>(
+        &self,
+        body: &Body<T>,
+        geo: &Geo<T>,
+        v: VertexKey,
+        f: FaceKey,
+        q: Point3<T>,
+        band: Band,
+        region: Option<RegionLane<T>>,
+        errors: &mut Vec<ValidationError>,
+    ) -> bool {
+        let Some(gs) = geo.vertex_faces.get(&v) else {
+            return false;
+        };
+        let mut backed = false;
+        for &g in gs {
+            if !self.faces.contains(&(g, f)) {
+                continue;
+            }
+            // A curved side certifies through the face-granular arms.
+            let (Some(ga), Some(gf)) = (planar_face(geo, g), planar_face(geo, f)) else {
+                continue;
+            };
+            if pair_holds_point(body, ga, gf, q, band, errors)
+                && (pair_region_verified(body, g, f, band, region)
+                    || pair_region_verified(body, f, g, band, region))
+            {
+                backed = true;
+            }
+        }
+        backed
+    }
+
+    /// [`Declared::ve_face_backed`] at the UNIFIED strength: the
+    /// confined v-on-f rung against either face the edge bounds.
+    #[allow(clippy::too_many_arguments)] // the confinement's whole state
+    fn ve_face_backed_confined<T: Decide>(
+        &self,
+        body: &Body<T>,
+        geo: &Geo<T>,
+        v: VertexKey,
+        e: &EdgeGeo<T>,
+        q: Point3<T>,
+        band: Band,
+        region: Option<RegionLane<T>>,
+        errors: &mut Vec<ValidationError>,
+    ) -> bool {
+        let plus = self.vf_face_backed_confined(body, geo, v, e.f_plus, q, band, region, errors);
+        let minus = self.vf_face_backed_confined(body, geo, v, e.f_minus, q, band, region, errors);
+        plus || minus
+    }
 }
 
 /// The planar snapshot entry for a face, or `None` for a curved one.
@@ -1532,11 +1594,11 @@ fn edge_vertex_at<T: Decide>(
     }
 }
 
-/// Some boundary vertex of `f` sitting AT the point `q` satisfies
-/// `backs` — the census's own coincidence test, short-circuiting on the
-/// first vertex that backs (escalations pushed as they are decided).
+/// Every boundary vertex of `f` sitting AT the point `q` — the
+/// census's own coincidence test, each vertex decided (escalations
+/// pushed), so what is pushed does not depend on which vertex backs.
 ///
-/// AGREEMENT REQUIRED with [`ef_overlap_lane`]'s cut test: that lane
+/// AGREEMENT REQUIRED with [`ef_overlap_cells`]' vertex cut: that
 /// admits a cut when the vertex's perpendicular offset from the edge's
 /// LINE is zero (`pm_census_ef_cut_gap`, a cross-product norm); this
 /// asks whether the vertex is at the bound POINT (`pm_census_bound_
@@ -1546,14 +1608,14 @@ fn edge_vertex_at<T: Decide>(
 /// same band, which they do. They are not shared as one call because
 /// this helper also serves a bound with no cut behind it, where `q` is
 /// the edge's own endpoint and no line test has been made.
-fn any_boundary_vertex_at<T: Decide>(
+fn boundary_vertices_at<T: Decide>(
     f: &FaceGeo<T>,
     geo: &Geo<T>,
     q: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
-    mut backs: impl FnMut(VertexKey) -> bool,
-) -> bool {
+) -> Vec<VertexKey> {
+    let mut out = Vec::new();
     for &w in &f.boundary {
         let Some(&pw) = geo.vmap.get(&w) else {
             continue;
@@ -1564,12 +1626,11 @@ fn any_boundary_vertex_at<T: Decide>(
             band,
             errors,
         ) == Some(true)
-            && backs(w)
         {
-            return true;
+            out.push(w);
         }
     }
-    false
+    out
 }
 
 /// D3 backing for one bound of an edge-on-face overlap (module docs),
@@ -1635,17 +1696,21 @@ fn ef_bound_backed<T: Decide>(
         CutAt::Vertex => {}
     }
     let Some(ve) = edge_vertex_at(e, cut.s, band, errors) else {
-        return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
-            declared.ve_face_backed(geo, w, e)
-        });
+        let mut backed = false;
+        for w in boundary_vertices_at(f, geo, q, band, errors) {
+            backed |= declared.ve_face_backed_confined(body, geo, w, e, q, band, region, errors);
+        }
+        return backed;
     };
     if declared.vf.contains(&(ve, f.key))
         || f.boundary.contains(&ve)
-        || declared.vf_face_backed(geo, ve, f.key)
+        || declared.vf_face_backed_confined(body, geo, ve, f.key, q, band, region, errors)
     {
         return true;
     }
-    any_boundary_vertex_at(f, geo, q, band, errors, |w| declared.vv.contains(&(ve, w)))
+    boundary_vertices_at(f, geo, q, band, errors)
+        .into_iter()
+        .any(|w| declared.vv.contains(&(ve, w)))
 }
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
