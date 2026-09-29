@@ -269,20 +269,20 @@ pub struct Face {
     /// vector negated under the bit by hand can be, and
     /// `face_normal`'s tree-wide row is what stands against that.
     ///
-    /// **Writers (M5 S11).** An Euler operator mints `sense: true` on a
-    /// face it puts on another chart (the material side is not op-level
-    /// knowledge — `mef` sees two chords, not the profile); a face on
-    /// its parent's chart inherits that parent's sense with it. Constructors attach the honest bit
-    /// through [`crate::Body::set_face_sense`] wherever the chart
+    /// **Writers.** A face minted or re-charted takes its bit with its
+    /// chart ([`crate::FaceSurface`]): derived by the operator on the
+    /// parent's chart, stated by the caller on any other
+    /// (`Body::resolve_face_surface` owns the rule, D1's orientation
+    /// bullet). Constructors state the honest bit wherever the chart
     /// normal points into material, decided from the profile's stored
     /// winding/turn structure, never numerically: extrude's concave
     /// arc walls, and a revolve's inward walls (bore cylinder, inward
-    /// cone, under-side plane annulus, concave sphere/torus band). The
-    /// remaining writer-to-be is curved [`crate::Body::revert`] (the
-    /// follow-on unit), which flips every face of a body at once.
-    /// Consumers are audited and threaded as of S10; the test-only
-    /// door [`crate::Body::flipped_face_sense_for_tests`] exercises
-    /// the *incoherent* single-face flip.
+    /// cone, under-side plane annulus, concave sphere/torus band).
+    /// [`crate::Body::revert`] flips every face of a body at once, and
+    /// [`crate::Body::set_face_sense`] writes the bit on a chart that
+    /// stands still. The test-only door
+    /// [`crate::Body::flipped_face_sense_for_tests`] exercises the
+    /// *incoherent* single-face flip.
     ///
     /// STEP alignment: this is exactly `advanced_face.same_sense`
     /// (ISO 10303-42 `face_surface`), which PR 13's exporter consumes

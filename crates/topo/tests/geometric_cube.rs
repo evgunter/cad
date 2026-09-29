@@ -123,8 +123,14 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     let seed_face = t.seed.face;
-    body.set_face_surface(seed_face, FaceSurface::New(Surface::nurbs_placeholder()))
-        .unwrap();
+    body.set_face_surface(
+        seed_face,
+        FaceSurface::New {
+            surface: Surface::nurbs_placeholder(),
+            sense: true,
+        },
+    )
+    .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
@@ -143,7 +149,7 @@ fn wrong_cache_is_rejected_at_attachment() {
     // untouched.
     let eps = Tol::witness().get().eps;
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let edges_before = body.edges().count();
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
@@ -293,7 +299,7 @@ fn near_tangent_intersection_attachment_escalates() {
     let eps = Tol::witness().get().eps;
     let theta = 3.0 * eps;
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -310,11 +316,14 @@ fn near_tangent_intersection_attachment_escalates() {
                 he2: seg.he_minus,
             },
             EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
@@ -322,11 +331,14 @@ fn near_tangent_intersection_attachment_escalates() {
     let tilted = body
         .set_face_surface(
             seed.face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, theta.sin(), theta.cos()),
-                u_ref: Vec3::unit_x(),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, theta.sin(), theta.cos()),
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let flat = body.get_face(split.face).unwrap().surface;
@@ -359,7 +371,7 @@ fn totality_no_panics_on_poison_inputs() {
     // NaN coordinates, poison specs, Nurbs carriers: every failure is a
     // typed error — never a panic (D9).
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let nan = f64::NAN;
     assert!(matches!(
         body.mev_line(

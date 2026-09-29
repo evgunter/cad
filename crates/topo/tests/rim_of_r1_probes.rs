@@ -97,9 +97,15 @@ fn at(theta: f64) -> Point3<f64> {
 fn half_built() -> (Body<f64>, EdgeKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(at(0.0)).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let seed = body.mvfs(at(0.0), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let made = body
         .mev(
             MevSite::Lone {
@@ -146,7 +152,10 @@ fn a_double_cover_of_half_the_circle_is_answered_as_a_rim() {
                 he2: e.he_minus,
             },
             EdgeCurveSpec::arc_of_circle(rim_circle(), 0.0, PI).unwrap(),
-            FaceSurface::New(rim_plane()),
+            FaceSurface::New {
+                surface: rim_plane(),
+                sense: true,
+            },
             tol,
         )
         .expect("the second arc certifies against V0 → V1");
@@ -204,9 +213,15 @@ fn a_negated_axis_arc_breaks_the_rotation_claim_on_a_three_arc_rim() {
     let tol = Tol::witness();
     let (v0, v1, v2) = (0.0, 2.0 * PI / 3.0, 4.0 * PI / 3.0);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(at(v0)).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let seed = body.mvfs(at(v0), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let a = body
         .mev(
             MevSite::Lone {
@@ -242,7 +257,10 @@ fn a_negated_axis_arc_breaks_the_rotation_claim_on_a_three_arc_rim() {
                 he2: b_minus,
             },
             EdgeCurveSpec::arc_of_circle(rim_circle_negated_value(), 0.0, 2.0 * PI / 3.0).unwrap(),
-            FaceSurface::New(rim_plane()),
+            FaceSurface::New {
+                surface: rim_plane(),
+                sense: true,
+            },
             tol,
         )
         .expect("the closing arc certifies against V0 → V2")
@@ -324,7 +342,10 @@ fn a_fresh_opposite_axis_refuses_not_one_rim_although_the_arcs_tile() {
                 he2: e.he_minus,
             },
             EdgeCurveSpec::arc_of_circle(rim_circle_negated_fresh(), 0.0, PI).unwrap(),
-            FaceSurface::New(rim_plane()),
+            FaceSurface::New {
+                surface: rim_plane(),
+                sense: true,
+            },
             tol,
         )
         .expect("the lower half certifies against V0 → V1")

@@ -2564,15 +2564,18 @@ mod tests {
         let p1 = at(0.0);
         let p2 = at(core::f64::consts::FRAC_PI_2);
         let mut body = crate::Body::<f64>::new();
-        let seed = body.mvfs(p1).unwrap();
+        let seed = body.mvfs(p1, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New(geom::Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            }),
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
         )
         .unwrap();
         let mev = body
@@ -2606,7 +2609,7 @@ mod tests {
         };
         // The seed solid first: `mvfs` asserts tier-1 validity, and a
         // surface nothing references yet is an orphan.
-        let seed = body.mvfs(carrier.eval(t0)).unwrap();
+        let seed = body.mvfs(carrier.eval(t0), true).unwrap();
         let cyl = body.add_surface(geom::Surface::Cylinder {
             origin: Point3::origin(),
             axis: Vec3::unit_z(),

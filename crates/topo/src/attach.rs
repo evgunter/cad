@@ -50,7 +50,7 @@ use geom_core::Decide;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
-use crate::euler::{EulerOpError, FaceSurface};
+use crate::euler::{EulerOpError, FaceSurface, ParentSide};
 use crate::geometry::{CurveKey, SurfaceKey};
 use geom_core::Tol;
 
@@ -83,18 +83,22 @@ impl<T: Decide> Body<T> {
     /// skips such a face — so what the drop removes is a wrong row no
     /// reader could be warned about.
     ///
-    /// **The face's [`crate::Face::sense`] is kept**, whatever the new
-    /// surface: the bit states the material side against a chart
-    /// normal, and this door does not know which way the new chart's
-    /// normal points. A caller that moves a face onto a chart whose
-    /// orientation it decides states the bit with the surface, through
-    /// [`Body::set_face_surface_and_sense`].
+    /// **The face's [`crate::Face::sense`] follows the spec**
+    /// ([`Body::resolve_face_surface`], the face standing as its own
+    /// parent): `Inherit` keeps the key and the bit; a `New` or
+    /// `Shared` on the face's own chart ([`Body::same_chart`]) keeps
+    /// the bit, and a spec stating the other bit there is refused;
+    /// anywhere else the stated bit is written, since the bit the face
+    /// carried states the material side against a normal it is no
+    /// longer on.
     ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] if `face` does not resolve;
     /// [`EulerOpError::StaleGeometry`] if a `Shared` key does not
-    /// resolve. The body is untouched on `Err`.
+    /// resolve; [`EulerOpError::SenseContradictsChart`] if a spec on
+    /// the face's own chart states the other bit. The body is
+    /// untouched on `Err`.
     pub fn set_face_surface(
         &mut self,
         face: FaceKey,
@@ -104,26 +108,21 @@ impl<T: Decide> Body<T> {
             key: EntityId::Face(face),
         })?;
         let old = face_data.surface;
-        self.check_face_surface(&surface)?;
+        let resolved =
+            self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.mint_face_surface(surface, old);
+        let Some(f) = self.get_face_mut(face) else {
+            unreachable!(
+                "set_face_surface: `face` resolved in the plan phase and minting a \
+                 surface kills no face"
+            )
+        };
+        f.sense = resolved.sense;
         if new != old {
-            // The chart question is asked HERE, where both keys still
-            // resolve: minting removes nothing, and the orphan sweep
-            // below can take `old` out of the arena — a key that
-            // resolves to nothing reads as a chart change whatever the
-            // two charts were. Nothing below reads a surface again, so
-            // the writes that follow answer to no ordering.
-            let carries_rows = self.same_chart(old, new);
-            let Some(f) = self.get_face_mut(face) else {
-                unreachable!(
-                    "set_face_surface: `face` resolved in the plan phase and minting a \
-                     surface kills no face"
-                )
-            };
             f.surface = new;
-            if !carries_rows {
+            if !resolved.on_parent_chart {
                 self.drop_face_rows(face);
             }
             self.remove_surface_if_orphaned(old);
@@ -134,76 +133,27 @@ impl<T: Decide> Body<T> {
         Ok(new)
     }
 
-    /// [`Body::set_face_surface`], with the face's
-    /// [`crate::Face::sense`] stated in the same call: the door for a
-    /// re-chart whose caller knows the material side against the NEW
-    /// chart's normal. The bit the face carried belongs to its old
-    /// chart (an Euler mint inherits a parent's), so a re-chart that
-    /// left it would state the material side against a normal it was
-    /// never read from.
+    /// Sets `face`'s orientation sense ([`crate::Face::sense`]) in
+    /// place, on the chart it already has.
     ///
-    /// # Errors
-    ///
-    /// As [`Body::set_face_surface`]. The body is untouched on `Err`.
-    pub fn set_face_surface_and_sense(
-        &mut self,
-        face: FaceKey,
-        surface: FaceSurface<T>,
-        sense: bool,
-    ) -> Result<SurfaceKey, EulerOpError> {
-        let key = self.set_face_surface(face, surface)?;
-        let Some(f) = self.get_face_mut(face) else {
-            unreachable!("set_face_surface_and_sense: `face` resolved in `set_face_surface`")
-        };
-        f.sense = sense;
-        Ok(key)
-    }
-
-    /// Sets `face`'s orientation sense ([`crate::Face::sense`]) — the
-    /// constructor-facing writer of the S10 orientation bit, opened in
-    /// M5 S11.
-    ///
-    /// An Euler operator mints `sense: true` on a face it puts on
-    /// another chart than its parent's, because the material side is
-    /// not op-level knowledge: `mef` sees two chords, not the profile. Whether a
-    /// swept wall's material lies with or against its surface's chart
-    /// normal is the **constructor's**
-    /// knowledge, decided from exact stored structure (a concave arc
-    /// segment's turn sign against its loop's canonical winding — the
-    /// profile's material-left rule), so the constructor attaches the
-    /// honest bit here right after the mint, exactly as
-    /// [`Body::set_face_surface`] attaches a surface the mint could not
-    /// know. Callers must keep the two encodings of orientation
-    /// coherent — the bit and the loop winding — and the obligation is
-    /// the CALLER'S, because at rest it is only partly checkable:
-    /// tier 3's check 6 falsifies a planar disagreement whose loop
-    /// rides `Line`, `Circle` and `Ellipse` carriers, and passes over
-    /// one whose loop rides a spiric or NURBS carrier (the residue
-    /// named at the arm's banner), so a planar face bounded so can
-    /// carry an inverted bit through this door and certify. The
-    /// test-only hand-flip door [`Body::flipped_face_sense_for_tests`] is the
-    /// deliberate exception to the coherence rule; it is not the only
-    /// way to break it.
+    /// A face minted or re-charted states its bit with its chart
+    /// instead ([`FaceSurface`]; [`Body::resolve_face_surface`] owns
+    /// the rule), so this door is for a bit learned while the chart
+    /// stands still. Callers must keep the two encodings of
+    /// orientation coherent — the bit and the loop winding — and the
+    /// obligation is the CALLER'S, because at rest it is only partly
+    /// checkable: tier 3's check 6 falsifies a planar disagreement
+    /// whose loop rides `Line`, `Circle` and `Ellipse` carriers, and
+    /// passes over one whose loop rides a spiric or NURBS carrier (the
+    /// residue named at the arm's banner), so a planar face bounded so
+    /// can carry an inverted bit through this door and certify. The
+    /// test-only hand-flip door [`Body::flipped_face_sense_for_tests`]
+    /// is the deliberate exception to the coherence rule; it is not the
+    /// only way to break it.
     ///
     /// Not an Euler operator (no topology changes) and not a numeric
     /// decision (a `bool` is written, nothing compared); tier 1 is
     /// trivially preserved.
-    ///
-    /// **Splitting inherits the bit exactly where the fragment is the
-    /// same region.** A `mef` or `mfkrh` re-mint that keeps the
-    /// parent's chart takes the parent's `sense` — a piece of a
-    /// reversed wall is the same surface region with the same material
-    /// side — and stamps `true` only when the fragment lands on another
-    /// chart, which is not the parent's region at all and whose honest
-    /// bit is this door's to attach.
-    /// `Body::mint_face_surface_and_sense`
-    /// owns that rule; the boolean's chord re-mints (`chord_join.rs`)
-    /// pass `FaceSurface::Inherit` and so inherit. A face moved onto
-    /// a chart after the mint takes its bit with the chart, through
-    /// [`Body::set_face_surface_and_sense`]: `splitting/finish.rs`'s
-    /// section faces read theirs off their loops' winding. Guard:
-    /// sweep's `m5_s12_curved_ops.rs`, the row named
-    /// `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
     ///
     /// # Errors
     ///

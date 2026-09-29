@@ -119,7 +119,7 @@ fn designate_faces(
             })?
             .outer;
         if outer != lk {
-            body.mfkrh_plug(lk).map_err(op_err)?;
+            body.mfkrh_plug(lk, true).map_err(op_err)?;
         }
     }
     // Re-mint outer faces in FILE order (fixed-point discipline): the
@@ -153,7 +153,7 @@ fn designate_faces(
                 what: "internal: no parking face for the face-order re-mint",
             })?;
             body.kfmrh(park, f_cur).map_err(op_err)?;
-            body.mfkrh_plug(lk).map_err(op_err)?;
+            body.mfkrh_plug(lk, true).map_err(op_err)?;
         }
     }
     // Designate: each file face's rings become rings of its outer's
@@ -312,12 +312,16 @@ fn attach_surfaces(
     for (spec, &fk) in solid.faces.iter().zip(face_keys) {
         let sig = surface_sig(&spec.surface);
         let surface = match seen.get(&sig) {
-            Some(&key) => FaceSurface::Shared(key),
-            None => FaceSurface::New(spec.surface.clone()),
+            Some(&key) => FaceSurface::Shared {
+                key,
+                sense: spec.sense,
+            },
+            None => FaceSurface::New {
+                surface: spec.surface.clone(),
+                sense: spec.sense,
+            },
         };
-        let attached = body
-            .set_face_surface_and_sense(fk, surface, spec.sense)
-            .map_err(op_err)?;
+        let attached = body.set_face_surface(fk, surface).map_err(op_err)?;
         seen.insert(sig, attached);
     }
     Ok(())

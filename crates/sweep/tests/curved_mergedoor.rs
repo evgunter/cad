@@ -244,8 +244,14 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
             .unwrap()
             .clone();
         keys.push(
-            body.set_face_surface(f, FaceSurface::New(described))
-                .unwrap(),
+            body.set_face_surface(
+                f,
+                FaceSurface::New {
+                    surface: described,
+                    sense: true,
+                },
+            )
+            .unwrap(),
         );
     }
     assert_eq!(keys.len(), 3);
@@ -390,7 +396,13 @@ fn distinct_keys(
     }
     let described = body.get_surface(kb).unwrap().clone();
     let fresh = body
-        .set_face_surface(b, FaceSurface::New(described))
+        .set_face_surface(
+            b,
+            FaceSurface::New {
+                surface: described,
+                sense: true,
+            },
+        )
         .unwrap();
     (ka, fresh)
 }
@@ -442,7 +454,13 @@ fn record_beside_a_committing_curved_run_names_only_live_faces() {
     let k = body.get_face(walls[0]).unwrap().surface;
     let described = body.get_surface(k).unwrap().clone();
     let k2 = body
-        .set_face_surface(walls[2], FaceSurface::New(described))
+        .set_face_surface(
+            walls[2],
+            FaceSurface::New {
+                surface: described,
+                sense: true,
+            },
+        )
         .unwrap();
     let faces_before = body.faces().count();
     let outcome = body
@@ -488,8 +506,14 @@ fn pair_with_no_live_faces_mints_no_record() {
     for &f in &walls {
         let described = body.get_surface(pk).unwrap().clone();
         fresh.push(
-            body.set_face_surface(f, FaceSurface::New(described))
-                .unwrap(),
+            body.set_face_surface(
+                f,
+                FaceSurface::New {
+                    surface: described,
+                    sense: true,
+                },
+            )
+            .unwrap(),
         );
     }
     assert!(

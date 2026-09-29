@@ -559,12 +559,15 @@ fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom::Surface::Cone {
-            apex,
-            axis: Vec3::new(1.0, 0.0, 0.0),
-            half_angle: 0.25,
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
-        }),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Cone {
+                apex,
+                axis: Vec3::new(1.0, 0.0, 0.0),
+                half_angle: 0.25,
+                u_ref: Vec3::new(0.0, 0.0, 1.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     (b, face)
@@ -641,9 +644,10 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::placeholder(),
-        ))),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
+            sense: true,
+        },
     )
     .unwrap();
     let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {

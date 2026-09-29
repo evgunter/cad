@@ -515,15 +515,20 @@ mod tests {
     /// cycle), built through the Euler door alone.
     fn lone_plane_face() -> crate::Body<f64> {
         let mut plane = crate::Body::<f64>::new();
-        let seed = plane.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = plane
+            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+            .unwrap();
         plane
             .set_face_surface(
                 seed.face,
-                crate::FaceSurface::New(geom::Surface::Plane {
-                    origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-                    normal: geom_core::Vec3::unit_z(),
-                    u_ref: geom_core::Vec3::unit_x(),
-                }),
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Plane {
+                        origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+                        normal: geom_core::Vec3::unit_z(),
+                        u_ref: geom_core::Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
             )
             .unwrap();
         plane
@@ -622,9 +627,15 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let mut body = crate::Body::<f64>::new();
-        let seed = body.mvfs(start).unwrap();
-        body.set_face_surface(seed.face, FaceSurface::New(plane))
-            .unwrap();
+        let seed = body.mvfs(start, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: plane,
+                sense: true,
+            },
+        )
+        .unwrap();
         let chart = body.get_face(seed.face).unwrap().surface;
         let spec = EdgeCurveSpec::arc_of_circle(circle, t0, t1)
             .unwrap()

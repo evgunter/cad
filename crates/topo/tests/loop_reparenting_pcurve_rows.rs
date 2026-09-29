@@ -151,9 +151,15 @@ fn sheet() -> Sheet {
         at(U0, VM),
     );
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     let cyl = body
-        .set_face_surface(seed.face, FaceSurface::New(cylinder()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     let e_ab = body
         .mev(
@@ -220,7 +226,10 @@ fn sheet() -> Sheet {
                 he2: e_ab.he_plus,
             },
             EdgeCurveSpec::line_between(f, a),
-            FaceSurface::New(plane),
+            FaceSurface::New {
+                surface: plane,
+                sense: true,
+            },
             tol(),
         )
         .unwrap();
@@ -234,7 +243,10 @@ fn sheet() -> Sheet {
                 he2: closing.he_plus,
             },
             rim_back(VM, cyl),
-            FaceSurface::Shared(cyl),
+            FaceSurface::Shared {
+                key: cyl,
+                sense: true,
+            },
             tol(),
         )
         .unwrap()
@@ -457,7 +469,7 @@ fn mfkrh_plug_drops_the_promoted_rings_rows() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    let made = s.body.mfkrh_plug(ring).unwrap();
+    let made = s.body.mfkrh_plug(ring, true).unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -499,7 +511,16 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
         radius: 2.0,
         u_ref: u_ref(),
     };
-    let made = s.body.mfkrh(ring, FaceSurface::New(other)).unwrap();
+    let made = s
+        .body
+        .mfkrh(
+            ring,
+            FaceSurface::New {
+                surface: other,
+                sense: true,
+            },
+        )
+        .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -629,7 +650,13 @@ fn two_keys_holding_one_surface_read_as_two_charts_whatever_recipe_they_carry() 
         let cyl = s.body.get_face(s.low).unwrap().surface;
         let second = s
             .body
-            .set_face_surface(s.up, FaceSurface::New(cylinder()))
+            .set_face_surface(
+                s.up,
+                FaceSurface::New {
+                    surface: cylinder(),
+                    sense: true,
+                },
+            )
             .unwrap();
         assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
         if stamped {
@@ -667,7 +694,13 @@ fn mfkrh_onto_a_second_key_sharing_a_recipe_drops_the_rings_rows_until_the_pass(
     let cyl = s.body.get_face(s.low).unwrap().surface;
     let second = s
         .body
-        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .set_face_surface(
+            s.plane,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_ne!(second, cyl);
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
@@ -675,7 +708,16 @@ fn mfkrh_onto_a_second_key_sharing_a_recipe_drops_the_rings_rows_until_the_pass(
 
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    let made = s.body.mfkrh(ring, FaceSurface::Shared(second)).unwrap();
+    let made = s
+        .body
+        .mfkrh(
+            ring,
+            FaceSurface::Shared {
+                key: second,
+                sense: true,
+            },
+        )
+        .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
 
@@ -698,7 +740,13 @@ fn mfkrh_onto_a_second_key_sharing_a_recipe_drops_the_rings_rows_until_the_pass(
 fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
     s.body
-        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .set_face_surface(
+            s.plane,
+            FaceSurface::New {
+                surface: other_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 6));
 
@@ -713,7 +761,13 @@ fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
 fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
     s.body
-        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .set_face_surface(
+            s.plane,
+            FaceSurface::New {
+                surface: other_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
@@ -855,7 +909,13 @@ fn found_rows(body: &Body<f64>, face: FaceKey, made: &topo::MefCreated) -> Vec<S
 #[test]
 fn mef_onto_a_chart_that_mints_nothing_drops_the_moved_runs_rows() {
     let mut s = sheet();
-    let made = split_low(&mut s, FaceSurface::New(flat()));
+    let made = split_low(
+        &mut s,
+        FaceSurface::New {
+            surface: flat(),
+            sense: true,
+        },
+    );
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert!(s.body.pcurve(made.he_plus).is_some());
@@ -878,7 +938,13 @@ fn mef_onto_a_chart_that_mints_nothing_drops_the_moved_runs_rows() {
 #[test]
 fn mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
-    let made = split_low(&mut s, FaceSurface::New(other_cylinder()));
+    let made = split_low(
+        &mut s,
+        FaceSurface::New {
+            surface: other_cylinder(),
+            sense: true,
+        },
+    );
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert!(s.body.pcurve(made.he_minus).is_none());
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
@@ -901,7 +967,13 @@ fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
 
     for (label, surface) in [
         ("Inherit", FaceSurface::Inherit),
-        ("Shared(own key)", FaceSurface::Shared(cyl)),
+        (
+            "Shared(own key)",
+            FaceSurface::Shared {
+                key: cyl,
+                sense: true,
+            },
+        ),
     ] {
         let mut s = sheet();
         let (he1, he2, chord) = ruling_site(&mut s);
@@ -944,7 +1016,13 @@ fn mef_onto_a_second_key_holding_one_surface_drops_the_runs_rows_and_mints_none_
         let cyl = s.body.get_face(s.low).unwrap().surface;
         let second = s
             .body
-            .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+            .set_face_surface(
+                s.plane,
+                FaceSurface::New {
+                    surface: cylinder(),
+                    sense: true,
+                },
+            )
             .unwrap();
         assert_ne!(second, cyl);
         if stamped {
@@ -952,7 +1030,13 @@ fn mef_onto_a_second_key_holding_one_surface_drops_the_runs_rows_and_mints_none_
             s.body.set_surface_source(second, one_recipe()).unwrap();
         }
 
-        let made = split_low(&mut s, FaceSurface::Shared(second));
+        let made = split_low(
+            &mut s,
+            FaceSurface::Shared {
+                key: second,
+                sense: true,
+            },
+        );
         assert_eq!(rows_of(&s.body, made.face), (0, 4), "stamped: {stamped}");
         assert_eq!(rows_of(&s.body, s.low), (4, 0), "stamped: {stamped}");
         assert_eq!(
@@ -1005,9 +1089,15 @@ fn forge(s: &mut Sheet) -> topo::SurfaceKey {
     let cyl = s.body.get_face(s.low).unwrap().surface;
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
     let mut other = Body::<f64>::new();
-    let seed = other.mvfs(Point3::origin()).unwrap();
+    let seed = other.mvfs(Point3::origin(), true).unwrap();
     let flat_key = other
-        .set_face_surface(seed.face, FaceSurface::New(flat()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: flat(),
+                sense: true,
+            },
+        )
         .unwrap();
     other.set_surface_source(flat_key, one_recipe()).unwrap();
     topo::graft_disjoint(&mut s.body, &other, tol()).unwrap();
@@ -1033,7 +1123,13 @@ fn forge(s: &mut Sheet) -> topo::SurfaceKey {
 fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_onto_the_plane() {
     let mut s = sheet();
     let forged = forge(&mut s);
-    let made = split_low(&mut s, FaceSurface::Shared(forged));
+    let made = split_low(
+        &mut s,
+        FaceSurface::Shared {
+            key: forged,
+            sense: true,
+        },
+    );
     assert_eq!(
         rows_of(&s.body, made.face),
         (0, 4),
@@ -1048,14 +1144,26 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
     let mut s = sheet();
     let forged = forge(&mut s);
     s.body
-        .set_face_surface(s.low, FaceSurface::Shared(forged))
+        .set_face_surface(
+            s.low,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 4), "set_face_surface");
 
     let mut s = sheet();
     let forged = forge(&mut s);
     s.body
-        .set_face_surface(s.plane, FaceSurface::Shared(forged))
+        .set_face_surface(
+            s.plane,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
         .unwrap();
     s.body.kfmrh(s.plane, s.low).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10), "kfmrh");
@@ -1065,7 +1173,13 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
     s.body
-        .set_face_surface(s.plane, FaceSurface::Shared(forged))
+        .set_face_surface(
+            s.plane,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
         .unwrap();
     s.body.ring_move(ring, s.plane).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10), "ring_move");
@@ -1074,13 +1188,28 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
     let forged = forge(&mut s);
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    let made = s.body.mfkrh(ring, FaceSurface::Shared(forged)).unwrap();
+    let made = s
+        .body
+        .mfkrh(
+            ring,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
+        .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4), "mfkrh");
 
     let mut s = sheet();
     let forged = forge(&mut s);
     s.body
-        .set_face_surface(s.plane, FaceSurface::Shared(forged))
+        .set_face_surface(
+            s.plane,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
     s.body.kef(he).unwrap();
@@ -1118,7 +1247,13 @@ fn kef_into_a_face_on_a_chart_that_mints_nothing_drops_the_remnants_rows() {
 fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
     s.body
-        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .set_face_surface(
+            s.plane,
+            FaceSurface::New {
+                surface: other_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
     s.body.kef(he).unwrap();
@@ -1162,7 +1297,13 @@ fn kef_into_a_second_key_sharing_a_recipe_drops_the_remnants_rows_until_the_pass
     let cyl = s.body.get_face(s.low).unwrap().surface;
     let second = s
         .body
-        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .set_face_surface(
+            s.plane,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
     s.body.set_surface_source(second, one_recipe()).unwrap();
@@ -1201,7 +1342,13 @@ fn rotated_cylinder() -> Surface<f64> {
 fn kef_into_a_minted_face_on_another_chart_keeps_the_survivors_own_rows() {
     let mut s = sheet();
     s.body
-        .set_face_surface(s.up, FaceSurface::New(rotated_cylinder()))
+        .set_face_surface(
+            s.up,
+            FaceSurface::New {
+                surface: rotated_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
@@ -1251,7 +1398,13 @@ fn kef_into_a_minted_face_on_another_chart_keeps_the_survivors_own_rows() {
 fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
     let mut s = sheet();
     s.body
-        .set_face_surface(s.low, FaceSurface::New(flat()))
+        .set_face_surface(
+            s.low,
+            FaceSurface::New {
+                surface: flat(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 4));
     // Unchanged by the drop, and stated here as the silence it is.
@@ -1283,7 +1436,13 @@ fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
 fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them() {
     let mut s = sheet();
     s.body
-        .set_face_surface(s.low, FaceSurface::New(other_cylinder()))
+        .set_face_surface(
+            s.low,
+            FaceSurface::New {
+                surface: other_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 4));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1315,7 +1474,13 @@ fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
     assert_eq!(s.body.get_face(s.low).unwrap().rings.len(), 1);
 
     s.body
-        .set_face_surface(s.low, FaceSurface::New(flat()))
+        .set_face_surface(
+            s.low,
+            FaceSurface::New {
+                surface: flat(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 8));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1346,7 +1511,13 @@ fn a_swap_onto_the_faces_own_key_keeps_every_row_byte_for_byte() {
     let mut k = sheet();
     let cyl = k.body.get_face(k.low).unwrap().surface;
     k.body
-        .set_face_surface(k.low, FaceSurface::Shared(cyl))
+        .set_face_surface(
+            k.low,
+            FaceSurface::Shared {
+                key: cyl,
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_deep(&k.body, k.low), before);
     assert_eq!(validate_pcurves(&k.body, band()), vec![]);
@@ -1366,7 +1537,13 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
         // planar face so that nothing is dropped establishing it.
         let second = s
             .body
-            .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+            .set_face_surface(
+                s.plane,
+                FaceSurface::New {
+                    surface: cylinder(),
+                    sense: true,
+                },
+            )
             .unwrap();
         assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
         if stamped {
@@ -1375,7 +1552,13 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
         }
 
         s.body
-            .set_face_surface(s.low, FaceSurface::Shared(second))
+            .set_face_surface(
+                s.low,
+                FaceSurface::Shared {
+                    key: second,
+                    sense: true,
+                },
+            )
             .unwrap();
         assert_eq!(rows_of(&s.body, s.low), (0, 4), "stamped: {stamped}");
 
@@ -1551,7 +1734,13 @@ fn arc_sheet(tied: bool) -> ArcSheet {
         };
         keys.push(
             s.body
-                .set_face_surface(face, FaceSurface::New(Surface::Nurbs(payload)))
+                .set_face_surface(
+                    face,
+                    FaceSurface::New {
+                        surface: Surface::Nurbs(payload),
+                        sense: true,
+                    },
+                )
                 .unwrap(),
         );
     }
@@ -1585,7 +1774,13 @@ fn a_swap_orphaning_the_old_key_carries_every_row_across_one_payload() {
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body
-            .set_face_surface(s.low, FaceSurface::Shared(keys[1]))
+            .set_face_surface(
+                s.low,
+                FaceSurface::Shared {
+                    key: keys[1],
+                    sense: true,
+                },
+            )
             .unwrap();
         assert!(
             s.body.get_surface(keys[0]).is_none(),
@@ -1634,7 +1829,13 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body
-            .set_face_surface(s.up, FaceSurface::Shared(keys[0]))
+            .set_face_surface(
+                s.up,
+                FaceSurface::Shared {
+                    key: keys[0],
+                    sense: true,
+                },
+            )
             .unwrap();
         let ring_rows = rows_of(&s.body, s.up).0;
         s.body.kfmrh(s.low, s.up).unwrap();
@@ -1649,12 +1850,27 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
 
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body
-            .set_face_surface(s.up, FaceSurface::Shared(keys[0]))
+            .set_face_surface(
+                s.up,
+                FaceSurface::Shared {
+                    key: keys[0],
+                    sense: true,
+                },
+            )
             .unwrap();
         let ring_rows = rows_of(&s.body, s.up).0;
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
-        let made = s.body.mfkrh(ring, FaceSurface::Shared(keys[2])).unwrap();
+        let made = s
+            .body
+            .mfkrh(
+                ring,
+                FaceSurface::Shared {
+                    key: keys[2],
+                    sense: false,
+                },
+            )
+            .unwrap();
         let want = if tied {
             (ring_rows, 4 - ring_rows)
         } else {
@@ -1683,7 +1899,10 @@ fn mef_carries_the_runs_rows_across_one_payload() {
             .mef(
                 MefSite::Chords { he1, he2 },
                 chord(),
-                FaceSurface::Shared(keys[2]),
+                FaceSurface::Shared {
+                    key: keys[2],
+                    sense: true,
+                },
                 tol(),
             )
             .unwrap_err();
@@ -1704,7 +1923,10 @@ fn mef_carries_the_runs_rows_across_one_payload() {
             .mef(
                 MefSite::Chords { he1, he2 },
                 chord(),
-                FaceSurface::Shared(keys[2]),
+                FaceSurface::Shared {
+                    key: keys[2],
+                    sense: true,
+                },
                 tol(),
             )
             .unwrap();
@@ -1713,52 +1935,132 @@ fn mef_carries_the_runs_rows_across_one_payload() {
     }
 }
 
+// ---------------------------------------------------------------
+// A minted or re-charted face's `sense` (D1): derived on the parent's
+// chart, stated on any other, and a contradicting stated bit refused.
+// ---------------------------------------------------------------
+
 fn sense_of(body: &Body<f64>, face: FaceKey) -> bool {
     body.get_face(face).unwrap().sense
 }
 
-type Keys = [topo::SurfaceKey; 3];
-
-/// One `sense` row's spec, read off the fixture and its keys.
-type Spec = fn(&Body<f64>, &Keys) -> FaceSurface<f64>;
-
-/// Each spec the `sense` rows split the reversed lower panel onto: its
-/// name, whether the fixture's keys share one payload `Arc`, the spec,
-/// and the new face's `sense`.
-fn sense_cases() -> [(&'static str, bool, Spec, bool); 5] {
-    fn own_key(_: &Body<f64>, k: &Keys) -> FaceSurface<f64> {
-        FaceSurface::Shared(k[0])
+/// The payload `Arc` a patch-charted key holds.
+fn payload_of(body: &Body<f64>, key: topo::SurfaceKey) -> std::sync::Arc<geom::NurbsSurface<f64>> {
+    match body.get_surface(key) {
+        Some(Surface::Nurbs(x)) => x.clone(),
+        _ => panic!("the key is on a patch"),
     }
-    fn plane_key(_: &Body<f64>, k: &Keys) -> FaceSurface<f64> {
-        FaceSurface::Shared(k[2])
-    }
-    fn own_payload(body: &Body<f64>, k: &Keys) -> FaceSurface<f64> {
-        match body.get_surface(k[0]) {
-            Some(Surface::Nurbs(x)) => FaceSurface::New(Surface::Nurbs(x.clone())),
-            _ => panic!("every face was put on the patch"),
+}
+
+/// A spec a `sense` row hands a door, relative to the parent's own key
+/// and a second key that holds the parent's payload `Arc` on a tied
+/// fixture and a deep copy of it on an untied one.
+#[derive(Clone, Copy, Debug)]
+enum Spec {
+    Inherit,
+    /// `Shared` on the parent's own key, stating the bit.
+    OwnKey(bool),
+    /// `Shared` on the second key, stating the bit.
+    SecondKey(bool),
+    /// `New` holding the parent's own payload `Arc`, stating the bit.
+    OwnPayload(bool),
+    /// `New` on a patch of its own, stating the bit.
+    AnotherPatch(bool),
+}
+
+impl Spec {
+    fn build(
+        self,
+        body: &Body<f64>,
+        own: topo::SurfaceKey,
+        second: topo::SurfaceKey,
+    ) -> FaceSurface<f64> {
+        match self {
+            Spec::Inherit => FaceSurface::Inherit,
+            Spec::OwnKey(sense) => FaceSurface::Shared { key: own, sense },
+            Spec::SecondKey(sense) => FaceSurface::Shared { key: second, sense },
+            Spec::OwnPayload(sense) => FaceSurface::New {
+                surface: Surface::Nurbs(payload_of(body, own)),
+                sense,
+            },
+            Spec::AnotherPatch(sense) => FaceSurface::New {
+                surface: Surface::Nurbs(patch()),
+                sense,
+            },
         }
     }
-    fn another_patch(_: &Body<f64>, _: &Keys) -> FaceSurface<f64> {
-        FaceSurface::New(Surface::Nurbs(patch()))
-    }
+}
+
+/// What a door did with a spec: the face's bit and whether the spec
+/// landed on the parent's chart (read off the rows it carried), or the
+/// refusal.
+type Want = Result<(bool, bool), ()>;
+
+/// The rows for a door that keeps the parent's side — `mef` and
+/// `set_face_surface` — on a parent whose bit is `false`: whether the
+/// fixture is tied, the spec, and what the door must do. On the
+/// parent's chart the bit is derived (`false`) and the other one is
+/// refused; anywhere else the stated bit is written.
+fn with_parent_rows() -> [(bool, Spec, Want); 13] {
+    use Spec::*;
     [
-        ("Shared(own key)", true, own_key, false),
-        ("Shared(one payload)", true, plane_key, false),
-        ("Shared(deep copy)", false, plane_key, true),
-        ("New(own payload)", true, own_payload, false),
-        ("New(another patch)", true, another_patch, true),
+        (true, Inherit, Ok((false, true))),
+        (true, OwnKey(false), Ok((false, true))),
+        (true, OwnKey(true), Err(())),
+        (true, SecondKey(false), Ok((false, true))),
+        (true, SecondKey(true), Err(())),
+        (true, OwnPayload(false), Ok((false, true))),
+        (true, OwnPayload(true), Err(())),
+        (false, SecondKey(false), Ok((false, false))),
+        (false, SecondKey(true), Ok((true, false))),
+        (false, OwnKey(false), Ok((false, true))),
+        (false, OwnKey(true), Err(())),
+        (true, AnotherPatch(false), Ok((false, false))),
+        (true, AnotherPatch(true), Ok((true, false))),
     ]
 }
 
-/// **A face minted on the parent's chart takes the parent's `sense`.**
-/// The lower panel is reversed, then split by `mef` (half-minted, as
-/// above) with each spec. Where the rows say the fragment is on the
-/// parent's chart — its own key, or any key holding its payload `Arc`,
-/// a `New` one included — the bit says so too; everywhere else the
-/// mint's `true` stands.
+/// The refusal a row wants: typed, naming the parent and both bits,
+/// with the body deep-untouched.
+fn refused_untouched(
+    name: &str,
+    got: Result<(), topo::EulerOpError>,
+    parent: FaceKey,
+    stated: bool,
+    before: &str,
+    body: &Body<f64>,
+    failures: &mut Vec<String>,
+) {
+    let want = topo::EulerOpError::SenseContradictsChart {
+        face: parent,
+        stated,
+        derived: !stated,
+    };
+    if got != Err(want.clone()) {
+        failures.push(format!("{name}: want {want:?}, got {got:?}"));
+    }
+    if format!("{body:?}") != before {
+        failures.push(format!("{name}: the refusal touched the body"));
+    }
+}
+
+/// The bit a spec states, if it states one.
+fn stated(spec: Spec) -> bool {
+    match spec {
+        Spec::Inherit => unreachable!("a refusal row states a bit"),
+        Spec::OwnKey(b) | Spec::SecondKey(b) | Spec::OwnPayload(b) | Spec::AnotherPatch(b) => b,
+    }
+}
+
+/// **`mef` (`Chords`).** The lower panel is reversed and split,
+/// half-minted as above, with each spec. The run's rows are carried
+/// exactly where the spec is on the parent's chart, which is where the
+/// bit is the parent's.
 #[test]
-fn mef_onto_the_parents_chart_inherits_its_sense() {
-    for (name, tied, spec, want) in sense_cases() {
+fn mef_derives_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewhere() {
+    let mut failures = Vec::new();
+    for (tied, spec, want) in with_parent_rows() {
+        let name = format!("mef {spec:?} tied {tied}");
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body.set_face_sense(s.low, false).unwrap();
         let (a, c) = (at(U0, V0), at(U1, VM));
@@ -1768,45 +2070,331 @@ fn mef_onto_the_parents_chart_inherits_its_sense() {
                 .detach_pcurve(he_at(&s.body, s.low, at(U0, VM)))
                 .is_some()
         );
-        let spec = spec(&s.body, &keys);
-        let made = s
-            .body
-            .mef(
-                MefSite::Chords { he1, he2 },
-                EdgeCurveSpec::line_between(a, c),
-                spec,
-                tol(),
-            )
-            .unwrap();
-        assert_eq!(sense_of(&s.body, made.face), want, "mef {name}: new face");
-        assert_eq!(
-            rows_of(&s.body, made.face) == (2, 1),
-            !want,
-            "mef {name}: the run's rows carried exactly where the bit is inherited"
+        let before = format!("{:?}", s.body);
+        let got = s.body.mef(
+            MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::line_between(a, c),
+            spec.build(&s.body, keys[0], keys[2]),
+            tol(),
         );
-        assert!(
-            !sense_of(&s.body, s.low),
-            "mef {name}: the parent keeps its bit"
-        );
+        match (got, want) {
+            (Ok(made), Ok((sense, carried))) => {
+                let got = (
+                    sense_of(&s.body, made.face),
+                    rows_of(&s.body, made.face) == (2, 1),
+                );
+                if got != (sense, carried) {
+                    failures.push(format!("{name}: want {:?}, got {got:?}", (sense, carried)));
+                }
+                if sense_of(&s.body, s.low) {
+                    failures.push(format!("{name}: the parent lost its bit"));
+                }
+            }
+            (got, Err(())) => refused_untouched(
+                &name,
+                got.map(|_| ()),
+                s.low,
+                stated(spec),
+                &before,
+                &s.body,
+                &mut failures,
+            ),
+            (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
+        }
     }
+    assert!(failures.is_empty(), "{failures:#?}");
 }
 
-/// The same through `mfkrh`: the ring `kfmrh` demoted into the reversed
-/// lower panel is promoted back onto each spec.
+/// **`set_face_surface`.** The reversed lower panel re-charted in place
+/// with each spec: on its own chart it keeps its bit (and its rows),
+/// and anywhere else the stated bit is written (and the rows dropped).
 #[test]
-fn mfkrh_onto_the_parents_chart_inherits_its_sense() {
-    for (name, tied, spec, want) in sense_cases() {
+fn set_face_surface_keeps_the_bit_on_the_faces_chart_and_writes_the_stated_one_elsewhere() {
+    let mut failures = Vec::new();
+    for (tied, spec, want) in with_parent_rows() {
+        let name = format!("set_face_surface {spec:?} tied {tied}");
         let ArcSheet { mut s, keys } = arc_sheet(tied);
-        s.body
-            .set_face_surface(s.up, FaceSurface::Shared(keys[0]))
-            .unwrap();
-        s.body.kfmrh(s.low, s.up).unwrap();
         s.body.set_face_sense(s.low, false).unwrap();
-        let ring = ring_of(&s.body, s.low);
-        let spec = spec(&s.body, &keys);
-        let made = s.body.mfkrh(ring, spec).unwrap();
-        assert_eq!(sense_of(&s.body, made.face), want, "mfkrh {name}: new face");
+        let before = format!("{:?}", s.body);
+        let got = s
+            .body
+            .set_face_surface(s.low, spec.build(&s.body, keys[0], keys[2]));
+        match (got, want) {
+            (Ok(_), Ok((sense, carried))) => {
+                let got = (sense_of(&s.body, s.low), rows_of(&s.body, s.low) == (4, 0));
+                if got != (sense, carried) {
+                    failures.push(format!("{name}: want {:?}, got {got:?}", (sense, carried)));
+                }
+            }
+            (got, Err(())) => refused_untouched(
+                &name,
+                got.map(|_| ()),
+                s.low,
+                stated(spec),
+                &before,
+                &s.body,
+                &mut failures,
+            ),
+            (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
+        }
     }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// **`mef` (`Lone`).** Two `mvfs` seeds on the patch — the first
+/// reversed, the second holding its payload `Arc` or a deep copy — and
+/// the first seed's lone vertex split into a self-loop face with each
+/// spec. A seed has no rows to carry, so the carried column is read by
+/// the two rows above and not here.
+#[test]
+fn mef_lone_derives_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewhere() {
+    let mut failures = Vec::new();
+    for (tied, spec, want) in with_parent_rows() {
+        let name = format!("mef Lone {spec:?} tied {tied}");
+        let p = patch();
+        let mut body = Body::<f64>::new();
+        let origin = Point3::new(0.2, 0.3, 0.0);
+        let seed = body.mvfs(origin, true).unwrap();
+        let other = body.mvfs(Point3::new(0.7, 0.6, 0.0), true).unwrap();
+        let own = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Nurbs(p.clone()),
+                    sense: false,
+                },
+            )
+            .unwrap();
+        let second_payload = if tied {
+            p
+        } else {
+            std::sync::Arc::new((*p).clone())
+        };
+        let second = body
+            .set_face_surface(
+                other.face,
+                FaceSurface::New {
+                    surface: Surface::Nurbs(second_payload),
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let before = format!("{body:?}");
+        let got = body.mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            EdgeCurveSpec::self_loop_circle_at(origin),
+            spec.build(&body, own, second),
+            tol(),
+        );
+        match (got, want) {
+            (Ok(made), Ok((sense, _))) => {
+                if sense_of(&body, made.face) != sense {
+                    failures.push(format!("{name}: want {sense}"));
+                }
+                if sense_of(&body, seed.face) {
+                    failures.push(format!("{name}: the parent lost its bit"));
+                }
+            }
+            (got, Err(())) => refused_untouched(
+                &name,
+                got.map(|_| ()),
+                seed.face,
+                stated(spec),
+                &before,
+                &body,
+                &mut failures,
+            ),
+            (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// A genuine hole: the bored block, described, valid at tier 3.
+fn bored_block(centres: &[f64]) -> Body<f64> {
+    let mut body = topo::test_support::holed_block::<f64>(3.0, centres, Tol::witness());
+    topo::test_support::describe_as_intersections(&mut body, Tol::witness());
+    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
+    body
+}
+
+/// Every ring of `body`, with its face and that face's bit.
+fn rings(body: &Body<f64>) -> Vec<(FaceKey, LoopKey, bool)> {
+    body.faces()
+        .flat_map(|(k, f)| f.rings.iter().map(move |&r| (k, r, f.sense)))
+        .collect()
+}
+
+/// **`mfkrh` promotes a hole to a face facing against its parent.**
+/// Each cap's bore ring on the bored block was wound clockwise about
+/// the cap's outward normal, so on the cap's chart the promoted face
+/// takes the cap's bit negated, and the body stays tier-3 valid. The
+/// cap's own bit stated there is refused; on another chart the stated
+/// bit is written.
+#[test]
+fn mfkrh_negates_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewhere() {
+    let base = bored_block(&[1.5]);
+    let found = rings(&base);
+    assert_eq!(found.len(), 2, "one bore ring in each cap");
+    let mut failures = Vec::new();
+    for (parent, ring, p) in found {
+        let own = base.get_face(parent).unwrap().surface;
+        let foreign = |sense| FaceSurface::New {
+            surface: base.get_surface(own).unwrap().clone(),
+            sense,
+        };
+        let rows: [(&str, FaceSurface<f64>, Result<bool, bool>); 5] = [
+            ("Inherit", FaceSurface::Inherit, Ok(!p)),
+            (
+                "Shared(own key) stating the derived bit",
+                FaceSurface::Shared {
+                    key: own,
+                    sense: !p,
+                },
+                Ok(!p),
+            ),
+            (
+                "Shared(own key) stating the parent's bit",
+                FaceSurface::Shared { key: own, sense: p },
+                Err(p),
+            ),
+            (
+                "New(an equal plane) stating false",
+                foreign(false),
+                Ok(false),
+            ),
+            ("New(an equal plane) stating true", foreign(true), Ok(true)),
+        ];
+        for (name, spec, want) in rows {
+            let name = format!("mfkrh {name} on {parent:?} (sense {p})");
+            let on_chart = !matches!(spec, FaceSurface::New { .. });
+            let mut b = base.clone();
+            let before = format!("{b:?}");
+            match (b.mfkrh(ring, spec), want) {
+                (Ok(made), Ok(sense)) => {
+                    if sense_of(&b, made.face) != sense {
+                        failures.push(format!("{name}: want {sense}"));
+                    }
+                    if on_chart && topo::validate_geometric(&b, Tol::witness()).is_err() {
+                        failures.push(format!(
+                            "{name}: {:?}",
+                            topo::validate_geometric(&b, Tol::witness())
+                        ));
+                    }
+                }
+                (got, Err(stated)) => refused_untouched(
+                    &name,
+                    got.map(|_| ()),
+                    parent,
+                    stated,
+                    &before,
+                    &b,
+                    &mut failures,
+                ),
+                (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// **`mfkrh` reads a shared payload as the parent's chart.** The bored
+/// block with two holes, its top cap re-charted onto a flat patch that
+/// faces the cap's way. The first hole is promoted with `New` holding
+/// the cap's payload, which mints a second key on it; the second hole
+/// is then promoted with `Shared` naming that second key. Both are on
+/// the cap's chart, so both take the cap's bit negated, and the cap's
+/// own bit stated on the second key is refused.
+///
+/// No tier-3 verdict is read here: the cap's rim edges cannot be
+/// re-described against a patch (a plane–patch `Intersection` does not
+/// certify), and check 6, which reads `sense` against a loop's winding,
+/// reads planar faces only. The plane-charted twin above is the
+/// validity row; this one pins that the payload tie reaches the same
+/// derivation.
+#[test]
+fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
+    let mut body = bored_block(&[0.75, 2.25]);
+    let caps: Vec<FaceKey> = rings(&body)
+        .into_iter()
+        .map(|(f, _, _)| f)
+        .filter(|&f| {
+            let key = body.get_face(f).unwrap().surface;
+            matches!(body.get_surface(key), Some(Surface::Plane { normal, .. }) if normal.z > 0.5)
+        })
+        .collect();
+    let top = caps[0];
+    assert!(caps.iter().all(|&f| f == top), "one top cap");
+    assert!(sense_of(&body, top), "the top cap faces its plane's way");
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, 2.0),
+        Point3::new(0.0, 2.0, 2.0),
+        Point3::new(3.0, 0.0, 2.0),
+        Point3::new(3.0, 2.0, 2.0),
+    ];
+    let cap_patch =
+        std::sync::Arc::new(geom::NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).unwrap());
+    let own = body
+        .set_face_surface(
+            top,
+            FaceSurface::New {
+                surface: Surface::Nurbs(cap_patch.clone()),
+                sense: true,
+            },
+        )
+        .unwrap();
+    let holes = body.get_face(top).unwrap().rings.clone();
+    assert_eq!(holes.len(), 2);
+
+    let first = body
+        .mfkrh(
+            holes[0],
+            FaceSurface::New {
+                surface: Surface::Nurbs(cap_patch),
+                sense: false,
+            },
+        )
+        .unwrap();
+    assert_ne!(first.surface, own, "a second key");
+    assert!(
+        !sense_of(&body, first.face),
+        "New(the cap's payload): the cap's bit negated"
+    );
+
+    let mut failures = Vec::new();
+    let before = format!("{body:?}");
+    let refused = body.mfkrh(
+        holes[1],
+        FaceSurface::Shared {
+            key: first.surface,
+            sense: true,
+        },
+    );
+    refused_untouched(
+        "mfkrh Shared(second key, one payload) stating the cap's bit",
+        refused.map(|_| ()),
+        top,
+        true,
+        &before,
+        &body,
+        &mut failures,
+    );
+    let second = body
+        .mfkrh(
+            holes[1],
+            FaceSurface::Shared {
+                key: first.surface,
+                sense: false,
+            },
+        )
+        .unwrap();
+    if sense_of(&body, second.face) {
+        failures.push("mfkrh Shared(second key, one payload): want false".to_owned());
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
 }
 
 // ---------------------------------------------------------------
@@ -1816,10 +2404,26 @@ fn mfkrh_onto_the_parents_chart_inherits_its_sense() {
 /// Stamps `one_recipe()` on two fresh keys holding `a` and `b`.
 fn stamp_both<T: geom_core::Decide>(a: Surface<T>, b: Surface<T>, seed: Point3<T>) {
     let mut body = Body::<T>::new();
-    let fa = body.mvfs(seed).unwrap().face;
-    let fb = body.mvfs(seed).unwrap().face;
-    let ka = body.set_face_surface(fa, FaceSurface::New(a)).unwrap();
-    let kb = body.set_face_surface(fb, FaceSurface::New(b)).unwrap();
+    let fa = body.mvfs(seed, true).unwrap().face;
+    let fb = body.mvfs(seed, true).unwrap().face;
+    let ka = body
+        .set_face_surface(
+            fa,
+            FaceSurface::New {
+                surface: a,
+                sense: true,
+            },
+        )
+        .unwrap();
+    let kb = body
+        .set_face_surface(
+            fb,
+            FaceSurface::New {
+                surface: b,
+                sense: true,
+            },
+        )
+        .unwrap();
     assert_ne!(ka, kb);
     body.set_surface_source(ka, one_recipe()).unwrap();
     body.set_surface_source(kb, one_recipe()).unwrap();
@@ -1992,7 +2596,13 @@ fn the_stamp_door_reads_every_holder_not_the_first() {
     let cyl = s.body.get_face(s.low).unwrap().surface;
     let third = s
         .body
-        .set_face_surface(s.up, FaceSurface::New(cylinder()))
+        .set_face_surface(
+            s.up,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert!(third != cyl && third != forged);
     let refused = refused_by_the_stamp_door(|| {

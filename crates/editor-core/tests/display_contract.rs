@@ -2259,7 +2259,7 @@ fn a_lever_refusal_names_the_instance_and_why() {
     };
     let mut body = topo::Body::<f64>::new();
     let face = body
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap()
         .face;
     assert_f6(
@@ -2409,7 +2409,7 @@ test_utils::f6_variants! {
 fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
     let mut body = topo::Body::<f64>::new();
     let born = body
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs births a solid, shell, face and lone vertex");
     let edge = body
         .mev_line(

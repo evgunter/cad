@@ -1281,7 +1281,7 @@ fn assert_run_site_refuses(body: &Body<f64>, he1: HalfEdgeKey, point: Point3<f64
 pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, tol: Tol) {
     match choice {
         OpChoice::Mvfs => {
-            body.mvfs(next_point(counter)).unwrap();
+            body.mvfs(next_point(counter), true).unwrap();
         }
         OpChoice::MevLone(l) => {
             body.mev_line(MevSite::Lone { r#loop: l }, next_point(counter), tol)
@@ -1309,7 +1309,7 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             body.kfmrh(f1, f2).unwrap();
         }
         OpChoice::Mfkrh(ring) => {
-            body.mfkrh_plug(ring).unwrap();
+            body.mfkrh_plug(ring, true).unwrap();
         }
         OpChoice::Movefac(shell) => {
             body.movefac(shell).unwrap();
@@ -1385,7 +1385,7 @@ pub(crate) fn roundtrip(
     match choice {
         // ---- make ∘ kill: the created keys address the inverse. ----
         OpChoice::Mvfs => {
-            let created = body.mvfs(next_point(counter)).unwrap();
+            let created = body.mvfs(next_point(counter), true).unwrap();
             body.kvfs(created.solid).unwrap();
         }
         OpChoice::MevLone(l) => {
@@ -1414,7 +1414,7 @@ pub(crate) fn roundtrip(
         }
         OpChoice::Mfkrh(ring) => {
             let old_face = body.get_loop(ring).expect("ring resolves").face;
-            let created = body.mfkrh_plug(ring).unwrap();
+            let created = body.mfkrh_plug(ring, true).unwrap();
             body.kfmrh(old_face, created.face).unwrap();
         }
         OpChoice::RingMove(ring, to_face) => {
@@ -1467,7 +1467,7 @@ pub(crate) fn roundtrip(
         }
         OpChoice::Kfmrh(f1, f2) => {
             let result = body.kfmrh(f1, f2).unwrap();
-            body.mfkrh_plug(result.ring).unwrap();
+            body.mfkrh_plug(result.ring, true).unwrap();
         }
         OpChoice::KfmrhFuse(f1, f2) => {
             // The fusion is two surgeries at once, so its re-make is
@@ -1480,7 +1480,7 @@ pub(crate) fn roundtrip(
                 return RoundtripOutcome::SkippedIrreversible;
             };
             let result = body.kfmrh(f1, f2).unwrap();
-            body.mfkrh_plug(result.ring).unwrap();
+            body.mfkrh_plug(result.ring, true).unwrap();
             body.movefac(surviving_shell).unwrap();
         }
         OpChoice::Movefac(_) => {
@@ -1509,7 +1509,7 @@ pub(crate) fn roundtrip(
             let point = body.get_vertex(vertex).expect("resolves").point;
             let coords = *body.get_point(point).expect("resolves");
             body.kvfs(solid).unwrap();
-            body.mvfs(coords).unwrap();
+            body.mvfs(coords, true).unwrap();
         }
         OpChoice::Kev(he) => {
             let he_data = body.get_half_edge(he).expect("resolves").clone();
@@ -1634,7 +1634,7 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
         }
         // Cycle rings: promote to a face (kef will consume it next).
         if let Some(ring) = first_cycle_ring(body) {
-            body.mfkrh_plug(ring).unwrap();
+            body.mfkrh_plug(ring, true).unwrap();
             continue;
         }
         // Empty rings: absorb with mekr, then kill the fresh edge (and

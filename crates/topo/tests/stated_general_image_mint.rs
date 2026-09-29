@@ -62,7 +62,7 @@ fn lamina<T: AtRestPolicy>(carrier: Carrier) -> (Body<T>, [FaceKey; 2]) {
     let tol = Tol::witness();
     let pt = |(x, y): (f64, f64)| Point3::new(T::from_f64(x), T::from_f64(y), T::zero());
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(pt(SQUARE[0])).unwrap();
+    let seed = body.mvfs(pt(SQUARE[0]), true).unwrap();
     // The identity chart: row-major over `u` then `v`.
     let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let net = NurbsSurface::new(
@@ -76,7 +76,13 @@ fn lamina<T: AtRestPolicy>(carrier: Carrier) -> (Body<T>, [FaceKey; 2]) {
     )
     .unwrap();
     let chart = body
-        .set_face_surface(seed.face, FaceSurface::New(Surface::Nurbs(Arc::new(net))))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Nurbs(Arc::new(net)),
+                sense: true,
+            },
+        )
         .unwrap();
     let ab = body
         .mev_line(

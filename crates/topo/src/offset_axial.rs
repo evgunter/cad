@@ -617,11 +617,23 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
         }
         let new_key = work
-            .set_face_surface(first, FaceSurface::New(c.new.clone()))
+            .set_face_surface(
+                first,
+                FaceSurface::New {
+                    surface: c.new.clone(),
+                    sense: true,
+                },
+            )
             .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
         for &member in &m.faces[1..] {
-            work.set_face_surface(member, FaceSurface::Shared(new_key))
-                .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+            work.set_face_surface(
+                member,
+                FaceSurface::Shared {
+                    key: new_key,
+                    sense: true,
+                },
+            )
+            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
         }
         minted.push((c.old_key, new_key));
     }

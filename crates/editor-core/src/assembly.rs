@@ -1501,7 +1501,7 @@ mod attribution {
         let mut body = topo::Body::<f64>::new();
         let mut mint_face = || {
             let created = body
-                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex");
             (created.face, created.vertex)
         };
@@ -1670,7 +1670,7 @@ mod attribution {
     {
         let mut body = topo::Body::<f64>::new();
         let mut mint_face = || {
-            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex")
                 .face
         };
@@ -1821,7 +1821,7 @@ mod attribution {
     fn a_face_in_two_declarations_answers_each_pair_to_its_own_mate() {
         let mut body = topo::Body::<f64>::new();
         let mut mint_face = || {
-            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex")
                 .face
         };

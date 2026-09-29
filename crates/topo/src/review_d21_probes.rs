@@ -75,7 +75,13 @@ fn d21_set_face_surface_refuses_a_stale_face_typed() {
     body.faces.remove(dead);
     let before = deep_snapshot(&body);
     let err = body
-        .set_face_surface(dead, FaceSurface::New(a_plane()))
+        .set_face_surface(
+            dead,
+            FaceSurface::New {
+                surface: a_plane(),
+                sense: true,
+            },
+        )
         .unwrap_err();
     assert_eq!(
         err,

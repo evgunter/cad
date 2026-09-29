@@ -148,7 +148,7 @@ pub(crate) enum Walk {
 /// use topo::Body;
 ///
 /// let mut body = Body::<f64>::new();
-/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
 /// // A `VertexKey` is not a `ShellKey`: this example must NOT compile.
 /// let _ = body.get_shell(seed.vertex);
 /// ```
@@ -1713,7 +1713,7 @@ mod tests {
     fn faces_of_solid_restricts_the_face_arena_to_one_solid() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // Arena order, and a restriction: `faces` yields all three.
         assert_eq!(body.faces().count(), 3);
@@ -1754,7 +1754,7 @@ mod tests {
     fn faces_of_solid_answers_arena_order_where_the_shell_walk_would_not() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // One solid, two shells, the minted shell listed LAST; then
         // move `face_b` into it so the shells interleave with the
@@ -1807,7 +1807,7 @@ mod tests {
     fn shells_of_solid_answers_the_solids_own_list_order_not_the_arenas() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // The pillow's shell refiled under the MINTED solid, so that
         // solid lists its own shell first and its list runs against

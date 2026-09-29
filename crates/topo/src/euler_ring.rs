@@ -187,7 +187,7 @@
 //! # fn run() -> Result<(), topo::EulerOpError> {
 //! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
-//! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
+//! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true)?;
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
@@ -1043,9 +1043,11 @@ impl<T: Decide> Body<T> {
     /// chart: none of them does, and the door drops them —
     /// [`Body::drop_rows`] states why dropping and what it costs;
     /// [`Body::same_chart`] states which charts count as one. The
-    /// decision is taken here once, for the three doors that move a
-    /// whole loop ([`Body::kfmrh`], [`Body::mfkrh`],
-    /// [`Body::ring_move`]); the two doors that move a RUN of one
+    /// decision is taken here once, for the two doors that move a
+    /// whole loop between existing faces ([`Body::kfmrh`],
+    /// [`Body::ring_move`]); [`Body::mfkrh`] takes it with its spec
+    /// ([`Body::resolve_face_surface`]) and runs
+    /// [`Body::drop_loop_rows`]; the two doors that move a RUN of one
     /// ([`Body::mef`]'s chord surgery, [`Body::kef`]'s unsplice) take
     /// it at their own sites, over the run their plan phase holds.
     ///
@@ -1068,9 +1070,16 @@ impl<T: Decide> Body<T> {
         from: SurfaceKey,
         to: SurfaceKey,
     ) {
-        if self.same_chart(from, to) {
-            return;
+        if !self.same_chart(from, to) {
+            self.drop_loop_rows(r#loop);
         }
+    }
+
+    /// Drops every stored row of `r#loop`, deriving nothing: the walk
+    /// [`Body::drop_rows_on_chart_change`] runs once the chart has
+    /// changed, for a door that decided that in its plan phase
+    /// ([`Body::mfkrh`]).
+    pub(crate) fn drop_loop_rows(&mut self, r#loop: LoopKey) {
         let crate::pcurves::LoopRows::Cycle(cycle) = crate::pcurves::loop_rows(self, r#loop) else {
             return;
         };
@@ -1180,8 +1189,8 @@ impl<T: Decide> Body<T> {
     /// `false`, and their rows drop and are re-minted: the price of
     /// never carrying a row onto a surface it is not about. The face's
     /// `sense` is not read — it does not move the chart. The same
-    /// answer decides whether a minted fragment inherits its parent's
-    /// `sense` ([`Body::mint_face_surface_and_sense`]).
+    /// answer decides where an operator derives a minted face's
+    /// `sense` ([`Body::resolve_face_surface`]).
     pub(crate) fn same_chart(&self, a: SurfaceKey, b: SurfaceKey) -> bool {
         if a == b {
             return true;
@@ -1201,8 +1210,8 @@ impl<T: Decide> Body<T> {
     pub(crate) fn same_chart_spec(&self, from: SurfaceKey, spec: &FaceSurface<T>) -> bool {
         match spec {
             FaceSurface::Inherit => true,
-            FaceSurface::Shared(key) => self.same_chart(from, *key),
-            FaceSurface::New(surface) => self
+            FaceSurface::Shared { key, .. } => self.same_chart(from, *key),
+            FaceSurface::New { surface, .. } => self
                 .get_surface(from)
                 .is_some_and(|own| one_payload(own, surface)),
         }
@@ -1737,7 +1746,7 @@ mod tests {
     /// `[he_plus, he_minus]`, tol).
     fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -2741,7 +2750,7 @@ mod tests {
     /// doctest construction): two faces sharing two edges.
     fn ops_pillow() -> (Body<f64>, MvfsCreated, MevCreated, MefCreated) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -2882,7 +2891,7 @@ mod tests {
         // A second mvfs is a second solid+shell in the same body:
         // cross-SOLID kfmrh stays a typed error (M3 PR 1 lifted only
         // the same-solid cross-shell case, as shell fusion).
-        let other = body.mvfs(p(9.0)).unwrap();
+        let other = body.mvfs(p(9.0), true).unwrap();
         let expected = EulerOpError::CrossSolid {
             f1: seed.face,
             f2: other.face,
@@ -2900,7 +2909,7 @@ mod tests {
     /// posture as the rest of this module's corruption rows.
     fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
         let (mut body, seed, _seg, _split) = ops_pillow();
-        let other = body.mvfs(p(9.0)).unwrap();
+        let other = body.mvfs(p(9.0), true).unwrap();
         let first_solid = body.solid_of_face(seed.face).unwrap();
         crate::fixtures::refile_shells(&mut body, other.solid, first_solid);
         (body, seed, other)
@@ -3084,7 +3093,7 @@ mod tests {
             b.ring_move(kill.ring, dead_face).unwrap_err()
         });
         // Cross-shell destination: a second solid's face.
-        let other = body.mvfs(p(9.0)).unwrap();
+        let other = body.mvfs(p(9.0), true).unwrap();
         let expected = EulerOpError::CrossShell {
             f1: seed.face,
             f2: other.face,

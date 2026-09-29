@@ -712,11 +712,14 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
         let plane_key = planted
             .set_face_surface(
                 disc,
-                topo::FaceSurface::New(geom::Surface::Plane {
-                    origin: c,
-                    normal: m,
-                    u_ref: u,
-                }),
+                topo::FaceSurface::New {
+                    surface: geom::Surface::Plane {
+                        origin: c,
+                        normal: m,
+                        u_ref: u,
+                    },
+                    sense: true,
+                },
             )
             .unwrap();
         planted

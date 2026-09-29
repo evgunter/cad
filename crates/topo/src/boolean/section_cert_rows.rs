@@ -697,9 +697,15 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
     let frame = CylFrame::canonical(1.0);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(frame.at(0.0, z0)).unwrap();
+    let seed = body.mvfs(frame.at(0.0, z0), true).unwrap();
     let cyl = body
-        .set_face_surface(seed.face, FaceSurface::New(frame.surface()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: frame.surface(),
+                sense: true,
+            },
+        )
         .unwrap();
     let bottom = full_rim(&mut body, cyl, z0);
     let cap_b = body
@@ -708,7 +714,10 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
                 r#loop: seed.r#loop,
             },
             bottom,
-            FaceSurface::New(plane(p(0.0, 0.0, z0), v(0.0, 0.0, -1.0))),
+            FaceSurface::New {
+                surface: plane(p(0.0, 0.0, z0), v(0.0, 0.0, -1.0)),
+                sense: true,
+            },
             tol,
         )
         .unwrap();
@@ -729,7 +738,10 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
             he2: strut.he_minus,
         },
         top,
-        FaceSurface::New(plane(p(0.0, 0.0, z1), v(0.0, 0.0, 1.0))),
+        FaceSurface::New {
+            surface: plane(p(0.0, 0.0, z1), v(0.0, 0.0, 1.0)),
+            sense: true,
+        },
         tol,
     )
     .unwrap();
@@ -1134,9 +1146,15 @@ fn rim_at(t: f64) -> Point3<f64> {
 fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(p(0.0, 0.0, 0.0), true).unwrap();
     let cone = body
-        .set_face_surface(seed.face, FaceSurface::New(unit_cone()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: unit_cone(),
+                sense: true,
+            },
+        )
         .unwrap();
     let arc = |body: &mut Body<f64>, t0: f64, t1: f64| {
         let rim_plane = body.add_surface(plane(p(0.0, 0.0, 1.0), Vec3::unit_z()));
@@ -1206,7 +1224,10 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
                 he2: e3.he_plus,
             },
             EdgeCurveSpec::line_between(rim_at(PI / 4.0), p(0.0, 0.0, 0.0)),
-            FaceSurface::Shared(cone),
+            FaceSurface::Shared {
+                key: cone,
+                sense: true,
+            },
             tol,
         )
         .unwrap()
@@ -1217,7 +1238,10 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
             he2: e1.he_plus,
         },
         EdgeCurveSpec::line_between(rim_at(0.75 * PI), p(0.0, 0.0, 0.0)),
-        FaceSurface::Shared(cone),
+        FaceSurface::Shared {
+            key: cone,
+            sense: true,
+        },
         tol,
     )
     .unwrap();
@@ -1299,9 +1323,15 @@ fn cone_at(h: f64, t: f64) -> Point3<f64> {
 fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(start).unwrap();
+    let seed = body.mvfs(start, true).unwrap();
     let cone = body
-        .set_face_surface(seed.face, FaceSurface::New(unit_cone()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: unit_cone(),
+                sense: true,
+            },
+        )
         .unwrap();
     let mut edges: Vec<crate::MevCreated> = Vec::new();
     for &step in steps {
@@ -1356,7 +1386,10 @@ fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
                 he2: last.he_minus,
             },
             EdgeCurveSpec::line_between(start, end),
-            FaceSurface::Shared(cone),
+            FaceSurface::Shared {
+                key: cone,
+                sense: true,
+            },
             tol,
         )
         .unwrap()

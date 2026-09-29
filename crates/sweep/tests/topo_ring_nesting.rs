@@ -95,19 +95,37 @@ fn invert_the_glue(body: &Body<f64>) -> (Body<f64>, FaceKey, LoopKey) {
     // Any further rings leave first, so the glue has one pair to make.
     for &extra in rings.iter().skip(1) {
         let made = out
-            .mfkrh(extra, FaceSurface::Shared(surface))
+            .mfkrh(
+                extra,
+                FaceSurface::Shared {
+                    key: surface,
+                    sense: true,
+                },
+            )
             .expect("the extra ring promotes");
         out.set_face_sense(made.face, !sense).expect("its sense");
     }
     let made = out
-        .mfkrh(rings[0], FaceSurface::Shared(surface))
+        .mfkrh(
+            rings[0],
+            FaceSurface::Shared {
+                key: surface,
+                sense: true,
+            },
+        )
         .expect("the ring promotes to a face");
     if !matches!(
         out.get_surface(out.get_face(made.face).unwrap().surface),
         Some(geom::Surface::Plane { .. })
     ) {
-        out.set_face_surface(made.face, FaceSurface::Shared(surface))
-            .expect("the promoted face shares the chart");
+        out.set_face_surface(
+            made.face,
+            FaceSurface::Shared {
+                key: surface,
+                sense: true,
+            },
+        )
+        .expect("the promoted face shares the chart");
     }
     let glued = out.kfmrh(made.face, face).expect("the inverted glue");
     assert_eq!(glued.ring, outer, "the old outer loop is now the ring");

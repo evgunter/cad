@@ -83,7 +83,7 @@ pub(super) fn build_partial<T: Decide>(
     // the scope by dropping it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0])?;
+    let seed = body.mvfs(qs[0], true)?;
     // Start cap plane: the mef face's loop runs the chain reversed;
     // first point kept, rest reversed (extrude's bottom-cap order).
     // Derived from the sketch data alone — it reads no entity and
@@ -106,7 +106,11 @@ pub(super) fn build_partial<T: Decide>(
         seed.vertex,
         outer,
         qs,
-        FaceSurface::New(start_plane),
+        // Newell over the loop the cap runs: outward, as extrude's.
+        FaceSurface::New {
+            surface: start_plane,
+            sense: true,
+        },
         tol,
     )?;
     let end_face = seed.face;
@@ -139,7 +143,12 @@ pub(super) fn build_partial<T: Decide>(
             bridge.vertex,
             segs,
             hq,
-            FaceSurface::Shared(start_surface),
+            // The transient disc faces against the cap whose ring its
+            // loop becomes, as extrude's.
+            FaceSurface::Shared {
+                key: start_surface,
+                sense: false,
+            },
             tol,
         )?;
         body.kfmrh(start_face, hole.face)?;
@@ -185,7 +194,13 @@ pub(super) fn build_partial<T: Decide>(
     let far_loop = cap_points(&loops[0], &rpoints[0], place_end);
     let end_plane =
         newell_plane(&far_loop, band).map_err(|source| RevolveError::CapPlane { source })?;
-    let end_surface = body.set_face_surface(end_face, FaceSurface::New(end_plane))?;
+    let end_surface = body.set_face_surface(
+        end_face,
+        FaceSurface::New {
+            surface: end_plane,
+            sense: true,
+        },
+    )?;
 
     // ---- Phase 5: rim upgrades (both cap planes exist): loops in
     // canonical order, segments in swept order; per walled segment the
@@ -410,7 +425,7 @@ pub(super) fn sweep_loop<T: Decide>(
     let mut tops: Vec<Option<EdgeKey>> = Vec::with_capacity(n);
     let mut first_top: Option<topo::HalfEdgeKey> = None;
     for j in 0..n {
-        let Some(kind) = cls.walls[j].kind() else {
+        let (Some(kind), Some(sense)) = (cls.walls[j].kind(), cls.walls[j].sense()) else {
             faces.push(None);
             tops.push(None);
             continue;
@@ -447,9 +462,20 @@ pub(super) fn sweep_loop<T: Decide>(
         } else {
             None
         };
+        // A wall whose material lies against its revolution surface's
+        // chart normal (bore cylinder, inward cone, under-side plane
+        // annulus, concave sphere/torus band) states `sense: false`,
+        // classified from the profile's stored winding structure
+        // (`WallClass::Wall::sense`).
         let surface = match shared {
-            Some(f) => FaceSurface::Shared(face_surface_key(body, f)?),
-            None => FaceSurface::New(wall_surface(kind, &segs[j], frame)),
+            Some(f) => FaceSurface::Shared {
+                key: face_surface_key(body, f)?,
+                sense,
+            },
+            None => FaceSurface::New {
+                surface: wall_surface(kind, &segs[j], frame),
+                sense,
+            },
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
@@ -459,16 +485,6 @@ pub(super) fn sweep_loop<T: Decide>(
         )?;
         if j == 0 {
             first_top = Some(mef.he_plus);
-        }
-        // The honest orientation bit (M5 S11): a wall whose material
-        // lies against its revolution surface's chart normal (bore
-        // cylinder, inward cone, under-side plane annulus, concave
-        // sphere/torus band) is attached `sense: false` — classified
-        // from the profile's stored winding structure
-        // (`WallClass::Wall::sense`); attached here because `mef`
-        // cannot know the material side.
-        if cls.walls[j].sense() == Some(false) {
-            body.set_face_sense(mef.face, false)?;
         }
         faces.push(Some(mef.face));
         tops.push(Some(mef.edge));

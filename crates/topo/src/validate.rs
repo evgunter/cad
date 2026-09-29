@@ -10401,7 +10401,7 @@ mod tests {
     ) -> (Body<f64>, FaceKey) {
         assert!(outer.len() >= 3 && ring.len() >= 3);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(outer[0]).unwrap();
+        let seed = body.mvfs(outer[0], true).unwrap();
         let e0 = body
             .mev_line(
                 MevSite::Lone {
@@ -10738,7 +10738,10 @@ mod tests {
             let mut c = b.clone();
             c.set_face_surface(
                 face,
-                crate::FaceSurface::New(geom::Surface::nurbs_placeholder()),
+                crate::FaceSurface::New {
+                    surface: geom::Surface::nurbs_placeholder(),
+                    sense: true,
+                },
             )
             .unwrap();
             let got = nesting_words(&c, band, tol);
@@ -12065,7 +12068,7 @@ mod tests {
     #[test]
     fn tier_two_rejects_the_skeletal_mvfs_state() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         assert_eq!(validate(&body), Ok(()), "tier 1 accepts the seed state");
         // The lone vertex has valence 0, not 1, and the dartless
         // empty-outer face is one component — the empty loop is the
@@ -12083,7 +12086,7 @@ mod tests {
         // The segment body: BOTH endpoints have valence 1 (vertex-arena
         // order).
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12107,7 +12110,7 @@ mod tests {
         // A strut hanging off a CLOSED pillow: exactly the tip (the
         // base has valence 3).
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12150,7 +12153,7 @@ mod tests {
         // an empty ring's lone vertex (valence 0 — no strut report),
         // and the ring keeps the shell connected. One defect.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12196,7 +12199,7 @@ mod tests {
     /// tier-2 rule. Returns (body, shell).
     fn detached_digon_body() -> (Body<f64>, crate::entity::ShellKey) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12236,7 +12239,7 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        body.mfkrh_plug(kill.ring).unwrap();
+        body.mfkrh_plug(kill.ring, true).unwrap();
         (body, seed.shell)
     }
 

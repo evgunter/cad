@@ -1366,14 +1366,26 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     // before it is attached — the same re-description step the stale-key
     // rule forces on any surface replacement.
     let new_key = work
-        .set_face_surface(face, FaceSurface::New(new_surface))
+        .set_face_surface(
+            face,
+            FaceSurface::New {
+                surface: new_surface,
+                sense: true,
+            },
+        )
         .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
     // The rest of the chart's faces adopt the SAME key: the group wore
     // one surface before and wears one after, which is what keeps their
     // shared seams describable.
     for &member in &faces[1..] {
-        work.set_face_surface(member, FaceSurface::Shared(new_key))
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+        work.set_face_surface(
+            member,
+            FaceSurface::Shared {
+                key: new_key,
+                sense: true,
+            },
+        )
+        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
     }
     for (vertex, point) in &moved {
         let old_point = work

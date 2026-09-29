@@ -5292,13 +5292,14 @@ mod place_tests {
         let tol = Tol::witness();
         let mut b = topo::test_support::brick::<f64>((0.0, 1.0), (dy, dy + 1.0), (0.0, 1.0), tol);
         let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
-        let cylinder = |r: f64| {
-            FaceSurface::New(geom::Surface::Cylinder {
+        let cylinder = |r: f64| FaceSurface::New {
+            surface: geom::Surface::Cylinder {
                 origin: Point3::new(0.5, dy + 0.5, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 radius: r,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
-            })
+            },
+            sense: true,
         };
         let stamped = b.set_face_surface(faces[0], cylinder(0.25)).unwrap();
         let pending = b.set_face_surface(faces[1], cylinder(0.3)).unwrap();
