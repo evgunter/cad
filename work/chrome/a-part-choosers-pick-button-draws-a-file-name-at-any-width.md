@@ -2,11 +2,14 @@
 id: a-part-choosers-pick-button-draws-a-file-name-at-any-width
 kind: issue
 title: viewer: the part chooser's pick button is labelled with a file name, which nothing bounds, and a button does not wrap
-status: open
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: E
 refs: [messages-in-the-creation-and-properties-panes-still-draw-past-their-row]
+closed: 2026-09-29
+branch: chrome/create-residue
+pr: 3450
 ---
 
 
@@ -35,3 +38,20 @@ character bound on the label at its source with the whole name on
 hover. `part_entry` is a free function, so a row in
 `pane/create.rs`'s `layout_tests` can drive it headlessly the way
 `a_parts_id_is_said_under_its_pick_button_inside_the_pane` does.
+
+## Closed 2026-09-29 (`chrome/create-residue`, PR 3450)
+
+The premise was half wrong. At egui 0.36 a button in the chooser's
+vertical `Ui` takes that `Ui`'s `Wrap` mode, so a long file name did
+not widen the window. It WRAPPED instead: the button broke one name
+across two lines at an arbitrary character, which is what a NAME must
+never do (the part id's rule, PR 3139).
+
+`pane::create::part_entry` now draws a fixed `add` button
+(`PICK_PART`, still carrying the entry's refusal through
+`app::refusable_button`) with the file name beside it as an
+`egui::Label::truncate()`, whole or elided on one line with the full
+name on hover. This is egui's own elision, and the same mechanism the
+id under it uses. Held by
+`layout_tests::a_long_file_name_is_elided_inside_the_pane_and_whole_on_hover`,
+which fails on the old code (the name painted in two rows).
