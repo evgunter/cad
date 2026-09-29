@@ -96,7 +96,7 @@ use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Expr, Frame,
+    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Frame,
     MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
@@ -106,7 +106,7 @@ use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
     BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
-    PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
+    PartSelectSpec, PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -115,7 +115,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 44;
+const OP_COUNT: usize = 46;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -276,7 +276,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::AddRevolve {
             profile: node,
             axis: node,
-            angle: Expr::literal(1.0, Dimension::Angle).expect("a finite angle"),
+            angle: common::ang(1.0),
         },
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -291,7 +291,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             input: node,
             translation: len3([0.0; 3]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("a finite angle"),
+            rotation_angle: common::ang(0.0),
         },
         SessionOp::AddPattern {
             input: node,
@@ -319,6 +319,11 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             distance: len(0.001),
             selection: vec![face(node)],
         },
+        SessionOp::AddPart {
+            of: node,
+            select: PartSelectSpec::Instance(1),
+        },
+        SessionOp::Duplicate { input: node },
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
@@ -327,6 +332,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             base: pncad::document::ProfileProgram {
                 plane: node,
                 loops: vec![],
+                ids: Vec::new(),
             },
             loops: vec![],
         },
@@ -409,6 +415,11 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // and both fenced for `SetParam`'s reason.
         SessionOp::SetParamUnit { .. } => (42, false),
         SessionOp::SetParamText { .. } => (43, false),
+        // Two more insert doors, fenced with every other one: both
+        // commit to the history, which is what a drag has to be
+        // protected from.
+        SessionOp::AddPart { .. } => (44, false),
+        SessionOp::Duplicate { .. } => (45, false),
     }
 }
 
@@ -646,7 +657,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     // A pattern over the probed instance: the slots a value gesture can
     // open on in an assembly of bare instances, and the reason the
     // instance's display state has a root to propagate to.
-    let pattern = perform(
+    let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: post,
@@ -657,12 +668,6 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             },
         },
     );
-    assert_eq!(pattern.committed.len(), 1);
-    let pattern = *session
-        .doc()
-        .order()
-        .last()
-        .expect("the pattern is the last node inserted");
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
         Ok(std::iter::once(pattern).collect()),
@@ -864,6 +869,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddPlacedUnion { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. } => false,
     }
 }
@@ -1468,6 +1475,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddPlacedUnion { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. } => false,
     }
 }

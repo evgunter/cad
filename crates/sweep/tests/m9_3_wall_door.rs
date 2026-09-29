@@ -13,39 +13,21 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::slab as plate;
+use crate::common::operands::{slab as plate, three_arc_cylinder};
+use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::test_support::extruded;
 use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A radius-`r` three-arc cylinder at (2, 2), z ∈ [z0, z0 + h] (the
 /// boss_union authorship: three 120° arcs on ONE cylinder surface).
 fn cyl(z0: f64, h: f64, r: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + r * th.cos(), 2.0 + r * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
+    three_arc_cylinder(Point2::new(2.0, 2.0), r, z0, h, 0.0)
 }
 
 /// The bored plate: a through-hole subtract (the shipped transverse
@@ -215,28 +197,18 @@ fn declared_rest_with_wrong_radius_contradicts() {
 /// 0.5) with a meridian SEAM on its lowest ruling (profile vertices
 /// at 60°/180°/300° in sketch coordinates), spanning y ∈ [0.5, 3.5].
 fn lying_cyl(zc: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
     // Sketch frame: sketch x → world z, sketch y → world x, normal
     // (extrusion) +y. Disc centre at world (x = 2, z = zc).
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(zc + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(60.0), b120),
-        ProfileVertex::new(at(180.0), b120),
-        ProfileVertex::new(at(300.0), b120),
-    ]);
     let plane = SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
         Point3::new(0.0, 0.5, 0.0) - Point3::origin(),
     ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(3.0), Tol::witness())
-        .unwrap()
-        .body
+    extruded(
+        plane,
+        vec![three_arc(Point2::new(zc, 2.0), 0.5, 60.0)],
+        3.0,
+        Tol::witness(),
+    )
 }
 
 /// The plate-top × cylinder-wall pairs declared under `class`.
@@ -332,8 +304,11 @@ fn tangent_door_contradicts_escalates_and_admits() {
     // carriers are distinct by its own verification, so the pair never
     // reaches the planar coplanar-merge door, and the join lane unions
     // the line-contact pair into ONE solid. The contact is a tangent
-    // ruling — measure zero — so the volume is the operands' sum
-    // BITWISE, which is the oracle this row pins.
+    // ruling — measure zero — so the volume is the operands' sum, to
+    // the rounding of the mass integral: it accumulates over the
+    // union's faces in minting order, which the operands' authored
+    // loop starts decide, so the sum agrees to an ulp of the oracle
+    // rather than bit for bit (measured: one ulp above it).
     let Ok(BooleanResult::Body(b)) = out else {
         panic!("the admitted tangent pair must union: {out:?}");
     };
@@ -346,10 +321,10 @@ fn tangent_door_contradicts_escalates_and_admits() {
     let vol = topo::mass_properties(&b.body, Tol::witness())
         .unwrap()
         .volume;
-    assert_eq!(
-        vol,
-        16.0 + 0.75 * core::f64::consts::PI,
-        "plate + lying cylinder, exactly additive across the tangent ruling"
+    let want = 16.0 + 0.75 * core::f64::consts::PI;
+    assert!(
+        (vol - want).abs() <= 2.0 * f64::EPSILON * want,
+        "plate + lying cylinder, additive across the tangent ruling: {vol} against {want}"
     );
 }
 
@@ -362,7 +337,12 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
     let a = plate::<f64>();
     // A second plate floating above (planar faces only, gap 1).
     let b = {
-        let lp = ProfileLoop::polygon([p2(1.0, 1.0), p2(3.0, 1.0), p2(3.0, 3.0), p2(1.0, 3.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(1.0, 1.0),
+            Point2::new(3.0, 1.0),
+            Point2::new(3.0, 3.0),
+            Point2::new(1.0, 3.0),
+        ]);
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 2.0)));
         let profile = Profile::new(plane, vec![lp])
             .validate(Tol::witness())

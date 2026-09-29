@@ -9,16 +9,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use core::f64::consts::PI;
-use profile::RawLoop;
 
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::cube;
-use sweep::{Revolution, RevolveAxis, revolve};
+use sweep::test_support::{ball_poled, cube};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::readback::euler_counts;
@@ -36,62 +33,6 @@ const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 /// The pip-rim blend radius, meters.
 const RIM_R: f64 = 0.02;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> Body<f64> {
-    let ball = ball_at(r, Vec3::new(0.0, 0.0, 0.0));
-    let y = Vec3::new(0.0, 1.0, 0.0);
-    let axis = y.cross(pole);
-    let placed = if axis.norm() < 1e-12 {
-        if y.dot(pole) > 0.0 {
-            ball
-        } else {
-            topo::transform_rigid(
-                &ball,
-                &Affine3::rotation_about_axis(
-                    geom_core::Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    PI,
-                ),
-                Tol::witness(),
-            )
-            .unwrap()
-        }
-    } else {
-        topo::transform_rigid(
-            &ball,
-            &Affine3::rotation_about_axis(
-                geom_core::Point3::new(0.0, 0.0, 0.0),
-                axis.normalize(),
-                y.dot(pole).clamp(-1.0, 1.0).acos(),
-            ),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
-    topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
-}
-
-fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
-}
 
 fn layout(n: u32) -> Vec<(f64, f64)> {
     let c = vec![(0.0, 0.0)];
@@ -161,12 +102,12 @@ fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
 
 fn pip_tool() -> Body<f64> {
     let places = pip_placements();
-    let mut tool = ball_poled(PIP_R, places[0].0, places[0].1);
+    let mut tool = ball_poled(PIP_R, places[0].0, places[0].1, Tol::witness());
     for (c, n) in &places[1..] {
         tool = boolean_op_with(
             BooleanOp::Union,
             &tool,
-            &ball_poled(PIP_R, *c, *n),
+            &ball_poled(PIP_R, *c, *n, Tol::witness()),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),
@@ -449,7 +390,13 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     match err {
         sweep::blend::BlendError::RingClearance { margin, .. } => {
             assert_eq!(margin.predicate, "fillet3_ring_clearance");
-            assert!(margin.value().is_some_and(|m| (m - -0.05).abs() < 1e-15));
+            assert!(
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| (m - -0.05).abs() < 1e-15)
+            );
         }
         other => panic!("expected RingClearance, got {other}"),
     }

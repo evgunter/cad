@@ -38,7 +38,7 @@
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
 use topo::query::{self, SurfaceKindSet};
@@ -49,9 +49,9 @@ use topo::{Body, FaceContainment, FaceKey};
 /// meeting at the two poles: the iso-line class, with both latitude
 /// extremes AT a pole and no constraint on either side.
 fn lune(turn: Revolution<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(geom_core::Point2::new(0.0, -1.0), 1.0),
-        ProfileVertex::new(geom_core::Point2::new(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (geom_core::Point2::new(0.0, -1.0), 1.0),
+        (geom_core::Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -93,16 +93,16 @@ fn ball_with_a_near_polar_rim(u_r: f64) -> Body<f64> {
 /// `Intersection` description.
 fn rimmed_ball(u_r: f64, turn: Revolution<f64>) -> Body<f64> {
     let (rho, h) = (u_r.sin(), -u_r.cos());
-    let lp = ProfileLoop::new(vec![
+    let lp = bulge_loop(vec![
         // On the axis, at the rim's own height: the flat disc's centre.
-        ProfileVertex::new(geom_core::Point2::new(0.0, h), 0.0),
+        (geom_core::Point2::new(0.0, h), 0.0),
         // Out to the rim, then the long spherical arc to the north pole
         // (included angle `pi - u_r`, so nothing here is a sliver).
-        ProfileVertex::new(
+        (
             geom_core::Point2::new(rho, h),
             ((core::f64::consts::PI - u_r) / 4.0).tan(),
         ),
-        ProfileVertex::new(geom_core::Point2::new(0.0, 1.0), 0.0),
+        (geom_core::Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -502,13 +502,13 @@ fn the_solid_door_answers_around_a_rimmed_sphere_band() {
     // A spherical CAP: a radial segment out from the axis at y = 1/2, a
     // 60-degree arc of the unit circle up to the north pole, and the
     // axis back down. No joint is tangent, so nothing needs declaring.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(geom_core::Point2::new(0.0, 0.5), 0.0),
-        ProfileVertex::new(
+    let lp = bulge_loop(vec![
+        (geom_core::Point2::new(0.0, 0.5), 0.0),
+        (
             geom_core::Point2::new((0.75_f64).sqrt(), 0.5),
             (core::f64::consts::PI / 12.0).tan(),
         ),
-        ProfileVertex::new(geom_core::Point2::new(0.0, 1.0), 0.0),
+        (geom_core::Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

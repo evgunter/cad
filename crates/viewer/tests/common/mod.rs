@@ -32,6 +32,10 @@
 /// The GUI-4 assembly fixture (a gallery-shaped workspace on disk).
 pub mod asm;
 
+/// The corpus pick suites' walk: their landings, their single-level
+/// reference and their two aims.
+pub mod corpus_pick;
+
 use bvh::Aabb;
 use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
@@ -101,120 +105,16 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    RecipeNodeId, apply,
+    RecipeNodeId,
 };
 use pncad::geom_core::Tol;
 use viewer::sketch::{Notation, ProfileShape};
 
-/// Apply one edit, answering the new document and any minted id.
-pub fn edited(
-    doc: &Doc<ProfileProgram>,
-    edit: DocEdit<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-    let applied = apply(doc, &edit, tol, &pncad::document::RefusingReach)
-        .expect("the fixture's edit applies");
-    (applied.doc, applied.record.minted)
-}
-
-/// **A document holding one declared parameter and nothing else** —
-/// the fixture both panel suites build their parameter rows on.
-///
-/// `label` is the document's derived name, so two fixtures in one
-/// binary cannot share an identity. No oracle: it is the spelling of
-/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
-/// asserts is about the `value` it handed in.
-pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfileProgram> {
-    let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
-    edited(
-        &doc,
-        DocEdit::SetDocParam {
-            name: name.clone(),
-            value,
-        },
-        tol,
-    )
-    .0
-}
-
-/// Insert a node, answering the new document and the minted id.
-pub fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, minted) = edited(doc, DocEdit::InsertNode { node }, tol);
-    (doc, minted.expect("an insert mints an id"))
-}
-
-/// The `&mut` spelling of `inserted`: insert a node in place and
-/// answer the minted id, for a fixture that threads one document
-/// through a sequence of edits rather than rebinding at each one.
-/// Same call and same refusal behaviour — only the caller differs.
-pub fn insert_into(
-    doc: &mut Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> RecipeNodeId {
-    let (applied, id) = inserted(doc, node, tol);
-    *doc = applied;
-    id
-}
-
-/// The `&mut` spelling of `edited`, for an edit whose minted id (if
-/// any) the caller does not want.
-pub fn edit_into(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, tol: Tol) {
-    let (applied, _) = edited(doc, edit, tol);
-    *doc = applied;
-}
-
-/// A sketch frame node's payload.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: len3(origin),
-        u: scl3(u),
-        v: scl3(v),
-    })
-}
-
-/// The world xy frame's payload — the plane these fixtures sketch on.
-pub fn xy_frame() -> Node<ProfileProgram> {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
-}
-
-/// An axis-aligned rectangular profile node's payload on `plane`:
-/// `w` by `h`, its lower-left corner at `origin` in the plane's own
-/// coordinates. `square` is this with two equal sides at the plane
-/// origin, and a fixture whose block sits elsewhere moves `origin`.
-pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<ProfileProgram> {
-    let [x0, y0] = origin;
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
-                .expect("finite corners"),
-        ],
-    })
-}
-
-/// A square profile node's payload on `plane`, `side` metres on a side,
-/// at the plane origin.
-pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
-    rectangle(plane, [0.0, 0.0], side, side)
-}
-
-/// **A frame and a square drawn on it**, answering the document and the
-/// PROFILE's id — two nodes where a fixture used to insert one, because
-/// a profile names the plane it is drawn on.
-pub fn framed_square(
-    doc: &Doc<ProfileProgram>,
-    side: f64,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, plane) = inserted(doc, xy_frame(), tol);
-    inserted(&doc, square(plane, side), tol)
-}
+// The literal, edit, frame, rectangle and δ doors are `viewer`'s own
+// `test_support` (its `test-support` feature, on for these suites through
+// the crate's self dev-dependency), so the crate's unit-test modules and
+// these suites read ONE definition. A suite says `common::len` as before.
+pub use viewer::test_support::*;
 
 /// **The witnessed band a placement axis is decided under** — what
 /// `Frame::rotate_then_translate` asks the direction door with. Rows
@@ -222,41 +122,6 @@ pub fn framed_square(
 /// is the axis decision reads the refusal instead.
 pub fn band() -> pncad::geom_core::Band {
     pncad::geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
-}
-
-/// A length literal.
-pub fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
-}
-
-/// A dimensionless literal.
-pub fn scl(value: f64) -> Expr {
-    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
-}
-
-/// An angle literal.
-pub fn ang(radians: f64) -> Expr {
-    Expr::literal(radians, Dimension::Angle).expect("a finite angle")
-}
-
-/// Three length literals — a datum origin, a translation.
-pub fn len3(v: [f64; 3]) -> [Expr; 3] {
-    [len(v[0]), len(v[1]), len(v[2])]
-}
-
-/// Three dimensionless literals — a normal, a direction, an axis.
-pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
-    [scl(v[0]), scl(v[1]), scl(v[2])]
-}
-
-/// Two length literals — a point in a sketch frame's own coordinates.
-pub fn len2(v: [f64; 2]) -> [Expr; 2] {
-    [len(v[0]), len(v[1])]
-}
-
-/// Two dimensionless literals — a direction in a sketch frame.
-pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
-    [scl(v[0]), scl(v[1])]
 }
 
 /// One form template lowered CANONICALLY — what a suite means when it
@@ -394,7 +259,7 @@ pub fn gallery_ring_at(tol: Tol) -> String {
 
 use pncad::document::{BooleanValue, NodeResult};
 use pncad::prelude::ValuePayload;
-use viewer::session::{DocSession, SessionOp};
+use viewer::session::{DocSession, FaceSelection, SessionOp};
 
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
@@ -405,7 +270,7 @@ use viewer::session::{DocSession, SessionOp};
 /// components would stop testing the frame the chrome authors the
 /// moment either moved.
 pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
-    insert(
+    session_insert(
         session,
         SessionOp::AddDatum {
             datum: viewer::session::ProfilePlane::world_xy().expect("the world xy frame lowers"),
@@ -413,9 +278,17 @@ pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     )
 }
 
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
-pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+/// **Insert through the session**: perform one op that must commit
+/// exactly one insert, answering the id of the node it minted.
+///
+/// This is the op vocabulary's door, and it holds the session's
+/// contract — no refusal, one committed edit, and that edit an
+/// `InsertNode`. [`inserted`] and [`insert_into`] are the document's
+/// door instead: they call `apply` with no session, and check only
+/// that the edit applies and mints an id — there is no op, so no
+/// outcome to hold to that contract. A fixture that means to exercise
+/// the chrome's ops reaches for this one.
+pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
@@ -428,6 +301,103 @@ pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
         .order()
         .last()
         .expect("the insert landed")
+}
+
+/// **Add an instance of the part `id` through the session**, pump the
+/// seam, and answer the instance node — [`session_insert`] over
+/// `SessionOp::AddInstance`, the step every assembly-authoring suite
+/// takes before it has anything to mate or pick.
+pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) -> RecipeNodeId {
+    let node = session_insert(session, SessionOp::AddInstance { id });
+    session.pump();
+    node
+}
+
+/// **Commit a mate through the session's insert door**, pump, and
+/// answer the node it minted — checked to BE a mate, because that id
+/// is what the solve keys a fault by.
+///
+/// A pattern node, a `Part` node or an instance is NOT such a key:
+/// `SolvedPoses::fault` maps refusing MATES and the instances of a
+/// cluster that consequently has no pose, so `fault(pattern)` answers
+/// `None` for every document ever written and asserts nothing. The
+/// kind check is what keeps a row's `fault(mate).is_none()` from
+/// passing on an id it could never fail on.
+///
+/// A row that authors two mates into ONE evaluation does not pump
+/// between them, and so takes [`session_insert`] instead.
+///
+/// # Panics
+///
+/// If the op refuses, commits anything but one insert, or inserts a
+/// node that is not a `Node::Mate`.
+pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+    let mate = session_insert(session, op);
+    assert!(
+        matches!(session.committed_doc().node(mate), Some(Node::Mate { .. })),
+        "the op inserts a mate: {:?}",
+        session.committed_doc().node(mate)
+    );
+    session.pump();
+    mate
+}
+
+/// **A rectangle profile through the session**: the chrome's rectangle
+/// template, `width` by `height` and centred on `plane`'s origin,
+/// drawn by `SessionOp::AddProfile` — answering the profile.
+pub fn rectangle_in(
+    session: &mut DocSession,
+    plane: RecipeNodeId,
+    width: f64,
+    height: f64,
+) -> RecipeNodeId {
+    session_insert(
+        session,
+        SessionOp::AddProfile {
+            plane: viewer::session::ProfilePlane::Existing(plane),
+            loops: vec![shape(&ProfileShape::Rectangle { width, height })],
+        },
+    )
+}
+
+/// **A box through the session**: [`rectangle_in`] on `plane`, then
+/// `SessionOp::AddExtrude` by `depth` — answering the profile and the
+/// extrude.
+pub fn box_in(
+    session: &mut DocSession,
+    plane: RecipeNodeId,
+    [width, height, depth]: [f64; 3],
+) -> (RecipeNodeId, RecipeNodeId) {
+    let profile = rectangle_in(session, plane, width, height);
+    let extrude = session_insert(
+        session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(depth),
+        },
+    );
+    (profile, extrude)
+}
+
+/// [`box_in`] on a fresh world xy frame ([`xy_frame_in`]) — answering
+/// the extrude, the body a row goes on to combine, blend or measure.
+pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
+    let plane = xy_frame_in(session);
+    box_in(session, plane, size).1
+}
+
+/// A closed polygon through `points`, in order, as the step chain a
+/// `ProfileShape::Path` carries: an `At` on the first point, a line to
+/// each of the rest, and a line back to the start.
+pub fn polygon_steps(points: &[(f64, f64)]) -> Vec<pncad::profile::Step<f64>> {
+    use pncad::geom_core::Point2;
+    use pncad::profile::{Step, Target};
+    let mut steps = vec![Step::At(Point2::new(points[0].0, points[0].1))];
+    for &(x, y) in &points[1..] {
+        steps.push(Step::LineTo(Target::Point(Point2::new(x, y))));
+    }
+    steps.push(Step::LineTo(Target::Start));
+    steps
 }
 
 /// One node's row status out of a tree render — the lookup five
@@ -504,6 +474,132 @@ pub fn tempdir(label: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("{label}-{unique}"));
     std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
     dir
+}
+
+// --- the pick seam: the index, the aimed rays, the displayed pick ----
+//
+// A suite picks against an index built from four values the session
+// already holds — the landed document and evaluation, the generation
+// that names the run, and the session's ε — plus a δ. The δ is a
+// per-suite choice and stays an argument; the other four are not, so
+// the call lives here.
+//
+// This is the PLAIN door, `PickIndex::build`. It is not a second
+// spelling of `DocSession::index_inputs`, which packages the same four
+// for the MEMOISED path (`PickCache` -> `evalseam::build_index` ->
+// `PickIndex::build_with`) and cannot be handed to `build`: the two
+// are what `index_memo` exists to compare, so a suite that reached the
+// plain door through the memo's packaging would have nothing left to
+// check.
+//
+// The rays are axis-aligned — vertical (`down_at`, `up_at`) or level
+// (`along_x`, `along_y`) — and the pick below reads the session's
+// display view, which is what makes it the viewport's pick.
+
+use bvh::test_support::ray;
+use pncad::select::Ray;
+use viewer::pickindex::{PickIndex, PickIndexError, PictureKey};
+use viewer::scene::DisplayTolerance;
+
+/// The pick index for `session`'s landed evaluation at `delta`, or the
+/// refusal — a failed or poisoned root is an ordinary editing state,
+/// and a suite whose subject is that refusal reads it here.
+pub fn index_at(
+    session: &DocSession,
+    delta: DisplayTolerance,
+) -> Result<PickIndex, PickIndexError> {
+    let (doc, eval) = session
+        .landed_pair()
+        .expect("the inline seam lands its first evaluation");
+    let generation = session
+        .landed_generation()
+        .expect("a landed evaluation has a generation");
+    PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
+}
+
+/// [`index_at`] for a fixture that indexes by construction: the
+/// refusal is the failure.
+pub fn index_of(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
+    index_at(session, delta).expect("the fixture indexes")
+}
+
+/// [`index_of`] at [`plate_delta`] — what a plate-scale suite wants.
+pub fn plate_index(session: &DocSession) -> PickIndex {
+    index_of(session, plate_delta())
+}
+
+/// [`index_of`] at [`corpus_delta`] — what a corpus suite wants.
+pub fn corpus_index(session: &DocSession) -> PickIndex {
+    index_of(session, corpus_delta())
+}
+
+/// A ray straight down through `(x, y)` from height `z` —
+/// `editor_core::test_support`'s, re-exported rather than re-written, as
+/// the mate heads below are: `editor-core`'s pick suites aim the same
+/// ray.
+pub use editor_core::test_support::down_from;
+
+/// [`down_from`] at one metre up — above anything the plate- and
+/// assembly-scale fixtures build. A suite whose fixture reaches higher,
+/// or which wants the origin closer, passes its own height.
+pub fn down_at(x: f64, y: f64) -> Ray {
+    down_from(x, y, 1.0)
+}
+
+/// A ray straight up through `(x, y)` from one metre below — under
+/// anything those fixtures build, for the underside faces a downward
+/// ray never reaches.
+pub fn up_at(x: f64, y: f64) -> Ray {
+    ray([x, y, -1.0], [0.0, 0.0, 1.0])
+}
+
+/// **The face `ray` meets, picked the way the viewport picks it** —
+/// through `index` against `session`'s landed evaluation and its
+/// display view, so a hidden instance is not picked and a probed one is
+/// picked where it is drawn. (`PickIndex::face_at` is the same pick
+/// under no display view; the name says which one a row reads.)
+///
+/// # Panics
+///
+/// If the session has no landed evaluation, the pick refuses, or the
+/// ray meets no face: a row aims its ray at a face it means to pick.
+pub fn displayed_face_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection {
+    let (_, eval) = session.landed_pair().expect("landed");
+    index
+        .face_at_for(eval, ray, &session.display_view())
+        .expect("the pick answers")
+        .expect("the ray hits")
+}
+
+/// A level ray along x through `(y, z)`, travelling toward `sense`'s
+/// sign (`1.0` or `-1.0`) from one metre back on the far side of
+/// `x = 0` — for the walls a vertical ray never reaches, on the same
+/// plate- and assembly-scale fixtures as [`down_at`].
+///
+/// # Panics
+///
+/// Unless `sense` is `1.0` or `-1.0`.
+pub fn along_x(sense: f64, y: f64, z: f64) -> Ray {
+    level([1.0, 0.0], sense, [-sense, y, z])
+}
+
+/// [`along_x`] one axis over: a level ray along y through `(x, z)`.
+///
+/// # Panics
+///
+/// Unless `sense` is `1.0` or `-1.0`.
+pub fn along_y(sense: f64, x: f64, z: f64) -> Ray {
+    level([0.0, 1.0], sense, [x, -sense, z])
+}
+
+/// The one body both level rays share: `axis` scaled by `sense`, from
+/// `origin`.
+fn level(axis: [f64; 2], sense: f64, origin: [f64; 3]) -> Ray {
+    assert!(
+        sense == 1.0 || sense == -1.0,
+        "a level ray's sense is 1 or -1: {sense}"
+    );
+    ray(origin, [sense * axis[0], sense * axis[1], 0.0])
 }
 
 // The mate-head helpers are `crate::fixture`'s, re-exported rather than

@@ -91,16 +91,28 @@ fn bands_track_the_global_tolerance() {
     // not only at the default 10; both margins are safely interior to
     // their regions under fp rounding.
     let eps = tolerance.eps;
-    assert_eq!((0.5 * eps).sign_within(band), Ok(Sign::Zero));
-    assert_eq!((-0.5 * eps).sign_within(band), Ok(Sign::Zero));
+    assert_eq!(
+        (0.5 * eps).sign_within(band).map(|d| d.sign),
+        Ok(Sign::Zero)
+    );
+    assert_eq!(
+        (-0.5 * eps).sign_within(band).map(|d| d.sign),
+        Ok(Sign::Zero)
+    );
     let definite = 2.0 * tolerance.k * eps;
-    assert_eq!(definite.sign_within(band), Ok(Sign::Positive));
-    assert_eq!((-definite).sign_within(band), Ok(Sign::Negative));
+    assert_eq!(
+        definite.sign_within(band).map(|d| d.sign),
+        Ok(Sign::Positive)
+    );
+    assert_eq!(
+        (-definite).sign_within(band).map(|d| d.sign),
+        Ok(Sign::Negative)
+    );
     let mid = (1.0 + tolerance.k) / 2.0 * eps; // strictly inside (eps, K*eps)
     let sliver = mid
         .sign_within(band)
         .expect_err("the band midpoint lies inside the ambiguity band");
-    assert_eq!(sliver.margin, MarginDiag::Value(mid));
+    assert_eq!(sliver.margin, MarginDiag::value(mid));
     assert_eq!(sliver.band, band);
 }
 

@@ -768,26 +768,24 @@ pub struct LoftGeometry {
 /// disagreement is unrepresentable.
 pub type Section = Vec<ProfileLoop<f64>>;
 
-/// The section's world-space traversal data for segment `j`: the
-/// `(a, b, bulge)` triple as a [`SketchSegment`], exactly the lowered
-/// form [`segment_curve`] consumes (`segment_curve` stays public as
-/// the exact-path-leg door, and routing every wall through it keeps
-/// the produced NURBS on one code path).
+/// The section's world-space traversal data for segment `j`, as the
+/// [`SketchSegment`] [`segment_curve`] consumes (`segment_curve` stays
+/// public as the exact-path-leg door, and routing every wall through
+/// it keeps the produced NURBS on one code path). The carrier is
+/// selected by the validated segment's kind; an arc crosses into the
+/// sketch-segment form with the bulge it was lowered from.
 fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
-    let vs = lp.vertices();
-    let a = vs[j];
-    let b = vs[(j + 1) % vs.len()];
-    if a.bulge() == 0.0 {
-        SketchSegment::Line {
-            a: a.pos(),
-            b: b.pos(),
-        }
-    } else {
-        SketchSegment::Arc {
-            a: a.pos(),
-            b: b.pos(),
-            bulge: a.bulge(),
-        }
+    let s = &lp.segments()[j];
+    match s.kind {
+        profile::SegmentKind::Line => SketchSegment::Line {
+            a: s.start,
+            b: s.end,
+        },
+        profile::SegmentKind::Arc { .. } => SketchSegment::Arc {
+            a: s.start,
+            b: s.end,
+            bulge: s.bulge,
+        },
     }
 }
 
@@ -819,12 +817,27 @@ fn validate_sections(
 ///
 /// `sections[k][l]` is section `k`, loop `l` (a [`ProfileLoop`]) in
 /// the section's own sketch coordinates; `places[k]` is that
-/// section's rigid placement. Every section must present the same
-/// loop and vertex counts — the correspondence is BY INDEX, and there
-/// is no honest way to guess one that was not given. Each section
-/// passes [`Profile::validate`] at the door (fail loud — a section
-/// that would not extrude does not skin either), and the canonical
-/// loops are what get skinned.
+/// section's rigid placement. Each section passes
+/// [`Profile::validate`] at the door (fail loud — a section that would
+/// not extrude does not skin either), and the canonical loops are what
+/// get skinned.
+///
+/// # The correspondence is the author's
+///
+/// Wall `j` of loop `l` skins canonical segment `j` of canonical loop
+/// `l` in every section, so every section must present the same loop
+/// and vertex counts. The canonical form decides only what validity
+/// forces — each loop's traversal sense, outer counterclockwise and
+/// holes clockwise, since a correspondence that reversed one section
+/// against another would sweep the walls through each other — and
+/// keeps everything else as authored: each loop starts at its authored
+/// vertex 0 and holes keep their authored order. So segment `j` is
+/// counted from the author's start in every section, and which edges
+/// line up — the loft's twist — is the author's choice, carried by
+/// where each section's loop starts. No per-section rule could recover
+/// it: a square rotated 90° about its centre is the same point set,
+/// and the untwisted and quarter-twisted lofts between it and the
+/// original are different solids.
 ///
 /// # Errors
 ///
@@ -889,11 +902,11 @@ pub fn loft_geometry(
     // can never drift from the construction it reports.
     //
     // WHICH strip is first is therefore load-bearing, and it is the
-    // caller's: a section authored from a different starting vertex,
-    // or rolled about its own normal by one of the profile's own
-    // symmetries, leaves every station's ring the same set of points
-    // and still builds a measurably different solid, because a
-    // different strip sets v.
+    // caller's: the authored start of loop 0 picks it, so a section
+    // authored from a different starting vertex, or rolled about its
+    // own normal by one of the profile's own symmetries, leaves every
+    // station's ring the same set of points and still builds a
+    // measurably different solid, because a different strip sets v.
     let params = first_strip_parameters(&validated, places)?;
     let mut walls = Vec::with_capacity(loops);
     let mut kept = Vec::with_capacity(loops);

@@ -30,11 +30,11 @@ use std::collections::BTreeMap;
 
 use crate::common;
 
-use pncad::document::{Dimension, Doc, Evaluation, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{HitTestError, NodePick};
-use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex, PictureKey};
+use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
 
@@ -87,7 +87,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         input: twinned,
         translation: [common::len(at), common::len(0.2), common::len(0.0)],
         rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("a finite angle"),
+        rotation_angle: common::ang(0.0),
     };
     let (doc, _first) = common::inserted(&doc, placed(0.0), tol);
     let (doc, _second) = common::inserted(&doc, placed(0.1), tol);
@@ -107,12 +107,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
 fn indexed(tol: Tol) -> (DocSession, PickIndex) {
     let mut session = DocSession::inline(fixture(tol), tol);
     session.pump();
-    let (doc, eval) = session.landed_pair().expect("the inline seam lands");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    let index = PickIndex::build(doc, eval, PictureKey::of(generation, delta()), tol)
-        .expect("the fixture indexes");
+    let index = common::index_of(&session, delta());
     (session, index)
 }
 

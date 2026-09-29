@@ -5,9 +5,8 @@
 //!
 //! `Node::Extrude` and `Node::Revolve` share their OPERAND and their
 //! shape downstream of the run: one validated profile in, one solid
-//! out, a birth record whose emitter mints a full table, a
-//! program-anchor rewrite over that table, and the same per-edge
-//! parameter flow. Everything upstream of the run differs, and it
+//! out, a birth record whose emitter mints a full table in canonical
+//! profile numbering, and the same per-edge parameter flow. Everything upstream of the run differs, and it
 //! differs in DOCUMENT semantics rather than in literals: an extrude
 //! reads one slot, while a revolve resolves an axis node, checks that
 //! the axis and the profile are written against the same frame, and
@@ -89,11 +88,17 @@ pub(crate) struct SweptOut<T: Decide> {
 }
 
 /// A profile verb's record reader: this node's id, the record the run
-/// door returned, and the sentence a WRONG-FAMILY record is refused
-/// with (the correspondence's own `foreign_record`, threaded because
-/// the reader is where the family's arm is pulled out).
-pub(crate) type RecordReader<T> =
-    fn(RecipeNodeId, VerbRecord<T>, &'static str) -> Result<SweptOut<T>, NodeErrorKind>;
+/// door returned, the piece every canonical position of the operand
+/// profile is (what the emitter names by), and the sentence a
+/// WRONG-FAMILY record is refused with (the correspondence's own
+/// `foreign_record`, threaded because the reader is where the family's
+/// arm is pulled out).
+pub(crate) type RecordReader<T> = fn(
+    RecipeNodeId,
+    VerbRecord<T>,
+    &crate::eval::ProfilePieces,
+    &'static str,
+) -> Result<SweptOut<T>, NodeErrorKind>;
 
 /// **One profile-operand verb's correspondence**, as data — everything
 /// the generic lowering needs once the node's own semantics have been
@@ -163,10 +168,11 @@ fn revolve_record<T: Decide>(record: VerbRecord<T>) -> Option<Revolved<T>> {
 fn read_extrude<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
+    pieces: &crate::eval::ProfilePieces,
     foreign_record: &'static str,
 ) -> Result<SweptOut<T>, NodeErrorKind> {
     let built = super::read_record(record, extrude_record, foreign_record)?;
-    let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
+    let table = names::name_extrude(id, &built, pieces).map_err(NodeErrorKind::Naming)?;
     let Extruded {
         body, side_faces, ..
     } = built;
@@ -191,10 +197,11 @@ fn read_extrude<T: Decide>(
 fn read_revolve<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
+    pieces: &crate::eval::ProfilePieces,
     foreign_record: &'static str,
 ) -> Result<SweptOut<T>, NodeErrorKind> {
     let built = super::read_record(record, revolve_record, foreign_record)?;
-    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    let table = names::name_revolve(id, &built, pieces).map_err(NodeErrorKind::Naming)?;
     let Revolved { body, walls, .. } = built;
     Ok(SweptOut { body, table, walls })
 }
@@ -265,10 +272,11 @@ mod tests {
     fn each_reader_refuses_a_foreign_record() {
         let id = RecipeNodeId(1);
         let (ec, rc) = (extrude::<f64>(), revolve::<f64>());
-        let Err(e) = (ec.read)(id, VerbRecord::Blend(None), ec.foreign_record) else {
+        let pieces = crate::eval::ProfilePieces::default();
+        let Err(e) = (ec.read)(id, VerbRecord::Blend(None), &pieces, ec.foreign_record) else {
             panic!("the extrude's reader accepted a blend's record");
         };
-        let Err(r) = (rc.read)(id, VerbRecord::Blend(None), rc.foreign_record) else {
+        let Err(r) = (rc.read)(id, VerbRecord::Blend(None), &pieces, rc.foreign_record) else {
             panic!("the revolve's reader accepted a blend's record");
         };
         let (e, r) = (format!("{e}"), format!("{r}"));

@@ -16,7 +16,7 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{Alignment, Frame, RecipeNodeId, product};
+use pncad::document::{Frame, RecipeNodeId, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::{self, AdmissionFault, DisplayFault};
@@ -36,27 +36,6 @@ fn mate_nodes(session: &DocSession) -> Vec<RecipeNodeId> {
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
         .collect()
-}
-
-/// The mate these rows author directly: a post's top seated under the
-/// shelf's middle, no rider — `asm::seat_alignment`'s one home, at the
-/// place along the shelf this suite wants.
-fn seat_alignment() -> Alignment {
-    asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None)
-}
-
-/// Author the seat mate between `a_instance` and the shelf through
-/// the session's one committed-edit door.
-fn add_seat_mate(session: &mut DocSession, bench: &asm::Bench, a_instance: RecipeNodeId) {
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(a_instance, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    session.pump();
 }
 
 // --- the resolver (deliverable 1) ---------------------------------
@@ -192,10 +171,7 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     let eval = &*eval;
 
     // Before: post_b draws and picks at its authored spot.
-    let at_post_b = asm::down_at(
-        asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-        asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-    );
+    let at_post_b = asm::over_post_b();
     let full = index.scene_for(&session.display_view()).expect("a scene");
     let hit = index
         .pick_for(eval, &at_post_b, &session.display_view())
@@ -248,17 +224,18 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     assert_eq!(restored.stats().triangles, full.stats().triangles);
 }
 
-#[test]
-fn fused_geometry_refuses_both_display_ops_typed() {
-    // Two instances consumed by one boolean: neither can be hidden or
-    // probed separately — the drawn root fuses their material — and
-    // both ops say so typed instead of accepting and drawing nothing
-    // different (the propagation rule's refusing half).
-    let tol = Tol::witness();
-    let bench = asm::bench("fused", tol);
+/// Two instances of one part consumed by a single boolean: the drawn
+/// root fuses their material, so no display operation can address
+/// either separately. The session, the two instances and the fusing
+/// root — one fixture, because two hand-built copies of it is how two
+/// rows come to disagree about what "fused" is.
+fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let bench = asm::bench(tag, tol);
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the store opens");
-    let mut doc =
-        pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive("gui4-fused"), tol);
+    let mut doc = pncad::document::ProfileDoc::empty(
+        pncad::document::DocumentId::derive(&format!("gui4-{tag}")),
+        tol,
+    );
     let a = common::insert_into(
         &mut doc,
         pncad::document::Node::instantiate_part(bench.post),
@@ -281,11 +258,21 @@ fn fused_geometry_refuses_both_display_ops_typed() {
     );
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
-        pncad::document::Doc::empty_derived("gui4-fused-boot", tol),
+        pncad::document::Doc::empty_derived(&format!("gui4-{tag}-boot"), tol),
         tol,
     );
     assert!(session.perform(SessionOp::Open(path)).refusal.is_none());
     session.pump();
+    (session, a, b, weld)
+}
+
+#[test]
+fn fused_geometry_refuses_both_display_ops_typed() {
+    // Neither instance can be hidden or probed separately, and both
+    // ops say so typed instead of accepting and drawing nothing
+    // different (the propagation rule's refusing half).
+    let tol = Tol::witness();
+    let (mut session, a, b, weld) = fused_pair("fused", tol);
     for (label, op) in [
         (
             "hide a",
@@ -319,6 +306,71 @@ fn fused_geometry_refuses_both_display_ops_typed() {
     }
 }
 
+/// **The per-instance section is drawn for a fused instance and its
+/// display controls are not** — the two gates are two different tests,
+/// and the properties pane reads both.
+///
+/// `display::instance_check` is the KIND test: it decides whether
+/// there is a section at all, and a fused instance is a live instance
+/// of a part, so there is one. What the hide toggle inside it pushes
+/// runs the FULL admission test, which refuses it. A toggle gated on
+/// the section's test alone is therefore drawn usable over a refusal
+/// the op will give — the state this row pins, together with the
+/// sentence the reader gets for it.
+#[test]
+fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
+    let tol = Tol::witness();
+    let (mut session, a, b, weld) = fused_pair("fusedgate", tol);
+
+    assert!(
+        display::instance_check(session.doc(), a).is_ok(),
+        "a fused instance is still an instance, so the section has a subject"
+    );
+    let fault = display::display_check(session.doc(), a)
+        .expect_err("…and no display operation can address it separately");
+    assert!(
+        matches!(&fault, AdmissionFault::FusedGeometry { instance, root, .. }
+            if *instance == a && *root == weld),
+        "{fault:?}"
+    );
+
+    // The disabled toggle's words and the refused click's are ONE
+    // sentence: the control shows this fault, and the op answers it.
+    let refusal = session
+        .perform(SessionOp::SetInstanceHidden {
+            instance: a,
+            hidden: true,
+        })
+        .refusal
+        .expect("the op refuses a fused instance");
+    assert_eq!(
+        fault.to_string(),
+        refusal.to_string(),
+        "the pre-click sentence is the post-click one"
+    );
+    // The mapping itself, planted: what a reader is told under the
+    // disabled toggle. The coupling above survives any rewording of
+    // the fault; this line does not.
+    assert_eq!(
+        fault.to_string(),
+        format!(
+            "instance {}'s geometry is fused into node {} together with instance(s) {} — \
+             a display operation cannot address it separately",
+            a.0, weld.0, b.0
+        )
+    );
+
+    // And the free-move probe below the toggle answers the SAME fault
+    // — `free_move_check` runs the display test first — which is why
+    // the section says it once rather than under the probe's heading.
+    assert_eq!(
+        display::free_move_check(session.doc(), a)
+            .expect_err("the probe refuses it too")
+            .to_string(),
+        fault.to_string()
+    );
+}
+
 #[test]
 fn the_at_rest_badge_lands_with_the_evaluation() {
     // The A5 verdict lives past the commit: the mate-less assembly
@@ -333,13 +385,15 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         Some(&viewer::session::AtRestBadge::Certified { minted: 0 }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
-    session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Tangent,
-        alignment: seat_alignment(),
-    });
-    session.pump();
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Tangent,
+            asm::middle_seat_alignment(),
+        ),
+    );
     match session.at_rest() {
         Some(viewer::session::AtRestBadge::Refused { message }) => assert!(
             message.contains("no at-rest kernel record"),
@@ -397,14 +451,15 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let mut session = asm::open_bench(&bench, tol);
     // One node of another kind, authored through the ordinary door so
     // the wrong-kind arm is driven by a node a user can really select.
-    session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_a, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Tangent,
-        alignment: seat_alignment(),
-    });
-    session.pump();
-    let mate = mate_nodes(&session)[0];
+    let mate = common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Tangent,
+            asm::middle_seat_alignment(),
+        ),
+    );
     let doc = session.doc();
 
     assert_eq!(
@@ -479,7 +534,15 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     let bench = asm::bench("fmeligible", tol);
     let mut session = asm::open_bench(&bench, tol);
     // Constrain post_a by mating it to the shelf.
-    add_seat_mate(&mut session, &bench, bench.post_a);
+    let mate = common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            asm::middle_seat_alignment(),
+        ),
+    );
     // Both mate participants refuse, naming the mate.
     for constrained in [bench.post_a, bench.shelf_i] {
         let outcome = session.perform(SessionOp::BeginFreeMove {
@@ -505,7 +568,6 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     // A node that EXISTS and is not an instance — the mate authored
     // above — refuses for being the wrong KIND. That is the arm the
     // block below was labelled for and never drove.
-    let mate = mate_nodes(&session)[0];
     let outcome = session.perform(SessionOp::BeginFreeMove { instance: mate });
     assert!(
         matches!(
@@ -620,7 +682,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     assert_eq!(hit.node, bench.post_b);
     assert!(
         index
-            .pick_for(eval, &asm::down_at(centre[0], centre[1]), &view)
+            .pick_for(eval, &asm::over_post_b(), &view)
             .expect("the pick answers")
             .is_none(),
         "nothing is picked where the probe moved away from"
@@ -715,12 +777,12 @@ fn a_landing_mate_discards_the_probe_value() {
 
     // The mate lands on post_b: ONE committed edit, and the probe is
     // superseded IN THE SAME OUTCOME.
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
+    let outcome = session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     let [superseded] = &outcome.withdrawn.superseded[..] else {
@@ -764,14 +826,7 @@ fn a_landing_mate_discards_the_probe_value() {
     let _ = index; // (the pre-mate index is stale by generation)
     let (_, eval) = session.landed_pair().expect("landed");
     let hit = index_after
-        .pick_for(
-            eval,
-            &asm::down_at(
-                asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-                asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-            ),
-            &session.display_view(),
-        )
+        .pick_for(eval, &asm::over_post_b(), &session.display_view())
         .expect("the pick answers");
     assert!(
         hit.is_none_or(|h| h.node != bench.post_b),

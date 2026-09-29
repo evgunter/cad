@@ -29,7 +29,7 @@ use pncad::document::{
     Datum, Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, ProfileProgram, RecipeNodeId,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{EntityKind, MM, StableName};
+use pncad::prelude::{EntityKind, StableName};
 use viewer::session::ProfilePlane;
 use viewer::tree;
 
@@ -42,11 +42,7 @@ use viewer::tree;
 /// that one.
 fn frame_at(origin: [f64; 3]) -> Node<ProfileProgram> {
     let (_, u, v) = ProfilePlane::xy_numbers();
-    Node::Datum(Datum::Frame {
-        origin: common::len3(origin),
-        u: common::scl3(u),
-        v: common::scl3(v),
-    })
+    common::frame(origin, u, v)
 }
 
 /// The label for one node, through the home the picker and the tree
@@ -84,14 +80,11 @@ fn two_frames_a_centimetre_apart_get_different_labels() {
 fn a_frames_origin_is_written_in_its_own_notation() {
     let node = Node::Datum(Datum::Frame {
         origin: [
-            Expr::literal_with_unit(0.0, Dimension::Length, MM.def())
-                .expect("a millimetre literal"),
-            Expr::literal_with_unit(0.0, Dimension::Length, MM.def())
-                .expect("a millimetre literal"),
+            common::len_mm(0.0),
+            common::len_mm(0.0),
             // Ten millimetres, written in millimetres: the canonical
             // value and its notation, which is what a literal is.
-            Expr::literal_with_unit(0.010, Dimension::Length, MM.def())
-                .expect("a millimetre literal"),
+            common::len_mm(0.010),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
@@ -113,8 +106,8 @@ fn a_frames_origin_is_written_in_its_own_notation() {
 fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
     let node = Node::Datum(Datum::Frame {
         origin: [
-            Expr::literal(0.0, Dimension::Length).expect("a literal"),
-            Expr::literal(0.0, Dimension::Length).expect("a literal"),
+            common::len(0.0),
+            common::len(0.0),
             Expr::param(ParamName::new("height"), Dimension::Length),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
@@ -132,11 +125,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
 /// plane** — the label says less rather than something else.
 #[test]
 fn an_oblique_frame_is_not_called_a_world_plane() {
-    let node = Node::Datum(Datum::Frame {
-        origin: common::len3([0.0, 0.0, 0.0]),
-        u: common::scl3([1.0, 1.0, 0.0]),
-        v: common::scl3([0.0, 1.0, 0.0]),
-    });
+    let node = common::frame([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
     let shown = label(&node, 1);
     assert!(
         !shown.contains("xy"),
@@ -156,7 +145,7 @@ fn a_face_frame_names_the_node_its_face_is_read_off() {
             node: RecipeNodeId(4),
             path: vec![],
         },
-        spin: Expr::literal(0.0, Dimension::Angle).expect("a literal"),
+        spin: common::ang(0.0),
     });
     let shown = label(&node, 6);
     assert!(shown.contains("feature 6"), "{shown}");
@@ -173,20 +162,8 @@ fn a_face_frame_names_the_node_its_face_is_read_off() {
 fn the_tree_rows_tell_two_frames_apart() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-labels", tol);
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::InsertNode {
-            node: frame_at([0.0, 0.0, 0.0]),
-        },
-        tol,
-    );
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::InsertNode {
-            node: frame_at([0.0, 0.0, 0.01]),
-        },
-        tol,
-    );
+    let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.0]), tol);
+    let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.01]), tol);
     let poses: Vec<Option<String>> = tree::rows(&doc, None)
         .into_iter()
         .map(|row| row.pose)
@@ -213,13 +190,11 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
         },
         tol,
     );
-    let (doc, _) = common::edited(
+    let (doc, _) = common::inserted(
         &doc,
-        DocEdit::InsertNode {
-            node: Node::Datum(Datum::Point {
-                position: common::len3([1.0, 2.0, 3.0]),
-            }),
-        },
+        Node::Datum(Datum::Point {
+            position: common::len3([1.0, 2.0, 3.0]),
+        }),
         tol,
     );
     let rows = tree::rows(&doc, None);

@@ -62,7 +62,7 @@ use crate::drafts::{Drafts, ProfileDoors};
 use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
-use crate::frame::{self, StatusUpdate};
+use crate::frame::{self, RankedVerdict};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
 use crate::idpass::IdQueryLog;
 use crate::input::InputMap;
@@ -73,7 +73,7 @@ use crate::pickindex::{PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, ProfilePlane, Refusal, Selection, SessionOp};
+use crate::session::{DocSession, ProfilePlane, Refusal, Selection, SessionOp, Step};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -196,11 +196,11 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 
 /// `text` in the weight or colour its [`frame::Tone`] asks for.
 ///
-/// **The one place the tone-to-chrome mapping is made.** Its two
-/// readers are the toolbar's badge family ([`draw_badge`]) and the
-/// feature tree's row badge, which reads the same tone off
-/// [`crate::tree::RowStatus::tone`] — two families, one rule, so what
-/// `Advisory` looks like is changed here or nowhere.
+/// **The one place the tone-to-chrome mapping is made**: anything drawn
+/// in a [`frame::Tone`] is drawn through this, directly or through
+/// `widgets::message_toned`, so what `Advisory` looks like is changed
+/// here or nowhere. Its callers are whatever `rg 'toned\('` lists; they
+/// are not listed here, because a list is what falls behind.
 ///
 /// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
 /// REDUNDANT — everything wearing it says its own words — so this
@@ -210,6 +210,32 @@ pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -
     match tone {
         frame::Tone::Advisory => text.weak(),
         frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+    }
+}
+
+/// **Draw a control whose refusal decides both halves of it**: live
+/// exactly while `blocked` is `None`, and out of it carrying that
+/// refusal's own words as the reason it cannot be used. Answers
+/// whether it was clicked.
+///
+/// The composition, for a BUTTON, of the rule *a control a reader
+/// cannot use owes the sentence a click would have been answered with*
+/// (`crates/viewer/README.md`). Its callers are whatever
+/// `rg 'refusable_button\('` lists, and they spelled the same three
+/// lines until they were one call. The caller keeps what a click
+/// MEANS, because they push different things. A control of another
+/// shape obeys the rule in its own body: the Properties pane's unit
+/// picker is a combo over up to three components and composes the
+/// same two hooks itself (`ViewerBehavior::slot_unit_ui`).
+pub(crate) fn refusable_button(
+    ui: &mut egui::Ui,
+    label: impl Into<egui::WidgetText>,
+    blocked: Option<&Refusal>,
+) -> bool {
+    let button = ui.add_enabled(blocked.is_none(), egui::Button::new(label));
+    match blocked {
+        Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
+        None => button.clicked(),
     }
 }
 
@@ -402,8 +428,8 @@ pub struct ViewerApp {
     /// it: what the seam holds is a request, and the δ it answers with
     /// is compared against the δ in force before it is taken.
     fit: Box<dyn FitService>,
-    /// **The modal tools, at most one open** — the mate tool, the
-    /// revolve tool and the four combining tools as one value, with
+    /// **The modal tools, at most one open** — every tool
+    /// [`crate::tools::ToolKind`] names, as one value, with
     /// the exclusivity rule inside it rather than spread across the
     /// activation sites ([`crate::tools::Tools`]).
     tools: Tools,
@@ -886,12 +912,11 @@ impl ViewerApp {
         let dropped = self
             .tools
             .reconcile(self.session.doc(), self.session.landed_pair());
-        self.notices.extend(dropped.iter().map(|dropped| {
-            // A tool's survival drop is provoked by the document
-            // transition it did not survive, so the act that accepts
-            // the next one is what retires it.
-            frame::tool_news(dropped.to_string())
-        }));
+        // A tool's survival drop is provoked by the document transition
+        // it did not survive, so the act that accepts the next one is
+        // what retires it; `frame::tool_notice` reads from the event
+        // whether the pick is lost for good.
+        self.notices.extend(dropped.iter().map(frame::tool_notice));
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -1121,21 +1146,18 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
-            // **Where a withdrawal reaches the user**: everything
-            // this operation's document transition took out of the
-            // display state, onto the frame's notices like every other
-            // one (`frame::frame_status` carries the argument).
+            // **Where an outcome's news reaches the user**: what this
+            // operation's document transition took out of the display
+            // state, and what its committed edits did that nobody
+            // asked for by name, onto the frame's notices like every
+            // other one (`frame::frame_status` carries the argument).
             //
-            // ONE call, not one per kind. Three hand-written `extend`s
-            // stood here, and the list they fanned out was held to the
-            // report's by nothing — this code is `app`-gated, so no
-            // row can execute it and a kind dropped here is invisible
-            // until a user misses a sentence. `Withdrawal::all`
-            // destructures the report, so the list is the report's and
-            // a fourth kind reds there.
-            notices.extend(
-                frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
-            );
+            // ONE call. This code is `app`-gated, so no row can
+            // execute it and a kind dropped here is invisible until a
+            // user misses a sentence; `frame::outcome_notices`
+            // destructures the outcome, so a row can run the whole
+            // fan-out and a new field reds there.
+            notices.extend(frame::outcome_notices(&outcome));
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
@@ -1169,7 +1191,7 @@ impl ViewerApp {
                 None => self.drafts.accepted(&accepted_op, &minted),
             }
         }
-        let update = frame::frame_status(&notices, &performed, refusal.as_ref());
+        let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
         // refusal does not cost it, and — for an unknown parameter
@@ -1197,7 +1219,7 @@ impl ViewerApp {
             self.drafts.new_param_dimension = None;
             self.drafts.new_param_offer = Some(name.clone());
         }
-        self.apply_status(update);
+        self.apply_status(verdict);
     }
 
     /// Write everything the viewer remembers — the theme, the key
@@ -1329,19 +1351,18 @@ impl ViewerApp {
     /// the ranking has ALREADY WEIGHED: `perform_batch` hands
     /// [`crate::frame::frame_status`]'s answer here rather than assigning the
     /// field. Its one live caller, and deliberately so — a `Show` that
-    /// has been through the ranking must reach the field, and handing
-    /// it to [`frame::deliver`] instead would loop it back onto
-    /// `notices` to be ranked a second time.
+    /// has been through the ranking must reach the field and must not
+    /// be ranked a second time. The types hold both halves:
+    /// [`frame::deliver`], which would push it back onto `notices`,
+    /// does not take a [`RankedVerdict`], and this does not take a
+    /// policy's `frame::StatusUpdate`.
     ///
-    /// **Not the one place a [`StatusUpdate`] becomes the field** —
-    /// that is [`crate::frame::apply`], which [`crate::pane::viewport`] reaches directly
-    /// at both of its doors: `land` through [`frame::deliver`], and the
-    /// cursor's retirement through [`crate::frame::apply`] itself. Neither has a
-    /// `&mut self` to come through; both take the `&mut
-    /// Option<frame::Message>` this is shorthand for. This is the
-    /// `&mut self` shorthand, nothing more.
-    fn apply_status(&mut self, update: StatusUpdate) {
-        frame::apply(&mut self.status, update);
+    /// This is the `&mut self` shorthand for [`crate::frame::apply`],
+    /// nothing more. [`crate::pane::viewport`]'s policies reach the
+    /// field through [`frame::deliver`], with the `&mut
+    /// Option<frame::Message>` it lends them.
+    fn apply_status(&mut self, verdict: RankedVerdict) {
+        frame::apply(&mut self.status, verdict);
     }
 
     /// **The advisory-check findings, in a window a reader can keep
@@ -1443,9 +1464,12 @@ impl ViewerApp {
             // The New… control (GAUTH-1): one name field, because
             // the document id is derived from the name — see
             // `SessionOp::NewDocument`. The field is a draft; the
-            // op is emitted only by Create, and only for a
-            // non-blank name (the typed refusal backing the
-            // disabled button is `Refusal::EmptyName`).
+            // op is emitted only by Create, and only with the name
+            // `Refusal::new_document_name` hands back — the door's own
+            // rule, trim included, so the button cannot offer a click
+            // the door refuses and cannot send a name the door would
+            // have normalised differently. Out of it the button shows
+            // that refusal's own words.
             match self.drafts.new_doc_name.as_mut() {
                 None => {
                     if ui.button("New…").clicked() {
@@ -1458,13 +1482,11 @@ impl ViewerApp {
                             .hint_text("document name")
                             .desired_width(120.0),
                     );
-                    let typed = name.trim().to_owned();
-                    if ui
-                        .add_enabled(!typed.is_empty(), egui::Button::new("Create"))
-                        .on_disabled_hover_text("the document id is derived from the name")
-                        .clicked()
-                    {
-                        ops.push(SessionOp::NewDocument { name: typed });
+                    let named = Refusal::new_document_name(name).map(str::to_owned);
+                    if refusable_button(ui, "Create", named.as_ref().err()) {
+                        if let Ok(name) = named {
+                            ops.push(SessionOp::NewDocument { name });
+                        }
                         self.drafts.new_doc_name = None;
                     } else if ui.button("Cancel").clicked() {
                         self.drafts.new_doc_name = None;
@@ -1480,12 +1502,14 @@ impl ViewerApp {
             // at all"*. Under a plausibly-present backend a dialog
             // handing back `None` is a genuine cancel, which says
             // nothing.
-            let chooser = self.chooser;
-            if ui
-                .add_enabled(chooser.usable(), egui::Button::new("Open…"))
-                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
-                .clicked()
-            {
+            let no_chooser = self.chooser.unusable();
+            let open = match no_chooser {
+                Some(reason) => ui
+                    .add_enabled(false, egui::Button::new("Open…"))
+                    .on_disabled_hover_text(reason),
+                None => ui.button("Open…"),
+            };
+            if open.clicked() {
                 // Unreachable on wasm — `chooser` is `Absent`
                 // there, so the button is disabled and never
                 // reports a click — but unreachable code still has
@@ -1500,11 +1524,13 @@ impl ViewerApp {
                     ops.push(SessionOp::Open(path));
                 }
             }
-            if ui
-                .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
-                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
-                .clicked()
-            {
+            let save_as = match no_chooser {
+                Some(reason) => ui
+                    .add_enabled(false, egui::Button::new("Save As…"))
+                    .on_disabled_hover_text(reason),
+                None => ui.button("Save As…"),
+            };
+            if save_as.clicked() {
                 // Unreachable on wasm, for the reason the Open…
                 // arm above states.
                 #[cfg(not(target_family = "wasm"))]
@@ -1513,17 +1539,24 @@ impl ViewerApp {
                 }
             }
             ui.separator();
-            if ui
-                .add_enabled(self.session.history().can_undo(), egui::Button::new("Undo"))
-                .clicked()
-            {
-                ops.push(SessionOp::Undo);
-            }
-            if ui
-                .add_enabled(self.session.history().can_redo(), egui::Button::new("Redo"))
-                .clicked()
-            {
-                ops.push(SessionOp::Redo);
+            // **The history controls**, drawn the way the cancel
+            // doors below are: the refusal the step would be answered
+            // with decides both whether the button is live and what it
+            // says while it is not (`Refusal::nothing_to_step`). These
+            // two buttons are the only hand that pushes
+            // `SessionOp::Undo` or `SessionOp::Redo`, so a sentence
+            // they do not show is one no reader ever meets — and the
+            // refusal names ITS OWN direction, because a redo waiting
+            // on the branch the cursor just left makes a sentence
+            // about both false of the half that is live.
+            for (label, direction, op) in [
+                ("Undo", Step::Undo, SessionOp::Undo),
+                ("Redo", Step::Redo, SessionOp::Redo),
+            ] {
+                let blocked = Refusal::nothing_to_step(self.session.history(), direction);
+                if refusable_button(ui, label, blocked.as_ref()) {
+                    ops.push(op);
+                }
             }
             ui.separator();
             // **The cancel doors**, beside the history controls
@@ -1541,12 +1574,7 @@ impl ViewerApp {
             // operation itself would give — the value that knows
             // carries the words, so the two cannot disagree.
             for door in self.session.cancel_doors() {
-                let button = ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
-                let clicked = match &door.blocked {
-                    Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
-                    None => button.clicked(),
-                };
-                if clicked {
+                if refusable_button(ui, door.label, door.blocked.as_ref()) {
                     ops.push(door.op);
                 }
             }
@@ -1683,7 +1711,7 @@ impl ViewerApp {
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
-                frame::index_badge(self.picks.error()),
+                frame::index_badge(self.picks.error(), self.session.evaluation()),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
             .into_iter()
@@ -1917,13 +1945,11 @@ impl eframe::App for ViewerApp {
         // two-sequential-picks ruling — the same single-select value,
         // copied into tool state). Which vocabulary each tool reads is
         // `Tools::feed`'s to know, and a pick a tool DECLINED comes
-        // back as a notice shown exactly as a survival drop is.
+        // back as a notice through the same door as a survival drop.
+        // A declined pick answers an act the user aimed at the
+        // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        self.notices.extend(declined.iter().map(|declined| {
-            // A declined pick answers an act the user aimed at the
-            // document, like every other rank-2 notice this frame.
-            frame::tool_news(declined.to_string())
-        }));
+        self.notices.extend(declined.iter().map(frame::tool_notice));
 
         self.perform_batch(ops);
     }
@@ -2032,14 +2058,11 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) notices: &'a mut Vec<frame::Message>,
     /// The line itself, for the one thing a notice cannot do: RETIRE a
     /// sentence. [`crate::frame::cursor_status`] and a clean camera fold expire
-    /// what they last said and add nothing, so both reach the field
-    /// directly — by different doors, because the two policies are not
-    /// the same shape. `cursor_status` answers only `Keep` or `Expire`,
-    /// so it can never have news and goes straight through
-    /// [`crate::frame::apply`] ([`crate::pane::viewport`], the id pass). `fold_status`
-    /// can answer either way, so `land` hands it to
-    /// [`frame::deliver`], which routes the refusal to `notices` above
-    /// and the clean fold's retirement here.
+    /// what they last said and add nothing, so neither retirement is
+    /// ranked: [`frame::deliver`], the one door a policy's verdict
+    /// fits, writes each retirement here and sends a refused fold's
+    /// news to `notices` above ([`crate::pane::viewport`]: `land`, and
+    /// the id pass).
     pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,
@@ -2425,6 +2448,7 @@ pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
 
     use super::{CANCELED_LINE, FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
     use crate::session::SessionOp;
@@ -2569,8 +2593,13 @@ mod tests {
         toolbar_drawn(
             width,
             |app| {
-                app.status = status
-                    .map(|text| crate::frame::Message::new(crate::frame::Subject::Document, text));
+                app.status = status.map(|text| {
+                    crate::frame::Message::new(
+                        crate::frame::Subject::Document,
+                        text,
+                        crate::frame::Retold::Again,
+                    )
+                });
             },
             status,
         )
@@ -2724,6 +2753,301 @@ mod tests {
             row.available,
             row.occupied - row.available
         );
+    }
+
+    /// Every text run a headless frame painted, with the rect it
+    /// occupies.
+    ///
+    /// The toolbar's own labels, and — when the pointer is resting on
+    /// a control that cannot be used — the words
+    /// `on_disabled_hover_text` puts in front of the reader. Painting
+    /// is the only place those words exist: `add_enabled` and
+    /// `on_disabled_hover_text` hand back a `Response` and keep no
+    /// value, so a row that does not read the frame can assert the
+    /// refusal a control was BUILT from and never which control got
+    /// it.
+    fn painted_text(shapes: &[egui::epaint::ClippedShape]) -> Vec<(String, egui::Rect)> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<(String, egui::Rect)>) {
+            match shape {
+                egui::Shape::Text(text) => out.push((
+                    text.galley.text().to_owned(),
+                    egui::Rect::from_min_size(text.pos, text.galley.size()),
+                )),
+                egui::Shape::Vec(inner) => inner.iter().for_each(|shape| walk(shape, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for clipped in shapes {
+            walk(&clipped.shape, &mut out);
+        }
+        out
+    }
+
+    /// The real toolbar in a headless context, with a pointer that can
+    /// be rested on one of its controls.
+    struct Toolbar {
+        ctx: egui::Context,
+        app: ViewerApp,
+        /// Frames are numbered in seconds because a tooltip is a
+        /// function of how long the pointer has been still.
+        time: f64,
+    }
+
+    impl Toolbar {
+        fn open() -> Self {
+            let ctx = egui::Context::default();
+            // A tooltip this row waited half a second for would be a
+            // row about `tooltip_delay`. Nothing else about the hover
+            // changes.
+            ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
+            let app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+                .expect("startup that needs no graphics device");
+            Self {
+                ctx,
+                app,
+                time: 0.0,
+            }
+        }
+
+        /// One frame of the real [`ViewerApp::toolbar_ui`], with the
+        /// pointer where the caller puts it. Answers what was painted.
+        fn frame(&mut self, pointer: Option<egui::Pos2>) -> Vec<(String, egui::Rect)> {
+            painted_text(&self.shapes(pointer))
+        }
+
+        /// [`Self::frame`]'s drive, answering the shapes themselves.
+        fn shapes(&mut self, pointer: Option<egui::Pos2>) -> Vec<egui::epaint::ClippedShape> {
+            self.time += 1.0;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 600.0),
+                )),
+                time: Some(self.time),
+                events: pointer.map(egui::Event::PointerMoved).into_iter().collect(),
+                ..Default::default()
+            };
+            let Self { ctx, app, .. } = self;
+            let mut output = ctx.run_ui(input, |ui| {
+                egui::Panel::top("viewer_toolbar").show(ui, |ui| {
+                    let mut ops: Vec<SessionOp> = Vec::new();
+                    let mut chosen = Theme::ALL[0];
+                    app.toolbar_ui(ui, &mut ops, &mut chosen);
+                });
+            });
+            // Nothing here paints, so the frame's texture delta is
+            // dropped rather than uploaded.
+            output.textures_delta.clear();
+            output.shapes
+        }
+
+        /// **Whether the control labelled `label` is drawn live**:
+        /// its label painted in the same ink as `New…`'s, which is
+        /// drawn unconditionally live, rather than in the faded ink
+        /// egui paints a disabled control's label with. Read with
+        /// nothing hovered, so both labels are in their resting ink.
+        ///
+        /// A hover alone cannot tell a live control from a disabled
+        /// one with no reason attached: neither shows anything.
+        fn drawn_live(&mut self, label: &str) -> bool {
+            self.shapes(Some(Self::ELSEWHERE));
+            let landed = crate::pane::headless::landed_in(&self.shapes(Some(Self::ELSEWHERE)));
+            let ink = |wanted: &str| {
+                landed
+                    .iter()
+                    .find(|landed| landed.text == wanted)
+                    .unwrap_or_else(|| panic!("the toolbar draws a control labelled {wanted}"))
+                    .ink
+            };
+            ink(label) == ink("New…")
+        }
+
+        /// **What the toolbar puts in front of a reader who rests the
+        /// pointer on the control labelled `label`** — `None` when the
+        /// control is live and has nothing to explain.
+        ///
+        /// Read as the difference between a quiet frame and a hovered
+        /// one, so it names no wording of its own: whatever the hover
+        /// ADDED to the picture is what the reader gained by hovering.
+        fn reason_shown_on(&mut self, label: &str) -> Option<String> {
+            // The pointer is parked off the toolbar first, so that a
+            // tooltip left over from the previous control is not in
+            // the picture this one is measured against. egui keeps the
+            // last position it was given, so "no event" is not "no
+            // pointer".
+            self.frame(Some(Self::ELSEWHERE));
+            let quiet = self.frame(Some(Self::ELSEWHERE));
+            let rect = quiet
+                .iter()
+                .find(|(text, _)| text == label)
+                .unwrap_or_else(|| {
+                    panic!("the toolbar draws a control labelled {label}: {quiet:?}")
+                })
+                .1;
+            // Two frames with the pointer on it: egui decides hover
+            // against the rect the previous frame left behind.
+            self.frame(Some(rect.center()));
+            let hovered = self.frame(Some(rect.center()));
+            let before: Vec<&str> = quiet.iter().map(|(text, _)| text.as_str()).collect();
+            let gained: Vec<String> = hovered
+                .iter()
+                .map(|(text, _)| text.clone())
+                .filter(|text| !before.contains(&text.as_str()))
+                .collect();
+            assert!(
+                gained.len() <= 1,
+                "hovering {label} added more than one text run, so this row cannot say which is \
+                 the reason: gained {gained:?}, quiet {quiet:?}, hovered {hovered:?}"
+            );
+            gained.into_iter().next()
+        }
+
+        /// A point inside the window and off the toolbar, for a frame
+        /// in which nothing is hovered.
+        const ELSEWHERE: egui::Pos2 = egui::Pos2::new(1500.0, 550.0);
+    }
+
+    /// **A disabled toolbar control says what its own operation
+    /// refuses** — and says it about ITSELF.
+    ///
+    /// Three controls are held to it: Undo, Redo, and Create on the
+    /// New-document form. For each, the words a reader actually sees
+    /// are read back off the painted frame and compared with the
+    /// sentence the session answers that control's own operation with.
+    ///
+    /// **Reading the paint is what makes this a row about the
+    /// MAPPING.** A row that asserts a refusal value against the op
+    /// that raises it holds the coupling and nothing else: every such
+    /// assertion survives a permutation of the direction table in
+    /// `toolbar_ui`, which is the map this file owns, or a swap of
+    /// both arms of the direction-to-verb match. Both of those put the
+    /// wrong sentence under the right button, which is the whole
+    /// failure the unit exists to prevent, and only the frame can see
+    /// it.
+    ///
+    /// **Three controls, hand-listed, and that is this row's blind
+    /// spot.** `gesture_table.rs`'s
+    /// `a_closed_door_says_what_its_own_operation_refuses` walks
+    /// `DocSession::cancel_doors`, so a fifth cancel door is held the
+    /// day it is added. There is no such value here — a toolbar's
+    /// disabled controls are not enumerable — so a fourth control
+    /// added to `toolbar_ui` is not caught by this row. The instrument
+    /// that finds one is the `add_enabled` sweep
+    /// (`crates/viewer/README.md`, the disabled-control rule), and the
+    /// gate that would hold the population rather than a reader's
+    /// attention is filed as
+    /// `work/guard/viewer-disabled-control-population-has-no-gate`.
+    #[test]
+    fn a_disabled_toolbar_control_says_what_its_own_operation_refuses() {
+        let mut toolbar = Toolbar::open();
+        // The New-document form is a draft the New… button opens; the
+        // Create button is not drawn until it is open.
+        toolbar.app.drafts.new_doc_name = Some(String::new());
+
+        // A freshly assembled session is at the root of a history with
+        // no branch beyond it, so all three are refused at once.
+        for (label, op) in [
+            ("Undo", SessionOp::Undo),
+            ("Redo", SessionOp::Redo),
+            (
+                "Create",
+                SessionOp::NewDocument {
+                    name: String::new(),
+                },
+            ),
+        ] {
+            let shown = toolbar.reason_shown_on(label).unwrap_or_else(|| {
+                panic!("{label} is disabled in this state, so hovering it says why")
+            });
+            // Refused, so the session is not moved by asking.
+            let refused = toolbar
+                .app
+                .session
+                .perform(op)
+                .refusal
+                .unwrap_or_else(|| panic!("{label}'s own operation refuses in this state"));
+            assert_eq!(
+                shown,
+                refused.to_string(),
+                "{label}: the words the reader sees are the words its own operation refuses with"
+            );
+        }
+
+        // **And the history sentences name THEIR OWN direction.**
+        //
+        // Everything above compares two renderings of ONE value, so it
+        // is true under any permutation of the direction-to-verb map:
+        // swap both arms and each button says the opposite of the
+        // truth with every assertion still passing. The two history
+        // sentences differ by one verb and nothing else, so the verb
+        // is the whole of what a reader gets, and it needs a pin that
+        // does not route through the same `Display` both sides of an
+        // equality do.
+        //
+        // The control's OWN NAME is that pin, and it is not a golden:
+        // it holds a relation between two things the reader has in
+        // front of them — what the button is called, and the reason it
+        // gives — rather than a copy of the sentence. Re-wording the
+        // refusal moves nothing here; putting the wrong verb under a
+        // button reds it.
+        //
+        // The Create button takes no such clause: it has no sibling to
+        // be confused with, and its sentence is about the name rather
+        // than about the verb on the button.
+        for (label, other) in [("Undo", "Redo"), ("Redo", "Undo")] {
+            let shown = toolbar
+                .reason_shown_on(label)
+                .unwrap_or_else(|| panic!("{label} is disabled in this state"));
+            let own = label.to_lowercase();
+            let sibling = other.to_lowercase();
+            assert!(
+                shown.contains(&own),
+                "the {label} button's reason does not say {own}: {shown:?}"
+            );
+            assert!(
+                !shown.contains(&sibling),
+                "the {label} button's reason is about {sibling}: {shown:?}"
+            );
+        }
+    }
+
+    /// **A dialog with no backend to open it says why on its own
+    /// control**, in the words `ChooserBackend::unusable` answers —
+    /// and a dialog that can open is drawn live and says nothing.
+    ///
+    /// Read off the painted frame, because the words a reader sees
+    /// exist nowhere else (`painted_text`): a row over
+    /// `ChooserBackend::unusable` alone holds the value and not that
+    /// the two controls gate on it and show it. That the gate and the
+    /// reason come from the same answer is held HERE, not by the type:
+    /// a call site can still split them, and this row is what reds.
+    /// Each backend is planted on the field the toolbar reads, so this
+    /// holds whatever the test box's `PATH` and session bus are.
+    #[test]
+    fn a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control() {
+        use crate::platform::ChooserBackend;
+        let mut toolbar = Toolbar::open();
+        for backend in [
+            ChooserBackend::ZenityPresent,
+            ChooserBackend::PortalPossible,
+            ChooserBackend::Absent,
+        ] {
+            toolbar.app.chooser = backend;
+            for label in ["Open…", "Save As…"] {
+                assert_eq!(
+                    toolbar.drawn_live(label),
+                    backend.unusable().is_none(),
+                    "{label} under {backend:?}: live exactly when the backend is usable"
+                );
+                assert_eq!(
+                    toolbar.reason_shown_on(label).as_deref(),
+                    backend.unusable(),
+                    "{label} under {backend:?}: the hover says the backend's reason, and only \
+                     when it has one"
+                );
+            }
+        }
     }
 
     /// **And the STATUS LINE wraps under itself**, in the real
@@ -2902,6 +3226,639 @@ mod tests {
             light.format(WITNESS, DECIMALS),
             door,
             "the context's light style spells {WITNESS} its own way"
+        );
+    }
+}
+
+/// **What the properties pane says about a selection that no longer
+/// denotes**, read off a whole headless frame of the real app — so the
+/// pane's own gates and deletions are held, not only the free function
+/// that draws the verdict (`pane::properties::verdict_tests`).
+#[cfg(test)]
+mod properties_pane_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use eframe::egui;
+    use pncad::document::{Axis3, ParamName, RecipeNodeId, SlotId};
+
+    use super::ViewerApp;
+    use crate::session::{Selection, SessionOp};
+
+    /// **One frame of the real app**, at a 1600 by 1000 window, with
+    /// `time` and `events` as its input: every text run it painted and
+    /// where. The one frame body every whole-app row here draws with.
+    fn app_frame(
+        ctx: &egui::Context,
+        app: &mut ViewerApp,
+        frame: &mut eframe::Frame,
+        time: Option<f64>,
+        events: Vec<egui::Event>,
+    ) -> Vec<crate::pane::headless::Landed> {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 1000.0),
+            )),
+            time,
+            events,
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            eframe::App::ui(app, ui, frame);
+        });
+        // Nothing here paints, so the frame's texture delta is
+        // dropped rather than uploaded.
+        output.textures_delta.clear();
+        crate::pane::headless::landed_in(&output.shapes)
+    }
+
+    /// Every text the app painted on the second of two frames with
+    /// `selection` made, in paint order.
+    fn painted_with(selection: Selection) -> Vec<String> {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        app.perform_batch(vec![SessionOp::Select(selection)]);
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut texts = Vec::new();
+        for _ in 0..2 {
+            texts = app_frame(&ctx, &mut app, &mut frame, None, Vec::new())
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect();
+        }
+        texts
+    }
+
+    /// Every text the app painted once the startup document has
+    /// LANDED, with `tool` open and `picks` fed to it as the frame
+    /// feeds a click's selection (`Tools::feed`, then the batch), and
+    /// the collapsed section headed `section` (if any) clicked open.
+    ///
+    /// Landed first, because the survival step (`sync_scene`'s
+    /// `Tools::reconcile`) only asks a face pick whether it resolves
+    /// once there is a landed pair to ask — a panel read before that
+    /// would show picks the next frame might drop.
+    fn painted_with_tool(
+        tool: crate::tools::ToolKind,
+        section: Option<&str>,
+        picks: impl FnOnce(RecipeNodeId) -> Vec<Selection>,
+    ) -> (RecipeNodeId, Vec<String>) {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
+            app_frame(&ctx, app, &mut frame, None, events)
+        };
+        // The startup document's last node is its body (`plate_with_hole`).
+        let body = *app.session.doc().order().last().expect("a startup body");
+        app.tools.open(tool);
+        let ops: Vec<SessionOp> = picks(body).into_iter().map(SessionOp::Select).collect();
+        let declined = app.tools.feed(app.session.doc(), &ops);
+        assert!(declined.is_empty(), "{declined:?}");
+        app.perform_batch(ops);
+        let mut landed = Vec::new();
+        for _ in 0..3000 {
+            landed = paint(&mut app, Vec::new());
+            if app.session.landed_pair().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(
+            app.session.landed_pair().is_some(),
+            "the startup document lands"
+        );
+        if let Some(section) = section {
+            let at = landed
+                .iter()
+                .find(|landed| landed.text == section)
+                .map(|landed| landed.allocated.center())
+                .expect("the section header is painted");
+            let button = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            paint(
+                &mut app,
+                vec![egui::Event::PointerMoved(at), button(true), button(false)],
+            );
+        }
+        // Two frames more: a section's open animation and a survival
+        // step that drops the pick both settle within them.
+        paint(&mut app, Vec::new());
+        let texts = paint(&mut app, Vec::new())
+            .into_iter()
+            .map(|landed| landed.text)
+            .collect();
+        (body, texts)
+    }
+
+    /// **A seated tool's panel, painted by the app**: the held pick's
+    /// line, in the tool's role order, reaching the Properties pane
+    /// through the whole frame — survival step included.
+    #[test]
+    fn a_seated_tool_panel_shows_its_held_picks() {
+        let (body, painted) = painted_with_tool(
+            crate::tools::ToolKind::Boolean,
+            Some("Combine bodies"),
+            |body| vec![Selection::Node(body)],
+        );
+        let line = format!(
+            "first operand: {}; second operand: —",
+            crate::tree::node_number(body)
+        );
+        assert!(painted.contains(&line), "{line:?} in {painted:?}");
+    }
+
+    /// **The mate panel, painted by the app**: a face pick on the
+    /// startup body survives the landed survival step and is said the
+    /// way the seated panels say a pick.
+    #[test]
+    fn the_mate_panel_shows_its_held_picks() {
+        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, None, |body| {
+            vec![Selection::Face(crate::session::FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: body,
+                    path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+                },
+                node: body,
+                body: 0,
+            })]
+        });
+        let line = format!(
+            "pick a: face of {}; pick b: —",
+            crate::tree::node_number(body)
+        );
+        assert!(painted.contains(&line), "{line:?} in {painted:?}");
+    }
+
+    /// **A deleted node is called deleted, and nothing claims it
+    /// carries no parameters** — it carries nothing because it is not
+    /// there, which the `live()` gate on that line keeps unsaid.
+    #[test]
+    fn a_deleted_node_is_not_said_to_carry_no_parameters() {
+        let painted = painted_with(Selection::Node(RecipeNodeId(999)));
+        assert!(painted.iter().any(|text| text == "deleted"), "{painted:?}");
+        assert!(
+            !painted
+                .iter()
+                .any(|text| text.contains("carries no parameters")),
+            "{painted:?}"
+        );
+    }
+
+    /// **An undeclared parameter is said once**: against the frame with
+    /// nothing selected, the pane gains the verdict line and loses the
+    /// "select a feature" prompt, and nothing else.
+    #[test]
+    fn an_undeclared_parameter_is_said_once_in_the_pane() {
+        let verdict = "parameter nope is no longer declared";
+        let mut with = painted_with(Selection::Param(ParamName("nope".to_owned())));
+        let mut without = painted_with(Selection::None);
+        assert!(
+            without.iter().any(|text| text == "select a feature"),
+            "the properties pane is drawn in this frame: {without:?}"
+        );
+        without.retain(|text| text != "select a feature");
+        without.push(verdict.to_owned());
+        with.sort();
+        without.sort();
+        assert_eq!(with, without);
+    }
+
+    /// The whole app in a headless context, driven frame by frame with
+    /// a pointer: for a Properties control whose words exist only on
+    /// hover, and whose click has to reach the session.
+    struct Driven {
+        ctx: egui::Context,
+        app: ViewerApp,
+        frame: eframe::Frame,
+        /// Frames are numbered in seconds because a tooltip is a
+        /// function of how long the pointer has been still.
+        time: f64,
+    }
+
+    impl Driven {
+        /// A point inside the window that no control of the
+        /// Properties pane sits under.
+        const ELSEWHERE: egui::Pos2 = egui::Pos2::new(1590.0, 990.0);
+
+        /// The startup document with `ops` performed, a node selected
+        /// among them, and one frame drawn.
+        fn with(ops: Vec<SessionOp>) -> Self {
+            let ctx = egui::Context::default();
+            // A tooltip this row waited for would be a row about
+            // `tooltip_delay`.
+            ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
+            let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+                .expect("startup that needs no graphics device");
+            app.perform_batch(ops);
+            let mut driven = Self {
+                ctx,
+                app,
+                frame: eframe::Frame::_new_kittest(),
+                time: 0.0,
+            };
+            driven.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+            driven
+        }
+
+        /// One frame of the real app with `events` delivered.
+        fn frame(&mut self, events: Vec<egui::Event>) -> Vec<(String, egui::Rect)> {
+            self.time += 1.0;
+            let time = Some(self.time);
+            let Self {
+                ctx, app, frame, ..
+            } = self;
+            app_frame(ctx, app, frame, time, events)
+                .into_iter()
+                .map(|landed| (landed.text, landed.allocated))
+                .collect()
+        }
+
+        /// Two frames with the pointer parked away from everything:
+        /// the second is what the app draws when nothing is hovered.
+        fn quiet(&mut self) -> Vec<(String, egui::Rect)> {
+            self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+            self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)])
+        }
+
+        /// Where the ONE text run reading exactly `text` was painted.
+        fn only(painted: &[(String, egui::Rect)], text: &str) -> egui::Pos2 {
+            let hits: Vec<egui::Rect> = painted
+                .iter()
+                .filter(|(run, _)| run == text)
+                .map(|(_, rect)| *rect)
+                .collect();
+            assert_eq!(
+                hits.len(),
+                1,
+                "exactly one run reads {text:?}, so the pointer can be put on it: {painted:?}"
+            );
+            hits[0].center()
+        }
+
+        /// **What resting the pointer on `text` adds to the picture** —
+        /// the difference between a quiet frame and a hovered one, so
+        /// it names no wording of its own.
+        fn gained_hovering(&mut self, text: &str) -> Vec<String> {
+            let quiet = self.quiet();
+            let at = Self::only(&quiet, text);
+            // Two frames on it: egui decides hover against the rect
+            // the previous frame left behind.
+            self.frame(vec![egui::Event::PointerMoved(at)]);
+            let hovered = self.frame(vec![egui::Event::PointerMoved(at)]);
+            hovered
+                .into_iter()
+                .map(|(run, _)| run)
+                .filter(|run| !quiet.iter().any(|(before, _)| before == run))
+                .collect()
+        }
+
+        /// Click the one run reading `text`, then draw a frame with
+        /// the pointer still on it.
+        fn click(&mut self, text: &str) {
+            let painted = self.frame(Vec::new());
+            let at = Self::only(&painted, text);
+            let press = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            self.frame(vec![egui::Event::PointerMoved(at)]);
+            self.frame(vec![press(true), press(false)]);
+            self.frame(Vec::new());
+        }
+
+        /// One slot's row, as the document now holds it.
+        fn row(&self, node: RecipeNodeId, slot: SlotId) -> crate::props::SlotRow {
+            crate::props::slot_rows(self.app.session.doc(), node)
+                .into_iter()
+                .find(|row| row.slot == slot)
+                .expect("the node lists the slot")
+        }
+    }
+
+    /// The startup plate's extrude, and its one slot.
+    const EXTRUDE: RecipeNodeId = RecipeNodeId(2);
+    /// The startup plate's frame datum, whose origin is a vector.
+    const FRAME: RecipeNodeId = RecipeNodeId(0);
+
+    /// An expression with no parameter in it: computed all the same,
+    /// so the slot it drives has no written unit.
+    const COMPUTED: &str = "1 mm + 1 mm";
+
+    /// The sentence `SetSlotUnit` refuses a computed slot with, as the
+    /// session renders it — read from the op's own admission.
+    fn refusal_for(pane: &Driven, node: RecipeNodeId, slot: SlotId) -> String {
+        pane.app
+            .session
+            .slot_unit_refusal(node, slot)
+            .expect("SetSlotUnit refuses a computed slot")
+            .to_string()
+    }
+
+    /// Whatever the status line holds after the frames drawn so far.
+    fn status(pane: &Driven) -> Option<String> {
+        pane.app
+            .status
+            .as_ref()
+            .map(|message| message.text().to_owned())
+    }
+
+    /// **A driven slot's unit picker is drawn, cannot be opened, and
+    /// says what `SetSlotUnit` would refuse with** — the whole app,
+    /// the real pane, a slot made driven through the real door.
+    ///
+    /// The runtime value that makes it false is a picker gated on
+    /// anything weaker than the op's admission: hovered, it would say
+    /// nothing, and clicked it would open and offer a pick the op then
+    /// refuses.
+    #[test]
+    fn a_driven_slots_unit_picker_is_disabled_with_the_refusal_it_would_get() {
+        let mut pane = Driven::with(vec![
+            SessionOp::SetSlotExpression {
+                node: EXTRUDE,
+                slot: SlotId::Distance,
+                text: COMPUTED.to_owned(),
+            },
+            SessionOp::Select(Selection::Node(EXTRUDE)),
+        ]);
+        let before = pane.row(EXTRUDE, SlotId::Distance);
+        assert!(before.driver.is_driven(), "the setup drove the slot");
+        // No writable component, so no unit: the picker says what the
+        // slot is instead.
+        let gained = pane.gained_hovering("computed");
+        let said = refusal_for(&pane, EXTRUDE, SlotId::Distance);
+        assert_eq!(
+            gained,
+            vec![said.clone()],
+            "the hover is the op's own sentence"
+        );
+        // Planted, not only compared with the one home: the words a
+        // reader gets for this row.
+        assert_eq!(
+            said,
+            "the distance slot on node 2 is computed, so it has no written unit to change — \
+             set an expression to change what it says"
+        );
+        pane.click("computed");
+        let after = pane.quiet();
+        assert!(
+            !after.iter().any(|(run, _)| run == "mm"),
+            "a refused picker does not open: {after:?}"
+        );
+        assert_eq!(pane.row(EXTRUDE, SlotId::Distance), before);
+    }
+
+    /// **The same drive on a literal slot opens the picker and the
+    /// pick lands** — the row that keeps the one above from passing
+    /// because the harness missed the combo, and that no sentence is
+    /// owed where the op would accept.
+    #[test]
+    fn a_literal_slots_unit_picker_opens_and_says_nothing() {
+        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(EXTRUDE))]);
+        assert!(pane.gained_hovering("m").is_empty());
+        pane.click("m");
+        pane.click("mm");
+        assert_eq!(
+            pane.row(EXTRUDE, SlotId::Distance).unit,
+            Some(pncad::prelude::MM.def())
+        );
+    }
+
+    /// **Over a vector with one computed component, the picker writes
+    /// the two it can and says which it skips.**
+    ///
+    /// x and y are written in millimetres and z is computed. The
+    /// picker reads `mm` — the notation the writable components agree
+    /// on, where counting z's canonical rendering would say `mixed`;
+    /// its hover says what a pick writes and skips, then z's refusal
+    /// in the op's words; a pick of `cm` rewrites x and y and leaves z
+    /// alone, and nothing reaches the status line, because nothing the
+    /// op would refuse was pushed.
+    #[test]
+    fn a_vector_picker_writes_its_literal_components_and_names_the_skipped_one() {
+        let mm = pncad::prelude::MM.def();
+        let mut pane = Driven::with(vec![
+            SessionOp::SetSlotUnit {
+                node: FRAME,
+                slot: SlotId::Origin(Axis3::X),
+                unit: mm,
+            },
+            SessionOp::SetSlotUnit {
+                node: FRAME,
+                slot: SlotId::Origin(Axis3::Y),
+                unit: mm,
+            },
+            SessionOp::SetSlotExpression {
+                node: FRAME,
+                slot: SlotId::Origin(Axis3::Z),
+                text: COMPUTED.to_owned(),
+            },
+            SessionOp::Select(Selection::Node(FRAME)),
+        ]);
+        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::X)).unit, Some(mm));
+        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::Y)).unit, Some(mm));
+        let z = pane.row(FRAME, SlotId::Origin(Axis3::Z));
+        assert!(z.driver.is_driven(), "the setup drove z");
+        let gained = pane.gained_hovering("mm");
+        let said = refusal_for(&pane, FRAME, SlotId::Origin(Axis3::Z));
+        assert_eq!(
+            gained,
+            vec![format!(
+                "a pick writes origin x, origin y and skips origin z:\n{said}"
+            )],
+            "the live picker says what a pick does and what it skips"
+        );
+        assert_eq!(
+            said,
+            "the origin z slot on node 0 is computed, so it has no written unit to change — \
+             set an expression to change what it says"
+        );
+        pane.click("mm");
+        pane.click("cm");
+        let cm = pncad::prelude::CM.def();
+        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::X)).unit, Some(cm));
+        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::Y)).unit, Some(cm));
+        assert_eq!(
+            pane.row(FRAME, SlotId::Origin(Axis3::Z)),
+            z,
+            "z is not the pick's"
+        );
+        pane.quiet();
+        assert_eq!(
+            status(&pane),
+            None,
+            "the pick pushed nothing the op refused"
+        );
+    }
+
+    /// **A vector with every component computed is refused whole**,
+    /// and its disabled hover carries each component's refusal, one
+    /// per line, in the op's words.
+    #[test]
+    fn an_all_driven_vector_picker_is_disabled_with_every_refusal() {
+        let axes = [Axis3::X, Axis3::Y, Axis3::Z];
+        let mut ops: Vec<SessionOp> = axes
+            .iter()
+            .map(|axis| SessionOp::SetSlotExpression {
+                node: FRAME,
+                slot: SlotId::Origin(*axis),
+                text: COMPUTED.to_owned(),
+            })
+            .collect();
+        ops.push(SessionOp::Select(Selection::Node(FRAME)));
+        let mut pane = Driven::with(ops);
+        let before: Vec<_> = axes
+            .iter()
+            .map(|axis| pane.row(FRAME, SlotId::Origin(*axis)))
+            .collect();
+        assert!(before.iter().all(|row| row.driver.is_driven()));
+        let gained = pane.gained_hovering("computed");
+        let said: Vec<String> = axes
+            .iter()
+            .map(|axis| refusal_for(&pane, FRAME, SlotId::Origin(*axis)))
+            .collect();
+        assert_eq!(gained, vec![said.join("\n")]);
+        assert!(
+            gained[0].starts_with(
+                "the origin x slot on node 0 is computed, so it has no written unit to change"
+            ) && gained[0].contains("\nthe origin y slot on node 0 is computed")
+                && gained[0].contains("\nthe origin z slot on node 0 is computed"),
+            "{gained:?}"
+        );
+        pane.click("computed");
+        let after = pane.quiet();
+        assert!(
+            !after.iter().any(|(run, _)| run == "mm"),
+            "a refused picker does not open: {after:?}"
+        );
+        let now: Vec<_> = axes
+            .iter()
+            .map(|axis| pane.row(FRAME, SlotId::Origin(*axis)))
+            .collect();
+        assert_eq!(now, before);
+    }
+
+    /// Every text the app painted once its "Add feature" section is
+    /// opened, with the drafts `plant` wrote: one frame to lay out and
+    /// find the header, one that clicks it, then frames at a clock set
+    /// well past the section's opening animation.
+    fn painted_adding_a_profile(plant: impl FnOnce(&mut crate::drafts::Drafts)) -> Vec<String> {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        plant(&mut app.drafts);
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut run = |seconds: f64, events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 4000.0),
+                )),
+                time: Some(seconds),
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                eframe::App::ui(&mut app, ui, &mut frame);
+            });
+            let landed = crate::pane::headless::landed_in(&output.shapes);
+            output.textures_delta.clear();
+            landed
+        };
+        let header = run(0.0, Vec::new())
+            .into_iter()
+            .find(|landed| landed.text == "Add feature")
+            .expect("the creation section's header is painted")
+            .allocated
+            .center();
+        let button = |pressed| egui::Event::PointerButton {
+            pos: header,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        run(
+            1.0,
+            vec![
+                egui::Event::PointerMoved(header),
+                button(true),
+                button(false),
+            ],
+        );
+        let mut texts = Vec::new();
+        for seconds in [2.0, 3.0] {
+            texts = run(seconds, Vec::new())
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect();
+        }
+        texts
+    }
+
+    /// Which of three held reasons the app paints — the frame prompt,
+    /// the empty chain's, the bore's refusal — with `plane` picked,
+    /// `shape` chosen, a bore planted as wide as the radius and the
+    /// chain planted empty.
+    fn held_reason_said(
+        plane: Option<crate::session::ProfilePlane>,
+        shape: crate::forms::ShapeKind,
+    ) -> Vec<&'static str> {
+        const SAID: [&str; 3] = [
+            "pick a frame to draw on",
+            "add a step to the chain",
+            "the bore must be smaller than the radius",
+        ];
+        let painted = painted_adding_a_profile(|drafts| {
+            drafts.profile_plane = plane;
+            drafts.profile_shape = Some(shape);
+            drafts.profile_bored = true;
+            drafts.profile_bore = drafts.profile_radius;
+            drafts.profile_path.clear();
+        });
+        assert!(
+            painted.iter().any(|text| text == "Add profile"),
+            "the add-profile form is drawn in this frame: {painted:?}"
+        );
+        SAID.into_iter()
+            .filter(|said| painted.iter().any(|text| text.starts_with(said)))
+            .collect()
+    }
+
+    /// **The add-profile form says one held reason, and which one is
+    /// decided once**: with no frame and an empty chain, the frame
+    /// prompt, which comes first in the form; with an over-wide bore, the
+    /// refusal, picked frame or not.
+    #[test]
+    fn the_add_profile_form_says_a_refusal_before_a_missing_input_and_the_frame_first() {
+        use crate::forms::ShapeKind;
+        use crate::session::ProfilePlane;
+        assert_eq!(
+            held_reason_said(None, ShapeKind::Path),
+            ["pick a frame to draw on"]
+        );
+        assert_eq!(
+            held_reason_said(None, ShapeKind::Circle),
+            ["the bore must be smaller than the radius"]
+        );
+        assert_eq!(
+            held_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Circle),
+            ["the bore must be smaller than the radius"]
+        );
+        // The empty chain is said once the frame is picked, so the
+        // first case above held it back rather than never drawing it.
+        assert_eq!(
+            held_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Path),
+            ["add a step to the chain"]
         );
     }
 }

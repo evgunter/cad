@@ -400,6 +400,31 @@ pub fn sentinel_region(text: &str, what: &str, begin: &str, end: &str) -> std::o
     b + begin.len()..e
 }
 
+/// **Every offset `needle` matches at in `text`, refused when there is
+/// none** — [`str::match_indices`] for a scan whose file is REQUIRED to
+/// carry its needle.
+///
+/// A needle that stopped matching — a marker renamed, a file moved, a
+/// path re-spelled — makes a census read an empty set, and an empty
+/// set satisfies every equality and containment it feeds. That is not
+/// an honest zero: the scan's premise is broken, so it refuses at the
+/// read, naming the text and the needle, rather than hand the caller a
+/// set whose emptiness some later assertion has to remember to check.
+/// A scan that may legitimately match nothing wants
+/// [`str::match_indices`] itself.
+///
+/// `what` names the text in the refusal, as for [`sentinel_region`].
+#[must_use]
+pub fn required_matches(text: &str, what: &str, needle: &str) -> Vec<usize> {
+    let found: Vec<usize> = text.match_indices(needle).map(|(at, _)| at).collect();
+    assert!(
+        !found.is_empty(),
+        "{what}: `{needle}` matches nothing, and this scan's text is required to carry it — \
+         the needle or the file has drifted from what the scan was built to read"
+    );
+    found
+}
+
 /// The offset at which the line holding `at` begins.
 ///
 /// The offset half of [`line()`], which answers the line NUMBER. Here
@@ -713,16 +738,7 @@ pub fn impl_head(blanked: &str, impl_at: usize, body_start: usize) -> Option<Imp
 /// and an UNTERMINATED head runs past the body's own brace — so both
 /// end the spelling.
 fn collapsed(spelling: &str) -> String {
-    let mut end = spelling.len();
-    let mut from = 0usize;
-    while let Some(off) = spelling[from..].find("where") {
-        let at = from + off;
-        from = at + "where".len();
-        if word_at(spelling, at, "where") {
-            end = at;
-            break;
-        }
-    }
+    let mut end = where_at(spelling).unwrap_or(spelling.len());
     if let Some(brace) = spelling[..end].find('{') {
         end = brace;
     }
@@ -730,6 +746,24 @@ fn collapsed(spelling: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// The offset of the first whole-word `where` in `spelling`, or `None`.
+///
+/// **Whole-word, and the first one that is.** A `where` clause is a
+/// bound and not part of the spelling before it, so a reader cutting a
+/// type or a return type ends it here; an identifier that merely
+/// contains the letters (`somewhere`, `where_clause`) ends nothing, and
+/// a scan that stops at the first substring match instead reads past
+/// the real keyword or cuts at the wrong place. Same precondition as
+/// [`balanced_end`]: a [`code_only`] view, so a `where` in a comment or
+/// a literal is not in the text.
+#[must_use]
+pub fn where_at(spelling: &str) -> Option<usize> {
+    spelling
+        .match_indices("where")
+        .map(|(at, _)| at)
+        .find(|&at| word_at(spelling, at, "where"))
 }
 
 /// The offset of the first whole-word `for` in `head` at bracket depth
@@ -872,6 +906,13 @@ pub fn plain_string_literal(text: &str) -> Option<&str> {
 /// **A `;` inside the declaration's own TYPE ends it early**, which an
 /// array type (`[&str; 3]`) has and a scalar one does not; a caller
 /// whose `decl` stops before a type of that shape wants its own walk.
+///
+/// **An empty answer is legitimate here, and not refused**, unlike
+/// [`required_matches`]: the callers ask one file at a time for a
+/// declaration that lives in only one of them, so most reads are empty
+/// by construction. A caller that needs exactly one declaration refuses
+/// on the count it gathers, as [`sole_initializer`] does over one view
+/// and `refusal_concision_chains`' constant read does across a tree.
 #[must_use]
 pub fn initializers(view: &str, decl: &str) -> Vec<std::ops::Range<usize>> {
     view.match_indices(decl)
@@ -1705,8 +1746,19 @@ mod tests {
     use super::{
         ItemBody, Region, aggregation_violations, angle_end, balanced_end, boundary_after,
         boundary_before, code_and_literals, code_only, comments_only, file_module_decls, item_body,
-        keeping, top_level_split,
+        keeping, top_level_split, where_at,
     };
+
+    /// The keyword, not the letters: an identifier that contains
+    /// `where` at either end is stepped over, and the answer is the
+    /// first `where` that is a word.
+    #[test]
+    fn a_where_clause_starts_at_the_keyword() {
+        let head = "Lane<Somewhere, where_ok>\nwhere\n    T: X";
+        assert_eq!(where_at(head), Some(head.find("\nwhere").unwrap() + 1));
+        assert_eq!(where_at("Lane<Somewhere, where_ok>"), None);
+        assert_eq!(where_at("Self where T: X"), Some("Self ".len()));
+    }
 
     /// A whole-word match needs BOTH boundaries, and each half refuses
     /// a different way of being inside a longer name.
@@ -1968,6 +2020,19 @@ mod tests {
         assert_eq!(found.len(), 2, "{found:?}");
         assert!(found.iter().any(|p| p.ends_with("hidden.rs")), "{found:?}");
         std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    /// A required needle answers its offsets, and one that matches
+    /// nothing refuses naming the text and the needle — the empty set
+    /// is never handed back.
+    #[test]
+    fn a_required_needle_that_matches_nothing_refuses_at_the_scan() {
+        assert_eq!(super::required_matches("a b a", "t", "a"), vec![0, 4]);
+        let said = crate::panic_capture::caught(|| {
+            let _ = super::required_matches("a b", "the.rs", "zz");
+        })
+        .expect("an absent required needle refuses");
+        assert!(said.contains("the.rs") && said.contains("`zz`"), "{said}");
     }
 
     /// **The precondition is the operation.** Over a blanked view every

@@ -23,8 +23,9 @@ far the door can go: a constructor-declared tangency is a live identity
 the registered-identity door cannot yet take; the revolve latitude
 carriers register the rim identity but cannot state the rest; rule A is
 refused on wide boxes because `Vec::dot`'s v·v is an interval that
-straddles; and rule D's reach is the unit bulge only, so a parameter
-bulge is outside the mechanism entirely.
+straddles; and rule D's reach was the unit bulge only, so a parameter
+bulge stood outside the mechanism until the carrier's span was spelled
+from the arc's decided turn (DECIDE-5).
 
 `registered-is-spelled-five-times-and-pinned-once` rides with them: the
 discharge vocabulary is spelled five times across two crates and only

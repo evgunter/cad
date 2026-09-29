@@ -475,6 +475,32 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
         ),
+        // The refusal crosses as a WORD plus the reader's position, not
+        // as prose: `inner_variant` is the dimension check that failed,
+        // from the same map the expression text door's `kind` uses. No
+        // `detail` — there is nothing here that needs a sentence to be
+        // branchable, which is the whole point of the arm.
+        E::Dimension {
+            line: l,
+            column: c,
+            error,
+        } => (
+            word(crate::tags::expr_dimension_error_tag(error)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*l),
+            int(*c),
+            none(),
+            none(),
+            none(),
+        ),
         E::Snapshot(inner) => (
             word(crate::tags::snapshot_error_tag(inner)),
             none(),
@@ -665,6 +691,36 @@ pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> Py
             BoundaryEdit::NameSerialize,
             format!("a stable name failed to serialize: {err}"),
         )
+    })
+}
+
+/// The profile program a node holds, or a boundary `ValueError`.
+fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::ProfileProgram> {
+    match doc.node(node.0) {
+        Some(d::Node::Profile(program)) => Ok(program),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "node {} is not a profile",
+            node.0.0
+        ))),
+    }
+}
+
+/// **A profile piece as opaque text** — the one serialization its
+/// locator has, the same alphabet a name's text is written in.
+pub(crate) fn piece_text(piece: &pncad::select::ProfileEdgeRef) -> PyResult<String> {
+    serde_json::to_string(piece).map_err(|err| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "a profile piece failed to serialize: {err}"
+        ))
+    })
+}
+
+/// Read a profile piece back from [`piece_text`]'s output.
+pub(crate) fn piece_from_text(text: &str) -> PyResult<pncad::select::ProfileEdgeRef> {
+    serde_json::from_str(text).map_err(|err| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "not a profile piece: {text:?} ({err}) — pieces come from `Doc.pieces`"
+        ))
     })
 }
 
@@ -999,6 +1055,52 @@ impl Doc {
             .iter()
             .cloned()
             .map(super::mate::Maintenance)
+            .collect()
+    }
+
+    /// **The minted id of every step of the profile at `profile`**, one
+    /// list per loop in program order — what `DocEdit.set_program`
+    /// keeps a step by.
+    ///
+    /// Raises `ValueError` for a node that is not a profile.
+    fn step_ids(&self, profile: &NodeId) -> PyResult<Vec<Vec<u64>>> {
+        Ok(profile_of(&self.inner, profile)?
+            .ids
+            .iter()
+            .map(|loop_| loop_.iter().map(|s| s.0).collect())
+            .collect())
+    }
+
+    /// **The piece every canonical segment of the profile at `profile`
+    /// is**, one list per canonical loop (0 the outer loop, then the
+    /// holes in description order), one piece per canonical segment in
+    /// the loop's canonical traversal from its authored start — under
+    /// the document's current parameter values.
+    ///
+    /// A piece is opaque text, as a name is: the step that drew the
+    /// segment, by its minted id, and its role in that step's list. It
+    /// is what `band`, `band_pi`, `band_rim` and `meridian_vertex` take,
+    /// and it stays the name of that piece whatever later moves the
+    /// segment — a value edit, a hole becoming the outer loop, a
+    /// `set_program` that keeps the step. The vertex a piece STARTS at
+    /// is spelled by the same text.
+    ///
+    /// Raises `ValueError` for a node that is not a profile, or whose
+    /// program does not replay and validate under the current values.
+    fn pieces(&self, profile: &NodeId) -> PyResult<Vec<Vec<String>>> {
+        let program = profile_of(&self.inner, profile)?;
+        let pieces = program
+            .pieces(&self.inner.param_env::<f64>(), Tol::witness())
+            .map_err(|refusal| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "node {} has no pieces under the current values: {refusal}",
+                    profile.0.0
+                ))
+            })?;
+        pieces
+            .edges
+            .iter()
+            .map(|loop_| loop_.iter().map(piece_text).collect())
             .collect()
     }
 
@@ -1666,6 +1768,33 @@ fn sketch_plane(
     }
 }
 
+/// **The loop programs an `outline` argument spells** — ONE
+/// `ClosedLoop` or a list of them, in the order they were written
+/// (`[outer, hole, hole]`) — the one reading both doors that take a
+/// profile description share: `Node.profile`, which mints a profile
+/// from it, and `DocEdit.set_program`, which writes it over a live
+/// profile's program. One reading, so the two doors cannot disagree
+/// about what a description is.
+///
+/// Nothing about the loop SET is pre-checked here: which loop is
+/// outer, whether the holes nest, whether two loops cross, is the
+/// kernel's own typed refusal at the door that consumes the loops.
+/// A value that is neither a loop nor a sequence of them is
+/// `extract`'s own `TypeError`, so a stringly-typed or numeric
+/// argument still refuses at the boundary rather than being iterated
+/// into nonsense.
+fn loops_from_outline(py: Python<'_>, outline: &Bound<'_, PyAny>) -> PyResult<Vec<d::LoopProgram>> {
+    match outline.cast::<super::path::ClosedLoop>() {
+        Ok(one) => Ok(vec![super::path::loop_program(py, &one.borrow())?]),
+        Err(_) => {
+            let many: Vec<PyRef<'_, super::path::ClosedLoop>> = outline.extract()?;
+            many.iter()
+                .map(|l| super::path::loop_program(py, l))
+                .collect::<PyResult<Vec<_>>>()
+        }
+    }
+}
+
 /// A recipe node, before it is inserted into a document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -1733,6 +1862,7 @@ impl Node {
             inner: d::Node::Profile(d::ProfileProgram {
                 plane,
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
+                ids: Vec::new(),
             }),
         })
     }
@@ -1760,21 +1890,13 @@ impl Node {
     #[staticmethod]
     fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>, plane: NodeId) -> PyResult<Self> {
         let plane = plane.0;
-        // ONE loop or a sequence of them, and nothing else: a value
-        // that is neither is `extract`'s own `TypeError`, so a
-        // stringly-typed or numeric argument still refuses at the
-        // boundary rather than being iterated into nonsense.
-        let loops = match outline.cast::<super::path::ClosedLoop>() {
-            Ok(one) => vec![super::path::loop_program(py, &one.borrow())?],
-            Err(_) => {
-                let many: Vec<PyRef<'_, super::path::ClosedLoop>> = outline.extract()?;
-                many.iter()
-                    .map(|l| super::path::loop_program(py, l))
-                    .collect::<PyResult<Vec<_>>>()?
-            }
-        };
+        let loops = loops_from_outline(py, outline)?;
         Ok(Self {
-            inner: d::Node::Profile(d::ProfileProgram { plane, loops }),
+            inner: d::Node::Profile(d::ProfileProgram {
+                plane,
+                loops,
+                ids: Vec::new(),
+            }),
         })
     }
 
@@ -3688,6 +3810,56 @@ impl DocEdit {
             inner: d::DocEdit::Rebind {
                 from: name_from_text(from_name)?,
                 to: name_from_text(to_name)?,
+            },
+        })
+    }
+
+    /// **Replace a live profile's PROGRAM whole** — its loops, their
+    /// verbs, order and count, arc modes and targets — validated once,
+    /// as one edit. The plane is not carried and does not move: it is
+    /// the profile's one input, and no edit rewires a live node's
+    /// inputs.
+    ///
+    /// `outline` is the profile description `Node.profile` takes —
+    /// one closed loop, or `[outer, hole, hole]` in that order — read
+    /// through the same door, so what this writes is what that mints.
+    /// `ids` is one list per new loop, in `outline`'s order, with one
+    /// entry per authored step: the minted id of the OLD step that step
+    /// keeps (`Doc.step_ids` reads them), or `None` for a new step,
+    /// which the door mints. The editor that reshaped the program is
+    /// the one party that knows which leg it inserted, so the door is
+    /// told rather than guessing.
+    ///
+    /// A name on a profile piece spells its step's id, so a name on a
+    /// kept step keeps denoting its piece and is not touched. A step
+    /// the new program does not keep takes its id with it: every name
+    /// on it — a fillet's selection, a shell's mouth, a derived
+    /// frame's face, a paint — keeps its spelling, resolves to nothing,
+    /// and is reported as a `strand` or a `stranded_appearance` until
+    /// `DocEdit.rebind` repairs it.
+    ///
+    /// Refuses `step_ids_refused` before the program is replayed —
+    /// `inner_variant` says which way the ids are wrong (`shape`,
+    /// `not_this_profiles`, `repeated`) — `set_program_on_non_profile`
+    /// for a node holding no program, and then everything an insert
+    /// refuses of a profile: `slot_unknown_doc_param` and its siblings
+    /// over every argument, `profile_program_refused` for a program
+    /// that does not close, replay or validate.
+    #[staticmethod]
+    fn set_program(
+        py: Python<'_>,
+        node: &NodeId,
+        outline: &Bound<'_, PyAny>,
+        ids: Vec<Vec<Option<u64>>>,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::DocEdit::SetProgram {
+                node: node.0,
+                loops: loops_from_outline(py, outline)?,
+                ids: ids
+                    .into_iter()
+                    .map(|steps| steps.into_iter().map(|s| s.map(d::StepId)).collect())
+                    .collect(),
             },
         })
     }

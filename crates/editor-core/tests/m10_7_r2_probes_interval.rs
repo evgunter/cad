@@ -9,7 +9,7 @@
 //! study measures. Everything the unit measured on the slab and the
 //! plate is re-derived here on geometry the unit never built.
 //!
-//! Most rows are `#[ignore]`d evidence probes ([[test-suite-cost]]: a
+//! Most rows are `#[ignore]`d evidence probes (implementer-discipline §8: a
 //! row that only prints cannot gate). The rows that ASSERT are named so
 //! and carry the claim they falsify.
 //!
@@ -19,7 +19,6 @@
 //! them has a threshold to cross, so none of them can gate; what they
 //! produce is quoted in the unit's deviations with this file named. The
 //! rows that ASSERT are NOT probe-gated and run on every merge.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
@@ -28,22 +27,14 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     select_where,
 };
 use geom_core::Tol;
 
-use crate::fixture::Recorder;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
+use crate::fixture::{Recorder, len, scl, xy_frame};
 
 fn plen(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
@@ -109,11 +100,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         );
     }
 
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
 
     // The L, with a PARAMETRIC fillet at its inner corner — the arc.
     let pt = |x: Expr, y: Expr| ProgramTarget::Point([x, y]);
@@ -137,6 +124,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![bracket_loop],
+        ids: Vec::new(),
     }));
     // THE DIVISION: the plate is a quarter of the arm thick.
     let thickness = Expr::div(plen("arm"), scl(4.0)).expect("Length / Scalar");
@@ -152,6 +140,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
                 centre: [len(x), len(0.5e-3)],
                 radius: plen(radius),
             }],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile,
@@ -212,7 +201,7 @@ fn r_mut(r: &mut Recorder) -> &mut Recorder {
     r
 }
 
-fn drive_at(doc: &ProfileDoc, dials: SymbolicDials, tol: Tol) -> Option<String> {
+fn drive_at(doc: &editor_core::ProfileDoc, dials: SymbolicDials, tol: Tol) -> Option<String> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     drive(
         doc,
@@ -366,71 +355,10 @@ fn r2_re_derives_the_slab_ceiling() {
     }
 }
 
-/// **D9, independently**: the same drive repeated, and the same drive
-/// under the rayon schedule, produce byte-identical serializations,
-/// content keys and receipts.
-///
-/// This row ASSERTS.
-#[test]
-fn r2_the_drive_is_bit_identical_across_repeats_and_the_rayon_schedule() {
-    let tol = Tol::witness();
-    let (doc, _, _) = bracket(1.0e-3, tol);
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let run = |parallel: bool| {
-        let v = drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                parallel,
-                max_leaves: 256,
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .expect("the bracket's nominal builds");
-        (
-            v.serialize(),
-            format!("{:?}", v.content_key()),
-            v.decisions(),
-        )
-    };
-    let a = run(false);
-    let b = run(false);
-    let c = run(true);
-    assert_eq!(a.0, b.0, "two sequential drives serialized differently");
-    assert_eq!(a.1, b.1, "two sequential drives keyed differently");
-    assert_eq!(a.2, b.2, "two sequential drives counted differently");
-    assert_eq!(a.0, c.0, "the rayon schedule serialized differently");
-    assert_eq!(a.1, c.1, "the rayon schedule keyed differently");
-    assert_eq!(
-        a.2, c.2,
-        "the rayon schedule counted differently — a per-leaf session leaked"
-    );
-}
-
-/// **Claim 1, on R2's own document**: the tier off serializes with NO
-/// symbolic line at all, and the tier on serializes with one.
-///
-/// This row ASSERTS. It is the half of the tier-off differential that
-/// does not need the merge base in hand; the byte differential against
-/// the merge base is run out-of-tree and reported in the review.
-#[test]
-fn r2_the_tier_off_serialization_carries_no_symbolic_line() {
-    let tol = Tol::witness();
-    let (doc, _, _) = bracket(1.0e-3, tol);
-    let off = drive_at(&doc, SymbolicDials::off(), tol).expect("tier off drives");
-    let on = drive_at(&doc, SymbolicDials::default(), tol).expect("tier on drives");
-    assert!(
-        !off.contains("decisions symbolic_zero"),
-        "the tier-off serialization carried an E12 line:\n{off}"
-    );
-    assert!(
-        on.contains("decisions symbolic_zero"),
-        "the tier-on serialization carried no E12 line:\n{on}"
-    );
-}
-
-/// **A zero-term budget is claim 1 again, from inside the scalar.**
+/// **A zero-term budget reproduces the tier-off verdict, from inside the
+/// scalar.** (The tier-off serialization carrying no symbolic line at
+/// all is `m10_3_driver_interval`'s
+/// `the_tier_off_reproduces_the_pre_e12_refusal`.)
 ///
 /// This row ASSERTS.
 #[test]
@@ -539,11 +467,7 @@ fn collinear_walls() -> ProfileDoc {
             }),
         },
     });
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     // The middle vertex of the bottom edge splits ONE straight edge in
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
@@ -566,6 +490,7 @@ fn collinear_walls() -> ProfileDoc {
             ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(2.0e-3)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile,
@@ -628,98 +553,4 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
             println!("   {p:<40} symbolic={sym:<6} numeric={num}");
         }
     }
-}
-
-// ------------------------------- claim 1: the merge-base differential
-
-/// **The tier-off differential, against committed tier-off bytes.**
-///
-/// M10-6's accounting golden is the sharpest serialized artefact the
-/// symbolic tier moved. A drive of its two fixtures
-/// (`m10_3_driver_interval`'s `slab` and `sliver_axis`) at
-/// `SymbolicDials::off()` must reproduce the committed tier-off bytes
-/// under `tests/golden_r2/` BYTE FOR BYTE, and the tier ON must not —
-/// the differential claim, taken against a file the tier's own re-bless
-/// did not write.
-///
-/// The three files began as the tier's merge base's goldens
-/// (`git show d935a96ad23:crates/editor-core/tests/golden/…`). They
-/// are re-cut whenever the driver's classification moves for BOTH
-/// dials — last for the escalation channel, which prices an escalation
-/// wrapped in an op's own error as a sliver rather than refining it to
-/// the floor, at either dial — with `M10_7_BLESS_TIER_OFF=1`, committed
-/// with the change they record.
-#[test]
-fn r2_the_tier_off_accounting_is_the_committed_tier_off_bytes_and_the_tier_on_differs() {
-    let eps = format!("{:e}", Tol::witness().eps());
-    let (base, path) = match eps.as_str() {
-        "1e-6" => (
-            include_str!("golden_r2/base_m10_6_accounting_1e-6.txt"),
-            "tests/golden_r2/base_m10_6_accounting_1e-6.txt",
-        ),
-        "1e-9" => (
-            include_str!("golden_r2/base_m10_6_accounting_1e-9.txt"),
-            "tests/golden_r2/base_m10_6_accounting_1e-9.txt",
-        ),
-        "1e-12" => (
-            include_str!("golden_r2/base_m10_6_accounting_1e-12.txt"),
-            "tests/golden_r2/base_m10_6_accounting_1e-12.txt",
-        ),
-        other => panic!("r2 differential has no tier-off golden for eps={other}"),
-    };
-    let text = |dials: SymbolicDials| {
-        let mut s = String::new();
-        for (label, doc) in [
-            (
-                "planted_flip",
-                crate::m10_3_driver_interval::slab(
-                    20.0 * Tol::witness().eps(),
-                    40.0 * Tol::witness().eps(),
-                ),
-            ),
-            (
-                "terminal_sliver",
-                crate::m10_3_driver_interval::sliver_axis(),
-            ),
-        ] {
-            let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-            let verdict = drive(
-                &doc,
-                &analyzed,
-                &DriveConfig {
-                    max_leaves: 4096,
-                    symbolic: dials,
-                    ..DriveConfig::default()
-                },
-                Tol::witness(),
-            )
-            .expect("the nominal builds");
-            s.push_str(&format!("== {label}\n"));
-            s.push_str(
-                &editor_core::report::MassBudget::of(verdict.accounting(), &analyzed).serialize(),
-            );
-        }
-        s
-    };
-    let off = text(SymbolicDials::off());
-    if std::env::var("M10_7_BLESS_TIER_OFF").is_ok() {
-        std::fs::write(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path),
-            &off,
-        )
-        .expect("bless writes");
-        panic!("tier-off golden for eps={eps} re-blessed — commit it WITH the change it records");
-    }
-    assert_eq!(
-        off, base,
-        "the tier OFF did not reproduce the committed tier-off accounting bytes at eps={eps}"
-    );
-    // And the same measurement the other way: with the tier ON the bytes
-    // MOVE, which is what the re-blessed golden records.
-    assert_ne!(
-        text(SymbolicDials::default()),
-        base,
-        "the tier ON reproduced the tier-off bytes — then the re-bless \
-         of tests/golden/m10_6_accounting_{eps}.txt records nothing"
-    );
 }

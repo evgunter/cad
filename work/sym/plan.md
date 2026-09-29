@@ -12,7 +12,6 @@ Re-scoped 2026-09-20 by SYM's priority-seam cut
 | pri | item | cost | title |
 |---|---|---|---|
 | P0 | `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` | H | A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial, and the tier's rule E makes the freeze population 300x worse without moving the refusal |
-| P0 | `coefficient-ring-width-is-not-monotone-in-reach` | D | widening the coefficient ring can lose discharges: a frozen node matches itself as one opaque indeterminate, and the same node expanded may not close |
 | P0 | `derived-frame-placement-freezes-on-the-symbolic-lane` | H | A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane: the re-normalised stored unit vectors freeze on degree and the identity is not reached (on a purely TRANSLATED derived frame the chain is constant and rule A0 folds it) |
 | P0 | `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo` | D | A leaf receipt's frozen column is schedule-dependent under the drive-scoped plain memo |
 | P0 | `sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` | H | Sym<f64>/Sym<Probe> at a far placement panic in Decide's theorem-vs-numeric debug_assert: the point channel is not a proof |

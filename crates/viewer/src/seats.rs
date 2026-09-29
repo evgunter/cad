@@ -1,10 +1,15 @@
 //! **Role-typed pick seats**: the state every modal tool that consumes
-//! node picks is built out of, and the one place their pick rule,
-//! survival step and refusal sentence live.
+//! node picks is built out of — its pick rule and survival step — and
+//! the sentences a seated tool says about a held pick: the still-empty
+//! refusal ([`SeatError`]), the drop notice ([`SeatEvent`]) and the
+//! panel line ([`seat_line`]). The mate tool's panel line is composed
+//! by the same function (`picks_line`); its drop notice and refusals
+//! are its own (`crate::matetool`), and the blend tool's held-picks
+//! line is drawn in its panel (`crate::pane`), not here.
 //!
 //! # Why one value and not one per tool
 //!
-//! The revolve tool and the four combining tools differ in exactly two
+//! The revolve tool and the combining tools differ in exactly two
 //! things: how many seats they have and what those seats MEAN. Everything
 //! else — fill the first empty seat, replace the last when both are
 //! full, drop a pick whose node left the document, refuse typed until a
@@ -26,7 +31,10 @@
 //! step — meaningful there, wrong here. Its picks are also faces rather
 //! than nodes, so it shares neither the state nor the rule; the
 //! divergence is stated in both module docs and neither is the other's
-//! accident.
+//! accident. **What it does share is the panel line**: a held pick is
+//! still a role and what fills it, so the mate panel composes its line
+//! through `picks_line` — the same empty-state sentence, item shape
+//! and mark — and a picked node is called what [`seat_line`] calls it.
 //!
 //! # Kinds ROUTE a pick; they still do not judge one
 //!
@@ -108,6 +116,12 @@ vocabulary! {
         PatternBody,
         /// The datum axis a circular pattern steps around.
         PatternAxis,
+        /// The split a part projects one half of.
+        PartSplit,
+        /// The pattern a part projects one instance of.
+        PartInstance,
+        /// The body a duplicate copies.
+        DuplicateBody,
     }
 
     /// Every seat, so a sweep over the vocabulary cannot silently
@@ -138,11 +152,14 @@ impl Seat {
             Self::RevolveAxis => NodeKindWanted::SketchAxis,
             Self::PatternAxis => NodeKindWanted::Axis,
             Self::SplitPlane => NodeKindWanted::Plane,
+            Self::PartSplit => NodeKindWanted::Split,
+            Self::PartInstance => NodeKindWanted::Instances,
             Self::OperandA
             | Self::OperandB
             | Self::SplitTarget
             | Self::TransformBody
-            | Self::PatternBody => NodeKindWanted::Body,
+            | Self::PatternBody
+            | Self::DuplicateBody => NodeKindWanted::Body,
         }
     }
 
@@ -158,6 +175,9 @@ impl Seat {
             Self::TransformBody => "transformed body",
             Self::PatternBody => "patterned body",
             Self::PatternAxis => "pattern axis",
+            Self::PartSplit => "split to project",
+            Self::PartInstance => "pattern to project",
+            Self::DuplicateBody => "duplicated body",
         }
     }
 }
@@ -201,9 +221,9 @@ impl core::fmt::Display for SeatEvent {
         match self {
             Self::PickLost { seat, node } => write!(
                 f,
-                "the {} pick (node {}) is no longer in the document; the tool dropped it",
+                "the {} pick ({}) is no longer in the document; the tool dropped it",
                 seat.name(),
-                node.0
+                crate::tree::node_number(*node)
             ),
         }
     }
@@ -216,9 +236,16 @@ impl core::fmt::Display for SeatEvent {
 /// picks but not what they were for could not compose that sentence.
 ///
 /// A one-seat tool is this value with its second role unused — see
-/// [`Seats::one`], which names the same seat twice so that the pick
-/// rule ("fill the first empty, else replace the last") degenerates to
-/// "replace", with no arm anywhere that has to know the arity.
+/// [`Seats::one`], which names the same seat twice. The arity is read
+/// off the roles in one place (`arity`), and what reads it is
+/// [`Seats::pick`] (a one-seat tool REPLACES its pick rather than
+/// filling a second slot) and every walk over the seats — the panel
+/// line, [`Seats::is_empty`], [`Seats::reconcile`] — which goes one
+/// entry per SEAT rather than per slot.
+///
+/// So the second slot of a one-seat value is never set (only `pick`
+/// writes a slot, and on that value it writes the first), and nothing
+/// reads it either: an invariant held twice rather than relied on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Seats {
     roles: [Seat; 2],
@@ -248,7 +275,20 @@ impl Seats {
 
     /// Whether any seat holds a pick.
     pub fn is_empty(&self) -> bool {
-        self.held.iter().all(Option::is_none)
+        self.each().all(|(_, held)| held.is_none())
+    }
+
+    /// **How many seats this value has**: one when its role names
+    /// itself twice ([`Seats::one`]), else two — the one place the
+    /// arity is read off the roles.
+    fn arity(&self) -> usize {
+        if self.roles[0] == self.roles[1] { 1 } else { 2 }
+    }
+
+    /// Each seat's role and what it holds, in seat order — one entry
+    /// per SEAT, so a one-seat tool's unused second slot is not one.
+    fn each(&self) -> impl Iterator<Item = (Seat, Option<RecipeNodeId>)> + '_ {
+        (0..self.arity()).map(|i| (self.roles[i], self.held[i]))
     }
 
     /// Fill the first empty seat; with both full, REPLACE the second
@@ -274,7 +314,7 @@ impl Seats {
         // written over the first EMPTY slot: on a one-seat tool that
         // sends a second pick to a slot nothing reads, and the pick
         // is then a click that silently did nothing.
-        if self.roles[0] == self.roles[1] {
+        if self.arity() == 1 {
             self.held[0] = Some(node);
             return;
         }
@@ -310,11 +350,11 @@ impl Seats {
     /// typed drops.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         let mut events = Vec::new();
-        for (i, held) in self.held.iter_mut().enumerate() {
-            if let Some(node) = *held
+        for i in 0..self.arity() {
+            if let Some(node) = self.held[i]
                 && doc.node(node).is_none()
             {
-                *held = None;
+                self.held[i] = None;
                 events.push(SeatEvent::PickLost {
                     seat: self.roles[i],
                     node,
@@ -336,36 +376,58 @@ impl Seats {
     }
 }
 
-/// **The one sentence a tool panel shows for its held picks**, so the
-/// seats read the same way in every panel and a reader can tell which
-/// pick is in which role — the fact that decides what a subtraction
-/// removes.
+/// **The line a seated tool's panel shows for its held picks**: each
+/// seat's role and the feature it holds, in the order the tool's
+/// [`Seats`] declares them — so a reader can tell which pick is in
+/// which role, the fact that decides what a subtraction removes.
 ///
-/// Composed here rather than in the widgets because it is the same
-/// vocabulary a lost-pick notice is composed from, and two copies is
-/// how the two drift.
+/// Takes the value that owns the roles rather than a list of them: a
+/// panel that re-listed its tool's roles could name them in another
+/// order, or name ones the tool no longer has, and still compile.
 ///
-/// **The `"; "` below is this line's own mark and is deliberately not
-/// [`crate::frame::LIST_SEPARATOR`]**, which it shares a spelling
-/// with. That constant is what ONE notice puts between the items of a
-/// list of its own — items a counted preamble introduces, inside an
-/// enclosing sentence. This is a panel label, not a notice: it reaches
-/// no [`crate::frame::Message`], nothing counts the seats and no
-/// preamble introduces them, so there is no enclosing sentence for
-/// them to be the items of. Reading the constant here would put a line
-/// outside that population under its edits, which is the failure that
-/// took the startup notices off it (`crates/viewer/README.md`, "The
-/// third consumer was the second level misread").
-pub fn seat_line(seats: &[(Seat, Option<RecipeNodeId>)]) -> String {
-    if seats.iter().all(|(_, held)| held.is_none()) {
+/// Each item is said in the words a seat's drop notice uses
+/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick by
+/// [`crate::tree::node_number`], so the panel and the notice about
+/// the same pick call it one thing.
+pub fn seat_line(seats: &Seats) -> String {
+    picks_line(
+        seats
+            .each()
+            .map(|(seat, held)| (seat.name(), held.map(crate::tree::node_number))),
+    )
+}
+
+/// **The composition of the seated tools' and the mate tool's
+/// held-picks line**: `no picks yet` while nothing is held, else one
+/// `role: pick` item per seat, `—` for an open one, joined on `"; "`.
+/// [`seat_line`] reaches it for the seated tools and
+/// [`crate::matetool::MateToolState::line`] for the mate tool, whose
+/// picks are faces and whose state is not [`Seats`] (module docs) but
+/// whose line has this shape. Each caller spells its own items; the
+/// shape, the empty sentence and the mark are this function's.
+///
+/// **The mark is a literal, and this function is its only spelling.**
+/// It is deliberately not [`crate::frame::LIST_SEPARATOR`], which it
+/// shares two characters with: that constant is what ONE notice puts
+/// between the items of a list of its own — items a counted preamble
+/// introduces, inside an enclosing sentence. This is a panel label,
+/// not a notice: it reaches no [`crate::frame::Message`], nothing
+/// counts the picks and no preamble introduces them. Reading the
+/// constant here would put a line outside that population under its
+/// edits (`crates/viewer/README.md`, "The third consumer was the
+/// second level misread"). Nor does the mark earn a constant of its
+/// own: nothing splits a panel line back into its items, so there is
+/// no hold for a name to carry.
+pub(crate) fn picks_line<R: core::fmt::Display>(
+    picks: impl IntoIterator<Item = (R, Option<String>)>,
+) -> String {
+    let picks: Vec<_> = picks.into_iter().collect();
+    if picks.iter().all(|(_, held)| held.is_none()) {
         return "no picks yet".to_owned();
     }
-    seats
+    picks
         .iter()
-        .map(|(seat, held)| match held {
-            Some(node) => format!("{}: {}", seat.name(), crate::tree::node_number(*node)),
-            None => format!("{}: —", seat.name()),
-        })
+        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or("—")))
         .collect::<Vec<_>>()
         .join("; ")
 }

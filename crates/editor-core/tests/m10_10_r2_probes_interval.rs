@@ -9,10 +9,9 @@
 //! what must hold for the printed numbers to mean anything.
 //!
 //! ```sh
-//! cargo test --release -p editor-core --features interval --test all -- \
+//! cargo test --release -p editor-core --test all -- \
 //!   m10_10_r2_probes_interval:: --ignored --nocapture --test-threads 1
 //! ```
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -23,14 +22,14 @@ use editor_core::analysis::{
 use editor_core::drive::{DriveConfig, RefusalReason, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet,
     UnitSym, select_where,
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, scl, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{OverBand, ceiling, certifies_whole, over_band_set, render_over_band};
 
@@ -261,8 +260,6 @@ pub(crate) fn d_tab_at(
     bulge_nominal: f64,
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite length");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, dim: Dimension, value: f64, d: Distribution| {
         r.push(DocEdit::SetDocParam {
@@ -309,11 +306,7 @@ pub(crate) fn d_tab_at(
     } else {
         scl(bulge_nominal)
     };
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let outline = LoopProgram::Chain(vec![
         ProgramStep::At([len(-4.0e-3), len(-2.0e-3)]),
         ProgramStep::LineTo(ProgramTarget::Point([len(4.0e-3), len(-2.0e-3)])),
@@ -327,6 +320,7 @@ pub(crate) fn d_tab_at(
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![outline],
+        ids: Vec::new(),
     }));
     let thickness = len(1.0e-3);
     let tab = r.insert(Node::Extrude {
@@ -342,6 +336,7 @@ pub(crate) fn d_tab_at(
             ],
             radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
         }],
+        ids: Vec::new(),
     }));
     let hole = r.insert(Node::Extrude {
         profile: hole_profile,

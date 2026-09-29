@@ -15,6 +15,12 @@
 //! layer up: the witness is a match on the kernel tag, never a
 //! hand-kept list that compiles green while short.
 //!
+//! A word is the READ half. That every variant can also be AUTHORED
+//! — a `Node.*` constructor, or a listed reason there is none — is
+//! the binding census's member rule
+//! (`tests/test_binding_census.py`,
+//! `test_every_member_of_a_matched_type_is_spelled_or_listed`).
+//!
 //! # The words are not the wire's words
 //!
 //! The saved text spells a node by its Rust variant identifier

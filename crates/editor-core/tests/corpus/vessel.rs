@@ -40,11 +40,11 @@
 //! every document green at `Dual64`.
 
 use editor_core::{
-    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
+    DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
 };
 
-use crate::fixture::{ang, axis_in_plane, frame, len};
+use crate::fixture::{ang, axis_in_plane, frame, len, len2};
 
 use super::{CorpusDoc, Recorder};
 
@@ -79,22 +79,16 @@ pub const SEG_MOUTH: u32 = 3;
 
 /// The meridian as a program (module docs).
 pub fn meridian() -> LoopProgram {
-    let lpt = |x: f64, y: f64| {
-        [
-            Expr::literal(x, Dimension::Length).unwrap(),
-            Expr::literal(y, Dimension::Length).unwrap(),
-        ]
-    };
     LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(R_FOOT, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(R_FOOT, Y_FOOT))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, Y_FOOT]))),
         ProgramStep::ArcTo(ProgramArcData::Center {
-            c: lpt(0.0, Y_BELLY_C),
+            c: len2([0.0, Y_BELLY_C]),
             winding: profile::ArcSweep::Ccw,
-            target: ProgramTarget::Point(lpt(R_NECK, Y_MOUTH)),
+            target: ProgramTarget::Point(len2([R_NECK, Y_MOUTH])),
         }),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, Y_MOUTH))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, Y_MOUTH]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }
@@ -103,7 +97,7 @@ pub fn meridian() -> LoopProgram {
 /// whatever faces they are: the mouth's two halves in either order
 /// (which decides which half carries the rim), or a designation the
 /// kernel refuses. [`document`] names the mouth's `Band` half first.
-pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDoc {
+pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> [StableName; 2]) -> CorpusDoc {
     let mut r = Recorder::new();
 
     // u = +X (the radius), v = +Z (the axis): the meridian's own axis
@@ -113,13 +107,14 @@ pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDo
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![meridian()],
+        ids: Vec::new(),
     }));
     let pot = r.insert(Node::Revolve {
         profile,
         axis,
         angle: ang(std::f64::consts::TAU),
     });
-    let open = open(pot);
+    let open = open(&r.doc, pot);
     let vessel = r.insert(Node::shell(pot, len(WALL), open.to_vec()));
 
     CorpusDoc {
@@ -140,7 +135,13 @@ pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDo
     }
 }
 
+/// The mouth's piece on the pot `pot` revolves — its profile's
+/// canonical segment [`SEG_MOUTH`].
+pub fn mouth(doc: &ProfileDoc, pot: RecipeNodeId) -> ProfileEdgeRef {
+    crate::fixture::piece(doc, pot, 0, SEG_MOUTH as usize)
+}
+
 /// The vessel's corpus document: the mouth's `Band` half named first.
 pub fn document() -> CorpusDoc {
-    document_with_open(|pot| [band(pot, 0, SEG_MOUTH), band_pi(pot, 0, SEG_MOUTH)])
+    document_with_open(|doc, pot| [band(pot, mouth(doc, pot)), band_pi(pot, mouth(doc, pot))])
 }

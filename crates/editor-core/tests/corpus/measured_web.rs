@@ -68,6 +68,7 @@ pub fn document() -> CorpusDoc {
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
         ],
+        ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_profile,
@@ -81,6 +82,7 @@ pub fn document() -> CorpusDoc {
                 centre: [len(cx), len(0.0)],
                 radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
             }],
+            ids: Vec::new(),
         })
     };
     let pa = r.insert(hole(-HOLE_X));
@@ -139,7 +141,7 @@ pub fn document() -> CorpusDoc {
     );
     let _assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(MIN_WEB, Dimension::Length).expect("finite"),
+        bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
 

@@ -979,7 +979,12 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
     if body
         .vertices()
         .filter_map(|(_, v)| body.get_point(v.point))
-        .any(|p| !matches!(p.distance(minted).sign_within(band), Ok(Sign::Positive)))
+        .any(|p| {
+            !matches!(
+                p.distance(minted).sign_within(band).map(|d| d.sign),
+                Ok(Sign::Positive)
+            )
+        })
     {
         return None;
     }
@@ -1039,8 +1044,7 @@ fn kvfs_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 
 /// `true` iff the solid is exactly the skeletal `mvfs` state.
 fn is_skeletal(body: &Body<f64>, solid: SolidKey) -> bool {
-    let solid_data = body.get_solid(solid).expect("solid resolves");
-    let [shell] = solid_data.shells[..] else {
+    let [shell] = body.shells_of_solid(solid).expect("solid resolves")[..] else {
         return false;
     };
     let [face] = body.get_shell(shell).expect("shell resolves").faces[..] else {
@@ -1220,7 +1224,7 @@ fn fusion_remake_shell(body: &Body<f64>, f1: FaceKey, f2: FaceKey) -> Option<She
         return None;
     }
     let solid = body.get_shell(shell2)?.solid;
-    (body.get_solid(solid)?.shells.last() == Some(&shell2)).then_some(shell1)
+    (body.shells_of_solid(solid)?.last() == Some(&shell2)).then_some(shell1)
 }
 
 /// What [`roundtrip`] did.
@@ -1358,7 +1362,7 @@ pub(crate) fn roundtrip(
         }
         OpChoice::Kvfs(solid) => {
             // Record the lone vertex's coordinates for the re-make.
-            let shell = body.get_solid(solid).expect("resolves").shells[0];
+            let shell = body.shells_of_solid(solid).expect("resolves")[0];
             let face = body.get_shell(shell).expect("resolves").faces[0];
             let outer = body.get_face(face).expect("resolves").outer;
             let LoopBoundary::Empty { vertex } = body.get_loop(outer).expect("resolves").boundary

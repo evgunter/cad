@@ -112,10 +112,9 @@ pub fn wall_outward(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>)
 ///
 /// **It is not the stacking direction.** The gap between the two
 /// tracks the body's ROLL, which on the tree's one authored-roll
-/// fixture is not the parameter it is written at: `twisted_lofted`'s
-/// `0.05` rolls the body by `0.05 - π/2`, so its stack is exactly `+z`
-/// while this chord reads `(-0.999, 0.95, 1)`, 54.0° off. A genuine
-/// `0.05` of roll would put it 2.9° off.
+/// fixture is the parameter it is written at: `twisted_lofted`'s
+/// `0.05` rolls the body by `0.05`, so its stack is exactly `+z` while
+/// this chord leans 2.9° off it.
 ///
 /// Why index 1 may orient against it anyway: [`level_plane`]. A row
 /// that wants the STACK differences [`ring_centroid`] at `v = 0` and

@@ -23,11 +23,9 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use common::{insert, inserted, len};
+use common::{inserted, len, session_insert};
 
-use pncad::document::{
-    Datum, Dimension, Doc, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId,
-};
+use pncad::document::{Datum, Doc, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, SurfaceKind, attribute};
 use pncad::select::{InterrogateError, all_faces, face_carrier_kind};
@@ -71,7 +69,7 @@ fn boxed_with_face_frame(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, Recipe
         Node::Datum(Datum::FaceFrame {
             at: cube,
             face: cap_of(cube),
-            spin: Expr::literal(0.0, Dimension::Angle).expect("an angle"),
+            spin: common::ang(0.0),
         }),
         tol,
     );
@@ -100,19 +98,11 @@ fn a7_the_viewer_takes_a_derived_frame_by_value() {
     );
 
     let mut session = DocSession::inline(doc, tol);
-    let boss = insert(
+    let boss = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(frame),
-            loops: vec![
-                LoopProgram::polygon([
-                    (-0.005, -0.005),
-                    (0.005, -0.005),
-                    (0.005, 0.005),
-                    (-0.005, 0.005),
-                ])
-                .expect("finite corners"),
-            ],
+            loops: vec![common::rectangle_loop([-0.005, -0.005], 0.01, 0.01)],
         },
     );
     session.pump();
@@ -140,7 +130,7 @@ fn a7_the_viewer_takes_a_derived_frame_by_value() {
 fn the_chrome_mints_what_the_document_door_mints() {
     let tol = Tol::witness();
     let (doc, cube) = boxed(tol);
-    let spin = Expr::literal(0.3, Dimension::Angle).expect("an angle");
+    let spin = common::ang(0.3);
     let (hand, _) = inserted(
         &doc,
         Node::Datum(Datum::FaceFrame {
@@ -152,7 +142,7 @@ fn the_chrome_mints_what_the_document_door_mints() {
     );
 
     let mut session = DocSession::inline(doc, tol);
-    let minted = insert(
+    let minted = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::FaceFrame {
@@ -241,13 +231,13 @@ fn at_is_the_node_the_ray_met_and_not_the_feature() {
     // through a node the name does not live in would not resolve at
     // all.
     let mut session = session;
-    let frame = insert(
+    let frame = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::FaceFrame {
                 at,
                 face: name,
-                spin: Expr::literal(0.0, Dimension::Angle).expect("an angle"),
+                spin: common::ang(0.0),
             },
         },
     );
@@ -387,7 +377,7 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
         datum: DatumSpec::FaceFrame {
             at: split,
             face,
-            spin: Expr::literal(0.0, Dimension::Angle).expect("an angle"),
+            spin: common::ang(0.0),
         },
     });
     assert!(
@@ -434,7 +424,7 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
             input: pattern,
             translation: common::len3([0.0, 0.0, 0.001]),
             rotation_axis: common::scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("an angle"),
+            rotation_angle: common::ang(0.0),
         },
         tol,
     );
@@ -467,24 +457,7 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
     // step back to — the gesture this row is about is an author's, not
     // a document-door edit's.
     let mut session = DocSession::inline(Doc::empty_derived("docm1-viewer", tol), tol);
-    let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![common::shape(&viewer::session::ProfileShape::Rectangle {
-                width: 0.02,
-                height: 0.02,
-            })],
-        },
-    );
-    let cube = insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(0.01),
-        },
-    );
+    let cube = common::xy_box_in(&mut session, [0.02, 0.02, 0.01]);
     session.pump();
     let picked = FaceSelection {
         name: cap_of(cube),

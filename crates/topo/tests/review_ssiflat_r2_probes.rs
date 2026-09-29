@@ -101,11 +101,7 @@ fn fit_image(radius: f64, t0: f64, t1: f64) -> NurbsCurve2<f64> {
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
@@ -151,7 +147,6 @@ fn the_f64_route_certifies_at_a_1e_12_band_at_any_process_eps() {
 /// route escalates at the same band, and the refusal carries a REAL
 /// enclosure — not a poison and not a hole. This is the reviewed row's
 /// content, made unconditional on the run's ε.
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     use geom_core::interval::Interval;
@@ -175,7 +170,9 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
         "an escalation names no limb, only its predicate"
     );
     assert_eq!(what, "ssi_hull_sup");
-    let Some(geom_core::MarginDiag::Enclosure { lo, hi }) = margin else {
+    let Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) =
+        margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text)
+    else {
         panic!("the escalation must carry its enclosure: {margin:?}");
     };
     assert!(
@@ -218,15 +215,8 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 /// far slower than the span, because at `T = Interval` it is dominated
 /// by the width the ring data carries rather than by the span, which is
 /// the honest version of the PR's claim.
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_hull_bound_is_span_dependent() {
-    // AMENDED (fix pass): this helper was a `#[cfg(feature = "interval")]`
-    // bare `fn`, which `check-interval-cfg-additive.py` rejects in
-    // `tests/` — only whole items (`mod`/`use`/`impl`/`type`) and
-    // `#[test]` rows may be gated there, so that a test name cannot
-    // mean two different things in the two builds. Nested inside its
-    // only caller, which is already a gated row, it needs no gate.
     /// The `ssi_hull_sup` bound this route certifies at the interval
     /// scalar, for an arc of `1/div` of a quarter turn — `None` when the
     /// route certifies instead.
@@ -239,8 +229,8 @@ fn the_interval_hull_bound_is_span_dependent() {
             Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
                 if cause.predicate == Some("ssi_hull_sup") =>
             {
-                match cause.margin {
-                    geom_core::MarginDiag::Enclosure { hi, .. } => Some(hi),
+                match cause.margin.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Enclosure { hi, .. } => Some(hi),
                     other => panic!("unexpected margin shape at div={div}: {other:?}"),
                 }
             }
@@ -267,7 +257,7 @@ fn the_interval_hull_bound_is_span_dependent() {
 /// when the tube ladder is EMPTY — a structural refusal with no margin
 /// at all, reachable on a legal body whose feature extent is under
 /// `64·ε`. The PR's rewritten `ssi_refusal` turns that into
-/// `Some(MarginDiag::Value(NaN))`, which is exactly the manufactured
+/// `Some(MarginKind::Value(NaN))`, which is exactly the manufactured
 /// poison #925 was filed as, wearing the label the classifier reserves
 /// for a real f64 margin — and the text still says a limb "exceeded ε".
 ///
@@ -319,7 +309,6 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
 /// tighter band, which is the at-rest pass a consumer runs. The
 /// question is whether the margin survives that layer or is
 /// re-flattened.
-#[cfg(feature = "interval")]
 #[test]
 fn the_margin_is_legible_through_the_public_topo_door() {
     use geom_core::Tol;
@@ -420,7 +409,6 @@ fn the_margin_is_legible_through_the_public_topo_door() {
 /// refuses definitely instead, which the row's arm does not admit. This
 /// probe names what the door actually does there, at an explicit band
 /// so it does not depend on the run's ε.
-#[cfg(feature = "interval")]
 #[test]
 fn below_the_band_the_route_refuses_definitely_not_by_escalation() {
     use geom_core::interval::Interval;

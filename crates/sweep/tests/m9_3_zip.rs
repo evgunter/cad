@@ -8,39 +8,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::plate6 as plate;
+use crate::common::operands::{plate6 as plate, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::readback::euler_counts;
 use topo::{
     Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
 };
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-/// A radius-0.5 three-arc cylinder at (cx, 2), z ∈ [z0, z0 + h].
-fn cyl(cx: f64, z0: f64, h: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(cx + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
 
 fn body_of(r: BooleanResult<f64>) -> Body<f64> {
     match r {
@@ -53,16 +28,16 @@ fn body_of(r: BooleanResult<f64>) -> Body<f64> {
 /// unions — the shipped transverse lane).
 fn plate_with_pegs() -> Body<f64> {
     let p0 = plate(0.0);
-    let p1 = body_of(topo::union(&p0, &cyl(2.0, 0.4, 1.6), Tol::witness()).unwrap());
-    body_of(topo::union(&p1, &cyl(4.0, 0.4, 1.6), Tol::witness()).unwrap())
+    let p1 = body_of(topo::union(&p0, &plate6_cyl(2.0, 0.4, 1.6, 0.5), Tol::witness()).unwrap());
+    body_of(topo::union(&p1, &plate6_cyl(4.0, 0.4, 1.6, 0.5), Tol::witness()).unwrap())
 }
 
 /// Plate Q: z ∈ [1, 2] with two through-bores (the shipped transverse
 /// subtracts).
 fn plate_with_bores() -> Body<f64> {
     let q0 = plate(1.0);
-    let q1 = body_of(topo::subtract(&q0, &cyl(2.0, 0.8, 1.4), Tol::witness()).unwrap());
-    body_of(topo::subtract(&q1, &cyl(4.0, 0.8, 1.4), Tol::witness()).unwrap())
+    let q1 = body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
+    body_of(topo::subtract(&q1, &plate6_cyl(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
 }
 
 /// The cylinder faces of a body whose axis x is near `cx`.
@@ -189,10 +164,10 @@ fn lying_plane() -> SketchPlane<f64> {
     ))
 }
 
-fn lying_extrude(vertices: Vec<ProfileVertex<f64>>, tangent_joints: Vec<usize>) -> Body<f64> {
+fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> Body<f64> {
     let profile = Profile::new(
         lying_plane(),
-        vec![ProfileLoop::new(vertices).with_tangent_joints(tangent_joints)],
+        vec![bulge_loop(vertices).with_tangent_joints(tangent_joints)],
     )
     .validate(Tol::witness())
     .unwrap();
@@ -208,10 +183,10 @@ fn quarter_round_below() -> Body<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 2.0), b90),
-            ProfileVertex::new(p2(0.0, 3.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 2.0), b90),
+            (Point2::new(0.0, 3.0), 0.0),
         ],
         vec![2],
     )
@@ -224,11 +199,11 @@ fn quarter_round_above() -> Body<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
-            ProfileVertex::new(p2(1.0, 0.5), 0.0),
-            ProfileVertex::new(p2(1.0, 2.0), -b90),
-            ProfileVertex::new(p2(2.0, 3.0), 0.0),
-            ProfileVertex::new(p2(3.0, 3.0), 0.0),
-            ProfileVertex::new(p2(3.0, 0.5), 0.0),
+            (Point2::new(1.0, 0.5), 0.0),
+            (Point2::new(1.0, 2.0), -b90),
+            (Point2::new(2.0, 3.0), 0.0),
+            (Point2::new(3.0, 3.0), 0.0),
+            (Point2::new(3.0, 0.5), 0.0),
         ],
         vec![1, 2],
     )
@@ -339,50 +314,18 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     // wall–wall ruling.
     assert_eq!(rim_edges.len(), 1, "the rim seam is one fused ruling");
     // The rim is a wedge-2π edge — the ruling's "kissing union, a slit
-    // interior to material" — so under D1's declared second-order arm
-    // it is legal exactly where the tangency is DECLARED, and refuses
-    // undeclared at every ε.
-    //
-    // The declaration exists: this op was GIVEN the wall × wall
-    // `Tangent` mate above. What it does not do is emit it into the
-    // result's own records, which is the M9-3 emission arm (the
-    // implementation door's item 4) — so the claim is re-stated here on
-    // the RESULT's faces, read off the rim edge itself rather than
-    // re-found by surface kind.
-    let rim = rim_edges[0];
-    let face_of = |he| {
-        body.get_half_edge(he)
-            .and_then(|h| body.get_loop(h.parent_loop))
-            .map(|l| l.face)
-            .expect("the rim's half-edges are live")
-    };
-    let rim_edge = body.get_edge(rim).expect("the rim edge is live");
-    let rim_declared = [topo::DeclaredContact {
-        a: face_of(rim_edge.he_plus),
-        b: face_of(rim_edge.he_minus),
-        class: ContactClass::Tangent,
-    }];
-    match topo::validate_geometric(&body, Tol::witness()) {
-        Err(errs)
-            if errs.iter().all(|e| {
-                matches!(
-                    e,
-                    topo::ValidationError::UndeclaredCusp {
-                        edge,
-                        wedge: geom_brep::MaterialWedge::Slit,
-                    } if *edge == rim
-                )
-            }) => {}
-        other => panic!("the undeclared rim must refuse as the slit it is: {other:?}"),
-    }
-    if let Err(errs) = topo::validate_geometric_declared(&body, &rim_declared, Tol::witness()) {
-        panic!("the DECLARED tube-chain rim body must be tier-3 valid: {errs:?}");
+    // interior to material" — and its tangency is jet-determinate, so
+    // under D1's second-order arm it is legal at rest, derived from the
+    // body exactly as a π seam is. The intent was declared where the
+    // tangency was created: this op was GIVEN the wall × wall `Tangent`
+    // mate above.
+    if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
+        panic!("the tube-chain rim body must be tier-3 valid: {errs:?}");
     }
     // The tier-3 contact mark agrees: the rim EDGE ITSELF is the
     // must-carry's own regime (jet-determinate tangency), satisfied
     // by the mint — tied to the rim, not a body-wide census.
-    let marks = topo::contact_marks_declared(&body, &rim_declared, Tol::witness())
-        .expect("marks derive at rest");
+    let marks = topo::contact_marks(&body, Tol::witness()).expect("marks derive at rest");
     for &k in &rim_edges {
         assert_eq!(
             marks.get(k).copied(),
@@ -425,18 +368,9 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
         Ok(0),
         "Euler–Poincaré of a genus-0 single shell"
     );
-    // 3′ reads the same claim in ITS currency: a C3 curve record on the
-    // rim's face pair, witnessed by the rim edge. The op emits no such
-    // record today (the emission arm above), so the test supplies the
-    // one the op was given; when that arm lands this record arrives
-    // from `bb.contacts` itself.
-    let mut contacts = bb.contacts.clone();
-    contacts.curves.push(topo::boolean::CurveContact {
-        face_a: rim_declared[0].a,
-        face_b: rim_declared[0].b,
-        witness: rim,
-    });
-    if let Err(errs) = topo::validate_pseudomanifold(&body, &contacts, Tol::witness()) {
+    // 3′ judges the rim as tier 3 does — its local battery reads no
+    // record — over the contacts the op itself emitted.
+    if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
         panic!("the tube chain must be pseudomanifold-clean: {errs:?}");
     }
 }

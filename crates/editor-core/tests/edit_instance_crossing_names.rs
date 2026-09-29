@@ -117,7 +117,7 @@ fn mate(a: StableName, b: StableName) -> Node<ProfileProgram> {
 
 /// The record of the instance at `id`, cloned — the subject of every
 /// before/after comparison below.
-fn record_of(doc: &ProfileDoc, id: RecipeNodeId) -> InterfaceRecord {
+fn record_of(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> InterfaceRecord {
     let Some(Node::InstantiatePart { interface, .. }) = doc.node(id) else {
         panic!("the fixture's instance is an InstantiatePart");
     };

@@ -89,7 +89,7 @@ fn pr_profile() -> Vec<(f64, f64)> {
 /// Fillet the latitude rim at profile vertex `v` of the given lantern.
 fn filleted(profile_pts: Vec<(f64, f64)>, v: u32) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = lantern_with(profile_pts);
-    let rim = editor_core::band_rim(revolve, 0, v);
+    let rim = editor_core::band_rim(revolve, fixture::vpiece(&doc, revolve, 0, v as usize));
     insert(
         doc,
         Node::Fillet {
@@ -177,7 +177,7 @@ fn the_corpus_band_trim_census_is_the_recorded_one() {
             "{name}: {n} band-trim names, the digest suite's comment says {want}"
         );
     }
-    assert_eq!(got.len(), 28, "the registry the comment counts over");
+    assert_eq!(got.len(), 29, "the registry the comment counts over");
 }
 
 /// The pinned invariant on the lantern's BASE rim (profile vertex 1:

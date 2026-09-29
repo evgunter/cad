@@ -269,8 +269,7 @@ fn the_session_probes_a_real_slots_range() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );

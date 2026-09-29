@@ -385,3 +385,118 @@ shape. The blend's two sites and the generator's roundtrip inverse
 take the describing door; the generator's other kills supply a chord
 spec or keep their filter. Kernel answer: a block slot; this row is
 now the unit, and `S93` closes with it.
+
+## Evidence from TOPO-B5 slot 2 (branch `topo/rebasing-gate-null-edges-and-no-move`)
+
+`Body::certify_rebased_run` now refuses a **null edge** where the
+moved run holds exactly one of its halves
+(`EulerOpError::RebasedNullEdge`), because whether the moved end lands
+on the other end's point is the exact `p_new == p_old` question the
+gate does not ask (its rustdoc says why;
+`work/topo/the-re-basing-gate-refuses-m7-8-where-nothing-moves.md`
+carries the `[ev]` proposal). A run holding both halves moves the null
+edge whole and is carried. Two consequences for this unit:
+
+- **`kev`'s fan merge carries the same null-edge hole, unchecked**: a
+  `kev` of a real edge whose far fan holds one half of a null edge
+  re-bases that half onto a distinct point, exactly as the certified
+  `mev` fan did before the slot-2 fix. Pinned as it stands by
+  `euler::tests::kevs_fan_merge_moves_one_end_of_a_null_edge_onto_a_distinct_point_unchecked`
+  (`kev` answers `Ok`, the null edge's ends are `(0,0,0)` and
+  `(1,0,0)`, tier 1 green); the unit that gives the kill its gate flips
+  that row.
+- **What reusing the gate would cost the pipelines is not measured to
+  be anything.** Instrumenting `kev` across `cargo test -p topo` and
+  `-p sweep` at `36c7d0f36` (the slot's review round) found ZERO
+  pipeline kills (`boolean/zip.rs`, `boolean/rest.rs`, `splitting/reassembly.rs`)
+  whose far fan holds a null edge, so an over-refusal there is
+  hypothetical. The same instrumentation found that those kills do not
+  all merge coincident copies: 58 zip kills merge two vertices whose
+  points differ by ulps (for instance under
+  `m3_pr6_saddle::tilt_sweep_no_silent_mispair`, `z = 0.5000000000000001`
+  against `0.5`), so a zip `kev` DOES move its merged fan, by an ulp.
+  Any null arm this unit gives `kev` therefore cannot lean on "the
+  killed edge's ends are coincident copies": at the zip they are two
+  points, and a structural answer has to come from the run's shape (as
+  the `mev` gate's both-halves arm does), not from the coordinates.
+
+## Brief (TOPO, 2026-09-24): review tier DUAL
+
+**Tier: DUAL.** The unit gives a core kill operator a refusal it has
+never had, and adds a public door to the Euler family. Both change
+what two other programs' callers (the blend's closure kills, the
+generator) may do, and the change is hard to walk back once callers
+build on it.
+
+**The answer to give: Ev's ruling (c), as two doors.**
+
+1. **`kev(he)` stays keys-only and refuses** typed, before mutating,
+   wherever the merge would leave a merged member's carrier
+   un-certified against its new endpoint. That is S93's gate
+   (`Body::certify_rebased_run`) inside the kill, over the far vertex's
+   fan, with the surviving vertex's point as `p_new`. It also has the
+   gate's null arm: a run that moves ONE end of a null edge refuses
+   `RebasedNullEdge`, and one moving both halves carries. That flips
+   `euler::tests::kevs_fan_merge_moves_one_end_of_a_null_edge_onto_a_distinct_point_unchecked`.
+   **Phase 1 decides where the band comes from**, with no `Tol`
+   argument, since the ruling keeps the kill family keys-only. S93's
+   measurement took `Tol::witness()` internally. Say whether that is
+   honest, or whether the body carries a band the kill should read,
+   and write the answer in `kev`'s rustdoc.
+2. **`kev_describing(he, &[(EdgeKey, EdgeCurveSpec<T>)], tol)`** is the
+   kill that takes geometry, shaped like `mev`.
+   - It certifies each supplied spec against the endpoints the merge
+     WILL give its edge.
+   - Members not listed keep their carrier and must pass the same gate.
+   - Everything is certified in the plan phase. The door refuses typed
+     before any mutation, then writes topology and descriptions
+     together.
+   - Refusals to name and row: a listed edge that is not a merged
+     member, a duplicate entry, a spec that fails certification.
+
+**Callers**, from the row's measurement at the S93 head (re-take it at
+this head):
+- **The blend's two closure kills** (`crates/sweep/src/blend/surgery.rs`,
+  `"annulus closure kev"` and `"rim closure kev"`, 118 of the 129 sweep
+  refusals) switch to `kev_describing`. They pass the carriers they
+  already compute for `attach_contact`. Seam: BAND's and CARVE's file;
+  announce on both logs.
+- **`seqgen.rs`** (PROBE's file; announce there):
+  - `roundtrip`'s `SplitEdge` inverse (`kev` then `set_edge_curve`)
+    becomes one `kev_describing`.
+  - The walk's `Kev` arm and `teardown` either supply a chord spec or
+    keep their skip/filter. Phase 1 decides per site. Hold the
+    property `random_op_sequences_stay_tier1_valid_at_every_step`
+    rows. Say what `split_site`'s "Why the re-certification" filter
+    narrows to.
+- **The pipeline kills** (`boolean/zip.rs`, `boolean/rest.rs`,
+  `splitting/reassembly.rs`) must not refuse. At the slot-2 review, 58
+  zip kills merged ulp-distinct vertices; show that each re-certifies
+  within band, or say which does not.
+- **Fixtures that kill on a merged fan** (the five `euler_kill` and
+  `review_m1_pr4` rows in the measurement): each row's subject decides
+  between refusal and the describing door. Say which, per row.
+
+**Rows.**
+- Red-first:
+  `euler_kill::tests::the_merged_fan_keeps_a_carrier_its_endpoint_left_and_split_edge_refuses_on_it`
+  pins the defect today. At the head, plain `kev` refuses typed with
+  the members named, and `kev_describing` with a supplied chord spec
+  merges, certifies, and leaves `split_edge` able to run.
+- The null row flips.
+- A both-halves row carries.
+- Each describing-door refusal gets a row, body untouched.
+- The blend's corpus and every sweep suite must stay green.
+
+**Receipt.** Every `.kev(` call site in the tree, classified: refuses
+now, describes, or passes the gate. Also the `mev`/`mev_line`/`mev_null`
+family's docs, so the describing door is listed beside them.
+
+**Seams.** `euler_kill.rs` and `euler.rs` are TOPO's. `seqgen.rs` is
+PROBE's. `blend/surgery.rs` is BAND's and CARVE's. `S93`
+(`work/probe/S93.md`) closes with this unit: the PR says so, and the
+orchestrator closes it at merge.
+
+Branch `topo/kev-describing-door`. PR title: "TOPO: kev refuses a merge
+that would strand a carrier; kev_describing takes the
+re-descriptions". Do not close the item; the dual runs at review.

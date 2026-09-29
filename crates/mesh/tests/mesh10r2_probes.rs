@@ -4,9 +4,9 @@
 //! it — outside the unit's own fixtures, and prints what it found:
 //!
 //! * the lineage after a graft: `Provenance::SplitEdge { edge }` is
-//!   copied VERBATIM into the destination arena, so the recorded
-//!   parent is a key of the SOURCE arena — does a split-seam donut
-//!   still fold after `graft_disjoint` / a disjoint `union`?;
+//!   forwarded into the destination arena's keys — does a split-seam
+//!   donut still fold after `graft_disjoint` / a disjoint `union`, into
+//!   a destination that already holds edges, in either operand order?;
 //! * `set_edge_curve` on a split child (the PR's disclosed unmeasured
 //!   limit): a child re-parametrised on the same carrier — what does
 //!   every consumer answer?;
@@ -22,7 +22,7 @@
 use crate::common;
 use common::*;
 use geom::Curve3;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use topo::Body;
 
@@ -127,27 +127,17 @@ fn m10r2_split_donut_mesh_differs_only_on_the_seam_column() {
 }
 
 /// **The lineage after a graft.** `graft_disjoint` (and the boolean's
-/// disjoint-union path, which transplants the same way) copies each
-/// edge's `Provenance::SplitEdge { edge }` record verbatim, so the
-/// parent it names is a key of the SOURCE arena. Into an EMPTY
-/// destination the fresh keys happen to coincide with the source's;
-/// into a destination that already holds a body they do not. This
-/// row measures both, through `mass_properties` and `tessellate`, and
-/// prints what the stamped ids look like on the grafted face.
-///
-/// **Standing as a pinned FINDING (issue 1597), not flipped.** The
-/// fix shape — forward every key-carrying record through the graft's
-/// maps — was built and measured against editor-core's names lane:
-/// its B-descent (`emit_topo.rs`'s `chase_b`) reads the result body's
-/// verbatim `SplitEdge` keys to reach ancestors that DIED in B before
-/// the graft (B's table still names them), and once the graft forwards
-/// such a key to null that anchor is gone — eight names-lane rows on
-/// the die corpus go red under every chase that reads forwarded
-/// records, and B's operand body cannot be chased instead (it is not
-/// the body that was grafted; a placed copy is). Forwarding
-/// `SplitEdge` needs a dead-ancestor bridge on the `GraftMap` first;
-/// forwarding every OTHER variant is harmless (measured) and waits
-/// with it, so the graft copies as it did.
+/// disjoint-union path, which transplants the same way) forwards each
+/// edge's `Provenance::SplitEdge { edge }` record into the destination's
+/// keys, so the split seam's pieces chase to one root there as they did
+/// in the source. Into an EMPTY destination the fresh keys coincide with
+/// the source's anyway; into a destination that already holds a body
+/// they do not, and before the forwarding the pieces chased into
+/// strangers — `props_rim_level` refused the grafted donut, and a
+/// disjoint `union` with a far box answered in one operand order and
+/// refused in the other (issue 1597). This row measures both
+/// destinations and both orders through `mass_properties` and
+/// `tessellate`.
 #[test]
 fn m10r2_split_lineage_after_graft() {
     let tol = Tol::witness();
@@ -197,10 +187,10 @@ fn m10r2_split_lineage_after_graft() {
     let far_box = || {
         sweep::extrude(
             &validated(vec![profile::ProfileLoop::<f64>::polygon([
-                p2(10.0, 10.0),
-                p2(11.0, 10.0),
-                p2(11.0, 11.0),
-                p2(10.0, 11.0),
+                Point2::new(10.0, 10.0),
+                Point2::new(11.0, 10.0),
+                Point2::new(11.0, 11.0),
+                Point2::new(10.0, 11.0),
             ])]),
             sweep::Extrusion::Distance(1.0),
             tol,
@@ -215,15 +205,31 @@ fn m10r2_split_lineage_after_graft() {
         1.0 + v_donut
     );
     println!("M10R2 union(split donut, far box): {u4:?}");
-    // The findings are asserted as measured so a change is visible.
     assert_eq!(
         v_empty.map(f64::to_bits),
         Ok(v_donut.to_bits()),
         "empty destination"
     );
+    let close = |v: f64, want: f64| (v - want).abs() / want < 1e-12;
     assert!(
-        matches!(&v_held, Err(topo::MassPropsError::Face { .. })),
+        matches!(v_held, Ok(v) if close(v, v_ball + v_donut)),
         "the grafted split-seam donut in a held body: {v_held:?}"
+    );
+    assert!(mesh_held.is_ok(), "and it meshes: {mesh_held:?}");
+    for (order, u) in [("far box first", &u3), ("donut first", &u4)] {
+        assert!(
+            matches!(u, Ok(Some(Ok(v))) if close(*v, 1.0 + v_donut)),
+            "union ({order}) answers the disjoint sum: {u:?}"
+        );
+    }
+    let bits = |u: &Result<Option<Result<f64, _>>, _>| match u {
+        Ok(Some(Ok(v))) => Some(v.to_bits()),
+        _ => None,
+    };
+    assert_eq!(
+        bits(&u3),
+        bits(&u4),
+        "and both operand orders agree bitwise"
     );
 }
 

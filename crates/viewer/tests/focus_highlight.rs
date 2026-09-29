@@ -20,10 +20,14 @@ use pncad::document::RecipeNodeId;
 use pncad::geom_core::Tol;
 use viewer::display::DisplayView;
 use viewer::marks;
-use viewer::pickindex::{PickIndex, PictureKey};
+use viewer::pickindex::PickIndex;
 use viewer::scene::{self, DisplayTolerance, SceneMesh};
 use viewer::session::{DocSession, Selection, SessionOp};
 
+/// This suite's own δ, kept rather than taken from
+/// `common::plate_delta`: no row outside this file has to agree with
+/// it, so sharing would buy agreement nobody needs and cost a reader
+/// the value at the point of use.
 fn delta() -> DisplayTolerance {
     DisplayTolerance::new(0.0005).expect("a positive δ")
 }
@@ -37,19 +41,7 @@ fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
 }
 
 fn index_of(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session
-        .landed_pair()
-        .expect("the inline seam lands its first evaluation");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the plate indexes")
+    common::index_of(session, delta())
 }
 
 /// Selecting nothing marks nothing — and the empty answer is the same

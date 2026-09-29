@@ -3,6 +3,8 @@ id: part-root-failure-nests-a-whole-refusal-past-the-budget
 kind: issue
 title: editor-core: a part's root failure renders the part's own node refusal inside an 11-word wrapper, so it can outgrow the viewer's 75-word budget by construction
 status: open
+priority: P3
+cost: E
 opened: 2026-09-23
 refs: [error-and-check-text-overflows-its-region]
 ---

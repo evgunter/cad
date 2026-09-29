@@ -21,8 +21,7 @@
 use crate::common;
 
 use pncad::document::{
-    BooleanOp, Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, RecipeNodeId,
-    cascade_delete_order,
+    BooleanOp, Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
 };
 use pncad::geom_core::Tol;
 use viewer::session::{DocSession, SessionOp};
@@ -77,7 +76,7 @@ fn die_shaped(tol: Tol) -> Die {
                     common::len(0.0),
                 ],
                 rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("a finite angle"),
+                rotation_angle: common::ang(0.0),
             },
             tol,
         );

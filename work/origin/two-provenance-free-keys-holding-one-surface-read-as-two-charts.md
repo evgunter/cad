@@ -2,11 +2,12 @@
 id: two-provenance-free-keys-holding-one-surface-read-as-two-charts
 kind: issue
 title: the loop-re-parenting doors read two keys holding one surface as two charts when no GeomSource ties them, and drop rows that were correct
-status: open
+status: closed
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart]
 priority: P0
 cost: H
+closed: 2026-09-29
 ---
 
 Found by both reviewers of PR 2549 (R1 by execution as a MAJOR, R2 as
@@ -65,3 +66,48 @@ for — today only `editor-core` does, so every `sweep` and
 this would pay off in the merge door's second rung too; (b) the bound
 widening above, priced by whoever wants it; (c) nothing, with the
 re-mint as the documented price — which is what the doors say today.
+
+## A caller outside `topo` met it (2026-09-14, the `set_face_surface` unit)
+
+The bound is no longer only the loop doors': `Body::set_face_surface`
+drops a face's rows on a chart change too, so a caller that re-keys a
+surface to the SAME value with no `GeomSource` on either key loses that
+face's rows. One real caller does exactly that —
+`crates/mesh/tests/patch_memo.rs`'s
+`arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane`
+re-mints every face of every corpus body onto a fresh key holding the
+surface it already had, to prove the memo's key is not arena keys —
+and the whole curved half of that corpus (`rounded_prism`, `ball`,
+`cone`, `washer`, `donut`) came back rowless. It re-mints now and the
+row is unchanged in what it measures, which is the cost this row
+names: a re-mint, never a wrong row.
+
+Two details worth keeping for whoever widens the bound. The
+`Arc::ptr_eq` rung already covers this caller's NURBS and `Approx`
+faces — cloning `Surface::Nurbs(Arc)` clones the pointer — so the
+faces that lost their rows were exactly the ANALYTIC curved ones,
+where an equal surface means equal scalars and nothing else. And the
+same caller shape is what a structural compare would make free: it
+holds two keys whose surfaces are equal field for field, with no
+recipe on either.
+
+## Scope after PR 3414 (2026-09-29)
+
+The row doors now read identity only, so two keys holding equal
+surfaces drop their rows whether or not a `GeomSource` ties them: the
+row's scope is wider than its title (stamped keys drop too), and the
+drop is the documented price. The lane measured every production path
+that moves rows re-minting afterwards, and no corpus row moved. Whether
+a production comparator should close this direction is PR 3410.
+
+## Ruled (2026-09-29, PR 3410)
+
+Ev: "if nothing needs this then it should not be done" — no production
+bit comparator decides pcurve-row validity. The row doors answer from
+identity only (same key or shared `Arc` payload; PR 3414), so two keys
+holding equal surfaces with no identity tie drop their rows, and the
+re-mint is the accepted, documented price. Every production path that
+moves rows re-mints afterwards, so the price is paid only in tests.
+A caller that means "same surface" says `FaceSurface::Shared(key)`.
+Reopen only on a production caller that holds rows across a re-key
+and cannot say `Shared`.

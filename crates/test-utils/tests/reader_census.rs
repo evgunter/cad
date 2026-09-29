@@ -161,6 +161,10 @@ const LEDGER: &[Entry] = &[
                              // mate/member.rs and mate/solve.rs, code view
     },
     Entry {
+        path: "crates/editor-core/tests/product_gate_attribution.rs",
+        disposition: Shared, // product.rs gates once and attributes on refusal, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/refusal_concision_chains.rs",
         disposition: Shared, // blend raise-site details over sweep/src/blend,
                              // code and code-and-literals views
@@ -197,12 +201,12 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // sole-bracket-bound roster, code view
     },
     Entry {
-        path: "crates/geom-core/tests/flagged_census.rs",
-        disposition: Shared, // call census, code view + offsets
+        path: "crates/geom-core/tests/certified_endpoint_census.rs",
+        disposition: Shared, // certification endpoint-read census, code view + balanced_end
     },
     Entry {
-        path: "crates/geom-core/tests/ring_endpoint_census.rs",
-        disposition: Shared, // ring endpoint-read census, code view + balanced_end
+        path: "crates/geom-core/tests/flagged_census.rs",
+        disposition: Shared, // call census, code view + offsets
     },
     Entry {
         path: "crates/geom-core/tests/sym_rule_f_rows.rs",
@@ -245,7 +249,9 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
-        disposition: Shared, // the facade boundary guards, code and literal views
+        disposition: Shared, // the facade boundary guards, code and literal views; and the
+                             // box-document fixture twin in crates/pncad-py/src/tests.rs,
+                             // raw text between sentinels, compared with its own copy
     },
     Entry {
         path: "crates/profile/tests/all.rs",
@@ -293,6 +299,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/step-import/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/step-import/tests/per_part_gate_policy.rs",
+        disposition: Shared, // lib.rs's per-part policy consultation, code view
     },
     Entry {
         path: "crates/step-import/tests/tier_gate.rs",
@@ -353,6 +363,15 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
+        path: "crates/topo/src/boolean/wall_section_rows.rs",
+        disposition: Shared, // the window-construction site list, code view
+    },
+    Entry {
+        path: "crates/topo/src/census.rs",
+        disposition: Shared, // the backstop's no-inline-`what` guard, literal view
+                             // carved by `balanced_end`
+    },
+    Entry {
         path: "crates/topo/src/chord_join.rs",
         disposition: Unconverted("Track Q — whitespace-stripped raw text, no reader"),
     },
@@ -385,6 +404,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // `Body`'s surgery-depth field declaration, code view
     },
     Entry {
+        path: "crates/topo/src/validate.rs",
+        disposition: Shared, // the at-rest door roster, prose view and code view
+    },
+    Entry {
         path: "crates/topo/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -394,7 +417,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/tests/certified_enclosure_impl_census.rs",
-        disposition: Shared, // CertifiedEnclosure impls vs wiring rows, code view
+        disposition: Shared, // door values and CertifiedEnclosure impls vs wiring rows, code view
     },
     Entry {
         path: "crates/topo/tests/readback_sense_kind.rs",

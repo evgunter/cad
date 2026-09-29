@@ -265,6 +265,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          surgery scope",
     ),
     (
+        "set_face_surface_and_sense",
+        "calls `set_face_surface`, which declares the postcondition, then writes one `bool`",
+    ),
+    (
         "set_edge_curve",
         "declares the tier-1 postcondition directly (a curve swap can orphan a key), on \
          `set_face_surface`'s terms",
@@ -281,10 +285,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // them: each writes only through doors that EITHER declare the
     // tier-1 postcondition themselves (`mvfs`, `mev`, `mef`, which are
     // therefore not on this list and cannot be) OR appear on it below
-    // for writing fields tier 1 does not constrain. The union is the
-    // claim; neither half alone is true of all four entries, and an
-    // entry names the doors it composes so a reader can check which
-    // half each one lands in. ----
+    // for writing fields tier 1 does not constrain — with one
+    // exception, the raw `add_surface` in `cyl_wall_sheet_keyed`,
+    // which that entry carries itself. No one half is true of every
+    // entry, and an entry names the doors it composes so a reader can
+    // check which half each one lands in. ----
     (
         "prism_ops",
         "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
@@ -299,11 +304,35 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "calls `prism_ops` at the unit square, then `describe_as_intersections`",
     ),
     (
+        "plant_ring_face",
+        "plants a ring face through `mev_line`, `kemr` and `mef_chord` and writes no arena \
+         itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "drill_hole",
+        "calls `plant_ring_face`, then `mev_line`, `mef_chord` and `kfmrh` (asserting)",
+    ),
+    (
+        "plane_every_face",
+        "places each face's plane through `set_face_surface`, which declares the tier-1 \
+         postcondition itself",
+    ),
+    (
+        "cyl_wall_sheet_keyed",
+        "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line` and `mef` \
+         (asserting), places the cylinder key through `set_face_surface` and records it \
+         through `set_surface_source`, both on this list below for writing fields tier 1 \
+         does not constrain. Its rim planes go in through `add_surface`, which is on \
+         NEITHER half: crate-internal raw insertion that makes no promise at all. What \
+         covers it is the `mev` that follows — a plane is an orphan surface until the rim \
+         edge naming it exists, and that operator's postcondition is taken over a body \
+         that holds both",
+    ),
+    (
         "cyl_wall_sheet",
-        "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line`, `mef` and \
-         `set_face_surface` (asserting), and then through `set_surface_source` and \
-         `mint_pcurves` — which do not assert, and are on this list below for writing \
-         fields tier 1 does not constrain",
+        "fixes `cyl_wall_sheet_keyed`'s key placement and then calls `mint_pcurves`, \
+         which does not assert and is on this list below. The Euler sequence is the keyed \
+         door's and so is the argument for it, one entry up",
     ),
     // ---- Writes fields tier 1 does not constrain. ----
     (
@@ -323,6 +352,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     (
         "set_surface_field_source",
         "ParamSource metadata, no arena key (a per-field side record beside the surface)",
+    ),
+    (
+        "set_surface_axis_source",
+        "axis-channel metadata, no arena key (a per-component side record beside the surface)",
     ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
@@ -399,9 +432,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// blind-spot list; this guard does not restate either.
 ///
 /// **"Declares the postcondition" is a read of code, not of prose.**
-/// The needle is `assert_euler_postcondition(`, with the paren, over a
-/// body whose comments and literals are blanked — a bare name would be
-/// satisfied by a `use` line. This guard used a raw `body.contains`,
+/// The needle is `assert_euler_postcondition` as a name the door
+/// reaches ([`crate::source_walk::MutationDoor::names`]), over a body
+/// whose comments, literals and `use` declarations are blanked. This
+/// guard used a raw `body.contains`,
 /// and a planted door whose body only *mentioned* the call in a
 /// comment was counted as asserting it, in both this guard and the
 /// pcurve one, both green.
@@ -451,7 +485,7 @@ fn every_public_mutation_path_preserves_tier1() {
                 scoped.push(door.site());
             }
             SurgeryPosture::NoScope => {
-                if door.code_contains("assert_euler_postcondition(") {
+                if door.names("assert_euler_postcondition") {
                     asserting.push(door.site());
                 } else if ALLOWED.iter().any(|(n, _)| *n == door.name) {
                     listed.push(door.name);
@@ -508,9 +542,9 @@ fn every_public_mutation_path_preserves_tier1() {
          stopped asserting — a finding — or the source read lost the call.",
     );
     // The second needle's own pin, for the same reason: a lexing gap
-    // that erased `sweep_and_close(` from every scoped door would move
+    // that erased `sweep_and_close` from every scoped door would move
     // them all to `unlisted` and red — but one that erased
-    // `begin_surgery(` too would move them to `asserting`/`unlisted`
+    // `begin_surgery` too would move them to `asserting`/`unlisted`
     // silently. This names a door the walk must see as scoped.
     assert!(
         scoped

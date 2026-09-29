@@ -1798,7 +1798,7 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     .to_string();
     // The header, then one composed line per finding.
     assert!(
-        msg.contains("the at-rest gate refused (3 finding(s))"),
+        msg.starts_with("3 finding(s) against this assembly:"),
         "{msg}"
     );
     assert!(
@@ -1809,14 +1809,11 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         msg.contains("mate 4's declared Rest contact, declined:"),
         "{msg}"
     );
-    assert!(
-        msg.contains("no declaration answers for this finding:"),
-        "{msg}"
-    );
+    assert!(msg.contains("no mate declared this:"), "{msg}");
     // The kernel's story rides each line, forwarded through its own
     // `Display`.
     assert!(
-        msg.contains("signed volume is definitely negative"),
+        msg.contains("a solid encloses negative volume, so it is inside-out"),
         "{msg}"
     );
     // The negative pin class: prose, never Debug — no struct braces,
@@ -1854,16 +1851,19 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     use editor_core::ProductError;
 
     let cases = vec![
-        ProductError::SolidInvalid {
-            node: RecipeNodeId(3),
-            errors: vec![
-                topo::ValidationError::NegativeVolume {
-                    solid: topo::SolidKey::default(),
-                },
-                topo::ValidationError::NegativeVolume {
-                    solid: topo::SolidKey::default(),
-                },
-            ],
+        ProductError::RootInvalid {
+            findings: vec![editor_core::SourceFinding {
+                node: RecipeNodeId(3),
+                output: 1,
+                errors: vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ],
+            }],
         },
         ProductError::Naming {
             node: RecipeNodeId(2),
@@ -1883,9 +1883,8 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     ];
     let expected: [&[&str]; 3] = [
         &[
-            "root 3's solid is not valid at rest (2 finding(s)):",
-            "\n  solid ",
-            "'s exact-B-rep signed volume is definitely negative",
+            "product: 1 root not valid at rest:",
+            "\n  root 3 output 1: a solid encloses negative volume, so it is inside-out",
         ],
         &["root 2's face name (minted by node 1) collides"],
         &["grafting root 5 refused: the band's "],
@@ -1893,13 +1892,14 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     for (error, needles) in cases.into_iter().zip(expected) {
         // Through the assembly surface, exactly as a caller sees it.
         let msg = AssemblyError::Product(Box::new(error)).to_string();
-        assert!(msg.starts_with("assembly: product:"), "{msg}");
+        assert!(msg.starts_with("product:"), "{msg}");
         for needle in needles {
             assert!(msg.contains(needle), "{needle:?} not in: {msg}");
         }
         for guts in [
             "{",
-            "SolidInvalid",
+            "RootInvalid",
+            "SourceFinding",
             "NegativeVolume",
             "ProductError",
             "ValidationError",

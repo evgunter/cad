@@ -23,7 +23,7 @@
 
 use geom_brep::PcurveCertifyError;
 use geom_core::{Point2, Tol};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::test_support::stacked_at;
 use topo::pcurves::PcurveMintError;
 use topo::{Body, EdgeKey, Pcurve};
@@ -34,9 +34,9 @@ fn tol() -> Tol {
 
 /// A square-profile prism: flat walls, so every wall row is `IsoLine`.
 fn line_prism() -> Body<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let sq = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(0.0, 0.0),
             v(2.0, 0.0),
             v(2.0, 2.0),
@@ -56,9 +56,9 @@ fn line_prism() -> Body<f64> {
 /// than restricting it would move the image at a break first, and a
 /// single-span arc could not tell the two apart.
 fn bulged_prism() -> Body<f64> {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     let bulged = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(0.0, 0.0, 0.0),
             v(2.0, 0.0, 1.6),
             v(2.0, 2.0, 0.0),

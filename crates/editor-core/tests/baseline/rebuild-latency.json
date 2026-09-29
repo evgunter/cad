@@ -144,6 +144,11 @@
       "about": "the parametric scene: a plate whose two hole radii are one DocParam",
       "nodes": 7,
       "cone": 2
+    },
+    "reshaped_rod": {
+      "about": "a rod's section on a block, one crease filleted, the block reshaped under it",
+      "nodes": 4,
+      "cone": 2
     }
   }
 }

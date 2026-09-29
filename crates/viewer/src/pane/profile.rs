@@ -92,34 +92,25 @@ impl ViewerBehavior<'_> {
         let refused = preview_verdict(ui, self.theme, self.profile_previews.edit.as_ref());
         let moved = edit.moved();
         ui.horizontal(|ui| {
-            // **Apply only what moved.** Untouched, there is nothing
-            // to write and the button says so by being unavailable;
-            // the door itself also writes nothing for an untouched
-            // program, so the two agree rather than one trusting the
-            // other.
-            if ui
-                .add_enabled(moved && !refused, egui::Button::new("Apply"))
-                .clicked()
-            {
+            let (apply, revert) = apply_and_revert(ui, moved, refused);
+            if apply {
                 match edit.programs(notation) {
                     Ok(loops) => self.ops.push(SessionOp::EditProfile {
                         node,
                         base: edit.base().clone(),
                         loops,
                     }),
-                    Err(error) => self
-                        .notices
-                        .push(frame::tool_news(format!("edit profile: {error}"))),
+                    Err(error) => self.notices.push(frame::tool_news(
+                        format!("edit profile: {error}"),
+                        frame::Retold::Again,
+                    )),
                 }
             }
-            if ui
-                .add_enabled(moved, egui::Button::new("Revert"))
-                .on_hover_text("put the numbers back to the committed profile's")
-                .clicked()
-                && let Err(error) = edit.revert(doc)
-            {
-                self.notices
-                    .push(frame::tool_news(format!("revert profile: {error}")));
+            if revert && let Err(error) = edit.revert(doc) {
+                self.notices.push(frame::tool_news(
+                    format!("revert profile: {error}"),
+                    frame::Retold::Again,
+                ));
             }
         });
         true
@@ -136,68 +127,40 @@ impl ViewerBehavior<'_> {
 /// would get. `None` is "no preview was taken" (the first frame a
 /// form is on screen, or a form at rest), and holds nothing.
 ///
-/// Every verdict that is a SENTENCE goes through
-/// [`crate::widgets::message_toned`]; the loop count is a number and
-/// stays a plain label.
+/// Every verdict is a sentence the VALUE says and a tone the value
+/// states, both read off one partition of it ([`ProfilePreview::hold`]
+/// for a drawn preview, [`PreviewError`] for a refusal) and drawn
+/// through [`crate::widgets::message_toned`] — so what the editor says
+/// and how loud it says it are decided once, on the value, for both
+/// doors. A drawn, valid preview holds nothing and has no verdict; the
+/// loop count under it is state, and stays a weak label.
 pub(crate) fn preview_verdict(
     ui: &mut egui::Ui,
     theme: Theme,
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> bool {
-    match preview {
-        // The first frame this form is on screen: the latch has
-        // not asked for a preview yet, so there is nothing
-        // honest to say about one. The commit door is still the
-        // judge, so the button is not held for a frame either.
-        None => false,
-        Some(Ok(drawn)) if drawn.has_open_chain() => {
-            // **Drawn, and still not committable.** The chain is
-            // in the viewport (`sketch::preview` walks it under a
-            // provisional close) so the shape can be looked at
-            // while it is written; what it is not yet is a loop,
-            // and the commit door refuses a program that does not
-            // close. Saying which of the two this is beats a
-            // disabled button with a lattice refusal beside it.
-            crate::widgets::message_toned(
-                ui,
-                "the chain does not close yet — its last step has to target the start",
-                &theme,
-                frame::Tone::Advisory,
-            );
-            true
-        }
-        Some(Ok(drawn)) => {
-            if let Some(invalid) = &drawn.invalid {
-                crate::widgets::message_toned(
-                    ui,
-                    format!("does not validate: {invalid}"),
-                    &theme,
-                    frame::Tone::Actionable,
-                );
-                true
-            } else {
+    // The first frame this form is on screen: the latch has not asked
+    // for a preview yet, so there is nothing honest to say about one.
+    // The commit door is still the judge, so the button is not held
+    // for a frame either.
+    let Some(preview) = preview else {
+        return false;
+    };
+    let (sentence, tone) = match preview {
+        Ok(drawn) => match drawn.hold() {
+            Some(hold) => (hold.to_string(), hold.tone()),
+            None => {
                 ui.weak(format!(
                     "{} loop(s), drawn in the viewport",
                     drawn.loops.len()
                 ));
-                false
+                return false;
             }
-        }
-        Some(Err(error)) => {
-            // **Unfinished is not wrong** ([`PreviewError::unfinished`]):
-            // a one-point chain reaches the form this way, because
-            // there is no leg for the provisional close to be walked
-            // over. Every other refusal keeps the colour that blames
-            // the step somebody wrote.
-            let tone = if error.unfinished() {
-                frame::Tone::Advisory
-            } else {
-                frame::Tone::Actionable
-            };
-            crate::widgets::message_toned(ui, error.to_string(), &theme, tone);
-            true
-        }
-    }
+        },
+        Err(error) => (error.to_string(), error.tone()),
+    };
+    crate::widgets::message_toned(ui, sentence, &theme, tone);
+    true
 }
 
 /// **The notation row**: the two pickers every length and angle field
@@ -285,25 +248,19 @@ pub(crate) fn path_steps_ui(
             // Zero-based, because "loop 0 step 2" is.
             ui.weak(format!("{index}"));
             let free = shape.free();
-            if ui
-                .add_enabled(free, egui::Button::new(GLYPH_REMOVE).small())
-                .on_hover_text("remove this step")
-                .clicked()
-            {
+            // Why each control is stopped, if it is — the lock first:
+            // a locked list offers no move at all, whichever row it
+            // is.
+            let lock_reason = (!free).then_some(SHAPE_LOCKED);
+            if step_control(ui, GLYPH_REMOVE, "remove this step", lock_reason) {
                 remove = Some(index);
             }
-            if ui
-                .add_enabled(free && index > 0, egui::Button::new(GLYPH_UP).small())
-                .on_hover_text("move this step earlier")
-                .clicked()
-            {
+            let earlier_reason = lock_reason.or((index == 0).then_some(STEP_IS_FIRST));
+            if step_control(ui, GLYPH_UP, "move this step earlier", earlier_reason) {
                 swap = Some((index, index - 1));
             }
-            if ui
-                .add_enabled(free && index < last, egui::Button::new(GLYPH_DOWN).small())
-                .on_hover_text("move this step later")
-                .clicked()
-            {
+            let later_reason = lock_reason.or((index == last).then_some(STEP_IS_LAST));
+            if step_control(ui, GLYPH_DOWN, "move this step later", later_reason) {
                 swap = Some((index, index + 1));
             }
             // **Insert after this row.** A chain is written in the
@@ -320,11 +277,7 @@ pub(crate) fn path_steps_ui(
             // sideways. A control that moves under the cursor is
             // worse than one that is not where a reader first
             // looks for it.
-            if ui
-                .add_enabled(free, egui::Button::new("+").small())
-                .on_hover_text("insert a step after this one")
-                .clicked()
-            {
+            if step_control(ui, "+", "insert a step after this one", lock_reason) {
                 insert = Some(index + 1);
             }
             let verb = steps[index].verb();
@@ -407,6 +360,67 @@ pub(crate) fn path_steps_ui(
     });
 }
 
+/// Why a row's move-earlier control is not live in a free list.
+const STEP_IS_FIRST: &str = "it is already the first step";
+
+/// Why a row's move-later control is not live in a free list.
+const STEP_IS_LAST: &str = "it is already the last step";
+
+/// **One of a step row's glyph controls**, live unless `blocked`
+/// names why not.
+///
+/// The glyph is the control's only label, so `action` — what a click
+/// does — is its hover in both states, and a blocked control adds the
+/// reason on the line under it. Every reason is a draft gate's (a
+/// locked list, or a row with nothing past it to move over): no
+/// operation is formed to be refused, so the words are the caller's.
+/// Each state's words ride the hook egui shows in that state.
+///
+/// Answers whether it was clicked, which a blocked control never is.
+fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&str>) -> bool {
+    let button = ui.add_enabled(blocked.is_none(), egui::Button::new(glyph).small());
+    match blocked {
+        None => button.on_hover_text(action).clicked(),
+        Some(why) => button
+            .on_disabled_hover_text(format!("{action}\n{why}"))
+            .clicked(),
+    }
+}
+
+/// Why the edit door's Apply and Revert are not live on an untouched
+/// draft.
+const UNTOUCHED: &str = "the numbers are the committed profile's";
+
+/// **The edit door's Apply and Revert**, both live only once the held
+/// numbers have `moved` off the committed profile's; Apply also waits
+/// on the preview not having `refused`.
+///
+/// **Apply only what moved.** Untouched, there is nothing to write,
+/// and the door itself also writes nothing for an untouched program,
+/// so the button and the door agree rather than one trusting the
+/// other. That is a draft gate on both buttons — no operation is
+/// formed to be refused — so each says [`UNTOUCHED`] on its disabled
+/// hover. A refused preview has its sentence already, drawn under the
+/// step list by [`preview_verdict`], so Apply adds none for it.
+///
+/// Answers whether each was clicked — Apply, then Revert — which a
+/// disabled button never is.
+fn apply_and_revert(ui: &mut egui::Ui, moved: bool, refused: bool) -> (bool, bool) {
+    let apply = ui.add_enabled(moved && !refused, egui::Button::new("Apply"));
+    let apply = if moved {
+        apply
+    } else {
+        apply.on_disabled_hover_text(format!("nothing to apply: {UNTOUCHED}"))
+    };
+    let revert = ui.add_enabled(moved, egui::Button::new("Revert"));
+    let revert = if moved {
+        revert.on_hover_text("put the numbers back to the committed profile's")
+    } else {
+        revert.on_disabled_hover_text(format!("nothing to revert: {UNTOUCHED}"))
+    };
+    (apply.clicked(), revert.clicked())
+}
+
 #[cfg(test)]
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -414,13 +428,19 @@ mod tests {
     #![allow(clippy::panic)]
 
     use eframe::egui;
-    use pncad::document::{Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, apply};
+    use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::Step;
+    use pncad::profile::{ProfileError, SketchPlane, Step, Target, Verb};
 
+    use super::preview_verdict;
+    use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP};
     use crate::drafts::Drafts;
-    use crate::session::author::datum_node;
-    use crate::sketch;
+    use crate::pane::headless::{
+        Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
+    };
+    use crate::sketch::{self, PreviewError, PreviewLoop, ProfilePreview, ProfileShape};
+    use crate::test_support::{inserted, try_inserted, xy_frame};
+    use crate::theme::Theme;
 
     /// **Drawing the editor never rewrites a document value.** A
     /// committed `circle_split` above the form's count cap (the
@@ -430,23 +450,11 @@ mod tests {
     #[test]
     fn drawing_a_locked_split_circle_above_the_cap_leaves_it_alone() {
         use crate::forms::{MAX_CIRCLE_SPLIT, ShapeEdits};
-        let len = |m: f64| Expr::literal(m, Dimension::Length).expect("finite");
-        let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
-        let doc = Doc::empty_derived("probe", Tol::witness());
-        let frame = datum_node(crate::session::DatumSpec::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        });
-        let doc = apply(
-            &doc,
-            &DocEdit::InsertNode { node: frame },
+        let (doc, plane) = inserted(
+            &Doc::empty_derived("probe", Tol::witness()),
+            xy_frame(),
             Tol::witness(),
-            &pncad::document::RefusingReach,
-        )
-        .expect("frame")
-        .doc;
-        let plane = *doc.order().last().expect("the frame");
+        );
         let n = MAX_CIRCLE_SPLIT + 1;
         // **The figure's scale is the run's ε times a constant, and
         // that is forced.** A circle split n ways is conditioned
@@ -551,16 +559,13 @@ mod tests {
             )
             .expect("finite"),
         ];
-        let node = Node::Profile(ProfileProgram { plane, loops });
-        let doc = apply(
-            &doc,
-            &DocEdit::InsertNode { node },
-            Tol::witness(),
-            &pncad::document::RefusingReach,
-        )
-        .expect("the document admits a split circle above the form's cap")
-        .doc;
-        let profile = *doc.order().last().expect("the profile");
+        let node = Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        });
+        let (doc, profile) = try_inserted(&doc, node, Tol::witness())
+            .expect("the document admits a split circle above the form's cap");
         let mut drafts = Drafts::default();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
         assert!(!edit.moved(), "fresh load");
@@ -582,5 +587,312 @@ mod tests {
         };
         assert_eq!(held_n, n, "drawing the locked editor rewrote the count");
         assert!(!edit.moved(), "drawing alone made Apply live");
+    }
+
+    /// What a pointer resting on the `nth` painting of `glyph` reads,
+    /// over a list of `rows` fresh steps drawn under `shape`.
+    fn hovering_step_control(
+        shape: crate::forms::ShapeEdits,
+        rows: usize,
+        glyph: &str,
+        nth: usize,
+    ) -> String {
+        let mut steps: Vec<Step<f64>> = (0..rows).map(crate::widgets::new_row_step).collect();
+        painted_while_hovering(glyph, nth, |ui| {
+            super::path_steps_ui(
+                ui,
+                "probe",
+                Tol::witness(),
+                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                shape,
+                &mut steps,
+            );
+        })
+    }
+
+    /// **A locked list's step controls say why while disabled**: each
+    /// names what it would do, and under that the lock notice's own
+    /// value — the one reason, on the control the pointer is on. The
+    /// lock is read first, so a lone row's arrows, which the index
+    /// would also stop, still say the list is locked.
+    #[test]
+    fn a_locked_lists_step_controls_each_say_the_list_is_locked() {
+        use crate::forms::{SHAPE_LOCKED, ShapeEdits};
+        for (glyph, action) in [
+            (GLYPH_REMOVE, "remove this step"),
+            (GLYPH_UP, "move this step earlier"),
+            (GLYPH_DOWN, "move this step later"),
+            ("+", "insert a step after this one"),
+        ] {
+            let hovered = hovering_step_control(ShapeEdits::Locked, 1, glyph, 0);
+            assert!(
+                hovered.contains(&format!("{action}\n{SHAPE_LOCKED}")),
+                "{glyph}: {hovered}"
+            );
+            assert!(!hovered.contains("already"), "{glyph}: {hovered}");
+        }
+    }
+
+    /// **A free list's end rows say which end they are at** — a lone
+    /// row is both, and neither arrow has a row to move past.
+    #[test]
+    fn a_lone_free_rows_arrows_say_it_is_first_and_last() {
+        use crate::forms::ShapeEdits;
+        let up = hovering_step_control(ShapeEdits::Free, 1, GLYPH_UP, 0);
+        assert!(
+            up.contains("move this step earlier\nit is already the first step"),
+            "{up}"
+        );
+        let down = hovering_step_control(ShapeEdits::Free, 1, GLYPH_DOWN, 0);
+        assert!(
+            down.contains("move this step later\nit is already the last step"),
+            "{down}"
+        );
+    }
+
+    /// **Live, each control's hover is what a click does, and nothing
+    /// else** — on a two-row list, where row 0's down arrow and row
+    /// 1's up arrow both move.
+    #[test]
+    fn a_free_lists_live_step_controls_say_what_a_click_does() {
+        use crate::forms::ShapeEdits;
+        for (glyph, nth, action) in [
+            (GLYPH_REMOVE, 0, "remove this step"),
+            (GLYPH_UP, 1, "move this step earlier"),
+            (GLYPH_DOWN, 0, "move this step later"),
+            ("+", 0, "insert a step after this one"),
+        ] {
+            let hovered = hovering_step_control(ShapeEdits::Free, 2, glyph, nth);
+            assert!(hovered.contains(action), "{glyph}: {hovered}");
+            assert!(
+                !hovered.contains(&format!("{action}\n")),
+                "a live control carried a reason: {hovered}"
+            );
+        }
+    }
+
+    /// **On a list of more than one row, only the ends are stopped** —
+    /// row 0's up arrow and row 1's down arrow on two rows, each
+    /// saying which end it is at. A lone row is both ends, so it
+    /// cannot tell an end-of-list gate from a one-row gate.
+    #[test]
+    fn a_two_row_free_lists_end_arrows_say_which_end() {
+        use crate::forms::ShapeEdits;
+        let up = hovering_step_control(ShapeEdits::Free, 2, GLYPH_UP, 0);
+        assert!(
+            up.contains("move this step earlier\nit is already the first step"),
+            "{up}"
+        );
+        let down = hovering_step_control(ShapeEdits::Free, 2, GLYPH_DOWN, 1);
+        assert!(
+            down.contains("move this step later\nit is already the last step"),
+            "{down}"
+        );
+    }
+
+    /// **Apply says why while an untouched draft disables it**, and
+    /// says nothing of its own for a refused preview, whose sentence
+    /// [`super::preview_verdict`] draws.
+    #[test]
+    fn apply_says_there_is_nothing_to_apply_until_a_number_moves() {
+        let untouched = painted_while_hovering("Apply", 0, |ui| {
+            super::apply_and_revert(ui, false, false);
+        });
+        assert!(
+            untouched.contains("nothing to apply: the numbers are the committed profile's"),
+            "{untouched}"
+        );
+        let refused = painted_while_hovering("Apply", 0, |ui| {
+            super::apply_and_revert(ui, true, true);
+        });
+        assert!(!refused.contains("nothing to apply"), "{refused}");
+    }
+
+    /// **Revert says why while it is disabled**, and live says what it
+    /// puts back.
+    #[test]
+    fn revert_says_there_is_nothing_to_revert_until_a_number_moves() {
+        let untouched = painted_while_hovering("Revert", 0, |ui| {
+            super::apply_and_revert(ui, false, false);
+        });
+        assert!(
+            untouched.contains("nothing to revert: the numbers are the committed profile's"),
+            "{untouched}"
+        );
+        assert!(!untouched.contains("put the numbers back"), "{untouched}");
+        let moved = painted_while_hovering("Revert", 0, |ui| {
+            super::apply_and_revert(ui, true, false);
+        });
+        assert!(
+            moved.contains("put the numbers back to the committed profile's"),
+            "{moved}"
+        );
+        assert!(!moved.contains("nothing to revert"), "{moved}");
+    }
+
+    /// A chord fine enough that nothing here is short of points.
+    const CHORD: f64 = 1.0e-4;
+
+    /// What [`preview_verdict`] painted for `preview`, and whether it
+    /// held the commit.
+    fn drawn(preview: &Result<ProfilePreview, PreviewError>) -> (Vec<Landed>, Voices, bool) {
+        let mut held = None;
+        let (painted, voices) = landed_voiced(|ui| {
+            held = Some(preview_verdict(ui, Theme::DEFAULT, Some(preview)));
+        });
+        (painted, voices, held.expect("the verdict was drawn"))
+    }
+
+    /// The editor's own preview of `shapes`.
+    fn previewed(shapes: &[ProfileShape]) -> Result<ProfilePreview, PreviewError> {
+        sketch::preview(SketchPlane::xy(), shapes, Tol::witness(), CHORD)
+    }
+
+    /// The editor's own preview of one path loop.
+    fn path(steps: Vec<Step<f64>>) -> Result<ProfilePreview, PreviewError> {
+        previewed(&[ProfileShape::Path { steps }])
+    }
+
+    fn at(x: f64, y: f64) -> Step<f64> {
+        Step::At(Point2::new(x, y))
+    }
+
+    fn line_to(x: f64, y: f64) -> Step<f64> {
+        Step::LineTo(Target::Point(Point2::new(x, y)))
+    }
+
+    /// **A chain being written is quiet, drawn or not.** The drawn
+    /// open chain and the one-point chain that ended before anything
+    /// could be drawn are one state, so they are one voice — and both
+    /// hold the commit.
+    #[test]
+    fn an_unfinished_chain_is_quiet_and_holds_the_commit() {
+        let open = path(vec![at(0.0, 0.0), line_to(0.01, 0.0), line_to(0.01, 0.01)]);
+        assert!(
+            matches!(&open, Ok(drawn) if drawn.has_open_chain()),
+            "a fixture that draws an open chain: {open:?}"
+        );
+        let (painted, voices, held) = drawn(&open);
+        assert_eq!(
+            find_opening(&painted, "the chain does not close yet").ink,
+            Some(voices.weak)
+        );
+        assert!(held, "an open chain holds the commit");
+
+        let ended = path(vec![at(0.0, 0.0)]);
+        let Err(error) = &ended else {
+            panic!("a one-point chain does not replay: {ended:?}")
+        };
+        assert!(
+            matches!(error, PreviewError::Transition { verb: None, .. }),
+            "{error}"
+        );
+        let (painted, voices, held) = drawn(&ended);
+        assert_eq!(find(&painted, &error.to_string()).ink, Some(voices.weak));
+        assert!(held, "a chain that never closes holds the commit");
+    }
+
+    /// **A refusal that blames a written step is loud**: an ill-typed
+    /// verb, and a leg whose geometry refused.
+    #[test]
+    fn a_refusal_of_a_written_step_is_loud() {
+        let ill_typed = path(vec![at(0.0, 0.0), Step::Tangent]);
+        assert!(
+            matches!(
+                &ill_typed,
+                Err(PreviewError::Transition {
+                    verb: Some(Verb::Tangent),
+                    ..
+                })
+            ),
+            "{ill_typed:?}"
+        );
+        let geometry = Err(PreviewError::Geometry {
+            loop_: 0,
+            step: 1,
+            rendered: "the leg has no answer".to_owned(),
+        });
+        for refused in [ill_typed, geometry] {
+            let Err(error) = &refused else {
+                panic!("both fixtures are refusals: {refused:?}")
+            };
+            let (painted, voices, held) = drawn(&refused);
+            assert_eq!(
+                find(&painted, &error.to_string()).ink,
+                Some(voices.unresolved),
+                "{error}"
+            );
+            assert!(held, "{error} holds the commit");
+        }
+    }
+
+    /// **A drawn preview that does not validate is loud**, and a valid
+    /// one is a quiet count that holds nothing.
+    #[test]
+    fn an_invalid_preview_is_loud_and_a_valid_one_is_a_quiet_count() {
+        let crossing = previewed(&[
+            ProfileShape::Circle {
+                centre: [0.0, 0.0],
+                radius: 0.01,
+            },
+            ProfileShape::Circle {
+                centre: [0.015, 0.0],
+                radius: 0.01,
+            },
+        ]);
+        assert!(
+            matches!(&crossing, Ok(drawn) if drawn.invalid.is_some()),
+            "{crossing:?}"
+        );
+        let (painted, voices, held) = drawn(&crossing);
+        assert_eq!(
+            find_opening(&painted, "does not validate: ").ink,
+            Some(voices.unresolved)
+        );
+        assert!(held, "an invalid profile holds the commit");
+
+        let square = path(vec![
+            at(0.0, 0.0),
+            line_to(0.01, 0.0),
+            line_to(0.01, 0.01),
+            Step::LineTo(Target::Start),
+        ]);
+        let (painted, voices, held) = drawn(&square);
+        assert_eq!(
+            find(&painted, "1 loop(s), drawn in the viewport").ink,
+            Some(voices.weak)
+        );
+        assert!(!held, "a valid preview holds nothing");
+    }
+
+    /// **A preview that is open AND invalid says the open chain,
+    /// quietly** — one sentence and one tone off one partition of the
+    /// value. `sketch::preview` never builds this value; a sentence
+    /// and a tone read off two partitions would draw the open chain's
+    /// words in the invalid profile's colour.
+    #[test]
+    fn an_open_and_invalid_preview_says_the_open_chain_quietly() {
+        let planted = Ok(ProfilePreview {
+            plane: SketchPlane::xy(),
+            loops: vec![PreviewLoop {
+                points: vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]],
+                vertices: vec![0, 1, 2],
+                closed: false,
+            }],
+            invalid: Some(ProfileError::EmptyProfile),
+        });
+        let (painted, voices, held) = drawn(&planted);
+        assert_eq!(
+            find_opening(&painted, "the chain does not close yet").ink,
+            Some(voices.weak)
+        );
+        assert!(
+            !painted
+                .iter()
+                .any(|landed| landed.text.starts_with("does not validate")),
+            "{:?}",
+            painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+        assert!(held, "an open chain holds the commit");
     }
 }

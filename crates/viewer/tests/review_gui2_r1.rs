@@ -10,11 +10,12 @@
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
 //! What carries no oracle is shared: `common::{xy_frame, rectangle,
-//! inserted, len, scl, gallery_ring_at}`. The blocks' own dimensions
-//! and the cursor positions aimed at them stay here, where the aim is
+//! inserted, len, scl, gallery_ring_at, index_of, down_from, ring_delta}`. The
+//! blocks' own dimensions, the height the rays start above them and
+//! the cursor positions aimed at them stay here, where the aim is
 //! written.
 //!
-//! Conventions per `memories/test-suite-cost.md`: the randomized rows
+//! Conventions per implementer-discipline §8: the randomized rows
 //! draw a fresh seed per run through `test_utils::fuzz` (logged
 //! unconditionally, replayable via `CAD_FUZZ_SEED`), and their counts
 //! ride the shared effort dial. The one `#[ignore]`d row is an
@@ -34,14 +35,16 @@ test_utils::gated_to![
     "crates/pncad/src/",
     "crates/bvh/src/",
     "crates/viewer/tests/common/",
-    "crates/viewer/tests/gallery_ring.pncad"
+    "crates/viewer/tests/gallery_ring.pncad",
+    "crates/viewer/src/test_support.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::common;
 use crate::common::{inserted, len, scl, xy_frame};
 
 use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, Tol};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
@@ -94,29 +97,14 @@ fn landed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
 }
 
 fn index_of(session: &DocSession) -> PickIndex {
-    index_at(session, delta())
+    common::index_of(session, delta())
 }
 
-fn index_at(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("the inline seam lands");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(
-            session.landed_generation().expect("a landed generation"),
-            delta,
-        ),
-        session.tol(),
-    )
-    .expect("the fixture indexes")
-}
-
-/// A ray straight down at `(x, y)` from above everything here.
+/// A ray straight down at `(x, y)` from above everything here. The
+/// height is this suite's claim about its own fixture, so it stays in
+/// this file rather than riding the shared door's default.
 fn down(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 0.5),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
+    common::down_from(x, y, 0.5)
 }
 
 // --- un-projection, this suite's own construction -------------------
@@ -464,10 +452,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let index = index_of(&session);
     // The third instance spans y ∈ [0.16, 0.19]; a horizontal ray
     // along +x at its mid-height meets its x=0 wall first.
-    let wall = Ray {
-        origin: Point3::new(-1.0, 0.175, 0.0075),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let wall = common::along_x(1.0, 0.175, 0.0075);
     let face = index
         .face_at(session.evaluation().expect("landed"), &wall)
         .expect("no refusal")
@@ -510,14 +495,14 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     let tol = Tol::witness();
     // Coarser than the block fixtures' δ: the ring is a revolve and
     // this row tessellates it twice; picking semantics do not depend
-    // on the facet count (`memories/test-suite-cost.md` — keep the
+    // on the facet count (implementer-discipline §8 — keep the
     // per-run cost where the claim needs it).
-    let ring_delta = DisplayTolerance::new(2.0e-3).expect("a positive delta");
+    let ring_delta = common::ring_delta();
     let loaded =
         pncad::document::load(&common::gallery_ring_at(tol), tol).expect("the gallery ring loads");
     let mut session = DocSession::inline(loaded.snapshot, tol);
     session.pump();
-    let index = index_at(&session, ring_delta);
+    let index = common::index_of(&session, ring_delta);
     assert!(!index.ids().is_empty(), "the ring draws pickable patches");
 
     let viewport = ViewportSize {
@@ -632,7 +617,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     session.perform(SessionOp::Undo);
     session.pump();
     assert!(session.standing().live(), "the un-deleted owner resolves");
-    let fresh = index_at(&session, ring_delta);
+    let fresh = common::index_of(&session, ring_delta);
     let re_hit = fresh
         .op_for(
             session.evaluation().expect("landed"),

@@ -3,7 +3,6 @@
 //! loft wall AND on a path-swept wall, where the rotated frames
 //! exercise every affine component.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;

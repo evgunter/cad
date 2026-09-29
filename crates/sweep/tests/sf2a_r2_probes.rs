@@ -24,23 +24,15 @@ use crate::common::approx::band;
 use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, ChartMove, FaceKey, ReplaceFaceError, ShellError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a polygon is a valid profile");
@@ -363,10 +355,10 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
             (r * a.cos(), r * a.sin())
         })
         .collect();
-    let outer = ProfileLoop::new(
+    let outer = bulge_loop(
         hex.iter()
             .enumerate()
-            .map(|(i, &(x, y))| ProfileVertex::new(p2(x, y), if i == 0 { 0.2 } else { 0.0 }))
+            .map(|(i, &(x, y))| (Point2::new(x, y), if i == 0 { 0.2 } else { 0.0 }))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![outer])

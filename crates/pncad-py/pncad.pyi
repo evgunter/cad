@@ -268,9 +268,11 @@ class ValidationFinding:
       it says which record to withdraw or re-seat, and withdrawing
       another one leaves the refusal standing.
     - `ring_contact_kind` — how a ring meets its face's own outer loop
-      (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`).
+      (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
+      `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
       The word says where the ring has to move: a shared position one
-      vertex clears, or a shared arc no single vertex move separates.
+      vertex clears, a shared arc no single vertex move separates, or
+      a crossing or touching point no vertex carries.
 
     No arena key crosses. A `Body` is an opaque handle, so WHICH face
     or vertex a finding names stays in the kernel's own prose on the
@@ -312,19 +314,20 @@ class ValidationError(PncadError):
     failure_count: int
     findings: list[ValidationFinding]
 
-class DimensionError(PncadError):
+class QuantityOpMismatch(PncadError):
     """An operator applied to two QUANTITIES whose dimensions do not
     admit it — `1 * m + 1 * rad`.
 
-    The quantity boundary only, and not the library's only dimension
-    check. The document layer's own refusal type reaches Python three
-    other ways: through literal construction (as LiteralError),
-    through `Doc.parse_expr` (as ParseError with `variant ==
-    "dimension"` and the mismatch's own tag as `kind` — the one of the
-    three that keeps it branchable), and through `load`, where a save
-    file's ill-dimensioned expression arrives as PersistError with
-    `variant == "parse"` rather than as any dimension class (issue
-    #694)."""
+    The class is the Rust type's own name. This is the quantity
+    boundary only, and not the library's only dimension check: the
+    document layer's own refusal type reaches Python at SIX doors
+    under four DOOR names rather than one type name — LiteralError
+    (literal construction, the MeasureExpr arithmetic constructors,
+    and the recorded-program lift), ParseError with `variant ==
+    "dimension"` (`Doc.parse_expr`), EditError (`Doc.apply`), and
+    PersistError with `variant == "dimension"` (`load`). Each carries
+    the failing check's own tag, so which check refused is branchable
+    at every one."""
 
     op: str
     left: str
@@ -352,11 +355,13 @@ class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
     curated error). `value` is the offending number.
 
-    Not DimensionError, which is the quantity boundary's operator
-    check. The expression layer's refusal type has dimension-mismatch
-    arms too, and three other doors reach them: `load` does, from a
-    hand-edited save file, and they arrive as PersistError with
-    `variant == "parse"` (issue #694); `Doc.parse_expr` does, and they
+    Not QuantityOpMismatch, which is the quantity boundary's operator
+    check and a different type. The expression layer's refusal type has
+    dimension-mismatch arms too, and reaches Python at six doors under
+    four class names in all: `load` does, from a hand-edited save file,
+    and they arrive as PersistError with `variant == "dimension"` and
+    the check's own tag as `inner_variant`; `Doc.apply` does, as
+    EditError; `Doc.parse_expr` does, and they
     arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
     constructors do (`MeasureExpr.add` and its siblings), arriving on
     THIS class with the mismatch's own tag as `kind` — the same kernel
@@ -427,19 +432,22 @@ class PersistError(PncadError):
 
     `variant` is the refusing arm's tag — `non_finite`,
     `profile_program`, `distribution`, `display_unit`, `serialize`,
-    `header_id`, `id_mismatch`, `parse`, `unreadable`, `snapshot`,
-    `edit_replay`, `maintenance_frame`, `tolerance_conflict` or
+    `header_id`, `id_mismatch`, `parse`, `unreadable`, `dimension`,
+    `snapshot`, `edit_replay`, `maintenance_frame`, `tolerance_conflict`
+    or
     `tolerance_invalid`.
 
     Five arms wrap a refusal of their own, and its word rides beside
     the carrier's on `inner_variant`: a profile-program fault, a
     distribution fault, a snapshot invariant, the `EditError` a
-    replayed edit raised, or what a recorded maintenance row's frame
-    fails to be a placement (`non_finite`, `improper` — the
-    `SetPlacement` door's own rule, applied to the log's rows at load;
-    `index` is the entry's, and the row within it is in the message).
-    The nested refusal's own payload is the inner door's surface and
-    stays in the message.
+    replayed edit raised, what a recorded maintenance row's frame fails
+    to be a placement (`non_finite`, `improper` — the `SetPlacement`
+    door's own rule, applied to the log's rows at load; `index` is the
+    entry's, and the row within it is in the message), or the dimension
+    check a saved expression failed. The nested refusal's own payload is
+    the inner door's surface and stays in the message.
+
+    `dimension` is
 
     Two names are shared by arms that carry one concept under
     different spellings: `detail` is the underlying reporter's own
@@ -912,8 +920,9 @@ class FrameError(PncadError):
     classifier saw an enclosure rather than a value, `zero` and
     `escalate` the band it was classified against, and `predicate`
     the decision's name where the kernel attached one. A poisoned
-    margin carries the band and no number. This is diagnostic data:
-    the escalation contract is that no sound branch exists here, so
+    margin carries the band and no number. This is diagnostic data,
+    for error text only and not a decision input: the escalation
+    contract is that no sound branch exists here, so
     the recourse is the message's own three levers — declare the
     coincidence, move the geometry, or lower the tolerance.
 
@@ -1121,7 +1130,7 @@ class AnalysisPolicyError(PncadError):
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
-# DimensionError.
+# QuantityOpMismatch.
 
 class Length:
     """A length. Construct as `25 * mm`.
@@ -2507,7 +2516,7 @@ class ParamName:
 # analysis doors below are its ONE interpreter. Offsets are typed
 # quantities in the PARAMETER's dimension — the annotation carries no
 # dimension of its own, so it borrows the one the parameter declares,
-# and a mismatch is a DimensionError at the door rather than a
+# and a mismatch is a QuantityOpMismatch at the door rather than a
 # plausible number later.
 
 _Offset: TypeAlias = Length | Angle | float
@@ -2526,7 +2535,7 @@ class Distribution:
 
     Every offset in one distribution must be the same dimension, and
     the wrapper remembers which: `Distribution.band(-0.1 * mm, 1 * deg)`
-    is a DimensionError. Construction also runs the kernel's own E2
+    is a QuantityOpMismatch. Construction also runs the kernel's own E2
     check, so a broken invariant refuses here as `DistributionFault`
     rather than at the edit."""
 
@@ -2658,7 +2667,7 @@ class AnalyzedBox:
         `(lo, hi)` — the leaf-pricing door.
 
         The offsets are quantities in the axis's own dimension; another
-        dimension is a DimensionError. `None` when the document
+        dimension is a QuantityOpMismatch. `None` when the document
         declares no such continuous parameter. An unannotated axis is a
         point mass at its nominal, so it answers `1.0` for any interval
         containing offset zero and `0.0` otherwise. A band raises
@@ -2823,7 +2832,7 @@ class DocParam:
 
     The three continuous constructors take an optional `distribution`
     (ERROR-DESIGN E1/E2) whose offsets must be in the dimension the
-    constructor declares — a mismatch is a DimensionError. `count`
+    constructor declares — a mismatch is a QuantityOpMismatch. `count`
     takes none and cannot: a structural count is fixed under any error
     analysis."""
 
@@ -3060,6 +3069,47 @@ class DocEdit:
         Refuses `update_on_non_instance`, and `pin_unchanged` when the
         site already names that version."""
 
+    @overload
+    @staticmethod
+    def set_program(
+        node: NodeId,
+        outline: ClosedLoop,
+        ids: list[list[Optional[int]]],
+    ) -> DocEdit: ...
+    @overload
+    @staticmethod
+    def set_program(
+        node: NodeId,
+        outline: list[ClosedLoop],
+        ids: list[list[Optional[int]]],
+    ) -> DocEdit:
+        """Replace a live profile's PROGRAM whole — its loops, their
+        verbs, order and count, arc modes and targets — validated
+        once, as one edit. The plane is not carried and does not move.
+
+        `outline` is the description `Node.profile` takes — one closed
+        loop, or `[outer, hole, hole]` — read through the same door.
+        `ids` is one list per new loop in that order, one entry per
+        authored step: the minted id of the OLD step it keeps
+        (`Doc.step_ids` reads them), or `None` for a new step, which
+        the door mints. The editor that reshaped the program knows
+        which leg it inserted; the door is told, never guesses.
+
+        A name on a profile piece spells its step's id, so a name on a
+        kept step keeps denoting its piece and is not touched. A step
+        the new program does not keep takes its id with it: every name
+        on it — a fillet's selection, a shell's mouth, a derived
+        frame's face, a paint — keeps its spelling, resolves to
+        nothing, and is reported `strand` or `stranded_appearance` on
+        `Doc.last_maintenance` until `rebind` repairs it.
+
+        Refuses `step_ids_refused` before the program is replayed
+        (`inner_variant`: `shape`, `not_this_profiles`, `repeated`),
+        `set_program_on_non_profile`, and then everything an insert
+        refuses of a profile: `slot_unknown_doc_param` and its
+        siblings over every argument, `profile_program_refused` for a
+        program that does not close, replay or validate."""
+
     @staticmethod
     def rebind(from_name: str, to_name: str) -> DocEdit:
         """Repair a stored name: rewrite every document site that
@@ -3175,13 +3225,38 @@ class Doc:
         insert (a stranded head, a re-pointed `Part`, a loaded
         snapshot), are the solve's at evaluation."""
 
+    def step_ids(self, profile: NodeId) -> list[list[int]]:
+        """The minted id of every step of the profile at `profile`, one
+        list per loop in program order — what `DocEdit.set_program`
+        keeps a step by. Raises `ValueError` for a node that is not a
+        profile."""
+
+    def pieces(self, profile: NodeId) -> list[list[str]]:
+        """The piece every canonical segment of the profile at
+        `profile` is, one list per canonical loop (0 the outer loop,
+        then the holes in description order), one piece per canonical
+        segment in the loop's canonical traversal from its authored
+        start — under the document's current parameter values.
+
+        A piece is opaque text, as a name is: the step that drew the
+        segment, by its minted id, and its role in that step's list.
+        It is what `band`, `band_pi`, `band_rim` and `meridian_vertex`
+        take, and it stays the name of that piece whatever later moves
+        the segment. The vertex a piece STARTS at is spelled by the
+        same text.
+
+        Raises `ValueError` for a node that is not a profile, or whose
+        program does not replay and validate under the current
+        values."""
+
     @property
     def last_maintenance(self) -> list[Maintenance]:
         """The maintenance the LAST accepted edit performed: its
-        cluster-record acts, the payload names its delete stranded,
-        and the declarations that delete left with no consumer. The
-        strands lead, the orphaned declarations follow them and the
-        cluster acts come last, so read `variant`, never a position.
+        cluster-record acts, the names its delete or reshaping
+        stranded, and the declarations its delete left with no
+        consumer. The strands lead, then the orphaned declarations,
+        and the cluster acts come last, so read `variant`, never a
+        position.
         Empty after an edit that moved no mate graph, stranded no
         name and orphaned no declaration, and on a document that has
         applied none; a REFUSED edit leaves it untouched, as it
@@ -3589,6 +3664,8 @@ class SegTag:
     RimEdge: Final[SegTag]
     LateralEdge: Final[SegTag]
     CapVertex: Final[SegTag]
+    LoftWall: Final[SegTag]
+    LoftSeam: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
     BandRimPi: Final[SegTag]
@@ -3809,32 +3886,30 @@ class GeomPred:
 # either side of the boundary. The text stays opaque — a caller
 # composes by naming a ROLE, never by assembling the serialization.
 
-def band(node: NodeId, loop_index: int, seg: int) -> str:
-    """The `[0, pi)` band face swept from segment `seg` of profile
-    loop `loop_index` on the revolve at `node`.
+def band(node: NodeId, piece: str) -> str:
+    """The `[0, pi)` band face swept from the profile piece `piece` on
+    the revolve at `node`.
 
-    `loop_index` is 0 for the outer loop and 1.. for the holes, in the
-    profile's description order; `seg` indexes that loop's canonical
-    chain, so a hole's band is reachable here at its own loop. The
-    kind is fixed at the role's own — a face — which is the field a
-    hand-written name gets wrong silently until emission refuses
-    it."""
+    `piece` is a piece's text, from `Doc.pieces`: the step that drew a
+    segment, by its minted id, and its role in that step's list — so
+    the name stays the name of that piece whatever later moves the
+    segment. The kind is fixed at the role's own — a face — which is
+    the field a hand-written name gets wrong silently until emission
+    refuses it."""
 
-def band_pi(node: NodeId, loop_index: int, seg: int) -> str:
-    """The `[pi, 2pi)` band face swept from segment `seg` of loop
-    `loop_index` — `band`'s twin, where a full revolve emits a segment
-    as two faces. A face, as `band` is."""
+def band_pi(node: NodeId, piece: str) -> str:
+    """The `[pi, 2pi)` band face swept from the profile piece `piece` —
+    `band`'s twin, where a full revolve emits a segment as two faces.
+    A face, as `band` is."""
 
-def band_rim(node: NodeId, loop_index: int, vertex: int) -> str:
-    """The latitude rim at vertex `vertex` of loop `loop_index` — the
-    edge between the bands of segments `vertex - 1` and `vertex` on
-    that loop. An edge."""
+def band_rim(node: NodeId, piece: str) -> str:
+    """The latitude rim at the vertex the profile piece `piece` starts
+    at — the edge between the band of the piece ending there and the
+    piece's own. An edge."""
 
-def meridian_vertex(
-    end: MeridianEnd, node: NodeId, loop_index: int, vertex: int
-) -> str:
-    """The meridian vertex at `end`: the copy of vertex `vertex` of
-    loop `loop_index` on a wedge cap plane (`MeridianEnd.Start`,
+def meridian_vertex(end: MeridianEnd, node: NodeId, piece: str) -> str:
+    """The meridian vertex at `end`: the copy of the vertex the profile
+    piece `piece` starts at, on a wedge cap plane (`MeridianEnd.Start`,
     `MeridianEnd.End`) on a partial revolve, or the surviving meridian
     vertex (`MeridianEnd.Seam`) on a full one. A vertex."""
 
@@ -3895,8 +3970,9 @@ class Body:
         eps. Tier 3 admits such a body and the measurement raises
         `ValidationError` with `reason == "mass_properties_failed"`,
         exactly as `mass_properties()` does — carrying, there and
-        only there, the sign-level bracket the gate did certify as
-        `volume_lo`, `volume_hi` and `surface_area`."""
+        only there, the narrowest bracket the gate's certificate or
+        its continuation held, as `volume_lo`, `volume_hi` and
+        `surface_area`."""
     def validate_pseudomanifold(self) -> None:
         """Tier 3′, the ladder's fourth rung: tier 3's whole local
         battery PLUS the global coincidence census tier 3 defers,
@@ -4018,6 +4094,14 @@ class ImportReport:
     `report.body.mass_properties()` runs the certified quadrature a
     second time over the same body at the same band, and answers the
     same four fields bit for bit.
+
+    The gate decides each solid's volume SIGN, so it admits a valid
+    body whose volume is not measurable at this ε (a large rational
+    wall whose quadrature exhausts its schedule). The import still
+    succeeds; reading `enclosure` on such a report raises the same
+    measurement refusal `Body.validate_geometric_measured` raises,
+    carrying `volume_lo`/`volume_hi`/`surface_area` when the schedule
+    ran out.
 
     The three record lists are the adoption's own report, as data
     rather than prose: every boundary graph re-minted, every NURBS
@@ -5183,18 +5267,20 @@ class MateFault:
     @property
     def margin(self) -> Optional[Length]:
         """The in-band margin the classifier saw, when it saw a
-        value. Reading it is not branching on it: what the escalation
-        contract forbids is recovering the margin to make the sign
-        decision the classifier refused."""
+        value. For error text only, not a decision input: what the
+        escalation contract forbids is recovering the margin to make
+        the sign decision the classifier refused."""
 
     @property
     def margin_low(self) -> Optional[Length]:
         """The classified enclosure's lower bound, where the
-        classifier saw an enclosure rather than a value."""
+        classifier saw an enclosure rather than a value. For error
+        text only, not a decision input."""
 
     @property
     def margin_high(self) -> Optional[Length]:
-        """Its upper bound."""
+        """Its upper bound. For error text only, not a decision
+        input."""
 
     @property
     def zero(self) -> Optional[float]:
@@ -5322,10 +5408,12 @@ class Maintenance:
     absorbed cluster's frame is consumed here, and a stranded name is
     said at the delete rather than at the next evaluation.
 
-    A `strand` names a node that survived the delete carrying a name
-    whose minting node did not. The name is not a DAG edge, so the
-    delete is legal; the name now resolves to nothing, and
-    `DocEdit.rebind` is the repair.
+    A `strand` names a node that survived the edit carrying a name
+    whose referent the edit removed — its minting node, under a
+    delete, or the profile step it named a piece of, under
+    `DocEdit.set_program`. The name is not a DAG edge, so the edit is
+    legal; the name now resolves to nothing, and `DocEdit.rebind` from
+    the spelling `name` carries is the repair.
 
     A `stranded_appearance` is the same loss one carrier over: the
     document's appearance store still holds an attachment under a name
@@ -5671,6 +5759,9 @@ class SplitOutcome:
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Cut node -> its id in the part document."""
+    @property
+    def step_map(self) -> list[tuple[int, int]]:
+        """Cut profile step id -> the id the part minted for it."""
 
 def split(
     doc: Doc, cut: list[NodeId], part_id: str, *, resolver: Optional[Workspace] = None
@@ -5709,6 +5800,9 @@ class InlineOutcome:
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Part node -> its id in the spliced document."""
+    @property
+    def step_map(self) -> list[tuple[int, int]]:
+        """Part profile step id -> the id the host minted for it."""
 
 def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     """Splice a referenced document back in, replacing the instantiate
@@ -5886,8 +5980,9 @@ class CheckEvidence:
     `unsupported` (`reason`, `inner_variant`) — a shell's orientation
     read could not be decided at this tolerance, or a face is outside
     the flux inventory, so the count is UNKNOWABLE and says so rather
-    than guessing; `inner_variant` is which of the shell door's four
-    refusals it was (`band`, `props`, `escalated`, `zero_volume`).
+    than guessing; `inner_variant` is which of the shell door's five
+    refusals it was (`band`, `props`, `escalated`, `zero_volume`,
+    `straddles`).
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,

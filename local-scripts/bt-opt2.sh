@@ -24,14 +24,8 @@ echo "### EXECUTION: cargo nextest run, opt-0 (CI today) vs opt-2"
 unset CARGO_PROFILE_DEV_OPT_LEVEL CARGO_PROFILE_TEST_OPT_LEVEL
 cargo nextest run --workspace --no-run >/dev/null 2>&1
 t "C1. nextest --workspace                opt-0"  cargo nextest run --workspace --no-fail-fast
-cargo nextest run --workspace --features interval --no-run >/dev/null 2>&1
-t "C2. nextest --workspace --features interval opt-0" \
-   cargo nextest run --workspace --features interval --no-fail-fast
 
 export CARGO_PROFILE_DEV_OPT_LEVEL=2
 export CARGO_PROFILE_TEST_OPT_LEVEL=2
 cargo nextest run --workspace --no-run >/dev/null 2>&1
 t "C3. nextest --workspace                opt-2"  cargo nextest run --workspace --no-fail-fast
-cargo nextest run --workspace --features interval --no-run >/dev/null 2>&1
-t "C4. nextest --workspace --features interval opt-2" \
-   cargo nextest run --workspace --features interval --no-fail-fast

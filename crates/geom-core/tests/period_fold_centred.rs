@@ -186,7 +186,6 @@ fn the_branch_pin_lands_within_half_a_period_of_its_reference() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::TAU;
     use geom_core::{Bounds, Interval, Real};

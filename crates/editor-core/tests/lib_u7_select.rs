@@ -25,16 +25,13 @@
 use crate::corpus;
 use crate::fixture;
 
+use crate::fixture::len;
 use corpus::die_composed;
 use editor_core::{
-    CancelToken, CapEnd, Dimension, EntityKind, EvalOptions, Expr, NamePat, Node, OpGroup,
-    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, evaluate,
+    CancelToken, CapEnd, EntityKind, EvalOptions, NamePat, Node, OpGroup, ProfileDoc, RecipeNodeId,
+    RoleSeg, SegPat, SegTag, Selector, StableName, evaluate,
 };
 use geom_core::Tol;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length literal")
-}
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(
@@ -281,7 +278,7 @@ fn the_selector_materializes_exactly_the_authored_die_composed_selection() {
     let (cube, ball, pipped) = composed_ids(&doc.doc, &ev);
 
     let materialized = editor_core::select(&ev, pipped, &die_composed::selector());
-    let mut authored = die_composed::selection(cube, ball, pipped);
+    let mut authored = die_composed::selection(&doc.doc, cube, ball, pipped);
     authored.sort();
     authored.dedup();
 
@@ -307,7 +304,7 @@ fn the_stored_selection_is_the_materialized_set() {
         Some(Node::Fillet { selection, .. }) => selection.clone(),
         other => panic!("expected a fillet, got {other:?}"),
     };
-    let mut authored = die_composed::selection(cube, ball, pipped);
+    let mut authored = die_composed::selection(&doc.doc, cube, ball, pipped);
     authored.sort();
     assert_eq!(stored, authored);
 }
@@ -325,7 +322,7 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
     let selected = editor_core::select(&ev, pipped, &die_composed::selector());
     let all = editor_core::all_edges(&ev, pipped);
     assert_eq!(all.len(), 16, "the target's edge table");
-    for meridian in die_composed::excluded_meridians(ball, pipped) {
+    for meridian in die_composed::excluded_meridians(&doc.doc, ball, pipped) {
         assert!(all.contains(&meridian), "the meridian is a live edge");
         assert!(
             !selected.contains(&meridian),

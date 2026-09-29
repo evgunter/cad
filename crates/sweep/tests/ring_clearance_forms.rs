@@ -234,7 +234,11 @@ fn refusal_reading(err: BlendError) -> (String, f64) {
     assert_eq!(margin.sign, Sign::Negative, "a definite refusal");
     (
         margin.predicate.to_string(),
-        margin.value().expect("a definite reading"),
+        margin
+            .reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("a definite reading"),
     )
 }
 

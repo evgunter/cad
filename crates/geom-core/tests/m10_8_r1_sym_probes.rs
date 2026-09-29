@@ -6,7 +6,6 @@
 //! a non-identity, and clause 1 must stand in front of rule A); they run
 //! at `with_session` (rules A+B on) and at explicit rule sets.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 use geom_core::interval::Interval;
@@ -35,7 +34,7 @@ fn lit(x: f64) -> Sym<Interval> {
 }
 
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 /// **Clause 1 in front of rule A**: `sqrt(X)² − X` with `X` STRADDLING

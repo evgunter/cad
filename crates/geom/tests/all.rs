@@ -3,7 +3,7 @@
 //! Every suite under `tests/` is included here VERBATIM via `#[path]`,
 //! so this one binary stands in for one test target per suite. The
 //! files themselves are untouched: each keeps its own `//!` docs and its
-//! inner attributes (`#![cfg(feature = "interval")]` and friends work as
+//! inner attributes (`#![cfg(feature = "probe")]` and friends work as
 //! module-level attributes).
 //!
 //! The suite count is deliberately NOT restated in prose here:

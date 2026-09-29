@@ -4,8 +4,8 @@
 //! Every document here is a RECIPE authored through `DocEdit`s (an
 //! edit LOG, never a hand-built `Doc` value), so each one is at once:
 //!
-//! - an evaluation fixture (green at every CI ε row and under the
-//!   `interval` feature — `m4_pr8_corpus.rs` / `..._interval.rs`),
+//! - an evaluation fixture (green at every CI ε row and at the
+//!   certified scalar — `m4_pr8_corpus.rs` / `..._interval.rs`),
 //! - a persistence fixture (the PR 6 D6.1 rows run the whole corpus:
 //!   `m4_pr6_roundtrip.rs` / `..._interval.rs`),
 //! - a latency fixture (D2's full-rebuild + incremental-recompute
@@ -66,6 +66,7 @@ pub mod loft_prism;
 pub mod measured_web;
 pub mod part_select;
 pub mod plate_param;
+pub mod reshaped_rod;
 pub mod sink;
 pub mod slots;
 pub mod table;
@@ -162,8 +163,8 @@ pub fn documents() -> Vec<CorpusDoc> {
         // `5c8540f`. It was held out while the fillet battery's
         // clearance screen seeded a gap with
         // `T::from_f64(f64::INFINITY)` — NaI at the Interval scalar,
-        // so the document was green at `f64` and refused under
-        // `--features interval`, which registry membership requires.
+        // so the document was green at `f64` and refused at the
+        // Interval scalar, which registry membership requires.
         // That sentinel is gone; the document runs the Interval lane
         // like every other row. It stays additionally pinned at both
         // scalars by `m5_pr12_fillet_node.rs`.
@@ -254,13 +255,20 @@ pub fn documents() -> Vec<CorpusDoc> {
         tube_arc::document(),
         hollow_tube_elbow::document(),
         hollow_tube_ring::document(),
+        // `reshaped_rod` (EDIT-PROGRAM): the one document whose log
+        // holds a `SetProgram` — a rod's section on a block, its
+        // crease filleted, then the block's program reshaped under
+        // the fillet with the crease's name rebound by the door. The
+        // registry battery is what makes the reshaping's rewrite a
+        // persisted, replayed, name-digested fact rather than a row's.
+        reshaped_rod::document(),
     ]
 }
 
 /// The transitive downstream cone of `root` (inclusive) over the
 /// recipe DAG's input edges — computed independently of the
 /// evaluator, so the counted-reuse assertions have a real oracle.
-pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut set = BTreeSet::new();
     set.insert(root);
     // `order` is insertion order and inputs must pre-exist, so one
@@ -309,7 +317,33 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     }
 }
 
+/// **The node kinds no document can evaluate to a value** — the
+/// evaluation frontier, read by every suite that requires each kind
+/// evaluated somewhere (`m4_pr8_corpus`, `names_verbatim_edge_evaluator`).
+///
+/// - `Sweep`: every recipe-expressible sweep refuses at one door, for
+///   the reason `eval::wire::SWEEP_FRONTIER` states.
+///
+/// Each reader holds its entries in both directions, so a kind that
+/// starts evaluating reds until it is removed here.
+pub const NEVER_EVALUATES: [&str; 1] = ["Sweep"];
+
+/// **The node kinds that evaluate, but only in documents beside this
+/// registry** — so [`documents`] cannot cover them while
+/// [`NEVER_EVALUATES`] does not list them.
+///
+/// - `Shell`: its documents ([`cup`], [`vessel`]) evaluate, and
+///   `lib_g17_shell_node.rs` runs them, but registry membership requires
+///   `Dual64`, and a dual has no shell door (`lib_g17_shell_node.rs`
+///   pins the typed refusal). It leaves this list when the registry's
+///   dual row can name a document whose lowering has no dual lane, or
+///   when the door gains one.
+pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
+
 /// The node kinds a document exercises (the coverage tally's domain).
+///
+/// Hand-written, not welded to `Node`, and without `InstantiatePart`
+/// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
 pub const NODE_KINDS: [&str; 21] = [
     "Datum",
     "Profile",
@@ -378,7 +412,9 @@ pub const NODE_KINDS: [&str; 21] = [
 /// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
 /// `SetPlacement` and `UpdateReference` are arms of `DocEdit` that no
 /// corpus document authors, and listing them here would report four
-/// permanent misses rather than covering anything. What guards the
+/// permanent misses rather than covering anything. `SetProgram` is
+/// listed: `reshaped_rod` authors one, the first persisted in the
+/// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
 /// is exhaustive with no wildcard: a further `DocEdit` arm fails the
 /// BUILD there and its author then decides whether the corpus should
@@ -387,9 +423,10 @@ pub const NODE_KINDS: [&str; 21] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 17] = [
+pub const EDIT_KINDS: [&str; 18] = [
     "InsertNode",
     "DeleteNode",
+    "SetProgram",
     "SetParam",
     "SetStructuralParam",
     "SetExpression",
@@ -573,6 +610,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
         DocEdit::SetMembers { .. } => "SetMembers",
+        DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
         DocEdit::SetExpression { .. } => "SetExpression",

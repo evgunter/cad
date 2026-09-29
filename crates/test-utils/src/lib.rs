@@ -46,7 +46,7 @@
 //!
 //! Being a LEAF with ZERO dependencies is the other half of the point.
 //! `interval-transcendentals/` is its own workspace root and is
-//! path-depended on by `geom-core` (the `interval` feature's backend),
+//! path-depended on by `geom-core` (the interval scalar's backend),
 //! so its tests could never have used a harness living in `geom-core`
 //! without inverting the layering. Below everything, there is no cycle
 //! to create.

@@ -13,7 +13,7 @@
 //!    frozen head the crossing rung did NOT: it handed the algebra
 //!    any declared pair that merely held the crossing point, and the
 //!    unit's own perpendicular row mis-read the resulting
-//!    `MarginDiag::Invalid` — "the question was never validly posed
+//!    `MarginKind::Invalid` — "the question was never validly posed
 //!    here" — as an in-band ε residue. This probe is the RECORD of
 //!    those algebra facts (it consults `geom_brep` directly, so it is
 //!    green before and after): the reason the rung now runs the edge
@@ -138,7 +138,7 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 /// `DihedralClass::Smooth` site, and this pair classifies
 /// `Transverse` — so the algebra is being consulted outside its
 /// documented domain, and the `Indeterminate` it returns is
-/// `MarginDiag::Invalid` ("the pairing question is not validly posed
+/// `MarginKind::Invalid` ("the pairing question is not validly posed
 /// at this site", per its own `# Errors` section), NOT the in-band
 /// residue `CrossingSideVerdict::Undecided`'s doc claims.
 #[test]
@@ -169,7 +169,7 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
         .expect_err("perpendicular normals decide neither aligned nor opposed");
     assert_eq!(
         err.margin,
-        geom_core::MarginDiag::Invalid,
+        geom_core::MarginDiag::INVALID,
         "the undecided arm's cause is `Invalid` (the question was not \
          validly posed), which is not what `CrossingSideVerdict::\
          Undecided`'s doc — \"could not decide at this ε\" — says: {err:?}"
@@ -182,7 +182,7 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
             .expect_err("still no verdict at a 1e-3 band");
     assert_eq!(
         err_wide.margin,
-        geom_core::MarginDiag::Invalid,
+        geom_core::MarginDiag::INVALID,
         "ε-independent: {err_wide:?}"
     );
 }

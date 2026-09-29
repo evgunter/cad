@@ -407,7 +407,6 @@ fn a_meridian_carrier_within_the_classify_slack_measures_and_past_it_escalates()
 /// `atan2` is asked only once `props_band_coplanar` is definitely
 /// nonzero, so no enclosure straddles its branch cut, and the area
 /// enclosure must contain the closed form and stay tight.
-#[cfg(feature = "interval")]
 #[test]
 fn the_wedge_arm_encloses_the_closed_form_at_interval() {
     use geom_core::{Bounds, Interval};

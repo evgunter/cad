@@ -125,7 +125,6 @@ fn undeclared_corner_leg_refuses_loudly() {
 }
 
 /// Interval lane: conservatism acceptable, wrongness never.
-#[cfg(feature = "interval")]
 #[test]
 fn corner_aligned_leg_interval_refuses_or_exact() {
     let a = top::<geom_core::Interval>();

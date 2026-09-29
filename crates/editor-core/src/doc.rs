@@ -716,6 +716,13 @@ pub struct Doc<P> {
     /// The monotone id counter: the next [`RecipeNodeId`] to mint.
     /// Never decremented — deletion does not free ids (spec D3).
     pub(crate) next_id: u64,
+    /// The monotone STEP counter: the next [`crate::StepId`] to mint
+    /// for an authored profile step (`names/README.md`, "N1, the
+    /// profile pieces"). Never decremented — a step a `SetProgram`
+    /// drops takes its id with it, and the id is never minted again.
+    /// A counter of its own rather than the node counter's, so an
+    /// authored step moves no node id.
+    pub(crate) next_step: u64,
     /// The nodes, by stable id.
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
@@ -863,6 +870,7 @@ impl<P> Doc<P> {
         Self {
             id,
             next_id: 0,
+            next_step: 0,
             nodes: BTreeMap::new(),
             order: Vec::new(),
             roots: Vec::new(),
@@ -885,6 +893,14 @@ impl<P> Doc<P> {
     /// The document's stable identity.
     pub fn id(&self) -> DocumentId {
         self.id
+    }
+
+    /// The document's step counter: the [`crate::StepId`] the next
+    /// authored profile step will be minted — every id below it was
+    /// minted once, and none at or above it ever was.
+    #[must_use]
+    pub fn next_step(&self) -> u64 {
+        self.next_step
     }
 
     /// The same document under a different identity: `id` replaces
@@ -1183,6 +1199,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
             && self.next_id == other.next_id
+            && self.next_step == other.next_step
             && self.order == other.order
             && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
@@ -1367,7 +1384,8 @@ mod tests {
         }
     }
 
-    /// **A carrier [`Carrier::ALL`] does not name never walks.**
+    /// **A carrier [`Carrier::ALL`] does not name never walks**:
+    /// [`Doc::name_carriers`] is driven by the array.
     ///
     /// One half of the weld is the compiler's: a variant added to
     /// [`Carrier`] does not compile until `Doc::names_in` places it.

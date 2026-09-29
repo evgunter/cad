@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, ParamName,
-    ProfileProgram, RecipeNodeId, SitedFace, SlotId,
+    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, Maintenance,
+    ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -25,7 +25,7 @@ use pncad::select::ContactClass;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
-use crate::session::author::{DatumSpec, PatternRuleSpec, ProfilePlane};
+use crate::session::author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane};
 use crate::session::probe::BoundsTarget;
 use crate::session::refuse::Refusal;
 use crate::session::select::{Hovered, Selection};
@@ -710,6 +710,70 @@ pub enum SessionOp {
         /// The edges to chamfer, by stable name.
         selection: Vec<StableName>,
     },
+    /// Insert one PROJECTION of a multi-body value — the named half
+    /// of a split, or one instance of a pattern — as the `Body` value
+    /// every body seat takes (`Node::Part`).
+    ///
+    /// **`select` is an authoring spec, not the node's own enum**, and
+    /// the difference is one field: `PartSelect::Instance` carries an
+    /// `Expr` where [`PartSelectSpec::Instance`] carries an `i64`.
+    /// `SlotId::Instance` is a Count-typed STRUCTURAL slot (spec D3),
+    /// the same class as [`SessionOp::AddPattern`]'s count, and that
+    /// op's rule holds here for its own reason: a structural slot is
+    /// authored exact and edited afterwards through
+    /// `SetStructuralParam`, never through the continuous door. A door
+    /// taking `PartSelect` whole would be the one place an arbitrary
+    /// expression could reach one at authoring time.
+    ///
+    /// **The seat is per ARM, because the pairing is a fact about the
+    /// committed document.** A half reads a `Node::Split` and an index
+    /// reads a `Node::Pattern`; a half against a pattern is not a
+    /// well-typed node and never becomes one, so it refuses
+    /// [`Refusal::WrongNodeKind`] here rather than landing and failing
+    /// at evaluation — the same rule [`SessionOp::AddFillet`] states
+    /// for its target's kind. What is left to evaluation is the index
+    /// being IN RANGE, which is a fact about the pattern's value:
+    /// `NodeErrorKind::InstanceOutOfRange`, typed, on the node's own
+    /// badge.
+    AddPart {
+        /// The split or pattern whose value is read.
+        of: RecipeNodeId,
+        /// Which body of it.
+        select: PartSelectSpec,
+    },
+    /// **Duplicate one body**: the picked body placed whole, plus one
+    /// copy stepped clear of it, each an independently drawn and
+    /// independently placeable root.
+    ///
+    /// **A duplicate is a pattern of two, projected twice** — a
+    /// `Node::Pattern` of count [`crate::combine::DUPLICATE_COUNT`] over
+    /// the body, and one `Node::Part` per instance. Three inserts, one
+    /// action, one undo (the session's several-edit door, the shape
+    /// `AddProfile`'s new-frame arm takes), and the projections are not
+    /// decoration: `roots` maintenance puts a new node in the earliest
+    /// consumed root's slot and drops its inputs, and the viewport
+    /// draws roots. A pattern alone is ONE root drawing two bodies, so
+    /// neither copy can be hidden, moved or blended apart from the
+    /// other, and the first `Part` a user authored by hand would take
+    /// the pattern out of `roots` and leave the other copy undrawn. A
+    /// projection per instance puts every copy back in `roots`.
+    ///
+    /// **The step is measured, not fixed**
+    /// ([`crate::combine::duplicate_step`]): along
+    /// [`crate::combine::STEP_DIRECTION`], far enough that the copy
+    /// clears the original by at least [`crate::combine::DUPLICATE_GAP`]
+    /// of the body's own width. It is read off the LANDED value of the
+    /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
+    /// before anything has landed, while an edit has not landed yet,
+    /// and for an input whose value is several bodies — which the body
+    /// seat's node-kind gate admits for a transform of a pattern, and
+    /// which a pattern of two would index in place, adding nothing.
+    /// Both numbers land in the pattern's ordinary slots and are edited
+    /// in the property panel afterwards.
+    Duplicate {
+        /// The body duplicated.
+        input: RecipeNodeId,
+    },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second
     /// insert door after the mate tool's.
@@ -974,6 +1038,8 @@ impl SessionOp {
             | Self::AddPlacedUnion { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
             | Self::AddInstance { .. } => None,
         }
     }
@@ -1177,6 +1243,8 @@ impl SessionOp {
             | Self::AddPlacedUnion { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
             | Self::AddInstance { .. } => false,
         }
     }
@@ -1291,6 +1359,8 @@ impl SessionOp {
             | Self::AddPlacedUnion { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
             | Self::AddInstance { .. } => true,
         }
     }
@@ -1336,6 +1406,31 @@ pub struct OpOutcome {
     /// selection, a hover — because there was no transition to prune
     /// against.
     pub withdrawn: PruneReport,
+    /// **What the committed edits did that the user did not ask for by
+    /// name** — the edit door's `Applied::maintenance`, every row of
+    /// every edit the action applied, in the order they applied and
+    /// each edit's rows in the door's own order.
+    ///
+    /// The log keeps only the cluster acts (replay re-applies them and
+    /// re-derives the rest), so this is the one place the other rows —
+    /// a name stranded or rewritten in place, an appearance key
+    /// stranded, a declaration left with no consumer — leave the
+    /// session. The chrome words them through
+    /// [`crate::frame::outcome_notices`].
+    ///
+    /// **Net over the action, not per edit.** One action can apply
+    /// several edits (a cascade delete, a profile edit's one-slot
+    /// writes), and a row an earlier edit reported can be made moot by
+    /// a later one — a strand the action went on to repair or whose
+    /// carrier it deleted, an orphan it consumed again, a name it moved
+    /// twice. The rows are folded through
+    /// `pncad::document::MaintenanceNet`, which states which survive,
+    /// so this holds what is true of the document the action ended at.
+    ///
+    /// Empty on every operation that committed nothing, and on a
+    /// gesture's previews: a preview enters no history, so nothing it
+    /// did has happened yet.
+    pub maintenance: Vec<Maintenance>,
 }
 
 impl OpOutcome {
@@ -1386,16 +1481,17 @@ impl OpOutcome {
 /// evaluation are, and disabled rather than absent when it can do
 /// nothing.
 ///
-/// **How it says so is the OTHER precedent**, and the two part company
-/// exactly here: the dialog controls hand
-/// `platform::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
-/// button — to `on_disabled_hover_text`, which is the shape
-/// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
-/// reason-elsewhere.md` is open about. The one this follows is
-/// [`crate::pane::create`]'s catalogue entry: *carrying the op's own refusal —
-/// read off the entry, not minted here*. So [`CancelDoor::blocked`] is
-/// a [`Refusal`] and not a sentence, and the disabled control's words
-/// are the refused operation's own.
+/// **How it says so is where the two part company.** A dialog
+/// control's refusal is the environment's and comes before any
+/// operation: with no chooser backend no path is ever chosen, so the
+/// `SessionOp::Open` or `SessionOp::Save` a click would push is never
+/// built, and the control reads its words off the probe's value,
+/// `platform::ChooserBackend::unusable`. A cancel door's refusal is its
+/// operation's own, and follows [`crate::pane::create`]'s catalogue entry:
+/// *carrying the op's own refusal — read off the entry, not minted
+/// here*. So [`CancelDoor::blocked`] is a [`Refusal`] and not a
+/// sentence, and the disabled control's words are the refused
+/// operation's own.
 #[derive(Debug)]
 pub struct CancelDoor {
     /// What the control is called.

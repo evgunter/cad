@@ -59,3 +59,42 @@ The siblings outside the viewer were filed as their own rows:
 `work/bind/python-transform-door-doc-says-an-upstream-body.md`,
 `work/vdoc/mate-tool-flow-header-says-a-patterns-input-is-one-body.md`
 and `work/tint/msolve2-header-says-a-pattern-over-a-pattern-does-not-evaluate.md`.
+
+## A third seat now reads by kind where the door reads a value (2026-09-22, AUTH-4)
+
+Evidence added, not a second row (implementer-discipline §6), because
+the shape and the repair are this row's exactly.
+
+AUTH-4 gave the viewer its `AddPart` door, whose seats ask a NEW
+question of the same vocabulary: `NodeKindWanted::Split` and
+`NodeKindWanted::Instances` (`crates/viewer/src/session/refuse.rs`,
+`admits`). Both classify off the node kind, so
+`NodeKindWanted::Instances` answers `no` to a `Node::Transform` over a
+`Node::Pattern` — whose value IS `Instances`, and which
+`eval::wire::wire_part` would index. So the disagreement this row
+names at the BODY seat now exists at the PART seat too, in the
+opposite direction: the body seat over-admits a transform of a
+pattern, the part seat under-admits one.
+
+Measured, not argued:
+`crates/viewer/tests/combine_ops.rs::the_part_seats_track_the_evaluators_part_door`
+drives each candidate into a real `Node::Part` and asserts the seat's
+answer against the door's, with this one pairing asserted as a NAMED
+exception — the shape `::the_body_seat_tracks_the_evaluators_operand_door`
+already uses for the pattern candidate this row's interim left behind.
+
+**What that means for the re-pin.** The repair this row asks for —
+read the family through the placer chain by node kind — answers all
+three seats at once, because the walk is the same one
+`editor-core`'s `eval::node_value_kind` already performs (`Transform`
+follows its `input`; `Pattern` lands in `Instances`; everything else
+is its own family). Whoever takes this row now has two named
+exceptions to retire rather than one, and both are asserted rows
+rather than silent gaps.
+
+Why AUTH-4 did not take it: `admits` is a node-only predicate
+(`Option<&Node>`), so the walk needs the document at every call site —
+`Seats::pick`, `DocSession::require_kind`, and two suites that ask it
+of bare nodes — and changing the classification changes what the BODY
+seat admits at five shipped ops. That is this row's work, not a
+drive-by inside a unit about a new door.

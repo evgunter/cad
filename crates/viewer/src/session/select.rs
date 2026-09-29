@@ -13,6 +13,8 @@ use pncad::document::{ParamName, RecipeNodeId};
 use pncad::prelude::{StableName, attribute};
 use pncad::select::Resolution;
 
+use crate::frame::Tone;
+
 /// A picked face: the stable name it is, and the node whose body
 /// carried it when it was picked.
 ///
@@ -208,6 +210,34 @@ impl Selection {
         }
     }
 
+    /// **The node a seated tool takes from this selection**: the node
+    /// itself for a tree click, and for a viewport pick the node whose
+    /// DRAWN body the ray met ([`FaceSelection::node`]).
+    ///
+    /// A different question from [`Selection::node`], and the two
+    /// answers differ exactly where it matters to a tool. The feature
+    /// that minted a face is upstream of every node that carried it:
+    /// a face on a moved copy was minted by the original's extrude
+    /// (a transform mints no name), and a flat on a filleted body by
+    /// the feature the fillet consumed. A tool fed that feature would
+    /// author against a body sitting somewhere the user did not click,
+    /// or against geometry the picture no longer shows. So the tree's
+    /// highlight and the property panel ask [`Selection::node`], and
+    /// every seated tool asks this — `crate::tools`' one pick route.
+    ///
+    /// A pick on a pattern's or a split's picture answers the PATTERN
+    /// or the SPLIT, since that is the root whose value was drawn; the
+    /// output-body index riding on the pick says which of its bodies,
+    /// and no seat reads it.
+    pub fn seat_node(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Node(id) => Some(*id),
+            Self::Face(face) => Some(face.node),
+            Self::Edge(edge) => Some(edge.node),
+            Self::None | Self::Param(_) => None,
+        }
+    }
+
     /// The picked face, when the selection is one.
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
@@ -328,6 +358,59 @@ impl Standing {
         }
     }
 
+    /// **Whether what the chrome says about this selection is a
+    /// verdict a reader must act on** — the actionable-or-not rule
+    /// read off the value, as [`crate::tree::RowStatus::tone`] reads
+    /// it off a row.
+    ///
+    /// A selection that no longer denotes is [`Tone::Actionable`], and
+    /// each arm names what the reader does about it:
+    ///
+    /// - a deleted node or an undeclared parameter: reselect;
+    /// - a picked entity whose name failed to resolve: rebind it to one
+    ///   of the offers, or reselect;
+    /// - one the evaluation could not answer for
+    ///   ([`Resolution::Indeterminate`]): repair the node it waits on
+    ///   when that node failed or was poisoned (the repair is at the
+    ///   failure, upstream for a poisoned one), or re-evaluate when a
+    ///   canceled run left it without a result — nothing else will
+    ///   start that run.
+    ///
+    /// Each also switches off the affordances [`Standing::live`] gates.
+    ///
+    /// Everything else is [`Tone::Advisory`]: nothing selected, a
+    /// selection that still denotes, and a picked entity with no
+    /// evaluation behind it yet — "we cannot tell" is not a verdict
+    /// about the pick, and the evaluation that answers it is already
+    /// on its way, which is the difference from a canceled run's
+    /// suffix above.
+    ///
+    /// **Here and not on the kernel's [`Resolution`]**, which is the
+    /// resolution machinery's verdict and has no reason to know how
+    /// loud a viewer draws it. This type is where the viewer already
+    /// reads that verdict for its chrome — [`Standing::live`] and
+    /// [`Standing::unresolved`] are two readings of it — and it holds
+    /// the node and parameter arms a function keyed on `Resolution`
+    /// could not reach.
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::Empty => Tone::Advisory,
+            Self::Node { present, .. } | Self::Param { present, .. } => {
+                if *present {
+                    Tone::Advisory
+                } else {
+                    Tone::Actionable
+                }
+            }
+            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
+                match resolution.as_deref() {
+                    None | Some(Resolution::Resolved(_)) => Tone::Advisory,
+                    Some(Resolution::Failed(_) | Resolution::Indeterminate(_)) => Tone::Actionable,
+                }
+            }
+        }
+    }
+
     /// The typed unresolved verdict, when the selection has one.
     ///
     /// `Some` exactly when a picked entity's name failed to resolve or
@@ -340,5 +423,36 @@ impl Standing {
                 .filter(|resolution| !resolves(resolution)),
             Self::Empty | Self::Node { .. } | Self::Param { .. } => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pncad::document::{ParamName, RecipeNodeId};
+
+    use super::Standing;
+    use crate::frame::Tone;
+
+    /// **A selection whose referent is gone is the verdict a reader
+    /// acts on**, and one that still denotes is not — held against
+    /// fixed tones for the two arms the properties pane draws inline,
+    /// where no headless drive reaches the paint. The picked-entity
+    /// arms are read off the paint (`pane::properties`'
+    /// `verdict_tests`).
+    #[test]
+    fn a_vanished_node_or_parameter_is_actionable_and_a_present_one_is_not() {
+        let node = |present| Standing::Node {
+            node: RecipeNodeId(3),
+            present,
+        };
+        let param = |present| Standing::Param {
+            name: ParamName("thickness".to_owned()),
+            present,
+        };
+        assert_eq!(node(false).tone(), Tone::Actionable);
+        assert_eq!(param(false).tone(), Tone::Actionable);
+        assert_eq!(node(true).tone(), Tone::Advisory);
+        assert_eq!(param(true).tone(), Tone::Advisory);
+        assert_eq!(Standing::Empty.tone(), Tone::Advisory);
     }
 }

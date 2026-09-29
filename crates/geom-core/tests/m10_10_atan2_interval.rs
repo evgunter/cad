@@ -11,7 +11,6 @@
 //! the session is installed is an unknown to it (`geom_core::sym`'s
 //! "no session, no tier"), which is the conservative direction and not
 //! the thing under test.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin, Sign};

@@ -43,3 +43,17 @@ cannot scroll. That second option is a question for
 in a scroll area. Per Ev's ruling on the ribbon row, a site that
 reaches the floor is a finding about the layout. Here the layout is a
 status sentence in a one-row toolbar.
+
+## Evidence: the document's name in the same row (`chrome/create-messages`, 2026-09-24)
+
+The status line is not the only unbounded text in that toolbar row.
+`crate::app`'s toolbar draws `ui.label(document_name(self.session.path()))`
+into the same `horizontal_wrapped` row. `document_name` answers the
+open file's stem, which the user chose, so nothing this crate controls
+bounds its width. A label in a wrapping row starts beside whatever came
+before it and continues at the panel's left edge. Unlike the status
+line, it is not a `message`, so it has no floor. It is a NAME by
+provenance and not by width. A fix to this row has to decide it too:
+wrap it as a message, bound it by characters with the whole name on
+hover, or give it its own line. Recorded here rather than fixed,
+because `app.rs` was in another CHROME lane's diff.

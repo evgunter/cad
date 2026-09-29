@@ -318,7 +318,6 @@ fn non_maximal_operand_refuses() {
 }
 
 // ---- Interval lane (the same scenarios at T = Interval). ----
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Interval;

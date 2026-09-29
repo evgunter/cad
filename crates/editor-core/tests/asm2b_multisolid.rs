@@ -369,8 +369,11 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// `StableName`s, and a profile's plane became a node, so the part
 /// gained one and its later nodes renumbered. The VOLUME bits and the
 /// solid count beside it are id-free and did not move, which is the
-/// half of this row that is about geometry.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 12_797_213_003_754_103_475;
+/// half of this row that is about geometry. Re-blessed again when a
+/// profile's pieces became named by minted step ids: the walls' names
+/// spell `{ step, role }` where they spelled a canonical position, and
+/// the volume and solid count did not move.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 10_137_957_801_290_129_231;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

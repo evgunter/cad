@@ -29,7 +29,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{
     BlendError, FILLET3_ASSEMBLY_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RING_RECOURSE,
@@ -44,12 +44,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(p2(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
@@ -70,12 +66,12 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 /// A sphere of radius 0.3 centred at `c`.
 fn ball_at(c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
@@ -149,7 +145,11 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
     };
     assert_eq!(margin.predicate, "fillet3_ring_clearance");
     assert!(
-        margin.value().is_some_and(|m| m < 0.0 && m > -0.01),
+        margin
+            .reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .is_some_and(|m| m < 0.0 && m > -0.01),
         "the ring sits 0.7172 from the edge and the setback is 0.72: {margin}"
     );
     assert!(

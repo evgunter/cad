@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does NOT keep is a `mod <helper>;` line of its
 //! own: the shared helper trees are declared once, below, as modules of
 //! THIS root, and a suite that wants one says `use crate::<helper>;`.
@@ -92,6 +92,8 @@ mod canonical_invariance;
 mod cert4r1_e2e;
 #[path = "cert4r2_e2e.rs"]
 mod cert4r2_e2e;
+#[path = "cusp_joints.rs"]
+mod cusp_joints;
 #[path = "declared_tangency.rs"]
 mod declared_tangency;
 #[path = "enclose_refusal_r2_probes.rs"]
