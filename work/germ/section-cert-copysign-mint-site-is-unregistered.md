@@ -2,10 +2,12 @@
 id: section-cert-copysign-mint-site-is-unregistered
 kind: issue
 title: section_cert's null-saddle witness mints an unregistered copysign site, and the copysign census row is red on main
-status: open
+status: closed
+branch: germ/section-cert-frame-side
 opened: 2026-09-28
 priority: P1
 cost: E
+closed: 2026-09-29
 ---
 
 
@@ -59,3 +61,36 @@ guards against. What it cannot settle is germ's:
   opaque `copysign(1, δ)` atom into those decisions under the symbolic
   tier;
 - which document or row would exercise the branch.
+
+## Resolution
+
+The `copysign` is gone. The saddle arm of `section_cert.rs`
+`cylinder_cylinder` decides `δ₀` on the band under its own predicate,
+`section_cylinder_pair_side`, and picks the ruling `o₂ − r₂m` when it is
+`Positive` and `o₂ + r₂m` when it is `Negative`. A `Zero` or undecided
+`δ₀` cannot occur there, since `nest` has decided `|δ₀| − |r₁ − r₂|`
+positive. It refuses R-tan anyway, through `signs`, as the arm's other
+margins do.
+
+- **Frame decision or `copysign`:** a frame decision. The sign chooses
+  which ruling carries the witness, and that is the case the 2026-09-26
+  class note sends to a decision.
+- **The atom under the symbolic tier:** the witness no longer carries a
+  `copysign(1, δ)` atom. The site has left the census table in
+  `sym_rule_f_rows` `the_copysign_mint_sites_the_tree_holds_are_these`
+  and `sym/manifest.rs`'s header list, along with the empirical
+  paragraph that described it as unmeasured. The census was not re-run.
+  Removing an atom that no measured replay reached (per PR 3407's probe)
+  cannot move its counts.
+- **Which rows exercise the branch:** a temporary probe, since reverted,
+  showed that four of `sweep`'s `germ_interior_saddle` rows reach it
+  (`a_cylinder_saddle_behind_a_pin_refuses_every_op`,
+  `a_tilted_cylinder_saddle_behind_a_pin_refuses_every_op`,
+  `the_saddle_is_a_certified_interior_loop_naming_both_walls`,
+  `the_saddle_without_a_pin_refuses_at_the_fallback`), all at
+  `δ₀ = +1.3`. `section_cert_rows`
+  `the_saddle_witness_lies_on_cylinder_1s_side_for_either_sign` takes
+  `δ₀` of both signs on both sides of the axis, with either wall the
+  thinner. It asserts that the witness is on both carriers and on the
+  near ruling. It goes red with the side flipped.
+
