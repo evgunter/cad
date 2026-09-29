@@ -2198,3 +2198,60 @@ exists. RING-4 deleted the feature, leaving one compile mode
 leaves to the nightly is sweep's eps 1e-6/1e-12 rows. PR 3161's
 first-run reds were the pre-RING-4 interval jobs. PR 3161's queued
 brief is re-worded to eps rather than lanes before it dispatches.
+
+## PR 3160's dual concluded; fix pass dispatched. PR 3161's dual dispatched (2026-09-29)
+
+**PR 3160.** Both reviews of `86c73b069b` came back APPROVE-WITH-FIXES,
+with no MAJOR from either (6 and 5 MINOR). The harness figures are
+374,979 tokens / 86 min and 384,273 tokens / 46 min. The reports are
+archived privately, coded attribution-stripped with blinding byte 225.
+
+Every executed correctness claim held:
+- the site rows equal the pass's byte for byte on cone, cylinder,
+  sphere and torus, seam-wrapping loops included;
+- the refusals are atomic at all five sites;
+- the red-first rows reproduce;
+- no production path persists a cleared face, since every Clear is
+  followed by a producer's closing mint.
+
+Bilateral, executed:
+- the mutant W5 is a live gap, and each review built a fixture that
+  kills it;
+- the headline "no Euler operator returns a face half-minted" is false
+  (`kfmrh`, `ring_move`, `kef`, `mev_null`), and `MissingCache`'s door
+  list is incomplete;
+- `Maintains` overstates, because the op clears where the pass refuses;
+- the precondition paragraphs omit `PcurveMint`, which sits last;
+- the per-face re-walk is quadratic under repeated ops (4.3× at
+  N=200), and that is undisclosed.
+
+Also bilateral: the window hull and "complete" re-spelled in
+`site_rows` (a fresh instance of the class the fix closes), a dead
+`Corrupt` arm, `SiteHalf` exported for no one, and stale prose.
+
+One review alone:
+- deviation 1's figure is about 6,000 Clears reaching 161 tests, not
+  "20 rows";
+- the unminted control reaches only the fast path;
+- whether a corrupt body errors depends on rows held elsewhere.
+
+The two reviews contradicted each other on the gate. One said only the
+default lane ran; the other said the lane axis is gone, and that one
+is right (RING-4).
+
+**Deviation 1 (clear, don't refuse) is ruled the operator's answer.**
+It is consistent with Ev's ruling (never half-minted; a typed refusal
+only at the fitted frontier), and every production Clear is followed
+by a closing mint. It gets its row. The fix pass is dispatched on the
+union: rows for W5 (both fixtures), the `kef` probe and C2 across the
+charts; the headline scoped; `Maintains` re-worded; the order
+paragraphs completed; the kept-ring re-walk cut and the remaining
+quadratic filed; one home each for the window and "complete"; the rest
+of the prose. The tally is unchanged. The pair is fair: identical
+targets and briefs.
+
+**PR 3161's dual dispatched** at 11:30 UTC on the frozen head
+`ec29ce898`. Briefs are stored with sha256; PR 3161's thread was empty.
+R1's target is the implementer's warm build of this head. R2's is the
+trimmed copy warm on PR 3160's head, so R2 rebuilds more. That is a
+wall-clock asymmetry only; the method is identical.
