@@ -12,7 +12,7 @@
 use crate::common;
 
 use common::{annulus, lift, near_tangent_hole, profile, rect, tangent_hole, tol};
-use geom_core::{Interval, MarginDiag, Real, Sign};
+use geom_core::{ErrorTextReading, Interval, Real, Sign};
 use geom_core::{Point2, Tol};
 use profile::{LoopRole, ProfileError, RawLoop, SegmentKind};
 
@@ -68,7 +68,7 @@ fn exact_tangency_is_the_same_typed_error_at_interval() {
 fn near_tangency_escalates_via_an_in_band_enclosure() {
     // The internal clearance is −5ε: at Interval the margin enclosure
     // lies wholly inside the open sliver band — the terminal case the
-    // subdivision driver cannot refine (MarginDiag::Enclosure carries
+    // subdivision driver cannot refine (MarginKind::Enclosure carries
     // the bounds; escalation is the only sound outcome, Q1).
     let eps = tol().eps();
     let err = lift::<Interval>(&near_tangent_hole(eps))
@@ -77,8 +77,8 @@ fn near_tangency_escalates_via_an_in_band_enclosure() {
     match err {
         ProfileError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("carrier_circles_internal"));
-            match source.margin {
-                MarginDiag::Enclosure { lo, hi } => {
+            match source.margin.diagnostic_f64_for_error_text() {
+                ErrorTextReading::Enclosure { lo, hi } => {
                     assert!(
                         lo > -10.0 * eps && hi < -eps,
                         "enclosure [{lo:e}, {hi:e}] should sit inside the negative band"

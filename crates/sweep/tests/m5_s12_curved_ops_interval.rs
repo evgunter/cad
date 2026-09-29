@@ -223,7 +223,9 @@ mod certified {
             };
             assert_eq!(check, geom_brep::CertCheck::MappedSource);
             assert_eq!(cause.predicate, Some("carrier_matches_mapped_source"));
-            let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+            let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!(
                     "the escalation must carry an enclosure, got {:?}",
                     cause.margin

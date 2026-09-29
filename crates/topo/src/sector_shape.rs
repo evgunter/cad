@@ -300,7 +300,7 @@ pub(crate) struct SectorShape<T: Real> {
 /// [`SectorFault::UnderflowedChord`] when either underflowed out of
 /// the format; otherwise [`SectorFault::Rung`]
 /// named by the rung that produced it — a `decide` escalation passed
-/// through unchanged, or a [`MarginDiag::Invalid`] diagnostic when a
+/// through unchanged, or a [`MarginKind::Invalid`](geom_core::MarginKind::Invalid) diagnostic when a
 /// definite verdict is one this predicate does not admit
 /// (non-positive arm; a spike between distinct edges). Each lane
 /// wraps this in its own error type — the two wrappings are the only
@@ -386,9 +386,10 @@ pub(crate) fn sector_shape<T: Decide>(
 /// finds the home rather than the method.
 fn invalid(band: Band, predicate: &'static str) -> SectorFault {
     SectorFault::Rung(Indeterminate {
-        margin: MarginDiag::Invalid,
+        margin: MarginDiag::INVALID,
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     })
 }
 
@@ -493,7 +494,7 @@ mod tests {
             panic!("a spike is a rung refusal, not a chord-length one: {e:?}");
         };
         assert_eq!(e.predicate, Some("sector_straight"));
-        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(e.margin, MarginDiag::INVALID);
         assert_eq!(e.band, band());
     }
 
@@ -606,11 +607,11 @@ mod tests {
     /// The six loud shapes were loud in two different ways, neither
     /// of which names the chord or a recourse that could work: the
     /// two `NaN` rows and the two `1e200`/`1e200` rows are `decide`
-    /// ESCALATIONS (a poisoned margin, `MarginDiag::Invalid`), while
+    /// ESCALATIONS (a poisoned margin, `MarginKind::Invalid`), while
     /// the two single-overflow rows with `full_circle` clear are this
     /// body's own [`invalid`] spike refusal. Those two OUTCOMES are
     /// indistinguishable by value — an escalation carrying
-    /// `MarginDiag::Invalid` and an `invalid(band, p)` compare equal —
+    /// `MarginKind::Invalid` and an `invalid(band, p)` compare equal —
     /// which is why the rows below pin the two fields literally
     /// instead of comparing against [`invalid`], which is production
     /// code in this same file.
@@ -664,7 +665,7 @@ mod tests {
             panic!("a collapsed chord has a finite length: {e:?}");
         };
         assert_eq!(e.predicate, Some("sector_arm"));
-        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(e.margin, MarginDiag::INVALID);
         assert_eq!(e.band, band());
     }
 

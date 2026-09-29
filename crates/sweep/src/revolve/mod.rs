@@ -814,9 +814,10 @@ mod tests {
     #[test]
     fn revolve_pairs_carry_the_shared_recourse() {
         let diag = |name| Indeterminate {
-            margin: geom_core::MarginDiag::Value(5e-9),
+            margin: geom_core::MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some(name),
+            terminal_sliver: false,
         };
         let errors = [
             RevolveError::DegenerateAxis,

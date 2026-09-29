@@ -258,7 +258,7 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
 /// that point in both closed regions, and before the fix pass it
 /// reached the sense algebra there: a question about "the shared
 /// carrier" asked of a pair that HAS no shared carrier, answered
-/// `MarginDiag::Invalid` at every band and mis-named "undecided at
+/// `MarginKind::Invalid` at every band and mis-named "undecided at
 /// this ε" (`review_mate9_r2_probes` probe 1 is that record). The
 /// edge screen now refuses the pair before any side question is
 /// posed — the cap's crossing edge does not lie in the shelf-side

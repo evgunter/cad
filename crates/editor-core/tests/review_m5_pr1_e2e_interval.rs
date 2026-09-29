@@ -28,7 +28,7 @@
 //!    *prove* it, and a control is needed or "certifies Zero" could be
 //!    satisfied by an enclosure too wide to say anything;
 //! 3. a domain violation flows through arithmetic AND transcendentals
-//!    into a **refused** verdict carrying `MarginDiag::Invalid`.
+//!    into a **refused** verdict carrying `MarginKind::Invalid`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -131,13 +131,13 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     // at a 1e-6 band, definitely POSITIVE against a shifted baseline.
     let band = Band::new(1e-6, 1e-5).unwrap();
     let residual = vol - Interval::from_f64(oracle);
-    match residual.sign_within(band) {
+    match residual.sign_within(band).map(|d| d.sign) {
         Ok(s) => assert_eq!(format!("{s:?}"), "Zero", "residual must certify Zero"),
         other => panic!("residual failed to certify: {other:?}"),
     }
     let shifted = vol - Interval::from_f64(oracle - 1.0);
     assert!(matches!(
-        shifted.sign_within(band),
+        shifted.sign_within(band).map(|d| d.sign),
         Ok(geom_core::predicate::Sign::Positive)
     ));
     println!(
@@ -151,9 +151,9 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     // flows through arithmetic/transcendentals into a REFUSED verdict.
     let poisoned = Interval::from_bounds(-1.0, 4.0).sqrt(); // clamped [0,2] @ Trv
     let chained = (poisoned * Interval::pi()).sin() + Interval::from_f64(10.0);
-    match chained.sign_within(band) {
+    match chained.sign_within(band).map(|d| d.sign) {
         Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             ..
         }) => println!("e2e poison: refused with Invalid margin, as contracted"),
         other => panic!("poison leaked to a verdict: {other:?}"),

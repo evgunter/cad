@@ -12,7 +12,7 @@
 use crate::common::approx::band;
 use crate::common::operands;
 use geom_brep::SurfaceKind;
-use geom_core::{MarginDiag, Tol};
+use geom_core::Tol;
 use geom_core::{Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::arms::BlendArm;
@@ -170,7 +170,11 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
         Err(BlendError::RadiusHeadroom { margin, radius, .. }) => {
             assert_eq!(margin.predicate, "fillet3_radius_headroom");
             assert!(
-                margin.value().is_some_and(|m| m < 0.0),
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m < 0.0),
                 "the headroom margin is definitely negative"
             );
             assert!((radius - 0.9).abs() < 1e-12);
@@ -198,8 +202,15 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
     match run_battery(&req, band()) {
         Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
             assert_eq!(margin.predicate, "fillet3_face_clearance");
-            assert!(margin.value().is_some_and(|m| m < 0.0));
-            let MarginDiag::Value(gap) = gap else {
+            assert!(
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m < 0.0)
+            );
+            let geom_core::ErrorTextReading::Value(gap) = gap.diagnostic_f64_for_error_text()
+            else {
                 panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
             };
             assert!((gap - 1.0).abs() < 1e-9, "the gap is the box side");
@@ -248,7 +259,11 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
         Err(BlendError::SpineIrregular { margin, radius }) => {
             assert_eq!(margin.predicate, "fillet3_spine_regularity");
             assert!(
-                margin.value().is_some_and(|m| m <= 0.0),
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m <= 0.0),
                 "the spine margin is definitely non-positive"
             );
             assert!((radius - 0.2).abs() < 1e-12);
@@ -300,10 +315,15 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
             assert_eq!(margin.predicate, "fillet3_chain_g1");
             assert!(
-                margin.value().is_some_and(|m| m > 0.0),
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m > 0.0),
                 "a 90° kink has a definitely positive margin"
             );
-            let MarginDiag::Value(arm) = arm else {
+            let geom_core::ErrorTextReading::Value(arm) = arm.diagnostic_f64_for_error_text()
+            else {
                 panic!("this lane classifies at f64, so the arm is one number: {arm:?}")
             };
             assert!(arm > 0.0);

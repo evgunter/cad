@@ -384,9 +384,10 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
 /// refusal carries out of the funnel.
 fn in_band(predicate: &'static str) -> geom_core::Indeterminate {
     geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::Value(3e-11),
+        margin: geom_core::MarginDiag::value(3e-11),
         band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -2377,9 +2378,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
             NamingError::Escalated {
                 predicate: "side_of_plane",
                 source: geom_core::Indeterminate {
-                    margin: geom_core::predicate::MarginDiag::Invalid,
+                    margin: geom_core::predicate::MarginDiag::INVALID,
                     band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
                     predicate: Some("side_of_plane"),
+                    terminal_sliver: false,
                 },
             },
             vec!["side_of_plane", "escalated"],

@@ -22,7 +22,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{MustCarryVerdict, must_carry_over_edge};
-use geom_core::{Band, MarginDiag, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use geom_core::{Band, ErrorTextReading, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, RevolveError, extrude, revolve};
 use topo::Body;
@@ -95,17 +95,17 @@ fn kappa_rel_varies_along_a_lane_admitted_carrier_and_the_second_station_decides
     };
     let (s1, s2, s4) = (at(1), at(2), at(4));
     assert_eq!(
-        s1.verdict,
+        s1.verdict.map(|d| d.sign),
         Ok(Sign::Positive),
         "station 1 is definite: {s1:?}"
     );
     assert_eq!(
-        s2.verdict,
+        s2.verdict.map(|d| d.sign),
         Ok(Sign::Zero),
         "station 2 is the zero of κ_rel: {s2:?}"
     );
     assert_eq!(
-        s4.verdict,
+        s4.verdict.map(|d| d.sign),
         Ok(Sign::Positive),
         "the midpoint station is definite: {s4:?}"
     );
@@ -191,8 +191,8 @@ fn in_band_margins() -> [f64; 2] {
 fn assert_in_band(source: geom_core::Indeterminate) {
     assert_eq!(source.predicate, Some("tangent_second_order"));
     let b = band();
-    match source.margin {
-        MarginDiag::Value(m) => assert!(
+    match source.margin.diagnostic_f64_for_error_text() {
+        ErrorTextReading::Value(m) => assert!(
             m.abs() > b.zero() && m.abs() < b.escalate(),
             "margin {m:e} outside ({:e}, {:e})",
             b.zero(),

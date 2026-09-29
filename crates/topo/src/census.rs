@@ -7663,7 +7663,7 @@ mod tests {
         for e in &errors {
             if let ValidationError::CensusEscalated { cause } = e {
                 assert!(
-                    !matches!(cause.margin, geom_core::MarginDiag::Invalid)
+                    !cause.margin.is_invalid()
                         && !matches!(
                             cause.predicate,
                             Some("pm_census_containment" | "bool_contfp_boundary")

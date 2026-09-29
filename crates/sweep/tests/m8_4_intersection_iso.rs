@@ -212,7 +212,9 @@ fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::Surfac
                 },
         }) => {
             assert!(eps < 1e-9, "only the ε-fine cell refuses: {cause:?}");
-            let geom_core::MarginDiag::Value(sup) = cause.margin else {
+            let geom_core::ErrorTextReading::Value(sup) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("the refusal carries the lane's measured bound: {cause:?}");
             };
             assert!(

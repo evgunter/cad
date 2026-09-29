@@ -197,10 +197,7 @@ fn detect_declare_boolean_round_trip() {
             NodeErrorKind::UndeclaredContact { finding, diag, .. } => {
                 // Exactly-on contact: the verifier's decided-zero
                 // encoding, on the verify door's own site.
-                assert!(
-                    matches!(diag.margin, geom_core::MarginDiag::Invalid),
-                    "{diag:?}"
-                );
+                assert!(diag.margin.is_invalid(), "{diag:?}");
                 assert_eq!(diag.predicate, Some("bool_plane_offset"));
                 (**finding).clone()
             }

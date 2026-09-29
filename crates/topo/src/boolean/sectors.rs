@@ -332,9 +332,10 @@ pub(super) fn sector_face<T: Decide>(
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     BooleanError::Escalated {
         diag: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
+            terminal_sliver: false,
         },
     }
 }
@@ -347,12 +348,10 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
 pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
     BooleanError::Escalated {
         diag: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Enclosure {
-                lo: -band.zero(),
-                hi: band.zero(),
-            },
+            margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
             band,
             predicate: Some("bool_sector_bisector_side"),
+            terminal_sliver: false,
         },
     }
 }
