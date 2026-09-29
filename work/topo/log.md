@@ -2744,3 +2744,12 @@ subject and recourse by `diag.predicate` and share
   labelled lever.
 
 It builds on a fresh non-incremental target. Tier: SINGLE, full.
+
+## PR 3483 merged (2026-09-29)
+
+PR 3483 merged (`997d5d2088`), closing
+`kill-ops-anchor-emanating-on-an-unproven-next-mate-step`. It was a
+single-tier review, so there is no DR row. Its three filed rows are
+queued: `kill-ops-loop-anchor-on-an-unproven-next-step` (P2, E), and
+`revert-anchors-trust-a-torn-next-or-prev` and
+`kef-and-kev-take-a-mate-whose-own-edge-is-another` (P3, E).
