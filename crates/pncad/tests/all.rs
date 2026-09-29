@@ -869,6 +869,7 @@ fn the_pick_index_refusal_is_matchable_through_the_select_list() {
 /// cannot spell them, which is exactly what the curated list decided.
 #[test]
 fn the_resolution_payloads_are_matchable_through_the_select_list() {
+    use pncad::document::NodeStanding;
     use pncad::select::{ResolutionFailure, ResolveError, ResolveIndeterminate};
 
     // The repair each failure asks for, which is why the three stay
@@ -893,15 +894,20 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
     // ...and which node to look at, on the state where the NAME is
     // fine and the run is not.
     fn upstream(cause: ResolveIndeterminate) -> (&'static str, RecipeNodeId) {
-        match cause {
-            ResolveIndeterminate::TargetFailed { node } => ("target_failed", node),
-            ResolveIndeterminate::TargetPoisoned { through } => ("target_poisoned", through),
-            ResolveIndeterminate::TargetNotEvaluated { node } => ("target_not_evaluated", node),
+        match cause.standing {
+            NodeStanding::Failed { node } => ("target_failed", node),
+            NodeStanding::Poisoned { through, .. } => ("target_poisoned", through),
+            NodeStanding::NotEvaluated { node } | NodeStanding::NotInDocument { node } => {
+                ("target_not_evaluated", node)
+            }
         }
     }
     assert_eq!(
-        upstream(ResolveIndeterminate::TargetPoisoned {
-            through: RecipeNodeId(4)
+        upstream(ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
+                node: RecipeNodeId(7),
+                through: RecipeNodeId(4)
+            }
         }),
         ("target_poisoned", RecipeNodeId(4))
     );
@@ -2395,7 +2401,7 @@ fn the_document_export_door_refuses_a_bodiless_document() {
 
 #[test]
 fn the_export_door_refuses_typed_not_vaguely() {
-    use pncad::document::{Node, RecipeNodeId};
+    use pncad::document::{Node, NodeStanding, RecipeNodeId};
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = box_doc("all");
     // A failing Boolean (undeclared coincidence) and its downstream.
@@ -2438,15 +2444,32 @@ fn the_export_door_refuses_typed_not_vaguely() {
     ));
     assert!(matches!(
         door(RecipeNodeId(u64::MAX)),
-        Err(ExportError::UnknownNode { .. })
+        Err(ExportError::Standing(NodeStanding::NotInDocument { .. }))
     ));
-    assert!(matches!(door(cut), Err(ExportError::NodeFailed { node }) if node == cut));
+    assert!(matches!(
+        door(cut),
+        Err(ExportError::Standing(NodeStanding::Failed { node })) if node == cut
+    ));
     assert!(matches!(
         door(downstream),
-        Err(ExportError::Poisoned { node, through }) if node == downstream && through == cut
+        Err(ExportError::Standing(NodeStanding::Poisoned { node, through }))
+            if node == downstream && through == cut
     ));
     // The typed root cause is one door away, F3's promise.
     assert!(ev.node_error(downstream).is_some());
+
+    // Each standing renders one way: the door's subject, then the
+    // standing's own sentence (`editor-core`'s `node_standing` rows
+    // hold the other doors to the same shape).
+    for node in [RecipeNodeId(u64::MAX), cut, downstream] {
+        let standing = ev.usable(node).expect_err("no value");
+        let refusal = door(node).expect_err("refuses");
+        assert_eq!(
+            refusal.to_string(),
+            format!("export: {standing}"),
+            "{standing:?}"
+        );
+    }
 }
 
 #[test]
@@ -2477,14 +2500,14 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     use pncad::document::{BooleanOp, DocParam, ParamName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
-        radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+        radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
     };
 
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("hole_r"),
+            name: ParamName::from_static("hole_r"),
             value: DocParam::continuous(Dimension::Length, 0.25),
         },
         Tol::witness(),
@@ -2830,7 +2853,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
     let edited = pncad::document::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::from_static("depth"),
             value: DocParam::continuous(Dimension::Length, 0.75),
         },
         Tol::witness(),
@@ -2910,7 +2933,7 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     let dir = WsDir::new("log");
     let (origin, _) = ws_doc("ws-logged");
     let edit = DocEdit::SetDocParam {
-        name: ParamName::new("depth"),
+        name: ParamName::from_static("depth"),
         value: DocParam::continuous(Dimension::Length, 0.9),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
@@ -3036,7 +3059,7 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
     let edited = pncad::document::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::from_static("depth"),
             value: DocParam::continuous(Dimension::Length, 0.9),
         },
         Tol::witness(),
@@ -4452,10 +4475,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry; and the identity the lane seams share, `Lane` with its
-///   `BracketEnd`, which is how a lane names itself and reads a
-///   bracket's end when a refusal's number crosses into the
-///   scalar-free vocabulary).
+///   can carry).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   (M10-6): the driver and its box,
@@ -4489,7 +4509,11 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 97] = [
+/// - **The step mint** (`StepMint`): the chain and log a document mints
+///   its profile step ids from, which `Doc::step_mint` answers. The
+///   doors read it and a consumer never writes it; what a consumer
+///   holds is the ids themselves (`StepId`), carried.
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4499,7 +4523,6 @@ const NOT_CARRIED: [&str; 97] = [
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
-    "BracketEnd",
     "BranchCertification",
     "BranchMarginEvidence",
     "CertifiedRange",
@@ -4520,7 +4543,6 @@ const NOT_CARRIED: [&str; 97] = [
     "FragmentGroups",
     "GroupCutters",
     "Implicated",
-    "Lane",
     "MeshPatchKey",
     "MeshPick",
     "MetaError",
@@ -4549,6 +4571,7 @@ const NOT_CARRIED: [&str; 97] = [
     "SeedScalar",
     "ShadowExecRefusal",
     "SideVerdict",
+    "StepMint",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
@@ -5919,11 +5942,11 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
         Dimension, Distribution, DocEdit, DocParam, ParamName, ProfileDoc, apply, load, save,
     };
 
-    let declare = |doc: &ProfileDoc, name: &str, value: DocParam| {
+    let declare = |doc: &ProfileDoc, name: &'static str, value: DocParam| {
         apply(
             doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new(name),
+                name: ParamName::from_static(name),
                 value,
             },
             Tol::witness(),
@@ -5962,10 +5985,10 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let policy = AnalysisPolicy::default();
     let boxed = analyzed_box(&back, &policy);
     let bore = boxed
-        .get(&ParamName::new("bore_r"))
+        .get(&ParamName::from_static("bore_r"))
         .expect("the annotated parameter is an axis");
     let plate = boxed
-        .get(&ParamName::new("plate_t"))
+        .get(&ParamName::from_static("plate_t"))
         .expect("so is the banded one");
 
     // The normal's box is the ±3σ quantile box; the band's IS its
@@ -5986,7 +6009,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     // The tail column: the normal leaves a little outside its box, the
     // band leaves nothing outside its own support.
     let bore_tail = tail_mass(
-        &ParamName::new("bore_r"),
+        &ParamName::from_static("bore_r"),
         &bore.distribution.expect("annotated"),
         &bore.offsets,
     )
@@ -5997,7 +6020,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     );
     assert_eq!(
         tail_mass(
-            &ParamName::new("plate_t"),
+            &ParamName::from_static("plate_t"),
             &plate.distribution.expect("annotated"),
             &plate.offsets
         ),
@@ -6006,19 +6029,19 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 
     // Pricing a sub-box: the normal answers, the band refuses BY NAME.
     let half = box_mass(
-        &ParamName::new("bore_r"),
+        &ParamName::from_static("bore_r"),
         &bore.distribution.expect("annotated"),
         (0.0, bore.offsets.hi),
     )
     .expect("a normal prices a leaf");
     assert!((half - 0.5 * (1.0 - bore_tail)).abs() < 1e-9, "{half}");
     match box_mass(
-        &ParamName::new("plate_t"),
+        &ParamName::from_static("plate_t"),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            assert_eq!(param, ParamName::new("plate_t"));
+            assert_eq!(param, ParamName::from_static("plate_t"));
         }
         other => panic!("a band must refuse to price a leaf, got {other:?}"),
     }
@@ -6242,7 +6265,10 @@ mod the_hollowed_box_through_the_facade {
             panic!("the shell did not refuse at a dual: {head:?}");
         };
         assert!(
-            matches!(e.kind, NodeErrorKind::ShellLaneUnsupported { lane: "Dual" }),
+            matches!(
+                e.kind,
+                NodeErrorKind::ShellLaneUnsupported { scalar: "dual" }
+            ),
             "the refusal is not the typed shell-door absence: {:?}",
             e.kind
         );

@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use common::asm;
+use pncad::document::NodeStanding;
 use pncad::document::{
     CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Expr, Frame, Node, ParamName,
     ProductError, ProfileProgram, RecipeNodeId, SlotId,
@@ -905,15 +906,15 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     );
     let never_ran = pickindex::PickIndexError::Node {
         node: absent,
-        error: NodePickError::Standing(HitTestError::NodeNotEvaluated { node: absent }),
+        error: NodePickError::Standing(NodeStanding::NotEvaluated { node: absent }),
     };
     let badge = frame::index_badge(Some(&never_ran), session.evaluation()).expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),
-        "pick index: root 99's bodies could not be tessellated or indexed: hit test: node 99 \
-         has no result in this evaluation — the pick names a node this run did not produce (a \
-         canceled suffix, or an id from another document)"
+        "pick index: root 99's bodies could not be tessellated or indexed: pick: node 99 has \
+         no result in this evaluation: the run was canceled before it reached the node — \
+         re-evaluate the document to completion"
     );
 }
 
@@ -941,7 +942,7 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
         .expect_err("a root the solve refused refuses the index");
     let pickindex::PickIndexError::Node {
         node: root,
-        error: NodePickError::Standing(HitTestError::NodeFailed { node: failed }),
+        error: NodePickError::Standing(NodeStanding::Failed { node: failed }),
     } = &refusal
     else {
         panic!("the root is Failed in the evaluation, not poisoned: {refusal:?}");
@@ -2909,7 +2910,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     }
     assert_eq!(
         frame::creation_offer(refusal.as_ref()),
-        Some(ParamName::new("margin")),
+        Some(ParamName::from_static("margin")),
         "the offer is the undeclared name"
     );
     assert_eq!(
@@ -3413,11 +3414,11 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
                     node: RecipeNodeId(3),
                     body: 0,
                 },
-                resolution: Box::new(Resolution::Indeterminate(
-                    ResolveIndeterminate::TargetNotEvaluated {
+                resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
+                    standing: NodeStanding::NotEvaluated {
                         node: RecipeNodeId(3),
                     },
-                )),
+                })),
             }),
             frame::Retold::Never,
         ),
@@ -3460,6 +3461,14 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: the all-edges door found none",
             ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { target }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: the all-edges door's target has no value",
+            ToolNotice::Blend(BlendEvent::TargetHasNoValue {
+                target,
+                standing: NodeStanding::Failed { node: target.node },
+            }),
             frame::Retold::Again,
         ),
     ];

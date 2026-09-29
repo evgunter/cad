@@ -51,7 +51,7 @@ use viewer::{docio, props, tree};
 // --- fixtures, authored here rather than borrowed -------------------
 
 fn width_param() -> ParamName {
-    ParamName::new("width")
+    ParamName::from_static("width")
 }
 
 /// A slab whose extrude distance is a LITERAL and whose transform's
@@ -686,7 +686,8 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     assert_eq!(
         failed.status,
         viewer::tree::RowStatus::Failed {
-            message: expected.clone()
+            message: expected.clone(),
+            carried: Vec::new(),
         },
         "the badge is NodeError's own Display, not a sentence the panel wrote"
     );
@@ -932,7 +933,11 @@ fn the_panel_models_are_pure_functions_of_the_document_and_the_evaluation() {
         assert_eq!(session.slot_rows(), session.slot_rows());
         assert_eq!(
             session.tree_rows(),
-            tree::rows(session.doc(), session.evaluation()),
+            tree::rows(
+                session.doc(),
+                session.evaluation(),
+                &viewer::parts::PartFiles::default()
+            ),
             "the session's tree is the free function's"
         );
         assert_eq!(

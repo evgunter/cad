@@ -124,7 +124,7 @@ pub enum DocEdit<P> {
     /// shape, and so is which of its steps are the old ones: `ids`
     /// gives each new step the [`StepId`] of the old step it KEEPS, or
     /// `None` for a step it adds, which the door mints from the
-    /// document's step counter (`names/README.md`, "N1, the profile
+    /// document's mint chain (`names/README.md`, "N1, the profile
     /// pieces"). The door is told, never guesses. A kept id must be a
     /// step of the program the node holds and stand for one step
     /// ([`EditError::StepIdsRefused`]).
@@ -1070,19 +1070,16 @@ pub enum EditError {
         name: StableName,
     },
     /// A name written into the document spells a profile step the
-    /// document never minted — one at or beyond its step counter. The
+    /// document never minted — one its mint log does not hold. The
     /// node half's rule ([`EditError::DeclareNamesMissingNode`]) for
     /// the half of a name that is a step id: a never-minted id is a
-    /// typo, and one written anyway would be minted for another step
-    /// later. (A step a `SetProgram` dropped was minted, so a name on
+    /// typo, or a name carried from another branch of the document. (A step a `SetProgram` dropped was minted, so a name on
     /// it is ALLOWED — it strands, DM7.)
     NameStepNeverMinted {
         /// The name.
         name: StableName,
         /// The step it spells.
         step: StepId,
-        /// The document's step counter.
-        next_step: u64,
     },
     /// A reference's READ SITE — the operand a mate is authored
     /// against ([`Node::payload_read_sites`]) — names a node that does
@@ -1686,14 +1683,10 @@ impl core::fmt::Display for EditError {
                 )
             }
             Self::Dimension(e) => write!(f, "{e}"),
-            Self::NameStepNeverMinted {
-                name,
-                step,
-                next_step,
-            } => write!(
+            Self::NameStepNeverMinted { name, step } => write!(
                 f,
-                "the {name} spells the profile step id #{}, which this document never minted (its step \
-                 counter is {next_step})",
+                "the {name} spells the profile step id #{}, which this document never minted (its \
+                 mint log does not hold it)",
                 step.0
             ),
             Self::DeclareNamesMissingNode { name } => {
@@ -2189,15 +2182,14 @@ fn orphaned_declares<P: crate::ProfilePayload>(
 /// program is replayed (`names/README.md`, "N1, the profile pieces"):
 /// one list per new loop and one entry per authored step; every kept
 /// id a step of the program the node holds, and kept once. Each `None`
-/// is minted from the document's step counter, in loop then step
-/// order. Returns the new program's ids and the old steps it does not
-/// keep.
+/// is minted from the document's mint chain, in loop then step order.
+/// Returns the new program's ids and the old steps it does not keep.
 fn settle_step_ids(
     node: RecipeNodeId,
     old: &[Vec<StepId>],
     new: &[crate::program::LoopProgram],
     ids: &[Vec<Option<StepId>>],
-    counter: &mut u64,
+    mint: &mut crate::StepMint,
 ) -> Result<(Vec<Vec<StepId>>, std::collections::BTreeSet<StepId>), EditError> {
     use crate::program::{StepIdFault, program_index};
     let refuse = |fault| EditError::StepIdsRefused { node, fault };
@@ -2226,21 +2218,16 @@ fn settle_step_ids(
             }
         }
     }
-    let minted = ids
-        .iter()
-        .map(|given| {
-            given
-                .iter()
-                .map(|kept| {
-                    kept.unwrap_or_else(|| {
-                        let id = StepId(*counter);
-                        *counter += 1;
-                        id
-                    })
-                })
-                .collect()
-        })
-        .collect();
+    let minted = mint
+        .mint(
+            &crate::step_mint::MintingEdit::SetProgram {
+                node,
+                loops: new,
+                ids,
+            },
+            ids,
+        )
+        .map_err(refuse)?;
     Ok((minted, dropped))
 }
 
@@ -2480,19 +2467,18 @@ impl MaintenanceNet {
 
 /// A name written into the document spells only steps the document
 /// minted ([`EditError::NameStepNeverMinted`]) — the edit door's half
-/// of the load door's `SnapshotError::NameStepBeyondCounter`, so a
+/// of the load door's `SnapshotError::NameStepNotMinted`, so a
 /// document this door accepts is one the load door reads back.
 fn check_name_steps<P>(doc: &Doc<P>, name: &StableName) -> Result<(), EditError> {
     match name
         .piece_steps()
         .into_iter()
-        .find(|s| s.0 >= doc.next_step)
+        .find(|s| !doc.step_mint.has_minted(*s))
     {
         None => Ok(()),
         Some(step) => Err(EditError::NameStepNeverMinted {
             name: name.clone(),
             step,
-            next_step: doc.next_step,
         }),
     }
 }
@@ -2557,6 +2543,14 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
 /// [`DocEdit::SetDocParamValue`], [`DocEdit::SetDocParamUnit`] and
 /// [`DocEdit::SetDocParamDistribution`]. A fifth door writing a
 /// declaration routes through here too, and adds itself to that list.
+///
+/// **The NAME is not checked here, because it cannot be wrong**: a
+/// [`ParamName`] is admissible by construction — one identifier the
+/// expression parser reads back as a reference — so no edit can carry
+/// a name the document could not be asked about, and the load door
+/// refuses one at the token (`ParamName`'s `Deserialize` is the same
+/// constructor). One decision at the type, and neither door restates
+/// it.
 ///
 /// **The check order is the LOAD door's** (`persist::check`'s
 /// `validate_document`): floats first, then the distribution's shape,
@@ -3061,10 +3055,10 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 })?;
             }
             // N1: every authored step is minted its id here, from the
-            // document's step counter.
+            // document's mint chain.
             let mut node = node.clone();
             if let Node::Profile(p) = &mut node {
-                p.mint_step_ids(&mut new.next_step)
+                p.mint_step_ids(id, &mut new.step_mint)
                     .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
             }
             new.next_id += 1;
@@ -3196,11 +3190,11 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             };
             // The ids FIRST: ids the door could not honour make the
             // replay below moot, and the caller mends the field named
-            // rather than the program. Minting advances a counter held
+            // rather than the program. Minting extends a mint held
             // aside, so a refusal further down leaves the document's
             // untouched.
-            let mut counter = new.next_step;
-            let (minted, dropped) = settle_step_ids(*node, old_ids, loops, ids, &mut counter)?;
+            let mut mint = new.step_mint.clone();
+            let (minted, dropped) = settle_step_ids(*node, old_ids, loops, ids, &mut mint)?;
             let Some(rewritten) = payload.with_program(loops.clone(), minted) else {
                 return Err(EditError::SetProgramOnNonProfile { node: *node });
             };
@@ -3220,7 +3214,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     refusal: Box::new(refusal),
                 })?;
             new.nodes.insert(*node, probe);
-            new.next_step = counter;
+            new.step_mint = mint;
             // DM7: a name on a kept step keeps denoting its pieces and
             // is not touched; a name on a dropped step denotes nothing
             // from here on, and the door says so.

@@ -138,19 +138,37 @@ pub struct Evaluation<T: Decide> {
 }
 
 impl<T: Decide> Evaluation<T> {
-    /// The node's successful value, if it has one.
-    pub fn value(&self, id: RecipeNodeId) -> Option<&NodeValue<T>> {
-        match self.nodes.get(&id) {
-            Some(NodeResult::Ok(v)) => Some(v),
-            _ => None,
-        }
+    /// **The node's value, or its standing** — the one read every door
+    /// that needs a node's value makes, so the three ways to have none
+    /// are spelled once, here, and a door's refusal carries the
+    /// [`NodeStanding`] rather than re-spelling it.
+    ///
+    /// # Errors
+    ///
+    /// The node's [`NodeStanding`]: no result in this evaluation,
+    /// failed, or poisoned through its nearest failed ancestor.
+    pub fn usable(&self, id: RecipeNodeId) -> Result<&NodeValue<T>, NodeStanding> {
+        usable_in(&self.nodes, id, || {
+            if self.order.contains(&id) {
+                NodeStanding::NotEvaluated { node: id }
+            } else {
+                NodeStanding::NotInDocument { node: id }
+            }
+        })
     }
 
-    /// The node's result as typed data — `Ok`/`Failed`/`Poisoned`
-    /// distinguished, where [`Evaluation::value`] collapses the last
-    /// two into `None` (LIB-DOORS F3: the curated path from an
-    /// evaluation to its `NodeError`s). `None` means the id has no
-    /// entry at all: never scheduled, or past a cancelation's prefix.
+    /// The node's successful value, if it has one — [`Evaluation::usable`]
+    /// for a reader to whom every standing is the same answer.
+    pub fn value(&self, id: RecipeNodeId) -> Option<&NodeValue<T>> {
+        self.usable(id).ok()
+    }
+
+    /// The node's result as typed data, for a reader that needs what
+    /// [`NodeStanding`] does not carry — a failed node's own
+    /// [`NodeError`] beside its value's absence (LIB-DOORS F3). `None`
+    /// means the id has no entry at all. A door that refuses on a node
+    /// with no value reads [`Evaluation::usable`] instead, which tells
+    /// "the run stopped before it" from "not in this document".
     pub fn result(&self, id: RecipeNodeId) -> Option<&NodeResult<T>> {
         self.nodes.get(&id)
     }
@@ -161,18 +179,128 @@ impl<T: Decide> Evaluation<T> {
     /// [`NodeResult::Poisoned`]'s invariant). `None` for a node that
     /// succeeded or has no entry.
     pub fn node_error(&self, id: RecipeNodeId) -> Option<&NodeError> {
-        match self.nodes.get(&id)? {
-            NodeResult::Ok(_) => None,
-            NodeResult::Failed(e) => Some(e),
-            NodeResult::Poisoned { through } => match self.nodes.get(through)? {
-                // Every `through` names a `Failed` entry (the poison
-                // propagation writes nothing else there); answering
-                // `None` on a broken invariant is fail-honest — the
-                // caller sees "no root cause", not a wrong one.
-                NodeResult::Failed(e) => Some(e),
-                NodeResult::Ok(_) | NodeResult::Poisoned { .. } => None,
-            },
+        match self.usable(id) {
+            Ok(_) | Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
+                None
+            }
+            // Every `through` names a `Failed` entry (the poison
+            // propagation writes nothing else there); answering `None`
+            // on a broken invariant is fail-honest — the caller sees
+            // "no root cause", not a wrong one.
+            Err(NodeStanding::Failed { node } | NodeStanding::Poisoned { through: node, .. }) => {
+                self.nodes.get(&node)?.error()
+            }
         }
+    }
+}
+
+/// **Why a node has no value in an evaluation** — its standing, the
+/// one vocabulary every door that reads a node's value refuses in.
+///
+/// Answered by [`Evaluation::usable`]. A door carries it as its
+/// refusal's payload under its own subject; its `Display` names the
+/// standing — which node, what state, where the repair is — and no
+/// door.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NodeStanding {
+    /// The node is in this evaluation's order but has no result: the
+    /// run was canceled before it reached the node.
+    NotEvaluated {
+        /// The node.
+        node: RecipeNodeId,
+    },
+    /// The id is not a node of the document this evaluation ran over.
+    NotInDocument {
+        /// The id asked about.
+        node: RecipeNodeId,
+    },
+    /// The node itself failed ([`Evaluation::node_error`] answers the
+    /// typed cause).
+    Failed {
+        /// The failed node.
+        node: RecipeNodeId,
+    },
+    /// An ancestor failed, so the node never ran.
+    Poisoned {
+        /// The node.
+        node: RecipeNodeId,
+        /// Its nearest failed ancestor ([`NodeResult::Poisoned`]).
+        through: RecipeNodeId,
+    },
+}
+
+impl NodeStanding {
+    /// The node the standing is of.
+    #[must_use]
+    pub fn node(self) -> RecipeNodeId {
+        match self {
+            Self::NotEvaluated { node }
+            | Self::NotInDocument { node }
+            | Self::Failed { node }
+            | Self::Poisoned { node, .. } => node,
+        }
+    }
+
+    /// The nearest failed ancestor, if the node was poisoned.
+    #[must_use]
+    pub fn through(self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Poisoned { through, .. } => Some(through),
+            Self::NotEvaluated { .. } | Self::NotInDocument { .. } | Self::Failed { .. } => None,
+        }
+    }
+}
+
+impl core::fmt::Display for NodeStanding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotEvaluated { node } => write!(
+                f,
+                "node {} has no result in this evaluation: the run was canceled before it \
+                 reached the node — re-evaluate the document to completion",
+                node.0
+            ),
+            Self::NotInDocument { node } => write!(
+                f,
+                "node {} is not a node of the document this evaluation ran over — ask about \
+                 one of that document's nodes, or evaluate the document the node is in",
+                node.0
+            ),
+            Self::Failed { node } => write!(
+                f,
+                "node {} failed, so it has no value — fix the node's own failure",
+                node.0
+            ),
+            Self::Poisoned { node, through } => write!(
+                f,
+                "node {} is poisoned by the failure at node {}, so it has no value — the \
+                 repair is upstream, at node {}",
+                node.0, through.0, through.0
+            ),
+        }
+    }
+}
+
+impl core::error::Error for NodeStanding {}
+
+/// [`Evaluation::usable`]'s ladder over a result map, for the readers
+/// that hold the map before the [`Evaluation`] exists: the op wiring's
+/// input read and the appearance pass. `absent` answers an id the map
+/// has no entry for, because only the caller knows whether that id is
+/// in the run's order.
+pub(crate) fn usable_in<T: Decide>(
+    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+    node: RecipeNodeId,
+    absent: impl FnOnce() -> NodeStanding,
+) -> Result<&NodeValue<T>, NodeStanding> {
+    match nodes.get(&node) {
+        Some(NodeResult::Ok(value)) => Ok(value),
+        Some(NodeResult::Failed(_)) => Err(NodeStanding::Failed { node }),
+        Some(NodeResult::Poisoned { through }) => Err(NodeStanding::Poisoned {
+            node,
+            through: *through,
+        }),
+        None => Err(absent()),
     }
 }
 
@@ -803,13 +931,14 @@ pub struct NodeError {
 }
 
 /// **An evaluation refusal, carried into a document-layer
-/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault) and
-/// [`EditError::PlacementAxis`](crate::EditError) hold one.
+/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault),
+/// [`EditError::PlacementAxis`](crate::EditError) and
+/// [`PartFault::PartRootFailed`](crate::PartFault) hold one.
 ///
 /// It exists because [`NodeErrorKind`] carries kernel refusals
 /// UNALTERED (D2) and those kernel types have neither `Clone` nor
-/// equality of their own, while the two document-layer error enums
-/// have both. Sharing the refusal rather than copying it is what makes
+/// equality of their own, while the document-layer error enums have
+/// both. Sharing the refusal rather than copying it is what makes
 /// the carriage possible without stringifying anything: the payload
 /// reaching a reader is the very value the evaluation raised.
 #[derive(Debug, Clone)]
@@ -821,6 +950,22 @@ impl NodeRefusal {
     pub fn kind(&self) -> &NodeErrorKind {
         &self.0
     }
+
+    /// The refusal as `node`'s own [`NodeError`] renders it: the line a
+    /// surface draws for a carried refusal
+    /// ([`NodeErrorKind::carried_chain`]), the same words that node's own
+    /// tree draws.
+    #[must_use]
+    pub fn line_at(&self, node: RecipeNodeId) -> String {
+        failed_line(node, &self.0)
+    }
+}
+
+/// A node's failure as one line: the node, then its kind's prose. The
+/// one spelling [`NodeError`]'s `Display` and [`NodeRefusal::line_at`]
+/// share.
+fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind) -> String {
+    format!("node {} failed: {kind}", node.0)
 }
 
 impl From<NodeErrorKind> for NodeRefusal {
@@ -841,12 +986,18 @@ impl From<NodeErrorKind> for NodeRefusal {
 /// comparing renderings rather than values, and both are the ones a
 /// diagnostic wants: `NaN` payloads compare EQUAL to themselves, and
 /// `0.0` and `-0.0` compare DIFFERENT.
+///
+/// It is an equivalence, so the refusal is `Eq`: the relation is
+/// equality of two strings, and the pointer test short-cuts only pairs
+/// whose strings are the same.
 impl PartialEq for NodeRefusal {
     fn eq(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.0, &other.0)
             || format!("{:?}", self.0) == format!("{:?}", other.0)
     }
 }
+
+impl Eq for NodeRefusal {}
 
 impl core::fmt::Display for NodeRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -1528,7 +1679,7 @@ pub enum NodeErrorKind {
     /// The door validates what it built with a certified claim, so it
     /// is formed only at a scalar with certification rights; a dual
     /// does not certify (the DL3 ruling), and rather than hollow a
-    /// body it cannot validate the node refuses, naming the lane. The
+    /// body it cannot validate the node refuses, naming the scalar. The
     /// base-scalar evaluation beside this one is where the shell is
     /// built and validated.
     ///
@@ -1539,8 +1690,8 @@ pub enum NodeErrorKind {
     /// spelling crosses the Python boundary as the
     /// `shell_lane_unsupported` tag.
     ShellLaneUnsupported {
-        /// The scalar lane that has no door.
-        lane: &'static str,
+        /// The scalar that has no door ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// A derived frame's face name failed to resolve through its
     /// body's name table — [`NodeErrorKind::BlendSelectionResolve`]'s
@@ -1890,13 +2041,20 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // the right to drop the payload: `UndeclaredContact` states its
 // two-armed menu (F6) AND renders its diagnostic.
 //
-// Every payload-holding arm forwards its payload's own `Display`;
-// the exception list is EMPTY — `EvalError`, `resolve::ResolveError`,
-// `WitnessBifurcation` and `PlacementRuleFault` (D54's four) all
-// carry one, and `PlacementRuleFault`'s is that fault set's ONE prose
-// vocabulary (the edit door's rule arms forward the same impl).
-// `UndeclaredContact` composes through the document layer's finding
-// sink ([`crate::finding`]): subject, story, its two-armed recourse.
+// Every payload-holding arm forwards its payload's own `Display` —
+// `EvalError`, `resolve::ResolveError`, `WitnessBifurcation` and
+// `PlacementRuleFault` (D54's four) all carry one, and
+// `PlacementRuleFault`'s is that fault set's ONE prose vocabulary (the
+// edit door's rule arms forward the same impl). `UndeclaredContact`
+// composes through the document layer's finding sink
+// ([`crate::finding`]): subject, story, its two-armed recourse.
+//
+// The one exception is a CARRIED refusal: another node's refusal, with
+// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`,
+// `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
+// never rendered inside this sentence, which names that node and points
+// at it; it is drawn as its own line, read off
+// [`NodeErrorKind::carried_chain`].
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -1982,10 +2140,10 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Seed { source } => write!(f, "{source}"),
             Self::SeedPinnedSection { section, param } => write!(
                 f,
-                "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
+                "the seed on parameter {param} reaches section profile node {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
-                param.0, section.0
+                section.0
             ),
             Self::WrongOperand {
                 input,
@@ -2066,10 +2224,20 @@ impl core::fmt::Display for NodeErrorKind {
                 };
                 write!(f, "{refusal} (a kernel bug)")
             }
-            Self::Escalated { predicate, source } => write!(
-                f,
-                "predicate {predicate} escalated (in-band indeterminacy): {source}"
-            ),
+            Self::Escalated { predicate, source } => {
+                // What the decision was deciding, in words; the name is
+                // routing and rides `Debug`.
+                let what = match *predicate {
+                    wire::EVAL_DIRECTION_NORM | topo::DATUM_UNIT_NORM => {
+                        "whether a direction has any length"
+                    }
+                    "revolve_full_vs_partial" => "whether the revolve makes a full turn",
+                    "bool_plane_parallel" => "whether the two planes are parallel",
+                    "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
+                    _ => geom_core::UNNAMED_DECISION,
+                };
+                write!(f, "{what} is too close to call: {source}")
+            }
             Self::AxisInDifferentPlane {
                 axis,
                 axis_plane,
@@ -2172,9 +2340,9 @@ impl core::fmt::Display for NodeErrorKind {
                 found.article(),
                 found.noun()
             ),
-            Self::ShellLaneUnsupported { lane } => write!(
+            Self::ShellLaneUnsupported { scalar } => write!(
                 f,
-                "the shell door has no lane at the {lane} scalar: hollowing validates what it \
+                "the shell door has no lane at the {scalar} scalar: hollowing validates what it \
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
             ),
@@ -2278,17 +2446,130 @@ impl core::fmt::Display for NodeErrorKind {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
-            Self::Part { doc_ref, fault } => {
-                write!(f, "instantiating {doc_ref}: {fault}")
-            }
+            // The reference is data, not prose: the typed arm keeps it,
+            // and a surface names the part by what it knows it as.
+            Self::Part { fault, .. } => write!(f, "instantiating the part: {fault}"),
         }
+    }
+}
+
+impl NodeErrorKind {
+    /// **The refusal this one carries, when it carries one**: the node
+    /// that raised it and the refusal itself — the exception written
+    /// over this type's `Display`, as a value.
+    ///
+    /// Two arms carry one. A part whose root failed carries that root's
+    /// refusal, in the REFERENCED document's id space; a mate whose
+    /// placer's own row cannot state its refusal carries the placer's,
+    /// in the mate's document. One step only: a surface reads the whole
+    /// chain through [`NodeErrorKind::carried_chain`].
+    ///
+    /// Every other arm holds no [`NodeRefusal`]; the two that forward a
+    /// fault enum ask that enum, whose own reading is exhaustive.
+    #[must_use]
+    pub fn carried(&self) -> Option<(RecipeNodeId, &NodeRefusal)> {
+        match self {
+            Self::Part { fault, .. } => fault.carried(),
+            Self::Mate(fault) => fault.carried(),
+            _ => None,
+        }
+    }
+
+    /// **Every refusal this one carries, outermost first**, each with
+    /// the document its node is in: the one reading every surface draws
+    /// a traceback from. A part inside a part yields one level per
+    /// document, and the last level is the node that refused.
+    pub fn carried_chain(&self) -> CarriedChain<'_> {
+        CarriedChain {
+            next: CarriedChain::step(self, CarriedIn::ThisDocument),
+        }
+    }
+}
+
+/// **Which document a carried refusal's node is in.** A node number
+/// means nothing without it: a part's root is numbered in the part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarriedIn<'a> {
+    /// The document whose evaluation raised the outermost refusal.
+    ThisDocument,
+    /// The part this reference names.
+    Part(&'a crate::ident::DocRef),
+}
+
+/// **One level of a carried chain**: the node that refused, the
+/// document it is in, and its refusal.
+#[derive(Clone, Copy, Debug)]
+pub struct CarriedLevel<'a> {
+    /// The document [`CarriedLevel::node`] is numbered in.
+    pub document: CarriedIn<'a>,
+    /// The node that raised the refusal.
+    pub node: RecipeNodeId,
+    /// Its refusal.
+    pub refusal: &'a NodeRefusal,
+}
+
+impl CarriedLevel<'_> {
+    /// The level as its node's own tree draws it
+    /// ([`NodeRefusal::line_at`]).
+    #[must_use]
+    pub fn line(&self) -> String {
+        self.refusal.line_at(self.node)
+    }
+}
+
+/// The iterator [`NodeErrorKind::carried_chain`] and
+/// [`crate::MateFault::carried_chain`] answer.
+#[derive(Clone, Debug)]
+pub struct CarriedChain<'a> {
+    next: Option<CarriedLevel<'a>>,
+}
+
+impl<'a> CarriedChain<'a> {
+    /// The chain whose first level is `first`, in `document`.
+    pub(crate) fn from_first(
+        first: Option<(RecipeNodeId, &'a NodeRefusal)>,
+        document: CarriedIn<'a>,
+    ) -> Self {
+        Self {
+            next: first.map(|(node, refusal)| CarriedLevel {
+                document,
+                node,
+                refusal,
+            }),
+        }
+    }
+
+    /// The level `kind` carries, when it carries one. A part's level is
+    /// in the part; a mate's is in `outer`, the document `kind` itself
+    /// was raised in.
+    fn step(kind: &'a NodeErrorKind, outer: CarriedIn<'a>) -> Option<CarriedLevel<'a>> {
+        let (node, refusal) = kind.carried()?;
+        let document = match kind {
+            NodeErrorKind::Part { doc_ref, .. } => CarriedIn::Part(doc_ref),
+            _ => outer,
+        };
+        Some(CarriedLevel {
+            document,
+            node,
+            refusal,
+        })
+    }
+}
+
+impl<'a> Iterator for CarriedChain<'a> {
+    type Item = CarriedLevel<'a>;
+
+    fn next(&mut self) -> Option<CarriedLevel<'a>> {
+        let level = self.next.take()?;
+        self.next = Self::step(level.refusal.kind(), level.document);
+        Some(level)
     }
 }
 
 /// The [`NodeError`] rendering: the node, then its kind's prose.
 impl core::fmt::Display for NodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "node {} failed: {}", self.node.0, self.kind)
+        f.write_str(&failed_line(self.node, &self.kind))
     }
 }
 
@@ -2385,8 +2666,7 @@ impl<T> EvalScalar for T where
 /// and `parts.rs`.
 pub(crate) mod leaf {
     use super::{
-        CancelToken, ContentKey, EvalOptions, EvalScalar, Evaluation, NodeResult, ValuePayload,
-        evaluate,
+        CancelToken, ContentKey, EvalOptions, EvalScalar, Evaluation, ValuePayload, evaluate,
     };
 
     // ------------------------------------------- the certified-leaf replay
@@ -2540,8 +2820,8 @@ pub(crate) mod leaf {
                 .collect();
         }
         if let Some(id) = want.measure {
-            out.measure = Some(match ev.result(id) {
-                Some(NodeResult::Ok(v)) => match &v.payload {
+            out.measure = Some(match ev.usable(id) {
+                Ok(v) => match &v.payload {
                     ValuePayload::Measure { value, .. } => {
                         out.measure_bracket = Some((value.lo(), value.hi()));
                         Ok(geom_core::CertifiedEnclosure::certified_bracket(*value))
@@ -2554,18 +2834,15 @@ pub(crate) mod leaf {
                         format!("node evaluated to a {}, not a measure", other.kind_name()),
                     )),
                 },
-                _ => Err(ev.node_error(id).map_or_else(
-                    || (id, "not evaluated".to_owned()),
+                Err(standing) => Err(ev.node_error(id).map_or_else(
+                    || (id, standing.to_string()),
                     |e| (e.node, e.kind.to_string()),
                 )),
             });
         }
         if let Some(id) = want.assertion {
-            out.assertion = match ev.result(id) {
-                Some(NodeResult::Ok(v)) => match &v.payload {
-                    ValuePayload::Assertion(a) => Some(a.clone().map(&project)),
-                    _ => None,
-                },
+            out.assertion = match ev.value(id).map(|v| &v.payload) {
+                Some(ValuePayload::Assertion(a)) => Some(a.clone().map(&project)),
                 _ => None,
             };
         }
@@ -3074,23 +3351,8 @@ where
 
     // Appearance resolution (M4 PR 7): a total post-pass over the
     // result DAG — canceled prefixes resolve what completed and report
-    // the rest as typed TargetNotEvaluated losses.
-    let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = nodes
-        .iter()
-        .map(|(&id, res)| {
-            let s = match res {
-                NodeResult::Ok(v) => appearance::NodeState::Ok(&v.name_table),
-                NodeResult::Failed(_) => appearance::NodeState::Failed,
-                NodeResult::Poisoned { through } => {
-                    appearance::NodeState::Poisoned { through: *through }
-                }
-            };
-            (id, s)
-        })
-        .collect();
-    let resolved_appearance =
-        appearance::resolve(doc.appearance(), |id| doc.node(id).is_some(), &states);
-    drop(states);
+    // the rest as typed losses carrying their standing.
+    let resolved_appearance = resolve_appearance(doc, &order, &nodes);
 
     Evaluation {
         epoch: opts.epoch,
@@ -3198,13 +3460,7 @@ where
             )
         })
         .collect();
-    let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = nodes
-        .keys()
-        .map(|&id| (id, appearance::NodeState::Failed))
-        .collect();
-    let resolved_appearance =
-        appearance::resolve(doc.appearance(), |id| doc.node(id).is_some(), &states);
-    drop(states);
+    let resolved_appearance = resolve_appearance(doc, &order, &nodes);
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
@@ -3217,6 +3473,25 @@ where
         part_evaluations: 0,
         appearance: resolved_appearance,
     }
+}
+
+/// The document's appearance store against one evaluation's results:
+/// every node of `order` — which covers every live node — answers its
+/// name table or its standing through [`usable_in`], so a node the
+/// order does not hold is one the document does not have.
+fn resolve_appearance<T: Decide>(
+    doc: &Doc<ProfileProgram>,
+    order: &[RecipeNodeId],
+    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+) -> AppearanceResolution {
+    let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = order
+        .iter()
+        .map(|&id| {
+            let state = usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id });
+            (id, state.map(|v| &*v.name_table))
+        })
+        .collect();
+    appearance::resolve(doc.appearance(), &states)
 }
 
 /// One node's evaluation step: the result plus whether it was a memo
@@ -3294,23 +3569,25 @@ where
     let mut upstream_keys: Vec<ContentKey> = Vec::new();
     let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
     for input in node.inputs() {
-        match results.get(&input) {
-            None => return fail(bracket, NodeErrorKind::MissingInput { input }),
-            Some(NodeResult::Failed(_)) => {
-                return NodeStep {
-                    result: NodeResult::Poisoned { through: input },
-                    reused: false,
-                };
-            }
-            Some(NodeResult::Poisoned { through }) => {
-                return NodeStep {
-                    result: NodeResult::Poisoned { through: *through },
-                    reused: false,
-                };
-            }
-            Some(NodeResult::Ok(v)) => {
+        // Every input the document has precedes this node in the
+        // order and so has its result: an absent one is not in it.
+        match usable_in(results, input, || NodeStanding::NotInDocument {
+            node: input,
+        }) {
+            Ok(v) => {
                 upstream_keys.push(v.content_key);
                 upstream_naming.push((input, v.naming_key));
+            }
+            Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
+                return fail(bracket, NodeErrorKind::MissingInput { input });
+            }
+            Err(
+                NodeStanding::Failed { node: through } | NodeStanding::Poisoned { through, .. },
+            ) => {
+                return NodeStep {
+                    result: NodeResult::Poisoned { through },
+                    reused: false,
+                };
             }
         }
     }
@@ -3468,7 +3745,7 @@ where
     // drops a foreign one before the schedule is built (DI3), so this
     // lookup cannot serve a coincidental id collision from another
     // document.
-    if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
+    if let Some(v) = prior.and_then(|p| p.value(id))
         && v.content_key == content_key
         && v.naming_key == naming_key
     {
@@ -5115,7 +5392,7 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
             e.param_refs(&mut params);
             h.write_u64(params.len() as u64);
             for (name, dim) in params {
-                h.write_str(&name.0);
+                h.write_str(name.as_str());
                 h.write_tag(dimension_tag(dim));
             }
         }

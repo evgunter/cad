@@ -117,7 +117,7 @@ door: it is a *value* precondition of the claim on exactly the weights a
 window reads, where the count is a *pairing* fact and the mint's
 business. The count relation at `NurbsCurve::new` and
 `NurbsSurface::new` is the same relation one level up, checked once at
-construction; a curve's `ring_coords()` channels mint against its own
+construction; a curve's `certified_coords()` channels mint against its own
 `knots()` by that fact.
 
 The family is closed, with one deliberate exception: `InteriorKnot` — a

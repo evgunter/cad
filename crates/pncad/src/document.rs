@@ -159,7 +159,9 @@ pub use editor_core::{
 pub use editor_core::expr::{EvalError, eval, eval_count};
 
 // Named document parameters.
-// `ParamName` is a parameter's name — a plain string newtype — and
+// `ParamName` is a parameter's name — a string newtype admissible by
+// construction (one identifier an expression reads back), whose
+// fallible constructor answers `ParamNameFault` — and
 // `DocParam` its declared dimension plus exact stored value: recipe
 // vocabulary, plain values, no arena key anywhere in either. They
 // complete doors this module already carried: `DocEdit::SetDocParam`
@@ -187,7 +189,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // `DistributionRefusal` is the same thing at the third field, for
 // `DocParam::with_distribution`.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, UnitSym,
+    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, ParamNameFault,
+    ParamNameReason, UnitSym,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -231,12 +234,19 @@ pub use editor_core::DocParamField;
 // what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
 // an evaluation refusal in, so a consumer can match either variant but
 // not read the cause out of it without naming the wrapper.
+// `CarriedChain`, `CarriedLevel` and `CarriedIn` ride with it: they are
+// `NodeErrorKind::carried_chain`'s answer, the one reading of which
+// refusal a failure carries and which document its node is in.
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
 // it is the one payload every pairing door carries (DI3; which doors
 // those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
 // spelled for the QUESTION rather than for any one door.
+// `NodeStanding` rides with `Evaluation` by the same rule: it is
+// `Evaluation::usable`'s refusal and the payload every door that
+// needs a node's value refuses with, so a consumer can match those
+// arms but not read which node, or which standing, without naming it.
 // `Found` rides with `NodeErrorKind` by the same rule: it is the
 // `found` field of the four entity-kind refusals, so a consumer can
 // match those variants but not name what they say was there instead.
@@ -245,9 +255,10 @@ pub use editor_core::DocParamField;
 // which is the point of it: its field is private to the door that
 // mints it.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
-    Evaluation, Found, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
+    DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
+    NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, ProfileLift,
+    SplitSide, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -340,9 +351,9 @@ pub use editor_core::{
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal,
-    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach,
-    member_of, reading_edges, relative_freedom_components, solve_document,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, PlacerRow,
+    ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of,
+    mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through

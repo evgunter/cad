@@ -425,9 +425,13 @@ evaluated count, else `MateFault::DanglingHead` at the pattern), and a
 name is the authority; the `Part` is checked against it. A member's derived pose refuses in
 the PLACER's own voice: a pattern copy or a transform on the chain
 whose pose cannot be derived refuses `MateFault::PlacerRefused`,
-carrying the evaluation layer's own typed cause unaltered, because a
-mate fault poisons the document and the placer node never gets to
-state that cause itself.
+holding the evaluation layer's own typed cause unaltered. Where a
+cluster's fold derives the offset, the fault reaches the instance
+under the placer, so the placer is poisoned and never gets to state
+that cause itself: the fault carries it, drawn as its own line under
+the mate's. Where the solve reads one mate's references, the fault
+reaches that mate alone, the placer fails in its own right and states
+the cause on its own row, and the mate points there.
 
 ## Open questions
 

@@ -682,7 +682,7 @@ pub fn die() -> Die {
     let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("pip_depth"),
+        name: ParamName::from_static("pip_depth"),
         value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
@@ -705,7 +705,10 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),
+            distance: Expr::neg(Expr::param(
+                ParamName::from_static("pip_depth"),
+                Dimension::Length,
+            )),
         });
         masters.push((ext, u, v, pips));
     }
@@ -951,6 +954,27 @@ pub fn count(t: &NameTable, seg: fn(&RoleSeg) -> bool) -> usize {
     t.iter().filter(|(n, _)| seg(&n.path[0])).count()
 }
 
+/// **`names`, faces of `node`'s body, ordered left to right** by the
+/// least x any of the face's vertices stands at: a geometric order for
+/// rows that mean "the left fragment", which name order does not give
+/// (a name's order follows the ids it spells).
+pub fn left_to_right(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    mut names: Vec<StableName>,
+) -> Vec<StableName> {
+    let body = crate::corpus::body_of(ev, node);
+    let t = table(ev, node);
+    let least_x = |n: &StableName| {
+        face_vertices(body, face_of(t, "a fragment", n))
+            .into_iter()
+            .map(|v| point(body, v).x)
+            .fold(f64::INFINITY, f64::min)
+    };
+    names.sort_by(|a, b| least_x(a).total_cmp(&least_x(b)));
+    names
+}
+
 /// Where a vertex stands.
 pub fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
     topo::readback::vertex_point(body, v).expect("a live vertex")
@@ -1115,12 +1139,29 @@ pub fn as_authored(node: &Node<ProfileProgram>) -> Node<ProfileProgram> {
     node
 }
 
-/// **A piece no profile draws**: the first step any document mints,
-/// in a role no verb gives it — a locator that is well formed and
-/// within every document's step counter, and denotes nothing.
+/// **A piece no profile draws, spelled without a document**: step id
+/// 0 in a role no verb gives it — a well-formed locator that denotes
+/// nothing, since `Piece(7)` is no verb's role. Whether a document's
+/// mint log holds id 0 is a matter of what its chain drew, so a row
+/// whose name passes a door that checks the log uses [`no_piece_of`],
+/// which spells a step the document minted.
 pub fn no_piece() -> ProfileEdgeRef {
     ProfileEdgeRef::Piece {
         step: editor_core::StepId(0),
+        role: editor_core::PieceRole::Piece(7),
+    }
+}
+
+/// **A piece no profile of `doc` draws**: the least step id `doc` has
+/// minted, in a role no verb gives it — a locator that is well formed,
+/// spells a minted step, and denotes nothing.
+pub fn no_piece_of(doc: &editor_core::ProfileDoc) -> ProfileEdgeRef {
+    ProfileEdgeRef::Piece {
+        step: *doc
+            .step_mint()
+            .log()
+            .first()
+            .expect("the document has minted a step"),
         role: editor_core::PieceRole::Piece(7),
     }
 }

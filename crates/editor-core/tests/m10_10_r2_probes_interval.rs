@@ -262,17 +262,18 @@ pub(crate) fn d_tab_at(
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, dim: Dimension, value: f64, d: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
-                dim,
-                value,
-                display_unit: UnitSym::canonical_for(dim),
-                distribution: Some(d),
-            },
-        });
-    };
+    let declare =
+        |r: &mut Recorder, n: &'static str, dim: Dimension, value: f64, d: Distribution| {
+            r.push(DocEdit::SetDocParam {
+                name: ParamName::from_static(n),
+                value: DocParam::Continuous {
+                    dim,
+                    value,
+                    display_unit: UnitSym::canonical_for(dim),
+                    distribution: Some(d),
+                },
+            });
+        };
     declare(
         &mut r,
         "hole_x",
@@ -303,7 +304,7 @@ pub(crate) fn d_tab_at(
                 hi: 0.05 * scale,
             },
         );
-        Expr::param(ParamName::new("bulge"), Dimension::Scalar)
+        Expr::param(ParamName::from_static("bulge"), Dimension::Scalar)
     } else {
         scl(bulge_nominal)
     };
@@ -332,10 +333,10 @@ pub(crate) fn d_tab_at(
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [
-                Expr::param(ParamName::new("hole_x"), Dimension::Length),
+                Expr::param(ParamName::from_static("hole_x"), Dimension::Length),
                 len(0.0),
             ],
-            radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+            radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));

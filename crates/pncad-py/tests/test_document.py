@@ -32,6 +32,7 @@ from pncad import (
     Open,
     ParamName,
     PatternKind,
+    SelectRefusal,
     Selector,
     SketchPlane,
     Start,
@@ -317,7 +318,7 @@ class TestEvaluation(unittest.TestCase):
         # belongs to the node that refused; here it is None (attributes
         # never go missing, LIB-DOORS F3).
         self.assertIsNone(caught.exception.finding)
-        self.assertIn("poisoned by failed ancestor", str(caught.exception))
+        self.assertIn("is poisoned by the failure at node", str(caught.exception))
 
 
 class TestDetectDeclareDoors(unittest.TestCase):
@@ -418,7 +419,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "no_findings")
         self.assertNotIn("  ", str(caught.exception))
 
-    def test_detection_answers_empty_for_separated_and_unevaluated(self):
+    def test_detection_answers_empty_for_separated_and_refuses_unevaluated(self):
         # Separated in EVERY plane family: a pair sharing any plane —
         # even with disjoint faces (two boxes side by side on one
         # floor) — is honestly a finding, so "no findings" needs no
@@ -428,9 +429,17 @@ class TestDetectDeclareDoors(unittest.TestCase):
         b = slab(doc, (3 * m, 4 * m), (5 * m, 6 * m), (2 * m, 3 * m))
         ev = evaluate(doc)
         self.assertEqual(ev.find_flush_candidates(a, b), [])
-        # A node the evaluation does not know: empty, like `select`.
+        # A node the evaluation does not know refuses under its
+        # standing: "no flush pair" would be a claim about geometry
+        # that was never built.
         c = slab(doc, (6 * m, 7 * m), (8 * m, 9 * m), (4 * m, 5 * m))
-        self.assertEqual(ev.find_flush_candidates(a, c), [])
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.find_flush_candidates(a, c)
+        self.assertEqual(caught.exception.reason, "node_has_no_value")
+        self.assertIn(
+            "is not a node of the document this evaluation ran over",
+            str(caught.exception),
+        )
 
     def test_findings_are_values_with_opaque_names(self):
         doc, lower, upper = self.stacked()
@@ -1824,3 +1833,30 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             Node.placed_union(box, Expr.count(3), PatternKind.explicit([]))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
         self.assertEqual(self.set_of(caught.exception), {"variant"})
+
+
+class TestParamNameAdmissibility(unittest.TestCase):
+    """`ParamName(text)` is the boundary that turns text into a name,
+    and the document layer's one rule for a name — one identifier an
+    expression reads back — is held by the constructor there. Python
+    holds the text until this call, so the binding calls the
+    constructor here and publishes its refusal under the boundary's own
+    word: a blank or a spaced name never reaches a document, and no
+    door downstream has a second copy of the rule to drift."""
+
+    def test_a_text_the_parser_cannot_read_back_refuses_at_the_constructor(self):
+        for text in ["", "   ", "1 2", "a+b", " width ", "hole#", "sin("]:
+            with self.subTest(text=text):
+                with self.assertRaises(EditError) as caught:
+                    ParamName(text)
+                err = caught.exception
+                self.assertEqual(err.variant, "param_name_not_an_identifier")
+                # The sentence quotes the bytes offered, as the parse
+                # door does for text it read.
+                self.assertIn(f'parameter name "{text}"', str(err))
+
+    def test_an_identifier_is_a_name_and_the_grammar_reserves_no_words(self):
+        self.assertEqual(ParamName("hole_r").name, "hole_r")
+        # A bare function word is looked up as a parameter — `sin` is
+        # a call only when `(` follows it — so it is admissible.
+        self.assertEqual(ParamName("sin").name, "sin")

@@ -187,9 +187,10 @@ class EvaluationError(PncadError):
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
     `node_failed`, or `poisoned`. `kind` (which door refused),
     `inner_kind` (the arm of the kernel refusal that door holds),
-    `through` (the nearest failed ancestor) and `finding` (the
-    refusal-menu payload) are always present, `None` where the reason
-    has none (attributes never go missing).
+    `through` (the nearest failed ancestor), `finding` (the
+    refusal-menu payload) and `document` (the part the node is in) are
+    always present, `None` where the reason has none (attributes never
+    go missing).
 
     TWO WORDS BECAUSE THERE ARE TWO ENUMS, and each is projected where
     it lives. `kind` is the carrier's discriminant — `revolve`,
@@ -219,6 +220,16 @@ class EvaluationError(PncadError):
     `Evaluation.find_flush_candidates` answers with, ready for
     `Node.declare` / `Doc.declare`. The menu has exactly two arms:
     declare that finding, or move the geometry.
+
+    A refusal that CARRIES another node's refusal — `part_root_failed`,
+    a part whose product root failed, and `mate_placer_refused`, a
+    mate whose poisoned placer could not derive its pose — names that
+    node and points at it, and never quotes it. The carried refusal is
+    `__cause__`: an `EvaluationError` raised for that node as its own
+    evaluation raises it, whose `node` is in the id space of its
+    `document`: the part's `DocRef` for a part's root, or `None` for a
+    node of the evaluated document itself. A part inside a part is a
+    chain of causes, one per document, ending at the node that refused.
     """
 
     reason: str
@@ -227,6 +238,7 @@ class EvaluationError(PncadError):
     inner_kind: Optional[str]
     through: Optional[NodeId]
     finding: Optional[FlushFinding]
+    document: Optional[DocRef]
 
 class ValidationFinding:
     """ONE failure a validator found, as words a caller branches on.
@@ -597,12 +609,13 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `not_a_length`, `pair_in_band`, `bad_value`, or
-    `band`. The other attributes are the refusing arm's payload,
-    always present and `None` where inapplicable: `name` (the
-    candidate's opaque name text), `predicate` (the funnel site),
-    `matched`/`candidates` (a tied name's disagreement counts),
-    `datum` (the non-datum reference), `found` (what it evaluated to),
+    `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
+    `not_a_length`, `pair_in_band`, `bad_value`, or `band`. The other attributes are
+    the refusing arm's payload, always present and `None` where
+    inapplicable: `name` (the candidate's opaque name text),
+    `predicate` (the funnel site), `matched`/`candidates` (a tied
+    name's disagreement counts), `datum` (the non-datum reference, or
+    the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
 
     reason: str
@@ -770,6 +783,11 @@ class HitTestError(PncadError):
     not produce cannot belong to it, so the pick refuses up front
     rather than inverting against a table that is not there.
 
+    `NodePick.patch_names` and `NodePick.boundary_names` raise this
+    class too when they refuse the whole call — the pairing below, or
+    one of those three — under the same words and fields; their
+    message says a name lookup refused, because no hit test ran.
+
     `evaluation_of_another_document` is the pairing refusal, the same
     word `Doc.product`, the checks and the name-level edit door already
     answer with: the index and the evaluation handed to it are of two
@@ -820,8 +838,8 @@ class NodePickError(PncadError):
     under an edit, which is why the two are not one arm.
 
     Two arms FORWARD rather than wrap. The standing ladder arrives
-    under `HitTestError`'s own tags, because it IS that refusal; a
-    tessellation refusal arrives under the tessellator's own tag and
+    under the tags `HitTestError` answers with, because it is the same
+    standing; a tessellation refusal arrives under the tessellator's own tag and
     prose. A forwarded arm does not bring the inner refusal's extra
     ATTRIBUTES: a tessellation refusal's `value`, `bound`, `requested`
     and `note` stay on `TessellateError`, where `Body.tessellate`
@@ -2501,8 +2519,15 @@ class Expr:
     def __eq__(self, other: object) -> bool: ...
 
 class ParamName:
-    """A document-level parameter name (guide §3.2). NOT an arena
-    key: the same plain name the recipe's expressions reference."""
+    """A document-level parameter name (guide §3.2): one identifier,
+    the same name the recipe's expressions reference. NOT an arena
+    key.
+
+    A name must be one an expression can read back as this parameter,
+    and that IS refused here: text that is blank, padded with
+    whitespace, or not exactly one identifier raises `EditError` with
+    `variant == "param_name_not_an_identifier"` at this call rather
+    than reaching a document."""
 
     def __init__(self, name: str) -> None: ...
     @property
@@ -3104,7 +3129,10 @@ class DocEdit:
         `Doc.last_maintenance` until `rebind` repairs it.
 
         Refuses `step_ids_refused` before the program is replayed
-        (`inner_variant`: `shape`, `not_this_profiles`, `repeated`),
+        (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
+        `repeated`, or `collides` for a new id the document's mint log
+        already holds; `not_minted`, an id the log lacks, is the load
+        door's word for the same family),
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_doc_param` and its
         siblings over every argument, `profile_program_refused` for a
@@ -4833,10 +4861,11 @@ class Evaluation:
         outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
         finding cannot disagree with the boolean's verify-at-use).
-        Findings are DEFINITE and canonically ordered; empty when
-        either node has no value. Raises `SelectRefusal`, typed
-        (`pair_in_band`, `tied_disagrees`, `unreadable`, `band`) —
-        an ambiguous pair is never silently included or dropped."""
+        Findings are DEFINITE and canonically ordered. Raises
+        `SelectRefusal`, typed (`node_has_no_value` when either node
+        has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
+        `band`) — an ambiguous pair is never silently included or
+        dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every
@@ -5201,7 +5230,14 @@ class MateFault:
     `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`
     and `predicate` are spelled here exactly as `FrameError` spells
     them, because an escalation a mate reports and one a frame
-    constructor reports are the same value."""
+    constructor reports are the same value.
+
+    `cause` is the refusal the fault CARRIES, typed: on
+    `mate_placer_refused` where the placer is poisoned and cannot state
+    it, the `EvaluationError` the placer's own evaluation raises, which
+    `str(fault)` points at and never quotes. `None` where the placer
+    fails in its own right, whose own failure states it. A raised
+    `MateError` carries the same as its `__cause__`."""
 
     @property
     def variant(self) -> str: ...
@@ -5215,6 +5251,8 @@ class MateFault:
     def placer(self) -> Optional[NodeId]: ...
     @property
     def error(self) -> Optional[str]: ...
+    @property
+    def cause(self) -> Optional[EvaluationError]: ...
     @property
     def instance(self) -> Optional[NodeId]: ...
     @property

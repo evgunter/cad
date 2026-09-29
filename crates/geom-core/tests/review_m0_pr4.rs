@@ -34,9 +34,8 @@
     clippy::approx_constant
 )]
 
-use geom_core::{
-    Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Point2, Real, Sign, Vec2,
-};
+use crate::refusal::refuses_as_invalid;
+use geom_core::{Band, Bounds, Decide, Interval, MarginDiag, Point2, Real, Sign, Vec2};
 
 // ---------------------------------------------------------------- helpers
 
@@ -47,16 +46,6 @@ fn band() -> Band {
 
 fn iv(lo: f64, hi: f64) -> Interval {
     Interval::from_bounds(lo, hi)
-}
-
-fn refuses_as_invalid(x: Interval) -> bool {
-    matches!(
-        x.sign_within(band()).map(|d| d.sign),
-        Err(Indeterminate {
-            margin: MarginDiag::INVALID,
-            ..
-        })
-    )
 }
 
 // ------------------------------------------------- demo 1: the Q1 replay
@@ -155,13 +144,13 @@ fn q1_replay_loop_in_miniature() {
     }
 }
 
-// ------------------------------------------- demo 2: poison-channel abuse
+// ------------------------------------------ demo 2: refusal-channel abuse
 
-/// Poison produced mid-stream in ordinary pipelines must refuse to
+/// A refusal produced mid-stream in ordinary pipelines must refuse to
 /// classify, and no arithmetic laundering attempt may wash it clean.
 #[test]
-fn poison_laundering_hunt() {
-    // Poison sources.
+fn refusal_laundering_hunt() {
+    // Refusal sources.
     let sources: Vec<(&str, Interval)> = vec![
         (
             "sqrt of straddling [-1,4] (clamped, Trv)",
@@ -242,7 +231,7 @@ fn poison_laundering_hunt() {
         for (aname, f) in &attempts {
             let r = f(*p);
             // Push the value into decisively-positive territory; if the
-            // poison were laundered, this WOULD classify Positive.
+            // refusal were laundered, this WOULD classify Positive.
             let probe = r.abs() + Interval::from_f64(100.0);
             assert!(
                 refuses_as_invalid(probe),

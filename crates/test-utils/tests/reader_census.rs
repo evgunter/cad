@@ -161,6 +161,10 @@ const LEDGER: &[Entry] = &[
                              // mate/member.rs and mate/solve.rs, code view
     },
     Entry {
+        path: "crates/editor-core/tests/node_standing.rs",
+        disposition: Shared, // node-result reader census over every src tree, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/product_gate_attribution.rs",
         disposition: Shared, // product.rs gates once and attributes on refusal, code view
     },

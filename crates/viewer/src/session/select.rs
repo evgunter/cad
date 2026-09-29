@@ -446,7 +446,7 @@ mod tests {
             present,
         };
         let param = |present| Standing::Param {
-            name: ParamName("thickness".to_owned()),
+            name: ParamName::from_static("thickness"),
             present,
         };
         assert_eq!(node(false).tone(), Tone::Actionable);

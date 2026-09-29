@@ -25,8 +25,8 @@ use geom_core::Tol;
 use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn param(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
@@ -46,7 +46,9 @@ fn failures(
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -72,7 +74,9 @@ fn failures(
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect()
@@ -337,7 +341,7 @@ fn bracket_with(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
+        name: ParamName::from_static("w"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 20.0e-3,

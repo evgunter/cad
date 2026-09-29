@@ -38,7 +38,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
         .iter()
         .find(|row| row.id == extrude)
         .expect("the extrude has a row");
-    let RowStatus::Failed { message } = &failed.status else {
+    let RowStatus::Failed { message, .. } = &failed.status else {
         panic!("expected Failed, got {:?}", failed.status);
     };
     assert_eq!(failed.status.badge(), "FAILED");
@@ -172,7 +172,11 @@ fn a_canceled_runs_missing_tail_reads_as_unevaluated() {
     let cancel = CancelToken::new();
     cancel.cancel();
     let evaluation = evaluate::<f64>(&doc, None, &cancel, &EvalOptions::default(), tol);
-    let rows = tree::rows(&doc, Some(&evaluation));
+    let rows = tree::rows(
+        &doc,
+        Some(&evaluation),
+        &viewer::parts::PartFiles::default(),
+    );
     assert!(!rows.is_empty());
     assert!(rows.iter().all(|row| row.status == RowStatus::Unevaluated));
     assert!(!tree::has_faults(&rows));
@@ -182,7 +186,7 @@ fn a_canceled_runs_missing_tail_reads_as_unevaluated() {
 fn the_tree_marks_the_documents_product_roots() {
     let tol = Tol::witness();
     let (doc, profile, extrude) = common::parametric_plate(tol);
-    let rows = tree::rows(&doc, None);
+    let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
     let root_ids: Vec<_> = rows
         .iter()
         .filter(|row| row.root)
@@ -253,7 +257,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     let status_of = |id| common::status_of(&rows, id);
 
     // The offending mate is the cause, and the only row that is.
-    let RowStatus::Failed { message } = status_of(offender) else {
+    let RowStatus::Failed { message, .. } = status_of(offender) else {
         panic!(
             "the offending mate carries the cause: {:?}",
             status_of(offender)
@@ -650,7 +654,11 @@ fn child_band_refusal_rows() {
         &EvalOptions::default(),
         tol,
     );
-    let rows = tree::rows(&asm, Some(&evaluation));
+    let rows = tree::rows(
+        &asm,
+        Some(&evaluation),
+        &viewer::parts::PartFiles::default(),
+    );
     assert!(tree::has_faults(&rows), "the run refused: {rows:?}");
 
     // DOOR 3 — the fault is the MATE arm, not the evaluator's own
@@ -798,4 +806,79 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         tree::has_faults(&rows),
         "a row showing someone else's failure still says the document is not building: {rows:?}"
     );
+}
+
+/// **A profile refused for its frame's direction links to the frame.**
+///
+/// The frame's own direction slot is what refused, at the nominal the
+/// profile reads, while the frame lands at the box's lane value — so
+/// the frame's row reads `Ok` and only the link gets a reader from the
+/// profile's words to the node they say to fix.
+#[test]
+fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
+    use std::collections::BTreeMap;
+
+    use pncad::analysis::{BoxAxis, ParamBox};
+    use pncad::document::{Datum, Dimension, DocParam, Expr, Node, NodeErrorKind, ParamName};
+
+    let tol = Tol::witness();
+    let span = ParamName::from_static("span");
+    let doc = common::declared(
+        "tree-frame-direction",
+        &span,
+        DocParam::continuous(Dimension::Scalar, 0.0),
+        tol,
+    );
+    let (doc, frame) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Frame {
+            origin: common::len3([0.0; 3]),
+            u: [
+                Expr::param(span.clone(), Dimension::Scalar),
+                common::scl(0.0),
+                common::scl(0.0),
+            ],
+            v: common::scl3([0.0, 1.0, 0.0]),
+        }),
+        tol,
+    );
+    let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
+    let mut axes = BTreeMap::new();
+    axes.insert(span, BoxAxis::Varying { lo: 1.0, hi: 1.0 });
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(axes))),
+            ..EvalOptions::default()
+        },
+        tol,
+    );
+    assert!(
+        matches!(
+            ev.node_error(profile).map(|e| &e.kind),
+            Some(NodeErrorKind::FrameDirection { frame: named, .. }) if *named == frame
+        ),
+        "the fixture raises the arm under test: {:?}",
+        ev.result(profile)
+    );
+
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
+    let row = |id| {
+        rows.iter()
+            .find(|row| row.id == id)
+            .expect("every node has a row")
+    };
+    assert!(matches!(row(frame).status, RowStatus::Ok), "{rows:?}");
+    assert!(
+        matches!(row(profile).status, RowStatus::Failed { .. }),
+        "{rows:?}"
+    );
+    assert_eq!(
+        row(profile).repair_at,
+        Some(frame),
+        "the profile's row links to the frame whose slot refused"
+    );
+    assert_eq!(row(frame).repair_at, None, "an `Ok` row links nowhere");
 }

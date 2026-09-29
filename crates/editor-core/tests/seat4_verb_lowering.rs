@@ -196,11 +196,14 @@ fn both_blends_evaluate_in_one_document() {
 /// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
+/// Re-blessed again when step ids became digests of the document's mint
+/// chain: the names spell different ids, and the same id-free pins held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
+    let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x073e_9e1c_437e_868b_u64),
-        ("die_chamfer", 0x40dc_fc06_ddb4_595d),
+        ("die_fillet", 0x91d8_06d5_7561_4105_u64),
+        ("die_chamfer", 0x2ac7_0d65_6064_540f),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -209,8 +212,15 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
         let ev = corpus::eval::<f64>(&doc.doc);
         let got = digest(&ev);
         println!("seat4 {name}: {got:#018x}");
-        assert_eq!(got, want, "{name}'s evaluation moved — body or name table");
+        if got != want {
+            moved.push(format!("{name}: {got:#018x} (want {want:#018x})"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "these documents' evaluations moved — body or name table:\n{}",
+        moved.join("\n")
+    );
 }
 
 /// **A registered boolean document's bytes survive the migration**:
@@ -280,12 +290,15 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
+/// Re-blessed again when step ids became digests of the document's mint
+/// chain: the names spell different ids, and the same id-free pins held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
+    let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x0517_d55e_5617_052d_u64),
-        ("heat_sink", 0x34a8_9bc0_56c5_fed7),
-        ("kiss_carry", 0xd50a_9072_2042_b77a),
+        ("crossing_slots", 0xfadd_42b3_259a_e621_u64),
+        ("heat_sink", 0xd68c_866a_03dd_72e1),
+        ("kiss_carry", 0xa21d_7737_3ae7_b1ee),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -299,11 +312,15 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
         );
         let got = digest(&ev);
         println!("seat5 {name}: {got:#018x}");
-        assert_eq!(
-            got, want,
-            "{name}'s evaluation moved — body, value or name table"
-        );
+        if got != want {
+            moved.push(format!("{name}: {got:#018x} (want {want:#018x})"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "these documents' evaluations moved — body, value or name table:\n{}",
+        moved.join("\n")
+    );
 }
 
 /// **The typed empty success is pinned by an input that PRODUCES it** —
@@ -367,7 +384,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xfb37_ae41_85d4_4899,
+        got, 0xeb0c_29dc_fd93_2da5,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

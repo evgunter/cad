@@ -542,8 +542,8 @@
 //! and every whole-certifying ceiling is identical to the digit on all
 //! EIGHT, with the over-band set at ceiling + δ identical too. The
 //! exception is the pad's replay at the scale it certifies whole at:
-//! `symbolic_zero` 886 → 882, `registered` 104 → 128, `numeric`
-//! 1075 → 1055, `frozen` 2750 either way — the same 2065 decisions, 24
+//! `symbolic_zero` 889 → 885, `registered` 104 → 128, `numeric`
+//! 1078 → 1058, `frozen` 2750 either way — the same 2071 decisions, 24
 //! of them moving into the door, twenty out of `numeric` and FOUR out
 //! of `symbolic_zero` (the rows' stored values; the replay's
 //! `numeric` and `frozen` currently measure off them by a drift not
@@ -3653,6 +3653,8 @@ impl<T: Real> Real for Sym<T> {
     /// proves. This is the const [`Decide::sign_within`] below charges
     /// the theorem-vs-numeric contradiction by.
     const WITNESS: crate::real::Witness = T::WITNESS;
+
+    const NAME: &'static str = "symbolic";
 
     fn from_f64(x: f64) -> Self {
         Self::nullary(T::from_f64(x), SymOp::Lit, x.to_bits())

@@ -2069,7 +2069,9 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
         ToolNotice::Blend(BlendEvent::TargetLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
-        ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { .. }) => Retold::Again,
+        ToolNotice::Blend(
+            BlendEvent::NoEdgesOnTarget { .. } | BlendEvent::TargetHasNoValue { .. },
+        ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.to_string(), retold)
 }
@@ -2674,8 +2676,10 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
     match refusal.and_then(Refusal::parse_error)? {
         // The parse error carries the identifier as text (it is a
         // fact about the SOURCE); the offer mints the name the create
-        // door would declare.
-        ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
+        // door would declare. The text is a token the lexer read, so
+        // the constructor admits it; its answer is folded rather than
+        // trusted.
+        ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
         ParseError::UnexpectedChar { .. }
         | ParseError::UnexpectedEnd { .. }
         | ParseError::UnexpectedToken { .. }
@@ -3119,6 +3123,7 @@ mod tests {
             RowStatus::Ok,
             RowStatus::Failed {
                 message: String::new(),
+                carried: Vec::new(),
             },
             RowStatus::Poisoned {
                 through: RecipeNodeId(1),

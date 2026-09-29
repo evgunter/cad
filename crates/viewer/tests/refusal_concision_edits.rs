@@ -22,6 +22,7 @@ use editor_core::{
     DocumentId, EditError, EntityKind, EvalError, ExprPath, MateFault, MeasureNodeFault,
     MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, StableName,
 };
+use test_utils::refusal::Admission;
 use viewer::session::Refusal;
 
 fn shown(e: EditError) -> String {
@@ -37,7 +38,7 @@ fn name() -> StableName {
 }
 
 fn param() -> ParamName {
-    ParamName::new("width")
+    ParamName::from_static("width")
 }
 
 fn n(id: u64) -> RecipeNodeId {
@@ -643,6 +644,7 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
                 side: MateSide::B,
                 placer: n(4),
                 error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
+                placer_row: pncad::document::PlacerRow::Silent,
             },
         ),
         (
@@ -712,14 +714,133 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     rows
 }
 
+/// The clause labels an edit refusal legitimately opens with, each on
+/// the row namespace that writes it: the node, measure, sketch step or
+/// mate the refusal is about, and a pair's corner list.
+const LABELS: &[(&str, &str)] = &[
+    ("Edit/PlacementRuleMismatch", "node 5"),
+    ("Edit/EmptyPlacementList", "node 5"),
+    ("Edit/MeasureMalformed", "measure node 5"),
+    ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
+    (
+        "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",
+        "at corner",
+    ),
+    ("Edit/MaintenanceRefused(", "mate 9"),
+    ("Edit/MateRefused(", "mate 9"),
+];
+
+/// The rows that state no recourse — no `Recourse:`, no "There is no way
+/// through", and none of the shared unlabelled repairs — by exact row
+/// id, grouped under the row that files them with their owner.
+const FILED_NO_RECOURSE: &[&str] = &[
+    // work/edit/edit-refusals-short-of-the-shape-guard.md
+    "Edit/AppearanceNamesMissingNode",
+    "Edit/AppearanceNotSet",
+    "Edit/AppearanceWrongKind",
+    "Edit/AssertionDimension",
+    "Edit/AssertionTarget",
+    "Edit/ContinuousParamCannotBeCount",
+    "Edit/DeclareInputNotDeclare",
+    "Edit/DeclareNamesMissingNode",
+    "Edit/DeleteWouldDangle",
+    "Edit/Dimension",
+    "Edit/DocParamCountHasNoDistribution",
+    "Edit/DocParamCountHasNoUnit",
+    "Edit/DocParamNotDeclared",
+    "Edit/DocParamUnitMismatch",
+    "Edit/DocParamValueKindMismatch",
+    "Edit/DuplicateInput",
+    "Edit/DuplicateWitnessEntry",
+    "Edit/EmptyPlacementList",
+    "Edit/EmptyWitnessBulk",
+    "Edit/EvaluationOfAnotherDocument",
+    "Edit/ImproperPlacement",
+    "Edit/InvalidDistribution",
+    "Edit/InvalidTolerance",
+    "Edit/MaintenanceUnrecorded",
+    "Edit/MeasureMalformed",
+    "Edit/MetaNonFinite",
+    "Edit/MetaNotSet",
+    "Edit/MetaUnversioned",
+    "Edit/NameUnresolvedInEvaluation",
+    "Edit/NonFiniteAlignment",
+    "Edit/NonFiniteDocParam",
+    "Edit/NonFinitePlacement",
+    "Edit/NotStructuralSlot",
+    "Edit/PathOffTree",
+    "Edit/PayloadDocParamDimension",
+    "Edit/PayloadUnknownDocParam",
+    "Edit/PinUnchanged",
+    "Edit/PlacementAxis",
+    "Edit/PlacementOnNonInstance",
+    "Edit/PlacementRuleMismatch",
+    "Edit/ReadSiteMissingNode",
+    "Edit/RebindAppearanceCollision",
+    "Edit/RebindIdentity",
+    "Edit/RebindKindMismatch",
+    "Edit/RebindMetadataCollision",
+    "Edit/RebindNoReferences",
+    "Edit/RebindTargetMissingNode",
+    "Edit/RebindUnknownName",
+    "Edit/RepeatedDesignation",
+    "Edit/Roots",
+    "Edit/SelectionNotCanonical",
+    "Edit/SetMembersOnNonList",
+    "Edit/SlotDimensionMismatch",
+    "Edit/SlotDocParamDimension",
+    "Edit/SlotUnknownDocParam",
+    "Edit/StructuralSlotNeedsStructuralEdit",
+    "Edit/TooFewMembers",
+    "Edit/UnknownNode",
+    "Edit/UnknownSlot",
+    "Edit/UnresolvedInput",
+    "Edit/UpdateOnNonInstance",
+    "Edit/WitnessOnNonSketch",
+    "Edit/WouldCycle",
+    // work/msolve/msolve-refusals-short-of-the-shape-guard.md
+    "Edit/MaintenanceRefused",
+    "Edit/MaintenanceRefused(ClassNotAdmitted)",
+    "Edit/MaintenanceRefused(Contradictory)",
+    "Edit/MaintenanceRefused(DanglingHead)",
+    "Edit/MaintenanceRefused(Indeterminate)",
+    "Edit/MaintenanceRefused(PartSelectsAnotherCopy)",
+    "Edit/MaintenanceRefused(PlacerRefused)",
+    "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
+    "Edit/MaintenanceRefused(SelfMate)",
+    "Edit/MaintenanceRefused(TableLacks)",
+    "Edit/MaintenanceRefused(Under)",
+    "Edit/MaintenanceRefused(Unleverable)",
+    "Edit/MateRefused",
+    "Edit/MateRefused(ClassNotAdmitted)",
+    "Edit/MateRefused(Contradictory)",
+    "Edit/MateRefused(DanglingHead)",
+    "Edit/MateRefused(Indeterminate)",
+    "Edit/MateRefused(PartSelectsAnotherCopy)",
+    "Edit/MateRefused(PlacerRefused)",
+    "Edit/MateRefused(PosesOfAnotherDocument)",
+    "Edit/MateRefused(SelfMate)",
+    "Edit/MateRefused(TableLacks)",
+    "Edit/MateRefused(Under)",
+    "Edit/MateRefused(Unleverable)",
+    // work/paths/paths-refusals-short-of-the-shape-guard.md
+    "Edit/ProfileProgramRefused(Resolve)",
+    "Edit/ProfileProgramRefused(Transition)",
+    "Edit/ProfileProgramRefused(Validate)",
+];
+
 /// **Every edit refusal the status line draws meets the standard.**
 /// Each `EditError` arm, and each forwarding arm over what it forwards,
 /// rendered through [`Refusal::Edit`] and held to
 /// [`test_utils::refusal::problems`]: the budget, no stage prefix, no
-/// `Debug` struct, no arena key.
+/// `Debug` struct, no arena key, one recourse. Every admission must
+/// admit something a row renders, so one its owner's fix made stale goes
+/// red.
 #[test]
 fn every_edit_refusal_renders_within_the_budget() {
     let mut problems = Vec::new();
+    let mut used = std::collections::BTreeSet::new();
+    let mut names = Vec::new();
     let rows = edit_refusals()
         .into_iter()
         .map(|(arm, e)| (arm.to_owned(), e))
@@ -728,7 +849,98 @@ fn every_edit_refusal_renders_within_the_budget() {
         let text = shown(e);
         let name = format!("Edit/{arm}");
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-        problems.extend(test_utils::refusal::problems(&name, &text, &[], false));
+        let scoped: Vec<&(&str, &str)> = LABELS
+            .iter()
+            .filter(|(ns, _)| name.starts_with(ns))
+            .collect();
+        for prefix in test_utils::refusal::stage_prefixes(&text, &[]) {
+            let prefix = prefix.trim_end_matches(':');
+            if let Some((ns, l)) = scoped.iter().find(|(_, l)| *l == prefix) {
+                used.insert(format!("LABELS {ns} {l}"));
+            }
+        }
+        let allowed: Vec<&str> = scoped.iter().map(|(_, l)| *l).collect();
+        let no_recourse = format!("{name} states no recourse");
+        for problem in
+            test_utils::refusal::problems_admitting(&name, &text, &allowed, false, ADMISSIONS)
+        {
+            if FILED_NO_RECOURSE.contains(&name.as_str()) && problem.starts_with(&no_recourse) {
+                used.insert(format!("FILED_NO_RECOURSE {name}"));
+            } else {
+                problems.push(problem);
+            }
+        }
+        names.push(name);
     }
+    for entry in LABELS
+        .iter()
+        .map(|(ns, l)| format!("LABELS {ns} {l}"))
+        .chain(
+            FILED_NO_RECOURSE
+                .iter()
+                .map(|n| format!("FILED_NO_RECOURSE {n}")),
+        )
+    {
+        if !used.contains(&entry) {
+            problems.push(format!(
+                "the admission {entry} admits nothing a row renders"
+            ));
+        }
+    }
+    problems.extend(test_utils::refusal::unclaimed_admissions(
+        ADMISSIONS,
+        names.iter().map(String::as_str),
+    ));
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// The rows that name a document or a version by its hex id, by exact
+/// row id and the exact span, each filed with its owner: `EditError`'s
+/// pairing and pin arms, and the mate refusals it forwards.
+const ADMISSIONS: &[Admission<'static>] = &[
+    Admission {
+        row: "Edit/EvaluationOfAnotherDocument",
+        span: "3e23e8160039594a33894f6564e1b134",
+        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/EvaluationOfAnotherDocument",
+        span: "ca978112ca1bbdcafac231b39a23dc4d",
+        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/PinUnchanged",
+        span: "9515831d455a13139e7a712b440337b3447c4b9f3b969d034020eacf0fd8a56d",
+        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
+        span: "3e23e8160039594a33894f6564e1b134",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
+        span: "ca978112ca1bbdcafac231b39a23dc4d",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MateRefused(PosesOfAnotherDocument)",
+        span: "3e23e8160039594a33894f6564e1b134",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MateRefused(PosesOfAnotherDocument)",
+        span: "ca978112ca1bbdcafac231b39a23dc4d",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MaintenanceRefused(Unleverable)",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    Admission {
+        row: "Edit/MateRefused(Unleverable)",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+];
