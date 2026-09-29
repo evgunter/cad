@@ -767,6 +767,12 @@ mod tests {
     /// touching the parallel from inside; a meridian-plane circle tangent
     /// to a generator; and circles through the apex, in an axis-normal
     /// plane and in a tilted one.
+    ///
+    /// At the default band, pinned: the fixtures are tangent only to
+    /// rounding (`cos(π/4)` and `sin(π/4)` differ by an ulp, so the
+    /// meridian circle clears the generator by about 1e-16 m), and at
+    /// `ε = 1e-12` the ladder resolves that clearance and certifies the
+    /// miss — honestly.
     #[test]
     fn tangent_rims_and_rims_through_the_apex_are_uncertain() {
         let r = 0.1;
@@ -811,7 +817,7 @@ mod tests {
             ),
             ("tilted, through the apex", apex_tilt),
         ] {
-            let got = try_door_in(pose, -3.1, 3.1, band());
+            let got = try_door_in(pose, -3.1, 3.1, fixed_band());
             assert!(
                 matches!(got, Ok(CircleConeRoots::Uncertain) | Err(_)),
                 "{label}: the door, got {got:?}"
