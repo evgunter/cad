@@ -573,3 +573,14 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
   - Also: near-apex circles are answered in band, and the eps-1e-12 pin reads an in-band tangency as a miss.
 - **A container restart** stopped R2 mid-review, and it was resumed from its transcript. By rule 6(e) the pair is **excluded from the tally and the pair count** (interrupted); it is recorded in full, and the fix pass still takes the union.
 - **U4** is resumed too. It was clean at its pushed `18b91ac80`.
+
+## 2026-09-29 — PR 3423: R2 delivered; fix pass dispatched; a possible later escape from DR-16
+
+- **R2 (APPROVE-WITH-FIXES), after its restart:** no wrong counts in ~125k cases. But circle root positions exceed their slack (6/26k), and in-band tangencies are settled rather than doored.
+- **Both reviewers trace the circle-lane defects to one premise:** DR-16 pass 3's claim that the ladder's own band decisions cover the stages after the metered harmonics. It fails for the cone, where it is unbounded, with an uncapped lever.
+- **Blinded coding:** byte 16, with the pair already excluded by 6(e).
+- **The fix pass:** an a-posteriori verification of the metered F in the shared `half_angle_roots`:
+  - metered sign-change brackets;
+  - root-free gaps by the Bernstein bound |F′| ≤ 2A;
+  - a door for anything unseparated.
+- **Owed:** measuring circle × torus on MAIN for the same failure. If it certifies wrong answers there, that is a later escape of DR-16 (PR 3375), to be appended under its row.
