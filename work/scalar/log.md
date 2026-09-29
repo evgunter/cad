@@ -1968,3 +1968,13 @@ scheduled.
 - **Tracker:** WIRE's `two-scalar-name-rosters` is closed with it, and
   the fitted-door row's `design` flag is cleared, since the question
   is decided.
+
+**2026-09-29 — slate empty but for Ev's row.**
+- **Landed:** ring-cites (#3468) re-stated 22 open rows on other slates
+  after RING-3, and the orchestrator PR (#3464) is merged.
+- **Still open:** only `ab-sample-230-claimed-twice-on-main-and-branch-side`,
+  which is Ev's.
+- **Closing:** the plan sets no `## Exit criteria`, so by
+  `work/README.md` the program closes without a walk. The steps are to
+  re-home the A/B row, delete the directory, and write a doc-ledger
+  note. Ev was asked in chat before closing.
