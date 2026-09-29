@@ -773,6 +773,25 @@ pub fn shared_clause_only(predicate: &str) -> Option<&'static str> {
         .map(|(_, reason)| *reason)
 }
 
+/// What an escalated decision of this crate was deciding, in words: the
+/// subject a refusal states before the margin it could not call. A
+/// [`SHARED_CLAUSE_ONLY`] name reads as what its margin measures; the
+/// segment-pair decisions read as the question they answer. `None` for
+/// a name with no sentence here.
+#[must_use]
+pub(crate) fn decision_subject(predicate: &str) -> Option<&'static str> {
+    shared_clause_only(predicate).or(match predicate {
+        "vertex_separation" => Some("whether a segment has any length"),
+        "arc_diameter_clearance" => Some("whether an arc stops short of a full circle"),
+        "chord_side" => Some("which side of a chord a point lies on"),
+        "carrier_line_circle" => Some("whether a line and a circle cross, touch or miss"),
+        "carrier_circles_identity" => Some("whether two circles are one circle"),
+        "carrier_circles_external" => Some("whether two circles touch from outside"),
+        "carrier_circles_internal" => Some("whether two circles touch from inside"),
+        _ => None,
+    })
+}
+
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
 /// D9: never a panic). All indices reference the *input* profile.
@@ -994,7 +1013,14 @@ impl fmt::Display for ProfileError {
                  candidate ray grazed — escalating rather than guessing"
             ),
             Self::Escalated { site, source } => {
-                write!(f, "validation escalated {site}: {source}")?;
+                let what = source
+                    .predicate
+                    .and_then(decision_subject)
+                    .unwrap_or("a validation decision");
+                write!(
+                    f,
+                    "validation escalated {site}: {what}, which is too close to call: {source}"
+                )?;
                 // The near-tangency site note (#101 point 2, reworked by
                 // the S6 two-tolerance sweep): the recourse levers ride
                 // `{source}` (the shared carrier); this addendum adds

@@ -1818,7 +1818,7 @@ impl core::fmt::Display for BooleanError {
             Self::Euler(e) => write!(f, "euler operation refused: {e}"),
             Self::Join(e) => write!(
                 f,
-                "joining the operands' sections refused: {}",
+                "the operands' sections could not be joined: {}",
                 crate::chord_join::UnderBoolean(e)
             ),
             Self::RestZipUnsupported { what } => write!(

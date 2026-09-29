@@ -69,3 +69,18 @@ read it off the typed refusal's `Debug`: `step-import`'s `tier_gate`
 `editor-core`'s interval replays (their failure strings now carry the
 `Debug` after the sentence). `dsc_checks` and `review_m0_pr3` now
 assert the name is absent from the sentence.
+
+**Every wrapper says what was decided (fix pass).** Dropping the name
+left wrappers whose clause before the margin named only a place or a
+stage ("escalated at an edge:", "the tube escalated:", "path junction
+classification:", "validation escalated at loop 0 segment 1:"). Each
+now states the decision in words — the blend's routed names, the tube's
+five, the path door through `validate::SHARED_CLAUSE_ONLY`'s
+descriptions, validation through `validate::decision_subject`, the
+shell-role sign in `ShellClassifyPayload` (which the checks window
+reads), `NodeErrorKind::Escalated`, the naming discriminators and the
+chart-region test. `test_utils::refusal::subjectless_escalations` holds
+it: the clause before an escalation payload must pose the question or
+its verdict, or name a measured quantity that escalated; on the pre-fix
+wrappers it is red on 19 rows, thirteen distinct clauses. `geom_core::MissingRecourse` no longer
+prints the name either.

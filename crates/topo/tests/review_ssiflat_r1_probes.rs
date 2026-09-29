@@ -282,8 +282,12 @@ mod interval_lane {
         let wrapped = topo::pcurves::PcurveMintError::Certify {
             half_edge: topo::HalfEdgeKey::default(),
             error: err,
-        }
-        .to_string();
+        };
+        assert!(
+            format!("{wrapped:?}").contains("ssi_hull_sup"),
+            "the tier-3 wrapper keeps the escalating predicate's name: {wrapped:?}"
+        );
+        let wrapped = wrapped.to_string();
         for text in [&direct, &wrapped] {
             // AMENDED (fix pass): escalations now render through
             // `IndeterminatePayload`, the classifier's own renderer, so

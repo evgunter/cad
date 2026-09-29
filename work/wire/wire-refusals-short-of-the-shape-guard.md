@@ -38,3 +38,20 @@ Then drop the row's entry. The lists carry a must-fire check
 (`every_admission_admits_a_row_it_is_needed_for`, and the same check
 in the edit and at-rest suites), so an entry left behind after the fix
 goes red.
+
+## A predicate's name on screen (CHROME fix pass, PR 3457)
+
+A predicate's static name is routing: `geom_core::IndeterminatePayload`
+no longer renders it, and every escalation now says in words what was
+being decided (`test_utils::refusal::subjectless_escalations`). These
+sites still put a name in the sentence; each wants the decision in
+words, with the name left to `Debug`:
+
+- `crates/editor-core/src/eval/mod.rs`, the measure's not-parallel arm:
+  "… needs them parallel, and {predicate} decided they …".
+- `crates/editor-core/src/names/geompred.rs`, the selection refusals:
+  "… '{predicate}' left it inside the band …" (two arms).
+- `NodeErrorKind::Escalated` now words the four names it is raised with
+  (a direction's length, a full revolve turn, two parallel checks) and
+  falls back to "a decision this node takes" for any other; a name
+  raised there later wants its words added.

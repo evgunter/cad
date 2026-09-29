@@ -390,13 +390,19 @@ the source, prose only:
   "the shells cannot be classified: …".
 - `MassPropsError`: no `mass properties:` prefix and no face or edge
   key. `Face` reads "a face's share of the volume and surface area
-  cannot be computed: …". `RingOnCurvedFace` now takes the reading
-  `topo::validate`'s at-rest classifier already gives the same arm,
-  "the kernel cannot yet measure the volume of a curved face with a
-  hole. There is no way through yet", instead of "report this": a STEP
-  file can carry a hole in a curved face, and `step-import` refuses one
-  by name, so that is not a kernel defect. `Corrupt` ends in
-  `KERNEL_OR_FILE_DEFECT_ENDING`, as that classifier's does.
+  cannot be computed: …". `RingOnCurvedFace` reads "the kernel cannot
+  measure the volume of a curved face with a hole" and ends in
+  `KERNEL_OR_FILE_DEFECT_ENDING`: no construction mints a ring on a
+  curved face — STEP import refuses one before a body exists, blend
+  keeps curved faces ring-free and the Boolean slit-zip refuses a slit
+  face that carries rings — so reaching it is a construction or file
+  defect. (This PR's first pass read it as "not yet", on the premise
+  that a STEP file reaches it; that premise was false, since the import
+  refuses it first.) `Corrupt` and `NullScaffoldEdge` end in the same
+  ending; a body at rest never carries a scaffold edge. The two other
+  readings of these states (`topo::validate`'s `NOT_YET`, `mesh`'s
+  "finish the surgery") are filed on RESTFRONT as
+  `work/restfront/ring-and-scaffold-refusals-read-three-ways.md`.
 
 Shell/Roles, before (60 words) and after (56):
 
@@ -407,15 +413,16 @@ Shell/Roles, before (60 words) and after (56):
 > … sorted into one outer boundary and its voids: a shell's signed
 > volume … is zero at this tolerance. Recourse: …
 
-Check/Unsupported, before (47) and after (35):
+Check/Unsupported, before (47) and after (44):
 
 > … cannot be computed for this body: shell classification: shell
 > ShellKey(null): mass properties: curved face FaceKey(null) carries
 > interior rings — curved patches are swept UV rectangles and no
 > construction produces one, so report this rather than repairing a body
 
-> … cannot be computed for this body: the kernel cannot yet measure the
-> volume of a curved face with a hole. There is no way through yet
+> … cannot be computed for this body: the kernel cannot measure the
+> volume of a curved face with a hole. There is no way through: this is
+> a kernel defect or a damaged file; report it
 
 **The closing check passes.** `KERNEL_KEYED` no longer lists
 `Shell/Roles`, `Check/Unsupported`, `Transform/Certify` or the seven
@@ -430,3 +437,10 @@ The guard these rows are held to was made structural in the same PR
 what it newly finds is filed on its owners' slates
 (`*-refusals-short-of-the-shape-guard`). No refusal needed a
 viewer-side summary.
+
+**The recourse criterion was split off.** Holding every refusal to one
+recourse in both directions (a missing recourse is red) found 298
+refusals the viewer draws with none. That half of the standard is not
+closed here: it is filed as P2 rows on the owners' slates
+(`*-refusals-short-of-the-shape-guard`), each admitted by exact id
+with a must-fire check.

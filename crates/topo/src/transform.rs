@@ -139,8 +139,9 @@ pub enum TransformError {
         /// The named predicate that refused.
         check: &'static str,
     },
-    /// A map component is non-finite (NaN/inf translation or linear
-    /// entry) — refused at the door with the component named, before
+    /// A translation component is non-finite (NaN/inf) — refused at the
+    /// door with the component named (a non-finite linear entry poisons
+    /// the rigidity margins and refuses as [`Self::NotRigid`]), before
     /// certification would refuse it obliquely (PR 2 review, R1b).
     NonFiniteMap {
         /// The named finiteness predicate that refused.
@@ -194,14 +195,35 @@ impl core::fmt::Display for TransformError {
                 "an edge the map moved failed re-certification: {}",
                 source.render(geom_brep::recourse::Reading::Build)
             ),
-            Self::NotRigid { .. } => f.write_str(
-                "the map is not rigid at tolerance. Recourse: use only a rotation and a \
-                 translation",
-            ),
-            Self::NonFiniteMap { .. } => f.write_str(
-                "the map has a component that is not a finite number. Recourse: give the map \
-                 finite values",
-            ),
+            Self::NotRigid { check } => {
+                // The checks run in this order, so the mirror check is
+                // reached only by orthonormal columns: a determinant off
+                // one there is minus one.
+                let how = match *check {
+                    "transform_rigid_col01_orth"
+                    | "transform_rigid_col12_orth"
+                    | "transform_rigid_col02_orth" => "it shears",
+                    "transform_rigid_det_plus_one" => "it mirrors",
+                    _ => "it scales along an axis, or an entry is not a finite number",
+                };
+                write!(
+                    f,
+                    "the map is not rigid at tolerance: {how}. Recourse: use only a rotation \
+                     and a translation"
+                )
+            }
+            Self::NonFiniteMap { check } => {
+                let axis = match *check {
+                    "transform_rigid_trans_finite_x" => "x",
+                    "transform_rigid_trans_finite_y" => "y",
+                    _ => "z",
+                };
+                write!(
+                    f,
+                    "the translation's {axis} component is not a finite number. Recourse: give \
+                     the translation finite values"
+                )
+            }
             Self::NullScaffold { edge } => write!(
                 f,
                 "edge {edge:?} carries a transient null-scaffold curve, which a body at rest \
@@ -211,12 +233,12 @@ impl core::fmt::Display for TransformError {
             Self::ApproxLaneUnsupported { lane } => write!(
                 f,
                 "an approximating surface cannot be moved on the {lane} lane, which has no \
-                 fit to re-certify it with. There is no way through yet"
+                 fit to re-certify it with. {}",
+                geom_core::NOT_YET_ENDING
             ),
             Self::ApproxRecertify { source } => write!(
                 f,
-                "moving an approximating surface refused while re-certifying or re-fitting it: \
-                 {source}"
+                "a moved approximating surface could not be re-certified or re-fitted: {source}"
             ),
             Self::NurbsPlaceholder => f.write_str(
                 "a spline (NURBS) surface or carrier cannot be transformed yet; there is no \

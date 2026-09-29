@@ -1372,6 +1372,11 @@ pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 /// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
 pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
+/// The one ending of a refusal at a shape or configuration the kernel
+/// does not build or check yet: nothing the user changes gets through
+/// today, and nothing is wrong with what they asked for.
+pub const NOT_YET_ENDING: &str = "There is no way through yet";
+
 /// The qualifier a refusal at a kernel approximation limit puts on its
 /// one recourse, loosening the tolerance (D4 ¶1 (i)): a kernel
 /// approximation limit — an offset fit that stalls, a quadrature budget
@@ -1435,7 +1440,8 @@ macro_rules! kernel_or_file_defect_ending {
 
 /// The one answer a refusal gives when the table that routes its
 /// recourse by predicate name does not carry the name that escalated:
-/// it NAMES the hole. Never a category asserted over the unknown name,
+/// it states the hole. The name is routing, so it rides `Debug` (this
+/// value's field) rather than the sentence. Never a category asserted over the unknown name,
 /// never silence — both read as a statement about the escalation, and
 /// neither is one anybody made.
 ///
@@ -1453,17 +1459,12 @@ macro_rules! kernel_or_file_defect_ending {
 /// that has DECIDED a predicate needs nothing further says so itself
 /// rather than reaching this sentence.
 ///
-/// The predicate is spelled `'name'`, and a nameless decision is named
-/// as one.
 #[derive(Debug, Clone, Copy)]
 pub struct MissingRecourse<'a>(pub Option<&'a str>);
 
 impl fmt::Display for MissingRecourse<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded"),
-            None => f.write_str("no recourse is recorded for this unnamed decision"),
-        }
+        f.write_str("no recourse is recorded for this decision")
     }
 }
 

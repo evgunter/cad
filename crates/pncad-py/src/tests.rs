@@ -3069,7 +3069,9 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
-                predicate: Some("fillet3_radius_headroom"),
+                // A name no recourse table routes: the sentence then
+                // names the site, which is what this row reads.
+                predicate: Some("a_name_no_table_routes"),
                 terminal_sliver: false,
             },
         };
@@ -3080,7 +3082,7 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
              rather than raising: {text}"
         );
         assert!(
-            text.starts_with("escalated at ") && !text.contains("Key("),
+            text.starts_with("at ") && !text.contains("Key("),
             "the site names itself after the preposition the sentence supplies, \
              and no arena key: {text}"
         );

@@ -38,3 +38,16 @@ Then drop the row's entry. The lists carry a must-fire check
 (`every_admission_admits_a_row_it_is_needed_for`, and the same check
 in the edit and at-rest suites), so an entry left behind after the fix
 goes red.
+
+## A stage for a subject (CHROME fix pass, PR 3457)
+
+The shape guard now reads a clause whose subject is a stage — a gerund
+with a wrapper verb, `<doing something> refused:` — as a label. These
+are admitted by exact row and label in
+`refusal_concision_chains.rs` `FILED`:
+
+- `Shell/Face` and the `Shell/Face/Fit/` family (`FILED_NAMESPACES`):
+  "offsetting a face inward refused:" (`topo/src/shell.rs`).
+- `Shell/Lift`: "lifting the rim back onto a designated open face
+  refused:".
+- `Shell/Insert`: "inserting the cavity refused:".

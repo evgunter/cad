@@ -44,3 +44,13 @@ Then drop the row's entry. The lists carry a must-fire check
 (`every_admission_admits_a_row_it_is_needed_for`, and the same check
 in the edit and at-rest suites), so an entry left behind after the fix
 goes red.
+
+## A stage for a subject (CHROME fix pass, PR 3457)
+
+The shape guard now reads a clause whose subject is a stage — a gerund
+with a wrapper verb, `<doing something> refused:` — as a label. These
+are admitted by exact row and label in
+`refusal_concision_chains.rs` `FILED`:
+
+- `Split/Reduce/CrossingInsertion`: "inserting the plane crossing on
+  edge EdgeKey(…) (endpoints …) refused:" (`topo/src/splitting/mod.rs`).

@@ -537,10 +537,22 @@ impl core::fmt::Display for NamingError {
                  threshold {escalate} is under twice its coincidence threshold {zero} (an \
                  ambiguity K below 2), so two coincidences in a row could be decided apart"
             ),
-            Self::Escalated { predicate, source } => write!(
-                f,
-                "the discriminator {predicate} escalated (in-band indeterminacy): {source}"
-            ),
+            Self::Escalated { predicate, source } => {
+                use super::discriminate::{CHORD_ON_RIM, ON_MEMBER_EDGE, ORDER_ALONG, SIDE_OF};
+                // What the naming decision was deciding, in words; the
+                // name is routing and rides `Debug`.
+                let what = match *predicate {
+                    SIDE_OF | "side_of_plane" => "the side of a cut a face lies on",
+                    ORDER_ALONG => "the order of two pieces along an edge",
+                    ON_MEMBER_EDGE => "a point's place along an edge",
+                    CHORD_ON_RIM => "whether a chord lies on its rim",
+                    _ => "a decision that tells two names apart",
+                };
+                write!(
+                    f,
+                    "no name can be decided because {what} is too close to call: {source}"
+                )
+            }
         }
     }
 }
@@ -1651,7 +1663,7 @@ mod display_tests {
                     predicate: "side_of_plane",
                     source: escalation(),
                 },
-                vec!["side_of_plane"],
+                vec!["the side of a cut"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {

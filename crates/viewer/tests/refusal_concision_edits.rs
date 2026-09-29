@@ -730,12 +730,9 @@ const LABELS: &[(&str, &str)] = &[
 
 /// The rows that state no recourse — no `Recourse:`, no "There is no way
 /// through", and none of the shared unlabelled repairs — by exact row
-/// id, filed with their owners:
-/// `work/edit/edit-refusals-short-of-the-shape-guard.md` (the
-/// `EditError` arms), `work/msolve/msolve-refusals-short-of-the-shape-guard.md`
-/// (the mate faults) and `work/paths/paths-refusals-short-of-the-shape-guard.md`
-/// (the sketch program's).
+/// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
+    // work/edit/edit-refusals-short-of-the-shape-guard.md
     "Edit/AppearanceNamesMissingNode",
     "Edit/AppearanceNotSet",
     "Edit/AppearanceWrongKind",
@@ -759,31 +756,7 @@ const FILED_NO_RECOURSE: &[&str] = &[
     "Edit/ImproperPlacement",
     "Edit/InvalidDistribution",
     "Edit/InvalidTolerance",
-    "Edit/MaintenanceRefused",
-    "Edit/MaintenanceRefused(ClassNotAdmitted)",
-    "Edit/MaintenanceRefused(Contradictory)",
-    "Edit/MaintenanceRefused(DanglingHead)",
-    "Edit/MaintenanceRefused(Indeterminate)",
-    "Edit/MaintenanceRefused(PartSelectsAnotherCopy)",
-    "Edit/MaintenanceRefused(PlacerRefused)",
-    "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-    "Edit/MaintenanceRefused(SelfMate)",
-    "Edit/MaintenanceRefused(TableLacks)",
-    "Edit/MaintenanceRefused(Under)",
-    "Edit/MaintenanceRefused(Unleverable)",
     "Edit/MaintenanceUnrecorded",
-    "Edit/MateRefused",
-    "Edit/MateRefused(ClassNotAdmitted)",
-    "Edit/MateRefused(Contradictory)",
-    "Edit/MateRefused(DanglingHead)",
-    "Edit/MateRefused(Indeterminate)",
-    "Edit/MateRefused(PartSelectsAnotherCopy)",
-    "Edit/MateRefused(PlacerRefused)",
-    "Edit/MateRefused(PosesOfAnotherDocument)",
-    "Edit/MateRefused(SelfMate)",
-    "Edit/MateRefused(TableLacks)",
-    "Edit/MateRefused(Under)",
-    "Edit/MateRefused(Unleverable)",
     "Edit/MeasureMalformed",
     "Edit/MetaNonFinite",
     "Edit/MetaNotSet",
@@ -800,9 +773,6 @@ const FILED_NO_RECOURSE: &[&str] = &[
     "Edit/PlacementAxis",
     "Edit/PlacementOnNonInstance",
     "Edit/PlacementRuleMismatch",
-    "Edit/ProfileProgramRefused(Resolve)",
-    "Edit/ProfileProgramRefused(Transition)",
-    "Edit/ProfileProgramRefused(Validate)",
     "Edit/ReadSiteMissingNode",
     "Edit/RebindAppearanceCollision",
     "Edit/RebindIdentity",
@@ -826,6 +796,35 @@ const FILED_NO_RECOURSE: &[&str] = &[
     "Edit/UpdateOnNonInstance",
     "Edit/WitnessOnNonSketch",
     "Edit/WouldCycle",
+    // work/msolve/msolve-refusals-short-of-the-shape-guard.md
+    "Edit/MaintenanceRefused",
+    "Edit/MaintenanceRefused(ClassNotAdmitted)",
+    "Edit/MaintenanceRefused(Contradictory)",
+    "Edit/MaintenanceRefused(DanglingHead)",
+    "Edit/MaintenanceRefused(Indeterminate)",
+    "Edit/MaintenanceRefused(PartSelectsAnotherCopy)",
+    "Edit/MaintenanceRefused(PlacerRefused)",
+    "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
+    "Edit/MaintenanceRefused(SelfMate)",
+    "Edit/MaintenanceRefused(TableLacks)",
+    "Edit/MaintenanceRefused(Under)",
+    "Edit/MaintenanceRefused(Unleverable)",
+    "Edit/MateRefused",
+    "Edit/MateRefused(ClassNotAdmitted)",
+    "Edit/MateRefused(Contradictory)",
+    "Edit/MateRefused(DanglingHead)",
+    "Edit/MateRefused(Indeterminate)",
+    "Edit/MateRefused(PartSelectsAnotherCopy)",
+    "Edit/MateRefused(PlacerRefused)",
+    "Edit/MateRefused(PosesOfAnotherDocument)",
+    "Edit/MateRefused(SelfMate)",
+    "Edit/MateRefused(TableLacks)",
+    "Edit/MateRefused(Under)",
+    "Edit/MateRefused(Unleverable)",
+    // work/paths/paths-refusals-short-of-the-shape-guard.md
+    "Edit/ProfileProgramRefused(Resolve)",
+    "Edit/ProfileProgramRefused(Transition)",
+    "Edit/ProfileProgramRefused(Validate)",
 ];
 
 /// **Every edit refusal the status line draws meets the standard.**

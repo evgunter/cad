@@ -77,14 +77,141 @@ const SENTENCE_WORDS: &[&str] = &[
 /// The recourse phrases the kernel's shared vocabulary states WITHOUT a
 /// `Recourse:` label (`geom_core::COINCIDENCE_RECOURSE`,
 /// `SPLIT_PLANE_RECOURSE` and `NO_DECLARATION_RECOURSE`, longest
-/// first, since the last is a suffix of the first). This crate has no
-/// dependencies, so the text is restated here; a caller that has
-/// `geom_core` holds the two equal.
+/// first, since the last is a suffix of the first). This crate is a
+/// dependency-free leaf, so the text is restated here;
+/// `editor-core/tests/refusal_concision_chains.rs`
+/// `the_bare_recourses_are_geom_cores_constants` holds the copy equal
+/// to the constants.
 pub const BARE_RECOURSES: &[&str] = &[
     "declare the coincidence, move the geometry, or lower the tolerance",
     "move the split plane or the geometry, or lower the tolerance",
     "move the geometry, or lower the tolerance",
 ];
+
+/// The verbs a wrapper states a refusal with. A clause that opens with
+/// one has no subject (`escalated at the path door:`), and one whose
+/// subject is a stage — a gerund, `joining the operands' sections
+/// refused:` — names a pipeline step rather than a thing; both read as
+/// labels even though the verb is a sentence's word.
+const WRAPPER_VERBS: &[&str] = &["failed", "refused", "escalated"];
+
+/// The phrases that say an escalation's clause names what was being
+/// decided: a question (`whether …`, `which side …`) or its verdict
+/// (`… is too close to call`, `… is undecided`, `… is neither a definite
+/// corner nor definitely smooth`, `… could not be told from zero`).
+const DECISION_PHRASES: &[&str] = &[
+    "whether",
+    "which side",
+    "too close to call",
+    "undecided",
+    "neither",
+    "told apart",
+    "told from",
+    "sliver",
+    "re-verified",
+    "could not be decided",
+];
+
+/// The measured quantities an `… escalated` clause may name as its
+/// subject (`the transversality margin at sample 4 escalated`).
+const QUANTITY_WORDS: &[&str] = &[
+    "margin",
+    "span",
+    "residual",
+    "component",
+    "angle",
+    "clearance",
+    "offset",
+    "length",
+    "separation",
+    "distance",
+    "radius",
+    "gap",
+    "thickness",
+];
+
+/// The clause of `text` that ends at byte `end`: from the last clause
+/// boundary before it (`": "`, `"— "`, `"; "`, `". "`, `", "`, a line
+/// break, or an unclosed `"("`), with parenthetical groups that close
+/// inside it removed.
+fn clause_before(text: &str, end: usize) -> String {
+    let head = without_closed_groups(&text[..end]);
+    let start = [": ", "— ", "; ", ". ", ", ", "(", "\n"]
+        .iter()
+        .filter_map(|b| head.rfind(b).map(|i| i + b.len()))
+        .max()
+        .unwrap_or(0);
+    head[start..].trim().to_owned()
+}
+
+/// Every escalation payload in `text` — `margin <number> lies inside…`,
+/// `margin is invalid…`, `enclosure [lo, hi] cannot be classified…`,
+/// what `geom_core::IndeterminatePayload` renders — whose clause does
+/// not say what was being decided, as that clause. The payload names no
+/// decision of its own (its predicate's name is routing, kept to
+/// `Debug`), so the clause in front of it has to: a question or its
+/// verdict ([`DECISION_PHRASES`]), or a measured quantity that
+/// `escalated` ([`QUANTITY_WORDS`]). A location or a stage alone
+/// (`escalated at an edge:`, `the tube escalated:`,
+/// `path junction classification:`) is not a subject.
+#[must_use]
+pub fn subjectless_escalations(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let payload_at = |i: usize| {
+        let rest = &text[i..];
+        let valued = rest.strip_prefix("margin ").is_some_and(|r| {
+            r.split_once(' ')
+                .is_some_and(|(_, after)| after.starts_with("lies inside the ambiguity band"))
+        });
+        let enclosure = rest.starts_with("enclosure [")
+            && rest
+                .split_once(']')
+                .is_some_and(|(_, after)| after.starts_with(" cannot be classified"));
+        valued || enclosure || rest.starts_with("margin is invalid")
+    };
+    let starts = text
+        .match_indices("margin ")
+        .chain(text.match_indices("enclosure ["))
+        .map(|(i, _)| i)
+        .filter(|i| payload_at(*i));
+    for at in starts {
+        let head = text[..at].trim_end();
+        // A margin in parentheses annotates the sentence in front of
+        // it, which states its own claim (`the split plane grazes the
+        // end of a curved edge (margin …)`): that sentence is the
+        // subject, so it only has to be one.
+        if let Some(head) = head.strip_suffix('(') {
+            let sentence = without_closed_groups(head);
+            let start = [": ", "— ", "; ", ". "]
+                .iter()
+                .filter_map(|b| sentence.rfind(b).map(|i| i + b.len()))
+                .max()
+                .unwrap_or(0);
+            let claim = sentence[start..].to_lowercase();
+            if !claim
+                .split_whitespace()
+                .any(|w| SENTENCE_WORDS.contains(&w.trim_matches(|c: char| !c.is_alphanumeric())))
+            {
+                found.push(claim.trim().to_owned());
+            }
+            continue;
+        }
+        let Some(head) = head.strip_suffix(':').or_else(|| head.strip_suffix('—')) else {
+            continue;
+        };
+        let clause = clause_before(text, head.trim_end().len());
+        let lower = clause.to_lowercase();
+        let question = DECISION_PHRASES.iter().any(|p| lower.contains(p));
+        let quantity = lower.split_whitespace().last() == Some("escalated")
+            && lower
+                .split_whitespace()
+                .any(|w| QUANTITY_WORDS.contains(&w.trim_matches(|c: char| !c.is_alphanumeric())));
+        if !(question || quantity) {
+            found.push(clause);
+        }
+    }
+    found
+}
 
 /// `head` with every parenthesised group that closes inside it replaced
 /// by a space, so a parenthetical never opens a clause.
@@ -133,13 +260,19 @@ pub fn stage_prefixes(text: &str, allowed: &[&str]) -> Vec<String> {
         if clause.is_empty() || clause == "Recourse" || allowed.contains(&clause) {
             continue;
         }
-        let sentence = clause.split_whitespace().any(|t| {
-            let word = t
-                .trim_matches(|c: char| !c.is_alphanumeric() && c != '\'')
-                .to_lowercase();
-            SENTENCE_WORDS.contains(&word.as_str())
-        });
-        if !sentence {
+        let words: Vec<String> = clause
+            .split_whitespace()
+            .map(|t| {
+                t.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'')
+                    .to_lowercase()
+            })
+            .collect();
+        let sentence = words.iter().any(|w| SENTENCE_WORDS.contains(&w.as_str()));
+        let verb = |w: &String| WRAPPER_VERBS.contains(&w.as_str());
+        let no_subject = words.first().is_some_and(verb);
+        let stage_subject =
+            words.first().is_some_and(|w| w.ends_with("ing")) && words.iter().any(verb);
+        if !sentence || no_subject || stage_subject {
             found.push(format!("{clause}:"));
         }
     }
@@ -226,6 +359,11 @@ pub fn problems(name: &str, text: &str, allowed: &[&str], keyed: bool) -> Vec<St
     }
     if !keyed && arena_key(text) {
         out.push(format!("{name} dumps an arena key: {text}"));
+    }
+    for clause in subjectless_escalations(text) {
+        out.push(format!(
+            "{name} escalates without saying what was decided ({clause:?}): {text}"
+        ));
     }
     match recourse_markers(text) {
         0 => out.push(format!("{name} states no recourse: {text}")),
@@ -328,6 +466,66 @@ mod tests {
             stage_prefixes("mapped edge EdgeKey(null) failed re-certification: x", &[]).is_empty()
         );
         assert!(stage_prefixes("There is no way through: this is a defect", &[]).is_empty());
+    }
+
+    /// An escalation whose clause names only where it happened, or the
+    /// stage it happened in, is red: the payload after it names no
+    /// decision. These are the wrappers the predicate's name used to
+    /// give a subject to.
+    #[test]
+    fn an_escalation_without_a_subject_is_red() {
+        let payload = "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8)";
+        for bare in [
+            "the tube escalated",
+            "the hollow tube escalated",
+            "escalated at an edge",
+            "escalated at the path door",
+            "path junction classification",
+            "validation escalated at loop 0 segment 1",
+            "the component count is unknowable",
+            "predicate side_of_plane escalated (in-band indeterminacy)",
+            "chart-region: escalated",
+        ] {
+            let text = format!("node 5 failed: the op refused: {bare}: {payload}");
+            assert_eq!(subjectless_escalations(&text).len(), 1, "{text}");
+        }
+        for subject in [
+            "whether the tube's wall leaves a bore is too close to call",
+            "at an edge, whether the edge is convex or concave is too close to call",
+            "the transversality margin at sample 4 escalated",
+            "the residual against surface 1 at sample 4 escalated",
+            "the stored interval's span (not a sampled check) escalated",
+            "the fillet at this corner is undecided",
+            "an authored leg extent could not be told from zero",
+        ] {
+            let text = format!("node 5 failed: the op refused: {subject}: {payload}");
+            assert!(subjectless_escalations(&text).is_empty(), "{text}");
+        }
+        let enclosure = "the op refused: the tube escalated: enclosure [-2e-9, 3e-9] cannot be \
+                         classified against the ambiguity band (1e-9, 1e-8)";
+        assert_eq!(subjectless_escalations(enclosure).len(), 1);
+        let parenthesised = "whether the declared faces touch escalated (margin 3e-11 lies inside \
+                             the ambiguity band (1e-12, 1e-9))";
+        assert!(subjectless_escalations(parenthesised).is_empty());
+    }
+
+    /// A wrapper verb with no subject, or with a stage for a subject,
+    /// is a label; the wrappers' own sentences are not.
+    #[test]
+    fn a_stage_that_refused_is_a_label() {
+        assert_eq!(
+            stage_prefixes(
+                "the Boolean op refused: joining the operands' sections refused: x",
+                &[]
+            ),
+            vec!["joining the operands' sections refused:"]
+        );
+        assert_eq!(
+            stage_prefixes("the op refused: escalated at the path door: x", &[]),
+            vec!["escalated at the path door:"]
+        );
+        assert!(stage_prefixes("node 5 failed: the Boolean op refused: x", &[]).is_empty());
+        assert!(stage_prefixes("profile loop 0 refused at step 2: x", &[]).is_empty());
     }
 
     /// A message that loses its recourse is red, and so is one that

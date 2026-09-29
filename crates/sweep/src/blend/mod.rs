@@ -1244,6 +1244,36 @@ impl From<BandError> for BlendError {
 /// proves the rule: an arm only a fillet run can mint (the rolling
 /// ball's headroom and spine) speaks of the ball, because the ball is
 /// the fact, not the verb.
+/// What a routed blend escalation was deciding, in words: the subject
+/// its refusal states before the margin it could not call. Every name
+/// [`BlendError::Escalated`]'s recourse table routes has one here.
+fn escalation_subject(predicate: Option<&str>) -> &'static str {
+    match predicate {
+        Some("fillet3_radius_headroom") => {
+            "whether the radius fits inside the tightest bend of a support face"
+        }
+        Some("fillet3_face_clearance") => {
+            "whether a face is wide enough for the setbacks on both its sides"
+        }
+        Some("fillet3_spine_regularity") => "whether the ball's centre path folds",
+        Some("fillet3_chain_g1") => "whether two links of the chain meet tangentially",
+        Some("fillet3_chain_arm") => {
+            "whether a link of the chain is long enough to measure an angle over"
+        }
+        Some("fillet3_convexity_sign") => "whether the edge is convex or concave",
+        Some("fillet3_ring_clearance") => "whether a trimline clears a hole in its support face",
+        Some("fillet3_support_coaxiality") => "whether the two support faces share an axis",
+        Some("tangent_second_order") => "whether the faces curve apart",
+        Some("fillet3_corner_independence") => {
+            "whether the three faces at the corner are independent"
+        }
+        Some("fillet3_cap_transverse") => {
+            "whether the band's end face is a plane perpendicular to its ruling"
+        }
+        _ => "a blend decision",
+    }
+}
+
 impl fmt::Display for BlendError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1378,11 +1408,12 @@ impl fmt::Display for BlendError {
                     other => {
                         return write!(
                             f,
-                            "escalated at {site}: {source}; {}",
+                            "at {site}, a blend decision is undecided: {source}; {}",
                             geom_core::MissingRecourse(other)
                         );
                     }
                 };
+                let what = escalation_subject(source.predicate);
                 // A routed name carries its own recourse, so the payload
                 // view renders without the shared coincidence tail: a
                 // blend decision is not a coincidence the caller declared.
@@ -1392,13 +1423,13 @@ impl fmt::Display for BlendError {
                 match source.margin {
                     geom_core::MarginDiag::INVALID => write!(
                         f,
-                        "escalated at {site}: {}. Recourse: check the operation's inputs \
+                        "{what} is undecided: {}. Recourse: check the operation's inputs \
                          upstream, then {recourse}",
                         source.payload()
                     ),
                     _ => write!(
                         f,
-                        "escalated at {site}: {}. Recourse: {recourse}",
+                        "{what} is undecided: {}. Recourse: {recourse}",
                         source.payload()
                     ),
                 }

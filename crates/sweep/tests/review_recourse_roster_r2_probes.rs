@@ -74,13 +74,13 @@ fn the_two_doors_render_one_gap_sentence_for_one_unknown_name() {
             !path.contains("path junction classification"),
             "no category over an unknown name: {path}"
         );
-        // Both doors name where the escalation happened before the
-        // payload. `BlendError::Escalated` carries a site field and
-        // names it; `PathError::Escalated` carries none, so the door
-        // names itself.
+        // Both doors say what was too close to call before the
+        // payload; for a name neither table knows, that is the door's
+        // own decision, and the blend door names its site too.
         assert!(
-            path.starts_with("escalated at the path door: ") && blend.starts_with("escalated at "),
-            "each door names a site ahead of the payload: {path} / {blend}"
+            path.starts_with("a decision the path door takes is too close to call: ")
+                && blend.starts_with("at the chain, a blend decision is undecided: "),
+            "each door names what escalated ahead of the payload: {path} / {blend}"
         );
     }
 }
@@ -120,7 +120,7 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
         .to_string();
         assert!(
             text.starts_with(
-                "validation escalated between loop 0 segment 0 and loop 0 segment 1: margin "
+                "validation escalated between loop 0 segment 0 and loop 0 segment 1: "
             ),
             "{text}"
         );
@@ -161,10 +161,7 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
             source: escalation(Some(name)),
         }
         .to_string();
-        assert!(
-            text.starts_with(&format!("{door} escalated: margin ")),
-            "{text}"
-        );
+        assert!(text.starts_with(&format!("whether {door}'s ")), "{text}");
         assert!(
             text.contains(COINCIDENCE_RECOURSE) && !text.contains("no recourse is recorded"),
             "{text}"
@@ -174,5 +171,8 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
         source: escalation(None),
     }
     .to_string();
-    assert!(text.starts_with("the tube escalated: margin "), "{text}");
+    assert!(
+        text.starts_with("whether the tube's shape is well formed is too close to call: margin "),
+        "{text}"
+    );
 }

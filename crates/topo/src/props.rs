@@ -232,19 +232,24 @@ impl fmt::Display for MassPropsError {
                 f,
                 "a face's share of the volume and surface area cannot be computed: {source}"
             ),
-            Self::RingOnCurvedFace { .. } => f.write_str(
-                "the kernel cannot yet measure the volume of a curved face with a hole. There \
-                 is no way through yet",
+            // Every construction keeps curved faces ring-free, and
+            // STEP import refuses a ring on one before a body exists,
+            // so reaching this is a defect.
+            Self::RingOnCurvedFace { .. } => write!(
+                f,
+                "the kernel cannot measure the volume of a curved face with a hole. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::Corrupt { what } => write!(
                 f,
                 "the body's structure is incomplete ({what}). {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
-            Self::NullScaffoldEdge { .. } => f.write_str(
-                "an edge is a placeholder a construction leaves while it is under way, and a \
-                 volume is measured only once it finishes. Recourse: finish or revert the \
-                 construction, then measure again",
+            Self::NullScaffoldEdge { .. } => write!(
+                f,
+                "an edge is a placeholder a construction leaves while it is under way, which a \
+                 body at rest never carries. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
         }
     }
@@ -1972,7 +1977,11 @@ impl fmt::Display for ShellClassifyPayload<'_> {
         match self.0 {
             ShellClassifyError::Band { error } => write!(f, "{error}"),
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
-            ShellClassifyError::Escalated { source, .. } => write!(f, "{}", source.payload()),
+            ShellClassifyError::Escalated { source, .. } => write!(
+                f,
+                "the sign of a shell's volume is too close to call: {}",
+                source.payload()
+            ),
             ShellClassifyError::ZeroVolume { .. } => f.write_str(
                 "a shell's signed volume, or an end of its certified bracket, is zero at this \
                  tolerance",
@@ -2017,14 +2026,10 @@ impl fmt::Display for ShellClassifyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band { .. } => write!(f, "the shells cannot be classified: {}", self.payload()),
-            Self::Escalated { .. } => write!(
-                f,
-                "the sign of a shell's volume is too close to call: {}",
-                self.payload()
-            ),
-            Self::Props { .. } | Self::ZeroVolume { .. } | Self::Straddles { .. } => {
-                write!(f, "{}", self.payload())
-            }
+            Self::Escalated { .. }
+            | Self::Props { .. }
+            | Self::ZeroVolume { .. }
+            | Self::Straddles { .. } => write!(f, "{}", self.payload()),
         }?;
         match self.ending() {
             Some(ending) => write!(f, ". {ending}"),

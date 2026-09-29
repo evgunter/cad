@@ -1992,27 +1992,29 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // NAMED here, because the label is a claim about the
                     // two of them and about nothing else the funnel
                     // decides.
-                    Some("path_junction_turn" | "path_junction_side") => {
-                        write!(f, "path junction classification: {source}")
-                    }
+                    Some("path_junction_turn" | "path_junction_side") => write!(
+                        f,
+                        "whether the path turns at this junction, and to which side, is too \
+                         close to call: {source}"
+                    ),
                     // A name no arm above claims. If the crate has
                     // decided it needs nothing beyond the shared clause
                     // `{source}` already ends in, it is in
                     // `validate::SHARED_CLAUSE_ONLY` and the refusal
                     // stops there; otherwise the refusal names the hole,
                     // through the one home every recourse table's
-                    // fall-through composes. The door names ITSELF where
-                    // `BlendError::Escalated` names a site: this variant
-                    // carries no site field, and adding one would move a
-                    // `PathError` shape.
+                    // fall-through composes. Either way the sentence
+                    // opens with what the decision was deciding: the
+                    // listed name's own description, or, for an unlisted
+                    // one, the door that took it.
                     _ => match source
                         .predicate
                         .and_then(crate::validate::shared_clause_only)
                     {
-                        Some(_) => write!(f, "escalated at the path door: {source}"),
+                        Some(what) => write!(f, "{what}, which is too close to call: {source}"),
                         None => write!(
                             f,
-                            "escalated at the path door: {source} — {}",
+                            "a decision the path door takes is too close to call: {source} — {}",
                             geom_core::MissingRecourse(source.predicate)
                         ),
                     },

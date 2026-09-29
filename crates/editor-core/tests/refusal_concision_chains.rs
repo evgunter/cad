@@ -112,11 +112,26 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     // work/chrome/the-refusal-shape-guard-has-blind-spots.md
     ("Split/Join/Section(Carrier)", "ellipse construction"),
     ("Boolean/Join/Section(Carrier)", "ellipse construction"),
-    // work/paths/paths-refusals-short-of-the-shape-guard.md
+    // A stage for a subject (`<gerund> … refused:`), each on its
+    // owner's row:
+    // work/shell/shell-refusals-short-of-the-shape-guard.md
+    ("Shell/Face", "offsetting a face inward refused"),
     (
-        "ProfileReplay/Path/Escalated(path_junction_turn)",
-        "path junction classification",
+        "Shell/Lift",
+        "lifting the rim back onto a designated open face refused",
     ),
+    ("Shell/Insert", "inserting the cavity refused"),
+    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    (
+        "Split/Reduce/CrossingInsertion",
+        "inserting the plane crossing on edge EdgeKey    refused",
+    ),
+    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    (
+        "Revolve/VoidInsertion",
+        "inserting the cavity of hole loop 1 refused",
+    ),
+    // work/paths/paths-refusals-short-of-the-shape-guard.md
     (
         "ProfileReplay/Path/CircleSplitCount",
         "circle_split needs between 2 and 4294967295 arcs",
@@ -162,6 +177,7 @@ pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[
     // `topo/src/replace_face.rs`, SHELL's:
     // work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
     ("Shell/Face/Fit/", "replace_face_offset", true),
+    ("Shell/Face/Fit/", "offsetting a face inward refused", false),
     // A part's wrapper names the referenced document by its id
     // (`instantiating <id>@<version>: …`); how the tree draws a part's
     // failure is open with Ev on EDIT's #3444:
@@ -482,6 +498,21 @@ pub(crate) fn short_of_the_standard(
 /// [`short_of_the_standard`], for a test that reads only the problems.
 pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
     short_of_the_standard(rows, &mut std::collections::BTreeSet::new())
+}
+
+/// `test_utils::refusal::BARE_RECOURSES` restates `geom_core`'s shared
+/// unlabelled repairs (`test-utils` is a dependency-free leaf); this
+/// holds the copy equal to the constants, longest first.
+#[test]
+fn the_bare_recourses_are_geom_cores_constants() {
+    assert_eq!(
+        test_utils::refusal::BARE_RECOURSES,
+        [
+            geom_core::COINCIDENCE_RECOURSE,
+            geom_core::SPLIT_PLANE_RECOURSE,
+            geom_core::NO_DECLARATION_RECOURSE,
+        ]
+    );
 }
 
 /// **Every admission is used.** An entry above that no rendered row
@@ -3423,8 +3454,9 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         .to_string()
     };
     let head = "check connectedness: root 4 output 0: the component count is unknowable: ";
+    let sign = "the sign of a shell's volume is too close to call: ";
     let in_band =
-        |m: &str| format!("{head}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
+        |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
     let pinned = [
         (
             "in band, outer side",
@@ -3446,14 +3478,14 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             "in band, bracket across zero",
             escalated(MarginDiag::enclosure(-2e-9, 3e-9)),
             format!(
-                "{head}enclosure [-2e-9, 3e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
+                "{head}{sign}enclosure [-2e-9, 3e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
             ),
         ),
         (
             "invalid margin",
             escalated(MarginDiag::INVALID),
             format!(
-                "{head}margin is invalid (NaN or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
+                "{head}{sign}margin is invalid (NaN or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
                  unreadable or collapsed margin may indicate a kernel bug worth reporting"
             ),
         ),

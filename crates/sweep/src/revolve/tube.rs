@@ -200,23 +200,32 @@ impl core::fmt::Display for TubeError {
             ),
             Self::NonpositiveWall { eps } => write!(
                 f,
-                "{door}'s wall is not definitely thicker than the run's threshold of {eps} m \
-                 (tube_wall). Recourse: supply a thicker wall, or drop the wall for a solid \
-                 tube"
+                "{door}'s wall is not definitely thicker than the run's threshold of {eps} \
+                 m. Recourse: supply a thicker wall, or drop the wall for a solid tube"
             ),
             Self::WallExceedsRadius { eps } => write!(
                 f,
                 "{door}'s wall leaves no bore: the minor radius minus the wall is not \
-                 definitely positive (tube_wall_bore; threshold {eps} m). Recourse: supply a \
+                 definitely positive (threshold {eps} m). Recourse: supply a \
                  thinner wall, or drop the wall for a solid tube"
             ),
             Self::WallGapCollapsed { eps } => write!(
                 f,
                 "{door}'s inner and outer radii would be stored as one value at this outer \
-                 radius (tube_wall_gap; threshold {eps} m). Recourse: supply a thicker wall, \
+                 radius (threshold {eps} m). Recourse: supply a thicker wall, \
                  or a smaller outer radius"
             ),
-            Self::Escalated { source } => write!(f, "{door} escalated: {source}"),
+            Self::Escalated { source } => {
+                let what = match source.predicate {
+                    Some("tube_wall") => "wall is thicker than the run's threshold",
+                    Some("tube_wall_bore") => "wall leaves a bore",
+                    Some("tube_wall_gap") => "inner and outer radii stay distinct",
+                    Some("tube_window_span") => "arc window ends after it starts",
+                    Some("tube_window_headroom") => "arc window stays short of a full turn",
+                    _ => "shape is well formed",
+                };
+                write!(f, "whether {door}'s {what} is too close to call: {source}")
+            }
             Self::Revolve(e) => write!(f, "{e}"),
         }
     }

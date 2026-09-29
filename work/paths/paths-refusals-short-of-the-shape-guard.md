@@ -36,8 +36,6 @@ The guard now reads a clause of any length, in any case, after `. ` and
 `, ` as well; these rows open a clause with a label and are admitted
 row by row in `refusal_concision_chains.rs`'s `FILED`:
 
-- `ProfileReplay/Path/Escalated(path_junction_turn)`: `path junction
-  classification:` (three words; the old two-word shape missed it).
 - `ProfileReplay/Path/CircleSplitCount`: `circle_split needs between 2
   and 4294967295 arcs:` — a function name and `u32::MAX` on screen.
 - `ProfileReplay/Path/SeamRetrimsArcFirstSide`: Rust syntax on screen,
@@ -56,3 +54,19 @@ Then drop the row's entry. The lists carry a must-fire check
 (`every_admission_admits_a_row_it_is_needed_for`, and the same check
 in the edit and at-rest suites), so an entry left behind after the fix
 goes red.
+
+## A predicate's name on screen (CHROME fix pass, PR 3457)
+
+A predicate's static name is routing: `geom_core::IndeterminatePayload`
+no longer renders it, and every escalation now says in words what was
+being decided (`test_utils::refusal::subjectless_escalations`). These
+sites still put a name in the sentence; each wants the decision in
+words, with the name left to `Debug`:
+
+- `crates/profile/src/path.rs`, the stored-form fillet arms: "…
+  ('{predicate}' classifies …)" (two arms).
+- `ProfileError::Escalated` and `PathError::Escalated` now open with
+  what the decision decides, from `validate::decision_subject` (the
+  `SHARED_CLAUSE_ONLY` descriptions plus the carrier and segment
+  checks). A name decided later that is in neither falls back to "a
+  validation decision" / "a decision the path door takes".

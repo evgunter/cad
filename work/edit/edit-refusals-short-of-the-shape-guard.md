@@ -48,3 +48,14 @@ Then drop the row's entry. The lists carry a must-fire check
 (`every_admission_admits_a_row_it_is_needed_for`, and the same check
 in the edit and at-rest suites), so an entry left behind after the fix
 goes red.
+
+## A predicate's name on screen (CHROME fix pass, PR 3457)
+
+A predicate's static name is routing: `geom_core::IndeterminatePayload`
+no longer renders it, and every escalation now says in words what was
+being decided (`test_utils::refusal::subjectless_escalations`). These
+sites still put a name in the sentence; each wants the decision in
+words, with the name left to `Debug`:
+
+- `crates/editor-core/src/resolve/mod.rs`, the three flip reports:
+  "predicate {predicate} flipped from {from} to {to} …".
