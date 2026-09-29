@@ -26,8 +26,8 @@ use crate::fixture;
 use editor_core::mate::coset::{Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, ProfileDoc,
-    RecipeNodeId, mate_reach,
+    EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, NodeErrorClass,
+    ProfileDoc, RecipeNodeId, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, at_the_door, insert, len, on_frame, run, solve, square, step};
@@ -1232,7 +1232,18 @@ fn c4_poses_of_another_document_reaches_no_row() {
         );
     }
     let ev = run(&doc, &r.o);
-    assert!(!format!("{:?}", ev.nodes).contains("PosesOfAnotherDocument"));
+    for &id in doc.order() {
+        let Some(e) = ev.node_error(id) else {
+            continue;
+        };
+        let classes: Vec<NodeErrorClass> = core::iter::once(e.kind.kind())
+            .chain(e.kind.carried_chain().map(|l| l.refusal.kind().kind()))
+            .collect();
+        assert!(
+            !classes.contains(&NodeErrorClass::MatePosesOfAnotherDocument),
+            "{id:?} refuses on another document's poses: {e}"
+        );
+    }
 }
 
 // ---- k-stats: the aim is decided twice per mate, not three times ----

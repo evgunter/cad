@@ -501,7 +501,7 @@ fn the_fourth_verbs_two_refusals_are_stable() {
         b: FaceKey::default(),
     });
     for e in [&empty, &unpaired, &unsupported, &poison] {
-        assert_eq!(node_error_tag(e), "measure_clearance_refused", "{e}");
+        assert_eq!(node_error_tag(e.kind()), "measure_clearance_refused", "{e}");
     }
     // The prose is pinned on the two arms whose rendering is a
     // sentence. `Unsupported` and `PoisonEnclosure` print their faces
@@ -786,6 +786,11 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             want,
             "the payload `{}` puts on the wire has moved",
             crate::tags::mate_fault_tag(fault)
+        );
+        assert_eq!(
+            crate::tags::node_error_tag(NodeErrorKind::Mate(Box::new(fault.clone())).kind()),
+            crate::tags::mate_fault_tag(fault),
+            "a mate fault answers one word as `MateFault.kind` and as `EvaluationError.kind`"
         );
     };
 
@@ -2131,9 +2136,168 @@ fn shell_refusal_tags_are_stable() {
     use pncad::document::NodeErrorKind;
     use pncad::topo::ShellError;
     let op = NodeErrorKind::Shell(Box::new(ShellError::Thickness { thickness: -0.5 }));
-    assert_eq!(node_error_tag(&op), "shell");
+    assert_eq!(node_error_tag(op.kind()), "shell");
     let lane = NodeErrorKind::ShellLaneUnsupported { lane: "Dual" };
-    assert_eq!(node_error_tag(&lane), "shell_lane_unsupported");
+    assert_eq!(node_error_tag(lane.kind()), "shell_lane_unsupported");
+}
+
+/// **Every node-refusal class answers the word it has always answered.**
+///
+/// `EvaluationError.kind` is read off [`pncad::document::NodeErrorClass`]
+/// alone, so this table is the whole mapping, class by class, and each
+/// word in it is a public Python contract: a caller branching on it
+/// breaks the day it moves. [`TAG_INVENTORY`] pins which words the map
+/// speaks; this pins which class speaks which, and a swapped pair — two
+/// classes trading words — is green there and red here. That every
+/// refusal reaches its class is `editor_core`'s own census, over one
+/// witness per class.
+///
+/// **The split classes answer the word their value answers elsewhere.**
+/// A placement-rule fault and a mate fault each reach Python through a
+/// second door too — `boundary_edit_tag`, `MateFault.kind` — and it is
+/// one fact at both, so the two maps are held word for word here and in
+/// [`every_mate_fault_arm_projects_the_payload_it_carries`]. The seam
+/// classes delegate to [`crate::tags::resolve_fault_tag`], so they
+/// cannot drift from `inline`'s.
+#[test]
+fn node_error_tags_are_the_published_words() {
+    use crate::tags::{node_error_tag, placement_rule_fault_tag};
+    use pncad::document::{NodeErrorClass as C, NodeErrorKind, PlacementRuleFault};
+
+    let published: [(C, &str); 101] = [
+        (C::Expr, "expr"),
+        (C::Profile, "profile"),
+        (C::ProfileReplay, "profile_replay"),
+        (C::ProfileLaneReplay, "profile_lane_replay"),
+        (C::ProfileAnchor, "profile_anchor"),
+        (C::ProfilePieces, "profile_pieces"),
+        (C::Extrude, "extrude"),
+        (C::Revolve, "revolve"),
+        (C::Tube, "tube"),
+        (C::Split, "split"),
+        (C::Fillet, "fillet"),
+        (C::Chamfer, "chamfer"),
+        (C::Boolean, "boolean"),
+        (C::Transform, "transform"),
+        (C::Skin, "skin"),
+        (C::Loft, "loft"),
+        (C::CurvedSolidFrontier, "curved_solid_frontier"),
+        (C::MissingInput, "missing_input"),
+        (C::ToleranceConflict, "tolerance_conflict"),
+        (C::ParamBox, "param_box"),
+        (C::Seed, "seed"),
+        (C::SeedPinnedSection, "seed_pinned_section"),
+        (C::WrongOperand, "wrong_operand"),
+        (C::EmptyOperand, "empty_operand"),
+        (C::EmptyHalf, "empty_half"),
+        (C::InstanceOutOfRange, "instance_out_of_range"),
+        (C::DegenerateDirection, "degenerate_direction"),
+        (C::NonFiniteDirection, "non_finite_direction"),
+        (C::UnderflowedDirection, "underflowed_direction"),
+        (C::Band, "band"),
+        (C::MissingSlot, "missing_slot"),
+        (C::VerbArity, "verb_arity"),
+        (C::Escalated, "escalated"),
+        (C::AxisInDifferentPlane, "axis_in_different_plane"),
+        (C::NonPositiveCount, "non_positive_count"),
+        (C::PlacementsUncertified, "placements_uncertified"),
+        (C::PlacementRuleCountSpelling, "placement_rule_mismatch"),
+        (C::PlacementRuleNoPlacements, "empty_placement_list"),
+        (C::PlacementRuleNonFiniteFrame, "non_finite_placement"),
+        (C::PlacementRuleImproperFrame, "improper_placement"),
+        (C::UnschedulableCycle, "unschedulable_cycle"),
+        (C::Naming, "naming"),
+        (C::ParamSourceAttach, "param_source_attach"),
+        (C::DeclareResolve, "declare_resolve"),
+        (C::DeclareSiteNotAnOperand, "declare_site_not_an_operand"),
+        (C::DeclareUnsupportedPair, "declare_unsupported_pair"),
+        (C::UndeclaredContact, "undeclared_contact"),
+        (C::UndeclarableContact, "undeclarable_contact"),
+        (C::FilletSelectionResolve, "fillet_selection_resolve"),
+        (C::ChamferSelectionResolve, "chamfer_selection_resolve"),
+        (C::FilletSelectionKind, "fillet_selection_kind"),
+        (C::ChamferSelectionKind, "chamfer_selection_kind"),
+        (C::FilletSelectionEmpty, "fillet_selection_empty"),
+        (C::ChamferSelectionEmpty, "chamfer_selection_empty"),
+        (C::Shell, "shell"),
+        (C::ShellOpenResolve, "shell_open_resolve"),
+        (C::ShellOpenKind, "shell_open_kind"),
+        (C::ShellLaneUnsupported, "shell_lane_unsupported"),
+        (C::FaceFrameResolve, "face_frame_resolve"),
+        (C::FaceFrameKind, "face_frame_kind"),
+        (C::FaceFrameNotPlanar, "face_frame_not_planar"),
+        (C::FaceFrameReadback, "face_frame_readback"),
+        (C::DerivedFrameSection, "derived_frame_section"),
+        (C::FrameDirectionDegenerate, "degenerate_direction"),
+        (C::FrameDirectionNonFiniteLength, "non_finite_direction"),
+        (C::FrameDirectionUnderflowedLength, "underflowed_direction"),
+        (C::FrameDirectionEscalated, "escalated"),
+        (C::WitnessBifurcation, "witness_bifurcation"),
+        (C::PartNoResolver, "part_no_resolver"),
+        (C::PartPinMismatch, "part_pin_mismatch"),
+        (C::PartEpsilonSeam, "part_epsilon_seam"),
+        (C::PartUnresolved, "part_unresolved"),
+        (C::PartRootFailed, "part_root_failed"),
+        (C::PartRootFailureUnrecorded, "part_root_failure_unrecorded"),
+        (C::PartProduct, "part_product"),
+        (C::PartReferenceCycle, "part_reference_cycle"),
+        (C::PartDepthExceeded, "part_depth_exceeded"),
+        (
+            C::MatePosesOfAnotherDocument,
+            "mate_poses_of_another_document",
+        ),
+        (C::MateFrame, "mate_frame_degenerate"),
+        (C::MateClassNotAdmitted, "mate_class_not_admitted"),
+        (C::MateTableLacks, "mate_table_lacks"),
+        (C::MateIndeterminate, "mate_indeterminate"),
+        (C::MateBand, "mate_band"),
+        (C::MateContradictory, "mate_contradictory"),
+        (C::MateUnder, "mate_under"),
+        (C::MateDanglingHead, "mate_dangling_head"),
+        (C::MatePlacerRefused, "mate_placer_refused"),
+        (
+            C::MatePartSelectsAnotherCopy,
+            "mate_part_selects_another_copy",
+        ),
+        (C::MateSelf, "mate_self"),
+        (C::MateUnleverable, "mate_unleverable"),
+        (C::CrossingUnverified, "crossing_unverified"),
+        (C::MeasureRefResolve, "measure_ref_resolve"),
+        (C::MeasureRefUnreadable, "measure_ref_unreadable"),
+        (C::MeasureNonFinite, "measure_non_finite"),
+        (C::MeasureNotParallel, "measure_not_parallel"),
+        (C::MeasureUnsupported, "measure_unsupported"),
+        (C::MeasureMalformed, "measure_malformed"),
+        (C::PayloadExpr, "payload_expr"),
+        (C::MeasureSelectionKind, "measure_selection_kind"),
+        (C::MeasureClearanceRefused, "measure_clearance_refused"),
+        (C::AssertionDimension, "assertion_dimension"),
+    ];
+    let mut seen = std::collections::HashSet::new();
+    for (class, word) in published {
+        assert!(seen.insert(class), "{class:?} is listed twice");
+        assert_eq!(
+            node_error_tag(class),
+            word,
+            "{class:?} stopped answering the word Python callers branch on"
+        );
+    }
+
+    for fault in [
+        PlacementRuleFault::CountSpelling,
+        PlacementRuleFault::NoPlacements,
+        PlacementRuleFault::NonFiniteFrame { index: 2 },
+        PlacementRuleFault::ImproperFrame {
+            index: 2,
+            determinant: -1.0,
+        },
+    ] {
+        assert_eq!(
+            node_error_tag(NodeErrorKind::PlacementRule(fault).kind()),
+            placement_rule_fault_tag(&fault),
+            "a placement-rule fault answers one word at evaluation and at the edit door"
+        );
+    }
 }
 
 /// **The two words a refusal puts on the wire, together.** The carrier
@@ -2162,7 +2326,7 @@ fn inner_arm_tags_are_stable() {
     use pncad::sweep::{ExtrudeError, RevolveError, TubeError};
     use pncad::topo::{ShellError, TransformError};
 
-    let pair = |kind: &NodeErrorKind| (node_error_tag(kind), node_inner_kind_tag(kind));
+    let pair = |kind: &NodeErrorKind| (node_error_tag(kind.kind()), node_inner_kind_tag(kind));
 
     assert_eq!(
         pair(&NodeErrorKind::Revolve(RevolveError::DegenerateAxis)),
@@ -2279,14 +2443,14 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
         }
         .node_error();
         assert_eq!(
-            node_error_tag(&carried(error)),
+            node_error_tag(carried(error).kind()),
             word,
             "the carried refusal stopped answering the word this fact has \
              always answered, so every Python caller matching it breaks"
         );
         assert_eq!(
-            node_error_tag(&carried(error)),
-            node_error_tag(&direct),
+            node_error_tag(carried(error).kind()),
+            node_error_tag(direct.kind()),
             "the carried refusal and the frame's own raise have diverged"
         );
         // Compared, not pinned: today both are `None`, and if the
@@ -4844,6 +5008,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "derived_frame_section",
             "empty_half",
             "empty_operand",
+            "empty_placement_list",
             "escalated",
             "expr",
             "extrude",
@@ -4855,8 +5020,22 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fillet_selection_empty",
             "fillet_selection_kind",
             "fillet_selection_resolve",
+            "improper_placement",
             "instance_out_of_range",
             "loft",
+            "mate_band",
+            "mate_class_not_admitted",
+            "mate_contradictory",
+            "mate_dangling_head",
+            "mate_frame_degenerate",
+            "mate_indeterminate",
+            "mate_part_selects_another_copy",
+            "mate_placer_refused",
+            "mate_poses_of_another_document",
+            "mate_self",
+            "mate_table_lacks",
+            "mate_under",
+            "mate_unleverable",
             "measure_clearance_refused",
             "measure_malformed",
             "measure_non_finite",
@@ -4869,10 +5048,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "missing_slot",
             "naming",
             "non_finite_direction",
+            "non_finite_placement",
             "non_positive_count",
             "param_box",
             "param_source_attach",
+            "part_depth_exceeded",
+            "part_no_resolver",
+            "part_product",
+            "part_reference_cycle",
+            "part_root_failed",
+            "part_root_failure_unrecorded",
             "payload_expr",
+            "placement_rule_mismatch",
             "placements_uncertified",
             "profile",
             "profile_anchor",
@@ -4900,10 +5087,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wrong_operand",
         ],
         delegates: &[
-            "mate_fault_tag",
             "node_error_tag",
-            "part_fault_tag",
-            "placement_rule_fault_tag",
+            "node_error_tag",
+            "node_error_tag",
+            "node_error_tag",
+            "resolve_fault_tag",
+            "resolve_fault_tag",
+            "resolve_fault_tag",
         ],
     },
     TagEntry {
@@ -4997,18 +5187,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wrong_arity",
         ],
         delegates: &[],
-    },
-    TagEntry {
-        function: "part_fault_tag",
-        values: &[
-            "part_depth_exceeded",
-            "part_no_resolver",
-            "part_product",
-            "part_reference_cycle",
-            "part_root_failed",
-            "part_root_failure_unrecorded",
-        ],
-        delegates: &["resolve_fault_tag"],
     },
     TagEntry {
         function: "path_error_tag",
@@ -5754,16 +5932,32 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge", 2),
     ("empty", 2),
     ("empty_boolean", 2),
-    ("empty_placement_list", 2),
+    ("empty_placement_list", 3),
     ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 4),
     ("face", 3),
-    ("improper_placement", 2),
+    ("improper_placement", 3),
     ("indeterminate", 2),
     ("instance", 2),
     ("io", 2),
     ("join", 3),
+    // A mate fault on `MateFault.kind` and on `EvaluationError.kind`: one
+    // fact, held word for word by
+    // `every_mate_fault_arm_projects_the_payload_it_carries`.
+    ("mate_band", 2),
+    ("mate_class_not_admitted", 2),
+    ("mate_contradictory", 2),
+    ("mate_dangling_head", 2),
+    ("mate_frame_degenerate", 2),
+    ("mate_indeterminate", 2),
+    ("mate_part_selects_another_copy", 2),
+    ("mate_placer_refused", 2),
+    ("mate_poses_of_another_document", 2),
+    ("mate_self", 2),
+    ("mate_table_lacks", 2),
+    ("mate_under", 2),
+    ("mate_unleverable", 2),
     ("measure_malformed", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
@@ -5775,7 +5969,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("node_poisoned", 2),
     ("non_finite", 5),
     ("non_finite_direction", 2),
-    ("non_finite_placement", 2),
+    ("non_finite_placement", 3),
     ("not_a_body", 2),
     ("not_an_instance", 2),
     ("null_scaffold_edge", 2),
@@ -5790,7 +5984,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_unknown_doc_param", 2),
     ("pcurve", 5),
     ("pcurves", 3),
-    ("placement_rule_mismatch", 2),
+    ("placement_rule_mismatch", 3),
     ("poisoned", 2),
     ("profile", 2),
     ("revolve", 2),

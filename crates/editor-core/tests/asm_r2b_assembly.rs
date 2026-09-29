@@ -31,8 +31,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
     EntityKind, EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, MateFrame,
-    MatePrimitive, MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    assemble, content_pin, inline, product_recorded, split,
+    MatePrimitive, MintRefusal, Node, NodeErrorClass, NodeErrorKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, assemble, content_pin, inline, product_recorded, split,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, solve, step, step_with};
@@ -821,13 +821,13 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     .expect("the pin moves")
     .doc;
 
-    let err = run(&moved, &with_resolver(store))
-        .node_error(instance)
-        .expect("the moved pin refuses")
-        .to_string();
-    assert!(
-        err.contains("does not re-verify"),
-        "the refusal names the crossing that no longer fits: {err}"
+    let ev = run(&moved, &with_resolver(store));
+    let failure = ev.node_error(instance).expect("the moved pin refuses");
+    let err = failure.to_string();
+    assert_eq!(
+        failure.kind.kind(),
+        NodeErrorClass::CrossingUnverified,
+        "the refusal is the crossing that no longer fits: {err}"
     );
     // REVIEW PROBE (mateid-rv): the refusal built by the ONE
     // construction site names the crossing by its `outer`, not by its

@@ -154,7 +154,9 @@ fn refused(
             ("node", node_obj),
             (
                 "kind",
-                PyString::new(py, node_error_tag(kind)).unbind().into_any(),
+                PyString::new(py, node_error_tag(kind.kind()))
+                    .unbind()
+                    .into_any(),
             ),
             ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
@@ -224,7 +226,7 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         Some(error) => {
             fields.push((
                 "kind",
-                PyString::new(py, node_error_tag(&error.kind))
+                PyString::new(py, node_error_tag(error.kind.kind()))
                     .unbind()
                     .into_any(),
             ));

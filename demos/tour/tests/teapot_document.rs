@@ -30,8 +30,8 @@ use core::f64::consts::TAU;
 
 use pncad::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    ValuePayload, apply, evaluate, split,
+    LoopProgram, Node, NodeErrorClass, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, ValuePayload, apply, evaluate, split,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -233,11 +233,15 @@ fn rolled_lid(
 
 /// One `Node::Fillet` request over the rims at `vs`: the census it
 /// built, or the refusal it answered.
-fn roll_once(vs: &[u32], roll: f64, tol: Tol) -> Result<(usize, usize, usize), String> {
+fn roll_once(
+    vs: &[u32],
+    roll: f64,
+    tol: Tol,
+) -> Result<(usize, usize, usize), (NodeErrorClass, String)> {
     let (doc, _, rolled) = rolled_lid(vs, roll, tol);
     let ev = eval(&doc, tol);
     match ev.node_error(rolled) {
-        Some(e) => Err(format!("{:?}", e.kind)),
+        Some(e) => Err((e.kind.kind(), format!("{:?}", e.kind))),
         None => Ok(census(&body_at(&ev, rolled))),
     }
 }
@@ -487,8 +491,8 @@ fn every_rim_set_at_a_quarter_roll_is_nameable() {
     sets.push(vec![3, 4, 5]);
     let mut bad = Vec::new();
     for s in &sets {
-        if let Err(e) = &roll_once(s, ROLL / 4.0, tol)
-            && (e.contains("Naming") || e.contains("Duplicate"))
+        if let Err((class, e)) = &roll_once(s, ROLL / 4.0, tol)
+            && *class == NodeErrorClass::Naming
         {
             bad.push((s.clone(), e.clone()));
         }
