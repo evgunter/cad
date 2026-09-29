@@ -97,7 +97,11 @@
 //! - **`Cycle::first`**, unconditionally: the old loop re-anchors at
 //!   `next(he2)` (the first survivor of its side in `next` order), the
 //!   ring at `next(he1)` — whether or not the previous `first` was
-//!   killed or migrated.
+//!   killed or migrated. The plan proves the old loop's write before
+//!   mutating (the crate-internal `Body::require_kill_anchors`):
+//!   `next(he2)` lies in the loop, and an emptied old loop keeps no
+//!   member but the killed halves and the ring side. The ring holds by
+//!   construction, since its side moves into it.
 //! - **`emanating`**, unconditionally: `u` gets `Some(next(he2))` or
 //!   `None` if its side is empty; `w` gets `Some(next(he1))` or `None`.
 //!   When `u == w` (self-loop edge with non-empty sides) the `w`-write
@@ -405,6 +409,13 @@ impl<T: Decide> Body<T> {
     /// `he2` ([`EulerOpError::OrbitBroken`] naming `he1`, then `he2` —
     /// tier-1-invalid input: a torn `next` can put a first member on
     /// another vertex, or empty a side whose vertex keeps edges); the
+    /// old loop's new anchor holds: a non-empty old side's first member
+    /// lies in the loop, and an empty old side leaves it no member but
+    /// `he1`, `he2` and the ring side ([`EulerOpError::LoopCycleBroken`]
+    /// — tier-1-invalid input: a torn `next` can put that first member
+    /// in another loop, or empty the side of a loop that keeps members
+    /// outside the walk; the ring anchors at a member it moves in, or at
+    /// the vertex just proven lone); the
     /// two empty components (if both sides are empty) anchor at
     /// distinct vertices ([`EulerOpError::EmptyAnchorsCollide`]).
     ///
@@ -473,7 +484,25 @@ impl<T: Decide> Body<T> {
         // empty. The plan proves both writes.
         let u_anchor = old_side.first().map(|&member| member.key());
         let w_anchor = ring_side.first().map(|&member| member.key());
-        self.require_kill_anchors(&[(u, u_anchor, he1), (w, w_anchor, he2)], &[he1, he2])?;
+        // Loops (unconditional rule, module docs): each re-anchors at its
+        // side's first member, or is `Empty` at the vertex its side
+        // strands. The ring side moves into the ring, so the ring holds
+        // by construction; the old loop is proven with the writes above.
+        let ring_boundary = match ring_side.first() {
+            Some(&first) => LoopBoundary::Cycle { first: first.key() },
+            None => LoopBoundary::Empty { vertex: w },
+        };
+        let old_boundary = match old_side.first() {
+            Some(&first) => LoopBoundary::Cycle { first: first.key() },
+            None => LoopBoundary::Empty { vertex: u },
+        };
+        self.require_kill_anchors(
+            &[(u, u_anchor, he1), (w, w_anchor, he2)],
+            &[(loop_key, old_boundary)],
+            &[he1, he2],
+            &ring_side,
+            None,
+        )?;
         if ring_side.is_empty() && old_side.is_empty() && u == w {
             return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
         }
@@ -481,10 +510,6 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): the ring loop only.
         let provenance = Provenance::Kemr { he1, he2 };
-        let ring_boundary = match ring_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first: first.key() },
-            None => LoopBoundary::Empty { vertex: w },
-        };
         let ring = self.add_loop(
             Loop {
                 boundary: ring_boundary,
@@ -510,16 +535,11 @@ impl<T: Decide> Body<T> {
             // derivation only (same for the old side below).
             self.link_half_edges(last, first);
         }
-        // Close the old loop's cycle and re-anchor it (unconditional
-        // rule: first := next(he2); Empty at u when its side is empty).
+        // Close the old loop's cycle and re-anchor it.
         if let (Some(&first), Some(&last)) = (old_side.first(), old_side.last()) {
             // last = prev(he1), first = next(he2).
             self.link_half_edges(last, first);
         }
-        let old_boundary = match old_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first: first.key() },
-            None => LoopBoundary::Empty { vertex: u },
-        };
         let Some(l) = self.get_loop_mut(loop_key) else {
             unreachable!("kemr: the loop resolved in the plan phase")
         };
@@ -3229,6 +3249,42 @@ mod tests {
         // winning write is `None` while `x` keeps the joining edge.
         body.get_half_edge_mut(he1).unwrap().next = he2;
         let torn = EulerOpError::OrbitBroken { he: he2 };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
+    }
+
+    #[test]
+    fn kemr_refuses_to_empty_a_loop_that_keeps_members() {
+        // The loop-anchor probe's first counterexample for `kemr`: the
+        // strut cube, killed with `he1` its half ending at the tip, so
+        // the old side is empty and the loop empties at the tip. One
+        // `next` tear in the top face's loop shortcuts the walk past
+        // members that still claim the loop. Unchecked, the kill empties
+        // a loop that keeps them, and returns `Ok`.
+        let fixture = crate::fixtures::ops_strut_cube(Tol::witness());
+        let mut body = fixture.body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[18]).unwrap().next = halves[22];
+        let he1 = halves[25];
+        let he2 = body.mate(he1).unwrap();
+        assert_eq!(
+            [he1, he2],
+            [fixture.strut.he_minus, fixture.strut.he_plus],
+            "the strut, from its tip"
+        );
+        assert_eq!(
+            body.get_half_edge(he2).unwrap().next,
+            he1,
+            "the old side is empty"
+        );
+        let walk = body.loop_cycle(he1).unwrap();
+        assert!(
+            body.half_edges()
+                .any(|(x, data)| data.parent_loop == fixture.outer && !walk.contains(&x)),
+            "the loop keeps members the walk skips"
+        );
+        let torn = EulerOpError::LoopCycleBroken {
+            r#loop: fixture.outer,
+        };
         assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
     }
 }

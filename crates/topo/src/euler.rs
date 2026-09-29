@@ -263,6 +263,7 @@ use geom::Surface;
 use geom_brep::recourse::Reading;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 use geom_core::{Band, Decide, Point3, Real, Tol};
+use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{
@@ -664,8 +665,11 @@ pub enum EulerOpError {
         he2: HalfEdgeKey,
     },
     /// A cycle walk failed to close, or closed without visiting the
-    /// half-edge it had to reach (despite matching parent-loop keys) —
-    /// tier-1-invalid input.
+    /// half-edge it had to reach (despite matching parent-loop keys), or
+    /// a kill's `next` step disagrees with the loop's members: the
+    /// member it would anchor the loop at lies in another loop, or the
+    /// loop it would empty keeps a member ([`Body::kef`], [`Body::kev`],
+    /// [`Body::kemr`]) — tier-1-invalid input.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -2587,8 +2591,12 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Proves the `emanating` writes of a kill that removes the
-    /// half-edges `killed`, one `(vertex, anchor, origin)` per write:
+    /// Proves the anchor writes of a kill that removes the half-edges
+    /// `killed` and re-parents the run `moved` into `moved_into` (`None`:
+    /// a loop the kill mints), first every `emanating` write and then
+    /// every loop write.
+    ///
+    /// One `(vertex, anchor, origin)` per `emanating` write:
     /// `Some(anchor)` starts at `vertex`
     /// ([`Body::require_orbit_starts_at`]), and `None` leaves `vertex`
     /// with no incidence, meaning every half-edge that starts at it is in
@@ -2598,19 +2606,35 @@ impl<T: Decide> Body<T> {
     /// fan) proves that anchor by its walk instead, and a kill that
     /// writes one vertex twice proves both writes.
     ///
+    /// One `(loop, boundary)` per loop write, for the loops the kill
+    /// leaves standing: a `Cycle`'s `first` is not killed and lies in
+    /// the loop once the kill has run (its `parent_loop`, or `moved_into`
+    /// for a member of `moved`); an `Empty` loop keeps no member but
+    /// `killed`, and its vertex is one the `emanating` writes above leave
+    /// at a proven `None`. Refuses [`EulerOpError::LoopCycleBroken`]
+    /// naming the loop at the first write that fails. A loop the kill
+    /// mints, and a run it moves in, anchor by construction and are not
+    /// listed.
+    ///
     /// Each kill reads an anchor one `next` step from a killed half, and
     /// reads "no anchor" where that step lands on a killed half. A torn
-    /// `next` can put the step on another vertex, or land it on a killed
-    /// half at a vertex that keeps other edges. The orbit walk from the
-    /// killed half takes that same step first, so it closes on the killed
-    /// halves either way; the `None` proof reads every half-edge's start
-    /// instead, bounded by the arena as the kill's orphan sweeps are. The
-    /// validator reports the faults this refuses in pass 5
-    /// (`EmanatingStartMismatch`, `LoneVertexWithIncidence`).
+    /// `next` can put the step on another vertex or into another loop,
+    /// or land it on a killed half where the vertex or the loop keeps
+    /// other members. The orbit and cycle walks from the killed half
+    /// take that same step first, so they close on the killed halves
+    /// either way; the `None` and `Empty` proofs read the whole arena
+    /// instead, bounded as the kill's orphan sweeps are. The validator
+    /// reports the faults this refuses in pass 5
+    /// (`EmanatingStartMismatch`, `LoneVertexWithIncidence`,
+    /// `EmptyLoopVertexWithEmanating`) and in its cycle pass
+    /// (`ParentLoopMismatch`, `UnreachableHalfEdge`).
     pub(crate) fn require_kill_anchors(
         &self,
         writes: &[(VertexKey, Option<HalfEdgeKey>, HalfEdgeKey)],
+        loops: &[(LoopKey, LoopBoundary)],
         killed: &[HalfEdgeKey],
+        moved: &[Live],
+        moved_into: Option<LoopKey>,
     ) -> Result<(), EulerOpError> {
         for &(vertex, anchor, origin) in writes {
             match anchor {
@@ -2626,6 +2650,38 @@ impl<T: Decide> Body<T> {
                         return Err(EulerOpError::OrbitBroken { he: origin });
                     }
                 }
+            }
+        }
+        let mut run: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
+        for member in moved {
+            run.insert(member.key(), ());
+        }
+        let stays_in = |he: HalfEdgeKey, data: &HalfEdge, r#loop: LoopKey| {
+            !killed.contains(&he)
+                && if run.contains_key(he) {
+                    moved_into == Some(r#loop)
+                } else {
+                    data.parent_loop == r#loop
+                }
+        };
+        for &(r#loop, boundary) in loops {
+            let holds = match boundary {
+                LoopBoundary::Cycle { first } => self
+                    .half_edges
+                    .get(first)
+                    .is_some_and(|data| stays_in(first, data, r#loop)),
+                LoopBoundary::Empty { vertex } => {
+                    writes
+                        .iter()
+                        .any(|&(lone, anchor, _)| lone == vertex && anchor.is_none())
+                        && !self
+                            .half_edges
+                            .iter()
+                            .any(|(he, data)| stays_in(he, data, r#loop))
+                }
+            };
+            if !holds {
+                return Err(EulerOpError::LoopCycleBroken { r#loop });
             }
         }
         Ok(())

@@ -872,7 +872,7 @@ const CALLS: &str = "operator calls";
 /// the floors.
 ///
 /// Untorn, they are also the valid bodies the kill anchors' over-refusal
-/// row sweeps ([`valid_fixtures_never_refuse_a_kill_orbit_broken`]).
+/// row sweeps ([`valid_fixtures_never_refuse_a_kill_anchor`]).
 const FIXTURES: [(&str, BuildFixture); 3] = [
     ("declined_cube", |tol| declined_cube::<f64>(tol).body),
     ("ops_ring_bridge", |tol| ops_ring_bridge(tol).body),
@@ -1308,24 +1308,49 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
 }
 
 /// No over-refusal of the kill operators' anchor proofs: on every valid
-/// body [`FIXTURES`] builds, `kef`, `kemr` (the mate pair) and `kev`
-/// ([`kev_either_door`]) at every half-edge refuse nothing as
-/// `OrbitBroken`. An enumeration, not a sample.
+/// body [`FIXTURES`] builds, and on a segment and a circle, `kef`,
+/// `kemr` (the mate pair) and `kev` ([`kev_either_door`]) at every
+/// half-edge refuse nothing as `OrbitBroken` or `LoopCycleBroken`. An
+/// enumeration, not a sample.
 ///
 /// Each proof sits late in its plan, so a sweep whose calls all refused
 /// earlier would pass having asked none of them; the floors say each
-/// operator ran to `Ok` somewhere, and `kev` did so at a strut, the one
-/// kill whose anchor its merged fan does not prove.
+/// operator ran to `Ok` somewhere, `kev` did so at a strut, the one
+/// kill whose anchor its merged fan does not prove, and each operator
+/// emptied a loop somewhere, the write whose proof reads every member:
+/// `kev` at the segment, `kef` at the circle (the `Lone` inverse), and
+/// `kemr` at the strut from its tip.
 #[test]
-fn valid_fixtures_never_refuse_a_kill_orbit_broken() {
+fn valid_fixtures_never_refuse_a_kill_anchor() {
     let tol = Tol::witness();
-    let mut ran = [
-        ("kef", 0usize),
-        ("kemr", 0),
-        ("kev", 0),
-        ("kev at a strut", 0),
+    let bodies: [(&str, BuildFixture); 5] = [
+        FIXTURES[0],
+        FIXTURES[1],
+        FIXTURES[2],
+        ("segment", |tol| {
+            let mut body = Body::new();
+            let seed = body.mvfs(p(0.0)).unwrap();
+            let site = MevSite::Lone {
+                r#loop: seed.r#loop,
+            };
+            body.mev_line(site, p(1.0), tol).unwrap();
+            body
+        }),
+        ("circle", |tol| {
+            let mut body = Body::new();
+            let seed = body.mvfs(p(0.0)).unwrap();
+            let site = MefSite::Lone {
+                r#loop: seed.r#loop,
+            };
+            body.mef_chord(site, tol).unwrap();
+            body
+        }),
     ];
-    for (fixture, build) in FIXTURES {
+    let ops = ["kef", "kemr", "kev"];
+    // Per operator: kills run to `Ok`, and those that emptied a loop.
+    let mut ran = [[0usize; 2]; 3];
+    let mut kev_at_a_strut = 0usize;
+    for (fixture, build) in bodies {
         let body = build(tol);
         assert_eq!(
             crate::validate::validate(&body),
@@ -1336,23 +1361,34 @@ fn valid_fixtures_never_refuse_a_kill_orbit_broken() {
             let m = body.mate(he).expect("a valid body's half-edge has a mate");
             let strut = body.vertex_orbit(m) == Some(vec![m])
                 && body.get_half_edge(m).map(|mate| mate.next) != Some(he);
-            let outcomes = [
-                ("kef", body.clone().kef(he).map(|_| ())),
-                ("kemr", body.clone().kemr(he, m).map(|_| ())),
-                (
-                    "kev",
-                    kev_either_door(&mut body.clone(), he, tol).map(|_| ()),
-                ),
-            ];
-            for (op, outcome) in outcomes {
+            let mates_loop = body.get_half_edge(m).map(|mate| mate.parent_loop);
+            for (row, op) in ops.iter().enumerate() {
+                let mut trial = body.clone();
+                let outcome = match *op {
+                    "kef" => trial.kef(he).map(|_| ()),
+                    "kemr" => trial.kemr(he, m).map(|_| ()),
+                    _ => kev_either_door(&mut trial, he, tol).map(|_| ()),
+                };
+                // The loop the kill empties where it empties one: the
+                // mate's for `kef`, whose own loop dies, else `he`'s.
+                let emptiable = if *op == "kef" {
+                    mates_loop
+                } else {
+                    Some(data.parent_loop)
+                };
                 match outcome {
                     Ok(()) => {
-                        ran.iter_mut().find(|(name, _)| *name == op).unwrap().1 += 1;
-                        if op == "kev" && strut {
-                            ran[3].1 += 1;
-                        }
+                        ran[row][0] += 1;
+                        let emptied = emptiable.and_then(|l| trial.get_loop(l)).is_some_and(|l| {
+                            matches!(l.boundary, crate::LoopBoundary::Empty { .. })
+                        });
+                        ran[row][1] += usize::from(emptied);
+                        kev_at_a_strut += usize::from(*op == "kev" && strut);
                     }
-                    Err(refusal @ EulerOpError::OrbitBroken { .. }) => panic!(
+                    Err(
+                        refusal @ (EulerOpError::OrbitBroken { .. }
+                        | EulerOpError::LoopCycleBroken { .. }),
+                    ) => panic!(
                         "{op} at {he:?} (start {:?}) on the valid {fixture} refuses {refusal:?}",
                         data.start
                     ),
@@ -1361,12 +1397,17 @@ fn valid_fixtures_never_refuse_a_kill_orbit_broken() {
             }
         }
     }
-    for (op, count) in ran {
+    for (op, [ok, emptied]) in ops.iter().zip(ran) {
+        assert!(ok > 0, "no `{op}` ran to Ok on the valid bodies: {ran:?}");
         assert!(
-            count > 0,
-            "no `{op}` ran to Ok on the valid fixtures: {ran:?}"
+            emptied > 0,
+            "no `{op}` emptied a loop on the valid bodies: {ran:?}"
         );
     }
+    assert!(
+        kev_at_a_strut > 0,
+        "no `kev` ran to Ok at a strut on the valid bodies"
+    );
 }
 
 /// **Evidence, not a gate**: the kill operators' anchor measurement, run
@@ -1381,7 +1422,8 @@ fn valid_fixtures_never_refuse_a_kill_orbit_broken() {
 /// the loop with a member. Neither tear kind moves an anchor, a start
 /// or a `parent_loop`, so what the result shows the kill wrote. The two
 /// vertex columns are counted independently; "anchored" is an `Ok` in
-/// neither.
+/// neither. It asserts that both vertex columns and the loop column
+/// are 0.
 ///
 /// `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false cargo test --release -p
 /// topo --lib -- --ignored --nocapture
@@ -1490,6 +1532,10 @@ fn kill_anchors_on_torn_bodies() {
             assert_eq!(
                 cells[2], 0,
                 "`{op}` under {tear:?} anchored a vertex that keeps edges at `None` through `Ok`"
+            );
+            assert_eq!(
+                cells[5], 0,
+                "`{op}` under {tear:?} wrote a loop anchor off its loop through `Ok`"
             );
         }
     }
