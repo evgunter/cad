@@ -354,9 +354,13 @@ so a verdict about the pair, and a state a mate comes to hold after
 insert (a head a rebind or a shrunk pattern strands, a re-pointed
 `Part`, a loaded snapshot), stay the solve's. (2) Placement lives on the
 cluster: clusters are connected components of the instance–mate graph
-(`clusters`); `Doc::placements` holds at most one `Frame` per cluster,
+(`clusters`); `Doc::placements` holds at most one placement per cluster,
 keyed by its gauge, a missing entry being the identity, so zero- and
-multi-anchor states are unrepresentable; `reconcile` re-keys records
+multi-anchor states are unrepresentable. A placement is parametric:
+its components are `Expr`s, the one placement type
+`Node::Transform` holds too, so a document parameter can drive where a
+cluster sits, and a frame the maintenance mints from a solved pose is
+written as literals; `reconcile` re-keys records
 when an edit joins or splits clusters
 (`ClusterMaintenance::{Join, Split, GaugeRewrite}`, gauge-exact in
 bits). When a gauge moves the maintenance solves the prior document
