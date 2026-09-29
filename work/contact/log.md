@@ -597,6 +597,22 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 
+## 2026-09-28 — CONTACT-7 fix pass in; delta review on the deleted readings
+
+- **The fix pass (`fab37e456`)** answers the dual's union:
+  - the behind-`p` edge skip, with the comb and channel rows and a
+    927-pose sweep (head equals base, 18 named false refusals);
+  - rows killing mutants (a), (c) and (d);
+  - a structural lever guard (`mod metric`, a private `Distance`);
+  - every style item;
+  - the Python suite, 857/857.
+- **Three readings were DELETED with proofs rather than pinned:** (b)
+  and (e), the face-corner reading, and (f), the co-convex guard on the
+  complement test. (f) can only admit more Rests, on the door every
+  consumer reads as proof, so a single delta review checks the proofs
+  by construction and by attack before landing.
+- **Needed before landing:** one more merge of main (59 commits,
+  15 touching `topo` or `geom-brep`).
 ## 2026-09-28 — CONTACT-8 lands
 
 - **The second fix pass**, for the four red `editor-core` rows. The
@@ -610,6 +626,29 @@ Signed: (CONTACT orchestrator)
   checkout was checked: the reflog shows no merge.
 - Filed: `a-cube-sunk-flush-into-a-block-refuses-ray-exhausted-on-every-order`
   (P3).
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-8 landed (#3377); CONTACT-7 lands
+
+- **CONTACT-8** merged as `e056f1aff`. Hosted CI's Python suite caught
+  two north-star rows no Rust run covers. The fix gave the merge a
+  survivor rule: a plug kept as survivor had put itself on both sides
+  of its own rim. The orchestrator ran `topo` + `sweep` at 1e-6 and
+  1e-12 locally before merging (3,303 of 3,303 at each), because the
+  hosted `test` job's tolerances could not be confirmed.
+- **CONTACT-7 lands** with **DR-17**: no tally candidate, the one MAJOR
+  bilateral. The found-a-MAJOR count goes to 7 (DR-15 and DR-16 are GERM's).
+  Recorded under protocol `cb47d67c4`; dispatched under `c3129311b`,
+  whose only difference is rule 9's readout point.
+- **Process notes.**
+  - The lane stopped its own queued job script to yield the build slot,
+    by reading the slot's holder PID and killing that PID's parent. It
+    was its own process, but that is outside "kill only PIDs you
+    recorded"; briefs should say how to yield.
+  - Hosted CI now runs a single `test` job whose tolerance coverage is
+    not visible in its log. Check before relying on it for a
+    tolerance-sensitive change.
 
 Signed: (CONTACT orchestrator)
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/contact/contact-near-boundary-endings-say-lower-the-tolerance.md`. (ENCL orchestrator)
