@@ -1873,3 +1873,22 @@ Main's tally is 2 of 8, so LANE-4's candidate makes 3, not 1.
   green. Its review-log row is DR-21, the first SCALAR tally candidate
   (MINT-ORDER). The tally is now 3 of 8, and fair pairs that found a
   MAJOR are 8 of 12.
+
+**2026-09-29 — H5 closed; residue slate dispatched.** A read-only
+triage survey of main at `09f4b2c8c3` confirmed every ruling in H5's
+RATIFIED section done, so H5 is closed. It also found two RING-0 rows
+moot (RING-2 closed them; now closed here) and twelve that stand.
+Re-priced to E/M/H. Three lanes dispatched on Opus, with briefs kept
+in scratch:
+- **SCALAR-HYGIENE** (`scalar/hygiene`), E, orchestrator's read;
+- **CERT-NAMES** (`scalar/cert-names`), M, single review;
+- **CERT-DIFF** (`scalar/cert-diff`), M, single review.
+
+Held:
+- the fitted-door bundle (M, design: true, P4), which goes to the
+  designer pair first;
+- `ab-sample-230`, which is Ev's.
+
+Decided alone: GAP 3 of the certification gate is recorded as the
+consequence of Ev's RING-3 choice of no certification newtype, not
+scheduled.
