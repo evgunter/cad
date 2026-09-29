@@ -118,8 +118,10 @@
 //!
 //! What a slot field SHOWS is [`field_text`]: a bare literal shows its
 //! number alone (the unit is the picker's to say, not the field's),
-//! and everything else shows its source. A parameter's always shows
-//! its number, because a parameter is never driven by anything.
+//! and a driven slot shows the value its expression equals, with the
+//! source said under the row and seeding the field's keyboard edit
+//! ([`field_source`]). A parameter's always shows its number, because
+//! a parameter is never driven by anything.
 //!
 //! **Text the field itself produced is not an edit**, at either field
 //! — [`echoed`], one function because it is one rule, asked of the
@@ -562,10 +564,20 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
 /// written in — the same number [`in_written`] gives and the combo box
 /// beside it names, said once instead of twice.
 ///
-/// Everything else shows its SOURCE: a driven slot says what drives
-/// it, which is both the honest reading of a computed value and the
-/// text an edit to it revises. A slot whose value did not evaluate is
-/// the same case — the source is what there is to fix.
+/// **A driven slot shows [`DRIVEN`] and its value**, and not its
+/// source. The field sits in a row that does not wrap, beside its
+/// unit picker and, in a vector, beside two more fields; a source is
+/// as long as the parameter names the user wrote into it, so a field
+/// showing one is as wide as that. The value is bounded by its type,
+/// the source by nothing. The source is said whole UNDER the row
+/// (`crate::pane::properties`'s `slot_notes`), where it wraps, and a
+/// keyboard edit to the field starts from it ([`field_source`]) —
+/// it is still the text an edit revises. A driven slot that did not
+/// evaluate has no value, and shows [`NO_VALUE`] after the mark; its
+/// fault is said under the row too.
+///
+/// A literal whose value did not evaluate shows its source, which is
+/// a literal's and so a number and its unit.
 ///
 /// **A literal whose value the notation cannot name shows
 /// [`no_reading`]** rather than a number, because there is no number
@@ -597,8 +609,37 @@ pub fn field_text(row: &SlotRow) -> String {
                 row.slot
             ),
         },
-        _ => row.source.clone().unwrap_or_default(),
+        (SlotDriver::Expression { .. }, Ok(value)) => {
+            let shown = shown_value(rendering_unit(row.dimension, row.unit), value.as_f64());
+            match shown {
+                Ok(shown) => format!("{DRIVEN} {}", render_number(shown)),
+                Err(unit) => no_reading(unit),
+            }
+        }
+        (SlotDriver::Expression { .. }, Err(_)) => format!("{DRIVEN} {NO_VALUE}"),
+        (SlotDriver::Literal, Err(_)) => row.source.clone().unwrap_or_default(),
     }
+}
+
+/// The mark a driven slot's field wears in front of its value: the
+/// value is what an expression EQUALS, and the expression is said
+/// under the row as `label = source`.
+pub const DRIVEN: &str = "=";
+
+/// What a driven slot's field shows after [`DRIVEN`] when its
+/// expression did not evaluate.
+pub const NO_VALUE: &str = "?";
+
+/// **The text a keyboard edit to a slot's field starts from, where
+/// that is not the text the field shows**: a driven slot's source.
+///
+/// [`field_text`] shows a driven slot's value, bounded, and an edit to
+/// it revises the expression — so the edit is seeded with the source
+/// (`crate::widgets::value_field_ops`), and handing that source back
+/// unchanged is an echo like handing back the render. `None` for a
+/// literal, whose field's edit starts from what it shows.
+pub fn field_source(row: &SlotRow) -> Option<String> {
+    row.driver.is_driven().then(|| row.source.clone()).flatten()
 }
 
 /// A number as the chrome writes it: [`pncad::geom_core::Readable`]'s

@@ -128,6 +128,7 @@ impl ViewerBehavior<'_> {
                                 dimension: row.dimension,
                                 number: props::shown_value(field.unit, row.value.as_f64()),
                                 text: None,
+                                source: None,
                             },
                             value_gesture(ValueGestureName::Param(name.clone())),
                             FieldVocabulary {
@@ -657,56 +658,19 @@ impl ViewerBehavior<'_> {
     /// the field names the unit, and saying it twice adjacently says
     /// it once.
     pub(crate) fn slot_value_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        // `Count` is the one row with no unit at all (an instance count
-        // is a number, not a quantity), and its factor would be 1.0
-        // anyway — so the absence is an identity here, not a fallback.
-        let field = FieldWriting::of(row.dimension, row.unit);
-        // A slot that did not evaluate still has SOURCE to edit — it
-        // is the slot most likely to need it — so the field is drawn
-        // for it too, over the one number it does not have. The fault
-        // itself is said UNDER the row ([`slot_notes`]): this field is
-        // drawn in its group's row, and a sentence there would be laid
-        // out from the field's right-hand edge.
-        // **The conversion is where the refusal is asked.** A slot the
-        // notation cannot name has no number for the field to show
-        // ([`crate::props::shown_value`]), and a slot that did not
-        // evaluate has no number at all — zero is what the widget
-        // holds for it, under the source text the row shows instead.
-        let number = props::shown_value(
-            field.unit,
-            match row.value {
-                Ok(value) => value.as_f64(),
-                Err(_) => 0.0,
-            },
-        );
-        // What the field says, when that is not the dragged number:
-        // the text a parse refusal handed back, else the slot's own
-        // source. A LITERAL slot with a value shows no fixed text at
-        // all — egui formats the number it is dragging, and a text
-        // pinned from the row would freeze the field mid-gesture.
-        let fixed = if self.drafts.expr_target == Some((node, row.slot)) {
-            Some(self.drafts.expr_text.clone())
-        } else if row.driver.is_driven() || row.value.is_err() {
-            Some(props::field_text(row))
-        } else {
-            None
-        };
+        let draft = (self.drafts.expr_target == Some((node, row.slot)))
+            .then_some(self.drafts.expr_text.as_str());
         // **The panel's value field, both doors and the gesture** —
         // the parameter row's field is this same call with its own
-        // two operations. What a slot contributes is the fixed text
-        // above: a row showing SOURCE rather than a number echoes
-        // that source, and a number typed over it is no echo of
+        // two operations. What a slot contributes is what the field
+        // shows and what its edit opens on ([`slot_showing`]): a
+        // number typed over a driven slot's reading is no echo of
         // anything, so the driven slot's refusal stays reachable and
         // is owed its affordance even when the number happens to
         // match.
         value_field_ops(
             ui,
-            FieldShowing {
-                writing: field,
-                dimension: row.dimension,
-                number,
-                text: fixed,
-            },
+            slot_showing(row, draft),
             value_gesture(ValueGestureName::Slot {
                 node,
                 slot: row.slot,
@@ -1092,10 +1056,60 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: 
     crate::widgets::message_link(ui, format!("edit {}", name.as_str())).clicked()
 }
 
+/// **What a slot's value field shows, and what its keyboard edit
+/// opens on** — `draft` is the refused text the field holds for a
+/// re-type, when it holds one.
+///
+/// The number is shown in the unit the slot is WRITTEN in
+/// ([`FieldWriting`]). A slot that did not evaluate still has SOURCE
+/// to edit — it is the slot most likely to need it — so the field is
+/// drawn for it too, over the one number it does not have: zero is
+/// what the widget holds for it, under the text the row shows
+/// instead. **The conversion is where the refusal is asked**: a slot
+/// the notation cannot name has no number for the field to show
+/// ([`props::shown_value`]).
+///
+/// What the field says, when that is not the dragged number: the
+/// draft, else [`props::field_text`] for a driven slot or one that did
+/// not evaluate. A LITERAL slot with a value shows no fixed text at
+/// all — egui formats the number it is dragging, and a text pinned
+/// from the row would freeze the field mid-gesture.
+///
+/// **A driven slot's field shows its value, and its edit opens on its
+/// source** ([`props::field_source`]). The row does not wrap, and a
+/// source is as wide as the parameter names in it; the source is said
+/// whole under the row ([`slot_notes`]). A draft is shown as typed:
+/// it is what the edit opens on, so there is nothing to seed.
+pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>) -> FieldShowing {
+    let writing = FieldWriting::of(row.dimension, row.unit);
+    let number = props::shown_value(
+        writing.unit,
+        match row.value {
+            Ok(value) => value.as_f64(),
+            Err(_) => 0.0,
+        },
+    );
+    let (text, source) = match draft {
+        Some(draft) => (Some(draft.to_owned()), None),
+        None if row.driver.is_driven() || row.value.is_err() => {
+            (Some(props::field_text(row)), props::field_source(row))
+        }
+        None => (None, None),
+    };
+    FieldShowing {
+        writing,
+        dimension: row.dimension,
+        number,
+        text,
+        source,
+    }
+}
+
 /// **What a slot has to SAY, under its row**: the fault a slot that
-/// did not evaluate carries, the expression-driven refusal's
-/// affordance and its edit doors, and the range `reading` when one has
-/// been taken for this field.
+/// did not evaluate carries, a driven slot's expression
+/// (`label = source`, which its field does not show — [`slot_showing`]),
+/// the expression-driven refusal's affordance and its edit doors, and
+/// the range `reading` when one has been taken for this field.
 ///
 /// Every one of them is drawn under the row rather than in it. The
 /// row holds the slot's fields — three, for a vector — and a sentence
@@ -1129,6 +1143,14 @@ fn slot_notes(
     }
     let mut clicked = None;
     if let SlotDriver::Expression { params } = &row.driver {
+        if let Some(source) = &row.source {
+            crate::widgets::message_toned(
+                ui,
+                format!("{} {} {source}", row.slot.label(), props::DRIVEN),
+                theme,
+                Tone::Advisory,
+            );
+        }
         crate::widgets::message_toned(
             ui,
             format!(
@@ -1229,13 +1251,15 @@ mod layout_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{Dimension, ParamName, SlotId};
+    use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
 
-    use super::{bounds_notes, exists_notice, slot_notes};
+    use super::{bounds_notes, exists_notice, slot_notes, slot_showing};
     use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
     use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::Refusal;
+    use crate::session::{SessionOp, ValueGestureName};
     use crate::theme::Theme;
+    use crate::widgets::{FieldVocabulary, value_field_ops, value_gesture};
 
     /// A narrow pane, and wider than `crate::widgets::message_floor`,
     /// so these rows read the region and not the floor.
@@ -1309,6 +1333,68 @@ mod layout_tests {
             assert_inside(region, door);
             assert_under(affordance, door);
         }
+    }
+
+    /// **A driven slot's row stays inside the pane however long its
+    /// expression**: the field shows the value, and the source is said
+    /// whole under the row, wrapping there.
+    ///
+    /// The row is drawn as `slot_group_ui` draws it — label and field
+    /// in a `ui.horizontal`, over [`slot_showing`] — and the notes
+    /// under it as `slot_notes` draws them.
+    #[test]
+    fn a_long_driven_source_stays_inside_the_pane() {
+        let params = vec![
+            param("outer_enclosure_wall_thickness"),
+            param("gasket_compression_allowance"),
+        ];
+        let source = "outer_enclosure_wall_thickness * 2 + gasket_compression_allowance";
+        let value = SlotValue::of(Dimension::Length, 0.004).expect("a finite length");
+        let row = SlotRow {
+            source: Some(source.to_owned()),
+            ..distance_row(SlotDriver::Expression { params }, Ok(value))
+        };
+        let node = RecipeNodeId(4);
+        let (region, painted) = drawn_in(REGION, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(row.slot.label());
+                value_field_ops(
+                    ui,
+                    slot_showing(&row, None),
+                    value_gesture(ValueGestureName::Slot {
+                        node,
+                        slot: row.slot,
+                    }),
+                    FieldVocabulary {
+                        number: |value| SessionOp::SetSlot {
+                            node,
+                            slot: row.slot,
+                            value,
+                        },
+                        text: |text| SessionOp::SetSlotExpression {
+                            node,
+                            slot: row.slot,
+                            text,
+                        },
+                    },
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                );
+            });
+            slot_notes(ui, &Theme::DEFAULT, &row, None);
+        });
+        for landed in &painted {
+            assert_inside(region, landed);
+        }
+        let quoted = find(
+            &painted,
+            &format!(
+                "{} {} {source}",
+                SlotId::Distance.label(),
+                crate::props::DRIVEN
+            ),
+        );
+        assert_own_lines(region, quoted);
     }
 
     #[test]

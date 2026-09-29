@@ -697,10 +697,11 @@ pub(crate) struct FieldVocabulary<Number, Text> {
 /// **What one panel value field is SHOWING**, as the row it is drawn
 /// for answers it.
 ///
-/// Four facts about one field rather than four arguments, because
-/// they are one answer: what the field is written in decides both the
-/// number it displays and the tick it scrubs at, and the dimension
-/// decides what a number read out of it becomes.
+/// Facts about one field rather than arguments, because they are one
+/// answer: what the field is written in decides both the number it
+/// displays and the tick it scrubs at, and the dimension decides what
+/// a number read out of it becomes.
+#[derive(Clone, Debug)]
 pub(crate) struct FieldShowing {
     /// The notation the field shows and authors in, and its tick.
     pub(crate) writing: crate::forms::FieldWriting,
@@ -713,11 +714,16 @@ pub(crate) struct FieldShowing {
     /// document: the value is a number and the unit is a unit, and
     /// the value written in that unit is neither.
     pub(crate) number: Result<f64, UnitDef>,
-    /// A text it shows INSTEAD of that number — a slot's source, for
-    /// a row that has source rather than a number to show. `None` is
-    /// a field showing its number, which is every parameter row and
-    /// every literal slot that evaluated.
+    /// A text it shows INSTEAD of that number — a driven slot's
+    /// reading ([`crate::props::field_text`]), or the refused text a
+    /// slot's draft holds. `None` is a field showing its number, which
+    /// is every parameter row and every literal slot that evaluated.
     pub(crate) text: Option<String>,
+    /// **The text a keyboard edit starts from, where the field does
+    /// not show it** — a driven slot's source
+    /// ([`crate::props::field_source`]). `None` is an edit seeded with
+    /// what the field shows, which is egui's own seed.
+    pub(crate) source: Option<String>,
 }
 
 /// **The text a field last turned into an operation**, remembered
@@ -738,9 +744,10 @@ struct HandedOver(String);
 ///
 /// `writing` is how the field is written (`crate::forms::FieldWriting`
 /// — the notation it shows and authors in, and the tick it scrubs at),
-/// `showing` is the number it holds IN that notation, and `fixed` is a
-/// text it shows instead of a number (a slot's source, when the row
-/// has source rather than a number to show). `dimension` is what turns
+/// `showing` is the number it holds IN that notation, `fixed` is a
+/// text it shows instead of a number, and `source` is the text a
+/// keyboard edit opens on where that is not what the field shows (a
+/// driven slot's expression, [`seed_edit`]). `dimension` is what turns
 /// a typed number into the value the vocabulary's number door carries,
 /// and a typed number it refuses is the frame's news: its
 /// [`crate::session::Refusal`] goes onto `notices`, since there is no
@@ -764,7 +771,9 @@ struct HandedOver(String);
 /// the field talking to itself and emits nothing, and text that
 /// differs is the user's and takes its door. No tolerance, no second
 /// opinion about what a number means, and the same rule for a field
-/// showing a number and a field showing an expression.
+/// showing a number and a field showing an expression. A field whose
+/// edit was seeded with a source it does not show produced that
+/// source too, so it is compared against both.
 ///
 /// **Whether the edit CHANGES anything is not this question.** A user
 /// who re-types a number the document already holds has still typed
@@ -826,6 +835,7 @@ pub(crate) fn value_field_ops(
         dimension,
         number,
         text: fixed,
+        source,
     } = showing;
     let mut number = match number {
         Ok(number) => number,
@@ -856,9 +866,8 @@ pub(crate) fn value_field_ops(
         number_field(&mut number, writing.tick)
             .update_while_editing(false)
             // `number_field`'s own formatter, plus the two things this
-            // field needs from it: the fixed text a row with source
-            // rather than a number shows, and a copy of whatever it
-            // returned.
+            // field needs from it: the fixed text a row shows instead
+            // of its number, and a copy of whatever it returned.
             //
             // These two REPLACE the constructor's pair rather than
             // wrapping it — `egui`'s builders overwrite an `Option` —
@@ -882,7 +891,13 @@ pub(crate) fn value_field_ops(
                     // until the document answers.
                     _ => None,
                 };
-                if !props::echoed(text, &rendered.borrow()) {
+                // The source the edit was seeded with is the field's
+                // own text as much as its render is.
+                let own = props::echoed(text, &rendered.borrow())
+                    || source
+                        .as_deref()
+                        .is_some_and(|source| props::echoed(text, source));
+                if !own {
                     typed.replace(Some((text.trim().to_owned(), edit)));
                 }
                 number
@@ -899,6 +914,9 @@ pub(crate) fn value_field_ops(
         // this one's repeat, so the same characters typed again are an
         // act.
         ui.data_mut(|data| data.remove::<HandedOver>(widget.id));
+        if let Some(source) = &source {
+            seed_edit(ui, widget.id, source);
+        }
     }
     let handed = match typed.into_inner() {
         None => None,
@@ -944,6 +962,29 @@ pub(crate) fn value_field_ops(
         // in this vocabulary.
         Some(props::FieldEdit::Empty) | None => {}
     }
+}
+
+/// **Open a field's keyboard edit on `text`**, all of it selected —
+/// what `egui::DragValue` does with the text it rendered, done with a
+/// text it did not.
+///
+/// The widget keeps the open edit's buffer under its own id as a
+/// `String` ([`HandedOver`] says why that type is taken) and reads it
+/// back on the frames it edits, so a buffer written here the frame the
+/// field takes focus is the one the edit opens on. The selection is
+/// the widget's `select_all_text`, restated over the public
+/// `egui::TextEdit` state because the widget selected the length of
+/// its render and the buffer is now a different text.
+fn seed_edit(ui: &mut egui::Ui, id: egui::Id, text: &str) {
+    ui.data_mut(|data| data.insert_temp(id, text.to_owned()));
+    let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+    state
+        .cursor
+        .set_char_range(Some(egui::text::CCursorRange::two(
+            egui::text::CCursor::default(),
+            egui::text::CCursor::new(text.chars().count()),
+        )));
+    state.store(ui.ctx(), id);
 }
 
 /// **Three boxes, ONE gesture**: a row of draggable components over a
@@ -3396,7 +3437,7 @@ mod value_field_tests {
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
-    use pncad::quantity::{UnitDef, WrittenLength};
+    use pncad::quantity::WrittenLength;
 
     /// **Which of the panel's two rows the field under test is drawn
     /// for.**
@@ -3503,6 +3544,22 @@ mod value_field_tests {
             }
         }
 
+        /// [`Self::extrude_distance`], driven by `source` through the
+        /// session's own text door.
+        fn driven_distance(label: &str, source: &str) -> Self {
+            let mut row = Self::extrude_distance(label, 0.008);
+            let Subject::Slot { node, slot } = row.subject.clone() else {
+                panic!("the fixture is a slot row");
+            };
+            let outcome = row.session.perform(SessionOp::SetSlotExpression {
+                node,
+                slot,
+                text: source.to_owned(),
+            });
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            row
+        }
+
         /// **A pattern's instance count**, standing at `count` — a
         /// `Count` slot, the dimension that refuses a number with no
         /// integer in it — patterning [`Self::extrude_distance`]'s
@@ -3535,50 +3592,25 @@ mod value_field_tests {
             }
         }
 
-        /// **The four facts `FieldShowing` carries**, read off the
-        /// document the way the panel's own row reads them — including
-        /// the fixed text, which is where the two rows differ: a
-        /// parameter row never has one, and a slot row has one exactly
-        /// when it shows SOURCE rather than a number.
-        fn field(
-            &self,
-        ) -> (
-            FieldWriting,
-            Dimension,
-            Result<f64, UnitDef>,
-            Option<String>,
-        ) {
+        /// **What `FieldShowing` carries**, read off the document the
+        /// way the panel's own row reads it: a parameter row never has
+        /// a fixed text, and a slot row's is `slot_showing`'s — the
+        /// panel's own rule, minus the in-flight draft this harness
+        /// has no draft store for.
+        fn field(&self) -> super::FieldShowing {
             match &self.subject {
                 Subject::Param(_) => {
                     let row = self.row();
                     let writing = FieldWriting::of(row.dimension, row.unit);
-                    (
+                    super::FieldShowing {
                         writing,
-                        row.dimension,
-                        props::shown_value(writing.unit, row.value.as_f64()),
-                        None,
-                    )
+                        dimension: row.dimension,
+                        number: props::shown_value(writing.unit, row.value.as_f64()),
+                        text: None,
+                        source: None,
+                    }
                 }
-                Subject::Slot { .. } => {
-                    let row = self.slot();
-                    let writing = FieldWriting::of(row.dimension, row.unit);
-                    // `slot_value_ui`'s own rule for the fixed text,
-                    // minus the in-flight draft this harness has no
-                    // draft store for: a driven slot and a slot that
-                    // did not evaluate show their SOURCE, and a
-                    // literal that evaluated shows the number egui
-                    // formats.
-                    let fixed = (row.driver.is_driven() || row.value.is_err())
-                        .then(|| props::field_text(&row));
-                    let number = props::shown_value(
-                        writing.unit,
-                        match row.value {
-                            Ok(value) => value.as_f64(),
-                            Err(_) => 0.0,
-                        },
-                    );
-                    (writing, row.dimension, number, fixed)
-                }
+                Subject::Slot { .. } => crate::pane::properties::slot_showing(&self.slot(), None),
             }
         }
 
@@ -3592,9 +3624,12 @@ mod value_field_tests {
         /// ([`a_field_is_not_drawn_for_a_value_its_notation_cannot_name`]
         /// is what holds that case).
         fn showing(&self) -> (f64, String) {
-            let (_, _, number, fixed) = self.field();
-            let number = number.expect("this row's notation names its value");
-            (number, fixed.unwrap_or_else(|| number_text(number, 1..=3)))
+            let field = self.field();
+            let number = field.number.expect("this row's notation names its value");
+            (
+                number,
+                field.text.unwrap_or_else(|| number_text(number, 1..=3)),
+            )
         }
 
         fn row(&self) -> props::ParamRow {
@@ -3629,18 +3664,13 @@ mod value_field_tests {
                 events,
                 ..Default::default()
             };
-            let (writing, dimension, number, fixed) = self.field();
+            let field = self.field();
             let subject = self.subject.clone();
             let mut ops = Vec::new();
             let mut notices = Vec::new();
             let rect = &mut self.rect;
             let mut output = ctx.run_ui(input, |ui| {
-                let showing = super::FieldShowing {
-                    writing,
-                    dimension,
-                    number,
-                    text: fixed.clone(),
-                };
+                let showing = field.clone();
                 match &subject {
                     Subject::Param(name) => value_field_ops(
                         ui,
@@ -4076,7 +4106,7 @@ mod value_field_tests {
     ///   not a literal), so [`crate::props::rendering_unit`] writes
     ///   it in the CANONICAL one, whose factor is exactly one;
     /// - a slot that did not evaluate has no number, and the zero
-    ///   drawn under its source is a zero in every notation
+    ///   held under its fixed text is a zero in every notation
     ///   ([`crate::props::written`]).
     ///
     /// Both halves are asserted, the first through the session's own
@@ -4102,11 +4132,26 @@ mod value_field_tests {
             text: source.clone(),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let (writing, _, number, fixed) = row.field();
+        let super::FieldShowing {
+            writing,
+            number,
+            text,
+            source: seed,
+            ..
+        } = row.field();
         assert_eq!(
-            fixed.as_deref(),
+            seed.as_deref(),
             Some(source.as_str()),
-            "a driven slot shows its SOURCE, which is the case this row is about"
+            "a driven slot's edit opens on its SOURCE, which is the case this row is about"
+        );
+        assert_eq!(
+            text,
+            Some(format!(
+                "{} {}",
+                props::DRIVEN,
+                props::render_number(0.004 * 1e308)
+            )),
+            "and the field shows the value it equals, not a no-reading marker"
         );
         assert_eq!(
             writing.unit,
@@ -4251,33 +4296,19 @@ mod value_field_tests {
     }
 
     /// **The same rule for a DRIVEN slot re-typed in different
-    /// characters** — and the one row that drives the field over a
-    /// fixed text rather than a number.
-    ///
-    /// A driven slot shows its source, so the echo guard swallows the
-    /// source spelled exactly; re-spaced, it is a different text and
-    /// reaches the door, where the same expression parses back out of
-    /// it.
+    /// characters** — the field shows the value its expression equals
+    /// and its edit opens on the source, so the echo guard swallows
+    /// the source spelled exactly; re-spaced, it is a different text
+    /// and reaches the door, where the same expression parses back out
+    /// of it.
     #[test]
     fn re_typing_a_driven_slots_source_respaced_is_not_an_edit() {
-        let mut row = Row::extrude_distance("auth2-slot-driven", 0.008);
-        let Subject::Slot { node, slot } = row.subject.clone() else {
-            panic!("the fixture is a slot row");
-        };
-        let outcome = row.session.perform(SessionOp::SetSlotExpression {
-            node,
-            slot,
-            text: "base_r * 2.0".to_owned(),
-        });
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let (_, render) = row.showing();
-        assert_eq!(render, "base_r * 2.0", "a driven slot shows its source");
-
-        let respaced = render.replace(' ', "");
-        assert_ne!(respaced, render);
+        let mut row = Row::driven_distance("auth2-slot-driven", "base_r * 2.0");
+        let source = "base_r * 2.0".to_owned();
+        let respaced = source.replace(' ', "");
         assert!(
-            !props::echoed(&respaced, &render),
-            "re-spaced, it is not the field's render"
+            !props::echoed(&respaced, &source),
+            "re-spaced, it is not the field's source"
         );
         let before = row.session.history().len();
         row.click_in();
@@ -4292,6 +4323,51 @@ mod value_field_tests {
             row.session.history().len(),
             before,
             "and costs no undo step"
+        );
+    }
+
+    /// **A driven field shows its value, and its keyboard edit opens on
+    /// the whole source, all of it selected.**
+    ///
+    /// The field's rest text is `= 0.008`, seven characters; the
+    /// source is twelve. The widget selects the length of what it
+    /// rendered, so an edit seeded without re-selecting would replace
+    /// the first seven characters of the source and keep the rest —
+    /// typing `base_r * 3.0` would land `base_r * 3.0* 2.0`, which
+    /// the exact text below refuses. And clicking in and away hands
+    /// the source back untouched, which is not an edit.
+    #[test]
+    fn a_driven_fields_edit_opens_on_its_whole_source() {
+        let mut row = Row::driven_distance("chrome-driven-seed", "base_r * 2.0");
+        let (_, render) = row.showing();
+        assert_eq!(
+            render,
+            format!("{} 0.008", props::DRIVEN),
+            "a driven slot shows the value its expression equals"
+        );
+        row.click_in();
+        assert!(
+            row.texts.iter().any(|text| text == "base_r * 2.0"),
+            "the open edit shows the source: {:?}",
+            row.texts
+        );
+        row.click_away();
+        let emitted = row.taken();
+        assert!(
+            emitted.is_empty(),
+            "a click in and away is not an edit: {emitted:?}"
+        );
+
+        row.click_in();
+        row.frame(vec![egui::Event::Text("base_r * 3.0".to_owned())]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(
+                landed.as_slice(),
+                [SessionOp::SetSlotExpression { text, .. }] if text == "base_r * 3.0"
+            ),
+            "the typed text replaced the whole source: {landed:?}"
         );
     }
 
