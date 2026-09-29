@@ -1219,3 +1219,21 @@ class of 65 sites is PRED's row.
     - `work/encl/adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` (P2/M), the follow-through. It is held until PR 3398 lands, since both touch `recourse.rs`.
   - Closed `adoption-certification-has-no-eps-in-lever`.
   - **Orchestrator slip:** committing the main merge on the `[ev]` branch left a conflict block in the fork log (`08eba8f88c`). I fixed it forward in `5bb3585ded`. Check `git merge`'s exit before editing, not only before committing.
+- 2026-09-29 — Opened design fork `encl-zero-arm-margin` on `certify-zero-arms-quote-no-margin-without-a-seam`. It covers the unvalued tighten on certify's Zero arms, the Bounds scope rule, and the zero span (D4 ¶1 (i) against Ev's `e1600790f9`), with 3380's door as the consumer. The blinding byte is on `analysis/design-fork/encl-zero-arm-margin` (protocol `bb10a4cdd4`). Two designers were dispatched concurrently with the same problem statement.
+- 2026-09-29 — Design fork `encl-zero-arm-margin` put to Ev as `[ev]` PR 3402. `certify-zero-arms-…` has `needs_ev: true`.
+  - **Both first reports converged:** the classifier's `MarginDiag` rides the Zero verdict; `Zero(None)`/`tighten(None)`/`Definite` are deleted; the zero span goes through D4 ¶1 (i) with an m ≤ 0 note; Bounds clause 2 gains one sentence (the diff); D4 ¶1 (i) is unchanged; the import door reads a structured verdict.
+  - **Split, on the mechanism:** A would have every outcome of `sign_within` carry the view; B would add a named `decide_sized` door. There was no reconciliation round.
+  - **Correction:** "a zero span is always a defect" (`e1600790f9`) is co-authored fix-pass text, not Ev's ruling, contrary to my brief and to the 3392 row's attribution. The PR says so.
+  - Void-side fixture PR 3401 is open and read; it merges on green.
+- 2026-09-29 — PR 3401 merged (`c7c44c49ab`): a live void-side shell escalation fixture (`dsc_checks::in_band_void_shell_escalates_with_its_valued_ending`) pins the valued ending at every eps. The direct thin-tool subtract refuses at the Boolean's own orientation read, which is correct fail-loud. Row closed.
+- 2026-09-29 — Ev answered `[ev]` PR 3402. Ev took the recommendation and chose A (every outcome of the seam carries its margin), on the condition that the number is structurally usable only for error reporting.
+  - Clause 2 was reworded to carry the condition. Fork-log row 10 is complete (DUP took rows 8–9).
+  - Filed `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M). The adoption follow-through reads its structured verdict.
+  - Closed `certify-zero-arms-quote-no-margin-without-a-seam`.
+  - 3402's merge waits for the main-wide census fix (`encl/fix-main-census-tables`).
+- 2026-09-29 — Main red: two geom-core census tests.
+  - `certified_endpoint_census`: ssi/certify.rs has 15 reads against the table's 16, from 3392's refactor. This one is ENCL's.
+  - `sym_rule_f_rows` copysign: a new site at `topo/src/boolean/section_cert.rs:827`, from GERM.
+  - Fix lane dispatched. Both break the `test` job for 3398 and 3402.
+- 2026-09-29 — PR 3407 merged (`4b47a29dd9`): main's two red geom-core census rows are fixed. `ssi/certify.rs` endpoint reads go 16→15 (3392 spelled one as a path; blind spot 7 is documented). The `section_cert.rs` copysign site is registered as UNMEASURED, with evidence added to GERM's P1 row. Ported into 3402 before the merge.
+- 2026-09-29 — `[ev]` PR 3402 merged (`f20c3276e1`) on Ev's answer: Bounds clause 2 now carries the reporting-only margin, and fork-log row 10 is complete. `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M) is held until 3398 lands.

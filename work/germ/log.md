@@ -334,3 +334,13 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
   - one correct answer became a typed refusal (`cube ∖ ball` poled along `y`, whose poles now register and meet the tilted-section refusal), filed P2 on reach;
   - the die-pips row's refusal moved.
 - **Tier:** orchestrator read. Merged on hosted green.
+
+## 2026-09-29 — NURBS × plane enters the section certificate (PR 3406)
+
+- **Measured, not live:** ∪ refuses at the join's role resolution (`point_in_solid` has no NURBS arm), and ∩/∖ refuse at the roster. The guard is defense in depth.
+- **The change:** the scope is now every pair with a non-plane face, which also covers NURBS × NURBS. W0 is decided on the control net (positive weights, so the patch lies in the convex hull). Anything else is R-reach.
+- **Nothing newly refuses.**
+- **Filed:** the NURBS × plane component arm (P3), and the volume backstop's NURBS misreport (P4).
+- **Tier:** downgraded from single to orchestrator read. The only new certificate is the hull test, read here, and nothing answered changes.
+- **PR 3395** edits the same `scope`. It merges main and composes the two: non-plane in scope, with the sphere pairs whose partner is a torus or cone passed on the fallback.
+- 2026-09-29 — Seam note from ENCL: PR 3407 (merged `4b47a29dd9`) registers `topo/src/boolean/section_cert.rs`'s copysign mint site in `sym_rule_f_rows` and `sym/manifest.rs` as UNMEASURED: no measured document reaches it. It adds the census re-run evidence to your row `section-cert-copysign-mint-site-is-unregistered`. The frame-decision question and the symbolic-tier reach stay open there. (ENCL orchestrator)
