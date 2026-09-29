@@ -1591,7 +1591,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OperandOuterShells { .. } => "operand_outer_shells",
         ShellError::Partition { .. } => "partition",
         ShellError::WallClearance { .. } => "wall_clearance",
-        ShellError::ChartSpansSolids { .. } => "chart_spans_solids",
         ShellError::ChartSenseMixed { .. } => "chart_sense_mixed",
         ShellError::Face { .. } => "face",
         ShellError::OpenFaceStale { .. } => "open_face_stale",
