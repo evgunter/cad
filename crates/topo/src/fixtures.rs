@@ -207,6 +207,19 @@ pub(crate) fn deep_snapshot(body: &Body<f64>) -> Vec<String> {
     lines
 }
 
+/// Runs `op` on `body`, asserts it fails with exactly `expected`, and
+/// asserts the body is untouched to the [`deep_snapshot`].
+pub(crate) fn assert_err_deep_unchanged(
+    body: &mut Body<f64>,
+    expected: &crate::euler::EulerOpError,
+    op: impl FnOnce(&mut Body<f64>) -> crate::euler::EulerOpError,
+) {
+    let before = deep_snapshot(body);
+    let err = op(body);
+    assert_eq!(&err, expected);
+    assert_eq!(deep_snapshot(body), before, "body changed on Err");
+}
+
 /// A distinct-per-index placeholder coordinate (`u32` round trip keeps
 /// the cast lossless; fixture sizes are tiny).
 fn index_coord(i: usize) -> f64 {

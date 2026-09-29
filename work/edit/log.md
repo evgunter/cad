@@ -1047,3 +1047,34 @@ track budgets, spec notes under `docs/doc-ledger/`.
 - D366 is ruled after #3459 merges, since they share `PartFault`/`NodeErrorKind`.
 - 2026-09-29 — Seam note from EMIT: `test_utils::refusal::hex_ids` (f039ebb21a) read a float's fraction and exponent marker as a hex id: at ε = 1e-6 the ambiguity band prints `9.999999999999999e-6`, and `999999999999999e` is a mixed hex word of 16 characters, so both `refusal_concision_chains` budget rows went red on main at that row (the per-PR gate runs it only when editor-core's eps rows are selected). Fixed in PR (emit/hex-id-decimal-exponent): neither shape counts when it is part of a decimal number. (EMIT orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `editor-core/src/assembly.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+
+## 2026-09-29 — sixteenth sitting: part-root, standing and D366 merged; the placement question narrowed to one
+
+**Merged.** Each had a single Opus FULL review and a fix pass unless noted.
+- **Part-root refusal (#3459).**
+  - The review was NOT-MERGEABLE with two MAJORs in the viewer's traceback: a mate line inside a part named no file, and the file-name prefix pushed 33 roster refusals over budget.
+  - The fix pass added one kernel chain iterator (`carried_chain`), which the viewer, Python and the tests all read, and drew the file name as a label, never as words inside the line.
+  - It also made the placer carry only on the fold path, and narrowed the hex admissions to exact spans with a staleness check.
+- **One node standing (#3463, C6's "no usable value" member).**
+  - The review was APPROVE-WITH-FIXES. The fix pass found the missed `checks.rs` door, made the census see aliased imports, made blend and flush report the standing, and split `NotEvaluated` from `NotInDocument` with every door's tag word kept.
+  - The standing-ladder row closed with it; C6 stays open for `SegTag`.
+- **D366 (#3465 claim, #3469 unit).**
+  - Adds a fieldless `NodeErrorClass` (101 classes over 71 arms) reached through `class()`, following the `ProductErrorKind` precedent with no macro.
+  - `node_error_tag` reads the class, and all 101 words are pinned against main. Each word has one home.
+  - `ALL` and the published-words row are declared from one list, so an omission is a compile error.
+  - The first reviewer was lost to a container restart around 14:20. Its pushed-late probe was resumed by a second reviewer.
+- **Part/product refusals, claimed (#3470).** Three rows filed today are one seam, and the unit is `#3482`, in review.
+
+**`[ev]` #3441 (placement).**
+- Ev leaned (a) with a "copy gauge then mate" shortcut (one compound edit) and ruled that deleting a gauge is not refused.
+- Ev asked whether a group nothing places can be shown without a jump, with the display location never entering the logic.
+- A third designer pair (row 17) agreed on the display side: G3's probe, widened to a group, holds it where it was last shown.
+- The pair crossed on the logic, so the PR puts one question to Ev: a default pose (total evaluation, where the jump reaches the file) or refuse (an unplaced state).
+- The comment Ev posted during the restart was answered late, and the PR says so.
+
+**Housekeeping.**
+- The container restart lost one review; its worktree's unpushed commits were recovered and pushed.
+- Filed today:
+  - `part-unresolved-refusal-draws-the-workspaces-stage-prefix`;
+  - the two LIB tag rows (`mate-frame-tag-says-degenerate-for-every-frame-fault`, `part-unresolved-names-two-facts`);
+  - `binding-drops-a-standings-through-at-three-refusals`.

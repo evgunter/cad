@@ -3429,7 +3429,7 @@ mod tests {
 #[cfg(test)]
 mod properties_pane_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
-    #![allow(clippy::expect_used)]
+    #![allow(clippy::expect_used, clippy::panic)]
 
     use eframe::egui;
     use pncad::document::{Axis3, ParamName, RecipeNodeId, SlotId};
@@ -3729,6 +3729,24 @@ mod properties_pane_tests {
             self.frame(Vec::new());
         }
 
+        /// One quiet frame, with where each run landed and the clip
+        /// it was painted under.
+        fn landed(&mut self) -> Vec<crate::pane::headless::Landed> {
+            self.frame(vec![egui::Event::PointerMoved(Self::ELSEWHERE)]);
+            self.time += 1.0;
+            let time = Some(self.time);
+            let Self {
+                ctx, app, frame, ..
+            } = self;
+            app_frame(
+                ctx,
+                app,
+                frame,
+                time,
+                vec![egui::Event::PointerMoved(Self::ELSEWHERE)],
+            )
+        }
+
         /// One slot's row, as the document now holds it.
         fn row(&self, node: RecipeNodeId, slot: SlotId) -> crate::props::SlotRow {
             crate::props::slot_rows(self.app.session.doc(), node)
@@ -3890,6 +3908,94 @@ mod properties_pane_tests {
             status(&pane),
             None,
             "the pick pushed nothing the op refused"
+        );
+    }
+
+    /// **A driven slot's row stays inside the Properties pane however
+    /// long its expression** — drawn by the real `slot_group_ui`. The
+    /// field shows the value, and the source is said under the row,
+    /// wrapped inside the pane.
+    #[test]
+    fn a_long_driven_source_stays_inside_the_properties_pane() {
+        let source = vec!["1 mm"; 40].join(" + ");
+        let mut pane = Driven::with(vec![
+            SessionOp::SetSlotExpression {
+                node: EXTRUDE,
+                slot: SlotId::Distance,
+                text: source.clone(),
+            },
+            SessionOp::Select(Selection::Node(EXTRUDE)),
+        ]);
+        let row = pane.row(EXTRUDE, SlotId::Distance);
+        assert_eq!(row.source.as_deref(), Some(source.as_str()));
+        let field = crate::props::field_text(&row);
+        assert_eq!(field, "= 0.04 m");
+        let quoted = format!("{} = {source}", SlotId::Distance.label());
+        let landed = pane.landed();
+        for text in [field.as_str(), quoted.as_str()] {
+            let run = landed
+                .iter()
+                .find(|landed| landed.text == text)
+                .unwrap_or_else(|| panic!("`{text}` was never painted"));
+            for line in &run.rows {
+                assert!(
+                    line.right() <= run.clip.right() + crate::pane::headless::SLACK,
+                    "`{text}` ends {} points past the pane",
+                    line.right() - run.clip.right()
+                );
+            }
+        }
+        assert!(
+            !landed.iter().any(|landed| landed.text == source),
+            "the source is not the field's text"
+        );
+    }
+
+    /// **Each component of a driven vector opens its edit on its OWN
+    /// source**, and clicking away from it writes nothing.
+    #[test]
+    fn each_driven_vector_component_edits_its_own_source() {
+        let axes = [Axis3::X, Axis3::Y, Axis3::Z];
+        let sources = ["1 mm + 1 mm", "2 mm + 1 mm", "3 mm + 1 mm"];
+        let mut ops: Vec<SessionOp> = axes
+            .iter()
+            .zip(sources)
+            .map(|(axis, source)| SessionOp::SetSlotExpression {
+                node: FRAME,
+                slot: SlotId::Origin(*axis),
+                text: source.to_owned(),
+            })
+            .collect();
+        ops.push(SessionOp::Select(Selection::Node(FRAME)));
+        let mut pane = Driven::with(ops);
+        let history = pane.app.session.history().len();
+        for (axis, source) in axes.iter().zip(sources) {
+            let shown = crate::props::field_text(&pane.row(FRAME, SlotId::Origin(*axis)));
+            pane.click(&shown);
+            let open = pane.frame(Vec::new());
+            assert!(
+                open.iter().any(|(run, _)| run == source),
+                "the {axis:?} field's edit opens on `{source}`: {open:?}"
+            );
+            for other in sources.iter().filter(|other| **other != source) {
+                assert!(
+                    !open.iter().any(|(run, _)| run == other),
+                    "and not on `{other}`"
+                );
+            }
+            let away = |pressed| egui::Event::PointerButton {
+                pos: Driven::ELSEWHERE,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            pane.frame(vec![away(true), away(false)]);
+            pane.quiet();
+        }
+        assert_eq!(
+            pane.app.session.history().len(),
+            history,
+            "clicking into each field and away wrote nothing"
         );
     }
 

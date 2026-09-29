@@ -20,6 +20,7 @@
 //! dropped, and at `f64` the identity.
 
 mod anchor;
+mod class;
 pub mod measure;
 mod memo;
 pub(crate) mod parts;
@@ -38,6 +39,7 @@ pub(crate) use anchor::derive_naming;
 pub use anchor::{
     CanonicalSegment, LoopAnchor, PiecesFault, ProfileNaming, ProfilePieces, ProfileValue,
 };
+pub use class::NodeErrorClass;
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 

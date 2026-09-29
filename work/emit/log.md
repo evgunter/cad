@@ -1059,3 +1059,21 @@ unattributed drift. The gating row stores measured values.
 **Closed with it:** the loft-sections row. #3223 had already resolved
 it, and this PR pins it.
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `editor-core/src/names/emit.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+
+## 2026-09-29 — the fold-contact P0 was already fixed (PR 3476)
+
+A first-parent bisect puts the fix at CONTACT-8 (#3377).
+
+**The defect:** an area-overlap declared pair was left unmerged inside
+the accumulation, and the next step's census refused it. The refusal
+was reported as a fold-minted contact verdict.
+
+**This PR:** adds no code change. It adds per-order outcome rows for
+three fixtures.
+
+**Still open:** `SeamVertexParentage` is live in 2/6, 8/24 and 18/24
+orders across those fixtures. It is WIRE's chord-rule row.
+
+**Also found on the way:** EDIT's new hex-id check in test-utils read
+a float's exponent as an id, which turned main red at ε = 1e-6. EMIT
+fixed it in #3466, with a seam note to EDIT.
