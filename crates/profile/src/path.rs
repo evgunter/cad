@@ -2589,8 +2589,11 @@ impl<T: Decide> Core<T> {
     /// for it, or else the current step's leg — and a pending run out
     /// competes for it when the segment rides the fillet's arrival
     /// carrier, since that segment is the fillet's run out whichever
-    /// step draws it. A segment named before (a closing segment re-set)
-    /// keeps its earlier name where that one outranks.
+    /// step draws it. An unclaimed emission of the fillet's OWN step —
+    /// a fused verb's authored arrival arc — is its run out by
+    /// construction, since a fused verb draws no leg, and is not asked
+    /// the geometric question. A segment named before (a closing
+    /// segment re-set) keeps its earlier name where that one outranks.
     fn attribute(
         &mut self,
         segment: usize,
@@ -2611,7 +2614,7 @@ impl<T: Decide> Core<T> {
         let run_out = self.run_out.take();
         if best.role != PieceRole::Arc
             && let Some(run) = run_out
-            && run.rides(kind, from, to, bulge)?
+            && ((claimed.is_none() && run.step == best.step) || run.rides(kind, from, to, bulge)?)
         {
             let candidate = Piece {
                 step: run.step,
