@@ -352,15 +352,10 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     use topo::{Body, FaceKey, FaceSurface};
 
     fn poison(body: &mut Body<f64>, which: usize, surface: Surface<f64>) -> FaceKey {
-        let fk = body.faces().nth(which).expect("a face at that index").0;
-        body.set_face_surface(
-            fk,
-            FaceSurface::New {
-                surface,
-                sense: true,
-            },
-        )
-        .expect("the surface swap is accepted");
+        let (fk, face) = body.faces().nth(which).expect("a face at that index");
+        let sense = face.sense;
+        body.set_face_surface(fk, FaceSurface::New { surface, sense })
+            .expect("the surface swap is accepted");
         fk
     }
     // Two surfaces a washer's face cannot be. Both refuse INSIDE a

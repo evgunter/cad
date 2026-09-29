@@ -275,18 +275,10 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
         let mut after = body.clone();
         let faces: Vec<FaceKey> = after.faces().map(|(k, _)| k).collect();
         for fk in faces {
-            let surface = after
-                .get_surface(after.get_face(fk).unwrap().surface)
-                .unwrap()
-                .clone();
+            let face = after.get_face(fk).unwrap();
+            let (surface, sense) = (after.get_surface(face.surface).unwrap().clone(), face.sense);
             after
-                .set_face_surface(
-                    fk,
-                    FaceSurface::New {
-                        surface,
-                        sense: true,
-                    },
-                )
+                .set_face_surface(fk, FaceSurface::New { surface, sense })
                 .expect("the same surface under a new key attaches");
         }
         // The setter drops a face's pcurve rows when it cannot see the
@@ -349,20 +341,12 @@ fn a_rekey_keeps_a_spline_faces_rows_and_drops_an_analytic_faces() {
                 // one) has nothing to carry either way.
                 continue;
             }
-            let surface = body
-                .get_surface(body.get_face(fk).unwrap().surface)
-                .unwrap()
-                .clone();
+            let face = body.get_face(fk).unwrap();
+            let (surface, sense) = (body.get_surface(face.surface).unwrap().clone(), face.sense);
             let spline = matches!(surface, Surface::Nurbs(_) | Surface::Approx(_));
             let mut after = body.clone();
             after
-                .set_face_surface(
-                    fk,
-                    FaceSurface::New {
-                        surface,
-                        sense: true,
-                    },
-                )
+                .set_face_surface(fk, FaceSurface::New { surface, sense })
                 .expect("the same surface under a new key attaches");
             if spline {
                 assert_eq!(

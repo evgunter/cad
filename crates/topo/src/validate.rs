@@ -10736,11 +10736,12 @@ mod tests {
         );
         for (name, b) in [("nested", &body), ("inverted", &inverted)] {
             let mut c = b.clone();
+            let sense = c.get_face(face).unwrap().sense;
             c.set_face_surface(
                 face,
                 crate::FaceSurface::New {
                     surface: geom::Surface::nurbs_placeholder(),
-                    sense: true,
+                    sense,
                 },
             )
             .unwrap();
