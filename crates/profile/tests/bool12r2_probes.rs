@@ -182,7 +182,10 @@ fn r2_the_new_keys_inherit_the_junction_escalation_template() {
     );
     // FIXED: the inherited junction template is gone and the recourse
     // is the authored-data one.
-    assert!(!msg.starts_with("path junction classification"), "{msg}");
+    assert!(
+        !msg.starts_with("whether the path turns at this junction"),
+        "{msg}"
+    );
     assert!(!msg.contains("declare the coincidence"), "{msg}");
     assert!(msg.contains("the declaration is the target"), "{msg}");
     // The DEFINITE arm, for contrast: it composes its own recourse.

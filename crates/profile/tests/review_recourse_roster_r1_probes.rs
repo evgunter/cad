@@ -111,7 +111,13 @@ fn every_routed_name_renders_the_sentence_its_own_layer_owns() {
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     for name in test_utils::source::predicate_census(&src, profile_carriers()).names {
         let name: &'static str = Box::leak(name.into_boxed_str());
-        let routed = !rendered(name).starts_with("escalated at the path door:");
+        // The door's own fall-through: a listed name opens with what
+        // its margin measures, an unlisted one with the door.
+        let text = rendered(name);
+        let fall_through = text.starts_with("a decision the path door takes")
+            || profile::shared_clause_only(name)
+                .is_some_and(|w| text.starts_with(&format!("{w}, which is too close to call:")));
+        let routed = !fall_through;
         assert_eq!(
             routed,
             paired.contains(name),

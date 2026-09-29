@@ -72,7 +72,10 @@ fn r1_the_seam_arrival_escalation_inherits_the_junction_tail() {
         "{err:?}"
     );
     // The two halves of the inherited template are GONE.
-    assert!(!msg.contains("path junction classification"), "{msg}");
+    assert!(
+        !msg.contains("whether the path turns at this junction"),
+        "{msg}"
+    );
     assert!(!msg.contains("declare the coincidence"), "{msg}");
     // And the composed recourse points the right way: the declaration
     // is already made, and a LARGER tolerance is what admits the miss.

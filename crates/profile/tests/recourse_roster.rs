@@ -173,7 +173,7 @@ fn every_decided_name_is_routed_or_listed_with_its_reason() {
 /// **A name no arm carries and `src` has not listed renders the gap
 /// sentence — and no category.**
 ///
-/// "path junction classification" is a claim about the two junction
+/// "whether the path turns at this junction" is a claim about the two junction
 /// keys. This row constructs an escalation under a name the crate does
 /// not decide and reads what comes back: the hole, named, and no label
 /// over it.
@@ -191,7 +191,7 @@ fn an_unknown_name_names_the_hole_and_asserts_nothing() {
         "the refusal names the hole: {text}"
     );
     assert!(
-        !text.contains("path junction classification"),
+        !text.contains("whether the path turns at this junction"),
         "the refusal asserts a category over a name nothing classified: {text}"
     );
     assert!(
@@ -202,7 +202,7 @@ fn an_unknown_name_names_the_hole_and_asserts_nothing() {
     // they keep it.
     for key in ["path_junction_turn", "path_junction_side"] {
         assert!(
-            rendered(key).starts_with("path junction classification:"),
+            rendered(key).starts_with("whether the path turns at this junction"),
             "the junction keys keep their label: {}",
             rendered(key)
         );

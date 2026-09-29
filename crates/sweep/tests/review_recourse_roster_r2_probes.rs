@@ -71,7 +71,7 @@ fn the_two_doors_render_one_gap_sentence_for_one_unknown_name() {
             );
         }
         assert!(
-            !path.contains("path junction classification"),
+            !path.contains("whether the path turns at this junction"),
             "no category over an unknown name: {path}"
         );
         // Both doors say what was too close to call before the
@@ -126,7 +126,7 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
         );
         assert!(text.contains(COINCIDENCE_RECOURSE), "{text}");
         assert!(
-            !text.contains("no recourse is recorded") && !text.contains("junction classification"),
+            !text.contains("no recourse is recorded") && !text.contains("turns at this junction"),
             "neither a gap sentence nor a category: {text}"
         );
         assert_eq!(text.contains(NOTE), noted, "{text}");
