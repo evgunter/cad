@@ -1203,3 +1203,11 @@ class of 65 sites is PRED's row.
   - "zero at this tolerance";
   - `lean()` reads only decided signs;
   - `recourse` unit tests.
+- 2026-09-29 — PR 3390 merged (`719ef596a1`, head `a8f2106e3e`, hosted green). Row `checks-escalated-evidence-…` closed.
+  - **Style review:** REQUEST-CHANGES (C1: the shell volume sign is a sized decision under D4 ¶1 (i)).
+  - **Fix round 1:** routed through `SizedDecision` with `SizedPass::NonZero`; ending on the Display.
+  - **Delta re-review:** the straddle is ε-decided; "zero at this tolerance"; lean only on decided signs.
+  - **Fix round 2:** all taken, and merged with 3392.
+  - **Filed:** `checks-void-side-shell-escalation-has-no-live-fixture` (P3/E).
+  - Seam notes posted.
+- 2026-09-29 — PR 3398 (validate own-close) opened. CI was red on the payload-rung gate (`WedgeCheck`); fixed (argued non-carriage, and a LIB row filed). Full review running.

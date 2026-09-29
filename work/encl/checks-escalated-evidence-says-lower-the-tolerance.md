@@ -2,11 +2,12 @@
 id: checks-escalated-evidence-says-lower-the-tolerance
 kind: issue
 title: editor-core: the checks window's Escalated evidence says 'lower the tolerance' with no decision behind it
-status: review
+status: closed
 pr: 3390
 opened: 2026-09-28
 priority: P3
 cost: E
+closed: 2026-09-29
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)
