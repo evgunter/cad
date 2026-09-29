@@ -2,13 +2,14 @@
 id: live-guard-proves-ordering-not-identity
 kind: issue
 title: the Live guard compares the spelling of the key looked up, not the key
-status: open
+status: dispatched
 opened: 2026-09-05
 refs: [D50]
 track: P
 priority: P3
 cost: M
-design: true
+design: false
+branch: origin/live-guard-nested-items
 ---
 
 ## What

@@ -141,3 +141,20 @@ stamping path went red on the old keying); false "0 for a plain
 Transform" docs; the sphere token's meaning stated; one home for the
 three per-surface side tables. Residues filed at adjudication (PR
 3420). Seam note on WIRE's log; the WIRE row's fired trigger pruned.
+
+## 2026-09-29 — Live guard dispatched; the rest waits on Ev
+
+`live-guard-proves-ordering-not-identity` → implementer on
+`origin/live-guard-nested-items`. The scan question decided here (it
+binds no ratified text): the item scan recurses into nested items, each
+nested fn a row under its own name, and the two mutation-door guards
+take the larger population, every new member dispositioned; the
+receiver-identity gap is the validator's, stated at the guard. Tier:
+single STYLE review — a scan change a reader can believe, with its
+population diff in the body.
+
+Everything else on the slate hangs on Ev's two open PRs: PR 3412
+(re-rule "a chart lives in one solid" → the scoped-grouping unit) and
+PR 3410 (a production comparator or not → `surface-field-walks-…`,
+the rest of `three-spellings-…`, `set-surface-source-…`). The axis
+residues are P2/P3 design rows with no consumer yet.
