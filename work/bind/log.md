@@ -13,3 +13,4 @@ components that can be worked on in parallel."*
 unchanged. LIB keeps its band 300-399; band 9600-9699 is claimed
 for this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched.
+- 2026-09-29 — Seam note from ENCL: PR 3390 (merged `719ef596a1`). The shell volume-sign decision is sized (`geom_brep::recourse::SizedPass::NonZero`, the offer valued at |m|/K). `ShellClassifyError` gains a `Straddles` arm and a `payload()` data view, and its `Display` ends in its decision's one ending. `recourse::UNREADABLE_MARGIN_NOTE` is the shared unreadable-margin sentence. pncad-py `py/checks.rs`: the `straddles` tag. (ENCL orchestrator)
