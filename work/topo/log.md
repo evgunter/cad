@@ -2702,3 +2702,29 @@ frozen `15a78f05fa`.
 - R1 builds on `topo-rebase-target` (warm on this head) and R2 on
   `topo-mefkefr2-target` (warm on topo at another head). Only the
   warmth differs, not the method.
+
+## PR 3483's fix pass delivered; the item closes on the branch (2026-09-29)
+
+The fix pass took 359,967 tokens, 181 tools and 90 min (harness).
+Head `c50e167deb` passed `gate ok` on run 36625875091.
+
+The orchestrator read the diff:
+- `Body::require_kill_anchors` proves each `(vertex, anchor, origin)`
+  write:
+  - `Some` goes through `require_orbit_starts_at`;
+  - `None` needs no live half-edge outside the killed set starting at
+    the vertex.
+- The `None` proof is an arena scan, not the orbit walk the brief
+  suggested, because the walk's first step is the torn step itself.
+  That deviation is reasoned and right. Its cost matches the kills'
+  existing deterministic full-arena orphan reap.
+- `kev_plan`'s arms each prove their own anchor, so the reorder no
+  longer rests on `mate(m) == he`. The mate's own-edge gap is filed
+  (P3).
+- The widened probe runs 856k calls per cell. At head, both vertex
+  columns are 0 for every op and every tear kind. The reviewer's own
+  search is also 0 across six tear kinds.
+- All 21 mutants go red, and M10/M12 are closed.
+
+The item closes on the branch. Merge after CI on the closing head.
+Single tier, so there is no DR row.
