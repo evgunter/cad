@@ -4103,7 +4103,7 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let invalid = |predicate| Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
+        margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some(predicate),
     };

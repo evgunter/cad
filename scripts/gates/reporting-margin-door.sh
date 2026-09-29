@@ -60,6 +60,7 @@ DOOR_RE='diagnostic_f64_for_error_text'
 MINT_ALLOWLIST=(
   'crates/geom-core/src/interval.rs 1 the interval classifier reports the enclosure it classified'
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
+  'crates/topo/src/boolean/sectors.rs 1 a bisector read On between definite bounds reports what is known of it, the zero band'
   'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'
   'crates/topo/src/test_support_samples.rs 8 the refusal samples the coverage rows render'
 )
