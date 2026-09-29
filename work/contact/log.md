@@ -597,6 +597,22 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 
+## 2026-09-28 — CONTACT-7 fix pass in; delta review on the deleted readings
+
+- **The fix pass (`fab37e456`)** answers the dual's union:
+  - the behind-`p` edge skip, with the comb and channel rows and a
+    927-pose sweep (head equals base, 18 named false refusals);
+  - rows killing mutants (a), (c) and (d);
+  - a structural lever guard (`mod metric`, a private `Distance`);
+  - every style item;
+  - the Python suite, 857/857.
+- **Three readings were DELETED with proofs rather than pinned:** (b)
+  and (e), the face-corner reading, and (f), the co-convex guard on the
+  complement test. (f) can only admit more Rests, on the door every
+  consumer reads as proof, so a single delta review checks the proofs
+  by construction and by attack before landing.
+- **Needed before landing:** one more merge of main (59 commits,
+  15 touching `topo` or `geom-brep`).
 ## 2026-09-28 — CONTACT-8 lands
 
 - **The second fix pass**, for the four red `editor-core` rows. The
@@ -612,5 +628,83 @@ Signed: (CONTACT orchestrator)
   (P3).
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-8 landed (#3377); CONTACT-7 lands
+
+- **CONTACT-8** merged as `e056f1aff`. Hosted CI's Python suite caught
+  two north-star rows no Rust run covers. The fix gave the merge a
+  survivor rule: a plug kept as survivor had put itself on both sides
+  of its own rim. The orchestrator ran `topo` + `sweep` at 1e-6 and
+  1e-12 locally before merging (3,303 of 3,303 at each), because the
+  hosted `test` job's tolerances could not be confirmed.
+- **CONTACT-7 lands** with **DR-17**: no tally candidate, the one MAJOR
+  bilateral. The found-a-MAJOR count goes to 7 (DR-15 and DR-16 are GERM's).
+  Recorded under protocol `cb47d67c4`; dispatched under `c3129311b`,
+  whose only difference is rule 9's readout point.
+- **Process notes.**
+  - The lane stopped its own queued job script to yield the build slot,
+    by reading the slot's holder PID and killing that PID's parent. It
+    was its own process, but that is outside "kill only PIDs you
+    recorded"; briefs should say how to yield.
+  - Hosted CI now runs a single `test` job whose tolerance coverage is
+    not visible in its log. Check before relying on it for a
+    tolerance-sensitive change.
+
+Signed: (CONTACT orchestrator)
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/contact/contact-near-boundary-endings-say-lower-the-tolerance.md`. (ENCL orchestrator)
+
+## 2026-09-28 — PR 3383 (CONTACT-7) blocked by a red on main
+
+- **Hosted CI on #3383:**
+  - rustfmt drift, fixed in `f353ae8a4`;
+  - `geom-core`'s copysign census (`sym_rule_f_rows`), red on MAIN
+    itself. GERM's `section_cert.rs:824` (`T::one().copysign(delta)`,
+    `5ff0efd84`) is unregistered.
+- CONTACT-7's own `copysign` (`candidate_plane`) was never counted: it
+  sat below `census.rs`'s first `#[cfg(test)]`, where the census cuts.
+  The lane removed it anyway (`77caac41d`), taking the frame from the
+  On face, and the doors row now bans `copysign` and `abs(`.
+- **Filed** for GERM in a tracker-only PR (#3394), so it reaches them
+  now. #3383 stays unmerged until the fix exists, and then it is ported.
+- **The local combined run** (CONTACT-7 with CONTACT-8, the four crates)
+  passed 5,701/5,701.
+- **Process note:** the copysign register cuts each file at its first
+  `#[cfg(test)]`, so a shipped site below a mid-file test module is
+  invisible to it. That is a gap in the register, noted in the GERM row.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-9 traced: no wrong answer, false kernel-bug refusals
+
+- The boolean and splitting side codes, traced site by site. Every
+  levered Zero taken as a verdict either leaves the topology unchanged
+  or is caught at the join. A parity argument says a misread vertex
+  always leaves an unpaired section end, which holds for
+  `CAD_AMBIGUITY_K ≥ 2` (default 10).
+- **So there is no wrong answer, but the refusals are false.** Ordinary
+  geometry (a 1 mm edge dipping 50ε or more) refuses
+  `Join(UnpairedLooseEnds)` with "(kernel bug)".
+- **Ruled a failure.** The lane proceeds to step 3: line chords are
+  read at their far vertex in metres, as the splitting lane already
+  does; the K precondition is stated or removed. Single full review
+  after.
+
+Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `census.rs` `WitnessTooClose` drops ', or lower the tolerance'. Filed: `contain-escalation-carries-no-decision` (includes `ContainError::RayExhausted`'s own Display). (ENCL orchestrator)
+
+## 2026-09-29 — CONTACT-9 lands
+
+- A single full review of `9f414db16` asked for changes. There were no
+  wrong answers, but there was one MAJOR: the `pair_search` gate I
+  approved turned a corner near-coincidence's typed
+  `UndeclaredCoincidence` into an odd-germ invariant refusal. There
+  were also three unpinned changes, and a volume floor that went red
+  at ε values CI does not run.
+- The fix pass (`4063ed0a1`) root-caused the MAJOR: a pair parallel at
+  its shorter arm always has an On bound, so it stays a coincidence.
+  It pinned each change with a row and recalibrated the floor to
+  1e-12 m³, with a corner oracle below it. It filed the residues.
+- I read the fix pass and adjudicated every finding. Landing as
+  `contact/land-9`.
+
+Signed: (CONTACT orchestrator)
