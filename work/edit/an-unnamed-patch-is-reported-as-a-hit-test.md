@@ -2,7 +2,7 @@
 id: an-unnamed-patch-is-reported-as-a-hit-test
 kind: issue
 title: patch_names reports a patch with no name through HitTestError, so the sentence names a hit test that did not happen
-status: spec
+status: review
 branch: edit/unnamed-patch-is-a-lookup
 opened: 2026-09-25
 priority: P4
@@ -56,3 +56,24 @@ readers (`idpass.rs`'s `IdAnswer` and `pickindex.rs`'s
 `EdgeNameFault`) forward it unchanged: an announced crossing onto
 VGEOM's ground. One `Display` pin per new sentence goes in the F6
 census.
+
+## Built (2026-09-29)
+
+`UnnamedEntity` (`crates/editor-core/src/resolve/hit.rs`) is the name
+lookup's one refusal: the `Unnamed` fields, a `Display` that opens
+*"name lookup:"* and names no hit test. `NodePick::patch_names` and
+`boundary_names` answer `Vec<Result<StableName, UnnamedEntity>>`; the
+node's standing is settled once for the call (`standing`, the one
+ladder every door of `hit.rs` and `pick.rs` now climbs), so the
+per-entity lane holds exactly that. `HitTestError::Unnamed` carries
+the same value and forwards its sentence under *"hit test:"*, the one
+door where that prefix is true. The viewer readers (`IdAnswer::Unnamed`,
+`WindowFault::Unnamed`, `EdgeNameFault::Unnamed`, `PickIndex::name_of`)
+carry `UnnamedEntity` and forward it unchanged; the edge pick's unnamed
+edge is `PickError::EdgeName`, not a `HitTestError`. The façade carries
+the type; the Python slot value crosses as the `unnamed` arm of
+`HitTestError` (`work/lib/the-unnamed-slot-crosses-as-a-hit-test-error`).
+Premise corrected: the lane held the standing arms too, for a later
+evaluation in which the node failed; that refusal is now of the call.
+Sibling left: `the-standing-ladder-speaks-as-a-hit-test-at-every-door`.
+
