@@ -2602,3 +2602,32 @@ Dispatched: **`kill-ops-anchor-emanating-on-an-unproven-next-mate-step`**
 - It builds on the target the merged unit left warm.
 
 Two lanes are live: this one and PR 3467's re-aim.
+
+## The kill-ops anchor unit delivered as PR 3483; its single review out (2026-09-29)
+
+PR 3483 is green at `d9465eb31e` (277,361 tokens, 163 tools, 48 min,
+harness).
+- `kef`, `kemr` and `kev` (both doors) prove each `emanating` anchor
+  in their plans through `require_orbit_starts_at`, called on a
+  one-member slice. `kev`'s `KevPlan` carries the anchor.
+- The item's three counterexamples are rows, red on the base both
+  ways (`Ok` with debug assertions off, the postcondition panic in
+  dev).
+- The over-refusal row covers `review_d18::FIXTURES`.
+- An `#[ignore]` measurement row takes "`Ok`, anchor off" to 0 for
+  all three ops.
+
+Filed:
+- `kill-ops-loop-anchor-on-an-unproven-next-step` (P2, measured):
+  the same ops' loop-first writes.
+- `revert-anchors-trust-a-torn-next-or-prev` (P3, by reading).
+
+Disclosed outside the PR: a stray grep printed one line of the
+dual-review log. It was not acted on, and the protocol it would
+contaminate is not live here. The lane also found release-profile
+clippy dead-code errors in `crates/topo/tests/loop_reparenting_pcurve_rows.rs`,
+which predate the PR; CI never lints release, so they are noted, not
+filed.
+
+Tier SINGLE, full: one Opus reviewer is on the frozen head, on the
+lane's warm target.
