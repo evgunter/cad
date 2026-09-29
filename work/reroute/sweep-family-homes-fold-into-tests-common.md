@@ -11,7 +11,7 @@ refs: [sweep-family-homes-sit-outside-the-tests-common-routing-list, sweep-suite
 
 **The ruling this routes onto.** S-DUP asked it as the design fork
 `sweep-family-homes-sit-outside-the-tests-common-routing-list` (PR 3385,
-row 7 of `docs/DESIGN-FORK-LOG.md`). Ev accepted the two designers'
+row 8 of `docs/DESIGN-FORK-LOG.md`). Ev accepted the two designers'
 shared recommendation on 2026-09-29 (*"yep"*): **no family homes.** The
 full question and both reports are in PR 3385.
 

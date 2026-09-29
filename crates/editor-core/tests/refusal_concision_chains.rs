@@ -277,15 +277,16 @@ fn every_node_refusal_renders_within_the_budget() {
 /// repair would name nothing the user supplied, and those rows end in
 /// the kernel-defect ending instead.
 ///
-/// `Meter/Escalated` routes its ending by the meter that escalated and
-/// by whether the margin was a number at all; each route's row ends in
-/// its own repair, never the coincidence menu (a face's meter has
-/// nothing to declare).
+/// Every meter refusal ends in its decision's one recourse for its
+/// verdict ([`meter_escalations`], [`meter_verdicts`]), never the
+/// coincidence menu (a face's meter has nothing to declare), and never
+/// advises lowering the tolerance.
 #[test]
 fn every_offset_fit_refusal_ends_exactly_once() {
     let rows = offset_fit_routes();
     assert!(!rows.is_empty(), "the offset-fit roster is empty");
     let routed = meter_escalations();
+    let verdicts = meter_verdicts();
     let mut pinned = 0;
     for (name, kind) in rows {
         let text = as_the_viewer_shows_it(kind);
@@ -298,17 +299,27 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             !text.contains(geom_core::COINCIDENCE_RECOURSE),
             "{name}: {text}"
         );
-        if let Some((_, _, ending)) = routed
-            .iter()
-            .find(|(route, _, _)| name.ends_with(&format!("/Meter/Escalated/{route}")))
-        {
-            assert!(text.ends_with(ending), "{name}: {text}");
-            pinned += 1;
-        }
         let arm = name
             .strip_prefix("Shell/Face/Fit/")
             .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
             .expect("every offset-fit row is on one of the two routes");
+        let ending = routed
+            .iter()
+            .find(|(route, _, _)| arm == format!("Meter/Escalated/{route}"))
+            .map(|(_, _, ending)| ending)
+            .or_else(|| {
+                verdicts
+                    .iter()
+                    .find(|(row, _)| arm == *row)
+                    .map(|(_, ending)| ending)
+            });
+        if let Some(ending) = ending {
+            assert!(text.ends_with(&format!(". {ending}")), "{name}: {text}");
+            pinned += 1;
+        }
+        if arm.starts_with("Meter/") {
+            assert!(!text.contains("lower"), "{name}: {text}");
+        }
         if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
             assert!(
                 text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
@@ -316,8 +327,12 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             );
         }
     }
-    // Both routes raise `Meter`, so every routed ending has two rows.
-    assert_eq!(pinned, 2 * routed.len(), "a routed meter row went missing");
+    // Both routes raise `Meter`, so every pinned ending has two rows.
+    assert_eq!(
+        pinned,
+        2 * (routed.len() + verdicts.len()),
+        "a pinned meter row went missing"
+    );
 }
 
 /// Every `NodeErrorKind` arm, and every arm of each refusal it forwards.
@@ -923,7 +938,9 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "Certify",
             E::Certify {
                 edge: topo::EdgeKey::default(),
-                source: geom_brep::CertifyError::IntervalNotForward,
+                source: geom_brep::CertifyError::IntervalNotForward {
+                    verdict: geom_brep::recourse::Definite::Negative,
+                },
             },
         ),
         (
@@ -1007,9 +1024,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::Invalid),
-            "Recourse: move the geometry so the faces cross at a clearer angle; the margin \
-             could not be read (not a number, or a lever that collapsed), which may indicate a \
-             kernel bug worth reporting",
+            "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable or \
+             collapsed margin may indicate a kernel bug worth reporting",
         ),
         (
             "endpoint",
@@ -1071,25 +1087,29 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
     }
 }
 
-/// One `Meter/Escalated` sample per ending it routes to, with that
-/// ending: each meter's lever on an undecided margin (in band, and an
-/// enclosure too wide to classify), and the dead end on a poisoned one —
-/// on the curvature meter, whose lever it must override.
-fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, &'static str)> {
-    use geom_brep::offset_meters::{
-        CURVATURE_HEADROOM_PREDICATE as CURVATURE, MeterError, NORMAL_FLOOR_PREDICATE as FLOOR,
-    };
-    use geom_core::{Indeterminate, MarginDiag};
-    const DISTANCE: &str =
-        "Recourse: use an offset distance of smaller magnitude, or lower the tolerance";
-    const SPLIT: &str =
-        "Recourse: split the face clear of any pole, cusp or pinch, or lower the tolerance";
-    let escalated = |predicate, margin| {
+const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
+const DISTANCE: &str =
+    "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+
+/// One `Meter/Escalated` sample per ending its meter's decision gives an
+/// undecided margin (D4 ¶1), with that whole ending: each meter's lever
+/// and the tolerance below `m/K` on a positive margin in band; the lever
+/// alone on an enclosure straddling zero, which no smaller tolerance
+/// passes; and on a poisoned margin the lever and what it may mean.
+///
+/// The band is fixed rather than the run's witness band, so the quoted
+/// `m/K` is the same at every eps row.
+fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
+    use geom_brep::offset_meters::{Meter, MeterError};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+    let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
+    let escalated = |meter: Meter, margin| {
         geom_brep::OffsetFitError::Meter(MeterError::Escalated {
+            meter,
             source: Indeterminate {
                 margin,
-                band: payloads::band(),
-                predicate: Some(predicate),
+                band,
+                predicate: Some(meter.predicate()),
             },
         })
     };
@@ -1098,15 +1118,66 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, &'static
         lo: -2.0e-9,
         hi: 4.0e-9,
     };
+    let tighten = |lever: &str, size: &str| {
+        format!("{lever}, or, if this {size} is intended, tighten the tolerance below 5e-10 m")
+    };
     vec![
-        ("curvature", escalated(CURVATURE, in_band), DISTANCE),
-        ("curvature-enclosure", escalated(CURVATURE, wide), DISTANCE),
-        ("floor", escalated(FLOOR, in_band), SPLIT),
-        ("floor-enclosure", escalated(FLOOR, wide), SPLIT),
+        (
+            "curvature",
+            escalated(Meter::CurvatureHeadroom, in_band),
+            tighten(DISTANCE, "clearance"),
+        ),
+        (
+            "curvature-enclosure",
+            escalated(Meter::CurvatureHeadroom, wide),
+            DISTANCE.to_owned(),
+        ),
+        (
+            "floor",
+            escalated(Meter::NormalFloor, in_band),
+            tighten(SPLIT, "thinness"),
+        ),
+        (
+            "floor-enclosure",
+            escalated(Meter::NormalFloor, wide),
+            SPLIT.to_owned(),
+        ),
         (
             "invalid",
-            escalated(CURVATURE, MarginDiag::Invalid),
-            geom_core::KERNEL_DEFECT_ENDING,
+            escalated(Meter::CurvatureHeadroom, MarginDiag::Invalid),
+            format!(
+                "{DISTANCE}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                 reporting"
+            ),
+        ),
+    ]
+}
+
+/// The ending of each definite meter sample `topo`'s roster carries, by
+/// its row's arm: a zero verdict with a positive margin inside the zero
+/// band is band-decided and names the tolerance below `m/K`; a floor of
+/// exactly zero, which no tolerance resolves, names the lever and says a
+/// face with no degeneracy is worth reporting; a sign-certain fold names
+/// the lever alone.
+fn meter_verdicts() -> [(&'static str, String); 4] {
+    [
+        (
+            "Meter/NormalFloor",
+            format!(
+                "{SPLIT}, or, if this thinness is intended, tighten the tolerance below 5e-11 m"
+            ),
+        ),
+        (
+            "Meter/NormalFloor#2",
+            format!("{SPLIT}; if it has none, this may indicate a kernel bug worth reporting"),
+        ),
+        ("Meter/CurvatureHeadroom", DISTANCE.to_owned()),
+        (
+            "Meter/CurvatureHeadroom#2",
+            format!(
+                "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
+                 5e-11 m"
+            ),
         ),
     ]
 }
@@ -1145,8 +1216,8 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, &'static
 /// The roster is `topo`'s: every `OffsetFitError` sample
 /// `validation_error_samples` carries, which `topo`'s coverage row holds
 /// complete over the enum's variants, over `MeterError`'s and (by
-/// `strum`) over `PatchBoundError`'s. `Meter/Escalated` routes its
-/// ending by predicate and margin, so the rows add one per route
+/// `strum`) over `PatchBoundError`'s. `Meter/Escalated` ends by its
+/// meter and margin, so the rows add one per ending
 /// ([`meter_escalations`]).
 fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     use geom_brep::OffsetFitError as O;
@@ -1174,8 +1245,8 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     // `BoundNotFinite` and `Limb` each carry two samples (both
     // `LastRound` readings, both `best` cases, both limbs).
     for (arm, samples) in [
-        ("Meter/NormalFloor", 1),
-        ("Meter/CurvatureHeadroom", 1),
+        ("Meter/NormalFloor", 2),
+        ("Meter/CurvatureHeadroom", 2),
         ("Meter/Escalated", 1),
         ("PatchBound/", 7),
         ("Fit/", 1),
@@ -2926,8 +2997,137 @@ fn every_check_finding_renders_within_the_budget() {
     }
 }
 
+/// **The checks window's escalated evidence ends in the decision that
+/// escalated** (D4 ¶1 (i)). The shell-role sign passes on either
+/// definite sign and its margin is a thickness, so every band-decided
+/// arm ends in its lever plus the tolerance that decides it, valued at
+/// `|m|/K` where the verdict carries a margin and without a value where
+/// it does not (a zero, a straddle); an enclosure across zero is passed
+/// by no tolerance and names the lever alone. A source that is not that decision's
+/// ends in its own payload's recourse and no invented lever. No row the
+/// window writes itself advises lowering the tolerance.
+#[test]
+fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
+    use editor_core::{CheckEvidence, CheckFinding, CheckId};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+    use topo::{ShellClassifyError as S, ShellKey};
+    const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
+    let shell = ShellKey::default();
+    // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
+    let band = Band::new(1e-9, 1e-8).expect("a band");
+    let escalated = |margin| S::Escalated {
+        shell,
+        source: Indeterminate {
+            margin,
+            band,
+            predicate: Some("chk_shell_volume_sign"),
+        },
+    };
+    let render = |source| {
+        CheckFinding {
+            check: CheckId::Connectedness,
+            root: RecipeNodeId(4),
+            output_ix: 0,
+            evidence: CheckEvidence::Escalated { source },
+        }
+        .to_string()
+    };
+    let head = "check connectedness: root 4 output 0: the component count is unknowable: ";
+    let in_band = |m: &str| {
+        format!(
+            "{head}predicate 'chk_shell_volume_sign' indeterminate: margin {m} lies inside the \
+             ambiguity band (1e-9, 1e-8). "
+        )
+    };
+    let pinned = [
+        (
+            "in band, outer side",
+            escalated(MarginDiag::Value(5e-9)),
+            format!(
+                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
+                in_band("5e-9")
+            ),
+        ),
+        (
+            "in band, void side",
+            escalated(MarginDiag::Value(-2e-9)),
+            format!(
+                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
+                in_band("-2e-9")
+            ),
+        ),
+        (
+            "in band, bracket across zero",
+            escalated(MarginDiag::Enclosure {
+                lo: -2e-9,
+                hi: 3e-9,
+            }),
+            format!(
+                "{head}predicate 'chk_shell_volume_sign' indeterminate: enclosure [-2e-9, 3e-9] \
+                 cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
+            ),
+        ),
+        (
+            "invalid margin",
+            escalated(MarginDiag::Invalid),
+            format!(
+                "{head}predicate 'chk_shell_volume_sign' indeterminate: margin is invalid (NaN \
+                 or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
+                 unreadable or collapsed margin may indicate a kernel bug worth reporting"
+            ),
+        ),
+        (
+            "zero",
+            S::ZeroVolume { shell },
+            format!(
+                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
+                 this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
+                 tolerance"
+            ),
+        ),
+        (
+            "straddle",
+            S::Straddles { shell },
+            format!(
+                "{head}a shell's certified volume bracket straddles zero at this tolerance. \
+                 {LEVER}, or, if this thickness is intended, tighten the tolerance"
+            ),
+        ),
+    ];
+    for (name, source, want) in pinned {
+        let text = render(source.clone());
+        assert_eq!(text, want, "{name}");
+        // The payload's own Display ends in the same one ending.
+        let ending = source.ending().expect("the shell-role decision's refusal");
+        assert!(text.ends_with(&ending), "{name}: {text}");
+        let whole = source.to_string();
+        assert!(whole.ends_with(&format!(". {ending}")), "{name}: {whole}");
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&whole),
+            1,
+            "{name}: {whole}"
+        );
+    }
+    // A band failure is the run's configuration, not the shell-role
+    // decision: the finding forwards its payload and adds no lever.
+    let error = payloads::band_error();
+    let unowned = render(S::Band { error });
+    assert!(unowned.ends_with(&error.to_string()), "{unowned}");
+    assert!(!unowned.contains("thicken"), "{unowned}");
+    for (name, finding) in &check_findings() {
+        let text = finding.to_string();
+        // The separation arm forwards the Boolean's own sentence, whose
+        // coincidence ending is `geom_core::COINCIDENCE_RECOURSE`'s to
+        // repair (work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md).
+        if !name.starts_with("SeparationUnavailable/") {
+            assert!(!text.contains("lower"), "{name}: {text}");
+        }
+    }
+}
+
 fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use editor_core::{CheckEvidence as E, CheckFinding, CheckId};
+    use geom_core::{Indeterminate, MarginDiag};
     use payloads::*;
     use topo::{
         BooleanError, CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey,
@@ -2985,6 +3185,30 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 CheckId::Connectedness,
                 E::Escalated {
                     source: ShellClassifyError::ZeroVolume { shell },
+                },
+            ),
+        ),
+        (
+            "Escalated(straddle)",
+            finding(
+                CheckId::Connectedness,
+                E::Escalated {
+                    source: ShellClassifyError::Straddles { shell },
+                },
+            ),
+        ),
+        (
+            "Escalated(invalid margin)",
+            finding(
+                CheckId::Connectedness,
+                E::Escalated {
+                    source: ShellClassifyError::Escalated {
+                        shell,
+                        source: Indeterminate {
+                            margin: MarginDiag::Invalid,
+                            ..diag()
+                        },
+                    },
                 },
             ),
         ),

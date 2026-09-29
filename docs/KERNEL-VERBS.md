@@ -464,9 +464,7 @@ the table.
   D-shaped cap whose arc bows past its chord, a half-disc. A pair no
   query could place is reported (`ValidationError::RingNestingUndecided`)
   rather than read as nested — the same escalate-never-guess direction
-  the contact arms take. Why a one-circle outer loop gets no second
-  instrument (`boolean::contain::disc_side`) is argued at
-  `validate::ring_nesting`.
+  the contact arms take.
 
   **What the nesting half does NOT match, in the same shape**: any face
   on a non-planar surface, and, on a plane, a ring the walk placed at

@@ -86,4 +86,4 @@ There are no family homes. The fold and the one-tree rule are
 `work/reroute/sweep-family-homes-fold-into-tests-common.md`. The
 `tol()` copies are inlined as `Tol::witness()`, per
 `work/reroute/sweep-suites-wrap-tol-witness-in-a-private-tol.md`. The
-design-fork record is row 7 of `docs/DESIGN-FORK-LOG.md`.
+design-fork record is row 8 of `docs/DESIGN-FORK-LOG.md`.
