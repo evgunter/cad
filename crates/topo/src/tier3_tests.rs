@@ -1129,110 +1129,43 @@ fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
 }
 
 /// **The carrier poison read reads every scalar**: each scalar of each
-/// analytic kind, made NaN alone, is named by
-/// [`crate::validate::poisoned_curve_datums`] as the datum that owns
-/// it. The field map is written against the variants' fields, not read
-/// off [`geom::Curve3::data`], so a walk or a fold that skips a field
-/// leaves that field's rows green where they must be red.
+/// analytic kind ([`geom::test_support::analytic_curves`]), made NaN
+/// alone, is named by [`crate::validate::poisoned_curve_datums`] as the
+/// datum the walk ([`geom::Curve3::data`]) says owns it. The walk's
+/// scalars must be exactly the builder's, so a walk that drops a field
+/// reds on the count, and a fold that skips a datum reds on that
+/// datum's rows.
 #[test]
 fn the_carrier_poison_read_reads_every_scalar() {
     use crate::validate::poisoned_curve_datums;
-    use geom::Curve3;
-    use geom::CurveDatum as D;
-    fn pt(x: &[f64]) -> Point3<f64> {
-        Point3::new(x[0], x[1], x[2])
-    }
-    fn dir(x: &[f64]) -> Vec3<f64> {
-        Vec3::new(x[0], x[1], x[2])
-    }
-    type Kind = (
-        fn(&[f64]) -> Curve3<f64>,
-        Vec<f64>,
-        Vec<(D, core::ops::Range<usize>)>,
-    );
-    let kinds: Vec<Kind> = vec![
-        (
-            |x| Curve3::Line {
-                origin: pt(&x[0..3]),
-                dir: dir(&x[3..6]),
-            },
-            vec![1.0, 2.0, 3.0, 1.0, 0.0, 0.0],
-            vec![(D::Origin, 0..3), (D::Dir, 3..6)],
-        ),
-        (
-            |x| Curve3::Circle {
-                center: pt(&x[0..3]),
-                axis: dir(&x[3..6]),
-                radius: x[6],
-                u_ref: dir(&x[7..10]),
-            },
-            vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 2.0, 1.0, 0.0, 0.0],
-            vec![
-                (D::Center, 0..3),
-                (D::Axis, 3..6),
-                (D::Radius, 6..7),
-                (D::URef, 7..10),
-            ],
-        ),
-        (
-            |x| Curve3::Ellipse {
-                center: pt(&x[0..3]),
-                axis: dir(&x[3..6]),
-                major: x[6],
-                minor: x[7],
-                u_ref: dir(&x[8..11]),
-            },
-            vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 3.0, 1.0, 1.0, 0.0, 0.0],
-            vec![
-                (D::Center, 0..3),
-                (D::Axis, 3..6),
-                (D::Major, 6..7),
-                (D::Minor, 7..8),
-                (D::URef, 8..11),
-            ],
-        ),
-        (
-            |x| Curve3::Spiric {
-                center: pt(&x[0..3]),
-                axis: dir(&x[3..6]),
-                u_ref: dir(&x[6..9]),
-                major_radius: x[9],
-                minor_radius: x[10],
-                offset: x[11],
-            },
-            vec![1.0, 2.0, 3.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 3.0, 1.0, 0.5],
-            vec![
-                (D::Center, 0..3),
-                (D::Axis, 3..6),
-                (D::URef, 6..9),
-                (D::MajorRadius, 9..10),
-                (D::MinorRadius, 10..11),
-                (D::Offset, 11..12),
-            ],
-        ),
-    ];
-    for (build, base, fields) in kinds {
-        let at_rest = build(&base);
+    let base = geom::test_support::scalar_base();
+    for kind in geom::test_support::analytic_curves() {
+        let at_rest = (kind.build)(&base);
         assert!(
             poisoned_curve_datums(&at_rest).is_empty(),
             "{at_rest:?}: a finite carrier has no poisoned datum"
         );
+        let geom::CurveData::Analytic(data) = at_rest.data() else {
+            panic!("{at_rest:?}: an analytic kind reads as analytic data")
+        };
+        let walked: Vec<(geom::CurveDatum, f64)> = data
+            .into_iter()
+            .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+            .collect();
         assert_eq!(
-            fields.last().map(|(_, r)| r.end),
-            Some(base.len()),
-            "{at_rest:?}: the fixture's fields cover its scalars"
+            walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+            base[..kind.scalars],
+            "{at_rest:?}: the walk yields the builder's scalars, in its order"
         );
-        for (datum, scalars) in fields {
-            for i in scalars {
-                let mut poisoned = base.clone();
-                poisoned[i] = f64::NAN;
-                assert_eq!(
-                    poisoned_curve_datums(&build(&poisoned)),
-                    vec![datum],
-                    "{at_rest:?}: check 1 missed a NaN in {} (scalar {i})",
-                    datum.name()
-                );
-            }
+        for (i, &(datum, _)) in walked.iter().enumerate() {
+            let mut poisoned = base.clone();
+            poisoned[i] = f64::NAN;
+            assert_eq!(
+                poisoned_curve_datums(&(kind.build)(&poisoned)),
+                vec![datum],
+                "{at_rest:?}: check 1 missed a NaN in {} (scalar {i})",
+                datum.name()
+            );
         }
     }
 }

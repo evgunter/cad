@@ -74,6 +74,14 @@ pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
+// The variant roster the analytic-kind fixtures read
+// ([`crate::test_support`]; this crate's `test-support` feature,
+// test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(Curve3Variant), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum Curve3<T: Real> {
     /// The infinite straight line `P(t) = origin + dir·t`.
     ///
@@ -433,7 +441,10 @@ impl<T: Real> Curve3<T> {
     /// The variants are destructured without `..`, so a field a variant
     /// gains is a compile error here rather than a datum every reader
     /// silently skips; a kind that is not read as fields is a new
-    /// [`CurveData`] arm, which every reader matches exhaustively.
+    /// [`CurveData`] arm, which every reader matches exhaustively. A field
+    /// that takes a kind past the walk's width is caught later, by the
+    /// build that first instantiates the walk (`AnalyticData::new`'s
+    /// bound), which `cargo check` does not reach.
     pub fn data(&self) -> CurveData<'_, T> {
         use crate::AnalyticData;
         use crate::DatumValue::{Direction, Point, Scalar};

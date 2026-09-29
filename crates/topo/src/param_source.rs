@@ -344,68 +344,42 @@ mod tests {
         }
     }
 
-    /// **The census is the walk's scalars**: on each analytic kind, the
-    /// fields that belong to it name exactly the
-    /// [`geom::DatumValue::Scalar`] data [`Surface::data`] yields, and
-    /// every other datum the walk yields is a point or a direction (the
-    /// enum's stated exclusion). A scalar a kind gains is walked the day
-    /// it is declared, and reds here until the census covers it.
+    /// **The census is the walk's scalars**: on each analytic kind
+    /// ([`geom::test_support::analytic_surfaces`]), the fields that
+    /// belong to it are exactly the [`geom::DatumValue::Scalar`] data
+    /// [`Surface::data`] yields, compared as field identities — kind
+    /// and datum — so a field that belongs to the wrong kind reds even
+    /// where the two kinds' datums share a name (a cylinder's and a
+    /// sphere's `radius`). A scalar a kind gains is walked the day it
+    /// is declared, and reds here until the census covers it.
     #[test]
     fn the_field_census_is_the_walks_scalar_data() {
+        use geom::test_support::SurfaceVariant as K;
         use geom::{DatumValue, SurfaceData, SurfaceDatum as D};
-        fn datum(field: SurfaceField) -> D {
+        fn identity(field: SurfaceField) -> (K, D) {
             match field {
-                SurfaceField::CylinderRadius | SurfaceField::SphereRadius => D::Radius,
-                SurfaceField::ConeHalfAngle => D::HalfAngle,
-                SurfaceField::TorusMajorRadius => D::MajorRadius,
-                SurfaceField::TorusMinorRadius => D::MinorRadius,
+                SurfaceField::CylinderRadius => (K::Cylinder, D::Radius),
+                SurfaceField::ConeHalfAngle => (K::Cone, D::HalfAngle),
+                SurfaceField::SphereRadius => (K::Sphere, D::Radius),
+                SurfaceField::TorusMajorRadius => (K::Torus, D::MajorRadius),
+                SurfaceField::TorusMinorRadius => (K::Torus, D::MinorRadius),
             }
         }
-        let o = Point3::new(0.0, 0.0, 0.0);
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let x = Vec3::new(1.0, 0.0, 0.0);
-        let kinds = [
-            Surface::Plane {
-                origin: o,
-                normal: z,
-                u_ref: x,
-            },
-            cyl(1.0),
-            Surface::Cone {
-                apex: o,
-                axis: z,
-                half_angle: 0.5,
-                u_ref: x,
-            },
-            Surface::Sphere {
-                center: o,
-                radius: 1.0,
-                axis: z,
-                u_ref: x,
-            },
-            Surface::Torus {
-                center: o,
-                axis: z,
-                major_radius: 2.0,
-                minor_radius: 0.5,
-                u_ref: x,
-            },
-        ];
-        for surface in &kinds {
+        let base = geom::test_support::scalar_base();
+        for kind in geom::test_support::analytic_surfaces() {
+            let surface = (kind.build)(&base);
             let SurfaceData::Analytic(data) = surface.data() else {
                 panic!("{surface:?}: an analytic kind reads as analytic data")
             };
-            let mut scalars = Vec::new();
-            for (d, value) in data {
-                match value {
-                    DatumValue::Scalar(_) => scalars.push(d),
-                    DatumValue::Point(_) | DatumValue::Direction(_) => {}
-                }
-            }
-            let census: Vec<D> = SurfaceField::ALL
+            let scalars: Vec<(K, D)> = data
+                .into_iter()
+                .filter(|(_, value)| matches!(value, DatumValue::Scalar(_)))
+                .map(|(d, _)| (K::from(&surface), d))
+                .collect();
+            let census: Vec<(K, D)> = SurfaceField::ALL
                 .iter()
-                .filter(|f| f.belongs_to(surface))
-                .map(|&f| datum(f))
+                .filter(|f| f.belongs_to(&surface))
+                .map(|&f| identity(f))
                 .collect();
             assert_eq!(
                 census, scalars,

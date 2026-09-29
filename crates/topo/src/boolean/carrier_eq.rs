@@ -900,11 +900,18 @@ mod tests {
     /// docs). One sourced cylinder face against itself, against its
     /// reverted body, and against a twin with its sense flipped, each
     /// pair both ways: the rung reads the reverted pair opposed, where
-    /// the declaration ladder over the same sources reads it
+    /// the declaration ladder over the same composed sources reads it
     /// `SameSource`.
+    ///
+    /// The ladder column is a measurement of today's composition, not
+    /// a contract: its reverted row is the reading
+    /// [`face_oriented_source`](super::super::reduce::face_oriented_source)'s
+    /// docs call wrong for a curved face. A composition that learns
+    /// curved faces and moves that row to an opposed reading is the
+    /// fix, to be re-pinned here.
     #[test]
     fn the_curved_source_rung_reads_a_reverted_face_as_opposed() {
-        use super::super::reduce::face_plane_source;
+        use super::super::reduce::face_oriented_source;
         use crate::source::{GeomSource, SurfaceDeclaration as D, source_declaration};
         use CarrierRelation::{SameOpposite, SameOriented};
         let mut body = crate::Body::<f64>::new();
@@ -921,7 +928,7 @@ mod tests {
         let reverted = body.revert().unwrap();
         let mut flipped = body.clone();
         flipped.set_face_sense(face, false).unwrap();
-        for (name, other, rung, declared) in [
+        for (name, other, rung, composed_today) in [
             ("itself", &body, SameOriented, D::SameSource),
             ("its reverted body", &reverted, SameOpposite, D::SameSource),
             ("its sense flipped", &flipped, SameOpposite, D::Mirrored),
@@ -936,11 +943,13 @@ mod tests {
                 );
                 assert_eq!(
                     source_declaration(
-                        face_plane_source(x, face).as_ref(),
-                        face_plane_source(y, face).as_ref()
+                        face_oriented_source(x, face).as_ref(),
+                        face_oriented_source(y, face).as_ref()
                     ),
-                    declared,
-                    "the declaration ladder, a face against {name}"
+                    composed_today,
+                    "the composed sources' reading of a face against {name} moved; \
+                     an opposed reading of the reverted pair is the curved-aware \
+                     composition to re-pin, not a regression"
                 );
             }
         }
