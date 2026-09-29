@@ -9,6 +9,7 @@ priority: P2
 cost: E
 pr: 3472
 branch: topo/mev-fan-orbit-proof
+closed: 2026-09-29
 ---
 
 ## What
