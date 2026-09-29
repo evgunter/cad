@@ -2799,3 +2799,18 @@ ruling's shape, with every bit at the call site.
 
 Disk dropped to 2.6 GB during coding. The idle R2 target was deleted,
 bringing it back to 13 GB, and the fix pass runs on R1's warm one.
+
+## The loop-anchor unit out (2026-09-29)
+
+Dispatched **`kill-ops-loop-anchor-on-an-unproven-next-step`** (P2, E;
+tier SINGLE, full):
+- `kef`, `kemr` and `kev` prove each surviving loop's `first` lies in
+  that loop, and that a loop they empty keeps no member;
+- this goes through one helper beside `require_kill_anchors`, with
+  typed refusals before mutating;
+- the probe's loop column is asserted 0;
+- the unit may close the mate-edge row if its proof makes `kev`'s two
+  tests agree.
+
+It runs on a fresh non-incremental target. Three lanes are live: this
+one, PR 3467's union fix pass, and the refusal-routing unit.
