@@ -67,16 +67,18 @@ nothing re-described.
   closure kills take `kev_describing`. `rim_phase`'s is
   `"rim closure kev"` and `rim_phase_annulus`'s crossing kill is
   `"annulus closure kev"`; the refusal site names are unchanged. Each
-  hands its one merged member the band's meridian arc under arc
-  scaffolding (`EdgeCurveSpec::arc_of_circle`), using the centre and
-  radius the description pass already reads for the slit. That member
-  is the upper meridian remnant, or the mate seam's rim-side piece.
-  The final pass still states the slit as the band's seam through
-  `attach_contact`. `attach_contact`'s arc construction moved into
-  `short_arc`, which the new `merged_meridian_spec` shares. Without
+  hands its one merged member the chord between the endpoints the
+  merge gives it (`EdgeCurveSpec::line_between`, `merged_chord_spec`),
+  the scaffolding the surgery's struts and trims carry. That member is
+  the upper meridian remnant, or the mate seam's rim-side piece. The
+  final pass still states the slit as the band's seam, the meridian
+  arc, through `attach_contact`. (The first push handed the arc under
+  arc scaffolding; at the certified scalar that scaffold's residual
+  enclosed wider than eps = 1e-12's band and the kill escalated, so the
+  interval 1e-12 rows went red. The chord encloses at ulps.) Without
   this change these were 118 of the 129 sweep refusals S93 measured.
-  At the head, `cargo test -p sweep --lib --test all` shows 1501
-  passed and 8 ignored, as on the merge base.
+  At the head, `cargo test -p sweep --lib --test all` shows 1746
+  passed and 7 ignored, at default eps and at 1e-12.
 - `crates/sweep/src/revolve/full.rs` (CARVE's): the full-revolve
   zip's two kills take `kev_describing(he, &[], tol)`. Each one merges a
   copied vertex into its coincident original across a certified

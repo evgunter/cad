@@ -57,6 +57,12 @@ nothing re-described.
   - `MevFan` selections went from 374 to 370.
   - The run-site refusal was reached 283 times, against 237 before.
   - `SplitEdge` selections went from 169 to 176.
+- `chord_redescriptions` now `expect`s a fallible core,
+  `try_chord_redescriptions` (`pub(crate)`). It returns `None` where a
+  torn arena will not let the chords be read. `review_d18`'s hammer
+  and `review_m1_pr4`'s torn-body row use it to drive the describing
+  kill where the keys-only one refuses the merge in its plan phase, so
+  their attack on the shared mutation phase stays in scope.
 
 `S93` (`work/probe/S93.md`) closes with this unit; the orchestrator
 closes it at merge.
