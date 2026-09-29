@@ -67,7 +67,15 @@
 //! `cbrt`'s arguments in that branch were the signed forms
 //! `−Q/2 ± √(…)`, so every `z` the branch returned carried a `copysign`
 //! atom; none stood in a decided residual, so no `z` from that branch
-//! does, and this site's atom exists only inside one. (2) The sites the tree holds at
+//! does, and this site's atom exists only inside one.
+//! `section_cert.rs`'s null-saddle witness, `copysign(1, δ)`, is
+//! UNMEASURED: no replay of the seven documents reaches the section
+//! certificate's cylinder-pair rule at all, so the census's zero says
+//! nothing about it. The witness it builds is placed against both
+//! faces, so an atom it mints would stand in those decisions. It runs
+//! only after `|δ| − |r₁ − r₂|` is decided positive, so `δ` is
+//! certified away from zero there and the sign bit is `δ`'s sign.
+//! (2) The sites the tree holds at
 //! this commit, outside this module and the scalar impls that merely
 //! forward the function: `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom-brep/src/implicit.rs`'s cone gradient;
@@ -78,6 +86,8 @@
 //! `profile/src/path.rs`'s line×line fillet turn side;
 //! `sweep/src/revolve/axis.rs`'s radial extent;
 //! `sweep/src/blend/arms.rs`'s cone nappe;
+//! `topo/src/boolean/section_cert.rs`'s null-saddle witness (the side
+//! of cylinder 1's axis its ruling lies on);
 //! `topo/src/boolean/solid_contain.rs`'s `cbrt` and the Cardano
 //! root's sign transfer from `Q`. That list is not
 //! prose: `sym_rule_f_rows`'s
