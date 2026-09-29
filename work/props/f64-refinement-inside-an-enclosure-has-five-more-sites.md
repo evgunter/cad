@@ -33,7 +33,7 @@ itself part of the enclosure. Two spellings reach the same defect:
    different curve from `x + (y − x)·λ`. Rounding the RATIO is the same
    defect as rounding the coefficients; the fix is to re-derive the
    ratio from the knots it is made of, which is what
-   `geom_core::spline::CurvePlan::apply_ring` now does.
+   `geom_core::spline::CurvePlan::apply_certified` now does.
 
 ## The sites
 
@@ -73,7 +73,7 @@ grepping for `alpha` and `lambda` beside `RingInterval` across
 
 The machinery exists now: `geom_core::spline::algebra`'s
 `refine_plan_homogeneous` builds the schedule and
-`CurvePlan::apply_ring` applies it with both Boehm ratios re-derived
+`CurvePlan::apply_certified` applies it with both Boehm ratios re-derived
 from their knots, `TensorNet::refine_u`/`refine_v` lift it to a net.
 Each site above is a substitution, plus a re-baselining of whatever
 figures move. `compose.rs`'s site is a two-line change to the

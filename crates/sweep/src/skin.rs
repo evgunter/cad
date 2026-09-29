@@ -268,8 +268,8 @@ impl From<FitError> for SkinError {
 ///
 /// # Errors
 ///
-/// [`SkinError::DegenerateSection`] for a zero-length chord, a
-/// non-finite bulge, or an arc whose derived radius is not finite and
+/// [`SkinError::DegenerateSection`] for a zero-length chord, a zero
+/// or non-finite sweep, or an arc whose radius is not finite and
 /// positive; [`SkinError::Structure`] if validated construction
 /// refuses.
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
@@ -295,34 +295,24 @@ pub fn segment_curve(
                 vec![1.0, 1.0],
             )?)
         }
-        SketchSegment::Arc { a, b, bulge } => {
-            let len = a.distance(b);
-            if !(len > 0.0) {
+        SketchSegment::Arc {
+            a,
+            b,
+            centre: center,
+            radius,
+            sweep: theta,
+        } => {
+            if !(a.distance(b) > 0.0) {
                 return Err(degenerate("zero-length chord"));
             }
-            if !bulge.is_finite() || bulge == 0.0 {
-                return Err(degenerate("zero or non-finite bulge"));
+            if !theta.is_finite() || theta == 0.0 {
+                return Err(degenerate("zero or non-finite sweep"));
             }
-            // The profile crate's ratified bulge closed forms, verbatim
-            // (`profile::seg::build_seg`): the chord's LEFT normal, the
-            // apothem, and the signed radius.
-            let ux = (b.x - a.x) / len;
-            let uy = (b.y - a.y) / len;
-            let (nx, ny) = (-uy, ux);
-            let b2 = bulge.powi(2);
-            let four_bulge = 4.0 * bulge;
-            let apothem = len * (1.0 - b2) / four_bulge;
-            let radius = (len * (1.0 + b2) / four_bulge).abs();
             if !(radius > 0.0) || !radius.is_finite() {
                 return Err(degenerate("arc radius is not finite and positive"));
             }
-            let center = Point2::new(
-                0.5f64.mul_add(b.x - a.x, a.x) + nx * apothem,
-                0.5f64.mul_add(b.y - a.y, a.y) + ny * apothem,
-            );
-            // θ = 4·atan(bulge), signed (the sanctioned bulge
-            // re-inspection — never endpoint `atan2`).
-            let theta = 4.0 * bulge.atan();
+            // The segment's own carrier and signed sweep; the start
+            // angle is read off the stored start vertex.
             let start = (a.y - center.y).atan2(a.x - center.x);
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let m = ((theta.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
@@ -762,8 +752,8 @@ pub struct LoftGeometry {
 /// One section of a loft or sweep: its loops in the profile
 /// vocabulary — outer boundary first, holes after, each a
 /// [`ProfileLoop`] (closed by construction; segment `j` runs from
-/// vertex `j` to vertex `(j + 1) mod n`, carrying vertex `j`'s
-/// bulge) — the same vocabulary extrude and revolve speak. Each
+/// vertex `j` to vertex `(j + 1) mod n`, as the loop's segment `j`)
+/// — the same vocabulary extrude and revolve speak. Each
 /// interior joint has exactly one naming, so a walls-vs-caps
 /// disagreement is unrepresentable.
 pub type Section = Vec<ProfileLoop<f64>>;
@@ -773,20 +763,9 @@ pub type Section = Vec<ProfileLoop<f64>>;
 /// public as the exact-path-leg door, and routing every wall through
 /// it keeps the produced NURBS on one code path). The carrier is
 /// selected by the validated segment's kind; an arc crosses into the
-/// sketch-segment form with the bulge it was lowered from.
+/// sketch-segment form with its carrier and sweep.
 fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
-    let s = &lp.segments()[j];
-    match s.kind {
-        profile::SegmentKind::Line => SketchSegment::Line {
-            a: s.start,
-            b: s.end,
-        },
-        profile::SegmentKind::Arc { .. } => SketchSegment::Arc {
-            a: s.start,
-            b: s.end,
-            bulge: s.bulge,
-        },
-    }
+    crate::swept::canonical_sketch_segment(&lp.segments()[j])
 }
 
 /// Validates every section at the door: each section runs

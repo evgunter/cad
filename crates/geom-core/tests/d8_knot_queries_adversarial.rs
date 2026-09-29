@@ -51,8 +51,8 @@ test_utils::gated_to![
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
-use geom_core::spline::compose::CurveRingData;
-use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
+use geom_core::spline::compose::CurveCertData;
+use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
 use test_utils::fuzz;
 
 // ---------------------------------------------------------------------
@@ -872,9 +872,9 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
             |scale: f64| -> Vec<f64> { (0..nc).map(|i| scale * i as f64 / nc as f64).collect() };
         let cw = vec![1.0; nc];
         let cx = vec![lift(&cramp(1.0)), lift(&cramp(0.5)), lift(&cramp(0.3))];
-        let s = SurfaceRingData::new(&ku, &kv_s, &sw, &sx).unwrap();
-        let pd = CurveRingData::new(&ck, &pw, &px).unwrap();
-        let cd = CurveRingData::new(&ckc, &cw, &cx).unwrap();
+        let s = SurfaceCertData::new(&ku, &kv_s, &sw, &sx).unwrap();
+        let pd = CurveCertData::new(&ck, &pw, &px).unwrap();
+        let cd = CurveCertData::new(&ckc, &cw, &cx).unwrap();
 
         let one_ulp_in = f64::from_bits(1.0f64.to_bits() - 1);
         let extras: Vec<(&str, Vec<f64>)> = vec![
@@ -925,7 +925,7 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
                 "{dname}/{ename}: the extras landed a different break structure"
             );
             // The bound must still be a real number: an extra that
-            // corrupted the break structure would show up as poison.
+            // corrupted the break structure would show up as a refusal.
             let sup = out.sup_bound();
             assert!(
                 sup.is_finite(),

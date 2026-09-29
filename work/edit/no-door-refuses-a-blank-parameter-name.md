@@ -2,8 +2,10 @@
 id: no-door-refuses-a-blank-parameter-name
 kind: issue
 title: No door refuses a blank parameter name — ParamName::new validates nothing and write_doc_param does not ask
-status: spec
+status: closed
+closed: 2026-09-29
 branch: edit/param-name-door
+pr: 3164
 opened: 2026-09-19
 priority: P1
 cost: E
@@ -170,3 +172,42 @@ is deliberately named `Refusal::new_document_name` rather than
 get reached for from the parameter side; its sentence is
 document-specific (*"a new document needs a name; its identity is
 derived from it"*) and would be wrong here.
+
+## Built (2026-09-24)
+
+**The type holds the rule.** `ParamName`'s field is private and
+`ParamName::new` is the one door: it answers `ParamNameFault` — the
+offered text plus a `ParamNameReason` naming what the lexer found
+(blank, a character outside the alphabet, a leading non-identifier
+token, a second token, padding). The rule is the parser's own reading,
+asked of the parser itself (`parse::param_name_fault`: `parse_expr`
+over an empty table answers `UnknownParam(text)`), with the lexer
+naming the reason, and pinned both ways by a table and two sweeps.
+Both doors refuse one rung up: no `DocEdit` can carry an
+inadmissible name, and the load door refuses at the token through
+`Deserialize` (`try_from = "String"`), the same constructor — in
+`PersistError::Unreadable`, as an off-table `UnitSym` refuses. So the
+spec's `EditError` arm and load walk were not built: neither is
+reachable. `ParamName::from_static(&'static str)` is the panicking
+door for names written in source; `Borrow<str>` lets the parser look up
+a lexed identifier without minting a name.
+
+**Premise corrections.** The parser has no reserved words and no
+constants: a bare `sin` is looked up as a parameter, so a function or
+unit word is admissible, and the row says so. `range.rs`'s synthetic
+name `query:certified-range:N:label` was the one stored name the rule
+refuses; it is now `query_certified_range_<node>`, the first such
+spelling the document does not declare, so it is always admissible and
+never an author's parameter, and `SyntheticNameTaken` is gone with the
+label. The persisted corpus (24 `.cad`/`.pncad` files) holds `clearance`, `depth`
+and `hole_r` only; the test literal `"no-such-parameter"` (three
+viewer sites) is the other refused spelling.
+
+**Hand-off.** `work/vnews/add-parameter-create-owes-the-name-doors-sentence`
+names the door's sentence for the Create button's silent conjunct.
+
+**Filed from the review.**
+`work/edit/param-names-are-not-unicode-normalised` (look-alike
+spellings are distinct keys) and
+`work/lib/a-lone-surrogate-escapes-the-bindings-typed-refusals`
+(pyo3's `&str` extraction answers before any door).

@@ -511,30 +511,39 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
 // is unchanged in substance: one flip, not two that could drift.
 pub(super) use crate::face_normal::face_outward_normal;
 
-/// The recipe source of the face's **oriented plane description** —
-/// the datum [`super::oriented_plane_eq`]'s rung 1 needs, which is NOT
-/// the same thing as the surface's source ([`face_source`]).
+/// **The face's recipe source with its `sense` composed into
+/// `orient`** ([`crate::GeomSource::reverted`] when `sense` is false) —
+/// the identity the coincidence ladders are handed, which is NOT the
+/// surface's source ([`face_source`]).
 ///
-/// Rung 1 answers Same±-orientation syntactically, from the two
-/// sources' `orient` tags, and asserts (debug) that same-source
-/// descriptions agree bitwise. Since S10 the descriptions rung 1 is
-/// handed are [`face_plane`]'s — the faces' OUTWARD normals — so two
-/// faces sharing one surface key and one recipe source but differing
-/// in `sense` carry descriptions that are exact negations of each
-/// other. Left uncomposed, the rung would call that pair
-/// `SameOriented` on the strength of the surface sources alone, and
-/// the bit assertion would fire on the very configuration S10 exists
-/// to express.
+/// **On a plane face the composed tag is the material side.**
+/// [`super::oriented_plane_eq`]'s rung 1 answers Same±-orientation
+/// syntactically, from the two sources' `orient` tags, and asserts
+/// (debug) that same-source descriptions agree bitwise. The
+/// descriptions it is handed are [`face_plane`]'s — the faces' OUTWARD
+/// normals — so two faces sharing one surface key and one recipe
+/// source but differing in `sense` carry descriptions that are exact
+/// negations of each other. N6's `orient` tag means "this description
+/// is the source expression's orientation-reversal", which is what a
+/// `sense: false` plane face's outward normal is, so composing the
+/// sense in keeps rung 1 exact with zero numerics; left uncomposed, the
+/// rung would call that pair `SameOriented` and the bit assertion would
+/// fire.
 ///
-/// N6's `orient` tag already MEANS "this description is the source
-/// expression's orientation-reversal", which is exactly what a
-/// `sense: false` face's outward normal is, so the sense bit composes
-/// into it through [`crate::GeomSource::reverted`] and rung 1 keeps
-/// deciding exactly, with zero numerics. Returned owned: the flip
-/// mints a value rather than borrowing the stored one (the stored
-/// source describes the SURFACE and must not be rewritten by a
-/// face-level question).
-pub(super) fn face_plane_source<T: Decide>(
+/// **On a curved face it is not.** A curved description cannot be
+/// reversed, so `Body::revert` records a curved face's reversal on its
+/// `sense` AND on its source's `orient`, and the composition cancels: a
+/// face and its reverted twin compose to one tag although their
+/// material sides are opposite. The curved rung a curved pair reaches
+/// through [`mod@super::carrier_eq`] (`source_rung`, from
+/// [`super::rest::carrier_pair_verdict`] and `recl`'s declared-`Rest`
+/// sector pairs) therefore reads only the sources' base here and takes
+/// the material side from the descriptions' `outward` bits.
+///
+/// Returned owned: the flip mints a value rather than borrowing the
+/// stored one (the stored source describes the SURFACE and must not be
+/// rewritten by a face-level question).
+pub(super) fn face_oriented_source<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Option<crate::source::GeomSource> {
@@ -598,7 +607,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         // source IS declared coplanarity — the pair should have been
         // merged by the producing op); cross-operand declared pairs
         // never do.
-        let (o1, o2) = (face_plane_source(body, f1), face_plane_source(body, f2));
+        let (o1, o2) = (
+            face_oriented_source(body, f1),
+            face_oriented_source(body, f2),
+        );
         let id = super::PlaneIdentity {
             s1: o1.as_ref(),
             s2: o2.as_ref(),

@@ -930,9 +930,10 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
                 "pcurve certification: a fitted (rung-3) chart image has no certified lane at \
-                 the {scalar} scalar — its between-samples bound is an exact-arithmetic-ring hull, \
-                 and this scalar may not certify one. Replay the body at f64, the \
-                 telemetry probe, or the interval scalar to certify it"
+                 the {scalar} scalar — its between-samples bound is a hull in certification \
+                 arithmetic (C9), and this scalar may not certify one. Replay the body at f64, \
+                 the telemetry probe, the interval scalar, or the symbolic tier over one of \
+                 them to certify it"
             ),
             Self::FittedMateMissing => write!(
                 f,
