@@ -702,9 +702,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // The lane cannot carry what the named nodes hold; neither
         // node is wrong, and the f64 lane builds them.
-        NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => {
-            None
-        }
+        NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
         // Names the site the declaration chose, and the choice is the
         // `Declare`'s, which the error does not name.
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
