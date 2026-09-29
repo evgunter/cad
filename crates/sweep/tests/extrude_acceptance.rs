@@ -26,10 +26,6 @@ fn eps() -> f64 {
     Tol::witness().get().eps
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -39,19 +35,22 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// The 6-vertex all-line L (counterclockwise).
 fn l_loop() -> ProfileLoop<f64> {
     ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ])
 }
 
 /// A two-vertex circle (two semicircular arcs) centered at `(cx, cy)`
 /// with radius `r`, counterclockwise as written.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)])
+    bulge_loop(vec![
+        (Point2::new(cx - r, cy), 1.0),
+        (Point2::new(cx + r, cy), 1.0),
+    ])
 }
 
 /// (v, e, f, r) of a body.
@@ -218,7 +217,12 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     // in both caps, a two-face cylindrical hole wall sharing one
     // carrier surface, genus 1 (the boundary of a solid with a through
     // hole is a torus — v − e + f − r = 0 = 2(1 − g)).
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let hole = circle_loop(0.5, 0.5, 0.1);
     let t = extrude(
         &validated(vec![outer, hole]),
@@ -291,14 +295,14 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // vertex carries the bulge of the segment LEAVING it: the four
     // straight legs leave with 0, the four quarter-arcs with b.
     let mut lp = bulge_loop(vec![
-        (p2(0.25, 0.0), 0.0),
-        (p2(0.75, 0.0), b),
-        (p2(1.0, 0.25), 0.0),
-        (p2(1.0, 0.75), b),
-        (p2(0.75, 1.0), 0.0),
-        (p2(0.25, 1.0), b),
-        (p2(0.0, 0.75), 0.0),
-        (p2(0.0, 0.25), b),
+        (Point2::new(0.25, 0.0), 0.0),
+        (Point2::new(0.75, 0.0), b),
+        (Point2::new(1.0, 0.25), 0.0),
+        (Point2::new(1.0, 0.75), b),
+        (Point2::new(0.75, 1.0), 0.0),
+        (Point2::new(0.25, 1.0), b),
+        (Point2::new(0.0, 0.75), 0.0),
+        (Point2::new(0.0, 0.25), b),
     ]);
     lp = lp.with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let t = extrude(
@@ -396,7 +400,10 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     // Intersections.
     // The chord leaves (-1,0) straight; the closing semicircle leaves
     // (1,0) with bulge 1.
-    let lp = bulge_loop(vec![(p2(-1.0, 0.0), 0.0), (p2(1.0, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 1.0),
+    ]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(1.0),
@@ -447,7 +454,12 @@ fn both_extrusion_directions_build_outward_solids() {
     assert!(outward_normal(&vec_down.body, vec_down.top).z < -0.99);
 
     // A holed profile extruded downward keeps its ring/genus structure.
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let holed = extrude(
         &validated(vec![outer, circle_loop(0.5, 0.5, 0.1)]),
         Extrusion::Distance(-0.5),
@@ -520,10 +532,10 @@ fn sliver_dihedral_join_is_a_typed_error() {
     // definite.
     let theta = 3000.0 * eps();
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(1.0 + theta.cos(), theta.sin()),
-        p2(0.0, 1.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0 + theta.cos(), theta.sin()),
+        Point2::new(0.0, 1.0),
     ]);
     let err = extrude(
         &validated(vec![lp]),
@@ -602,7 +614,12 @@ fn rebuild_is_byte_identical() {
         }
         s
     };
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let build = || {
         extrude(
             &validated(vec![outer.clone(), circle_loop(0.5, 0.5, 0.1)]),
@@ -645,12 +662,11 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
         Tol::witness(),
     )
     .unwrap();
-    // The dual takes the structural half: checks 1-6, 8 and 9, which is
-    // where the certificates compared below are produced. The one check
-    // it does not run is the +V volume invariant, whose enclosure a
-    // dual may not certify — and the f64 row beside it runs the
-    // composed door on the same construction, so this is a narrower
-    // assertion about the same body rather than a weaker subject.
+    // The dual takes the `_structural` twin: the whole battery holding no
+    // certified lane (check 7 through the closed form, which computes on
+    // this planar body), and where the certificates compared below are
+    // produced — and the f64 row beside it runs the composed door on the
+    // same construction, so both scalars answer the same question.
     assert_eq!(
         topo::validate_geometric_structural(&d.body, Tol::witness()),
         Ok(())

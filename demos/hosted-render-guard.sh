@@ -31,8 +31,8 @@
 # parse: any other value, and unset, still refuses.
 #
 # THE RULE IS STRUCTURAL, NOT SNIFFED. CI does not get an exemption for
-# being CI: `render.yml` and `local-scripts/ci-local.sh` each set this
-# variable in the file, at the step that renders. (`ci.yml` renders by
+# being CI: `render.yml` sets this variable in the file, at the step
+# that renders. (`ci.yml` renders by
 # CALLING render.yml, so that file makes the declaration for the gate
 # too.) There is no
 # GITHUB_ACTIONS check here on purpose — a sniffed exemption is invisible

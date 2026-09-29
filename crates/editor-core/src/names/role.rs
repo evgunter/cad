@@ -510,7 +510,7 @@ pub struct StableName {
     /// module docs).
     pub kind: EntityKind,
     /// The recipe node whose operation minted the entity (for
-    /// pass-through ops — Transform, split-intact entities — the
+    /// pass-through ops — the set `verbatim_edge` states — the
     /// ORIGINAL minting node: those ops contribute no segment).
     pub node: RecipeNodeId,
     /// The role path within that operation.
@@ -969,10 +969,12 @@ pub enum RoleSeg {
     /// the step its pair is fed to, to the accumulation's `Merged` row
     /// whose flat constituent set holds it. A face another member
     /// contained whole leaves no row behind, and a pair naming it is
-    /// satisfied. A face surviving only in pieces — split, or inside a
-    /// merged row later fragmented — is not looked through, and a pair
-    /// naming it is order-shaped ([`crate::Node::Union`] states the
-    /// bound).
+    /// satisfied. A face surviving only in pieces — split by a later
+    /// member, or inside a merged row later fragmented — has no one
+    /// entity to resolve to, and a pair naming it refuses, saying which
+    /// of the two consumed it; once every piece is contained whole, no
+    /// piece survives and the pair is satisfied instead
+    /// ([`crate::Node::Union`] states the rule).
     ///
     /// That is a statement about the WRAPPER, and about nothing else.
     /// Which of a union's names exist at all is still the pair verb's
@@ -1183,16 +1185,37 @@ pub enum RoleSeg {
     /// `blend5_r1_probes`.)
     BandFoot(NameRef),
     /// The vertex where the band's MATE-side trimline crossed a source
-    /// edge running off the rim (on a ladder rim, a cap meridian).
-    BandCross(NameRef),
+    /// edge running off the rim (on a ladder rim, a cap meridian). Both
+    /// arguments are needed, for the reason [`RoleSeg::BandSlit`]
+    /// states: two rims at the two ends of one meridian segment each
+    /// cross that segment's seam, once per band.
+    BandCross {
+        /// The source edge the trimline crossed.
+        edge: NameRef,
+        /// The band whose trimline crossed it: its closed chain's
+        /// source edges as a sorted set, the set that band's
+        /// [`RoleSeg::BandFace`] carries.
+        band: Vec<StableName>,
+    },
     /// The surviving piece of a source edge the band's trimline cut —
     /// on a ladder rim a cap meridian, on a ruled band a cap rim edge.
     BandCut(NameRef),
     /// A band's SLIT: the double-traversed torus meridian that keeps
     /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
-    /// representation). Argument: the source edge whose severed piece
-    /// became it.
-    BandSlit(NameRef),
+    /// representation). Both arguments are needed: two rims at the two
+    /// ends of one meridian segment each slit that segment's seam, so
+    /// one source edge yields a slit per band, discriminated by which
+    /// band slit it — the [`RoleSeg::BandTrim`] shape, with the band in
+    /// the support's place.
+    BandSlit {
+        /// The source edge whose severed piece became it.
+        edge: NameRef,
+        /// The band that slit it: its closed chain's source edges as a
+        /// sorted set, the set that band's [`RoleSeg::BandFace`]
+        /// carries. A band has exactly one slit, so this alone is
+        /// unique per slit.
+        band: Vec<StableName>,
+    },
 
     // ---- Shell (the hollowing verb's vocabulary) ----
     //
@@ -1369,14 +1392,92 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCross { .. }
         | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
+        | RoleSeg::BandSlit { .. }
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
         | RoleSeg::Instance { .. } => None,
+    }
+}
+
+/// **One name-carrying edge of the recipe** (N1): a node that adds no
+/// segment to the names it carries, so every name it publishes from
+/// below keeps its original minter. Which edge it is decides which of
+/// the input's names come through.
+#[derive(Debug)]
+pub(crate) enum VerbatimEdge<'a> {
+    /// Every body of `input`, body `k` in to body `k` out, moved: a
+    /// [`Node::Transform`](crate::node::Node::Transform). A selection
+    /// in effect above it rides through to `input` unchanged.
+    Whole {
+        /// The value placed.
+        input: RecipeNodeId,
+    },
+    /// The one body of `of` that `select` names, projected: a
+    /// [`Node::Part`](crate::node::Node::Part).
+    Selected {
+        /// The split or pattern read.
+        of: RecipeNodeId,
+        /// Which body of it.
+        select: &'a crate::node::PartSelect,
+    },
+    /// The entities of the split target the split leaves intact: a
+    /// [`Node::Split`](crate::node::Node::Split). Which ones those are
+    /// is the geometry's answer, not the recipe's, so no walk follows
+    /// this edge and it carries no input.
+    Intact,
+}
+
+/// **The name-carrying edge `node` is, if any**: a transform, a part's
+/// projection, a split's intact entities (N1's pass-through ops).
+/// Every other node is classified as re-minting what it carries.
+///
+/// Two walks read the set here: the product's two-roots check
+/// (`product::placed_under_two_roots`) and the mate member walk
+/// (`mate::member::walk`); they differ only in where each stops. The
+/// compiler holds the three together: this match is exhaustive, so a
+/// new node kind does not compile until it is classified here, and
+/// both walks match [`VerbatimEdge`] without a wildcard, so a new kind
+/// of edge does not compile until each decides what to do with it.
+///
+/// What the compiler cannot hold — that this classification agrees
+/// with what the evaluator actually passes through (`eval::wire`'s
+/// `wire_transform`, `wire_part`, `wire_split`) — is held at runtime
+/// by `tests/names_verbatim_edge_evaluator.rs`, per edge over an
+/// evaluated corpus: a `Whole` or `Selected` node publishes only names
+/// headed by other nodes, an `Intact` one publishes both kinds, and a
+/// `None` node heads every row itself. Every node kind the corpus can
+/// evaluate is sampled with rows, except the kinds that publish none
+/// at all, which that suite names and holds at zero.
+pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
+    use crate::node::Node;
+    match node {
+        Node::Transform { input, .. } => Some(VerbatimEdge::Whole { input: *input }),
+        Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
+        Node::Split { .. } => Some(VerbatimEdge::Intact),
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Pattern { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
     }
 }
 
@@ -1663,9 +1764,15 @@ impl RoleSeg {
                 support,
             },
             R::BandFoot(n) => R::BandFoot(rewrite_ref(n, w)?),
-            R::BandCross(n) => R::BandCross(rewrite_ref(n, w)?),
+            R::BandCross { edge, band } => R::BandCross {
+                edge: rewrite_ref(edge, w)?,
+                band: rewrite_set(band, w)?,
+            },
             R::BandCut(n) => R::BandCut(rewrite_ref(n, w)?),
-            R::BandSlit(n) => R::BandSlit(rewrite_ref(n, w)?),
+            R::BandSlit { edge, band } => R::BandSlit {
+                edge: rewrite_ref(edge, w)?,
+                band: rewrite_set(band, w)?,
+            },
             R::Inner(n) => R::Inner(rewrite_ref(n, w)?),
             R::Rim(n) => R::Rim(rewrite_ref(n, w)?),
             R::HoleRim { of, hole } => R::HoleRim {
@@ -1813,9 +1920,9 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)
-            | $crate::names::RoleSeg::BandCross(_)
+            | $crate::names::RoleSeg::BandCross { .. }
             | $crate::names::RoleSeg::BandCut(_)
-            | $crate::names::RoleSeg::BandSlit(_)
+            | $crate::names::RoleSeg::BandSlit { .. }
             | $crate::names::RoleSeg::Inner(_)
             | $crate::names::RoleSeg::Rim(_)
             | $crate::names::RoleSeg::HoleRim { .. }

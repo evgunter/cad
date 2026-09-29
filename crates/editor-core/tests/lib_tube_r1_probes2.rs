@@ -15,15 +15,10 @@ use crate::fixture;
 
 use corpus::{eval, failures};
 use editor_core::{
-    Datum, Dimension, DocEdit, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram,
-    TubeWindow, apply,
+    Datum, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, TubeWindow, apply,
 };
-use fixture::len;
+use fixture::{len, scl};
 use geom_core::Tol;
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite")
-}
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(d, e, Tol::witness(), &editor_core::RefusingReach)
@@ -44,7 +39,7 @@ fn doc_with_axis_dir(
         &DocEdit::InsertNode {
             node: Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
-                direction: dir.map(scalar),
+                direction: dir.map(scl),
             }),
         },
     );
@@ -54,7 +49,7 @@ fn doc_with_axis_dir(
         &DocEdit::InsertNode {
             node: Node::Tube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),

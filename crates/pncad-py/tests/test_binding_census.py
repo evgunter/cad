@@ -1011,10 +1011,11 @@ BOUND_AS = {
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
-    # `escalated` or `zero_volume`. `CheckEvidence.reason` is the same
-    # refusal's sentence — the kernel's own prose — and this is the
-    # branchable half beside it, so a caller stops substring-matching
-    # the sentence to learn which shell refusal escalated the count.
+    # `escalated`, `zero_volume` or `straddles`. `CheckEvidence.reason`
+    # is the same refusal's sentence — the kernel's own prose — and
+    # this is the branchable half beside it, so a caller stops
+    # substring-matching the sentence to learn which shell refusal
+    # escalated the count.
     #
     # Its own fields do not cross: which shell, and the mass-properties
     # failure under `props`, are the shell door's vocabulary and this
@@ -1238,6 +1239,10 @@ BOUND_AS = {
     "ProfilePieces": "Doc.pieces",
     "PlacementRuleFault": "EditError.variant",
     "RootFault": "EditError.variant",
+    # What a `RootInvalid` refusal lists, one per failing source body;
+    # the arm crosses as its tag word, its first failing root as
+    # `node`, and every root, output and finding in its message.
+    "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
@@ -2325,6 +2330,10 @@ NOT_BOUND = {
     # word beside them would publish one fact twice, the
     # `frame_error_tag` rule at the arm one rung up.
     "MarginDiag": SHAPE,
+    # The same three arms, named as the margin's kind with no number
+    # (`MarginDiag::kind`): the attribute set above IS that kind in
+    # Python, so it crosses the same way and is not a second word.
+    "MarginKind": SHAPE,
     # WHAT A LEVERED CLASH MEASURED, curated at `pncad::document`
     # beside the `MateFault` arm that carries it (`mate_contradictory`)
     # — and, like `MarginDiag`, a discriminant that crosses as WHICH
@@ -2631,6 +2640,14 @@ NOT_BOUND = {
     "Mispaired": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
+    # `BooleanError::CurvedPairUnsupported`'s SITE: which door refused
+    # the pair (the operand gate, the ∖/∩ revert roster, or the
+    # crossings path's interior-loop guard). Carried in Rust so a
+    # consumer matching that variant can name the field's type;
+    # interior here because Python never holds one. The refusal crosses
+    # as its tag word plus prose, and the guard's prose is its own
+    # sentence, so a Python caller reads the site in the message.
+    "PairRefusalSite": INTERIOR,
     # The frame WITNESS — an origin and a right-handed orthonormal
     # triple, minted where its axes were decided. Python never holds
     # one: `SketchPlane.from_frame` takes the two directions a caller
@@ -3434,7 +3451,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::RootPoisoned": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::SolidInvalid": "ProductError.variant",
+    "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ReadbackError::Dangling": "ReadbackError.variant",
@@ -3545,6 +3562,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::DegenerateTorusEscalated": "ValidationFinding.variant",
     "ValidationError::PoisonedSurfaceDatum": "ValidationFinding.variant",
     "ValidationError::UnrepresentableSurfaceDatum": "ValidationFinding.variant",
+    "ValidationError::PoisonedCurveDatum": "ValidationFinding.variant",
+    "ValidationError::UnrepresentableCurveDatum": "ValidationFinding.variant",
     "ValidationError::EdgeCertification": "ValidationFinding.variant",
     "ValidationError::DescriptionNotAdjacent": "ValidationFinding.variant",
     "ValidationError::PlanarFaceResidual": "ValidationFinding.variant",
@@ -3555,7 +3574,6 @@ MEMBERS_BOUND_AS = {
     "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
     "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
     "ValidationError::TangentNotIntrinsic": "ValidationFinding.variant",
-    "ValidationError::UndeclaredCusp": "ValidationFinding.variant",
     "ValidationError::LaminaWedge": "ValidationFinding.variant",
     "ValidationError::LoopRoleInverted": "ValidationFinding.variant",
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
@@ -3566,6 +3584,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",
     "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
+    "ValidationError::ShellWinding": "ValidationFinding.variant",
     "ValidationError::UndeclaredContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",

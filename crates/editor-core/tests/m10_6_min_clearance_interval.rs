@@ -52,7 +52,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -104,7 +104,7 @@ fn dumbbell() -> Dumbbell {
             }),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -144,12 +144,8 @@ fn dumbbell() -> Dumbbell {
             len(0.0),
             len(0.0),
         ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     });
     let measure = r.insert(
         Node::measure(
@@ -169,7 +165,7 @@ fn dumbbell() -> Dumbbell {
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(BOUND, Dimension::Length).expect("finite"),
+        bound: len(BOUND),
         dir: AssertionDir::AtLeast,
     });
     Dumbbell {
@@ -475,7 +471,7 @@ fn a_pairing_the_wedge_rule_empties_refuses_typed() {
 #[test]
 fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![

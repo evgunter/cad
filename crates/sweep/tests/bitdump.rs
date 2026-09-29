@@ -22,8 +22,9 @@
 //!
 //! **Unarmed by default.** With `BITDUMP_DIR` unset every row returns
 //! immediately — an explicit clean skip, so the suite is neither a red
-//! nor a silent green in the aggregated matrix. See `dump_dir` for why
-//! an environment read is admissible in this file at all.
+//! nor a silent green in the aggregated matrix. The dump itself and
+//! the channel that arms it are [`crate::common::bitdump`]'s, whose
+//! `dump_dir` says why an environment read is admissible at all.
 //!
 //! **Run the two SHAs in SEPARATE `CARGO_TARGET_DIR`s.** A shared one
 //! can serve the head's run a library built at the base — measured by a
@@ -65,87 +66,7 @@ use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
-/// Dump one body, bit for bit, in key iteration order (identical
-/// operation sequences produce identical key orders).
-///
-/// **The one home**, shared by every armed dump row in this suite —
-/// including the ones that live in other files because a review lane
-/// wrote them (`review_arms2_r1_probes::bitdump_dome_annulus`). A
-/// second copy is not a duplicate that costs lines, it is a corpus row
-/// silently blind to whatever the copy left out: this function's own
-/// second copy omitted the `props` line, so the annulus row could not
-/// have seen a volume, area or pad move at all.
-pub(crate) fn dump(body: &Body<f64>) -> String {
-    let mut s = String::new();
-    let _ = writeln!(
-        s,
-        "census V={} E={} F={}",
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count()
-    );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|v| body.get_point(v.point))
-            .unwrap();
-        let _ = writeln!(s, "V {k:?} ({:?}, {:?}, {:?})", p.x, p.y, p.z);
-    }
-    for (k, e) in body.edges() {
-        let _ = write!(s, "E {k:?} he+={:?} he-={:?}", e.he_plus, e.he_minus);
-        match body.get_curve_geom(e.curve).and_then(|g| g.certified()) {
-            Some(c) => {
-                let (t0, t1) = c.params();
-                let _ = writeln!(
-                    s,
-                    " carrier={:?} params=({t0:?}, {t1:?}) desc={:?}",
-                    c.carrier(),
-                    c.description()
-                );
-            }
-            None => {
-                let _ = writeln!(s, " UNCERTIFIED");
-            }
-        }
-    }
-    for (k, _) in body.faces() {
-        let fd = body.get_face(k).unwrap();
-        let surf = body.get_surface(fd.surface).unwrap();
-        let _ = writeln!(
-            s,
-            "F {k:?} sense={:?} rings={} surface={surf:?}",
-            fd.sense,
-            fd.rings.len()
-        );
-    }
-    let props = topo::mass_properties(body, Tol::witness()).unwrap();
-    let _ = writeln!(
-        s,
-        "props volume={:?} pad={:?} area={:?} apad={:?}",
-        props.volume, props.volume_pad, props.surface_area, props.area_pad
-    );
-    s
-}
-
-/// The dump directory, or `None` when this suite is not armed.
-///
-/// **Why an env read is admissible here, stated rather than assumed**
-/// (the fix pass; `sweep`'s manifest warns that a suite rolling its own
-/// dial would be a second `CAD_FUZZ`-style channel). The gate that bans
-/// ambient environment scans `crates/*/src` and this is a `tests/`
-/// file, so no shipped build can reach it — the same REACHABILITY
-/// argument that allowlists `test-utils`' fuzz dial. And unlike a dial,
-/// this one gates no assertion: armed, the rows write a file and assert
-/// nothing about it; unarmed, they return before building anything. It
-/// selects an artifact's destination, never a behaviour.
-fn dump_dir() -> Option<String> {
-    std::env::var("BITDUMP_DIR").ok().filter(|d| !d.is_empty())
-}
-
-fn save(dir: &str, name: &str, text: &str) {
-    std::fs::create_dir_all(dir).unwrap();
-    std::fs::write(format!("{dir}/{name}.txt"), text).unwrap();
-}
+use crate::common::bitdump::{dump, dump_dir, save};
 
 // --- fixtures, verbatim from the merge-base suites -----------------
 
@@ -463,7 +384,6 @@ fn bitdump_extrude_revolve_corpus() {
         return;
     };
     let tol = Tol::witness();
-    let p2 = Point2::<f64>::new;
     let b = core::f64::consts::FRAC_PI_8.tan();
     let extruded_by = |name: &str,
                        loops: Vec<ProfileLoop<f64>>,
@@ -478,19 +398,23 @@ fn bitdump_extrude_revolve_corpus() {
     let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
         extruded_by(name, loops, sweep::Extrusion::Distance(h))
     };
-    let circle =
-        |cx: f64, cy: f64, r: f64| bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)]);
+    let circle = |cx: f64, cy: f64, r: f64| {
+        bulge_loop(vec![
+            (Point2::new(cx - r, cy), 1.0),
+            (Point2::new(cx + r, cy), 1.0),
+        ])
+    };
 
     let mut rows: Vec<(String, Body<f64>)> = vec![
         extruded(
             "L prism (all-line, one concave corner)",
             vec![ProfileLoop::polygon([
-                p2(0.0, 0.0),
-                p2(2.0, 0.0),
-                p2(2.0, 1.0),
-                p2(1.0, 1.0),
-                p2(1.0, 2.0),
-                p2(0.0, 2.0),
+                Point2::new(0.0, 0.0),
+                Point2::new(2.0, 0.0),
+                Point2::new(2.0, 1.0),
+                Point2::new(1.0, 1.0),
+                Point2::new(1.0, 2.0),
+                Point2::new(0.0, 2.0),
             ])],
             0.75,
         ),
@@ -502,7 +426,12 @@ fn bitdump_extrude_revolve_corpus() {
         extruded(
             "holed prism (square + circular ring)",
             vec![
-                ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 2.0), p2(0.0, 2.0)]),
+                ProfileLoop::polygon([
+                    Point2::new(0.0, 0.0),
+                    Point2::new(2.0, 0.0),
+                    Point2::new(2.0, 2.0),
+                    Point2::new(0.0, 2.0),
+                ]),
                 circle(1.0, 1.0, 0.5),
             ],
             1.0,
@@ -511,14 +440,14 @@ fn bitdump_extrude_revolve_corpus() {
             "rounded square (tangent line-arc joins)",
             vec![
                 bulge_loop(vec![
-                    (p2(0.25, 0.0), 0.0),
-                    (p2(0.75, 0.0), b),
-                    (p2(1.0, 0.25), 0.0),
-                    (p2(1.0, 0.75), b),
-                    (p2(0.75, 1.0), 0.0),
-                    (p2(0.25, 1.0), b),
-                    (p2(0.0, 0.75), 0.0),
-                    (p2(0.0, 0.25), b),
+                    (Point2::new(0.25, 0.0), 0.0),
+                    (Point2::new(0.75, 0.0), b),
+                    (Point2::new(1.0, 0.25), 0.0),
+                    (Point2::new(1.0, 0.75), b),
+                    (Point2::new(0.75, 1.0), 0.0),
+                    (Point2::new(0.25, 1.0), b),
+                    (Point2::new(0.0, 0.75), 0.0),
+                    (Point2::new(0.0, 0.25), b),
                 ])
                 .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
             ],
@@ -527,10 +456,10 @@ fn bitdump_extrude_revolve_corpus() {
         extruded(
             "concave arc leg",
             vec![bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(3.0, 0.0), 0.0),
-                (p2(3.0, 2.0), 0.0),
-                (p2(0.0, 2.0), -0.4),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(3.0, 0.0), 0.0),
+                (Point2::new(3.0, 2.0), 0.0),
+                (Point2::new(0.0, 2.0), -0.4),
             ])],
             1.25,
         ),
@@ -544,10 +473,10 @@ fn bitdump_extrude_revolve_corpus() {
     rows.push(extruded_by(
         "square prism by vector (the Vector door)",
         vec![ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(2.0, 0.0),
-            p2(2.0, 2.0),
-            p2(0.0, 2.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
         ])],
         sweep::Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, 1.75)),
     ));
@@ -555,14 +484,14 @@ fn bitdump_extrude_revolve_corpus() {
         "rounded-corner prism, reversed (negative distance)",
         vec![
             bulge_loop(vec![
-                (p2(0.25, 0.0), 0.0),
-                (p2(0.75, 0.0), b),
-                (p2(1.0, 0.25), 0.0),
-                (p2(1.0, 0.75), b),
-                (p2(0.75, 1.0), 0.0),
-                (p2(0.25, 1.0), b),
-                (p2(0.0, 0.75), 0.0),
-                (p2(0.0, 0.25), b),
+                (Point2::new(0.25, 0.0), 0.0),
+                (Point2::new(0.75, 0.0), b),
+                (Point2::new(1.0, 0.25), 0.0),
+                (Point2::new(1.0, 0.75), b),
+                (Point2::new(0.75, 1.0), 0.0),
+                (Point2::new(0.25, 1.0), b),
+                (Point2::new(0.0, 0.75), 0.0),
+                (Point2::new(0.0, 0.25), b),
             ])
             .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
         ],

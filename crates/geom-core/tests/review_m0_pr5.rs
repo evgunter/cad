@@ -236,9 +236,9 @@ fn tangent_never_influences_decisions_or_values() {
         f64::from_bits(0x7ff8_dead_beef_dead),
     ];
     for &v in &values {
-        let alone = v.sign_within(band);
+        let alone = v.sign_within(band).map(|d| d.sign);
         for &t in &tangents {
-            let dual = Dual::new(v, t).sign_within(band);
+            let dual = Dual::new(v, t).sign_within(band).map(|d| d.sign);
             assert_eq!(
                 dual, alone,
                 "Dual64 Decide must equal value-alone Decide: value {v:?} tangent {t:?}"
@@ -544,9 +544,9 @@ mod dual_interval {
             Interval::zero(),
         ];
         for &v in &ivals {
-            let alone = v.sign_within(band);
+            let alone = v.sign_within(band).map(|d| d.sign);
             for &t in &itangents {
-                let dual = Dual::new(v, t).sign_within(band);
+                let dual = Dual::new(v, t).sign_within(band).map(|d| d.sign);
                 assert_eq!(
                     dual, alone,
                     "Dual<Interval> Decide must equal value-alone Decide"
@@ -637,7 +637,7 @@ mod dual_interval {
         );
         let hulled = Real::min(a, b);
         assert_eq!(
-            hulled.deriv.sign_within(band),
+            hulled.deriv.sign_within(band).map(|d| d.sign),
             Ok(Sign::Positive),
             "clean-tangent hull must keep a classifiable decoration"
         );
@@ -656,15 +656,15 @@ mod dual_interval {
         let m = Real::min(lo, hi);
         assert!(
             matches!(
-                m.deriv.sign_within(band),
+                m.deriv.sign_within(band).map(|d| d.sign),
                 Err(geom_core::Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     ..
                 })
             ) && m.deriv.lo() == 5.0
                 && m.deriv.hi() == 5.0,
             "Trv VALUE must cap the selected tangent's decoration: {:?} [{},{}]",
-            m.deriv.sign_within(band),
+            m.deriv.sign_within(band).map(|d| d.sign),
             m.deriv.lo(),
             m.deriv.hi()
         );

@@ -17,15 +17,11 @@ use std::collections::BTreeSet;
 
 use corpus::die_composed;
 use editor_core::{
-    CancelToken, CapEnd, Dimension, EntityKind, EvalOptions, Expr, Node, NodeResult, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, CapEnd, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, evaluate,
 };
-use fixture::prism_edges;
+use fixture::{len, prism_edges};
 use geom_core::Tol;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length literal")
-}
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(

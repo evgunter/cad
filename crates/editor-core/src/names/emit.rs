@@ -108,21 +108,15 @@ pub enum NamingError {
     /// [`Self::Emission`], carrying the one thing the repair needs
     /// that a sentence cannot supply: WHICH edge.
     ///
-    /// **Raised from two chases, one guarded and one not, and the
-    /// dividing line is WRITER ACCESS.** `emit_topo`'s `chase_b` is
-    /// guarded (`a_cycling_graft_map_refuses_in_the_b_lane`): it hops
-    /// through a graft map the CALLER supplies between provenance
-    /// reads, so a loop closes from outside `topo`.
-    /// `chase_edge_to_table` is not, because it advances only on
-    /// `Body::edge_provenance`, which is `pub(crate)` to `topo` and is
-    /// written by one door — `Body::split_edge`, recording the parent
-    /// on a child it has just minted, so a chain is strictly
-    /// decreasing in age and no caller can close it. That a cycling
-    /// lineage exists at all is real: `topo::props`' carrier-identity
-    /// fold documents it as what a graft aliases, and
-    /// `work/bool/graft-copies-provenance-keys-verbatim.md` records
-    /// `Body::split_root`'s cycle arm firing on real assembly
-    /// products — `topo`-internally, where this crate has no door.
+    /// **Unguardable from this crate, and the reason is WRITER
+    /// ACCESS.** Both chases (`emit_topo`'s `chase_edge_to_table` and
+    /// `chase_b`) advance only on `Body::edge_provenance`, which is
+    /// `pub(crate)` to `topo`: `Body::split_edge` records the parent on
+    /// a child it has just minted, so a chain is strictly decreasing in
+    /// age in the arena that wrote it; a graft forwards it injectively
+    /// (each source key to its own result key, live or dead on
+    /// arrival), which maps an acyclic chain to an acyclic one. No
+    /// caller can close it.
     SplitLineage(SplitLineageCycle),
     /// A face's FRAGMENT lineage cycles, caught where an emitter
     /// chased it to its root through a split's or a boolean's
@@ -264,6 +258,26 @@ pub enum NamingError {
         node: RecipeNodeId,
         /// The rim the read-through offered, in that operand's body.
         rim: EdgeKey,
+    },
+    /// A boolean's chord from a MERGED face that holds SEVERAL
+    /// constituents on the side the chord reads through to — the third
+    /// case the merged-chord rules do not cover, a sibling word because
+    /// its subject is the merged face's constituents, not a rim.
+    ///
+    /// A chord between a merged face and an unmerged one is read
+    /// through to the merged face's one constituent on the other side.
+    /// A declared union can merge several faces of ONE operand into one
+    /// face — two members of an assembly glued across a declared wall,
+    /// say — and then nothing says which of them the chord lies on. The
+    /// body is sound; what is missing is a rule that picks the
+    /// constituent (a geometric one, as `chord_on_rim` is for a rim).
+    MergedChordConstituents {
+        /// The result-body edge.
+        edge: EdgeKey,
+        /// The merged face, a result-body key.
+        face: FaceKey,
+        /// How many distinct constituents it holds on that side.
+        several: usize,
     },
     /// A chain along a seam line whose direction cannot be read: the
     /// two faces of the seam edge, as `node`'s table names them, do not
@@ -480,6 +494,16 @@ impl core::fmt::Display for NamingError {
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
                  the join's own edge, so neither face nor key says which operand's rim it is"
+            ),
+            Self::MergedChordConstituents {
+                edge,
+                face,
+                several,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam chord {edge:?} borders merged face {face:?}, which \
+                 holds {several} faces of the operand the chord reads through to, and no rule \
+                 picks the one it lies on"
             ),
             Self::SeamLineSides { node, edge } => write!(
                 f,
@@ -753,7 +777,7 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
             // `GraftKeys` is total — so a tied row keeps every candidate
             // and narrows through the one door.
             if !moved.is_empty() {
-                super::defer::narrow_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
+                super::defer::mint_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
             }
         }
     }
@@ -1384,9 +1408,10 @@ mod display_tests {
 
     fn escalation() -> Indeterminate {
         Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band: Band::new(1e-9, 1e-6).unwrap(),
             predicate: Some("side_of_plane"),
+            terminal_sliver: false,
         }
     }
 
@@ -1689,6 +1714,14 @@ mod display_tests {
                 vec!["31", "each side of its recorded pair"],
             ),
             (
+                NamingError::MergedChordConstituents {
+                    edge: two_edges().0,
+                    face: FaceKey::default(),
+                    several: 2,
+                },
+                vec!["merged face", "holds 2 faces", "no rule picks"],
+            ),
+            (
                 NamingError::MemberEdgeTied {
                     member: RecipeNodeId(37),
                     edge: Box::new(StableName {
@@ -1753,6 +1786,7 @@ mod display_tests {
                 | NamingError::SharedRim { .. }
                 | NamingError::MergedChord { .. }
                 | NamingError::MergedChordOffRim { .. }
+                | NamingError::MergedChordConstituents { .. }
                 | NamingError::SeamLineSides { .. }
                 | NamingError::MemberEdgeTied { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_)
@@ -1778,6 +1812,7 @@ mod display_tests {
                 NamingError::SeamLineSides { .. } => 13,
                 NamingError::MemberEdgeTied { .. } => 14,
                 NamingError::NarrowBand { .. } => 15,
+                NamingError::MergedChordConstituents { .. } => 16,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

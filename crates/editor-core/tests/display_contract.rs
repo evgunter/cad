@@ -337,10 +337,12 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
 /// six ordinary enums. Only ADDITION is unchecked, and the wildcard
 /// below does not repair it: reaching the panic needs a case that
 /// constructs the new variant, which is the vacuity this file exists to
-/// close. The real home is a unit test beside the enum, inside the
-/// crate where the attribute does not apply
-/// (`work/wire/select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`);
-/// the other six are not weakened to match this one.
+/// close. The census beside the enum, inside the crate where the
+/// attribute does not apply (`crates/editor-core/src/names/geompred.rs`,
+/// `mod census`), holds the enum's VARIANT SET; nothing ties this
+/// file's hand-written roster below, or its rendering cases, to that
+/// census, so a variant added there still reaches this file only by
+/// hand. The other six are not weakened to match this one.
 fn select_refusal_is_exhaustive(e: &SelectRefusal) {
     match e {
         SelectRefusal::InBand { .. }
@@ -382,9 +384,10 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
 /// refusal carries out of the funnel.
 fn in_band(predicate: &'static str) -> geom_core::Indeterminate {
     geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::Value(3e-11),
+        margin: geom_core::MarginDiag::value(3e-11),
         band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -1540,6 +1543,38 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
     }
 }
 
+/// A fold consumption points at the union that minted the name and
+/// says WHICH composition consumed the entity, in words a reader can
+/// tell apart — a split and
+/// a merge split later are two different sentences — and says why
+/// nothing is offered in its place.
+#[test]
+fn a_fold_consumption_names_the_composition_and_why_nothing_is_offered() {
+    use editor_core::FoldConsumption;
+    let banned = ["ConsumedByFold", "FoldConsumption", "FragmentedMerge"];
+    for (by, wants) in [
+        (
+            FoldConsumption::Split,
+            &["split it into fragments", "none is offered"][..],
+        ),
+        (
+            FoldConsumption::FragmentedMerge,
+            &[
+                "a declared merge consumed it",
+                "split the merged face",
+                "none is offered",
+            ][..],
+        ),
+    ] {
+        let d = Diagnosis::ConsumedByFold { by };
+        assert_f6(
+            &d,
+            &[&["the union that minted it"][..], wants].concat(),
+            &banned,
+        );
+    }
+}
+
 /// Refusals that name a stable name FORWARD its `Display` rather than
 /// re-spelling the kind-plus-minting-node phrase. The expectation is
 /// built from the impl, so a copy that stops tracking it fails here —
@@ -2166,6 +2201,7 @@ test_utils::f6_variants! {
         SharedRim,
         MergedChord,
         MergedChordOffRim,
+        MergedChordConstituents,
         SeamLineSides,
         MemberEdgeTied,
         NarrowBand,
@@ -2296,6 +2332,14 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["merged faces", "operand node 29", "does not lie within"],
         ),
         (
+            NamingError::MergedChordConstituents {
+                edge,
+                face,
+                several: 2,
+            },
+            vec!["merged face", "holds 2 faces", "no rule picks"],
+        ),
+        (
             NamingError::SeamLineSides {
                 node: RecipeNodeId(31),
                 edge,
@@ -2334,9 +2378,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
             NamingError::Escalated {
                 predicate: "side_of_plane",
                 source: geom_core::Indeterminate {
-                    margin: geom_core::predicate::MarginDiag::Invalid,
+                    margin: geom_core::predicate::MarginDiag::INVALID,
                     band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
                     predicate: Some("side_of_plane"),
+                    terminal_sliver: false,
                 },
             },
             vec!["side_of_plane", "escalated"],

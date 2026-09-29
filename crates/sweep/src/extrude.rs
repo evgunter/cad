@@ -35,7 +35,9 @@
 //!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
 //!    the certification schedule's interior stations, in its one home:
 //!    jet-determinate ⇒ `TangentIntersection`, under-determined ⇒ an
-//!    image in the previous wall's chart, in-band ⇒ the typed sliver),
+//!    image in the previous wall's chart, in-band ⇒ the typed sliver,
+//!    a transverse station ⇒ the typed
+//!    [`ExtrudeError::SmoothJoinRefuted`]),
 //!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
@@ -54,13 +56,13 @@
 //!    join's under-determined case — the arm in `upgrade_rim` says
 //!    why the second-order rule has nothing to add there);
 //!    Indeterminate ⇒ the typed [`ExtrudeError::SliverRim`].
-//! 7. **Declared contacts.** Every declared cusp joint
+//! 7. **Declared cusps.** Every declared cusp joint
 //!    ([`profile::ValidatedLoop::cusp_joints`]) sweeps a strut at
-//!    material wedge 0 (2π on a hole loop), legal at rest exactly where
-//!    its wall pair is declared in `Tangent` contact. The profile
-//!    declared it, so the result carries it
-//!    ([`Extruded::declared_contacts`]); a smooth declared joint is
-//!    wedge π and carries nothing.
+//!    material wedge 0 (2π on a hole loop). The profile's `.cusp()` is
+//!    where that tangency's intent is declared; at rest the strut is
+//!    legal because its tangency is jet-determinate — derived from the
+//!    body exactly as a π seam is — so the result carries no record
+//!    for it.
 //!
 //! Everything runs in a fixed, documented order (D9): loops outer
 //! first then holes in canonical order; per loop, struts in traversal
@@ -81,8 +83,8 @@ use geom_core::{
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
-    Body, DeclaredContact, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
-    MevSite, ShellKey, SolidKey, SurfaceKey,
+    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
+    SolidKey, SurfaceKey,
 };
 
 use crate::swept;
@@ -126,18 +128,12 @@ pub struct Extruded<T: Real> {
     /// The built body — a closed solid, tiers 1–2 by construction.
     ///
     /// **Tier 3 holds for every body whose joints and cap rims classify
-    /// definitely transverse, and these two shapes are the whole of
-    /// what it does not cover** — both minted here:
+    /// definitely transverse or jet-determinately tangent** — a
+    /// declared cusp joint (`.cusp()`) included: its strut subtends
+    /// material wedge 0 (2π on a hole loop), which tier 3 holds legal
+    /// because the tangency is jet-determinate. The one shape minted
+    /// here that it does not cover:
     ///
-    /// - a DECLARED cusp joint (`.cusp()`) gives a strut subtending
-    ///   material wedge 0 (2π on a hole loop), which tier 3 holds legal
-    ///   exactly where its wall pair carries a `Tangent` declaration.
-    ///   The declaration is the profile's own, carried out in
-    ///   [`Extruded::declared_contacts`]: validated through
-    ///   `topo::validate_geometric_declared` with it, the body passes;
-    ///   `topo::validate_geometric`, which declares nothing, refuses it
-    ///   as `topo::ValidationError::UndeclaredCusp` — correctly, since
-    ///   that call says nobody meant the cusp;
     /// - a cap rim the dihedral lever reads definitely SMOOTH keeps the
     ///   conventional description (`upgrade_rim`'s smooth arm) and is
     ///   refused as `topo::ValidationError::SliverDihedral` under
@@ -175,19 +171,6 @@ pub struct Extruded<T: Real> {
     /// rest in the previous wall's chart where it does not (M5 PR 9 —
     /// neither keeps the scaffolding `MappedCurve` the mint left).
     pub strut_edges: Vec<Vec<EdgeKey>>,
-    /// **The contacts the profile declared**: one `Tangent` pair per
-    /// declared cusp joint (module docs, step 7) — the side walls of
-    /// the two canonical segments meeting there, arriving wall first —
-    /// loops in canonical order, joints ascending. Empty for a profile
-    /// with no declared cusp.
-    ///
-    /// This is the record tier 3 reads the strut's wedge-0 (or 2π) end
-    /// against: pass it to `topo::validate_geometric_declared`. It is
-    /// the author's declaration carried through the verb, not a
-    /// discovery — a joint the profile did not declare contributes
-    /// nothing, and a declared SMOOTH joint (wedge π, legal undeclared)
-    /// contributes nothing either.
-    pub declared_contacts: Vec<DeclaredContact>,
 }
 
 /// Typed failure of [`extrude`] (closed enum, D4 ¶3). Loop indices
@@ -259,6 +242,21 @@ pub enum ExtrudeError {
         segment_index: usize,
         /// The classifier's diagnostic.
         source: Indeterminate,
+    },
+    /// The must-carry rule read a station of a strut definitely
+    /// transverse ([`geom_brep::MustCarryVerdict::Transverse`]) after
+    /// the join's witness classified definitely smooth: the geometry
+    /// refuted the premise the smooth arm was entered on.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
+    /// along the strut, so their normals are constant along it and
+    /// every station reads what the witness read. Reaching this means
+    /// the inputs carried something a validated profile cannot, and it
+    /// is surfaced rather than stored under a description neither
+    /// reading chose.
+    SmoothJoinRefuted {
+        /// The strut edge whose station refuted the smooth premise.
+        edge: EdgeKey,
     },
     /// A cap plane failed Newell certification (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
@@ -336,6 +334,12 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
                  is neither a definite corner nor definitely smooth: {source}"
+            ),
+            Self::SmoothJoinRefuted { edge } => write!(
+                f,
+                "the wall join along {edge:?} classified definitely smooth at its witness \
+                 but definitely a corner at a certification station, so the construction \
+                 refuses rather than choose a description for it"
             ),
             Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::SidePlane {
@@ -501,8 +505,7 @@ struct LoopBase {
 /// (`topo::surgery`), so tier 1 is not re-derived per operator and the
 /// tier-2 debug assertion on the finished body, which subsumes it, is
 /// what this door pays — and passes tier 3
-/// (`validate_geometric_declared` over
-/// [`Extruded::declared_contacts`]) except at the smooth cap rim
+/// (`topo::validate_geometric`) except at the smooth cap rim
 /// [`Extruded::body`] names. The caller re-validates at rest per the
 /// workspace convention.
 ///
@@ -771,22 +774,6 @@ pub fn extrude<T: Decide>(
         "extrude postcondition: result is not tier-2 valid (kernel bug)",
     );
 
-    // ---- Step 7: the profile's declared contacts, on the walls they
-    // name. `side_faces` is in swept order; the pairing is canonical,
-    // so each wall is looked up by the canonical segment it swept. ----
-    let declared_contacts = loops
-        .iter()
-        .zip(&side_faces)
-        .zip(profile.loops())
-        .flat_map(|((segs, faces), lp)| {
-            let mut by_canonical: Vec<Option<FaceKey>> = vec![None; segs.len()];
-            for (seg, &face) in segs.iter().zip(faces) {
-                by_canonical[seg.chord.canonical_segment] = Some(face);
-            }
-            swept::cusp_contacts(lp.cusp_joints(), segs.len(), |s| by_canonical[s])
-        })
-        .collect();
-
     Ok(Extruded {
         body: built,
         solid: seed.solid,
@@ -795,7 +782,6 @@ pub fn extrude<T: Decide>(
         bottom: bottom_face,
         side_faces,
         strut_edges,
-        declared_contacts,
     })
 }
 
@@ -981,7 +967,7 @@ fn sweep_loop<T: Decide>(
                 // `Intersection`. Under-determined keeps the
                 // conventional description BY THE PREDICATE; in-band
                 // escalates as the same typed sliver (F6). The gate,
-                // the stations and the three-way policy are the
+                // the stations and the verdict policy are the
                 // rule's, not this arm's
                 // ([`geom_brep::must_carry_over_edge`]).
                 let carrier = strut_carrier(qs[j], w);
@@ -1063,6 +1049,15 @@ fn sweep_loop<T: Decide>(
                             loop_index,
                             vertex_index: segs[j].chord.canonical_vertex,
                             source,
+                        });
+                    }
+                    // A station reads the join a corner where the
+                    // midpoint read it smooth: this arm's premise is
+                    // refuted, and the strut refuses rather than
+                    // store a description neither reading chose.
+                    geom_brep::MustCarryVerdict::Transverse => {
+                        return Err(ExtrudeError::SmoothJoinRefuted {
+                            edge: struts[j].edge,
                         });
                     }
                 }
@@ -1301,9 +1296,10 @@ mod tests {
 
         let msg = ExtrudeError::ExtrusionEscalated {
             source: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("extrusion_normal_component"),
+                terminal_sliver: false,
             },
         }
         .to_string();

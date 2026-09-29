@@ -21,14 +21,11 @@ use sweep::test_support::block;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
 
+use super::common::bulge;
 use super::common::latitude_seam::{collinear_cap_drum, door_cavity};
-use super::shell7_common::{face_of_he, point, polyline, tol, tube_torus, tube_torus_hollow};
+use super::common::shell_operands::{hollow_box, two_void_box, vessel};
+use super::shell7_common::{point, polyline, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::{beside, cap, outer_and_void_of};
-use super::verbs_shell::{hollow_box, two_void_box, vessel};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -37,7 +34,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -47,21 +44,18 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     .body
 }
 
-/// The bulge (`tan(θ/4)`) of the arc from `a` to `b` about `c`.
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
-
 /// `sf2b_axial`'s sphere-zone vase: a belly on a sphere centred on the
 /// axis at `(0, h/2)`, between two caps normal to it.
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
-    let c = p2(0.0, h / 2.0);
+    let c = Point2::new(0.0, h / 2.0);
     revolved(bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-        (p2(r, h), 0.0),
-        (p2(0.0, h), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (
+            Point2::new(r, 0.0),
+            bulge(Point2::new(r, 0.0), Point2::new(r, h), c),
+        ),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]))
 }
 
@@ -76,13 +70,13 @@ fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
 /// A sphere of radius `r` authored as cocircular arcs meeting at the
 /// latitudes `seams` (each in `(-π/2, π/2)`, ascending).
 fn multi_arc_sphere(r: f64, seams: &[f64]) -> Body<f64> {
-    let c = p2(0.0, 0.0);
+    let c = Point2::new(0.0, 0.0);
     let mut angles = vec![-FRAC_PI_2];
     angles.extend_from_slice(seams);
     angles.push(FRAC_PI_2);
     let pts: Vec<Point2<f64>> = angles
         .iter()
-        .map(|a| p2(r * a.cos(), r * a.sin()))
+        .map(|a| Point2::new(r * a.cos(), r * a.sin()))
         .collect();
     let mut verts = Vec::new();
     for i in 0..pts.len() - 1 {
@@ -100,11 +94,11 @@ fn two_arc_sphere() -> Body<f64> {
 /// A torus of major `big` and minor `small` authored as `n` cocircular
 /// arcs — same-surface latitude seams on a torus.
 fn n_arc_torus(big: f64, small: f64, n: usize) -> Body<f64> {
-    let c = p2(big, 0.0);
+    let c = Point2::new(big, 0.0);
     let pts: Vec<Point2<f64>> = (0..n)
         .map(|i| {
             let a = 2.0 * PI * i as f64 / n as f64 + 0.3;
-            p2(big + small * a.cos(), small * a.sin())
+            Point2::new(big + small * a.cos(), small * a.sin())
         })
         .collect();
     let verts: Vec<(Point2<f64>, f64)> = (0..n)
@@ -130,11 +124,13 @@ fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 /// One line per stored row: half-edge, face, the face's surface kind,
 /// the parameter window and the image — `{:?}` is shortest round-trip,
 /// so equal text is equal bits.
+/// NOT `common::pcurve_rows::print_rows`: its own `[r1rows]` tag and a
+/// surface-kind column this suite's diff reads.
 fn dump_rows(label: &str, body: &Body<f64>) {
     let mut n = 0;
     for (he, cache) in body.pcurves() {
         n += 1;
-        let face = face_of_he(body, he);
+        let face = body.face_of_half_edge(he).unwrap();
         let kind = body
             .get_face(face)
             .and_then(|f| body.get_surface(f.surface))
@@ -211,7 +207,7 @@ fn r1_rows_corpus() {
     dump_rows("operand box beside hollow vessel", &pair_h);
     let vessel_solid = pair_h
         .solids()
-        .find(|(k, _)| pair_h.get_solid(*k).unwrap().shells.len() == 2)
+        .find(|(_, s)| s.shells.len() == 2)
         .map(|(k, _)| k)
         .expect("the hollow solid");
     let (_, void) = outer_and_void_of(&pair_h, vessel_solid);
@@ -269,14 +265,14 @@ fn r1_rows_corpus() {
         &[],
     );
     // A vase whose belly is two cocircular arcs.
-    let c = p2(0.0, 1.0);
-    let m = p2(2.0f64.sqrt(), 1.0);
+    let c = Point2::new(0.0, 1.0);
+    let m = Point2::new(2.0f64.sqrt(), 1.0);
     let two_arc_vase = revolved(bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), bulge(p2(1.0, 0.0), m, c)),
-        (m, bulge(m, p2(1.0, 2.0), c)),
-        (p2(1.0, 2.0), 0.0),
-        (p2(0.0, 2.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), bulge(Point2::new(1.0, 0.0), m, c)),
+        (m, bulge(m, Point2::new(1.0, 2.0), c)),
+        (Point2::new(1.0, 2.0), 0.0),
+        (Point2::new(0.0, 2.0), 0.0),
     ]));
     dump_shelled("two-arc vase sealed", &two_arc_vase, t, &[]);
     dump_shelled(
@@ -384,7 +380,7 @@ fn r1_end_to_end() {
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hv, 10.0);
     let vessel_solid = pair
         .solids()
-        .find(|(k, _)| pair.get_solid(*k).unwrap().shells.len() == 2)
+        .find(|(_, s)| s.shells.len() == 2)
         .map(|(k, _)| k)
         .expect("the hollow solid");
     let (_, void) = outer_and_void_of(&pair, vessel_solid);

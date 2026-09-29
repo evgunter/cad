@@ -294,15 +294,8 @@ fn mouth(body: &Body<f64>) -> (Vec<EdgeKey>, VertexKey) {
 fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     let body = lantern();
     let (arcs, vertex) = mouth(&body);
-    let orbit = body
-        .vertex_orbit(body.get_vertex(vertex).unwrap().emanating.unwrap())
-        .unwrap();
-    let mut edges: Vec<EdgeKey> = orbit
-        .iter()
-        .map(|h| body.get_half_edge(*h).unwrap().edge)
-        .collect();
+    let mut edges = body.edges_of_vertex(vertex).unwrap();
     edges.sort_unstable();
-    edges.dedup();
     assert_eq!(edges.len(), 4, "the seam vertex is valence four");
     let (seams, rim): (Vec<EdgeKey>, Vec<EdgeKey>) = edges.iter().partition(|k| {
         let (a, b) = supports(&body, **k);
@@ -322,7 +315,10 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     for seam in seams {
         match fillet_edges(&body, &[seam], 0.02, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
-                (margin.predicate, margin.value()),
+                (
+                    margin.predicate,
+                    margin.reading.diagnostic_f64_for_error_text().value()
+                ),
                 ("fillet3_convexity_sign", Some(0.0)),
                 "a co-surface seam's dihedral is exactly zero, got {margin}"
             ),

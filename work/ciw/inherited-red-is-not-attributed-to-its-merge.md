@@ -9,9 +9,10 @@ cost: E
 ---
 
 
-Opened 2026-09-07 out of Ev's F3 ruling
-(`f3-recosting-on-a-public-repo`), which declines the post-merge run on
-the grounds that nobody would read it. That is right about detection and
+Opened 2026-09-07 out of Ev's F3 ruling, which declines a gating
+post-merge run on the grounds that nobody would read it (a `main` push
+runs only the cache primer; `nightly.yml` holds main's full gate and its
+reds are the orchestrator's to assign). That is right about detection and
 it leaves the thing the recorded instances actually cost.
 
 ## What the two instances cost, and it was not detection
@@ -21,8 +22,7 @@ found quickly, because a red `main` reddens the next PR's merge ref —
 that is F3's stated compensating control and it works. What it does not
 do is say **whose** break it is.
 
-Measured, from `merge-order-semantic-break-reaches-main` and
-`tree-wide-guards-outside-the-change-closure`: **42 red runs on 20
+Measured on the two 2026-09-04 breaks: **42 red runs on 20
 branches, four innocent branches**, 34 m 25 s of non-compiling `main`,
 and two agents diagnosing the same one-line break in the same hour
 because neither could see the other doing it. Every lane that tripped

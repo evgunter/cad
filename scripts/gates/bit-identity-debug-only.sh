@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # bit-identity-debug-only.sh — the debug-only subjects stay debug-only.
-# ONE home; ci.yml's `discipline` job and local-scripts/ci-local.sh's
-# discipline row both call this file by name.
+# ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # A SUBJECT LIST, NOT A FILE. `SUBJECTS` carries one row per file that
 # owes a symbol to `cfg(debug_assertions)`: the path, the spellings
@@ -16,20 +15,25 @@
 #     GATE IS THAT FILE'S ONLY CONTROL — `bit-identity-consumer.sh`
 #     excludes it wholesale — so what it can and cannot see is the whole
 #     guarantee. The row pins the channel call (`bit_identity::`,
-#     `eq_bits`) AND the three debug-only witnesses built on it —
-#     `plane_bits_witness`, `vec3_bits_witness`, `bits_witness` — whose
-#     own gated `fn` heads name the channel nowhere. A ROW HOLDS THE
+#     `eq_bits`) AND the debug-only witnesses built on it —
+#     `surface_bits_witness`, `data_bits_witness`, their helpers
+#     `nurbs_surface_bits_witness` and `joined`, and `bits_witness` —
+#     whose own gated `fn`
+#     heads name the channel nowhere. A ROW HOLDS THE
 #     ATTRIBUTES ON THE STATEMENTS THAT NAME ITS SPELLINGS AND NO
 #     OTHERS, so a mechanism's every spelling belongs on its row.
-#   * `crates/topo/src/boolean/plane_eq.rs` and
-#     `crates/topo/src/merge_faces.rs` — the witnesses' CALLERS, a row
+#   * `crates/topo/src/boolean/plane_eq.rs`,
+#     `crates/topo/src/merge_faces.rs` and `crates/topo/src/body.rs`
+#     (`surface_bits_witness` at the stamp door) — the witnesses'
+#     CALLERS, a row
 #     each, because A SUBJECT IS A FILE and the row above pins the
 #     attributes on the DEFINITIONS only. Each caller stands under a
 #     STATEMENT-POSITION attribute over an `if let`, and names the
-#     witnesses its own file calls: `plane_bits_witness` at the
-#     same-source plane assertion, and both `plane_bits_witness` and
-#     `vec3_bits_witness` where the face merge compares two plane
-#     surfaces with their `u_ref`. Dropping either attribute compiles
+#     witnesses its own file calls: `data_bits_witness` at the
+#     same-source plane assertion, beside `plane_data`, the gated walk
+#     of the plane description it folds; and `surface_bits_witness`
+#     where the face merge compares two same-source surfaces. Dropping
+#     either attribute compiles
 #     and passes every test HERE — the workspace's `[profile.release]`
 #     keeps debug assertions on — and the first build that refuses it
 #     is a consumer's, because the witnesses do not exist without
@@ -243,9 +247,10 @@ set -euo pipefail
 # to a file with no row — reds with the row named rather than lowering
 # the total in silence.
 SUBJECTS=(
-  'crates/topo/src/source.rs bit_identity::|eq_bits|plane_bits_witness|vec3_bits_witness|bits_witness 6 the bit channel'
-  'crates/topo/src/boolean/plane_eq.rs plane_bits_witness 1 the same-source plane witness on the bit channel'
-  'crates/topo/src/merge_faces.rs plane_bits_witness|vec3_bits_witness 2 the plane and u_ref witnesses on the bit channel'
+  'crates/topo/src/source.rs bit_identity::|eq_bits|surface_bits_witness|data_bits_witness|nurbs_surface_bits_witness|joined|bits_witness 15 the bit channel'
+  'crates/topo/src/boolean/plane_eq.rs data_bits_witness|plane_data 4 the same-source plane witness on the bit channel'
+  'crates/topo/src/merge_faces.rs surface_bits_witness 1 the same-source surface witness on the bit channel'
+  'crates/topo/src/body.rs surface_bits_witness 1 the stamp door witness on the bit channel'
   'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 4 the debug-only gather counter'
   'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 5 the identified-vertex census the sphere/torus emit pass re-derives'
   'crates/mesh/src/tessellate.rs unpaired_chord_segment 2 the chord-segment pairing census'
@@ -558,7 +563,7 @@ plant_nothing() { :; }
 # reader of that diagnosis is sent to a file with no line to look at.
 plant_colon_path_leak() {
   printf 'pub fn production_leak(a: f64, b: f64) -> bool { %s }\n' \
-    "$(spelling_use plane_bits_witness)" >> "$1/crates/planted/src/a:b.rs"
+    "$(spelling_use data_bits_witness)" >> "$1/crates/planted/src/a:b.rs"
 }
 
 # THE CASE THE COUNTING FORM PASSED, and the reason this gate was
@@ -1110,7 +1115,7 @@ gate_selftest() {
   # the leak case wants the PATH AND THE LINE the diagnosis carries,
   # which is the whole of what the record reading decides here.
   local saved_subjects=("${SUBJECTS[@]}")
-  export GATE_SELFTEST_EXTRA_SUBJECT='crates/planted/src/a:b.rs plane_bits_witness 1 the witness at a colon-carrying path'
+  export GATE_SELFTEST_EXTRA_SUBJECT='crates/planted/src/a:b.rs data_bits_witness 1 the witness at a colon-carrying path'
   SUBJECTS+=("$GATE_SELFTEST_EXTRA_SUBJECT")
   selftest_subject_paths_are_distinct
   gate_selftest_passes "a gated use in a subject whose path carries a colon" plant_nothing

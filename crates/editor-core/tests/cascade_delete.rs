@@ -12,9 +12,8 @@
 //! whose only tie to the target is that it FED the target survives.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{
-    Dimension, Doc, DocEdit, EditError, Expr, Node, RecipeNodeId, apply, cascade_delete_order,
-};
+use crate::fixture::len;
+use editor_core::{Doc, DocEdit, EditError, Node, RecipeNodeId, apply, cascade_delete_order};
 use geom_core::Tol;
 
 /// The opaque profile payload: this suite never looks inside `P`.
@@ -24,10 +23,6 @@ impl editor_core::ProfilePayload for FakeProfile {}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
 
 fn insert(doc: &TDoc, node: Node<FakeProfile>) -> (TDoc, RecipeNodeId) {
     let applied = apply(

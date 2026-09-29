@@ -163,6 +163,10 @@ fn the_records_have_the_shape_the_surgery_built() {
     assert_eq!(rec.meridian_splits.len(), 2);
     assert_eq!(rec.meridian_remnants.len(), 2);
     assert_eq!(rec.slits.len(), 1, "one slit per band");
+    assert_eq!(
+        rec.slits[0].2, rec.bands[0].1,
+        "the slit carries the band that slit it, as that band's own sorted chain"
+    );
 }
 
 // ------------------------------------------------------------------

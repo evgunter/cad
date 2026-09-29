@@ -153,6 +153,11 @@ fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
     assert_eq!(rec.meridian_remnants.len(), 2, "one remnant per support");
     assert_eq!(rec.rim_trims.len(), 2, "one trim circle per side");
     assert_eq!(rec.slits.len(), 1, "one slit per band");
+    assert_eq!(
+        rec.slits[0].2,
+        vec![rim],
+        "the slit carries the band that slit it: its one source edge"
+    );
     assert!(
         rec.blends.is_empty() && rec.corners.is_empty() && rec.trims.is_empty(),
         "a lone closed rim fills no open-chain record"

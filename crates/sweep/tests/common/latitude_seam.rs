@@ -20,10 +20,6 @@
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //!
-//! - `shell7_common`'s profile vocabulary (`polyline`, `revolved`,
-//!   `hollow_moves`, `tol`, `point`), which this module reaches
-//!   through `crate::shell7_common` rather than copying — that tree
-//!   is the SHELL-7 suites' own and is not a `common::` module;
 //! - `shell9_r1_probes::multi_arc_sphere` and its `two_arc_sphere`
 //!   — the reviewer's own derivation of the same body from a bulge
 //!   computed off the arc's geometry, kept apart under
@@ -34,10 +30,13 @@
 
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, Pcurve};
+use geom_core::{Point2, Tol};
 use sweep::Revolution;
+use sweep::test_support::{corners, revolved_about_y};
+use topo::readback::vertex_point;
 use topo::{Body, EdgeKey, VoidContainment, VoidEvidence};
 
-use crate::shell7_common::{hollow_moves, p2, point, polyline, revolved, tol};
+use super::charts::hollow_moves;
 
 /// The drum's radius.
 pub const DRUM_R: f64 = 1.0;
@@ -49,15 +48,16 @@ pub const DRUM_H: f64 = 2.0;
 /// so the cap is one plane in four faces with a latitude ring at
 /// `r/2` between them.
 pub fn collinear_cap_drum() -> Body<f64> {
-    polyline(
-        &[
+    revolved_about_y(
+        corners(&[
             (0.0, 0.0),
             (DRUM_R, 0.0),
             (DRUM_R, DRUM_H),
             (DRUM_R / 2.0, DRUM_H),
             (0.0, DRUM_H),
-        ],
+        ]),
         Revolution::Full,
+        Tol::witness(),
     )
 }
 
@@ -65,17 +65,17 @@ pub fn collinear_cap_drum() -> Body<f64> {
 /// latitude `π/4`: one sphere in four faces, a same-surface seam.
 pub fn two_arc_sphere() -> Body<f64> {
     use core::f64::consts::{FRAC_PI_2, PI};
-    use profile::test_support::bulge_loop;
     let r = 1.0;
     let v = PI / 4.0;
     let (s, c) = v.sin_cos();
-    revolved(
-        bulge_loop(vec![
-            (p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            (p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            (p2(0.0, r), 0.0),
-        ]),
+    revolved_about_y(
+        vec![
+            (Point2::new(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+            (Point2::new(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+            (Point2::new(0.0, r), 0.0),
+        ],
         Revolution::Full,
+        Tol::witness(),
     )
 }
 
@@ -85,11 +85,11 @@ pub fn two_arc_sphere() -> Body<f64> {
 /// every row that reverts or grafts the cavity.
 pub fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
     let mut cavity = body.clone();
-    let band = geom_core::Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol())
+    let band = geom_core::Band::linear(Tol::witness()).expect("band");
+    topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, Tol::witness())
         .expect("the door takes it");
     assert_eq!(
-        topo::validate_geometric(&cavity, tol()),
+        topo::validate_geometric(&cavity, Tol::witness()),
         Ok(()),
         "cavity tier 3"
     );
@@ -108,7 +108,7 @@ pub fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
 /// are what catch a drift — this reader's refusals would disagree
 /// with a door that no longer refuses, or refuses more.
 pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)> {
-    let band = geom_core::Band::linear(tol()).expect("band");
+    let band = geom_core::Band::linear(Tol::witness()).expect("band");
     body.edges()
         .filter_map(|(ek, e)| {
             let curve = body.get_curve_geom(e.curve)?.certified()?;
@@ -119,8 +119,8 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
             let end_v = body.half_edge_end(e.he_plus)?;
             EdgeCurve::certify(
                 curve.restated_spec(),
-                point(body, start_v),
-                point(body, end_v),
+                vertex_point(body, start_v).expect("a live vertex"),
+                vertex_point(body, end_v).expect("a live vertex"),
                 |sk| body.get_surface(sk).cloned(),
                 band,
             )

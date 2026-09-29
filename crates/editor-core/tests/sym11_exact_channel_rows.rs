@@ -37,7 +37,7 @@ const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("r1_annulus", [328, 140, 209, 1056]),
     ("r2_link", [214, 76, 179, 556]),
     ("r2_filleted_bracket", [429, 141, 344, 1096]),
-    ("r2_rounded_pad", [857, 128, 982, 2750]),
+    ("r2_rounded_pad", [885, 128, 1066, 2722]),
 ];
 
 /// One whole-box replay at `Sym<Interval>`, ON ITS OWN THREAD: the

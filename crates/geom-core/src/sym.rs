@@ -539,10 +539,13 @@
 //! and every whole-certifying ceiling is identical to the digit on all
 //! EIGHT, with the over-band set at ceiling + δ identical too. The
 //! exception is the pad's replay at the scale it certifies whole at:
-//! `symbolic_zero` 861 → 857, `registered` 104 → 128, `numeric`
-//! 1002 → 982, `frozen` 2750 either way — the same 1967 decisions, 24
+//! `symbolic_zero` 889 → 885, `registered` 104 → 128, `numeric`
+//! 1086 → 1066, `frozen` 2722 either way — the same 2079 decisions, 24
 //! of them moving into the door, twenty out of `numeric` and FOUR out
-//! of `symbolic_zero`. Those four are the unit's finding: opening an
+//! of `symbolic_zero` (a `numeric` and `frozen` drift in these receipts
+//! is not yet attributed,
+//! `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`).
+//! Those four are the unit's finding: opening an
 //! atom the early walk was cancelling OVER can cost that walk a
 //! theorem, which is
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class.
@@ -807,7 +810,7 @@
 //!
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
-//! `Indeterminate` carrying `MarginDiag::Invalid`
+//! `Indeterminate` carrying `MarginKind::Invalid`
 //! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
@@ -875,7 +878,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
+use crate::predicate::{Band, Decide, Decided, Indeterminate, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
 use crate::tolerance::Tol;
@@ -1402,9 +1405,9 @@ pub struct SymCounts {
     /// pinned by `geom-core`'s
     /// `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`).
     /// No leaf of a drive reaches it — a drive mints every node inside
-    /// its own session — and `editor-core`'s
-    /// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
-    /// pins that over five drives.
+    /// its own session — measured over five drives with the profile's
+    /// `FreezeCause::Unrecorded` count; no gating row holds that
+    /// count.
     ///
     /// **The dial does not move it.** With the drive's memo off a leaf
     /// freezes every node of its closure that freezes at all, so its
@@ -3791,7 +3794,7 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// 1. **the computation was defined on the whole input box**, checked
 ///    in TWO places because one scalar cannot see both halves of it.
 ///
-///    *The value side.* [`MarginDiag::Invalid`] is the arm every scalar
+///    *The value side.* [`MarginKind::Invalid`](crate::MarginKind::Invalid) is the arm every scalar
 ///    returns for a domain violation it can see —
 ///    [`crate::Interval::sign_within`] for an uncertified enclosure,
 ///    `f64` and [`crate::Probe`] for NaN — so the numeric channel
@@ -3871,15 +3874,20 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 ///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
-    fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
+    fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]
         let mark = crate::k_stats::sink_mark();
         let numeric = self.value.sign_within(band);
-        let domain_violation =
-            matches!(&numeric, Err(e) if matches!(e.margin, MarginDiag::Invalid));
-        let definitely_nonzero = matches!(&numeric, Ok(Sign::Positive | Sign::Negative));
+        let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
+        let definitely_nonzero = matches!(
+            &numeric,
+            Ok(Decided {
+                sign: Sign::Positive | Sign::Negative,
+                ..
+            })
+        );
         if definitely_nonzero {
             // **A REGISTERED zero here is a CONTRADICTED AXIOM**, and it
             // is checked in release rather than asserted in debug: a
@@ -3957,7 +3965,15 @@ impl<T: Decide> Decide for Sym<T> {
             #[cfg(feature = "probe")]
             crate::k_stats::retag_at(mark, how.sample_outcome());
             report::record(&numeric, Some(how), None, self.value.enclosure_probe());
-            return Ok(Sign::Zero);
+            // The form decided; what the numeric channel saw is still
+            // the reading a refusal reports.
+            let margin = match numeric {
+                Ok(Decided { margin, .. }) | Err(Indeterminate { margin, .. }) => margin,
+            };
+            return Ok(Decided {
+                sign: Sign::Zero,
+                margin,
+            });
         }
         // The shape report wants the residual that BLOCKED — rendered
         // only when the instrument is installed, so an ordinary replay

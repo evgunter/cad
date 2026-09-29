@@ -60,12 +60,8 @@ use crate::test_support_fixtures::declined_cube;
 use crate::validate::validate;
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 fn p(x: f64) -> Point3<f64> {
-    pt(x, 0.0, 0.0)
+    Point3::new(x, 0.0, 0.0)
 }
 
 /// mvfs + mev(Lone): the segment body.
@@ -899,7 +895,9 @@ fn hexagon_pillow_oracle_is_deterministic_and_rotation_blind() {
     // must be isomorphic to each other (min-over-roots must defeat the
     // anchor/rotation sensitivity), and repeated canonicalization must
     // be byte-stable.
-    let hexagon: Vec<Point3<f64>> = (0..6).map(|i| pt(f64::from(i), 0.0, 0.0)).collect();
+    let hexagon: Vec<Point3<f64>> = (0..6)
+        .map(|i| Point3::new(f64::from(i), 0.0, 0.0))
+        .collect();
     let reference = ngon_pillow(&hexagon, tol);
     let reference_form = canonical_form(&reference);
     assert_eq!(canonical_form(&reference), reference_form, "stable");
@@ -935,7 +933,7 @@ fn hexagon_pillow_with_fully_degenerate_coordinates_is_stable() {
     // closes at that point), and the ORACLE claim under test — topology
     // and canonicalization are stable under coordinate ties — is
     // unchanged.
-    let p7 = pt(7.0, 7.0, 7.0);
+    let p7 = Point3::new(7.0, 7.0, 7.0);
     let degenerate_pillow = || {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p7).unwrap();
@@ -1037,7 +1035,11 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
             .unwrap();
         let plant = |body: &mut Body<f64>, at: HalfEdgeKey| {
             let strut = body
-                .mev_line(MevSite::Fan { he1: at, he2: at }, pt(9.0, 9.0, 9.0), tol)
+                .mev_line(
+                    MevSite::Fan { he1: at, he2: at },
+                    Point3::new(9.0, 9.0, 9.0),
+                    tol,
+                )
                 .unwrap();
             body.kemr(strut.he_plus, strut.he_minus).unwrap()
         };
@@ -1211,12 +1213,7 @@ fn kef_rejects_a_corrupt_edge_bijection() {
 //    `corrupt input (release profile)` job in .github/workflows/ci.yml,
 //    which runs on every code-tier run too and is the ONLY lane that runs
 //    it: that job pins `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`,
-//    and nothing else in the tree does. `local-scripts/ci-local.sh`'s
-//    `topo_release` row names this test but sets no such override, so
-//    against the root `[profile.release]`'s `debug-assertions = true` it
-//    is a third run of the DEBUG behaviour, not a local mirror of the
-//    release side. It greps that job name out of this comment, so a
-//    rename is loud rather than quietly falsifying this sentence.
+//    and nothing else in the tree does.
 // =====================================================================
 
 #[test]

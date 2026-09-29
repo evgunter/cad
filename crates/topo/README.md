@@ -82,9 +82,19 @@ procedure: exclusion, structural rung, declared rung, definite
 separation/crossing by geometry, in-band ⇒ escalate. The exclusion step
 as built is `census::sweep_cross_solid_backstop`: a cross-solid pair with
 a curved side is cleared only on a definitely-positive separation margin
-from certified reach boxes (`face_reach`) and refused `CensusUndecidable`
-otherwise; same-solid distinct-key curved pairs are undetected (their
-constructor's obligation). Refusals are typed with `CONTACT_RECOURSE`
+from certified reach boxes (`face_reach`), or, where the pair meets, by
+the touch analysis reading every curved face of a touch's star through
+that box (its corners' signed distances from the candidate plane: a box
+on its side certifies the Rest, and anything else refuses, never decides
+a crossing), and refused `CensusUndecidable` otherwise; same-solid
+distinct-key curved pairs are undetected (their constructor's
+obligation). A declaration licenses a coincidence, never a side: every
+meeting between two solids, whether a sweep found it undeclared, a
+record names it, or a declared face pair backs it, is read by the one
+touch analysis, and the pair clears only when each meeting reads Rest.
+A record's certificate licenses only what it checked (a patch record's
+opposed conformal interface; a vertex record's coincidence), so no
+record excuses a meeting or a face from being read. Refusals are typed with `CONTACT_RECOURSE`
 (declare the class or move the geometry; no tolerance arm, since ε cannot
 supply intent). Invariant: no flag, mode or tolerance glues value
 equality.
@@ -100,8 +110,8 @@ senses opposed (aligned coincidence is contradicted), definitely-positive
 trim overlap in a shared chart — exact on the planar trim inventory
 (`chart_region.rs`), typed elsewhere (`NonPlanarTrim`, `ArmUnbounded`,
 `SeamBranch`); empty ⇒ stale, in-band ⇒ escalate. The chart authority is
-one of three, in fixed order (`declared_pair_overlap`): the structurally
-shared chart (`same_chart`); for a declared **planar** pair the shared
+one of three, in fixed order (`declared_pair_overlap`): the declared
+shared chart (`declared_chart`); for a declared **planar** pair the shared
 world carrier — one plane description taken as representative frame,
 legitimate by the frame-invariance lemma at `world_carrier` (both chart
 maps are isometries, so every quantity the area machinery consumes is

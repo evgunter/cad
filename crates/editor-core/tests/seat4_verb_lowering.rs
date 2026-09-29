@@ -50,7 +50,7 @@ use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, prism_edges, tol};
+use fixture::{len, prism_edges, tol, xy_frame};
 
 /// The cube side and the two blend sizes, all dyadic.
 const L: f64 = 1.0;
@@ -69,14 +69,7 @@ fn both_blends() -> BothBlends {
     // round-trip a test of the wire spelling of every node.
     let snapshot = r.doc.clone();
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![square],
@@ -290,8 +283,8 @@ fn a_boolean_document_round_trips_byte_identical() {
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("crossing_slots", 0xf470_9f84_7704_ae91_u64),
-        ("heat_sink", 0x6c5d_70cd_4433_36a7),
+        ("crossing_slots", 0x0517_d55e_5617_052d_u64),
+        ("heat_sink", 0x34a8_9bc0_56c5_fed7),
         ("kiss_carry", 0xd50a_9072_2042_b77a),
     ] {
         let doc = corpus::documents()
@@ -335,14 +328,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
     let square =
         |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
-    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_1 = r.insert(xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![square(0.0)],
@@ -352,14 +338,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         profile: pa,
         distance: len(L),
     });
-    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
         loops: vec![square(3.0)],

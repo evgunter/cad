@@ -49,6 +49,9 @@
 
 test_utils::gated_to![
     "crates/sweep/src/blend/",
+    // The vertex doors every blend corner reads its incident edges and
+    // faces through.
+    "crates/topo/src/body.rs",
     "crates/sweep/src/revolve/",
     "crates/sweep/src/extrude.rs",
     "crates/sweep/src/test_support.rs",
@@ -72,10 +75,6 @@ use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
 }
 
 /// Revolve a closed sketch loop about the sketch y-axis.
@@ -185,10 +184,10 @@ fn dome(r: f64, zone: f64, bore_frac: f64, rev: Revolution<f64>) -> Body<f64> {
     let bore = top_x * bore_frac;
     revolved(
         vec![
-            (p2(bore, 0.0), 0.0),
-            (p2(r, 0.0), bulge),
-            (p2(top_x, top_y), 0.0),
-            (p2(bore, top_y), 0.0),
+            (Point2::new(bore, 0.0), 0.0),
+            (Point2::new(r, 0.0), bulge),
+            (Point2::new(top_x, top_y), 0.0),
+            (Point2::new(bore, top_y), 0.0),
         ],
         rev,
     )
@@ -204,11 +203,11 @@ fn neck_flare(r: f64, half_angle: f64, bore_frac: f64, rev: Revolution<f64>) -> 
     let bore = r * bore_frac.min((1.0 - flare) * 0.6);
     revolved(
         vec![
-            (p2(bore, 0.0), 0.0),
-            (p2(r, 0.0), 0.0),
-            (p2(r, r), 0.0),
-            (p2(r - flare * r, 2.0 * r), 0.0),
-            (p2(bore, 2.0 * r), 0.0),
+            (Point2::new(bore, 0.0), 0.0),
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(r, r), 0.0),
+            (Point2::new(r - flare * r, 2.0 * r), 0.0),
+            (Point2::new(bore, 2.0 * r), 0.0),
         ],
         rev,
     )
@@ -275,10 +274,10 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
         let sq = Profile::new(
             SketchPlane::xy(),
             vec![bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(w, 0.0), 0.0),
-                (p2(w, h), 0.0),
-                (p2(0.0, h), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(w, 0.0), 0.0),
+                (Point2::new(w, h), 0.0),
+                (Point2::new(0.0, h), 0.0),
             ])],
         )
         .validate(tol())
@@ -380,7 +379,7 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
     for _ in 0..fuzz::scaled(3) {
         let r = rng.range(0.4, 2.5);
         let ball = revolved(
-            vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)],
+            vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
             Revolution::Full,
         );
         let seam = pick_edge(&ball, false, |a, b| is_sphere(a) && is_sphere(b));
@@ -390,7 +389,10 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
         );
         match fillet_edges(&ball, &[seam], r * 0.05, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
-                (margin.predicate, margin.value()),
+                (
+                    margin.predicate,
+                    margin.reading.diagnostic_f64_for_error_text().value()
+                ),
                 ("fillet3_convexity_sign", Some(0.0)),
                 "a co-surface seam's dihedral sine is structurally zero (r={r})"
             ),
@@ -471,11 +473,11 @@ fn closed_rims_decide_both_convexity_signs_at_diameter_levers() {
         let bulge = (((bore / r).acos() - (h / r).asin()) / 4.0).tan();
         let boss = revolved(
             vec![
-                (p2(bore, 0.0), 0.0),
-                (p2(2.0 * r, 0.0), 0.0),
-                (p2(2.0 * r, h), 0.0),
-                (p2(rim_r, h), bulge),
-                (p2(bore, bore_y), 0.0),
+                (Point2::new(bore, 0.0), 0.0),
+                (Point2::new(2.0 * r, 0.0), 0.0),
+                (Point2::new(2.0 * r, h), 0.0),
+                (Point2::new(rim_r, h), bulge),
+                (Point2::new(bore, bore_y), 0.0),
             ],
             Revolution::Full,
         );
@@ -581,7 +583,7 @@ fn open_arcs_approaching_a_full_turn_do_not_collapse() {
 #[test]
 fn the_tangential_refusal_prose_states_no_geometric_fact() {
     let ball = revolved(
-        vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)],
+        vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         Revolution::Full,
     );
     let seam = pick_edge(&ball, false, |a, b| is_sphere(a) && is_sphere(b));

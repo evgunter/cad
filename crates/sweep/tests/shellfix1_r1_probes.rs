@@ -24,12 +24,8 @@ use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn polygon(pts: &[(f64, f64)]) -> ProfileLoop<f64> {
-    bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect())
+    bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect())
 }
 
 fn revolved_full(pts: &[(f64, f64)]) -> Body<f64> {
@@ -39,7 +35,7 @@ fn revolved_full(pts: &[(f64, f64)]) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -124,7 +120,7 @@ fn p1_partial_revolve_cap_is_never_a_validated_wrong_body() {
     let body = revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Partial(core::f64::consts::FRAC_PI_2),

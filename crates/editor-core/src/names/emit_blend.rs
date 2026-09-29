@@ -75,7 +75,7 @@ use topo::{Body, EdgeKey, FaceKey, VertexKey};
 use super::canonical;
 use super::defer::{TieRows, put as put_row, upstream_name};
 use super::emit::{NamingError, check_total, ent, name1};
-use super::role::{EntityKind, RimSupport, RoleSeg};
+use super::role::{EntityKind, RimSupport, RoleSeg, StableName};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -100,6 +100,23 @@ pub(super) fn name_blend<T: geom_core::Real>(
     let up_f = |k: FaceKey| up(EntityKey::Face(k));
     let up_e = |k: EdgeKey| up(EntityKey::Edge(k));
     let up_v = |k: VertexKey| up(EntityKey::Vertex(k));
+
+    // A band's identity: its closed chain's source names. A rim is a
+    // cycle with no first edge, so only the SET is covariant: the
+    // canonical form sorts and deduplicates it (the N3 `Merged`
+    // convention). A band face, its seam crossings and its slit all
+    // carry the same set, which is what tells apart the crossings and
+    // slits two bands make on ONE source meridian.
+    let band_set = |edges: &[EdgeKey]| -> Result<(Vec<StableName>, bool), NamingError> {
+        let mut tied = false;
+        let mut names = Vec::with_capacity(edges.len());
+        for e in edges {
+            let e = up_e(*e)?;
+            tied |= e.tied;
+            names.push((*e.name).clone());
+        }
+        Ok((names, tied))
+    };
 
     // ---- The mints, by role. ----
     //
@@ -163,16 +180,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
         )?;
     }
     for (f, edges) in &rec.bands {
-        // A rim is a cycle with no first edge, so only the SET is
-        // covariant: the canonical form sorts and deduplicates it (the
-        // N3 `Merged` convention).
-        let mut names = Vec::with_capacity(edges.len());
-        let mut tied = false;
-        for e in edges {
-            let e = up_e(*e)?;
-            tied |= e.tied;
-            names.push((*e.name).clone());
-        }
+        let (names, tied) = band_set(edges)?;
         put(
             EntityKey::Face(*f),
             canonical::minted_segment(RoleSeg::BandFace(names)),
@@ -198,17 +206,27 @@ pub(super) fn name_blend<T: geom_core::Real>(
         let v = up_v(*v)?;
         put(EntityKey::Vertex(*foot), RoleSeg::BandFoot(v.name), v.tied)?;
     }
-    for (v, m) in &rec.meridian_splits {
+    for (v, m, band) in &rec.meridian_splits {
         let m = up_e(*m)?;
-        put(EntityKey::Vertex(*v), RoleSeg::BandCross(m.name), m.tied)?;
+        let (band, band_tied) = band_set(band)?;
+        put(
+            EntityKey::Vertex(*v),
+            canonical::minted_segment(RoleSeg::BandCross { edge: m.name, band }),
+            m.tied || band_tied,
+        )?;
     }
     for (e, m) in &rec.meridian_remnants {
         let m = up_e(*m)?;
         put(EntityKey::Edge(*e), RoleSeg::BandCut(m.name), m.tied)?;
     }
-    for (e, m) in &rec.slits {
+    for (e, m, band) in &rec.slits {
         let m = up_e(*m)?;
-        put(EntityKey::Edge(*e), RoleSeg::BandSlit(m.name), m.tied)?;
+        let (band, band_tied) = band_set(band)?;
+        put(
+            EntityKey::Edge(*e),
+            canonical::minted_segment(RoleSeg::BandSlit { edge: m.name, band }),
+            m.tied || band_tied,
+        )?;
     }
 
     // ---- The table: the body row, then every output entity. ----

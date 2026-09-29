@@ -122,7 +122,7 @@ use geom_brep::NewellError;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
-use topo::{Body, DeclaredContact, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
 use crate::swept::decide;
 
@@ -173,13 +173,10 @@ pub enum Revolution<T: Real> {
 /// fixed point; full: pole/apex).
 #[derive(Debug)]
 pub struct Revolved<T: Real> {
-    /// The built body — a closed solid passing tiers 1–3, tier 3 read
-    /// with [`Revolved::declared_contacts`] in hand
-    /// (`topo::validate_geometric_declared`): a declared cusp joint
-    /// sweeps a latitude rim at material wedge 0 (2π on a hole loop),
-    /// legal exactly where its wall pair is declared, so
-    /// `topo::validate_geometric`'s empty slice refuses it as
-    /// `topo::ValidationError::UndeclaredCusp`.
+    /// The built body — a closed solid passing tiers 1–3. A declared
+    /// cusp joint (`.cusp()`) sweeps a latitude rim at material wedge 0
+    /// (2π on a hole loop), which tier 3 holds legal because its
+    /// tangency is jet-determinate.
     pub body: Body<T>,
     /// The solid.
     pub solid: SolidKey,
@@ -212,68 +209,6 @@ pub struct Revolved<T: Real> {
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
     pub kind: RevolvedKind,
-    /// **The contacts the profile declared**: one `Tangent` pair per
-    /// declared cusp joint and wall band — the walls of the two
-    /// canonical segments meeting there, arriving wall first — loops
-    /// in canonical order, joints ascending, the wire case's π…2π band
-    /// ([`RevolvedKind::Full::pi_walls`]) after the rest. Empty for a
-    /// profile with no declared cusp.
-    ///
-    /// The author's declaration carried through the verb, not a
-    /// discovery: a joint the profile did not declare contributes
-    /// nothing, nor does a declared SMOOTH joint (wedge π, legal
-    /// undeclared), nor a joint one of whose segments sweeps no wall
-    /// (on-axis) — there is no wall pair there to be in contact.
-    ///
-    /// Always empty from the tube doors ([`crate::tube_along_arc`],
-    /// [`crate::tube_along_arc_hollow`]): a tube circle is two
-    /// half-circles on ONE carrier, so it has no cusp to declare.
-    pub declared_contacts: Vec<DeclaredContact>,
-}
-
-/// What a revolve BUILDER mints: everything a [`Revolved`] carries but
-/// the declared contacts, which are the profile's and not the
-/// builder's — the builders see swept traversals, never a profile's
-/// joints. Each public door finishes it with
-/// [`RevolvedParts::with_contacts`], so a door cannot hand back a
-/// `Revolved` without having said what it declares.
-#[derive(Debug)]
-pub(super) struct RevolvedParts<T: Real> {
-    pub(super) body: Body<T>,
-    pub(super) solid: SolidKey,
-    pub(super) shell: ShellKey,
-    pub(super) cavities: Vec<ShellKey>,
-    pub(super) walls: Vec<Vec<Option<FaceKey>>>,
-    pub(super) rims: Vec<Vec<Option<EdgeKey>>>,
-    pub(super) poles: Vec<Vec<Option<VertexKey>>>,
-    pub(super) kind: RevolvedKind,
-}
-
-impl<T: Real> RevolvedParts<T> {
-    /// The finished [`Revolved`], with the door's declared contacts.
-    pub(super) fn with_contacts(self, declared_contacts: Vec<DeclaredContact>) -> Revolved<T> {
-        let Self {
-            body,
-            solid,
-            shell,
-            cavities,
-            walls,
-            rims,
-            poles,
-            kind,
-        } = self;
-        Revolved {
-            body,
-            solid,
-            shell,
-            cavities,
-            walls,
-            rims,
-            poles,
-            kind,
-            declared_contacts,
-        }
-    }
 }
 
 /// The per-case keys of a [`Revolved`] (see the ratified case split in
@@ -577,6 +512,22 @@ pub enum RevolveError {
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
+    /// The must-carry rule read a station of a latitude join or cap
+    /// rim definitely transverse
+    /// ([`geom_brep::MustCarryVerdict::Transverse`]) after the join's
+    /// witness classified definitely smooth: the geometry refuted the
+    /// premise the smooth arm was entered on.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): the join's circle is
+    /// carried by a symmetry flow of both surfaces, so every station
+    /// reads what the witness read. Reaching this means the inputs
+    /// carried something a validated profile cannot, and it is
+    /// surfaced rather than stored under a description neither reading
+    /// chose.
+    SmoothJoinRefuted {
+        /// The edge whose station refuted the smooth premise.
+        edge: EdgeKey,
+    },
     /// A cap plane failed Newell certification (unreachable for
     /// validated profiles — surfaced rather than trusted).
     CapPlane {
@@ -738,6 +689,12 @@ impl fmt::Display for RevolveError {
                 "the cap rim at loop {loop_index} segment {segment_index} is neither a \
                  definite corner nor definitely smooth: {source}"
             ),
+            Self::SmoothJoinRefuted { edge } => write!(
+                f,
+                "the join along {edge:?} classified definitely smooth at its witness but \
+                 definitely a corner at a certification station, so the construction \
+                 refuses rather than choose a description for it"
+            ),
             Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
             Self::Pcurve(source) => write!(f, "{source}"),
@@ -842,28 +799,7 @@ pub fn revolve<T: Decide + geom_brep::PcurveFittedLane>(
     // revolve output carries its stored certified pcurves at rest,
     // the same posture as boolean/split/loft outputs.
     topo::mint_pcurves(&mut out.body, tol).map_err(RevolveError::Pcurve)?;
-    // The profile's declared contacts, on the walls they name: every
-    // loop's band, then the wire case's π…2π band of the outer loop.
-    let pi_walls = match &out.kind {
-        RevolvedKind::Full { pi_walls, .. } => Some(pi_walls),
-        RevolvedKind::Partial { .. } => None,
-    };
-    let declared_contacts = profile
-        .loops()
-        .iter()
-        .zip(&out.walls)
-        .flat_map(|(lp, walls)| {
-            crate::swept::cusp_contacts(lp.cusp_joints(), walls.len(), |s| walls[s])
-        })
-        .chain(pi_walls.into_iter().flat_map(|walls| {
-            let outer = profile
-                .loops()
-                .first()
-                .map_or(&[][..], |lp| lp.cusp_joints());
-            crate::swept::cusp_contacts(outer, walls.len(), |s| walls[s])
-        }))
-        .collect();
-    Ok(out.with_contacts(declared_contacts))
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -878,9 +814,10 @@ mod tests {
     #[test]
     fn revolve_pairs_carry_the_shared_recourse() {
         let diag = |name| Indeterminate {
-            margin: geom_core::MarginDiag::Value(5e-9),
+            margin: geom_core::MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some(name),
+            terminal_sliver: false,
         };
         let errors = [
             RevolveError::DegenerateAxis,
