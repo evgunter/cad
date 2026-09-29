@@ -1340,7 +1340,7 @@ fn every_door_keeps_its_word_for_each_standing() {
         ),
         (
             "product",
-            |s| product_error_tag(&ProductError::from(s)),
+            |s| product_error_tag(&ProductError::Root(s)),
             [
                 "unknown_node",
                 "unknown_node",
@@ -2360,6 +2360,7 @@ fn node_error_tags_are_the_published_words() {
         PartEpsilonSeam => "part_epsilon_seam",
         PartUnresolved => "part_unresolved",
         PartRootFailed => "part_root_failed",
+        PartRootPoisoned => "part_root_poisoned",
         PartRootFailureUnrecorded => "part_root_failure_unrecorded",
         PartProduct => "part_product",
         PartReferenceCycle => "part_reference_cycle",
@@ -5126,6 +5127,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_reference_cycle",
             "part_root_failed",
             "part_root_failure_unrecorded",
+            "part_root_poisoned",
             "payload_expr",
             "placement_rule_mismatch",
             "placements_uncertified",

@@ -26,7 +26,9 @@ These rows, raised through `EditError` (`crates/editor-core/src/edit.rs`) on the
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  8 feature-tree rows.
+  6 feature-tree rows (`Part/PartProduct` left the list when its
+  sentence gained a recourse,
+  `part-product-refusal-draws-the-gathers-stage-prefix`).
 - `crates/viewer/tests/refusal_concision_edits.rs`, `FILED_NO_RECOURSE`:
   65 status-line rows.
 

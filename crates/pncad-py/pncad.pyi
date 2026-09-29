@@ -222,13 +222,15 @@ class EvaluationError(PncadError):
     declare that finding, or move the geometry.
 
     A refusal that CARRIES another node's refusal — `part_root_failed`,
-    a part whose product root failed, and `mate_placer_refused`, a
-    mate whose poisoned placer could not derive its pose — names that
-    node and points at it, and never quotes it. The carried refusal is
-    `__cause__`: an `EvaluationError` raised for that node as its own
-    evaluation raises it, whose `node` is in the id space of its
-    `document`: the part's `DocRef` for a part's root, or `None` for a
-    node of the evaluated document itself. A part inside a part is a
+    a part whose product root failed, `part_root_poisoned`, a part
+    whose product root never ran because a node upstream of it failed,
+    and `mate_placer_refused`, a mate whose poisoned placer could not
+    derive its pose — names the node that failed and points at it, and
+    never quotes it. The carried refusal is `__cause__`: an
+    `EvaluationError` raised for that node as its own evaluation raises
+    it, whose `node` is in the id space of its `document`: the part's
+    `DocRef` for a part's node, or `None` for a node of the evaluated
+    document itself. A part inside a part is a
     chain of causes, one per document, ending at the node that refused.
     """
 

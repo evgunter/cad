@@ -40,7 +40,9 @@ consumer that is not the viewer:
   `resolve::hit::HitTestError::Standing`, `stackup`'s no-measure
   refusal, `clearance::SelectionRefusal::NodeDidNotBuild`,
   `names::geompred`'s `NodeHasNoValue`/`DatumHasNoValue`;
-- `product::ProductError::RootFailed`, through `From<NodeStanding>`.
+- `product::ProductError::Root`, which carries the root's standing
+  whole and renders it as `product: root {standing}`, so it inherits
+  the standing's recourse, *"fix the node's own failure"* included.
 
 **The viewer builds kernel values that break their own field docs.**
 `viewer::tree::standing_as_drawn` answers `NodeStanding::Poisoned
@@ -59,7 +61,9 @@ inside kernel containers (`Resolution`, `InterrogateError`) that the
 viewer's selection and tool values hold. The product gather is not
 re-attributed: `session.product_fault()` hands out the gather's own
 value, and only the at-rest badge's words are the tree's
-(`viewer::tree::product_refusal_wording`).
+(`viewer::tree::product_refusal_wording`, which renders the root's
+standing re-read by `standing_as_drawn`, so the badge says "upstream"
+of a mate too).
 
 The question is a design one. Should `NodeStanding`, or a sibling
 reading on `Evaluation`, carry cross-placement blame, with its own
