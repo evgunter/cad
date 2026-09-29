@@ -2,11 +2,12 @@
 id: sweep-family-homes-sit-outside-the-tests-common-routing-list
 kind: issue
 title: sweep tests: shell7_common, shell8_common and mate2_common are shared homes the tests/common routing list does not name
-status: open
+status: closed
+closed: 2026-09-29
+pr: 3385
 opened: 2026-09-28
 priority: P4
 cost: M
-design: true
 ---
 
 
@@ -58,3 +59,31 @@ SHELL's for the two shell homes. The question is where a shared fixture
 lives — the narrowest-home rule's reach — which is this program's
 subject, as the row it was found from
 (`sweep-suites-import-fixtures-from-other-suites`) was.
+
+## The question for Ev, and the recommendation
+
+Two designers weighed it independently and recommend the same end state: **no family homes.**
+
+- `shell7_common`, `shell8_common`, `mate2_common` and `revolve_common` all fold into `tests/common`, into modules named for what they hold (body authoring, readers, checks, oracles), never for the unit that first needed them.
+- Items with one reader go back to that suite. Surviving copies fold or carry the ``NOT `common::`` marker.
+- The routing list's `revolve_common` bullet becomes one rule: `tests/common` is the binary's only shared tree, and a module in it is named for what it holds. A test or the existing suite/helper instrument keeps a second tree from appearing.
+
+**Why.** The narrowest-home rule ranks homes by reach, and a family home's reach is identical to `common`'s, so the rule cannot tell them apart. None of the four is a family home today by its own readers:
+- `shell7_common` has 2 of 9 readers from SHELL-7;
+- `shell8_common` has 4 of 13 from SHELL-8;
+- `mate2_common` has 3 of 5 from MATE-2;
+- `revolve_common` has 8 of 33 from the revolve suites.
+
+Two of the headers name readers that do not read them. `shell7_common.rs` and `shell8_common.rs` are also registered as `#[path]` suites with no tests.
+
+**What is changed.** The `revolve_common` bullet and the list's framing are lane text, not a ruling (their commits are agent-written). Ev's 2026-09-27 ruling settled only that the narrowest-home rule governs, and this applies it. The follow-up is a mechanical fold, sequenced with the open `revolved`, planar-cap-finder and solid-walk rows that own several of these items.
+
+## Closed
+
+Ev accepted the recommendation on PR 3385 (2026-09-29): *"yep. lean
+Tol::witness rather than the helper but it's not a strong opinion"*.
+There are no family homes. The fold and the one-tree rule are
+`work/reroute/sweep-family-homes-fold-into-tests-common.md`. The
+`tol()` copies are inlined as `Tol::witness()`, per
+`work/reroute/sweep-suites-wrap-tol-witness-in-a-private-tol.md`. The
+design-fork record is row 8 of `docs/DESIGN-FORK-LOG.md`.
