@@ -225,33 +225,32 @@ pub enum MassPropsError {
 impl fmt::Display for MassPropsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { error } => write!(f, "mass properties: {error}"),
-            Self::Face { face, source } => {
-                write!(f, "mass properties: face {face:?}: {source}")
+            Self::Band { error } => {
+                write!(f, "the volume and surface area cannot be computed: {error}")
             }
-            Self::RingOnCurvedFace { face } => {
-                write!(
-                    f,
-                    "mass properties: curved face {face:?} carries interior rings — curved \
-                     patches are swept UV rectangles and no construction produces one, so \
-                     report this rather than repairing a body"
-                )
-            }
-            Self::Corrupt { what } => {
-                write!(
-                    f,
-                    "mass properties: corrupt body ({what}) — the structural validators own \
-                     this diagnosis: read the tier-1/tier-2 report and repair what it names"
-                )
-            }
-            Self::NullScaffoldEdge { edge } => {
-                write!(
-                    f,
-                    "mass properties: edge {edge:?} is null-edge scaffolding \
-                     (mid-surgery body; tier 2 refuses null entities at rest) — finish or \
-                     revert the surgery and ask again at rest"
-                )
-            }
+            Self::Face { source, .. } => write!(
+                f,
+                "a face's share of the volume and surface area cannot be computed: {source}"
+            ),
+            // Every construction keeps curved faces ring-free, and
+            // STEP import refuses a ring on one before a body exists,
+            // so reaching this is a defect.
+            Self::RingOnCurvedFace { .. } => write!(
+                f,
+                "the kernel cannot measure the volume of a curved face with a hole. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::Corrupt { what } => write!(
+                f,
+                "the body's structure is incomplete ({what}). {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::NullScaffoldEdge { .. } => write!(
+                f,
+                "an edge is a placeholder a construction leaves while it is under way, which a \
+                 body at rest never carries. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
         }
     }
 }
@@ -1978,7 +1977,11 @@ impl fmt::Display for ShellClassifyPayload<'_> {
         match self.0 {
             ShellClassifyError::Band { error } => write!(f, "{error}"),
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
-            ShellClassifyError::Escalated { source, .. } => write!(f, "{}", source.payload()),
+            ShellClassifyError::Escalated { source, .. } => write!(
+                f,
+                "the sign of a shell's volume is too close to call: {}",
+                source.payload()
+            ),
             ShellClassifyError::ZeroVolume { .. } => f.write_str(
                 "a shell's signed volume, or an end of its certified bracket, is zero at this \
                  tolerance",
@@ -2022,15 +2025,11 @@ impl ShellClassifyError {
 impl fmt::Display for ShellClassifyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { .. } => write!(f, "shell classification: {}", self.payload()),
-            Self::Props { shell, .. }
-            | Self::Escalated { shell, .. }
-            | Self::ZeroVolume { shell, .. }
-            | Self::Straddles { shell } => write!(
-                f,
-                "shell classification: shell {shell:?}: {}",
-                self.payload()
-            ),
+            Self::Band { .. } => write!(f, "the shells cannot be classified: {}", self.payload()),
+            Self::Escalated { .. }
+            | Self::Props { .. }
+            | Self::ZeroVolume { .. }
+            | Self::Straddles { .. } => write!(f, "{}", self.payload()),
         }?;
         match self.ending() {
             Some(ending) => write!(f, ". {ending}"),
@@ -3193,8 +3192,10 @@ mod recourse_tests {
         for arm in &arms {
             let msg = arm.to_string();
             let lower = msg.to_lowercase();
+            // Where there is no way through, the sentence says so.
             assert!(
-                RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
+                RECOURSE_VERBS.iter().any(|v| lower.contains(v))
+                    || lower.contains("there is no way through"),
                 "no recourse in: {msg}"
             );
         }

@@ -851,6 +851,16 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                  datum (found: {found})"
             )
         }
+        // The standing's own words carry which state and where the
+        // repair is; `datum` is the node they are about.
+        R::DatumHasNoValue(standing) => {
+            let [datum, _] = super::standing_fields(py, *standing);
+            fill(&mut fields, "datum", datum);
+            format!("the node `datum_distance` references has no value: {standing}")
+        }
+        R::NodeHasNoValue(standing) => {
+            format!("a node the flush query reads has no value: {standing}")
+        }
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));
             "the comparand of a distance must be a length".to_string()

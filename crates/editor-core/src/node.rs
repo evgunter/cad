@@ -63,10 +63,10 @@ macro_rules! name_free_node {
 pub struct RecipeNodeId(pub u64);
 
 /// **A profile program step's identity** (`names/README.md`, "N1, the
-/// profile pieces"): minted from the document's monotone step counter
-/// when the step is authored — by `InsertNode` or `SetProgram` — never
-/// reused, never positional, and unique across the document. A
-/// profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
+/// profile pieces"): minted from the document's mint chain
+/// ([`crate::StepMint`]) when the step is authored — by `InsertNode`
+/// or `SetProgram` — never reused, never positional, and unique across
+/// the document. A profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
