@@ -5143,23 +5143,14 @@ mod tests {
             let orbit = cube.vertex_orbit(he1).unwrap();
             let run = &orbit[..orbit.iter().position(|&h| h == he2).unwrap()];
             assert!(!run.is_empty());
-            let splits: [(&str, fn(&mut Body<f64>, MevSite, Point3<f64>) -> MevCreated); 2] = [
-                ("mev_null", |b, site, _| {
-                    b.mev_null(site, crate::NewVertexSide::Above).unwrap()
-                }),
-                ("mev", |b, site, at| {
-                    b.mev(
-                        site,
-                        at,
-                        EdgeCurveSpec::self_loop_circle_at(at),
-                        Tol::witness(),
-                    )
-                    .unwrap()
-                }),
-            ];
-            for (door, split) in splits {
+            for door in ["mev_null", "mev"] {
                 let mut body = cube.clone();
-                let created = split(&mut body, site, at);
+                let created = if door == "mev_null" {
+                    body.mev_null(site, crate::NewVertexSide::Above).unwrap()
+                } else {
+                    body.mev(site, at, EdgeCurveSpec::self_loop_circle_at(at), tol)
+                        .unwrap()
+                };
                 assert_eq!(validate(&body), Ok(()), "{door}");
                 for &h in &halves {
                     let start = body.get_half_edge(h).unwrap().start;
