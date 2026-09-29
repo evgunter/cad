@@ -6,8 +6,6 @@ status: open
 opened: 2026-09-25
 priority: P1
 cost: M
-design: true
-needs_ev: true
 ---
 
 ## What
@@ -61,3 +59,21 @@ Three questions remain for Ev:
 - whether a role is checked by per-verb handle classes or at the
   `piece()` door;
 - the form of `set_program`'s keep map.
+
+## Ruled (2026-09-29, #3473)
+
+Ev ruled on the three open points:
+
+- **Loop:** the author states it. The lookup does not search for it
+  ("the convenience … probably not worth the extra engineering").
+- **Roles:** one per-verb role list lives in editor-core. The doors
+  check it, and the Python handle's role accessors are generated from
+  it.
+- **`set_program`:** it keeps steps through one dict per loop,
+  `keep=[{handle: StepId}, …]`, in outline order.
+
+Everything else is as agreed: an `AuthoredStep` is index plus
+value-erased prefix shape; `Doc.step(profile, loop, h)` and
+`Doc.piece(profile, loop, h.role)`; typed `StepId` and `Piece`;
+`step_map` is `dict[StepId, StepId]`; the binding lives in editor-core
+(`ProfileProgram::step`, `LoopProgram::shape`). The row is now the build.
