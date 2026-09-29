@@ -597,9 +597,9 @@ enum FaceGeo<T: geom_core::Real> {
         /// surface group WRAPS the azimuth and the slant window alone
         /// is the exact trim (see [`cone_chart_trim`]).
         az: Option<(T, T)>,
-        /// The face the arms act for: the wrapped group's lowest face
-        /// key in arena order, or the face itself when the azimuth
-        /// trims it. Arms no-op on every other member, so one cone
+        /// The face the arms act for: the wrapped group's first face
+        /// in the selection's order, or the face itself when the
+        /// azimuth trims it. Arms no-op on every other member, so one cone
         /// contributes one crossing per root.
         representative: FaceKey,
         /// The slant window, metres along the generator — the
@@ -667,9 +667,9 @@ enum FaceGeo<T: geom_core::Real> {
         /// The MINOR angle window (around the tube, zero on the outer
         /// equator), or `None` when the face covers every minor angle.
         v: Option<(T, T)>,
-        /// The face the arms act for: the closed group's lowest face key
-        /// in arena order, or the face itself when either window trims
-        /// it. Arms no-op on every other member of a closed group, so
+        /// The face the arms act for: the closed group's first face in
+        /// the selection's order, or the face itself when either window
+        /// trims it. Arms no-op on every other member of a closed group, so
         /// one torus contributes one crossing per root.
         representative: FaceKey,
         /// The face's orientation sense (S10), applied to the sign
@@ -1447,12 +1447,13 @@ pub(super) fn cone_face_trim<T: Decide>(
     let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
     let nappe = cone_nappe(face, v, band)?;
     // The question is whether THIS face alone wraps the azimuth, so its
-    // scope is the face itself.
+    // scope is the face itself: a closed group over that scope is the
+    // face alone.
     let alone_scope = ChartGroups::within(body, [face])
         .map_err(|face| PointInSolidError::CorruptFace { face })?;
     let alone = surface_group(body, face, &alone_scope, RimExemption::Circles)
         .map_err(|face| PointInSolidError::CorruptFace { face })?
-        .is_some_and(|group| group.members == [face]);
+        .is_some();
     if alone {
         return Ok((None, v, nappe));
     }

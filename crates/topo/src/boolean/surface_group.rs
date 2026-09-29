@@ -59,7 +59,7 @@ pub(super) enum RimExemption {
     Circles,
 }
 
-/// A closed group: its members in face-arena order, and the
+/// A closed group: its members in the scope's order, and the
 /// REPRESENTATIVE the arms act for.
 ///
 /// Acting for one member is not an optimization. The group's members

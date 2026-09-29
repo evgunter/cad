@@ -1099,10 +1099,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // **What that sharing buys is one walk here, not one walk per
     // call.** Each simultaneous door the loop reaches builds its own
     // one-solid scope from its move set (`scope_of_moves`), so the
-    // solids ARE walked again, once each: eight solid-walks on the
-    // hollow-hollow-open body, nine on box-beside-vessel opened. What
-    // is saved is this verb's own reading, which is a whole-body walk
-    // and would otherwise be one per solid.
+    // solids ARE walked again. What is saved is this verb's own
+    // reading, which is a whole-body walk and would otherwise be one
+    // per solid.
     for (solid, charts) in &solid_charts {
         let solid = *solid;
         scope.re_scope(body, &[solid]).ok_or(ShellError::Corrupt {
@@ -1302,10 +1301,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // merge into one, so a designation read after its own chart's turn
     // would name a key that no longer resolves.
     //
-    // The RESULT's own partition, read once here rather than per
-    // designation: the thin solids have just been minted, so this is
-    // the first moment it exists, and every designation's lift is a
-    // re-aiming of it.
+    // The RESULT's own partition, read once here: the thin solids have
+    // just been minted, so this is the first moment it exists, and it
+    // names the solid each designation's surgery happens in.
     let result_partition =
         crate::offset_together::Scope::whole(&out).ok_or(ShellError::Corrupt {
             key: EntityId::Solid(solids[0]),
@@ -1409,23 +1407,16 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // solid of their own — and the door that lifts them is that
         // solid's, over that solid's charts, exactly as the cavity's
         // door was its solid's.
-        let mut lift_scope = result_partition.clone();
-        lift_scope
-            .re_scope(&out, &[lift_solid])
-            .ok_or(ShellError::Corrupt {
+        // Walked on the body as it stands at this rim, after the
+        // earlier rims' surgery: the door, its move set and its
+        // counterpart group all read this one scope.
+        let lift_scope = crate::offset_together::Scope::of_solids(&out, &[lift_solid]).ok_or(
+            ShellError::Corrupt {
                 key: EntityId::Solid(lift_solid),
-            })?;
-        // The partition predates this loop's surgery, so the faces an
-        // earlier rim retired — each recorded in `dead` at the call —
-        // are not the lift's.
-        let lift_charts = ChartGroups::within(
-            &out,
-            lift_scope
-                .faces_in_scope()
-                .into_iter()
-                .filter(|f| !naming.dead.faces.contains(f)),
-        )
-        .map_err(corrupt_face)?;
+            },
+        )?;
+        let lift_charts =
+            ChartGroups::within(&out, lift_scope.faces_in_scope()).map_err(corrupt_face)?;
         let lift_door = offset_door(&out, &lift_scope, band).map_err(|error| ShellError::Lift {
             face: designated,
             error: Box::new(error),

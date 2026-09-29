@@ -10,7 +10,7 @@
 //!
 //! [`ChartGroups::within`] is the one spelling of that grouping. It
 //! takes the scope, so a door cannot group without naming one; a door
-//! whose scope IS the whole body hands it every face and says so.
+//! whose scope IS the whole body says so through [`ChartGroups::of_body`].
 
 use geom_core::Real;
 use slotmap::SecondaryMap;
@@ -38,21 +38,39 @@ impl ChartGroups {
         body: &Body<T>,
         scope: impl IntoIterator<Item = FaceKey>,
     ) -> Result<Self, FaceKey> {
-        let mut out = Self {
-            groups: Vec::new(),
-            index: SecondaryMap::new(),
-        };
+        let mut out = Self::empty();
         for face in scope {
-            let key = body.get_face(face).ok_or(face)?.surface;
-            match out.index.get(key) {
-                Some(&i) => out.groups[i].1.push(face),
-                None => {
-                    out.index.insert(key, out.groups.len());
-                    out.groups.push((key, vec![face]));
-                }
-            }
+            out.push(body.get_face(face).ok_or(face)?.surface, face);
         }
         Ok(out)
+    }
+
+    /// Groups EVERY face of `body`, in face-arena order: the scope of a
+    /// door whose scope is the whole body. The faces are read off the
+    /// live arena with their data, so nothing can fail to resolve.
+    pub(crate) fn of_body<T: Real>(body: &Body<T>) -> Self {
+        let mut out = Self::empty();
+        for (face, data) in body.faces() {
+            out.push(data.surface, face);
+        }
+        out
+    }
+
+    fn empty() -> Self {
+        Self {
+            groups: Vec::new(),
+            index: SecondaryMap::new(),
+        }
+    }
+
+    fn push(&mut self, key: SurfaceKey, face: FaceKey) {
+        match self.index.get(key) {
+            Some(&i) => self.groups[i].1.push(face),
+            None => {
+                self.index.insert(key, self.groups.len());
+                self.groups.push((key, vec![face]));
+            }
+        }
     }
 
     /// Every group, with the chart it wears.

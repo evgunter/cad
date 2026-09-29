@@ -2327,16 +2327,15 @@ fn sweep_conformal_patches<T: Decide>(
     region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
-    use crate::geometry::SurfaceKey;
-    // Group the curved faces by carrier key (arena order, D9).
-    let mut by_key: std::collections::BTreeMap<SurfaceKey, Vec<FaceKey>> =
-        std::collections::BTreeMap::new();
-    for &f in &geo.curved_faces {
-        if let Some(face) = body.get_face(f) {
-            by_key.entry(face.surface).or_default().push(f);
-        }
-    }
-    for group in by_key.values() {
+    // The scope is the WHOLE body's curved faces, deliberately: a
+    // shared key across solids is the structural contact rung this arm
+    // reads. `geo.curved_faces` is read off the live face arena, so
+    // every face resolves.
+    let by_key = crate::chart_groups::ChartGroups::within(body, geo.curved_faces.iter().copied())
+        .unwrap_or_else(|face| {
+            unreachable!("census: curved face {face:?} was read off the live arena")
+        });
+    for (_, group) in by_key.iter() {
         for (i, &fa) in group.iter().enumerate() {
             for &fb in &group[i + 1..] {
                 let (Some(da), Some(db)) = (body.get_face(fa), body.get_face(fb)) else {
