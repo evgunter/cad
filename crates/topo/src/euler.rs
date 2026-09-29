@@ -2028,6 +2028,11 @@ impl<T: Decide> Body<T> {
                 .iter()
                 .position(|&he| he == he2)
                 .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
+            for &member in &orbit {
+                if self.resolve_half_edge(member)?.start != v {
+                    return Err(EulerOpError::OrbitBroken { he: he1 });
+                }
+            }
             orbit[..position].to_vec()
         };
         // The splice writes through both prev links; prove them now so

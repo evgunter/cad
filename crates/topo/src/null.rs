@@ -206,10 +206,24 @@ impl<T: geom_core::Decide> Body<T> {
     /// so the vertex must exist first), edge, `he_plus`, `he_minus`.
     /// Emanating rule and splice positions: as [`Body::mev`].
     ///
+    /// # Precondition check order
+    ///
+    /// [`Body::mev`]'s site list, and nothing after it. `Fan`: `he1`
+    /// and `he2` resolve ([`EulerOpError::StaleKey`]); equal start
+    /// vertices ([`EulerOpError::FanStartMismatch`]); the start vertex
+    /// and its point resolve (`StaleKey` /
+    /// [`EulerOpError::StaleGeometry`]); the orbit from `he1` reaches
+    /// `he2` ([`EulerOpError::FanOrbitBroken`]); every half-edge on it
+    /// starts at the start vertex ([`EulerOpError::OrbitBroken`] —
+    /// tier-1-invalid input); both `prev` links
+    /// resolve (`StaleKey`). `Lone`: the loop resolves (`StaleKey`); it
+    /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex and point
+    /// resolve (`StaleKey` / `StaleGeometry`).
+    ///
     /// # Errors
     ///
-    /// The site preconditions, exactly as [`Body::mev`] minus the
-    /// certification gate; the body is untouched on `Err`.
+    /// The first failing precondition above; the body is untouched on
+    /// `Err`.
     pub fn mev_null(
         &mut self,
         site: MevSite,
