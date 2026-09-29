@@ -3789,7 +3789,8 @@ mod properties_pane_tests {
         }
         let ctx = egui::Context::default();
         ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
-        let mut app = ViewerApp::assemble(&ctx, tol).expect("startup that needs no graphics device");
+        let mut app =
+            ViewerApp::assemble(&ctx, tol).expect("startup that needs no graphics device");
         app.session = session;
         let mut pane = Driven {
             ctx,
@@ -3821,7 +3822,11 @@ mod properties_pane_tests {
             .delete_refusal(body)
             .expect("DeleteNode refuses a node the committed document does not hold")
             .to_string();
-        assert_eq!(gained, vec![said.clone()], "the hover is the op's own sentence");
+        assert_eq!(
+            gained,
+            vec![said.clone()],
+            "the hover is the op's own sentence"
+        );
         // Planted: the words a reader gets for this row.
         assert_eq!(
             said,
