@@ -9342,4 +9342,438 @@ mod tests {
             assert!(tip.iter().all(|t| !t.is_rest()), "{side}: {tip:?}");
         }
     }
+
+    /// The cuts of an edge in a face's plane where the face's boundary
+    /// crosses it, each decide pinned at the verdict it feeds, and the
+    /// cells those cuts bound.
+    mod crossing_cuts {
+        use super::*;
+        use crate::test_support_fixtures::prism_z;
+
+        fn band() -> Band {
+            Band::linear(Tol::witness()).unwrap()
+        }
+
+        /// A post whose top at `z = 0.5` is `cap`, under a shelf
+        /// `[0, 0.9] × [0, 0.30] × [0.5, 0.54]`; the cap face and the
+        /// shelf's `y = 0.30` underside edge, which runs `x = 0.9 → 0`.
+        fn lap(cap: &[(f64, f64)]) -> (Body<f64>, FaceKey, EdgeKey) {
+            let tol = Tol::witness();
+            let post = prism_z::<f64>(cap, 0.0, 0.5, tol);
+            let shelf = prism_z::<f64>(
+                &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
+                0.5,
+                0.54,
+                tol,
+            );
+            let mut body = post.body;
+            crate::instance::graft_disjoint(&mut body, &shelf.body, tol).unwrap();
+            let geo = snapshot(&body);
+            let edge = geo
+                .edges
+                .iter()
+                .find(|e| {
+                    let ends = [e.p0, e.p0 + e.dir * e.len];
+                    ends.iter().all(|p| p.y == 0.30 && p.z == 0.5) && close(e.len, 0.9)
+                })
+                .expect("the shelf's y = 0.30 underside edge")
+                .key;
+            (body, post.top_face, edge)
+        }
+
+        /// `boundary_crossings` of `edge` against `face`: each cut as
+        /// the `x` of its point and what sits there, and what it pushed.
+        fn crossings(
+            body: &Body<f64>,
+            face: FaceKey,
+            edge: EdgeKey,
+        ) -> (Option<Vec<(f64, CutAt)>>, Vec<ValidationError>) {
+            let geo = snapshot(body);
+            let e = geo.edges.iter().find(|x| x.key == edge).unwrap();
+            let f = planar_face(&geo, face).unwrap();
+            let mut errors = Vec::new();
+            let cuts = boundary_crossings(body, e, f, band(), &mut errors);
+            let at_x = |c: Cut<f64>| ((e.p0 + e.dir * c.s).x, c.at);
+            (cuts.map(|c| c.into_iter().map(at_x).collect()), errors)
+        }
+
+        fn close(a: f64, b: f64) -> bool {
+            (a - b).abs() < 1e-12
+        }
+
+        /// The escalations `errors` carries, by predicate name.
+        fn escalated(errors: &[ValidationError]) -> Vec<&'static str> {
+            errors
+                .iter()
+                .filter_map(|e| match e {
+                    ValidationError::CensusEscalated { cause } => cause.predicate,
+                    _ => None,
+                })
+                .collect()
+        }
+
+        /// **A face whose boundary crosses the edge away from any
+        /// vertex.** The cap `[0.1, 0.3] × [0.2, 0.42]` sits under the
+        /// shelf's `y = 0.30` edge, whose own midpoint (`x = 0.45`)
+        /// lies outside it. The cap's side edges cross the shelf edge
+        /// at `x = 0.3` and `x = 0.1`, the edge is cut at both, and of
+        /// its three cells only the one in the cap is returned — the two
+        /// outside it are not, and the one returned is bounded at the
+        /// two crossings, never at the edge's own ends.
+        #[test]
+        fn a_boundary_crossing_away_from_any_vertex_bounds_the_cell() {
+            let cap = [(0.1, 0.2), (0.3, 0.2), (0.3, 0.42), (0.1, 0.42)];
+            let (body, face, edge) = lap(&cap);
+            let geo = snapshot(&body);
+            let e = geo.edges.iter().find(|x| x.key == edge).unwrap();
+            let f = planar_face(&geo, face).unwrap();
+            let mut errors = Vec::new();
+            let cells = ef_overlap_cells(&body, e, f, &geo, band(), &mut errors);
+            assert!(errors.is_empty(), "{errors:?}");
+            let got: Vec<_> = cells
+                .iter()
+                .map(|c| {
+                    let x = |cut: Cut<f64>| (e.p0 + e.dir * cut.s).x;
+                    (x(c.lo), c.lo.at, x(c.hi), c.hi.at, c.mid)
+                })
+                .collect();
+            assert_eq!(cells.len(), 1, "the one cell in the cap: {got:?}");
+            let (lo, lo_at, hi, hi_at, mid) = got[0];
+            assert!(close(lo, 0.3) && close(hi, 0.1), "{got:?}");
+            assert!(
+                matches!(
+                    (lo_at, hi_at),
+                    (CutAt::Crossing(_), CutAt::Crossing(_))
+                ),
+                "both bounds are crossings: {got:?}"
+            );
+            assert!(
+                close(mid.x, 0.2) && close(mid.y, 0.3) && close(mid.z, 0.5),
+                "{got:?}"
+            );
+        }
+
+        /// `pm_census_ef_cross_side`, at the verdict it feeds — a cut.
+        /// Both ends of a boundary edge definitely across the line: a
+        /// crossing. An end ON the line (the cap corner `(0.3, 0.3)`):
+        /// no crossing through that edge's interior; the corner is a
+        /// boundary vertex, cut by the vertex cuts. Both ends on one
+        /// side (the cap's top and bottom): nothing.
+        #[test]
+        fn a_crossing_is_cut_where_both_ends_lie_definitely_across() {
+            let (body, face, edge) =
+                lap(&[(0.1, 0.2), (0.3, 0.2), (0.3, 0.42), (0.1, 0.42)]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            let cuts = cuts.expect("decided");
+            assert!(errors.is_empty(), "{errors:?}");
+            let xs: Vec<f64> = cuts.iter().map(|c| c.0).collect();
+            assert!(
+                cuts.len() == 2
+                    && xs.iter().any(|&x| close(x, 0.1))
+                    && xs.iter().any(|&x| close(x, 0.3))
+                    && cuts.iter().all(|c| matches!(c.1, CutAt::Crossing(_))),
+                "{cuts:?}"
+            );
+            let (body, face, edge) = lap(&[
+                (0.1, 0.2),
+                (0.3, 0.2),
+                (0.3, 0.3),
+                (0.2, 0.42),
+                (0.1, 0.42),
+            ]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            let cuts = cuts.expect("decided");
+            assert!(errors.is_empty(), "{errors:?}");
+            assert!(
+                cuts.len() == 1 && close(cuts[0].0, 0.1),
+                "only the side edge that crosses away from a vertex: {cuts:?}"
+            );
+        }
+
+        /// **A crossing within the band escalates.** A cap corner
+        /// `3ε` above the shelf edge's line, reached by a side edge
+        /// from well below it: whether that edge crosses the line is
+        /// not decidable, and the lane refuses, typed, on the side row.
+        #[test]
+        fn a_crossing_within_the_band_escalates() {
+            let lift = 0.3 + 3.0 * band().zero();
+            let (body, face, edge) = lap(&[
+                (0.1, 0.2),
+                (0.3, 0.2),
+                (0.3, lift),
+                (0.2, 0.42),
+                (0.1, 0.42),
+            ]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            assert!(cuts.is_none(), "{cuts:?}");
+            assert!(
+                escalated(&errors).contains(&EF_CROSS_SIDE),
+                "{errors:?}"
+            );
+        }
+
+        /// `pm_census_ef_cross_span`, at the verdict it feeds — a cut.
+        /// A crossing at the edge's own end (the cap side `x = 0.9`) is
+        /// that end's cut, not a new one; a crossing past the end (a
+        /// slanted side meeting the line at `x ≈ 0.917`) is none; a
+        /// crossing in the band of the end escalates on the span row.
+        #[test]
+        fn a_crossing_is_cut_only_strictly_inside_the_span() {
+            let (body, face, edge) =
+                lap(&[(0.9, 0.2), (1.1, 0.2), (1.1, 0.42), (0.9, 0.42)]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            assert!(
+                errors.is_empty() && cuts.as_ref().is_some_and(Vec::is_empty),
+                "at the end: {cuts:?} {errors:?}"
+            );
+            let (body, face, edge) =
+                lap(&[(0.7, 0.2), (1.05, 0.2), (0.85, 0.35), (0.7, 0.35)]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            let cuts = cuts.expect("decided");
+            assert!(errors.is_empty(), "{errors:?}");
+            assert!(
+                cuts.len() == 1 && close(cuts[0].0, 0.7),
+                "past the end: only the far side's crossing: {cuts:?}"
+            );
+            let x = 0.9 + 3.0 * band().zero();
+            let (body, face, edge) = lap(&[(x, 0.2), (1.1, 0.2), (1.1, 0.42), (x, 0.42)]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            assert!(cuts.is_none(), "{cuts:?}");
+            assert!(
+                escalated(&errors).contains(&EF_CROSS_SPAN),
+                "{errors:?}"
+            );
+        }
+
+        /// `pm_census_ef_cross_screen`, at the verdict it feeds — a
+        /// skip. The cap reaches past the shelf edge's end, where a
+        /// notch puts a corner `3ε` above the edge's LINE. The two notch
+        /// edges lie wholly beyond the edge's end, so no crossing of
+        /// theirs could be a cut: the screen skips them and nothing
+        /// escalates, while the cap side at `x = 0.1` is still cut.
+        #[test]
+        fn a_boundary_edge_wholly_past_an_end_is_not_read() {
+            let notch = 0.3 + 3.0 * band().zero();
+            let (body, face, edge) = lap(&[
+                (0.1, 0.2),
+                (1.3, 0.2),
+                (1.3, 0.42),
+                (1.2, notch),
+                (1.1, 0.42),
+                (0.1, 0.42),
+            ]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            assert!(errors.is_empty(), "{errors:?}");
+            let cuts = cuts.expect("decided");
+            assert!(cuts.len() == 1 && close(cuts[0].0, 0.1), "{cuts:?}");
+        }
+
+        /// A conic boundary edge is cut at its certified roots: the
+        /// half disc of radius 1 under a unit cube's bottom edge
+        /// `y = 0.5, x ∈ [0.5, 1.5]` is cut once, where the arc crosses
+        /// it at `x = √0.75`; the circle's other root, `x = −√0.75`, is
+        /// past the edge's end.
+        #[test]
+        fn a_conic_boundary_is_cut_at_its_roots() {
+            let tol = Tol::witness();
+            let mut body = half_disc_cap_and_far_cube();
+            let cube = cube_at(Vec3::new(0.5, 0.5, 0.0), tol);
+            crate::instance::graft_disjoint(&mut body, &cube, tol).unwrap();
+            let geo = snapshot(&body);
+            let disc = geo
+                .faces
+                .iter()
+                .find(|f| f.boundary.len() == 2)
+                .expect("the half disc")
+                .key;
+            let edge = geo
+                .edges
+                .iter()
+                .find(|e| {
+                    let ends = [e.p0, e.p0 + e.dir * e.len];
+                    ends.iter().all(|p| p.y == 0.5 && p.z == 0.0)
+                })
+                .expect("the cube's y = 0.5 bottom edge")
+                .key;
+            let (cuts, errors) = crossings(&body, disc, edge);
+            assert!(errors.is_empty(), "{errors:?}");
+            let cuts = cuts.expect("decided");
+            assert!(
+                cuts.len() == 1
+                    && (cuts[0].0 - 0.75_f64.sqrt()).abs() < 1e-9
+                    && matches!(cuts[0].1, CutAt::ConicCrossing),
+                "{cuts:?}"
+            );
+        }
+
+        /// **The touch analysis reads every cell of an edge in a
+        /// face.** An L-plate's bottom edge `y = 0, x ∈ [0, 1]` rests on
+        /// a floor slotted across it, so the edge meets the floor in two
+        /// cells, one at each end. The plate's bottom face is tilted
+        /// about that edge so the far end of the L's upright dips `12ε`
+        /// below the floor. From the cell under the upright the dip is
+        /// in view; from the other cell the L's reflex corner hides it
+        /// and the plate reads as resting. Of the two builds (upright at
+        /// either end) the row takes the one whose FIRST cell reads the
+        /// rest: the site is still no rest.
+        #[test]
+        fn the_touch_analysis_reads_every_cell_of_an_edge_in_a_face() {
+            let band = band();
+            let tol = Tol::witness();
+            let (w, phi) = (0.02, 12.0 * band.zero());
+            let mut read_past_the_first = false;
+            for upright_at_start in [true, false] {
+                let (floor, plate): (Vec<(f64, f64)>, Vec<(f64, f64)>) = if upright_at_start {
+                    (
+                        vec![
+                            (-1.0, -1.0),
+                            (2.0, -1.0),
+                            (2.0, 2.0),
+                            (0.5, 2.0),
+                            (0.5, -0.5),
+                            (0.04, -0.5),
+                            (0.04, 2.0),
+                            (-1.0, 2.0),
+                        ],
+                        vec![
+                            (0.0, 0.0),
+                            (1.0, 0.0),
+                            (1.0, w),
+                            (w, w),
+                            (w, 1.0),
+                            (0.0, 1.0),
+                        ],
+                    )
+                } else {
+                    (
+                        vec![
+                            (-1.0, -1.0),
+                            (2.0, -1.0),
+                            (2.0, 2.0),
+                            (0.96, 2.0),
+                            (0.96, -0.5),
+                            (0.5, -0.5),
+                            (0.5, 2.0),
+                            (-1.0, 2.0),
+                        ],
+                        vec![
+                            (0.0, 0.0),
+                            (1.0, 0.0),
+                            (1.0, 1.0),
+                            (1.0 - w, 1.0),
+                            (1.0 - w, w),
+                            (0.0, w),
+                        ],
+                    )
+                };
+                let mut body = Body::<f64>::new();
+                mapped_prism(&mut body, &floor, (-1.0, 0.0), Point3::new);
+                let mut part = Body::<f64>::new();
+                mapped_prism(&mut part, &plate, (0.0, 0.03), |x, y, z| {
+                    Point3::new(x, y, z - phi * y)
+                });
+                crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+                let geo = snapshot(&body);
+                let e = geo
+                    .edges
+                    .iter()
+                    .find(|e| {
+                        let ends = [e.p0, e.p0 + e.dir * e.len];
+                        ends.iter().all(|p| p.y == 0.0 && p.z == 0.0)
+                    })
+                    .expect("the plate's resting edge");
+                let top = geo
+                    .faces
+                    .iter()
+                    .find(|f| {
+                        f.loops[0].len() == 8 && f.loops[0].iter().all(|v| geo.vmap[v].z == 0.0)
+                    })
+                    .expect("the floor's top");
+                let mut errors = Vec::new();
+                let cells = ef_overlap_cells(&body, e, top, &geo, band, &mut errors);
+                assert!(errors.is_empty() && cells.len() == 2, "{errors:?}");
+                let verdicts: Vec<TouchVerdict> = cells
+                    .iter()
+                    .map(|c| {
+                        touch_verdict(
+                            Star::edge(&body, &geo, e.key, c.mid, band),
+                            Star::face(&body, &geo, top.key, c.mid, band),
+                            band,
+                        )
+                    })
+                    .collect();
+                assert_eq!(
+                    verdicts.iter().filter(|v| v.is_rest()).count(),
+                    1,
+                    "the cell under the upright reads the dip, the other a rest: {verdicts:?}"
+                );
+                if verdicts[0].is_rest() {
+                    read_past_the_first = true;
+                    let site = TouchSite::EdgeInFace(e.key, top.key);
+                    let verdict = site.verdict(&body, &geo, band);
+                    assert!(!verdict.is_rest(), "{verdict:?}");
+                }
+            }
+            assert!(read_past_the_first, "one build puts the rest first");
+        }
+
+        /// `pm_census_ef_cross_reach`, at the verdict it feeds — whether
+        /// the lane may run at all. A spiric boundary edge has no
+        /// crossing row, so the lane runs only where the edge definitely
+        /// clears the ball the arc lies in. The cube beside the spiric
+        /// cap lies inside that ball: refused, typed, as the
+        /// point-in-face door refuses the same inventory fact. The same
+        /// cube far off along the cap's plane clears it, and nothing is
+        /// cut or pushed.
+        #[test]
+        fn a_spiric_boundary_refuses_within_its_reach_and_clears_outside_it() {
+            use std::f64::consts::FRAC_PI_2;
+            let tol = Tol::witness();
+            // The cube's edge in the cap's plane nearest the arc.
+            let in_plane = |body: &Body<f64>, y: f64| -> (FaceKey, EdgeKey) {
+                let geo = snapshot(body);
+                let cap = geo
+                    .faces
+                    .iter()
+                    .find(|f| f.boundary.len() == 2)
+                    .expect("the spiric cap")
+                    .key;
+                let edge = geo
+                    .edges
+                    .iter()
+                    .find(|e| {
+                        let ends = [e.p0, e.p0 + e.dir * e.len];
+                        e.f_plus != cap && ends.iter().all(|p| p.x == 0.5 && p.y == y)
+                    })
+                    .expect("a cube edge in the cap's plane")
+                    .key;
+                (cap, edge)
+            };
+            let near = spiric_cap_and_near_cube();
+            let (cap, edge) = in_plane(&near, 3.9);
+            let (cuts, errors) = crossings(&near, cap, edge);
+            assert!(cuts.is_none(), "{cuts:?}");
+            assert!(
+                matches!(
+                    errors.as_slice(),
+                    [ValidationError::CensusUnsupported {
+                        cause: CensusUnsupportedCause::Containment(
+                            ContainError::ArcLoopUnsupported { .. }
+                        ),
+                        ..
+                    }]
+                ),
+                "{errors:?}"
+            );
+            let mut far = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+            let cube = cube_at(Vec3::new(0.5, 10.0, -0.5), tol);
+            crate::instance::graft_disjoint(&mut far, &cube, tol).unwrap();
+            let (cap, edge) = in_plane(&far, 10.0);
+            let (cuts, errors) = crossings(&far, cap, edge);
+            assert!(
+                errors.is_empty() && cuts.as_ref().is_some_and(Vec::is_empty),
+                "{cuts:?} {errors:?}"
+            );
+        }
+    }
 }
