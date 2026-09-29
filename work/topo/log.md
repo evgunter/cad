@@ -2485,3 +2485,25 @@ sub-point, with my lean to `same_chart`.
   honest at mint, so it waits for the answer. If Ev takes only the
   smaller variant, `set_face_surface` keeping a bit across a chart
   change gets its own issue.
+
+## Ev ruled the fragment sense; PR 3480 merged, PR 3467 re-aimed (2026-09-29)
+
+Ev on PR 3480: "i agree with your recommendation!" That is the full
+answer, with `same_chart` as the refusal's test. PR 3480 merged
+(`31539d41de`) with D1's new bullet, fork-log row 16 complete, the
+item's `## Ruled` section, and the item's cost raised to M. Its
+recorded decision matches both designers on the final state and A on
+the residual.
+
+The implementer dispatched on `topo/sense-reads-same-chart` re-aims
+PR 3467 under the ruling:
+- the spec carries the bit;
+- `mef` derives the parent's bit and `mfkrh` its negation;
+- a contradicting stated bit on `same_chart` is refused typed;
+- `set_face_surface` takes the spec;
+- the sweep, rim-glue and adopt callers state their bits;
+- the transient boolean promotions are audited;
+- the review's MINORs and style notes are folded in.
+
+It builds on the lane's warm target. Tier after delivery: SINGLE,
+full.
