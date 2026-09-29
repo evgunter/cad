@@ -47,6 +47,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::bar;
 use crate::revolve_common;
 
 use geom_core::{Band, Point2, Point3, Tol};
@@ -447,26 +448,6 @@ fn the_waist_faces_partition_their_band_under_face_containment() {
 // -------------------------------------------------------------------
 // The line × torus crossing, on a donut.
 // -------------------------------------------------------------------
-
-fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z.0) - Point3::origin(),
-    ));
-    let vp = profile::Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("the bar profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .expect("the bar extrudes")
-        .body
-}
 
 fn donut() -> Body<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);

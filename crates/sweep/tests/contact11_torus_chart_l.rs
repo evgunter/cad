@@ -10,33 +10,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::bar;
 use crate::revolve_common;
-use geom_core::{Point2, Point3, Tol};
-use profile::{ProfileLoop, RawLoop};
+use geom_brep::SurfaceKind;
+use geom_core::Tol;
 use revolve_common::{axis_y, validated};
 use sweep::{Revolution, revolve};
-use topo::{Body, BooleanError};
-
-/// The axis-aligned block `x × y × z`, extruded along `z`.
-fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z.0) - Point3::origin(),
-    ));
-    let vp = profile::Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    sweep::extrude(&vp, sweep::Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .unwrap()
-        .body
-}
+use topo::{BooleanError, BooleanOp, PairRefusalSite};
 
 #[test]
 fn a_notched_half_donut_refuses_at_the_torus_plane_pair() {
@@ -54,7 +34,16 @@ fn a_notched_half_donut_refuses_at_the_torus_plane_pair() {
         panic!("the torus × plane pair is refused");
     };
     assert!(
-        matches!(err, BooleanError::CurvedPairUnsupported { .. }),
-        "refused at the curved pair: {err:?}"
+        matches!(
+            err,
+            BooleanError::CurvedPairUnsupported {
+                op: Some(BooleanOp::Subtract),
+                site: PairRefusalSite::RevertRoster,
+                kind: SurfaceKind::Torus,
+                other_kind: SurfaceKind::Plane,
+                ..
+            }
+        ),
+        "refused at the revert roster's torus × plane pair: {err:?}"
     );
 }
