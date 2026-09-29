@@ -34,8 +34,8 @@ use crate::fixture::{Recorder, len, len2, scl, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// The pad's half-width and half-height, in metres.
@@ -54,9 +54,9 @@ const BORE: f64 = 1.0e-3;
 /// would ask for.
 pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,

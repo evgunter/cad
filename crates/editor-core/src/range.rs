@@ -453,14 +453,6 @@ pub enum RangeRefusal {
         /// The slot.
         slot: SlotId,
     },
-    /// The synthetic parameter's name is already taken by the
-    /// document. Refused rather than renamed: a query that silently
-    /// picked another name would be widening something the caller
-    /// cannot see.
-    SyntheticNameTaken {
-        /// The name that collided.
-        param: ParamName,
-    },
     /// The derived document's own edit door refused the derivation.
     Derivation(Box<EditError>),
     /// The seed did not reach the driver as the analyzed axis: the
@@ -534,10 +526,6 @@ impl core::fmt::Display for RangeRefusal {
                 slot.label(),
                 node.0
             ),
-            Self::SyntheticNameTaken { param } => write!(
-                f,
-                "the query's synthetic parameter name {param} is already declared by this document"
-            ),
             Self::Derivation(e) => write!(f, "the derived document was refused: {e}"),
             Self::SeedIsNotTheAnalyzedAxis { analyzed, asked } => write!(
                 f,
@@ -584,16 +572,27 @@ pub struct DerivedRange {
     pub pinned: Vec<ParamName>,
 }
 
-/// The synthetic parameter a slot is widened through, named for the
-/// slot it stands for.
+/// The synthetic parameter a slot of `node` is widened through: the
+/// first of `query_certified_range_<node>`, `…_<node>_1`, `…_<node>_2`,
+/// … that `doc` does not declare.
 ///
-/// Written so a reader of the derived document can see what it is and
-/// where it came from, and so that it cannot be mistaken for anything
-/// a user authored: the derivation refuses rather than overwriting a
-/// name the document already declares
-/// ([`RangeRefusal::SyntheticNameTaken`]).
-fn synthetic_name(node: RecipeNodeId, slot: SlotId) -> ParamName {
-    ParamName::new(format!("query:certified-range:{}:{}", node.0, slot.label()))
+/// Fresh, so the rewritten slot never reads a parameter the caller
+/// authored; one identifier (a fixed prefix, decimal digits and
+/// underscores), so the parser reads it back. The slot's label is not
+/// part of it: a label is prose for a person, and what a person is
+/// shown of the answer names the slot ([`CertifiedRange::field`]).
+fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> ParamName {
+    let base = format!("query_certified_range_{}", node.0);
+    let mut spelled = base.clone();
+    let mut n = 0_usize;
+    while doc.params().contains_key(spelled.as_str()) {
+        n += 1;
+        spelled = format!("{base}_{n}");
+    }
+    match ParamName::new(spelled) {
+        Ok(name) => name,
+        Err(fault) => unreachable!("a fixed prefix and decimal digits are one identifier: {fault}"),
+    }
 }
 
 /// **The derived document** (a pure function of its three arguments).
@@ -670,10 +669,7 @@ pub fn derive(
                 });
             };
             let dim = slot.dimension();
-            let name = synthetic_name(*node, *slot);
-            if doc.params().contains_key(&name) {
-                return Err(RangeRefusal::SyntheticNameTaken { param: name });
-            }
+            let name = synthetic_name(doc, *node);
             // The synthetic parameter's nominal is the literal's value
             // verbatim, and a literal and a parameter reference reach
             // the evaluator through the same `T::from_f64`, so the

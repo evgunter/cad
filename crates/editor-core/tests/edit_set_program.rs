@@ -794,7 +794,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
         "set-program-param-refs",
         vec![LoopProgram::Chain(square_steps())],
     );
-    let nope = Expr::param(ParamName::new("nope"), Dimension::Length);
+    let nope = Expr::param(ParamName::from_static("nope"), Dimension::Length);
     let mut steps = square_steps();
     steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope.clone(), len(0.0)]));
     let slot = SlotId::Profile {
@@ -1213,13 +1213,13 @@ fn square_and_driven_hole(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 /// A document parameter's value written through the value door.
 fn set_value(
     doc: &editor_core::ProfileDoc,
-    name: &str,
+    name: &'static str,
     v: f64,
 ) -> editor_core::Applied<ProfileProgram> {
     apply(
         doc,
         &DocEdit::SetDocParamValue {
-            name: ParamName::new(name),
+            name: ParamName::from_static(name),
             value: editor_core::DocParamValue::Continuous(v),
         },
         tol(),
@@ -1228,19 +1228,19 @@ fn set_value(
     .expect("the value lands")
 }
 
-fn declared(label: &str, name: &str, v: f64) -> ProfileDoc {
+fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
     let (doc, _) = fixture::step(
         ProfileDoc::empty_derived(label, tol()),
         DocEdit::SetDocParam {
-            name: ParamName::new(name),
+            name: ParamName::from_static(name),
             value: DocParam::continuous(Dimension::Length, v),
         },
     );
     doc
 }
 
-fn param_len(name: &str) -> Expr {
-    Expr::param(ParamName::new(name), Dimension::Length)
+fn param_len(name: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(name), Dimension::Length)
 }
 
 /// A profile of `loops` extruded, in `doc`; `(doc, profile, extrude)`.

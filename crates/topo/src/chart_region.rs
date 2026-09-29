@@ -469,7 +469,7 @@ impl std::error::Error for ChartRegionError {}
 /// satisfy, so the predicate is uninstantiable at one however it is
 /// reached — including from outside the crate, where no census is
 /// running. That matches the other lane doors (`topo::QuadLane::certified`,
-/// the fitted-pcurve lane's), all of which carry
+/// `geom_brep::FittedLane::certified`), all of which carry
 /// [`geom_core::CertifiedEnclosure`]. See the M9-2 entry in
 /// `geom-core/src/real.rs`'s `Bounds` scope rule.
 ///
@@ -572,14 +572,10 @@ impl<T: Decide> RegionLane<T> {
 /// **The door's WIRING** — the rows that say which free functions
 /// [`RegionLane::certified`] holds, rather than what they answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// predicate that agrees on the fixture in front of it; these rows
-/// compare the stored function pointers instead, so a re-point is a
-/// failure no matter what it computes. Function-pointer identity is
-/// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
-/// (identical bodies may be merged), which costs nothing here: a false
-/// PASS would need the re-pointed routine to be instruction-identical
-/// to the door it replaced. `certified_enclosure_impl_census` counts
+/// Why a wiring row compares pointers rather than outputs:
+/// `certified_enclosure_impl_census`'s module doc.
+///
+/// `certified_enclosure_impl_census` counts
 /// the scalars instantiated here against the `CertifiedEnclosure`
 /// impls in the tree, both directions, and counts the tree's door
 /// values against its roster of helpers.

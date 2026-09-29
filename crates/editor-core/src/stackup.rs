@@ -1282,11 +1282,11 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
-                row.param.0,
+                row.param.as_str(),
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
-                    Err(u) => format!("unavailable:{}", u.param().0),
+                    Err(u) => format!("unavailable:{}", u.param().as_str()),
                 },
                 match &row.chamber_span {
                     Some(c) => format!(
@@ -1307,7 +1307,7 @@ impl Stackup {
                     "unavailable:{}",
                     blockers
                         .iter()
-                        .map(|b| b.param().0.clone())
+                        .map(|b| b.param().as_str().to_owned())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),
@@ -1319,7 +1319,7 @@ impl Stackup {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let crate::report::MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "  forced_by {}", p.0);
+                let _ = writeln!(s, "  forced_by {}", p.as_str());
             }
         }
         let _ = write!(s, "{}", coverage_bits(&self.coverage));
@@ -1386,7 +1386,7 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
-                row.param.0,
+                row.param.as_str(),
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
@@ -1482,7 +1482,8 @@ pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
             match refusal {
                 LiftRefusal::PinnedSection { section, param } => format!(
                     "{} feeds the section of node {}, which stays f64 (C6/D9)",
-                    param.0, section.0
+                    param.as_str(),
+                    section.0
                 ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
@@ -1790,7 +1791,7 @@ pub fn stackup(
 /// [`geom_core::Interval`], which has no tangent channel, and the
 /// bracket is read through
 /// [`geom_core::CertifiedEnclosure::certified_bracket`] — the
-/// domain-honest door, so a poisoned enclosure refuses named instead of
+/// domain-honest door, so a refused enclosure refuses named instead of
 /// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,
@@ -1895,8 +1896,8 @@ mod tests {
     /// One blocker of every arm, for `param` — checked against the
     /// weld, so an arm with no example here fails every row that reads
     /// this.
-    fn every_arm(param: &str) -> Vec<Unavailable> {
-        let param = ParamName::new(param);
+    fn every_arm(param: &'static str) -> Vec<Unavailable> {
+        let param = ParamName::from_static(param);
         let all = vec![
             Unavailable::TangentDegraded {
                 param: param.clone(),
@@ -1934,11 +1935,13 @@ mod tests {
     /// A refused rss row splits back into exactly the blockers it was
     /// made from, in order — including blockers whose sentences carry
     /// the punctuation a flat join would have split on, which a
-    /// sentence is free to write and a name can carry.
+    /// sentence is free to write. A NAME cannot carry it: a `ParamName`
+    /// is one identifier by construction, so the second batch is a
+    /// second identifier and the sentences alone carry the separators.
     #[test]
     fn a_refused_rss_splits_back_into_its_blockers() {
         let mut blockers = every_arm("width");
-        blockers.extend(every_arm("a; b, c"));
+        blockers.extend(every_arm("depth"));
         let rendered = render_rss(&Rss::UnavailableBecause {
             blockers: blockers.clone(),
         });
@@ -1962,7 +1965,7 @@ mod tests {
     fn a_single_blocker_is_counted_in_the_singular() {
         let rendered = render_rss(&Rss::UnavailableBecause {
             blockers: vec![Unavailable::Unliftable {
-                param: ParamName::new("w"),
+                param: ParamName::from_static("w"),
             }],
         });
         assert_eq!(

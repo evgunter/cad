@@ -32,11 +32,11 @@ const PROFILE: RecipeNodeId = RecipeNodeId(1);
 const BODY: RecipeNodeId = RecipeNodeId(2);
 
 fn param_rect_doc(x0: f64) -> ProfileDoc {
-    let x0e = || Expr::param(ParamName::new("x0"), Dimension::Length);
+    let x0e = || Expr::param(ParamName::from_static("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("x0"),
+                name: ParamName::from_static("x0"),
                 value: DocParam::continuous(Dimension::Length, x0),
             },
             Tol::witness(),

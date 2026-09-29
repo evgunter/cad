@@ -451,7 +451,7 @@ struct LandedRun {
     /// The gather's refusal for this pair ([`DocSession::product_fault`]).
     fault: Option<ProductError>,
     /// The A5 at-rest verdict for this pair ([`DocSession::at_rest`]);
-    /// `None` for a document that is not assembly-shaped.
+    /// `None` where [`AtRestBadge`] says none is taken.
     at_rest: Option<AtRestBadge>,
     /// The advisory-check report for this pair
     /// ([`DocSession::checks`]); `None` when the registry itself
@@ -558,7 +558,9 @@ impl core::fmt::Debug for LandedRun {
 /// Taken only for assembly-shaped documents (one holding at least one
 /// `InstantiatePart`) — a part document's tiers are not this badge's
 /// subject, and the gate's cost is not spent where it answers nothing
-/// the badges do not already say.
+/// the badges do not already say. Nor for a gather refusal
+/// `ProductErrorKind::means_no_body` reads as an absence: with no
+/// product there is nothing for the gate to judge.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtRestBadge {
     /// The gate certified the assembled product; how many declarations
@@ -791,7 +793,8 @@ impl DocSession {
     }
 
     /// Why the landed evaluation's product does not gather, if it does
-    /// not — the gather-level refusal no per-node badge can carry.
+    /// not — every class, whichever channel reports it
+    /// (`frame::badge_site` decides that).
     ///
     /// `None` both when the product is well formed and when nothing
     /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
@@ -800,8 +803,8 @@ impl DocSession {
     }
 
     /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
-    /// when the landed document is assembly-shaped. `None` for a part
-    /// document, and before anything lands.
+    /// when [`AtRestBadge`] says one is taken. `None` otherwise, and
+    /// before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
         self.derived.landed.as_ref()?.at_rest.as_ref()
     }
@@ -1058,9 +1061,9 @@ impl DocSession {
         // for it either: it takes what the gate did not eat.
         let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
-        // The A5 badge is taken for assembly-shaped documents only, and
-        // whether the document is one is a fact about the document
-        // rather than about its product — readable on either arm.
+        // Whether the document is assembly-shaped is a fact about its
+        // nodes, so it is read once here for both arms; the other
+        // condition [`AtRestBadge`] names is read off the gather below.
         let assembly_shaped = assembly_shaped(doc);
         let (fault, checks, at_rest, body) = match product_recorded(doc, &done.evaluation, self.tol)
         {
@@ -1098,25 +1101,24 @@ impl DocSession {
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only
                 // thing that answers "is this document's product well
-                // formed" — a naming collision across roots is not a
-                // node failure, so the feature tree's badges cannot see
-                // it, and a viewport that draws the parts without ever
-                // asking would render a body nothing says is wrong.
+                // formed", so every class of refusal is kept here; which
+                // channel reports which is `frame::badge_site`'s.
                 //
                 // A refusal that `ProductErrorKind::means_no_body`
                 // reads as an absence is the one the registry still
-                // runs over, on the subject that says so. Every other
-                // refusal leaves the report absent, which is "not
-                // checked".
-                let checks = fault
-                    .kind()
-                    .means_no_body()
+                // runs over, on the subject that says so, and the one
+                // no A5 badge is taken for: there is no product for
+                // the gate to judge, which is a part document's `None`
+                // and not a refusal. Every other refusal leaves the
+                // report absent, which is "not checked".
+                let no_body = fault.kind().means_no_body();
+                let checks = no_body
                     .then(|| {
                         run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
                             .ok()
                     })
                     .flatten();
-                let at_rest = assembly_shaped.then(|| AtRestBadge::Refused {
+                let at_rest = (assembly_shaped && !no_body).then(|| AtRestBadge::Refused {
                     message: AssemblyError::product_refusal(&fault),
                 });
                 (Some(fault), checks, at_rest, None)
@@ -2935,14 +2937,48 @@ enum OrderFault {
     },
 }
 
-/// Whether a document is assembly-shaped, which is what decides
-/// whether an A5 badge is taken at all (see [`AtRestBadge`]): a
-/// document that instantiates no part declares no cross-instance rest
-/// and has nothing for the gate to answer about.
+/// Whether a document is assembly-shaped — one of the two conditions
+/// [`AtRestBadge`] names for taking an A5 badge: a document that
+/// instantiates no part declares no cross-instance rest and has
+/// nothing for the gate to answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
     doc.order()
         .iter()
-        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+        .filter_map(|&id| doc.node(id))
+        .any(puts_an_instance)
+}
+
+/// Whether a node puts an instance of another document's part into
+/// this one — what [`assembly_shaped`] asks of every node.
+fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
+    match node {
+        Node::InstantiatePart { .. } => true,
+        // Placements of a prototype drawn in THIS document: the rest
+        // between them is the placement rule's, not a crossing.
+        Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
+        // Relates instances some other node put in the document.
+        Node::Mate { .. } => false,
+        // Declares contacts between faces of a consumer's operands,
+        // and puts no body of its own in.
+        Node::Declare { .. } => false,
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => false,
+    }
 }
 
 /// One A5 verdict as the badge that shows it — the gate's own

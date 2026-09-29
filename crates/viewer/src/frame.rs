@@ -2104,9 +2104,8 @@ pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
-/// for a part document and before anything lands — which is
-/// [`crate::session::DocSession::at_rest`]'s own `None`, passed
-/// through.
+/// exactly when [`crate::session::DocSession::at_rest`] is — its own
+/// `None`, passed through; that doc says when.
 ///
 /// A certified assembly is [`Tone::Advisory`]: the verdict is good
 /// news and there is nothing to act on. A refusal is
@@ -2675,8 +2674,10 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
     match refusal.and_then(Refusal::parse_error)? {
         // The parse error carries the identifier as text (it is a
         // fact about the SOURCE); the offer mints the name the create
-        // door would declare.
-        ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
+        // door would declare. The text is a token the lexer read, so
+        // the constructor admits it; its answer is folded rather than
+        // trusted.
+        ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
         ParseError::UnexpectedChar { .. }
         | ParseError::UnexpectedEnd { .. }
         | ParseError::UnexpectedToken { .. }
