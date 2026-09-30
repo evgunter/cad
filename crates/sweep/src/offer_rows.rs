@@ -89,7 +89,11 @@ fn every_sphere_offer_passes_just_below_it() {
         .map_or(module_path!(), |(_, m)| m);
     let mut false_offers = Vec::new();
     for &(key, positive, name) in CASES {
-        match execute(&format!("{module}::{name}"), key, topo::test_support::offer_same_decision) {
+        match execute(
+            &format!("{module}::{name}"),
+            key,
+            topo::test_support::offer_same_decision,
+        ) {
             Ok(chain) => {
                 let Outcome::Refused { text, .. } = &chain[0].outcome else {
                     unreachable!("execute returns a chain that starts with its refusal");
@@ -119,5 +123,9 @@ fn every_sphere_offer_passes_just_below_it() {
             Err(why) => false_offers.push(why),
         }
     }
-    assert!(false_offers.is_empty(), "false offers:\n{}", false_offers.join("\n\n"));
+    assert!(
+        false_offers.is_empty(),
+        "false offers:\n{}",
+        false_offers.join("\n\n")
+    );
 }

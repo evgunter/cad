@@ -23,7 +23,8 @@
 use super::super::reduce::{ContactAcc, CurvedEvent, curved_face_arm};
 use super::super::sectors::{NO_CURVATURE, Reach, side_code, tangent_relative_side};
 use super::super::{
-    BooleanDeclarations, BooleanError, BooleanErrorKind, DeclaredPairs, FacePairDeclaration, Operand,
+    BooleanDeclarations, BooleanError, BooleanErrorKind, DeclaredPairs, FacePairDeclaration,
+    Operand,
 };
 use super::tests::every_decision;
 use super::*;
@@ -301,19 +302,16 @@ const FRAME_SITE: Door = Door::Site(
     "the radius guards run on the declared-coaxial cylinder and sphere frame, which no public \
      door passes",
 );
-const ROOT_SITE: Door = Door::Site(
-    "the conic root lane is asked of a carrier and a plane, set directly",
-);
+const ROOT_SITE: Door =
+    Door::Site("the conic root lane is asked of a carrier and a plane, set directly");
 const RIM_SITE: Door = Door::Site(
     "the rim identity is read inside a declared-Tangent verification, on two wall sheets' rims \
      set directly",
 );
-const JOIN_SITE: Door = Door::Site(
-    "the join's facing is read on germs the reduction left, set directly",
-);
-const FLANK_SITE: Door = Door::Site(
-    "the membership tie is read inside the edge-edge resolution, on hand-built sectors",
-);
+const JOIN_SITE: Door =
+    Door::Site("the join's facing is read on germs the reduction left, set directly");
+const FLANK_SITE: Door =
+    Door::Site("the membership tie is read inside the edge-edge resolution, on hand-built sectors");
 const RIM_PLANE_SITE: Door = Door::Site(
     "a rim's offset from a parallel face is read in the sweep, on a wall sheet and a brick run \
      through it directly",
@@ -403,12 +401,31 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         x.get_half_edge(edge.he_minus).unwrap().start,
     );
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
-    let wall = cyl_wall_sheet(&mut y, CylFrame::canonical(1.0), None, (-0.5, 0.5), (0.0, 1.0), tol);
+    let wall = cyl_wall_sheet(
+        &mut y,
+        CylFrame::canonical(1.0),
+        None,
+        (-0.5, 0.5),
+        (0.0, 1.0),
+        tol,
+    );
     let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
     let mut acc = ContactAcc::default();
     curved_face_arm(
-        &x, &mut y, Operand::A, edge_key, &edge, a, c, wall, pt(a), pt(c), &declared, &mut acc,
-        band(), tol,
+        &x,
+        &mut y,
+        Operand::A,
+        edge_key,
+        &edge,
+        a,
+        c,
+        wall,
+        pt(a),
+        pt(c),
+        &declared,
+        &mut acc,
+        band(),
+        tol,
     )
     .map(|_: CurvedEvent<f64>| ())
 }
@@ -423,11 +440,25 @@ fn arc_against_a_wall(
 ) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
-    let xw = cyl_wall_sheet(&mut x, CylFrame::canonical(r), None, (0.5, 1.0), (0.25, 0.5), tol);
+    let xw = cyl_wall_sheet(
+        &mut x,
+        CylFrame::canonical(r),
+        None,
+        (0.5, 1.0),
+        (0.25, 0.5),
+        tol,
+    );
     let sense = x.get_face(xw).unwrap().sense;
     x.set_face_sense(xw, !sense).unwrap();
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
-    let yw = cyl_wall_sheet(&mut y, CylFrame::canonical(1.0), None, (0.0, 3.0), (0.0, 1.0), tol);
+    let yw = cyl_wall_sheet(
+        &mut y,
+        CylFrame::canonical(1.0),
+        None,
+        (0.0, 3.0),
+        (0.0, 1.0),
+        tol,
+    );
     let decls = BooleanDeclarations {
         coincident_faces: class
             .map(|class| vec![FacePairDeclaration::new(xw, yw, class)])
@@ -456,8 +487,20 @@ fn arc_against_a_wall(
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
     let mut acc = ContactAcc::default();
     curved_face_arm(
-        &x, &mut y, Operand::A, edge_key, &edge, a, c, yw, pt(a), pt(c), &declared, &mut acc,
-        band(), tol,
+        &x,
+        &mut y,
+        Operand::A,
+        edge_key,
+        &edge,
+        a,
+        c,
+        yw,
+        pt(a),
+        pt(c),
+        &declared,
+        &mut acc,
+        band(),
+        tol,
     )
     .map(|_: CurvedEvent<f64>| ())
 }
@@ -474,7 +517,10 @@ fn wedge_on_a_block(op: super::super::BooleanOp) -> Result<(), BooleanError> {
         Vec3::new(phi.cos(), phi.sin(), tilt * phi.sin()),
     );
     let p = Point3::new(0.5, 0.2, 1.0);
-    let wedge = mapped_cube::<f64>(move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, w), tol);
+    let wedge = mapped_cube::<f64>(
+        move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, w),
+        tol,
+    );
     let block = brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
     super::super::boolean_op_with(
         op,
@@ -602,14 +648,19 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: x,
         end: y,
-        start_reach: Reach::Chord { base: o, far: o + x },
-        end_reach: Reach::Chord { base: o, far: o + y },
+        start_reach: Reach::Chord {
+            base: o,
+            far: o + x,
+        },
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + y,
+        },
         face: crate::entity::FaceKey::default(),
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
     };
-    super::super::vtxfac::pierce_germ_dir(&s, Vec3::new(D.sin(), 0.0, D.cos()), band())
-        .map(|_| ())
+    super::super::vtxfac::pierce_germ_dir(&s, Vec3::new(D.sin(), 0.0, D.cos()), band()).map(|_| ())
 }
 
 /// `A` a block `[0, 2]² × [0, 1]`, `B` a unit block standing over its
@@ -631,8 +682,14 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: x,
         end: y,
-        start_reach: Reach::Chord { base: o, far: o + x },
-        end_reach: Reach::Chord { base: o, far: o + y },
+        start_reach: Reach::Chord {
+            base: o,
+            far: o + x,
+        },
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + y,
+        },
         face: crate::entity::FaceKey::default(),
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
@@ -829,8 +886,22 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
     use super::super::reduce::vertex_on_curved_face;
     let tol = Tol::witness();
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
-    let face = cyl_wall_sheet(&mut y, CylFrame::canonical(1.0), None, (0.0, 1.0), (0.0, 1.0), tol);
-    cyl_wall_sheet(&mut y, CylFrame::canonical(1.0), None, (3.0 + D, 4.0), (0.5, 1.0), tol);
+    let face = cyl_wall_sheet(
+        &mut y,
+        CylFrame::canonical(1.0),
+        None,
+        (0.0, 1.0),
+        (0.0, 1.0),
+        tol,
+    );
+    cyl_wall_sheet(
+        &mut y,
+        CylFrame::canonical(1.0),
+        None,
+        (3.0 + D, 4.0),
+        (0.5, 1.0),
+        tol,
+    );
     let px = Point3::new(3.0_f64.cos(), 3.0_f64.sin(), 0.5);
     let mut acc = ContactAcc::default();
     vertex_on_curved_face(
@@ -851,9 +922,23 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
 fn rims(r: f64) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut a: crate::body::Body<f64> = crate::body::Body::new();
-    let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, (0.0, 1.0), (0.0, 1.0), tol);
+    let fa = cyl_wall_sheet(
+        &mut a,
+        CylFrame::canonical(1.0),
+        None,
+        (0.0, 1.0),
+        (0.0, 1.0),
+        tol,
+    );
     let mut b: crate::body::Body<f64> = crate::body::Body::new();
-    let fb = cyl_wall_sheet(&mut b, CylFrame::canonical(r), None, (0.0, 1.0), (0.0, 1.0), tol);
+    let fb = cyl_wall_sheet(
+        &mut b,
+        CylFrame::canonical(r),
+        None,
+        (0.0, 1.0),
+        (0.0, 1.0),
+        tol,
+    );
     super::super::rim_wedge::shared_rim(&a, fa, &b, fb, band())
         .map(|_| ())
         .map_err(|diag| {
@@ -887,9 +972,9 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
 /// `rest` (a class the door verifies there:
 /// `recl`'s `an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it`).
 fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError> {
+    use super::super::SideCode::{In, On, Out};
     use super::super::recl::resolve_edge_edge;
     use super::super::sectors::{BoolSector, PairRecord};
-    use super::super::SideCode::{In, On, Out};
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
     let (x, y, z) = (
@@ -963,8 +1048,14 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: y,
         end: z,
-        start_reach: Reach::Chord { base: o, far: o + y },
-        end_reach: Reach::Chord { base: o, far: o + z },
+        start_reach: Reach::Chord {
+            base: o,
+            far: o + y,
+        },
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + z,
+        },
         face,
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
         arm,
@@ -1000,8 +1091,9 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
 /// above.
 fn offset_neighbours(offset: f64) -> Result<(), BooleanError> {
     let up = Vec3::new(0.0, 0.0, 1.0);
-    let body =
-        super::tests::top_split_redescribed(|p0, along, _| plane_through(p0 + up * offset, along, up));
+    let body = super::tests::top_split_redescribed(|p0, along, _| {
+        plane_through(p0 + up * offset, along, up)
+    });
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
@@ -1081,7 +1173,11 @@ fn every_offered_tolerance_passes_just_below_it() {
             Err(why) => false_offers.push(why),
         }
     }
-    assert!(false_offers.is_empty(), "false offers:\n{}", false_offers.join("\n\n"));
+    assert!(
+        false_offers.is_empty(),
+        "false offers:\n{}",
+        false_offers.join("\n\n")
+    );
 }
 
 /// The value a refusal's quoted point margin gives, `|m|/K` at the band
@@ -1109,7 +1205,12 @@ fn every_withdrawn_tolerance_stays_withdrawn() {
         };
         assert_eq!(key, case.key, "{}: {text}", case.name);
         assert!(!defect, "{}: {text}", case.name);
-        assert_eq!(margin_is_positive(&text), Some(case.positive), "{}: {text}", case.name);
+        assert_eq!(
+            margin_is_positive(&text),
+            Some(case.positive),
+            "{}: {text}",
+            case.name
+        );
         assert!(
             test_utils::offer::offered_below(&text).is_none() && !text.contains("tighten"),
             "{}: offers a tolerance: {text}",

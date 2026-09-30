@@ -1386,8 +1386,7 @@ mod tests {
             )) && text.ends_with(&format!(
                 "if this edge's rise off the face is intended, tighten the tolerance below {:e} m",
                 departure(short) / (e / z)
-            ))
-                && !text.contains("kernel bug"),
+            )) && !text.contains("kernel bug"),
             "{text}"
         );
         // The reading's own escalation, over a clear extent: a direction

@@ -120,9 +120,20 @@ fn every_rewritten_boolean_refusal_renders_within_the_budget() {
         if text.contains("boolean_reduce:") || text.contains("point_in_solid:") {
             problems.push(format!("{name} carries a kernel stage prefix: {text}"));
         }
+        if NO_TOLERANCE_PASSES.contains(&name) && text.contains("tolerance below") {
+            problems.push(format!(
+                "{name} offers a tolerance no smaller one honours: {text}"
+            ));
+        }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// The rows whose refusal no smaller tolerance passes, so a sentence
+/// that offers one spends words on a false offer: two spheres that
+/// definitely cross (`SpheresMeet`'s negative verdict) cross at every
+/// tolerance, and the Boolean cannot yet join them.
+const NO_TOLERANCE_PASSES: &[&str] = &["SpheresMeet"];
 
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
 fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {

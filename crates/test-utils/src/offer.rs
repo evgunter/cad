@@ -101,7 +101,13 @@ pub fn report(case: &str, outcome: &Outcome) {
 pub fn run(row: &str, eps: f64) -> Outcome {
     let exe = std::env::current_exe().expect("a running test binary has a path");
     let out = std::process::Command::new(&exe)
-        .args([row, "--exact", "--ignored", "--nocapture", "--test-threads=1"])
+        .args([
+            row,
+            "--exact",
+            "--ignored",
+            "--nocapture",
+            "--test-threads=1",
+        ])
         .env("CAD_TOLERANCE_EPS", format!("{eps:e}"))
         .env_remove("CAD_AMBIGUITY_K")
         .output()
@@ -115,7 +121,9 @@ pub fn run(row: &str, eps: f64) -> Outcome {
     let line = stdout
         .lines()
         .find_map(|l| l.split_once(TAG).map(|(_, rest)| rest))
-        .unwrap_or_else(|| panic!("{row} at {eps:e}: no report (did the filter match?):\n{stdout}"));
+        .unwrap_or_else(|| {
+            panic!("{row} at {eps:e}: no report (did the filter match?):\n{stdout}")
+        });
     let fields: Vec<&str> = line.trim_start_matches('\t').split('\t').collect();
     match fields.as_slice() {
         [_, "PASS"] => Outcome::Pass,
@@ -166,7 +174,11 @@ pub fn execute(
             Some(v) => (got.clone(), v),
             None => return Err(format!("{row}: the first raise offers no value: {first:?}")),
         },
-        _ => return Err(format!("{row}: the first raise is not {key}'s refusal: {first:?}")),
+        _ => {
+            return Err(format!(
+                "{row}: the first raise is not {key}'s refusal: {first:?}"
+            ));
+        }
     };
     for _ in 0..LONGEST_CHAIN {
         let eps = BELOW * offer;
@@ -188,7 +200,9 @@ pub fn execute(
             },
         }
     }
-    Err(format!("{row}: no pass within {LONGEST_CHAIN} re-runs: {chain:#?}"))
+    Err(format!(
+        "{row}: no pass within {LONGEST_CHAIN} re-runs: {chain:#?}"
+    ))
 }
 
 #[cfg(test)]

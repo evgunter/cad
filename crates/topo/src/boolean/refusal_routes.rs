@@ -1425,17 +1425,14 @@ impl BooleanDecision {
             // is a size a smaller tolerance decides positive
             // (`geom_brep::enters`'s arm gate carries its margin).
             Self::LeverArm(gate) => gate.ending(),
-            Self::Radius(SectionRadius::Cylinder) => {
-                Ending::Sized(SectionRadius::Cylinder.sized())
-            }
+            Self::Radius(SectionRadius::Cylinder) => Ending::Sized(SectionRadius::Cylinder.sized()),
             // The cylinder's guard asks first, and a cylinder meeting a
             // coaxial sphere is the narrower, so an in-band sphere radius
             // here belongs to a pair that does not meet, which the frame
             // refuses at every smaller tolerance.
-            Self::Radius(SectionRadius::Sphere) => Ending::Lever(
-                SectionRadius::Sphere.sized().lever,
-                LeverPass::Frontier,
-            ),
+            Self::Radius(SectionRadius::Sphere) => {
+                Ending::Lever(SectionRadius::Sphere.sized().lever, LeverPass::Frontier)
+            }
             // A positive `|d⊥|²/2r` has roots to find; a zero one is a
             // constant residual, which every edge-sweep arm refuses at
             // the frontier. The margin is 1/m, ledger row F2 (debt

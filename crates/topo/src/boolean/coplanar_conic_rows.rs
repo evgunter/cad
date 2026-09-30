@@ -93,7 +93,10 @@ pub(in crate::boolean) fn brick_under(top: f64) -> (Body<f64>, FaceKey) {
     (b, g)
 }
 
-pub(in crate::boolean) fn sweep(x: &Body<f64>, y: &Body<f64>) -> Result<ContactRecords, BooleanError> {
+pub(in crate::boolean) fn sweep(
+    x: &Body<f64>,
+    y: &Body<f64>,
+) -> Result<ContactRecords, BooleanError> {
     let (mut x, mut y) = (x.clone(), y.clone());
     let mut acc = ContactAcc::default();
     sweep_direction(

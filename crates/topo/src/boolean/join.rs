@@ -2105,7 +2105,10 @@ mod self_check_rows {
             ),
             "{check:?}: {err:?}"
         );
-        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{check:?}: {err}");
+        assert!(
+            err.to_string().ends_with(KERNEL_DEFECT_ENDING),
+            "{check:?}: {err}"
+        );
     }
 
     /// A conic germ whose rotational sense about its section circle lies
