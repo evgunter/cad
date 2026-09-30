@@ -199,9 +199,15 @@ impl<T: geom_core::Decide> Body<T> {
     /// ([`crate::ValidationError::NullEdgeAtRest`]).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): the null edge has no
-    /// carrier to derive its halves' rows from, so a face whose rows
-    /// were complete is left missing exactly those two until the edge's
-    /// first description, where [`Body::set_edge_curve`] mints them.
+    /// carrier to derive its halves' rows from, so this door returns a
+    /// minted face half-minted, missing those two. The edge's first
+    /// description ([`Body::set_edge_curve`]) is the first door that can
+    /// derive them: once no null edge is left on the face, it re-mints
+    /// the face whole, and on a spline chart leaves it as found. A null
+    /// edge killed undescribed — as the boolean and splitting pipelines
+    /// kill theirs — leaves the face half-minted until the producer's
+    /// final pass
+    /// (`work/topo/a-null-edge-that-is-killed-leaves-its-face-half-minted`).
     ///
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to
     /// `mev` (a null edge is an edge).
@@ -674,9 +680,8 @@ mod tests {
             radius: frame.radius,
             u_ref: frame.u_ref,
         };
-        let spec =
-            geom_brep::EdgeCurveSpec::arc_of_circle(circle, t0, t0 + core::f64::consts::TAU)
-                .unwrap();
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, t0, t0 + core::f64::consts::TAU)
+            .unwrap();
         TwoFaced {
             body,
             wall,
@@ -697,7 +702,14 @@ mod tests {
     fn rows_deep(body: &Body<f64>) -> Vec<String> {
         let mut out: Vec<String> = body
             .pcurves()
-            .map(|(he, c)| format!("{he:?} {:?} {:?} {:?}", c.params(), c.pcurve(), c.certificate()))
+            .map(|(he, c)| {
+                format!(
+                    "{he:?} {:?} {:?} {:?}",
+                    c.params(),
+                    c.pcurve(),
+                    c.certificate()
+                )
+            })
             .collect();
         out.sort();
         out
@@ -730,7 +742,10 @@ mod tests {
         let order = |e: &crate::pcurves::PcurveMintError| format!("{e:?}");
         want.sort_by_key(order);
         found.sort_by_key(order);
-        assert_eq!(found, want, "mev_null leaves each face missing its half's row");
+        assert_eq!(
+            found, want,
+            "mev_null leaves each face missing its half's row"
+        );
         body.set_edge_curve(null.edge, spec, Tol::witness())
             .unwrap();
         assert_eq!(findings(&body), vec![], "both faces are complete");
@@ -753,7 +768,11 @@ mod tests {
             spur,
             spec,
         } = two_faced_null_edge();
-        assert_eq!(face_of(&body, null.he_plus), wall, "the wall is planned first");
+        assert_eq!(
+            face_of(&body, null.he_plus),
+            wall,
+            "the wall is planned first"
+        );
         let torn = body.get_edge(spur.edge).unwrap().curve;
         body.curves.remove(torn).unwrap();
         let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());

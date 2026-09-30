@@ -921,12 +921,13 @@ pub enum EulerOpError {
     /// the op rewires does not resolve). Raised before any mutation, so
     /// the body is untouched — these three operators leave no complete
     /// face half-minted. Also raised by [`Body::set_edge_curve`] on a
-    /// null edge's first description, which re-mints the face the edge's
-    /// halves are on the same way, where a half-edge of a loop through
-    /// them does not resolve.
+    /// null edge's first description, which re-mints the faces the
+    /// edge's halves are on through the same site mint, where a
+    /// half-edge of such a face does not resolve.
     PcurveMint {
-        /// The face the new half-edge would join; for `mef`'s new face,
-        /// the face it is carved from.
+        /// The face whose rows were being re-minted: the face the new
+        /// half-edge would join (for `mef`'s new face, the face it is
+        /// carved from), or a face a described null edge's half is on.
         face: FaceKey,
         /// Why the row cannot be minted.
         refusal: crate::pcurves::SiteRowRefusal,
@@ -3124,7 +3125,13 @@ impl<T: Decide> Body<T> {
         edge: &EdgeCurve<T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        self.plan_site_rows_as(SiteMint::Operator, touched, |body, _| faces(body), edge, tol)
+        self.plan_site_rows_as(
+            SiteMint::Operator,
+            touched,
+            |body, _| faces(body),
+            edge,
+            tol,
+        )
     }
 
     /// **A site mint's plan**: which faces it re-mints, and the rows it

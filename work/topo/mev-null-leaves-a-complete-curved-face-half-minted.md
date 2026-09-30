@@ -1,7 +1,7 @@
 ---
 id: mev-null-leaves-a-complete-curved-face-half-minted
 kind: issue
-title: mev_null adds two rowless half-edges to a face whose pcurve rows are complete, the one Euler operator still returning a face half-minted
+title: mev_null returns a minted face half-minted, and the null edge's first description re-mints it
 status: review
 opened: 2026-09-29
 priority: P2

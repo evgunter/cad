@@ -12,7 +12,10 @@
 //! stores none; a face that was already half-minted is left as found;
 //! and on a spline chart the op refuses before it mutates. Doors that
 //! are not these three can still leave a face half-minted, and the
-//! `kef` row below is one.
+//! `kef` row below is one; so does `mev_null`, whose edge has no
+//! carrier, and the null-edge rows at the end pin the door that
+//! re-mints that face: the edge's first description, once no null edge
+//! is left on it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -891,7 +894,11 @@ fn two_null_edges_on_one_wall_complete_it_at_the_second_description() {
     let lower = null_at(&mut body, first.he_minus);
     let mut four = vec![upper.he_plus, upper.he_minus, lower.he_plus, lower.he_minus];
     four.sort();
-    assert_eq!(missing_rows(&body), four, "two null edges, four missing rows");
+    assert_eq!(
+        missing_rows(&body),
+        four,
+        "two null edges, four missing rows"
+    );
 
     body.set_edge_curve(upper.edge, circle_at(0.8), tol())
         .unwrap();
@@ -902,7 +909,11 @@ fn two_null_edges_on_one_wall_complete_it_at_the_second_description() {
     );
     body.set_edge_curve(lower.edge, circle_at(0.5), tol())
         .unwrap();
-    assert_eq!(missing_rows(&body), vec![], "the last description completes it");
+    assert_eq!(
+        missing_rows(&body),
+        vec![],
+        "the last description completes it"
+    );
     assert_eq!(validate_pcurves(&body, band()), vec![]);
     let minted = rows_deep(&body);
     topo::mint_pcurves(&mut body, tol()).unwrap();

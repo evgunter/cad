@@ -4,6 +4,8 @@ kind: issue
 title: kev_describing gives a listed null member its first description without the re-mint set_edge_curve now runs
 status: open
 opened: 2026-09-30
+priority: P3
+cost: E
 ---
 
 
@@ -11,8 +13,9 @@ Found by `mev-null-leaves-a-complete-curved-face-half-minted`
 (branch `topo/null-edge-remint`) in its sweep of the doors that
 describe a null edge's carrier.
 
-That unit makes a null edge's first description re-mint a face whose
-rows are complete but for the edge's two halves:
+That unit makes a null edge's first description re-mint a minted
+face its halves are on, once no other null edge is on it
+(`StoredRows::remints_at_description`):
 `Body::set_edge_curve_via` (`crates/topo/src/attach.rs`) plans it
 (`null_description_rows`, through `pcurves::site_rows`) before it
 mutates, which covers `set_edge_curve` and
@@ -24,8 +27,9 @@ other door that writes a certified curve onto an existing edge
 (`replace_edge_curve`, bypassing `set_edge_curve_via`). A merged
 member it lists may be a null edge — `kev_describing_gate` checks
 membership, adjacency and certification, not the curve's kind — and
-then the kill is that edge's first description, and a face complete
-but for its two halves keeps missing them.
+then the kill is that edge's first description, and the face its
+halves were on keeps missing the rows the description would have
+re-minted.
 
 Not reached today: instrumented over topo's suite and sweep's `ci`
 profile, no `kev_describing` call lists a null member (the blend's

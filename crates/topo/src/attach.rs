@@ -195,15 +195,18 @@ impl<T: Decide> Body<T> {
     /// every swap that certifies — including the upgrades this door
     /// exists for, whose rows stay true within band.
     ///
-    /// **A null edge's first description mints its rows.**
+    /// **A null edge's first description re-mints its face.**
     /// [`Body::mev_null`] adds two halves with no carrier to derive a
-    /// row from, so a face whose rows were complete is left missing
-    /// exactly those two. The carrier arrives here, and a face complete
-    /// but for those halves is re-minted before the door mutates,
-    /// through the site mint the Euler operators run
-    /// ([`crate::pcurves`]' `site_rows`): it leaves complete, or rowless
-    /// where the closed-form lane cannot mint it. A face on a spline
-    /// chart is left as `mev_null` left it, missing the two rows.
+    /// row from, and returns a minted face half-minted. The carrier
+    /// arrives here, so before the door mutates, each face the halves
+    /// are on that was minted (it stores a row) and has no other null
+    /// edge on it is re-minted whole, through the site mint the Euler
+    /// operators run ([`crate::pcurves`]' `site_rows`): it leaves
+    /// complete — the rows of halves an operator added while it was
+    /// half-minted included — or rowless where the closed-form lane
+    /// cannot mint it. While another null edge is on the face, the
+    /// face is left as found, and that edge's description re-mints it.
+    /// A face on a spline chart is left as found.
     ///
     /// # Errors
     ///
@@ -213,8 +216,8 @@ impl<T: Decide> Body<T> {
     /// `Intersection`/`Seam` description whose surfaces are not the
     /// edge's faces' surfaces; [`EulerOpError::Certification`] on a
     /// failed gate; [`EulerOpError::PcurveMint`] where a null edge's
-    /// face is re-minted and a half-edge of the loop through it does not
-    /// resolve. The body is untouched on `Err`.
+    /// face is re-minted and a half-edge of it does not resolve. The
+    /// body is untouched on `Err`.
     pub fn set_edge_curve(
         &mut self,
         edge: EdgeKey,
@@ -391,7 +394,10 @@ impl<T: Decide> Body<T> {
                             .loops
                             .iter()
                             .filter_map(|(lk, cycle)| {
-                                Some((*lk, cycle.as_deref()?.iter().copied().map(site_half).collect()))
+                                Some((
+                                    *lk,
+                                    cycle.as_deref()?.iter().copied().map(site_half).collect(),
+                                ))
                             })
                             .collect();
                         body.site_face(*face, &every_loop, None)
