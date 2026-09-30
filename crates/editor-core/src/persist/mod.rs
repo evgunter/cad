@@ -141,6 +141,7 @@
 mod canon;
 mod check;
 pub mod hexbytes;
+pub(crate) mod jsontext;
 /// The bytes of kernel types, described from above the layering
 /// boundary — see the module's own docs for the rules a new one
 /// follows.
@@ -547,9 +548,16 @@ pub fn save(
             .doc;
     }
     let body = SerBody { snapshot, edits };
-    let json = serde_json::to_string_pretty(&body).map_err(|e| PersistError::Serialize {
-        message: e.to_string(),
+    // Written compact inside the writing door, so a stable name of any
+    // depth writes one level at a time (`names::nest`), then laid out
+    // as `to_string_pretty` lays it out, compact past the load door's
+    // nesting limit (`jsontext::pretty`).
+    let json = crate::names::write_door(|| serde_json::to_string(&body)).map_err(|e| {
+        PersistError::Serialize {
+            message: e.to_string(),
+        }
     })?;
+    let json = jsontext::pretty(&json);
     // The `id:` header line duplicates the snapshot's id (ASM-1 D-6)
     // so a workspace scan reads identity without parsing the body;
     // load verifies the two agree.
@@ -658,16 +666,27 @@ pub fn header_document_id(text: &str) -> Result<DocumentId, PersistError> {
 }
 
 fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
-    // The guard's lifetime IS this parse's refusal frame: opened
-    // before the parse so nothing an earlier one left can be read as
-    // this one's, and closed after it — by `finish` here, by `Drop` on
-    // any other path — so nothing this one leaves can be read as the
-    // next one's (`refusal`).
-    let frame = refusal::Parse::open();
-    let parsed = nesting::read(body_text);
-    let refused = frame.finish();
+    // The refusal frame is the read's own (`nesting::read` opens one
+    // around the read that answers, `refusal`).
+    let (parsed, refused) = nesting::read(body_text);
     parsed.map_err(|e| match e {
-        nesting::Refused::Json(e) => parse_err(e, refused),
+        nesting::Refused::Json(e) => {
+            parse_err(e.classify(), e.line(), e.column(), e.to_string(), refused)
+        }
+        // A name's text refused where it is written: the reader's own
+        // class and words, placed in the body.
+        nesting::Refused::Name {
+            line,
+            column,
+            category,
+            message,
+        } => parse_err(
+            category,
+            line,
+            column,
+            format!("{message} at line {line} column {column}"),
+            refused,
+        ),
         // The reader's class (`parse_err`): the body is refused before
         // any type is consulted.
         nesting::Refused::TooDeep(at) => PersistError::Parse {
@@ -721,13 +740,18 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
 /// expression and an unknown display unit are the document layer's
 /// `DimensionError` and land on [`PersistError::Dimension`], while a
 /// duplicate strict-map key is the format's own rule and stays here.
-fn parse_err(e: serde_json::Error, refused: Option<crate::expr::DimensionError>) -> PersistError {
+fn parse_err(
+    category: serde_json::error::Category,
+    line: usize,
+    column: usize,
+    words: String,
+    refused: Option<crate::expr::DimensionError>,
+) -> PersistError {
     use serde_json::error::Category;
-    let (line, column) = (e.line(), e.column());
     // The reporter's words are rendered per arm rather than up front:
     // the `Dimension` arm carries a structured refusal and needs no
     // sentence, which is the whole point of it.
-    match e.classify() {
+    match category {
         Category::Data => match refused {
             Some(error) => PersistError::Dimension {
                 line,
@@ -737,13 +761,13 @@ fn parse_err(e: serde_json::Error, refused: Option<crate::expr::DimensionError>)
             None => PersistError::Unreadable {
                 line,
                 column,
-                detail: e.to_string(),
+                detail: words,
             },
         },
         Category::Syntax | Category::Eof | Category::Io => PersistError::Parse {
             line,
             column,
-            message: e.to_string(),
+            message: words,
         },
     }
 }
