@@ -37,7 +37,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use pncad::document::DocumentId;
-use pncad::workspace::{Workspace, WorkspaceError};
+use pncad::workspace::Workspace;
 
 use crate::docio::DirResolver;
 use crate::frame::Tone;
@@ -92,8 +92,8 @@ fn file_name(path: &Path) -> String {
     )
 }
 
-/// The documents the resolver's directory offers as parts, with the
-/// open document's own entry marked.
+/// The documents one scan of the session's store offers as parts, with
+/// the open document's own entry marked.
 ///
 /// **Ordered by FILE NAME**, with the id as the tie-break. The
 /// workspace answers a `BTreeMap<DocumentId, _>`, so its own iteration
@@ -103,18 +103,11 @@ fn file_name(path: &Path) -> String {
 /// id tie-break keeps two same-named files (different directories
 /// cannot arise here, but a rename race can) in a deterministic order.
 ///
-/// # Errors
-///
-/// The scan's own refusal, verbatim — [`WorkspaceError::DuplicateId`]
-/// naming both claimants, [`WorkspaceError::Header`] naming an
-/// unreadable sibling, [`WorkspaceError::Io`] naming the directory.
-/// The catalogue never partially succeeds: a directory that is not a
-/// healthy store cannot answer "which parts are here" honestly.
-pub fn catalogue(
-    resolver: &DirResolver,
-    open: DocumentId,
-) -> Result<Vec<PartEntry>, WorkspaceError> {
-    let workspace = resolver.workspace()?;
+/// It takes the store already scanned, so the scan's refusal — a
+/// duplicate id, an unreadable sibling, an unreadable directory — is
+/// the caller's to say, and the catalogue never partially succeeds: a
+/// directory that is not a healthy store answers no listing at all.
+pub fn catalogue(workspace: &Workspace, open: DocumentId) -> Vec<PartEntry> {
     let mut entries: Vec<PartEntry> = workspace
         .documents()
         .iter()
@@ -127,7 +120,7 @@ pub fn catalogue(
         })
         .collect();
     entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()).then(a.id.cmp(&b.id)));
-    Ok(entries)
+    entries
 }
 
 /// The `Add part…` chooser's held state: the catalogue as of its
