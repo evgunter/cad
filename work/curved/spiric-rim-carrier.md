@@ -2,7 +2,8 @@
 id: spiric-rim-carrier
 kind: unit
 title: The exact spiric rim carrier - Curve3::Spiric, its census and mint_carrier's kind-changing arm (PR-1a), then the pcurve variant and STEP (PR-1b)
-status: open
+status: closed
+closed: 2026-09-30
 opened: 2026-09-13
 branch: curved/spiric-1a
 refs: [spiric-carrier-ruling, c5-plane-torus-cone-cylinder-arms, 1858]
@@ -47,3 +48,14 @@ compile break named, §5's export-only cubic spline with the
 from the lane: `spiric-step-spline-bound-is-second-order` — §5's
 sagitta certificate cannot state the kernel's ε under its 1024-node
 cap, measured.
+
+## Closed (2026-09-30)
+
+PR-1b (#2861) merged (ordinal 2205, sample #247; block CURVED-B2 slot 2 —
+the block concludes). With PR-1a (#2566) the unit is delivered: the
+exact spiric rim carrier mints, certifies its chart images and exports.
+Records: MODEL-AB-LOG rows SP1A and SP1B; adjudications 5733631165 and
+5746969779. Left open from the unit: `equator-seam-reauthor-refuses-the-hollowed-elbow`
+(in flight) and `spiric-step-spline-bound-is-second-order`.
+`docs/CURVED-SPIRIC-SPEC.md` leaves `docs/` per the ledger in the
+post-merge docs PR.
