@@ -9,6 +9,7 @@ cost: M
 closed: 2026-09-30
 branch: emit/sunk-boss-slot-duplicate
 refs: [a-merged-face-with-several-same-side-constituents-has-no-chord-rule, curved-seam-pieces-have-no-ranking-direction]
+pr: 3547
 ---
 
 
