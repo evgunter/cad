@@ -212,7 +212,7 @@
 //! `Body::require_kill_anchors`): a `Some` starts at its endpoint, a
 //! `None` leaves it lone (no half-edge but the killed two starts there,
 //! and the `Empty` surviving loop holds it), the remnant claims the
-//! dying loop, the surviving loop's `first` is not killed and lies in it
+//! dying loop and is all of it but `he`, the surviving loop's `first` is not killed and lies in it
 //! once the remnant has moved in, and an `Empty` surviving loop keeps no
 //! member but the killed two and holds a vertex no other loop holds.
 //!
@@ -313,7 +313,7 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{
-    EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, shared_loop,
+    EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, RunExtent, shared_loop,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
@@ -556,10 +556,14 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); it has no rings ([`EulerOpError::FaceHasRings`]);
     /// its outer loop resolves (`StaleKey`); the loop is empty
     /// ([`EulerOpError::LoopNotEmpty`]); the lone vertex resolves
-    /// (`StaleKey`). (A lone vertex with `emanating: Some` — or one held
-    /// by a second empty loop — is tier-1-invalid input and is not
-    /// re-checked here; the debug postcondition would report the
-    /// resulting garbage.)
+    /// (`StaleKey`); no half-edge claims the loop, then none starts at
+    /// the vertex ([`EulerOpError::LoopCycleBroken`] naming the loop —
+    /// tier-1-invalid input: a torn `parent_loop` or start makes a
+    /// half-edge of another shell name them, and the kill would leave
+    /// it naming a dead loop or vertex). (A lone vertex with
+    /// `emanating: Some` — or one held by a second empty loop — is
+    /// tier-1-invalid input and is not re-checked here; the debug
+    /// postcondition would report the resulting garbage.)
     ///
     /// # Errors
     ///
@@ -605,6 +609,10 @@ impl<T: Decide> Body<T> {
             key: EntityId::Vertex(vertex),
         })?;
         let point = vertex_data.point;
+        self.require_run_of([], loop_key, RunExtent::Whole, &[])?;
+        if self.half_edges.values().any(|data| data.start == vertex) {
+            return Err(EulerOpError::LoopCycleBroken { r#loop: loop_key });
+        }
 
         // ---- Mutation (infallible from here on). ----
         // Kill order (documented above): face, loop, shell, solid,
@@ -1257,9 +1265,11 @@ impl<T: Decide> Body<T> {
     /// another vertex, or land both steps on the killed halves at an
     /// endpoint that keeps edges, and a torn start can empty the loop at
     /// another vertex than the one it strands); then every remnant member claims the
-    /// dying loop ([`EulerOpError::LoopCycleBroken`] naming the dying
-    /// loop — tier-1-invalid input: a torn `next` can divert its walk
-    /// through another loop, whose members the move would take); then
+    /// dying loop, and no half-edge but the remnant and `he` does
+    /// ([`EulerOpError::LoopCycleBroken`] naming the dying loop —
+    /// tier-1-invalid input: a torn `next` can divert its walk through
+    /// another loop, whose members the move would take, or close it past
+    /// a member, which the kill would leave naming a dead loop); then
     /// the surviving loop's new anchor holds: its `first` is not killed
     /// and lies in it once the remnant has moved in, and in the `Lone`
     /// inverse it keeps no member but the killed two and no other loop
@@ -1408,6 +1418,7 @@ impl<T: Decide> Body<T> {
             Some(KillRun {
                 members: &remnant,
                 from: l1,
+                extent: RunExtent::Whole,
                 into: KillInto::Kept(l2),
             }),
         )?;

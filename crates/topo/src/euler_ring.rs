@@ -125,7 +125,12 @@
 //! the reconstructed cycle, `he_minus` plays `he2`'s). Both new halves
 //! land in the target loop. Re-anchoring, unconditionally: the target
 //! loop's `Cycle::first` becomes `he_plus`; `u.emanating = he_plus`,
-//! `w.emanating = he_minus` (`mev`'s rule).
+//! `w.emanating = he_minus` (`mev`'s rule). A cycle ring moves into the
+//! target by its walk, so the plan proves before mutating that the walk
+//! is exactly the ring's members (the crate-internal
+//! `Body::require_run_of`): none of another loop, which the move would
+//! take, and none left out, which the ring's kill would leave naming a
+//! dead loop.
 //!
 //! # `kfmrh` — the connected sum
 //!
@@ -235,7 +240,7 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
-use crate::euler::{EulerOpError, KillAnchor, KillInto, KillRun, shared_loop};
+use crate::euler::{EulerOpError, KillAnchor, KillInto, KillRun, RunExtent, shared_loop};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Live, require_key};
 use crate::pcurves::{SiteHalf, SiteRows};
@@ -507,6 +512,7 @@ impl<T: Decide> Body<T> {
             Some(KillRun {
                 members: &ring_side,
                 from: loop_key,
+                extent: RunExtent::Part,
                 into: KillInto::Minted(ring_boundary),
             }),
         )?;
@@ -635,8 +641,14 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::LoopNotEmpty`]); both loops belong to one face
     /// ([`EulerOpError::NotSameFace`]) which resolves (`StaleKey`); the
     /// ring is not that face's outer loop
-    /// ([`EulerOpError::RingIsOuter`]); cycle walks close
-    /// ([`EulerOpError::LoopCycleBroken`]); splice/anchor keys resolve
+    /// ([`EulerOpError::RingIsOuter`]); cycle walks close, and a
+    /// cycle ring's walk, which the ring's kill moves into the target,
+    /// is exactly the half-edges that claim the ring
+    /// ([`EulerOpError::LoopCycleBroken`] naming the ring —
+    /// tier-1-invalid input: a torn `next` can divert the walk through
+    /// another loop, whose members the move would take, or close it
+    /// past a member, which the kill would leave naming a dead loop);
+    /// splice/anchor keys resolve
     /// (`StaleKey` / [`EulerOpError::StaleGeometry`]); `BothEmpty`'s
     /// lone vertices are distinct
     /// ([`EulerOpError::EmptyAnchorsCollide`]). Then the geometry
@@ -1314,6 +1326,12 @@ impl<T: Decide> Body<T> {
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
+        self.require_run_of(
+            ring_members.iter().map(|m| m.key()),
+            ring_loop,
+            RunExtent::Whole,
+            &[],
+        )?;
         let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let w = ring_data.start;
@@ -1492,6 +1510,12 @@ impl<T: Decide> Body<T> {
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
+        self.require_run_of(
+            ring_members.iter().map(|m| m.key()),
+            ring_loop,
+            RunExtent::Whole,
+            &[],
+        )?;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the

@@ -235,6 +235,8 @@ pub(crate) enum KillAnchorFault {
     HeldTwice(VertexKey),
     /// A vertex no half-edge starts at and no `Empty` loop holds.
     Orphan(VertexKey),
+    /// A half-edge whose `parent_loop` or start does not resolve.
+    Dangling(HalfEdgeKey),
 }
 
 /// Every [`KillAnchorFault`] on `body`.
@@ -276,6 +278,11 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
             faults.push(KillAnchorFault::LoopOff(l));
         }
     }
+    for (he, data) in body.half_edges() {
+        if body.get_loop(data.parent_loop).is_none() || body.get_vertex(data.start).is_none() {
+            faults.push(KillAnchorFault::Dangling(he));
+        }
+    }
     faults
 }
 
@@ -290,10 +297,29 @@ pub(crate) fn assert_kill_refuses<R>(
     expected: &crate::euler::EulerOpError,
     kill: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
 ) {
+    assert_torn_op_refuses(body, expected, "kill", kill);
+}
+
+/// [`assert_kill_refuses`] for a make operator, which a torn input can
+/// carry to the same anchor faults.
+pub(crate) fn assert_make_refuses<R>(
+    body: &mut Body<f64>,
+    expected: &crate::euler::EulerOpError,
+    make: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
+) {
+    assert_torn_op_refuses(body, expected, "make", make);
+}
+
+fn assert_torn_op_refuses<R>(
+    body: &mut Body<f64>,
+    expected: &crate::euler::EulerOpError,
+    what: &str,
+    op: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
+) {
     let before = deep_snapshot(body);
     let faults_before = kill_anchor_faults(body);
     let mut scope = body.begin_surgery();
-    let got = kill(&mut scope).map(|_| ());
+    let got = op(&mut scope).map(|_| ());
     drop(scope);
     match got {
         Ok(()) => {
@@ -301,7 +327,7 @@ pub(crate) fn assert_kill_refuses<R>(
                 .into_iter()
                 .filter(|fault| !faults_before.contains(fault))
                 .collect();
-            panic!("expected {expected:?}; the kill returned Ok, writing {written:?}");
+            panic!("expected {expected:?}; the {what} returned Ok, writing {written:?}");
         }
         Err(err) => {
             assert_eq!(&err, expected);

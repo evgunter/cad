@@ -701,13 +701,19 @@ pub enum EulerOpError {
         /// The second half-edge, in a different loop.
         he2: HalfEdgeKey,
     },
-    /// A cycle walk failed to close, or closed without visiting the
-    /// half-edge it had to reach (despite matching parent-loop keys), or
-    /// a kill's `next` step disagrees with the loop's members: the
-    /// member it would anchor the loop at is killed or lies in another
-    /// loop, or the loop it would empty keeps a member or empties at
-    /// another loop's lone vertex ([`Body::kef`], [`Body::kev`],
-    /// [`Body::kemr`]) — tier-1-invalid input.
+    /// The loop's `next` cycle disagrees with the half-edges that claim
+    /// it — tier-1-invalid input. A cycle walk failed to close, or
+    /// closed without visiting the half-edge it had to reach (despite
+    /// matching parent-loop keys); a run a walk takes and the plan
+    /// moves has a member of another loop, or the walk of a loop the
+    /// plan removes misses a member (the crate-internal
+    /// `Body::require_run_of`); a kill's
+    /// `next` step disagrees with the loop's members: the member it
+    /// would anchor the loop at is killed or lies in another loop, or
+    /// the loop it would empty keeps a member or empties at another
+    /// loop's lone vertex ([`Body::kef`], [`Body::kev`],
+    /// [`Body::kemr`]); or an `Empty` loop that [`Body::kvfs`] removes
+    /// is claimed by a half-edge, or its vertex is a half-edge's start.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -1047,8 +1053,10 @@ impl EulerOpError {
                  (one loop required)"
             ),
             Self::LoopCycleBroken { r#loop } => format!(
-                "loop {loop:?}'s cycle walk never reaches the second \
-                 half-edge (malformed body)",
+                "loop {loop:?}'s next cycle disagrees with the half-edges that \
+                 claim it: a walk of it fails to close, strays into another \
+                 loop or misses one of its members, or it is empty at a vertex \
+                 another loop also holds or a half-edge starts at (malformed body)",
                 loop = r#loop
             ),
             Self::LoopNotEmpty { r#loop } => format!(
@@ -1868,8 +1876,11 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::StaleKey`]); same parent loop
     /// ([`EulerOpError::NotSameLoop`]); the loop resolves (`StaleKey`);
     /// it is a cycle ([`EulerOpError::LoopNotCycle`]); the cycle walk
-    /// from `he1` reaches `he2` ([`EulerOpError::LoopCycleBroken`]);
-    /// both `prev` links resolve (`StaleKey`); the loop's face and the
+    /// from `he1` reaches `he2`, and every member of the run it moves,
+    /// `[he1 .. he2)`, claims the loop ([`EulerOpError::LoopCycleBroken`]
+    /// — a torn `next` can divert the walk through another loop, whose
+    /// members the run would take); both `prev` links resolve
+    /// (`StaleKey`); the loop's face and the
     /// face's shell resolve (`StaleKey`); `start(he1)` and its point
     /// resolve (`StaleKey` / [`EulerOpError::StaleGeometry`]);
     /// `start(he2)` and its point resolve (`StaleKey` /
@@ -2421,6 +2432,7 @@ impl<T: Decide> Body<T> {
                 .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
             cycle[..position].to_vec()
         };
+        self.require_run_of(run.iter().copied(), loop_key, RunExtent::Part, &[])?;
         // The splice writes through both prev links; prove them now so
         // the mutation below cannot fail midway (atomicity).
         let he1_prev = self.require_live(he1_prev)?;
@@ -2713,9 +2725,7 @@ impl<T: Decide> Body<T> {
     /// `killed` starts at it, and a loop this kill writes is `Empty` at
     /// it. A kill that writes one vertex twice proves both writes.
     ///
-    /// Every member of the run claims the loop it is taken from, so the
-    /// move takes nothing out of a third loop; refuses
-    /// [`EulerOpError::LoopCycleBroken`] naming that loop otherwise.
+    /// The run is proven by [`Body::require_run_of`], with `killed`.
     ///
     /// One `(loop, boundary)` per loop the kill keeps and re-anchors,
     /// and the loop the run mints if it mints one
@@ -2786,20 +2796,11 @@ impl<T: Decide> Body<T> {
         if let Some(KillRun {
             members,
             from,
+            extent,
             into,
         }) = run
         {
-            for member in members {
-                if self
-                    .half_edges
-                    .get(member.key())
-                    .map(|data| data.parent_loop)
-                    != Some(from)
-                {
-                    return Err(EulerOpError::LoopCycleBroken { r#loop: from });
-                }
-                moved.insert(member.key(), ());
-            }
+            moved = self.require_run_of(members.iter().map(|m| m.key()), from, extent, killed)?;
             joins = match into {
                 KillInto::Kept(r#loop) => Some(r#loop),
                 KillInto::Minted(_) => None,
@@ -2838,6 +2839,46 @@ impl<T: Decide> Body<T> {
             }
         }
         Ok(())
+    }
+
+    /// Proves the run a plan's cycle walk took from `from` and moves
+    /// out of it, before it mutates: every member claims `from`, so the
+    /// move takes nothing out of a third loop; and for a
+    /// [`RunExtent::Whole`] run, whose loop the plan removes, no
+    /// half-edge but the run and `killed` claims `from`, so none is left
+    /// naming a dead loop. Refuses [`EulerOpError::LoopCycleBroken`]
+    /// naming `from` otherwise. Returns the run as a set.
+    ///
+    /// The walk steps `next` and reads no `parent_loop`, so a torn
+    /// `next` can divert it through another loop and back, or close it
+    /// past a member. The second proof reads the whole arena, bounded
+    /// as [`Body::require_kill_anchors`]'s `Lone` proof is. The
+    /// validator reports these faults in its cycle pass
+    /// (`ParentLoopMismatch`, `UnreachableHalfEdge`) and as
+    /// `DanglingTopology`.
+    pub(crate) fn require_run_of(
+        &self,
+        members: impl IntoIterator<Item = HalfEdgeKey>,
+        from: LoopKey,
+        extent: RunExtent,
+        killed: &[HalfEdgeKey],
+    ) -> Result<SecondaryMap<HalfEdgeKey, ()>, EulerOpError> {
+        let broken = EulerOpError::LoopCycleBroken { r#loop: from };
+        let mut run: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
+        for member in members {
+            if self.half_edges.get(member).map(|data| data.parent_loop) != Some(from) {
+                return Err(broken);
+            }
+            run.insert(member, ());
+        }
+        if extent == RunExtent::Whole
+            && self.half_edges.iter().any(|(he, data)| {
+                data.parent_loop == from && !run.contains_key(he) && !killed.contains(&he)
+            })
+        {
+            return Err(broken);
+        }
+        Ok(run)
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
@@ -3545,8 +3586,20 @@ pub(crate) struct KillRun<'a> {
     pub(crate) members: &'a [Live],
     /// The loop the walk was of.
     pub(crate) from: LoopKey,
+    /// How much of `from` the run is.
+    pub(crate) extent: RunExtent,
     /// The loop the run joins.
     pub(crate) into: KillInto,
+}
+
+/// How much of the loop it was walked from a moved run is
+/// ([`Body::require_run_of`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RunExtent {
+    /// Part of the loop, which keeps the rest.
+    Part,
+    /// All of the loop but the halves the plan kills: the loop dies.
+    Whole,
 }
 
 /// The loop a [`KillRun`] joins.
