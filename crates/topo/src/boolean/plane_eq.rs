@@ -44,6 +44,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
+use super::refusal_routes::Contradiction;
 use crate::contact::ContactVerdict;
 use crate::source::GeomSource;
 use crate::validate::decide;
@@ -301,12 +302,15 @@ fn declared_rung<T: Decide>(
     let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
     match decide("bool_plane_parallel", parallel_margin, band) {
         Ok(Sign::Positive) => {
-            return Err(PlaneEqError::Contradicted(Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some("bool_plane_parallel"),
-                terminal_sliver: false,
-            }));
+            return Err(PlaneEqError::Contradicted {
+                fact: Contradiction::PlanesNotParallel,
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("bool_plane_parallel"),
+                    terminal_sliver: false,
+                },
+            });
         }
         Ok(Sign::Zero) => {}
         Ok(Sign::Negative) => {
@@ -341,12 +345,15 @@ fn declared_rung<T: Decide>(
     };
     let sigma = if same_orient { T::one() } else { -T::one() };
     match decide("bool_plane_offset", Margin::of(d1 - sigma * d2), band) {
-        Ok(Sign::Positive | Sign::Negative) => Err(PlaneEqError::Contradicted(Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some("bool_plane_offset"),
-            terminal_sliver: false,
-        })),
+        Ok(Sign::Positive | Sign::Negative) => Err(PlaneEqError::Contradicted {
+            fact: Contradiction::PlanesApart,
+            diag: Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band,
+                predicate: Some("bool_plane_offset"),
+                terminal_sliver: false,
+            },
+        }),
         // Coincident: the geometry stands on its own.
         Ok(Sign::Zero) => Ok((
             if same_orient {
@@ -451,11 +458,11 @@ mod tests {
         // Contradiction, offset flavor: declared but definitely apart.
         let apart = plane([0.0, 0.0, 9.0], [0.0, 0.0, 1.0]);
         let err = oriented_plane_eq(&p1, &apart, declared, 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Contradicted(_)), "{err:?}");
+        assert!(matches!(err, PlaneEqError::Contradicted { .. }), "{err:?}");
         // Contradiction, angle flavor: declared but not parallel.
         let tilted = plane([1.0, 2.0, 5.0], [0.0, 1.0, 0.0]);
         let err = oriented_plane_eq(&p1, &tilted, declared, 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Contradicted(_)), "{err:?}");
+        assert!(matches!(err, PlaneEqError::Contradicted { .. }), "{err:?}");
     }
 
     /// Definitely different planes: non-parallel, and parallel-offset.

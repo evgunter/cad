@@ -163,16 +163,18 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
             declaration,
             margin,
             steer,
+            fact,
         } => {
             assert_eq!(declaration.class, ContactClass::Rest);
             assert_eq!(margin.predicate, Some("bool_plane_offset"));
             assert_eq!(*steer, Some(topo::FIT_DEFERRAL));
+            assert_eq!(*fact, Some(topo::Contradiction::PlanesApart));
         }
         other => panic!("expected ContactContradicted, got {other:?}"),
     }
     assert!(
-        msg.contains(&format!("contradicted: {}", topo::CONTRADICTION_REASON)),
-        "the one reason true at every site, not the margin payload: {msg}"
+        msg.contains("contradicted: the declared planes are parallel but apart."),
+        "the fact the carrier ladder found, not the margin payload: {msg}"
     );
     assert!(msg.contains(topo::CONTRADICTION_RECOURSE), "{msg}");
     assert!(

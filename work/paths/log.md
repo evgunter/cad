@@ -363,3 +363,81 @@ is fixed forward on main at once.
 - **Next:** `store-constructed-carriers` (unit 5). It moved ahead of
   unit 3 so that re-lowering carries the stored carrier before any
   one-segment loop is admitted.
+
+## 2026-09-29 — unit 5 is a design fork; two designers dispatched
+
+`store-constructed-carriers` has to decide three things that #3218's
+ruling leaves open:
+- what "consistency is verified at validate" means for a carrier that
+  is stored, not derived;
+- how the certified lifts (`ValidatedSegment::lift`, `map_scalar`,
+  `lift_onto`) treat a stored carrier;
+- what `profile::lift` writes when no bulge is stored.
+
+These have several viable answers, so the unit is treated as a fork
+(`memories/orchestration-model.md`). Two designers were given the same
+problem statement, with no candidate solutions. The statement's sha256
+is 42ef1359…612c. The labels were drawn by /dev/urandom byte 55; the
+mapping is held for `analysis/design-fork/`. The unit waits for the
+`[ev]` PR that follows. Units 3 and 4 stay blocked behind it.
+
+## 2026-09-29 — the unit 5 fork goes to Ev as #3453
+
+Both designers converged after one reconciliation round. #3453 puts
+q1–q5 to Ev, with each designer's first "For Ev" section verbatim,
+labelled A and B only. The DESIGN-FORK-LOG row is 20 (renumbered at merges; recommendation
+half). Unit 5 stays `needs_ev` until Ev answers. If Ev agrees, it lands
+as 5a (tables carry carriers: the bulge retires, the checks and the
+exactness witness land, carriers still derived) and then 5b
+(constructions store their own carriers).
+
+## 2026-09-29 — Ev on #3453
+
+- **q1 (the three consistency checks, range included):** settled.
+- **q2 (pinned lifts copy, guided constructs):** accepted on condition
+  that it reuses the arc types rather than adding special cases.
+- **q4 (writer emits `Center`):** settled.
+- **q3 → round 2.** Ev asked whether the symbolic tier should operate
+  on the data the user provided, not on a witness.
+- **q5 → round 2.** Ev is not sure of the current state and suggests
+  rethinking `Arc` broadly for harmony.
+
+Round 2 is dispatched to both designers. #3453 is updated in place when
+they report.
+
+New PATHS issues from other programs (queued behind unit 5):
+- `a-short-run-outs-stored-chord-reads-a-declared-fillet-joint-transversal`
+  (EMIT, design);
+- `paths-refusals-short-of-the-shape-guard` (CHROME).
+
+## 2026-09-29 — #3453 rounds 2–4
+
+- **Round 2:** q2 reuses the existing types (both). q5 settles on one
+  shared `geom-core` arc type, keeping `radius` (both). q3 split.
+- **Round 3:** the orchestrator read `sym.rs` (the alias is transitive;
+  nodes are hash-consed per leaf). That settled q3 on construction
+  registration.
+- **Round 4:** Ev clarified that the symbolic tier should operate on the
+  authored shape. Both designers answer the same way:
+  - A2 is kept, and the shape lives in the program.
+  - The lowering doors spell the radius as authored and Δθ as one
+    `4·atan(X)` with X algebraic (never `atan2`), so rule D folds every
+    mode.
+  - Registrations cover only what the algebra doesn't close.
+  - D1 text updated; awaiting Ev's confirmation.
+- **Carried into 5b's spec:** a census row over the modes' minted
+  forms, and re-opening DECIDE's rule-D row for measurement.
+
+## 2026-09-30 — #3453 approved by Ev
+
+Ev: "this looks great". The fork's decision half is recorded in
+DESIGN-FORK-LOG row 20 (decision, match, and A/B = Fable/Opus by byte
+55). No `analysis/design-fork/` branch was pushed; the mapping sits in
+the row. The ruling is on the unit row.
+
+Next: split `store-constructed-carriers` into three:
+1. 5a;
+2. the shared `geom-core` arc type (mechanical);
+3. 5b.
+
+Spec 5a first.
