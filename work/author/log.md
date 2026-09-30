@@ -1353,3 +1353,33 @@ its own proof (all 1369 pairs of 37 steps agree with the old rule).
 
 Merged over 42 commits of `main` that changed no viewer file; GitHub
 reported a clean merge with nothing to resolve.
+
+## 2026-09-30 — AUTH-7 dispatched: a measure shows its value
+
+Next P0 on the slate. Tiers 1 and 2 of the row: the value, or the kernel's typed absence and the door it names. The clearance consumer (tier 3) is a design item and is split out. Verified before specifying: the kernel exposes both payloads through `pncad::document`, and nothing in the viewer reads them.
+
+`a-negative-extrude-distance-probes-as-valid` is re-priced from `E` to `M` with `design: true`. Its own text says the fix is a kernel/document decision (does a negative distance build, or does a thickness get a declared domain), so it is a design fork, not a drive-by.
+
+`addboolean-doc-names-a-vocabulary-that-does-not-exist` still waits on EDIT's `DocEdit` vocabulary, as `plan.md` says.
+
+## 2026-09-30 — AUTH-7 MERGED (`6e9523dd`): measures show their values
+
+Seven units closed on AUTHOR's slate. Both reviews came back
+mergeable, and correctness could not falsify any claim.
+
+**The trap fired a seventh time, and the review caught it again.** The
+row painter was extracted so the harness could drive "what the pane
+paints", but `feature_row` still owned the layout and the tests drove a
+copy of it. The fix put the layout in one free function. That also
+moved the click handling for every feature row: label-select and the
+instance toggle. I held the merge for two rows pinning those clicks,
+because the refactor made them testable for the first time and no test
+had ever held them. Four mutations, all red.
+
+**Units** are Ev's to rank: `work/chrome/a-computed-slots-value-reads-in-metres-and-radians`
+(P3, design). A 12.5 mm part's measure reads `0.0125 m` and a right
+angle `1.5707963268 rad`, consistent with driven slots.
+
+## 2026-09-30 — AUTH-8 dispatched: an assertion row shows its verdict
+
+The only dispatchable P0 left. Of the others, the negative-extrude fork waits on the designer lanes and Ev, and `AddBoolean` waits on EDIT. AUTH-8 builds on AUTH-7's `Measured` and `feature_row_ui`. The tone of a `Violated` row is left to the lane with both readings stated. If it is close, it goes to Ev.

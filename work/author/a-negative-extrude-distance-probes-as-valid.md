@@ -5,7 +5,8 @@ title: The probe reports every negative extrude distance as valid, so a length f
 status: open
 opened: 2026-09-15
 priority: P0
-cost: E
+cost: M
+design: true
 ---
 
 
@@ -89,3 +90,7 @@ only failure is a point, and any row that assumes a floor.
 CHROME, because the evidence and the affected rows are in
 `crates/viewer`. Re-home it to whichever program owns the answer once
 the question above is decided — the header move, per `work/README.md`.
+
+## Re-priced 2026-09-30: a design fork, not a drive-by
+
+Priced `E` and parked as a drive-by "waiting for a lane in `bounds.rs`", but the row's own "It may not be viewer's to fix" section is the reason it is not dispatchable. Either a negative extrude distance is meant to build, and the gap is that a thickness has no declared non-negative domain (a document/parameter question), or it isn't, and the refusal belongs in evaluation (`eval/mod.rs`, WIRE's ground). The probe reports the kernel faithfully either way. So it is re-priced `M` with `design: true`. It goes through the designer lanes (`docs/prompts/designer.md`) and then an `[ev]` PR before any lane builds it.

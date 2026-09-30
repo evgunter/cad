@@ -1127,3 +1127,15 @@ no-panic convention, where D9's letter says panic.
 
 **Still open:** the tied-face swap (rewritten with evidence under
 `Borders`) and the union's order-dependent refusals.
+
+## 2026-09-30 — a face cut and merged in one step (PR 3526)
+
+The pair boolean published a cut piece under the bare name its merge retires. It now names the piece `base#Borders(..)` through the same helper the union uses (`name_parent_faces`).
+
+The union's declaration door refuses `ConsumedByFold{Split}` on that shape. That costs totality in 6 member orders:
+- r2endsg's 4 had bound the correct face;
+- r4trig's 2 had bound the wrong face silently.
+
+No names-only rule recovers both. They are owned by the new design row `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
+
+N3 (a retired name never resolves to a face) now holds in every step table and every published table over 434 union runs.
