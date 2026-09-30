@@ -1458,3 +1458,52 @@ Review tier: correctness + style, as before. The unit changes what an existing p
 Still not taken:
 - `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
 - `no-row-holds-that-the-create-pane-offers-the-tools-it-has` wants its own sitting. AUTH-10's `Composed` shows a type-level hold is sometimes cheaper than a harness, which may bear on its shape.
+
+## 2026-09-30 — AUTH-11 MERGED (`ede1dc1d`): an unclosable chain draws its prefix
+
+Eleven units closed. **The duplication trap fired an eleventh time, in tests:** the tip-state census and the per-state fixture were copied from `profile`'s `arc_spec_census.rs`. The style review caught it, and the fix pass hosted both in `profile::test_support`.
+
+**My spec's premise was loose.** I called `OpenChain`'s "target the start" false for a binder-awaiting tip. The correctness review noted that the chosen `Transition` sentence also ends "…the last verb has to target the start". That clause is true of the loop as a whole, and the sentence names the tip state first, which is the gain. No change. Also, "the kernel's `Display`" was the viewer's own `PreviewError` `Display`; the lane said so.
+
+**Before merging I ran main's new gate** (`bit-identity-debug-only.sh`, from #3531, which landed after the head) on a trial merge: OK. No code overlap.
+
+Filed from the unit: `a-close-refused-on-its-geometry-draws-nothing` (P2, M). Its measured members are the zero-length close, the straight-on close (`JunctionTangent`) and the pending-fillet family (`NoCornerForFillet`). A collinear back-track was run and is *not* a member.
+
+## 2026-09-30 — AUTH-12 dispatched: a tool census; face-pick naming to the designers
+
+**AUTH-12** takes `no-row-holds-that-the-create-pane-offers-the-tools-it-has`. It had waited on a harness-or-refactor choice that no longer exists: the whole-app harness in `app.rs` (2026-09-25) already paints the full app. The unit is therefore a census row over `ToolKind::ALL`. It also routes the nine literal button labels through `ToolKind::label()`, which already claims to be their one home. Review tier: style only. The change is a test row and a label routing, readable end to end.
+
+Blockers re-checked before choosing: `materole-has-no-display` (MSOLVE) and `clearance-refusal-names-one-face-twice-across-bodies` (CLEAR) are both still open.
+
+## 2026-09-30 — face-naming fork: the designers agreed on their first reports; `[ev]` #3571
+
+The designer pair was given one problem statement and no candidate answers (byte on `analysis/design-fork/author-face-naming-2026-09-30`). Both first reports recommended the same final state:
+- a face is told apart by its **leaf role in words**, from one public names-layer renderer promoted from `resolve::role_words`;
+- `StableName`'s own `Display` carries that role;
+- one viewer composer, which also settles "face of feature N" (it currently names three different features across sites);
+- a picture where the face is drawn, including a hover mark on each line of the declare offer;
+- **not the pose.**
+
+No reconciliation round was needed. Both corrected the row's premises: role words already exist, privately, and "prose never renders the role path" is agent text (#1454) that #3205 already contradicts.
+
+**Why it went to Ev anyway.** No ratified text is involved, but `StableName`'s `Display` changes across editor-core, pncad and viewer, and a stated stance is reversed. The names layer is EDIT's ground, so the editor-core unit is EDIT's and the viewer unit is AUTHOR's. Fork-log row 23.
+
+**Filed off the question:**
+- CHROME: `focus-per-segment-is-no-longer-blocked-on-a-guess`.
+- AUTHOR: `committed-nodes-do-not-light-the-faces-they-reference`.
+- Already on file: the flush refusal's `Debug` face keys (`work/issues/flush-in-band-refusal-advises-widening-the-tolerance`).
+- Folded into the design, not filed: `descent_leaf` and `SegOrigin` listing the carry-through wrappers twice, and `SelectRefusal`'s hand-spelled `named` helper.
+
+## 2026-09-30 — AUTH-12 MERGED (`0c9f05e1`): every tool is reachable, and a row says so
+
+Twelve units closed. **The trap fired a twelfth time, test-side only:** kind→section was written twice in one test module. The one style review (the tier chosen at dispatch) caught it, together with copied section headings. The fix pass also took the commit-button duplication the lane had filed as P3, which turned out to be the same one-function fix. It left one row: the mate and blend commit rows restate `tool_commit_row`'s shape.
+
+The premise the row was parked on ("no test can build `ViewerBehavior`") had been stale for five days, since the whole-app harness landed on 2026-09-25. I only caught it by reading the tree before specifying.
+
+## 2026-09-30 — AUTH-13 dispatched: a geometry-refused close still draws what was written
+
+Two P2 rows as one unit: `a-close-refused-on-its-geometry-draws-nothing` (filed by AUTH-11) and `a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at` (filed by AUTH-5's review). They share one open question, what a last leg onto the start means, and one walk-back.
+
+Review tier: correctness + style. This is the third change to the preview's semantics, and the draw-no-more-than-was-written invariant is what a review must attack.
+
+The P0 (negative extrude, #3551) and the P1 face-naming row (#3571) are with Ev. The other P1s stay blocked on MSOLVE and CLEAR rows, both still open.

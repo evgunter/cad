@@ -3838,7 +3838,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the
             // NodeGone repair; never-minted is a typo.
-            if from.node.0 >= new.next_id {
+            if !new.has_minted(from.node) {
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
             // One-shot rewrite of every EXACT reference, at every

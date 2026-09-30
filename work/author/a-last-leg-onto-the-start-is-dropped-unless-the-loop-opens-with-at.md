@@ -2,10 +2,11 @@
 id: a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at
 kind: issue
 title: A refused loop's last leg onto its start is dropped from the preview unless the loop opens with at and the leg targets a point
-status: open
+status: dispatched
 opened: 2026-09-30
 priority: P2
 cost: E
+branch: author/geometry-close
 ---
 
 
@@ -47,3 +48,13 @@ Derive the start from the loop entry's first `At` rather than only
 `far_end_to` (their end point is known after replay, not from the step);
 and decide whether a collinear last leg should be kept with no close
 drawn. The cross must stay on the step that actually refused.
+
+## The unfinished arm has the same gap
+
+An unfinished chain whose last leg lands on the start draws nothing at
+all: its provisional close is zero-length and refused on its geometry.
+That is one member of `work/author/a-close-refused-on-its-geometry-draws-nothing.md`,
+filed by AUTH-11; the two want one answer to what a last leg onto the
+start means.
+
+Dispatched 2026-09-30 with its sibling as **AUTH-13** (`docs/AUTH-13-SPEC.md`, branch `author/geometry-close`). Both rows say they want one answer to what a last leg onto the start means, so they are one unit.

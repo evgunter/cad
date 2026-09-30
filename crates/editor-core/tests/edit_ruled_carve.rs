@@ -181,10 +181,13 @@ fn carve(
             distance: len(height),
         },
     );
-    let selection = creases
+    // A selection is stored in name order, which for one rod's edges
+    // is their steps' minted-id order.
+    let mut selection = creases
         .iter()
         .map(|&(v, _)| lateral_edge(&doc, rod, v))
         .collect::<Vec<_>>();
+    selection.sort();
     let (doc, fillet) = fixture::insert(
         doc,
         Node::Fillet {

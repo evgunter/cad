@@ -5,6 +5,8 @@ title: Two in-lib refusal rows check the body unchanged by one arena count, and 
 status: open
 opened: 2026-09-30
 priority: P3
+pr: 3566
+branch: topo/snapshot-key-slots
 ---
 
 
@@ -36,3 +38,11 @@ after a refusal" through something narrower, or alongside it:
 Compare the first two by `fixtures::deep_snapshot` before and after
 each refusal, and drop `null.rs`'s `rows` companion. `null.rs` is under
 a live TOPO lane's diff, so that edit waits for it to land.
+
+## Left
+
+PR 3566 moves the `instance.rs` and `release_corruption.rs` rows to
+`deep_snapshot`. What remains is the `null.rs` part: drop the `rows`
+companion in
+`a_refusal_on_the_second_face_leaves_the_body_untouched` once the
+live lane's diff on `null.rs` has landed.
