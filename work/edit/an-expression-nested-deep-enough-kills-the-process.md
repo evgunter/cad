@@ -2,8 +2,10 @@
 id: an-expression-nested-deep-enough-kills-the-process
 kind: issue
 title: editor-core: parse_expr, eval and the drop of an Expr recurse once per nesting level with no bound, so a deep expression kills the process
-status: open
+status: review
 opened: 2026-09-30
+pr: 3510
+branch: edit/expr-nesting-bound
 priority: P1
 cost: M
 ---
@@ -98,3 +100,31 @@ every walk above fits the smallest stack a door runs on (the wasm32
 build's 1 MiB); or walks that do not recurse, including `Drop`. A row
 that parses, evaluates, saves and drops an expression one past the
 bound on that stack and reads the refusal back.
+
+## Built (2026-09-30)
+
+One bound, `expr::MAX_NESTING` = 128 levels, read by every door that
+mints an expression: the smart constructors cache each node's nesting
+and refuse past it (`DimensionError::NestedTooDeep`; `Expr::neg` and
+`MeasureExpr::neg` are fallible for it alone), the text door refuses
+text nested past it at the bracket, sign or operator, and the load door
+(`persist::nesting`) scans a body against the nesting a save can reach
+(289 JSON levels) before serde_json reads it with its own fixed limit
+off, reading an expression's children through a counter that refuses
+past the bound. The parser, `eval`, `eval_count`, the measurement
+evaluator and `Drop` (on `Expr`, `MeasureExpr` and both wire forms)
+keep their own stack. Every other walk recurses at most 128 levels;
+the tallest, the load door, needs 647 KiB of the 1 MiB wasm32 stack in
+the dev profile. Rows: `editor-core::all expr_nesting_bound` (three,
+each on a 1 MiB thread), four unit rows, and
+`test_expressions.TestNestingBound` on a `threading.Thread`.
+
+Correction to the premises above: the round trip broke from 62 levels,
+not only past the save's own recursion: serde_json's 128 counts JSON
+levels, and an operator is two, so a 62-term sum saved and then
+refused to load.
+
+Filed: `a-metadata-value-nested-deep-enough-kills-the-process` (P2). The
+load door's limit now also admits a `StableName` nested up to about 70
+`InPart` levels where serde_json refused past about 31; that is the
+name row's to walk.
