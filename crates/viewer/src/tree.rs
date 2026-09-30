@@ -356,7 +356,9 @@ pub struct TreeRow {
     pub measured: Option<Measured>,
     /// **The accept a [`RowStatus::Failed`] instance row offers**, when
     /// its failure is a pin that no longer holds
-    /// ([`crate::frame::version_offer`]); `None` on every other row.
+    /// ([`crate::frame::version_offer`]); `None` on every other row, and
+    /// on every row while a newer document's run is outstanding
+    /// (`DocSession::tree_rows`).
     pub version_offer: Option<VersionOffer>,
 }
 

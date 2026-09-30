@@ -859,6 +859,14 @@ fn a_pin_mismatched_instance_offers_the_accept_and_accepting_is_one_undo() {
         "accepting commits the kernel's edits, in its order"
     );
     assert_eq!(session.history().len(), steps + 1, "as one action");
+    // Until the accept's own run lands, the rows are the old run's, and
+    // an offer read off them would be the edit just made, offered again.
+    let unlanded = session.tree_rows();
+    assert_eq!(row_of(&session, bench.post_a).status.badge(), "FAILED");
+    assert!(
+        unlanded.iter().all(|row| row.version_offer.is_none()),
+        "no offer stands while the accept's run is outstanding: {unlanded:?}"
+    );
     session.pump();
     let rows = session.tree_rows();
     assert!(!tree::has_faults(&rows), "the posts now evaluate: {rows:?}");
@@ -946,4 +954,53 @@ fn accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal() {
     let gone = row_of(&reopened, bench.post_a);
     assert_eq!(gone.status.badge(), "FAILED");
     assert_eq!(gone.version_offer, None, "a missing part offers nothing");
+}
+
+/// **The accept is computed against the committed document, not the
+/// landed one.** One post instance is deleted and the accept performed
+/// before either run lands: the landed run still holds both posts, the
+/// committed document one. Red if the accept elaborates over the landed
+/// document (two edits, one naming a deleted node); if the assembly
+/// does not then evaluate; or if one undo takes back more than the
+/// accept.
+#[test]
+fn the_accept_reads_the_committed_document_before_its_run_lands() {
+    let tol = Tol::witness();
+    let (bench, mut session) = bench_with_the_post_moved("auth15-committed", tol);
+    let deleted = session.perform(SessionOp::DeleteNode { node: bench.post_b });
+    assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+    let after_delete = session.committed_doc().clone();
+    let steps = session.history().len();
+
+    let outcome = session.perform(SessionOp::AcceptPartVersion { id: bench.post.id });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let kernel = pncad::workspace::update_to_store(
+        &after_delete,
+        bench.post.id,
+        &Workspace::open(&bench.dir).expect("the directory scans"),
+        tol,
+    )
+    .expect("the store holds a newer post");
+    assert_eq!(
+        outcome.committed.len(),
+        1,
+        "one post instance is left to move: {:?}",
+        outcome.committed
+    );
+    assert_eq!(
+        outcome.committed, kernel,
+        "the kernel's edits, as committed"
+    );
+    assert_eq!(session.history().len(), steps + 1, "as one action");
+
+    session.pump();
+    let rows = session.tree_rows();
+    assert!(!tree::has_faults(&rows), "the assembly evaluates: {rows:?}");
+
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert!(
+        session.committed_doc().bit_eq(&after_delete),
+        "one undo takes back the accept and leaves the delete"
+    );
 }

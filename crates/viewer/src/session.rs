@@ -1117,7 +1117,19 @@ impl DocSession {
         // run is outstanding the tree therefore shows the picture's
         // document, which is what the viewport shows too.
         match &self.derived.landed {
-            Some(run) => tree::rows(&run.doc, Some(&run.evaluation), &run.files),
+            Some(run) => {
+                let mut rows = tree::rows(&run.doc, Some(&run.evaluation), &run.files);
+                // An offer acts on the COMMITTED document, so one read
+                // off a run of an older document is withheld until the
+                // current one lands: the accept it made may already be
+                // the edit that run is answering.
+                if self.busy() {
+                    for row in &mut rows {
+                        row.version_offer = None;
+                    }
+                }
+                rows
+            }
             // Nothing has landed: the shown document with no
             // evaluation, which renders every row `Unevaluated`, and
             // no scan of the directory, which names a part as unread.
@@ -1491,12 +1503,7 @@ impl DocSession {
     /// or an unreadable sibling surfaces, at the chooser rather than
     /// at a tree badge, since no node exists yet to badge.
     pub fn part_catalogue(&self) -> Result<Vec<parts::PartEntry>, Refusal> {
-        let resolver = self
-            .resolver
-            .as_deref()
-            .ok_or(Refusal::NoDocumentDirectory)?;
-        parts::catalogue(resolver, self.committed_doc().id())
-            .map_err(|error| Refusal::Workspace(Box::new(error)))
+        self.read_store(|ws| Ok(parts::catalogue(ws, self.committed_doc().id())))
     }
 
     /// **One scan of the document's directory, as a value**

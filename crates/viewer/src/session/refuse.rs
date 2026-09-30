@@ -945,6 +945,12 @@ pub struct DeclareOffer {
 }
 
 impl DeclareOffer {
+    /// The button that accepts the offer.
+    pub const ACCEPT_LABEL: &str = "Declare";
+
+    /// The button that drops the offer and declares nothing.
+    pub const DECLINE_LABEL: &str = "Decline";
+
     /// Every finding accepting the offer declares, in the order the
     /// refusals reported them.
     pub fn findings(&self) -> &[FlushFinding] {
@@ -992,6 +998,12 @@ pub struct VersionOffer {
 }
 
 impl VersionOffer {
+    /// **The button that accepts the offer**: the name the store's
+    /// recourse gives the edit (`pncad::workspace::PIN_MISMATCH_RECOURSE`,
+    /// "record the \"accept updated version\" edit"), so the sentence on
+    /// the row and the control under it name one act.
+    pub const LABEL: &str = "Accept updated version";
+
     /// The offer for the part `id`, named by its file `part`.
     pub(crate) fn new(id: DocumentId, part: String) -> Self {
         Self { id, part }
@@ -1384,5 +1396,23 @@ mod refused_boolean {
                 "a one-operand pair is left to the node's own row"
             );
         });
+    }
+}
+
+#[cfg(test)]
+mod version_offer {
+    use super::VersionOffer;
+    use pncad::workspace::PIN_MISMATCH_RECOURSE;
+
+    /// **The accept button and the store's recourse name one act**: the
+    /// label is the edit's name the recourse quotes. Red if either is
+    /// re-worded without the other.
+    #[test]
+    fn the_accept_button_is_the_edit_the_pin_mismatch_recourse_quotes() {
+        let quoted = format!("\"{}\"", VersionOffer::LABEL.to_lowercase());
+        assert!(
+            PIN_MISMATCH_RECOURSE.contains(&quoted),
+            "{quoted} in: {PIN_MISMATCH_RECOURSE}"
+        );
     }
 }

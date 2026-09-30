@@ -349,18 +349,19 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
 
 // --- a part reference the evaluation refused ------------------------
 
-/// The file [`part_refused`]'s scan names its part by.
-pub const REFUSED_PART_FILE: &str = "post.pncad";
+/// The file a unit-test fixture names a part by: an instance row's,
+/// and [`part_refused`]'s scan.
+pub const PART_FILE: &str = "post.pncad";
 
 /// **An instance whose reference refused with `fault`**, as the
 /// evaluation carries it, and one scan of the directory that names the
-/// part [`REFUSED_PART_FILE`].
+/// part [`PART_FILE`].
 pub fn part_refused(fault: PartFault) -> (NodeErrorKind, PartFiles) {
     let doc_ref = DocRef {
         id: DocumentId::derive("refused-part"),
         pin: ContentPin::of_bytes(b"refused-part v1"),
     };
-    let files = PartFiles::Scanned([(doc_ref.id, REFUSED_PART_FILE.to_owned())].into());
+    let files = PartFiles::Scanned([(doc_ref.id, PART_FILE.to_owned())].into());
     (NodeErrorKind::Part { doc_ref, fault }, files)
 }
 

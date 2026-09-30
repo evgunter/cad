@@ -125,7 +125,7 @@ fn version_offer_lines(
     advisory_line(ui, depth, &Refusal::version_question(offer), theme);
     ui.horizontal(|ui| {
         ui.add_space(message_indent(ui, depth));
-        ui.button("Accept updated version").clicked()
+        ui.button(VersionOffer::LABEL).clicked()
     })
     .inner
 }
@@ -1157,7 +1157,7 @@ mod tests {
         TreeRow {
             id: RecipeNodeId(4),
             kind: "InstantiatePart",
-            pose: Some("post.pncad".to_owned()),
+            pose: Some(crate::test_support::PART_FILE.to_owned()),
             depth: 0,
             root: false,
             status: RowStatus::Ok,
@@ -1174,7 +1174,8 @@ mod tests {
     #[test]
     fn clicking_a_rows_label_selects_its_node() {
         let row = instance_row();
-        let clicks = row_clicked(&row, "InstantiatePart — post.pncad", false);
+        let label = format!("InstantiatePart — {}", crate::test_support::PART_FILE);
+        let clicks = row_clicked(&row, &label, false);
         assert_eq!(clicks.select, Some(row.id));
         assert_eq!(clicks.hide, None, "a label click toggles nothing");
     }
@@ -1216,8 +1217,10 @@ mod tests {
     /// **An instance row whose pin no longer holds draws the accept its
     /// failure offers, and the button is that offer's operation.**
     ///
-    /// The row is the one `tree::rows` builds from the failure: its
-    /// words, and the offer `frame::version_offer` reads off it. Red if
+    /// The row is assembled here with the two fields `tree::rows` fills
+    /// from such a failure: its words, and the offer the real
+    /// `frame::version_offer` reads off it. The session's own rows are
+    /// `tests/instance_authoring.rs`'s. Red if
     /// the question or the button is not drawn, if clicking the button
     /// answers anything but the offer's op or also selects, or if a row
     /// with no offer draws either.
@@ -1225,7 +1228,7 @@ mod tests {
     fn a_pin_mismatched_instance_row_draws_the_accept_and_its_button_is_the_offer() {
         use pncad::document::{PartFault, ResolveFault};
 
-        use crate::session::{Refusal, SessionOp};
+        use crate::session::{Refusal, SessionOp, VersionOffer};
         use crate::test_support::part_refused;
 
         let (kind, files) = part_refused(PartFault::Unresolved {
@@ -1241,17 +1244,17 @@ mod tests {
             version_offer: Some(offer.clone()),
             ..instance_row()
         };
-        const BUTTON: &str = "Accept updated version";
 
         let drawn = painted_text(|ui| feature_row_drawn(ui, &row));
         assert!(
-            drawn.contains(&Refusal::version_question(&offer)) && drawn.contains(BUTTON),
+            drawn.contains(&Refusal::version_question(&offer))
+                && drawn.contains(VersionOffer::LABEL),
             "{drawn}"
         );
 
         let clicked = core::cell::RefCell::new(None);
         let mut selected = None;
-        painted_after_clicking(BUTTON, |ui| {
+        painted_after_clicking(VersionOffer::LABEL, |ui| {
             let clicks = feature_row_ui(ui, &row, false, false, &Theme::DEFAULT);
             selected = selected.or(clicks.select);
             if let Some(op) = clicks.accept {
@@ -1277,7 +1280,8 @@ mod tests {
         };
         let drawn = painted_text(|ui| feature_row_drawn(ui, &unoffered));
         assert!(
-            !drawn.contains(BUTTON) && !drawn.contains(&Refusal::version_question(&offer)),
+            !drawn.contains(VersionOffer::LABEL)
+                && !drawn.contains(&Refusal::version_question(&offer)),
             "{drawn}"
         );
     }

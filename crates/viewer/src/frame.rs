@@ -21,8 +21,10 @@
 //! the types decide which, not the caller — and [`frame_status`]'s
 //! ranking over a frame's news. **The toolbar
 //! badge for the landed product** ([`product_badge`]) and the rest of
-//! the badge family beside it. **The draft and the offer a refused
-//! batch leaves behind** ([`retype_draft`], [`creation_offer`]).
+//! the badge family beside it. **The draft and the offers a refused
+//! batch leaves behind** ([`retype_draft`], [`creation_offer`],
+//! [`declare_offer`]), **and the one a failed instance makes**
+//! ([`version_offer`]).
 //! **What a folded event stream amounts to** ([`folded_moved`],
 //! [`fold_status`]), **what a frame says about work outstanding**
 //! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
@@ -2771,10 +2773,6 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
 /// named by its file in `files`, as the instance's row names it. `None`
 /// for every other failure.
 ///
-/// Unlike [`creation_offer`] and [`declare_offer`], it is read off a
-/// landed run rather than a refused batch, so nothing holds it: it
-/// stands exactly as long as the row it is drawn under.
-///
 /// The outer pattern takes the one [`NodeErrorKind`] arm a part's
 /// resolution fails through; the decision is over that arm's faults.
 pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionOffer> {
@@ -3637,40 +3635,98 @@ mod tests {
         assert_eq!(Withdrawal::all(&PruneReport::default()).count(), 0);
     }
 
-    /// **Only a pin that no longer holds offers the accept**, naming
-    /// the part by the file the scan found. Red if another way a
-    /// reference fails offers it, or the offer names another part.
+    /// **Which arm of [`PartFault`] a census witness stands for** — an
+    /// exhaustive match, so a new arm does not compile until it has an
+    /// index here and a witness below.
+    fn part_fault_arm(fault: &PartFault) -> usize {
+        match fault {
+            PartFault::NoResolver => 0,
+            PartFault::Unresolved { fault, .. } => match fault {
+                ResolveFault::PinMismatch => 1,
+                ResolveFault::EpsilonSeam => 2,
+                ResolveFault::Unresolved => 3,
+            },
+            PartFault::PartRootFailed { .. } => 4,
+            PartFault::PartRootPoisoned { .. } => 5,
+            PartFault::RootFailureUnrecorded { .. } => 6,
+            PartFault::PartProduct { .. } => 7,
+            PartFault::ReferenceCycle { .. } => 8,
+            PartFault::DepthExceeded => 9,
+            PartFault::NotEntered => 10,
+        }
+    }
+
+    /// **Only a pin that no longer holds offers the accept**, over one
+    /// witness of every [`PartFault`] arm, naming the part by the file
+    /// the scan found. The part-root arms carry a NESTED pin mismatch:
+    /// that pin is the part's own reference, repaired in the part, so
+    /// it offers nothing here. Red if any other arm offers, or the
+    /// offer names another part.
     #[test]
     fn only_a_pin_that_no_longer_holds_offers_the_accept() {
-        use crate::test_support::{REFUSED_PART_FILE, part_refused};
+        use pncad::document::{NodeRefusal, ProductErrorKind};
+
+        use crate::test_support::{PART_FILE, part_refused};
         let unresolved = |fault| PartFault::Unresolved {
             fault,
             message: "the store's own words".to_owned(),
         };
-        let (kind, files) = part_refused(unresolved(ResolveFault::PinMismatch));
-        let NodeErrorKind::Part { doc_ref, .. } = &kind else {
+        let (mismatch, _) = part_refused(unresolved(ResolveFault::PinMismatch));
+        let NodeErrorKind::Part { doc_ref, .. } = &mismatch else {
             unreachable!("the fixture is a part refusal")
         };
-        let offer = version_offer(&kind, &files).expect("a pin mismatch offers the accept");
-        assert!(
-            matches!(offer.accept(), SessionOp::AcceptPartVersion { id } if id == doc_ref.id),
-            "{:?}",
-            offer.accept()
-        );
-        assert!(
-            Refusal::version_question(&offer).contains(REFUSED_PART_FILE),
-            "{}",
-            Refusal::version_question(&offer)
-        );
-        for fault in [
+        let nested = || NodeRefusal::from(part_refused(unresolved(ResolveFault::PinMismatch)).0);
+        let witnesses = [
+            PartFault::NoResolver,
+            unresolved(ResolveFault::PinMismatch),
             unresolved(ResolveFault::EpsilonSeam),
             unresolved(ResolveFault::Unresolved),
-            PartFault::NoResolver,
+            PartFault::PartRootFailed {
+                node: RecipeNodeId(7),
+                refusal: nested(),
+            },
+            PartFault::PartRootPoisoned {
+                root: RecipeNodeId(8),
+                through: RecipeNodeId(7),
+                refusal: nested(),
+            },
+            PartFault::RootFailureUnrecorded {
+                node: RecipeNodeId(7),
+            },
+            PartFault::PartProduct {
+                kind: ProductErrorKind::RootFailed,
+                message: "the part's product refused".to_owned(),
+            },
+            PartFault::ReferenceCycle {
+                cycle: vec![*doc_ref],
+            },
             PartFault::DepthExceeded,
             PartFault::NotEntered,
-        ] {
+        ];
+        let mut seen = [false; 11];
+        for fault in witnesses {
+            let arm = part_fault_arm(&fault);
+            assert!(!seen[arm], "two witnesses for arm {arm}: {fault:?}");
+            seen[arm] = true;
+            let offers = arm == part_fault_arm(&unresolved(ResolveFault::PinMismatch));
             let (kind, files) = part_refused(fault);
-            assert_eq!(version_offer(&kind, &files), None, "{kind:?}");
+            match version_offer(&kind, &files) {
+                Some(offer) => {
+                    assert!(offers, "only a pin mismatch offers: {kind:?}");
+                    assert!(
+                        matches!(offer.accept(), SessionOp::AcceptPartVersion { id } if id == doc_ref.id),
+                        "{:?}",
+                        offer.accept()
+                    );
+                    assert!(
+                        Refusal::version_question(&offer).contains(PART_FILE),
+                        "{}",
+                        Refusal::version_question(&offer)
+                    );
+                }
+                None => assert!(!offers, "a pin mismatch offers the accept"),
+            }
         }
+        assert!(seen.iter().all(|&s| s), "arms with no witness: {seen:?}");
     }
 }

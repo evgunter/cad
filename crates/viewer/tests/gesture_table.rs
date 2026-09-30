@@ -418,7 +418,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // protected from.
         SessionOp::AddPart { .. } => (44, false),
         SessionOp::Duplicate { .. } => (45, false),
-        // It commits one action to the history, as every insert does.
+        // It commits an action to the history (every reference to the
+        // part moves), which is what a drag has to be protected from.
         SessionOp::AcceptPartVersion { .. } => (46, false),
     }
 }
