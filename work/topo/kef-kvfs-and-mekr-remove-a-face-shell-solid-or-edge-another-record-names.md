@@ -5,6 +5,8 @@ title: kef, kvfs and mekr remove a face, shell, solid, edge or ring loop on the 
 status: open
 opened: 2026-09-30
 refs: [mekr-and-kvfs-remove-an-empty-loop-or-lone-vertex-another-record-names, kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names]
+priority: P3
+cost: M
 ---
 
 ## What

@@ -33,6 +33,10 @@
 //! which rows exist, in which order, at what indentation, which of
 //! them the selection is on, and which row a failure sends the eye to.
 //!
+//! One thing a run said that is no failure rides the row as well: what
+//! a measure measured ([`Measured`]) — its value, spelled as the chrome
+//! spells any computed value, or the kernel's typed reason it has none.
+//!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
 //! Mates and instances are DAG LEAVES — a mate's references are names,
@@ -169,15 +173,16 @@ use std::collections::BTreeMap;
 
 use pncad::document::AssemblyError;
 use pncad::document::{
-    CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProductError, ProfileProgram, RecipeNodeId,
+    CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, MeasureUnavailableAt, Node, NodeError,
+    NodeErrorKind, NodeResult, NodeStanding, ProductError, ProfileProgram, RecipeNodeId,
+    ValuePayload,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
-use crate::props::{in_written, render_number};
+use crate::props::{computed_text, in_written, render_number};
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the
@@ -342,6 +347,25 @@ pub struct TreeRow {
     /// link is its own `through`, and an `Ok` or `Unevaluated` row has
     /// no words to link from.
     pub repair_at: Option<RecipeNodeId>,
+    /// **What a measure node measured**, on a row that is `Ok`;
+    /// `None` on every other row, whose status says why there is none.
+    pub measured: Option<Measured>,
+}
+
+/// **What a measure's row says it measured**: the landed run's value,
+/// or the kernel's reason it has none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Measured {
+    /// The value, already spelled ([`computed_text`]: canonical
+    /// notation, width-bounded, with its unit's symbol) — which keeps
+    /// the row `Eq`, and keeps the notation choice here with the rest
+    /// of what the tree writes about a node rather than at each
+    /// surface that draws it.
+    Value(String),
+    /// No value at this build's scalar — a value of the node, not a
+    /// failure. Its `Display` is the kernel's sentence, which names
+    /// the door that can answer.
+    Unavailable(MeasureUnavailableAt),
 }
 
 /// The kind name of a recipe node — the node vocabulary's own
@@ -585,9 +609,10 @@ pub fn rows(
         let depth = depth_of(&node.inputs(), &depths);
         depths.insert(id, depth);
         let status = status_of(id, evaluation, files);
-        let repair_at = match status {
-            RowStatus::Failed { .. } => evaluation.and_then(|ev| repair_of(id, ev)),
-            RowStatus::Ok | RowStatus::Poisoned { .. } | RowStatus::Unevaluated => None,
+        let (repair_at, measured) = match status {
+            RowStatus::Failed { .. } => (evaluation.and_then(|ev| repair_of(id, ev)), None),
+            RowStatus::Ok => (None, evaluation.and_then(|ev| measured_of(id, ev))),
+            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None),
         };
         rows.push(TreeRow {
             id,
@@ -598,6 +623,7 @@ pub fn rows(
             status,
             note: node_note(node),
             repair_at,
+            measured,
         });
     }
     rows
@@ -655,6 +681,25 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::InstantiatePart { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
+    }
+}
+
+/// **What `id` measured in `evaluation`** — asked only of a row
+/// [`rows`] has read `Ok`, so this decides which payload, never
+/// whether there is one. `None` for every payload but a measure's.
+fn measured_of(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Measured> {
+    match &evaluation.usable(id).ok()?.payload {
+        ValuePayload::Measure { value, dim } => Some(Measured::Value(computed_text(*dim, *value))),
+        ValuePayload::MeasureUnavailable { reason, .. } => Some(Measured::Unavailable(*reason)),
+        ValuePayload::Body(_)
+        | ValuePayload::Boolean(_)
+        | ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Split { .. }
+        | ValuePayload::Instances(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Assertion(_) => None,
     }
 }
 

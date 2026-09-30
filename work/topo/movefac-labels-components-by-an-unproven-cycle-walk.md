@@ -5,6 +5,8 @@ title: movefac labels a shell's components through cycle walks it never proves c
 status: open
 opened: 2026-09-30
 refs: [mef-and-mekr-move-a-walked-run-they-never-prove-is-the-loops]
+priority: P3
+cost: M
 ---
 
 ## What

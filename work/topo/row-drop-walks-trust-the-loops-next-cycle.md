@@ -5,6 +5,8 @@ title: drop_loop_rows, drop_face_rows and the site-row plans take a loop's rows 
 status: open
 opened: 2026-09-30
 refs: [mef-and-mekr-move-a-walked-run-they-never-prove-is-the-loops]
+priority: P3
+cost: M
 ---
 
 ## What
