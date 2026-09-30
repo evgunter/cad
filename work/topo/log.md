@@ -3801,3 +3801,45 @@ earlier lane was denied.
 PR 3537 merged (`5234f64389`) after CI run 36696455175 went green, so
 main's `READERS` census is whole again. PR 3513 already carries the
 same change.
+
+## D262 delivered as PR 3532; its single review out (2026-09-30)
+
+The implementer took 364,458 tokens, 166 tools and 3,875 s. Head
+`0792b0121c` was red on the same census test as PR 3513, main's
+latent red. I merged main (now carrying PR 3537) into the branch at
+`5e07bfe8e0`; main's side touches only viewer and editor-core.
+
+**Reachability, measured.** The entry gate refuses every tear that
+reaches the adjacency-scan lookups (pinned). The role pass reads the
+staged body after surgery.
+
+**What changed:**
+- Each lookup arm refuses row 1 naming its key, or goes by row 0. The
+  lane chose row 1 over row 4 for the gate-covered arms, reading row 4
+  as barring tier-1 validity as the proof. That reading is to be
+  checked.
+- The unit-1 lever substitution is gone.
+- `TornLoop` carries its key.
+- The second pass found `outermost_survivor` defaulting an unclaimed
+  mate to the plus half; it now refuses `UnclaimedHalfEdge`.
+- `MergedFaceRoleAmbiguous` carries `OutlineVerdict`, with four
+  endings. The zero winding keeps its margin via `decide_reported` and
+  ends in the winding's sized story.
+
+**Filed:**
+- `declared-pair-verdict-answers-an-unreachable-distinct`;
+- `merge-coplanar-refusals-open-with-a-stage-label`, twelve more arms;
+- `reach/section-sense-drops-a-zero-windings-margin`;
+- `restfront/check-6-planar-arm-skips-a-torn-winding-walk`.
+
+The lane trimmed its own target, bringing free space to about 4 GB.
+
+**The review.** A single full review, frozen at `5e07bfe8e0`, on the
+walk target. The claims it tests:
+- try to beat the entry gate;
+- check the row 1 vs row 4 reading;
+- check whether `outermost_survivor`'s new refusal over-refuses a
+  valid body (self-loops, seams, genus 1);
+- render each outline verdict and test the unread-over-zero
+  precedence;
+- run the mutants.
