@@ -1638,9 +1638,7 @@ impl DocSession {
     /// refusal, scan or read, as [`Refusal::Workspace`].
     fn from_store<T>(
         &self,
-        read: impl FnOnce(
-            &pncad::workspace::Workspace,
-        ) -> Result<T, pncad::workspace::WorkspaceError>,
+        read: impl FnOnce(&pncad::workspace::Workspace) -> Result<T, pncad::workspace::WorkspaceError>,
     ) -> Result<T, Refusal> {
         let resolver = self
             .resolver

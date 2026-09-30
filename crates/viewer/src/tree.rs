@@ -185,8 +185,8 @@ use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
-use crate::session::VersionOffer;
 use crate::props::{computed_text, in_written, render_number};
+use crate::session::VersionOffer;
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the

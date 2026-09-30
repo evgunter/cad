@@ -116,7 +116,12 @@ pub(crate) fn feature_row_ui(
 /// **The accept a pin-mismatched instance row offers, drawn** under
 /// its failure: the question, and the button that is the edit the
 /// failure's recourse names. Whether the button was clicked.
-fn version_offer_lines(ui: &mut egui::Ui, depth: usize, offer: &VersionOffer, theme: &Theme) -> bool {
+fn version_offer_lines(
+    ui: &mut egui::Ui,
+    depth: usize,
+    offer: &VersionOffer,
+    theme: &Theme,
+) -> bool {
     advisory_line(ui, depth, &Refusal::version_question(offer), theme);
     ui.horizontal(|ui| {
         ui.add_space(message_indent(ui, depth));

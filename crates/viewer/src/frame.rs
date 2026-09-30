@@ -238,13 +238,13 @@ use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
+use crate::parts::PartFiles;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{EdgeNamesRefused, PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
-use crate::parts::PartFiles;
 use crate::session::{
     AtRestBadge, DeclareOffer, OpOutcome, Outstanding, Refusal, SessionOp, VersionOffer,
 };
