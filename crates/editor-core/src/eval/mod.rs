@@ -4874,7 +4874,7 @@ where
         // A placement's STEP STRUCTURE and its literal frames are
         // recipe payload outside the slots: the slot values below are
         // fed by position, so a chain's kinds and order must feed here
-        // or `[rigid, matrix]` and `[matrix, rigid]` over the same
+        // or `[rigid, literal]` and `[literal, rigid]` over the same
         // numbers would share a key. Frames by bits, as an explicit
         // rule's are.
         Node::Transform { placement, .. } => {

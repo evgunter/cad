@@ -245,3 +245,10 @@ Not built here, as P2's: `Doc::placements`, `InstantiatePart`'s gauge and offset
 The row stays open for P2 and is set back to `spec` when this merges.
 
 Filed from the sweep: `work/edit/node-bit-eq-compares-a-mates-alignment-by-value.md`.
+
+### Fix pass (2026-09-30, PR 3497)
+
+- The step kinds are `Step::Rigid` and `Step::Literal` (the wire too), and `Placement::compose` (`a.compose(b)` is `a ∘ b`, `Frame::compose`'s order) builds a chain from two, in Rust and Python.
+- The chain folds through one composition rule with `Frame::compose` (`placement::Motion`), so an identity literal anywhere moves no bit; the empty chain is the identity (`Placement::IDENTITY`), admitted at both doors. P2's identity offset can be it.
+- A literal frame is rigid at every door that admits one — a transform's step, the registry, an explicit rule's listed frame — by the evaluation's own predicate (`topo::check_rigid`), refused `NonRigidPlacement` naming the frame.
+- Filed: `work/lib/python-slot-words-stop-short-of-a-step-index.md` (LIB), `work/offer/viewer-free-move-decides-rigidity-by-its-own-predicate.md` (OFFER, for P3).

@@ -4,12 +4,14 @@ kind: issue
 title: Node::bit_eq compares a mate's alignment datum by value, so a -0.0 and a 0.0 frame are one mate to every D7 comparator
 status: open
 opened: 2026-09-29
+priority: P3
+cost: E
 ---
 
 
 Found by the placement unit's sweep (`edit/placement-type`), which
 fixed two instances of the class in `Node::bit_eq`
-(`crates/editor-core/src/node.rs`): a transform's matrix steps and an
+(`crates/editor-core/src/node.rs`): a transform's literal steps and an
 explicit placement rule's listed frames were compared through the
 derived `PartialEq`, which reads `0.0 == -0.0`, and now compare by
 bits.

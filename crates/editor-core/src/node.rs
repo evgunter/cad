@@ -4003,7 +4003,7 @@ impl<P: PartialEq> Node<P> {
         }
         // A literal FRAME is float payload no slot addresses, and the
         // `PartialEq` above compares its coordinates by value: a
-        // transform's matrix steps and an explicit rule's listed
+        // transform's literal steps and an explicit rule's listed
         // frames compare here, by bits.
         match (self, other) {
             (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. }) => {
