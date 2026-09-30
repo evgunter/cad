@@ -408,6 +408,40 @@ pub struct Edge {
     pub curve: CurveKey,
 }
 
+/// Which half of its edge a half-edge is, and the other half
+/// ([`Edge::claim`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Claim {
+    /// The half is `he_plus`, so it runs with the edge's intrinsic
+    /// direction and its carrier's parameter.
+    pub(crate) plus: bool,
+    /// The edge's other half.
+    pub(crate) mate: HalfEdgeKey,
+}
+
+impl Edge {
+    /// **`he`'s place on this edge** — the one reading of the edge ↔
+    /// half-edge pairing, for the mate and for the direction alike.
+    /// `None` when neither slot holds `he` (a corrupt bijection): a
+    /// half the edge does not claim is neither its plus half nor its
+    /// minus half, and no caller may read it as one.
+    pub(crate) fn claim(&self, he: HalfEdgeKey) -> Option<Claim> {
+        if self.he_plus == he {
+            Some(Claim {
+                plus: true,
+                mate: self.he_minus,
+            })
+        } else if self.he_minus == he {
+            Some(Claim {
+                plus: false,
+                mate: self.he_plus,
+            })
+        } else {
+            None
+        }
+    }
+}
+
 /// A vertex: a point of the model where edges end (or a lone vertex of
 /// an empty loop).
 ///
