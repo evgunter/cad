@@ -2,13 +2,14 @@
 id: kef-and-kev-take-a-mate-whose-own-edge-is-another
 kind: issue
 title: kef and kev take the mate from the killed edge's slots and never check the mate's own edge: a torn edge bijection kills an edge that other half-edges still name
-status: review
+status: closed
 pr: 3570
 branch: topo/kill-proves-removals
 opened: 2026-09-29
 refs: [kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
 priority: P3
 cost: E
+closed: 2026-09-30
 ---
 
 ## What
