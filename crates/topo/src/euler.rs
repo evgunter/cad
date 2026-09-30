@@ -1896,17 +1896,19 @@ impl<T: Decide> Body<T> {
     /// face is on the same chart — [`FaceSurface::Inherit`], a
     /// [`FaceSurface::Shared`] naming the old key or one sharing its
     /// payload ([`Body::same_chart`]) — they stand; under any other
-    /// surface the run's rows are DROPPED, for
-    /// the reasons and with the consequences [`Body::drop_rows`]
-    /// states. The old face's remaining rows are untouched either way.
-    /// The two halves this op mints get their rows at the site, as
-    /// [`Body::mev`]'s do: the old face, when the site mint selects it,
-    /// is re-minted with `he_plus` in it, and the new face — when the
-    /// run's rows stand on it — with `he_minus`, on the terms
-    /// [`Body::mev`] states. A face that takes the old face's last null
-    /// edge off it is re-minted whatever the old face missed: its loops
-    /// the cut rewires leave complete, and a ring it keeps keeps what it
-    /// had.
+    /// surface the run's rows are DROPPED ([`Body::drop_rows`]). The
+    /// old face's remaining rows are untouched either way. The two
+    /// halves this op mints get their rows at the site, as
+    /// [`Body::mev`]'s do: when the site mint selects the old face, it
+    /// is re-minted with `he_plus` in it, and the new face is minted
+    /// with `he_minus` and the run walked in the new face's chart —
+    /// whichever chart that is, so a run whose rows were dropped is
+    /// derived there again — on the terms [`Body::mev`] states. On a
+    /// spline chart other than the old face's, the new face keeps the
+    /// drop and is left unminted. A face that takes the old face's
+    /// last null edge off it is re-minted whatever the old face missed:
+    /// its loops the cut rewires leave complete, and a ring it keeps
+    /// keeps what it had.
     ///
     /// # Surgery (Chords, `he1 != he2`)
     ///

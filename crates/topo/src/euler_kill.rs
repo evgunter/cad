@@ -1233,12 +1233,20 @@ impl<T: Decide> Body<T> {
     /// are curves stated in the DYING face's chart. Where the surviving
     /// face is on the same chart — one key, or two sharing one
     /// payload ([`Body::same_chart`]) — they stand; on any
-    /// other chart the remnant's rows are DROPPED, for the reasons and
-    /// with the consequences [`Body::drop_rows`] states. The surviving
-    /// loop's own rows are untouched either way. Which is why the
-    /// surviving face RESOLVES in the plan phase below, and the chart
-    /// is decided there: it is what the mutation phase acts on, and a
-    /// mutation phase reads nothing it has not proven.
+    /// other chart the remnant's rows are DROPPED ([`Body::drop_rows`]).
+    /// Where they do not stand — dropped, or missing — and the
+    /// surviving face's rows were complete, the surviving loop as the
+    /// splice leaves it (its own members from its new anchor, then the
+    /// remnant) is walked in the surviving face's chart at `tol`'s
+    /// band, planned before anything moves ([`Body::plan_moved_rows`]),
+    /// so the face leaves complete, or storing nothing where the
+    /// closed-form lane cannot mint it. On a spline chart, or a
+    /// surviving face that was unminted or half-minted, the drop is the
+    /// whole answer and the surviving loop's own rows are untouched.
+    /// Which is why the surviving face RESOLVES in the plan phase
+    /// below, and the chart is decided there: it is what the mutation
+    /// phase acts on, and a mutation phase reads nothing it has not
+    /// proven.
     ///
     /// # Precondition check order
     ///
@@ -1280,7 +1288,10 @@ impl<T: Decide> Body<T> {
     /// is `Empty` at its vertex (`LoopCycleBroken` naming the surviving
     /// loop — a torn `next(m)` can land on a killed half or in another
     /// loop, or read the mate as alone in a loop that keeps other
-    /// members).
+    /// members); then, where the surviving face is re-minted, the site
+    /// mint's plan ([`Body::plan_moved_rows`]'s errors,
+    /// [`EulerOpError::PcurveMint`] naming the surviving face among
+    /// them).
     ///
     /// # Errors
     ///
@@ -1603,8 +1614,12 @@ impl<T: Decide> Body<T> {
     /// rows are a curve stated in the DEMOTING face's chart. A spec on
     /// that chart ([`Body::same_chart`]) keeps them; any other surface
     /// DROPS them ([`Body::drop_loop_rows`]; [`Body::drop_rows`] states
-    /// why). A new face's rows are the caller's to mint either way
-    /// ([`crate::pcurves::mint_pcurves`]).
+    /// why). Where they do not stand on the new face — dropped, or
+    /// missing — and the demoting face's rows were complete, the new
+    /// face is minted with the ring walked in its chart at `tol`'s
+    /// band, planned before anything moves ([`Body::plan_moved_rows`]):
+    /// it leaves complete, or storing nothing where the closed-form
+    /// lane cannot mint it. A spline chart keeps the drop.
     ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
@@ -1624,7 +1639,11 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); a [`FaceSurface::Shared`] key resolves
     /// ([`EulerOpError::StaleGeometry`]); a stated sense agrees with
     /// the derived one on the demoting face's chart
-    /// ([`EulerOpError::SenseContradictsChart`]).
+    /// ([`EulerOpError::SenseContradictsChart`]); the ring walks
+    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face is
+    /// minted, the site mint's plan ([`Body::plan_moved_rows`]'s
+    /// errors, [`EulerOpError::PcurveMint`] naming the demoting face
+    /// among them).
     ///
     /// # Errors
     ///
@@ -1734,9 +1753,10 @@ impl<T: Decide> Body<T> {
     ///
     /// The placeholder is a fresh payload, so it is never the demoting
     /// face's chart: `mfkrh` writes `sense`, the caller's provisional
-    /// bit, as stated, and drops the promoted ring's rows. The caller
-    /// states the honest bit, and mints the rows, when it gives the
-    /// face a real surface.
+    /// bit, as stated, and drops the promoted ring's rows — a spline
+    /// chart, so none is minted there and `tol` decides nothing. The
+    /// caller states the honest bit, and mints the rows, when it gives
+    /// the face a real surface.
     ///
     /// # Errors
     ///

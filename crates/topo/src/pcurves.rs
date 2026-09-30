@@ -212,19 +212,26 @@
 //! LOOP between faces, which changes the CHART every row on that loop
 //! is stated in while changing no key. Each carries the moved loop's
 //! rows where the two faces are on one CHART
-//! ([`crate::Body::same_chart`]) and drops them where they are not,
-//! deriving nothing — [`crate::Body::drop_rows`] carries the whole
-//! argument, including what the drop gives up: every rowless CURVED
-//! target, through every door that drops, trades a loud reading (the
-//! moved rows re-certified against the target's chart and refused)
-//! for a silent one (a face this pass says nothing about). Their
-//! `Neither` reading was the one the guard's table could not see: no
-//! posture makes a claim about what a row MEANS, and these doors
-//! changed nothing else. Two more doors move a RUN of half-edges
-//! between two faces' loops rather than a whole loop —
-//! [`crate::Body::mef`]'s chord surgery and [`crate::Body::kef`]'s
-//! unsplice — and take the same answer over the run;
-//! `staleness_posture::DECLARED` carries each door's note.
+//! ([`crate::Body::same_chart`]) and drops them where they are not
+//! ([`crate::Body::drop_rows`]). Where the moved rows do not stand on
+//! the destination — dropped, or missing — the door runs the site mint
+//! over the destination, planned before it mutates
+//! ([`crate::Body::plan_moved_rows`]): the moved loop is a rewired
+//! loop ([`SiteFace::moved`]), walked in the destination's chart, so a
+//! destination whose rows were complete leaves complete, or storing
+//! nothing where the closed-form lane cannot mint it. On a spline
+//! chart, or a destination that was unminted or half-minted, the drop
+//! is the whole answer; [`crate::Body::drop_rows`] states what it gives
+//! up there — a rowless CURVED destination trades a loud reading (the
+//! moved rows re-certified against its chart and refused) for a silent
+//! one (a face this pass says nothing about). Their old `Neither`
+//! reading was the one the guard's table could not see: no posture
+//! makes a claim about what a row MEANS, and these doors changed
+//! nothing else. Two more doors move a RUN of half-edges between two
+//! faces' loops rather than a whole loop — [`crate::Body::mef`]'s
+//! chord surgery and [`crate::Body::kef`]'s unsplice — and take the
+//! same answer over the run; `staleness_posture::DECLARED` carries
+//! each door's note.
 //!
 //! [`crate::Body::set_face_surface`] reaches the same posture from the
 //! other side: nothing moves, and the CHART moves under every row the
@@ -256,7 +263,8 @@
 //! kill ops. These are primitives, and they are what the stale-row
 //! consequence below is about. A kill that takes the last null edge
 //! off a loop leaves the rows that loop missed while it was held open
-//! missing: the kills take no `Tol` to mint with
+//! missing: `kemr` and `kev` take no `Tol` to mint with, and `kef`
+//! runs its site mint only over a remnant whose rows do not stand
 //! (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`).
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
@@ -2339,9 +2347,9 @@ pub(crate) struct SiteFace<T: Real> {
 pub(crate) enum SiteRows<T: Real> {
     /// The face is not re-minted — [`StoredRows::remints`] did not
     /// select it, its chart mints nothing, it is on a spline chart with
-    /// a null edge holding it open, or every loop the door rewires still
-    /// runs through a null edge — and the door leaves its rows exactly
-    /// as found.
+    /// a null edge holding it open or a loop or run moved onto it, or
+    /// every loop the door rewires still runs through a null edge — and
+    /// the door leaves its rows exactly as found.
     Leave,
     /// Every row of the loops the door rewires that run through no null
     /// edge, its two halves' among them. A loop the door keeps keeps
@@ -3352,11 +3360,15 @@ pub(crate) mod staleness_posture {
         /// loops, and the surface setter, under which a face's whole
         /// row set changes chart at once). What a door in this bucket
         /// never does is return with a row that says something the
-        /// body no longer holds. It says nothing about rows a door
-        /// never HELD: whether a half-edge a door mints gets a row at
-        /// the mint site is the minting posture ([`super::site_rows`]),
-        /// and a door in this bucket that mints half-edges says so in
-        /// its note.
+        /// body no longer holds. A door in this bucket that moves a
+        /// loop or run re-mints the face it lands on through the site
+        /// mint where the moved rows do not stand there and that face
+        /// was complete ([`crate::Body::plan_moved_rows`]), so a
+        /// complete destination on an analytic chart leaves complete,
+        /// or storing nothing; on a spline chart the drop stands.
+        /// Whether a half-edge a door mints gets a row at the mint site
+        /// is the minting posture ([`super::site_rows`]), and a door in
+        /// this bucket that mints half-edges says so in its note.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
@@ -3553,21 +3565,26 @@ pub(crate) mod staleness_posture {
                 "Euler operator (sugar over `mekr`)",
             ),
             // ---- Transfers: the loop-re-parenting doors, which carry
-            // a moved loop's rows onto the target face and drop them
-            // when that face is on another CHART. ----
+            // a moved loop's rows onto the target face, drop them when
+            // that face is on another CHART, and re-mint the target
+            // through the site mint where it was complete. ----
             (
                 "kfmrh",
                 Transfers,
                 "Euler operator, and a loop re-parenting: `f2`'s demoted outer loop keeps its \
              rows where `f1` is on the same chart (`Body::same_chart`) and loses them where \
-             it is not (`Body::drop_rows_on_chart_change`)",
+             it is not (`Body::drop_rows_on_chart_change`); where they do not stand and \
+             `f1`'s rows were complete, `f1` is re-minted with the loop walked in its chart \
+             (`Body::plan_moved_rows`), and a spline chart keeps the drop",
             ),
             (
                 "mfkrh",
                 Transfers,
                 "Euler operator, and a loop re-parenting: the promoted ring keeps its rows \
              where the spec lands on the demoting face's chart (`Body::same_chart`) and \
-             loses them where it does not",
+             loses them where it does not; where they do not stand and the demoting face's \
+             rows were complete, the new face is minted with the ring walked in its chart \
+             (`Body::plan_moved_rows`), and a spline chart keeps the drop",
             ),
             (
                 "mfkrh_plug",
@@ -3580,8 +3597,9 @@ pub(crate) mod staleness_posture {
             (
                 "ring_move",
                 Transfers,
-                "ring surgery: re-parents a ring, mints no half-edge, and carries or drops \
-             the ring's rows by whether the two faces are on one chart — see `kfmrh`",
+                "ring surgery: re-parents a ring, mints no half-edge, carries or drops the \
+             ring's rows by whether the two faces are on one chart, and re-mints a complete \
+             target the rows do not stand on — see `kfmrh`",
             ),
             // ---- Transfers: the two doors that move a RUN of
             // half-edges between two faces' loops, and dispose of the
@@ -3593,8 +3611,9 @@ pub(crate) mod staleness_posture {
              the new face keeps its rows where that face is on the old face's chart \
              (`Body::same_chart`) and loses them where it is not (`Body::drop_rows`). The \
              two halves it mints get their rows at the site, as `mev`'s do: the old face \
-             is re-minted when the site mint selects it, and the new face when the run's \
-             rows stand on it",
+             is re-minted when the site mint selects it, and so is the new face, its run \
+             walked in the new face's chart; a spline chart other than the old face's \
+             keeps the drop",
             ),
             ("mef_chord", Transfers, "Euler operator (sugar over `mef`)"),
             (
@@ -3602,9 +3621,10 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "kill op, and a run re-parenting: the dying loop's remnant keeps its rows \
              where the surviving face is on the dying face's chart (`Body::same_chart`) and \
-             loses them where it is not (`Body::drop_rows`); the surviving loop's own rows \
-             are untouched, and the two killed halves' rows outlive their keys as every kill \
-             op's do",
+             loses them where it is not (`Body::drop_rows`); where they do not stand and the \
+             surviving face's rows were complete, the surviving loop is re-minted in that \
+             face's chart (`Body::plan_moved_rows`), and a spline chart keeps the drop; the \
+             two killed halves' rows outlive their keys as every kill op's do",
             ),
             (
                 "movefac",
