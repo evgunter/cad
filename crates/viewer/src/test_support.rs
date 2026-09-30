@@ -27,9 +27,9 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
-use pncad::profile::{Step, Target};
 #[cfg(test)]
-use pncad::profile::{TipState, Verb};
+use pncad::profile::{PathErrorKind, TipState, Verb};
+use pncad::profile::{Step, Target};
 
 use crate::scene::DisplayTolerance;
 
@@ -388,76 +388,162 @@ pub fn two_legs(x: f64, y: f64) -> Vec<Step<f64>> {
     ]
 }
 
+/// **A straight leg to a point**, `line_to (x, y)`.
+#[cfg(test)]
+pub fn line_to(x: f64, y: f64) -> Step<f64> {
+    Step::LineTo(Target::Point(Point2::new(x, y)))
+}
+
+/// **A step no leg end takes**: an `at`, which is ill-typed after a
+/// leg — the refused step the walk-back rows put after a chain.
+#[cfg(test)]
+pub fn ill_typed() -> Step<f64> {
+    Step::At(Point2::new(0.1, 0.1))
+}
+
+/// **A last leg onto the start of a square**, from `(0, 0)`: every
+/// leg of it by `line_to`, the last targeting `(0, 0)` by value.
+#[cfg(test)]
+pub fn square_onto_the_start() -> Vec<Step<f64>> {
+    let mut steps = two_legs(0.0, 0.0);
+    steps.extend([line_to(0.0, 0.01), line_to(0.0, 0.0)]);
+    steps
+}
+
+/// The vertices of [`square_onto_the_start`], and of every square the
+/// rows below draw from `(0, 0)`.
+#[cfg(test)]
+pub fn square_vertices() -> Vec<[f64; 2]> {
+    vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01], [0.0, 0.01]]
+}
+
 /// **An unfinished chain whose provisional close is refused on its
-/// geometry**, and the drawing its own steps fix: the vertices of the
-/// legs written, and whether the last of them lands on the start and
-/// closes the loop.
+/// geometry**, and what the preview draws of it and says.
 #[cfg(test)]
 pub struct RefusedClose {
     /// The chain, every step of which replays.
     pub steps: Vec<Step<f64>>,
     /// The drawn loop's own vertices.
-    pub legs: Vec<[f64; 2]>,
-    /// Whether the drawn loop closes by the author's own last leg.
+    pub vertices: Vec<[f64; 2]>,
+    /// Whether the author's own last leg closes the drawn loop.
     pub closes: bool,
+    /// The kind of the close's refusal the chain says; `None` where it
+    /// says the end-of-program refusal, its last leg being the close in
+    /// all but spelling.
+    pub said: Option<PathErrorKind>,
 }
 
-/// **Every shape of close refused on its geometry**, from `(0, 0)`:
-/// a last leg onto the start point, whose close would have no length,
-/// after an entry that opens with `at` and after one that opens with a
-/// direction; and a pending `fillet` and `arc_fillet` whose arrival the
-/// close would bind, finding no corner, drawn as the legs before them.
+/// **Every shape of close refused on its geometry**, from `(0, 0)`: a
+/// last leg onto the start point, whose close would have no length,
+/// after an entry that opens with `at` (a triangle and a square) and
+/// after one that opens with a direction; and a pending `fillet` and
+/// `arc_fillet` whose arrival the close would bind, finding no corner,
+/// drawn as the legs before them.
 #[cfg(test)]
 pub fn geometry_refused_closes() -> Vec<RefusedClose> {
-    let point = |x, y| Step::LineTo(Target::Point(Point2::new(x, y)));
     let legs_then = |tail: Step<f64>| {
         let mut steps = two_legs(0.0, 0.0);
         steps.extend([tail, Step::At(Point2::new(-0.005, 0.02))]);
         steps
     };
-    let two = vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]];
+    let two = || vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]];
     vec![
         RefusedClose {
-            steps: [two_legs(0.0, 0.0), vec![point(0.0, 0.0)]].concat(),
-            legs: two.clone(),
+            steps: [two_legs(0.0, 0.0), vec![line_to(0.0, 0.0)]].concat(),
+            vertices: two(),
             closes: true,
+            said: None,
+        },
+        RefusedClose {
+            steps: square_onto_the_start(),
+            vertices: square_vertices(),
+            closes: true,
+            said: None,
         },
         RefusedClose {
             steps: vec![
                 Step::Angle(0.0),
                 Step::At(Point2::new(0.0, 0.0)),
                 Step::Line(0.01),
-                point(0.01, 0.01),
-                point(0.0, 0.01),
-                point(0.0, 0.0),
+                line_to(0.01, 0.01),
+                line_to(0.0, 0.01),
+                line_to(0.0, 0.0),
             ],
-            legs: vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01], [0.0, 0.01]],
+            vertices: square_vertices(),
             closes: true,
+            said: None,
         },
         RefusedClose {
             steps: legs_then(Step::Fillet { radius: 0.002 }),
-            legs: two.clone(),
+            vertices: two(),
             closes: false,
+            said: Some(PathErrorKind::NoCornerOfPair),
         },
         RefusedClose {
             steps: legs_then(crate::sketch::fresh_step_at(
                 Verb::ArcFillet,
                 Some(TipState::DirectedPoint),
             )),
-            legs: two,
+            vertices: two(),
             closes: false,
+            said: Some(PathErrorKind::NoCornerForFillet),
         },
     ]
 }
 
-/// **A chain whose close would run straight on from its last leg**:
-/// [`two_legs`] from the origin, then a leg back toward it that stops
-/// half way, at `(0.005, 0.005)`.
+/// **Chains whose `line_to Start` is refused as tangent and whose
+/// close the lattice spells another way**, from `(0, 0)`, each with
+/// the vertex a refused step after it is crossed at:
+///
+/// - a close that would run straight on from the last leg
+///   (`continue_to Start`): back along a leg to `(0.01, 0)`, and
+///   half way back toward the start from [`two_legs`];
+/// - a close that would arrive continuing the entry's first side
+///   (`line_to` the start declared tangent): [`two_legs`], then a leg
+///   to `(-0.01, 0)`.
 #[cfg(test)]
-pub fn straight_on_to_the_start() -> Vec<Step<f64>> {
-    let mut steps = two_legs(0.0, 0.0);
-    steps.push(Step::LineTo(Target::Point(Point2::new(0.005, 0.005))));
-    steps
+pub fn tangent_closes() -> Vec<(Vec<Step<f64>>, [f64; 2])> {
+    let from_legs = |x, y| {
+        let mut steps = two_legs(0.0, 0.0);
+        steps.push(line_to(x, y));
+        (steps, [x, y])
+    };
+    vec![
+        (
+            vec![
+                Step::At(Point2::new(0.0, 0.0)),
+                line_to(0.01, 0.01),
+                line_to(0.02, 0.0),
+                line_to(0.01, 0.0),
+            ],
+            [0.01, 0.0],
+        ),
+        from_legs(0.005, 0.005),
+        from_legs(-0.01, 0.0),
+    ]
+}
+
+/// **A fused entry and a chain after it**: `arc_fillet` about
+/// `(0, -1)` from the start `(0, 0)`, its line arrival anchored at
+/// `(0.01, 0.003)` by an `at` — which binds no start — then legs up and
+/// across, and `last`.
+#[cfg(test)]
+pub fn fused_entry_then(last: Step<f64>) -> Vec<Step<f64>> {
+    use pncad::profile::{ArcData, ArcSweep};
+    vec![
+        Step::ArcFillet {
+            spec: ArcData::Center {
+                c: Point2::new(0.0, -1.0),
+                winding: ArcSweep::Cw,
+                target: Target::Point(Point2::new(0.0, 0.0)),
+            },
+            radius: 0.001,
+        },
+        Step::At(Point2::new(0.01, 0.003)),
+        line_to(0.01, 0.01),
+        line_to(0.005, 0.01),
+        last,
+    ]
 }
 
 /// **Every unclosable tip state** — one an unfinished chain can end on

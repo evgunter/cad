@@ -487,7 +487,7 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::{ProfileError, SketchPlane, Step, Target, TipState, Verb};
+    use pncad::profile::{PathErrorKind, ProfileError, SketchPlane, Step, Target, TipState, Verb};
 
     use super::preview_verdict;
     use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP};
@@ -498,7 +498,7 @@ mod tests {
     use crate::sketch::{
         self, Cut, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, ProfileShape,
     };
-    use crate::test_support::{self, inserted, try_inserted, two_legs, xy_frame};
+    use crate::test_support::{self, inserted, line_to, try_inserted, two_legs, xy_frame};
     use crate::theme::Theme;
 
     /// **Drawing the editor never rewrites a document value.** A
@@ -789,10 +789,6 @@ mod tests {
         Step::At(Point2::new(x, y))
     }
 
-    fn line_to(x: f64, y: f64) -> Step<f64> {
-        Step::LineTo(Target::Point(Point2::new(x, y)))
-    }
-
     /// **A chain being written is quiet, drawn or not.** The drawn
     /// open chain and the one-point chain that ended before anything
     /// could be drawn are one state, so they are one voice — and both
@@ -842,6 +838,7 @@ mod tests {
         let geometry = Err(PreviewError::Geometry {
             loop_: 0,
             step: 1,
+            kind: PathErrorKind::JunctionTangent,
             rendered: "the leg has no answer".to_owned(),
         });
         for refused in [ill_typed, geometry] {
@@ -964,12 +961,13 @@ mod tests {
     }
 
     /// **A chain whose close is refused on its geometry draws the legs
-    /// written, and the form says the close's own refusal, quietly** —
-    /// at every shape of such a close
-    /// ([`test_support::geometry_refused_closes`]). What is painted
-    /// under the step list is the refusal the drawn loop carries, in
-    /// the weak voice, holding the commit; never the open chain's
-    /// sentence, which would hide what stops the close.
+    /// written, and the form says why, quietly** — at every shape of
+    /// such a close ([`test_support::geometry_refused_closes`]). What is
+    /// painted under the step list is the refusal the drawn loop
+    /// carries, in the weak voice, holding the commit: the close's own,
+    /// in the driver's words, or the end-of-program refusal where the
+    /// last leg is the close in all but spelling. Never the open
+    /// chain's sentence, which would hide what stops the close.
     ///
     /// Red if the preview draws nothing for such a chain, if the
     /// refusal is not painted or is painted loud, or if the open
@@ -984,16 +982,15 @@ mod tests {
             };
             let refused = drawn_legs.loops[0]
                 .end
-                .unclosable()
-                .expect("the loop carries why its tip takes no close");
-            let PreviewError::Close { rendered, .. } = refused else {
-                panic!("{:?}: the close's refusal: {refused}", fixture.steps)
-            };
-            assert!(
-                refused.to_string().contains(rendered.as_str()),
-                "{:?}: in the driver's own words: {refused}",
-                fixture.steps
-            );
+                .unfinished_refusal()
+                .expect("the loop carries why it is drawn short");
+            if let PreviewError::Geometry { rendered, .. } = refused {
+                assert!(
+                    refused.to_string().contains(rendered.as_str()),
+                    "{:?}: in the driver's own words: {refused}",
+                    fixture.steps
+                );
+            }
             let (painted, voices, held) = drawn(&preview);
             assert_eq!(
                 find(&painted, &refused.to_string()).ink,

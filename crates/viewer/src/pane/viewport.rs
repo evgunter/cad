@@ -2471,7 +2471,10 @@ mod tests {
             };
             let drawn = chain(way_in);
             assert!(
-                drawn.loops[0].end.unclosable().is_some(),
+                matches!(
+                    drawn.loops[0].end.unfinished_refusal(),
+                    Some(sketch::PreviewError::Transition { state: at, verb: None, .. }) if *at == state
+                ),
                 "{state:?}: a fixture whose tip is unclosable: {drawn:?}"
             );
             let painted = painted_preview(&drawn);
@@ -2556,8 +2559,9 @@ mod tests {
     /// ([`crate::test_support::geometry_refused_closes`]). Every painted
     /// stroke longer than a tip mark is one of those legs; the leg back
     /// to the start is painted where the author's last leg lands there,
-    /// and nowhere else; and an open tip keeps its arrowhead, since the
-    /// chain is unfinished.
+    /// and nowhere else; and the tip keeps its arrowhead, since the
+    /// chain is unfinished: at the last leg's end, or at the start
+    /// where the loop closes.
     ///
     /// Red if such a chain paints nothing (the `expect` panics), if it
     /// paints the close nobody wrote or a fillet resolved against it,
@@ -2567,11 +2571,14 @@ mod tests {
         for fixture in crate::test_support::geometry_refused_closes() {
             let drawn = path(fixture.steps.clone());
             let painted = painted_preview(&drawn);
-            let legs = &fixture.legs;
-            let mut written: Vec<[[f64; 2]; 2]> = legs.windows(2).map(|w| [w[0], w[1]]).collect();
-            let back = [legs[legs.len() - 1], legs[0]];
+            let vertices = &fixture.vertices;
+            let mut written: Vec<[[f64; 2]; 2]> =
+                vertices.windows(2).map(|w| [w[0], w[1]]).collect();
+            let back = [vertices[vertices.len() - 1], vertices[0]];
             if fixture.closes {
                 written.push(back);
+            } else {
+                assert!(!joins(&painted, back[0], back[1]), "{:?}", fixture.steps);
             }
             for [a, b] in &written {
                 assert!(joins(&painted, *a, *b), "{:?}: {a:?}-{b:?}", fixture.steps);
@@ -2587,42 +2594,50 @@ mod tests {
                     fixture.steps
                 );
             }
-            if !fixture.closes {
-                assert!(!joins(&painted, back[0], back[1]), "{:?}", fixture.steps);
-                let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
-                assert_eq!(centred.len(), 1, "{:?}: {centred:?}", fixture.steps);
-                assert_eq!(arrow, 2, "{:?}: an arrowhead", fixture.steps);
-            }
+            let (tip, heading) = if fixture.closes {
+                ([0.0, 0.0], [1.0, 0.0])
+            } else {
+                (TIP, ARRIVING)
+            };
+            let (centred, arrow) = tip_marks(&painted, tip, heading);
+            assert_eq!(centred.len(), 1, "{:?}: {centred:?}", fixture.steps);
+            assert_eq!(arrow, 2, "{:?}: an arrowhead", fixture.steps);
         }
     }
 
-    /// **The cross sits on the step that refused**, after a last leg
-    /// the close runs straight on from and after a last leg onto the
-    /// start by an entry that opens with a direction. The first is
-    /// painted to the leg's end, `(0.005, 0.005)`, crossed there; the
-    /// second is painted closed, crossed at the start.
+    /// **The cross sits on the step that refused**, after a last leg a
+    /// close would run tangent to, after a last leg onto the start by
+    /// an entry that opens with a direction, and after a fused entry's
+    /// last leg. Each is painted to the last leg's end and crossed
+    /// there — at the start where the leg lands on it.
     ///
-    /// Red if either last leg is dropped: the cross then lands one
-    /// vertex early, on a step that is fine.
+    /// Red if any last leg is dropped (the cross then lands one vertex
+    /// early, on a step that is fine), or if a close nobody wrote is
+    /// painted closed.
     #[test]
     fn the_cross_sits_on_the_step_that_refused() {
-        use pncad::geom_core::Point2;
-        use pncad::profile::{Step, Target};
-        let mut straight_on = crate::test_support::straight_on_to_the_start();
-        straight_on.push(Step::At(Point2::new(0.1, 0.1)));
-        let back = -core::f64::consts::FRAC_1_SQRT_2;
-        let mut onto_the_start = crate::test_support::geometry_refused_closes()
+        use crate::test_support::{self, ill_typed};
+        let mut cases = test_support::tangent_closes();
+        let angle_first = test_support::geometry_refused_closes()
             .into_iter()
             .map(|fixture| fixture.steps)
-            .find(|steps| !matches!(steps[0], Step::At(_)))
+            .find(|steps| !matches!(steps[0], pncad::profile::Step::At(_)))
             .expect("an entry that opens with a direction");
-        onto_the_start.extend([Step::Tangent, Step::LineTo(Target::Start)]);
-        for (steps, tip, heading) in [
-            (straight_on, [0.005, 0.005], [back, back]),
-            (onto_the_start, [0.0, 0.0], [1.0, 0.0]),
-        ] {
+        cases.push((angle_first, [0.0, 0.0]));
+        let fused = test_support::fused_entry_then(test_support::line_to(0.01, 0.003));
+        cases.push((fused, [0.01, 0.003]));
+        for (mut steps, tip) in cases {
+            steps.push(ill_typed());
             let drawn = path(steps.clone());
-            assert!(drawn.loops[0].end.refusal().is_some(), "{steps:?}");
+            let only = &drawn.loops[0];
+            assert!(only.end.refusal().is_some(), "{steps:?}");
+            let at = only
+                .vertices
+                .iter()
+                .copied()
+                .find(|&at| near(only.points[at], tip))
+                .expect("the tip is a vertex drawn");
+            let heading = sketch::heading(&only.points, at, only.end.closes()).expect("a heading");
             let (centred, arrow) = tip_marks(&painted_preview(&drawn), tip, heading);
             assert_eq!(centred.len(), 2, "{steps:?}: the cross: {centred:?}");
             assert_eq!(arrow, 0, "{steps:?}: no arrowhead");
