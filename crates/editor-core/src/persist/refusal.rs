@@ -35,7 +35,7 @@
 //! one: **an RAII guard so a forgotten harvest is impossible;
 //! re-entrancy that never silently overwrites; thread-confinement
 //! enforced by the type; and the coupling visible at both ends.**
-//! `k_stats::Bracket` (PR 1969, `work/scalar/D283.md`) is the in-tree
+//! `k_stats::Bracket` (PR 1969; `D283`, ruled on PR 2457) is the in-tree
 //! shape this copies, one frame deep instead of many.
 //!
 //! - **A frame cannot leak or be forgotten.** [`Parse`](crate::persist::refusal::Parse) pops its frame
