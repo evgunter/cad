@@ -1067,7 +1067,7 @@ fn survives_near_full_period_rim_span_escalates() {
     // pinning here.
     let mut body = Body::<f64>::new();
     let q = Point3::new(1.0, 0.0, 0.0);
-    let seed = body.mvfs(q).unwrap();
+    let seed = body.mvfs(q, true).unwrap();
     let center = Point3::new(0.0, 0.0, 0.0);
     let radius = 1.0;
     let span = TAU - 3.0 * eps() / radius;

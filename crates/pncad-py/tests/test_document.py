@@ -32,10 +32,15 @@ from pncad import (
     Open,
     ParamName,
     PatternKind,
+    Piece,
+    Role,
     SelectRefusal,
     Selector,
     SketchPlane,
     Start,
+    StepHandleError,
+    StepId,
+    circle_split,
     evaluate,
     import_step,
     load,
@@ -210,6 +215,11 @@ class TestNodeKindReadDoor(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.node_kind(stray[-1])
         self.assertEqual(caught.exception.variant, "unknown_node")
+        # The recourse is this read's own: no edit was made, so the
+        # edit door's "aim the edit" would be a recourse for nobody.
+        message = str(caught.exception)
+        self.assertIn("Recourse: ask for the kind of a node this document holds", message)
+        self.assertNotIn("aim the edit", message)
 
 
 class TestEvaluation(unittest.TestCase):
@@ -1521,27 +1531,35 @@ EDIT_ATTRS = (
 
 class TestTheWholeProgramEdit(unittest.TestCase):
     """`DocEdit.set_program` — a live profile's program replaced whole.
-    Each step carries the id the document minted for it
-    (`Doc.step_ids`); the edit states, per new step, the id it keeps or
-    `None` for a new step, and a name follows the steps it spells."""
+    Each step carries the id the document minted for it (`Doc.step`
+    binds the handle its verb returned to it); the edit keeps an old
+    step by mapping the handle of a step of the NEW program to the old
+    id, a step it does not name is new, and a name follows the steps it
+    spells."""
 
     @staticmethod
     def chain(points):
+        """A closed polygon through `points`, and the handle of each of
+        its steps as its verb returned it."""
         path = Open.at((points[0][0] * m, points[0][1] * m))
+        steps = [path.step]
         for x, y in points[1:]:
             path = path.line_to((x * m, y * m))
-        return path.line_to(Start)
+            steps.append(path.step)
+        closed = path.line_to(Start)
+        steps.append(closed.step)
+        return closed, steps
 
     def filleted_box(self):
-        """A square prism with a fillet on the rim edge its wall 2
-        shares with the end cap; `(doc, profile, box, rim)`."""
+        """A square prism with a fillet on the rim edge the top wall
+        (drawn by step 3's leg) shares with the end cap;
+        `(doc, profile, box, rim, ids)`, `ids` the old steps' ids."""
         doc = Doc()
         frame = doc.sketch_frame()
-        profile = doc.insert(
-            Node.profile(self.chain([(0, 0), (2, 0), (2, 2), (0, 2)]), plane=frame)
-        )
+        square, steps = self.chain([(0, 0), (2, 0), (2, 2), (0, 2)])
+        profile = doc.insert(Node.profile(square, plane=frame))
         box = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
-        piece = doc.pieces(profile)[0][2]
+        piece = str(doc.piece(profile, 0, steps[3].leg))
         rim = [
             name
             for name in evaluate(doc).all_edges(box)
@@ -1549,13 +1567,13 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         ]
         self.assertEqual(len(rim), 1, rim)
         doc.insert(Node.fillet(box, Expr.length_in(0.1, m), rim))
-        return doc, profile, box, rim[0]
+        ids = [doc.step(profile, 0, h) for h in steps]
+        return doc, profile, box, rim[0], ids
 
     def test_the_insert_door_mints_one_id_per_authored_step(self):
-        doc, profile, _box, _rim = self.filleted_box()
-        (ids,) = doc.step_ids(profile)
-        self.assertEqual(len(ids), 5, "the start, four legs")
-        self.assertEqual(len(set(ids)), 5, "each step its own id")
+        doc, profile, _box, _rim, ids = self.filleted_box()
+        self.assertEqual(len(set(ids)), 5, "the start, four legs, each its own id")
+        self.assertEqual(doc.step_ids(profile), [ids], "the positional reading agrees")
 
     def test_a_reshaped_program_keeping_the_step_keeps_the_fillets_name(self):
         """A leg inserted before the filleted wall's step moves the
@@ -1563,12 +1581,14 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         kept, so the fillet's name still denotes it and the accepted
         edit reports nothing. The document round-trips through the
         persisted form."""
-        doc, profile, _box, rim = self.filleted_box()
-        (s,) = doc.step_ids(profile)
-        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
-        doc.apply(DocEdit.set_program(profile, reshaped, [[s[0], s[1], None, s[2], s[3], s[4]]]))
+        doc, profile, _box, rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[4]: s[3], new[5]: s[4]}
+        doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
         self.assertEqual(doc.last_maintenance, [])
         self.assertEqual(evaluate(doc).resolve(rim).status, "resolved")
+        self.assertEqual(doc.step(profile, 0, new[4]), s[3], "the kept step keeps its id")
+        self.assertNotIn(doc.step(profile, 0, new[2]), s, "the new leg mints fresh")
         # `Doc.save` writes the document as a SNAPSHOT with no log
         # (the binding holds a value, not a history), so the reshaped
         # program crosses in the snapshot and the loaded document
@@ -1579,17 +1599,17 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(loaded.doc.save(), text)
 
     def test_a_step_the_edit_drops_strands_the_fillets_name(self):
-        """The same program with the wall's step stated as new: the
-        fillet's name keeps its spelling and is reported as a `strand`
-        on the fillet node. Pushed back through `Evaluation.resolve`,
-        it is a typed `vanished` failure — the new step's leg is under
-        an id never minted before, so the name never comes to denote
-        it."""
-        doc, profile, _box, rim = self.filleted_box()
+        """The same program with the wall's step left out of `keep`:
+        the fillet's name keeps its spelling and is reported as a
+        `strand` on the fillet node. Pushed back through
+        `Evaluation.resolve`, it is a typed `vanished` failure — the new
+        step's leg is under an id never minted before, so the name
+        never comes to denote it."""
+        doc, profile, _box, rim, s = self.filleted_box()
         fillet = doc.order()[-1]
-        (s,) = doc.step_ids(profile)
-        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
-        doc.apply(DocEdit.set_program(profile, reshaped, [[s[0], s[1], None, s[2], None, s[4]]]))
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[5]: s[4]}
+        doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
         (row,) = doc.last_maintenance
         self.assertEqual(row.variant, "strand")
         self.assertEqual(row.node, fillet)
@@ -1598,16 +1618,101 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(verdict.status, "failed")
         self.assertEqual(verdict.variant, "vanished")
 
-    def test_ids_of_the_wrong_shape_refuse_before_the_program_is_read(self):
-        doc, profile, _box, _rim = self.filleted_box()
-        (s,) = doc.step_ids(profile)
-        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+    def test_a_handle_off_the_new_program_refuses_before_the_edit(self):
+        """The old square's closer is a `line_to(Start)` at index 4; in
+        the reshaped program index 4 is a `line_to` a point, so the
+        handle is off it and `set_program` refuses to build the edit."""
+        _doc, profile, _box, _rim, s = self.filleted_box()
+        _square, old = self.chain([(0, 0), (2, 0), (2, 2), (0, 2)])
+        reshaped, _new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(StepHandleError) as caught:
+            DocEdit.set_program(profile, reshaped, [{old[4]: s[4]}])
+        self.assertEqual(caught.exception.variant, "handle_off_program")
+        self.assertEqual((caught.exception.loop_, caught.exception.index), (0, 4))
+
+    def test_an_old_id_kept_twice_refuses_before_the_program_is_read(self):
+        doc, profile, _box, _rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_program(profile, reshaped, [s]))
+            doc.apply(DocEdit.set_program(profile, reshaped, [{new[1]: s[1], new[2]: s[1]}]))
         self.assertEqual(caught.exception.variant, "step_ids_refused")
-        self.assertEqual(caught.exception.inner_variant, "shape")
+        self.assertEqual(caught.exception.inner_variant, "repeated")
         self.assertEqual(caught.exception.node, profile)
         self.assertEqual(doc.last_maintenance, [])
+
+    def test_keep_is_stated_and_an_empty_dict_keeps_nothing(self):
+        doc, profile, _box, _rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(TypeError):
+            DocEdit.set_program(profile, reshaped)
+        doc.apply(DocEdit.set_program(profile, reshaped, [{}]))
+        fresh = [doc.step(profile, 0, h) for h in new]
+        self.assertEqual(set(fresh) & set(s), set(), "every step minted fresh")
+
+    def test_a_keep_list_short_of_the_outline_refuses(self):
+        doc, profile, _box, _rim, _ids = self.filleted_box()
+        reshaped, _new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_program(profile, reshaped, []))
+        self.assertEqual(caught.exception.inner_variant, "loop_count")
+
+
+class TestAuthoredStepHandles(unittest.TestCase):
+    """A chain state's `.step` is the address of the step its verb
+    recorded; `Doc.step` binds it to the id the placement minted, in the
+    loop the author states, and its role accessors are the verb's role
+    list."""
+
+    def setUp(self):
+        start = Open.at((0 * m, 0 * m)).toward(1, 0)
+        self.bind = start.step
+        opened = start.fillet(0.5 * m)
+        self.fillet = opened.step
+        top = opened.toward(0, 1).to((2 * m, 2 * m)).line_to((0 * m, 2 * m))
+        self.top = top.step
+        self.loop = top.line_to(Start)
+        self.doc = Doc()
+        frame = self.doc.sketch_frame()
+        self.a = self.doc.insert(Node.profile(self.loop, plane=frame))
+        self.b = self.doc.insert(Node.profile(self.loop, plane=frame))
+
+    def test_one_loop_placed_twice_binds_one_handle_to_two_ids(self):
+        a = self.doc.step(self.a, 0, self.top)
+        self.assertIsInstance(a, StepId)
+        self.assertNotEqual(a, self.doc.step(self.b, 0, self.top))
+        self.assertEqual(self.doc.step_ids(self.a)[0][self.top.index], a)
+
+    def test_the_right_wall_is_the_fillets_run_out(self):
+        wall = self.doc.piece(self.a, 0, self.fillet.run_out)
+        self.assertEqual(wall, Piece(self.doc.step(self.a, 0, self.fillet), Role.RunOut))
+        self.assertIn(wall, self.doc.pieces(self.a)[0])
+
+    def test_the_accessors_are_the_verbs_role_list(self):
+        self.assertEqual(self.top.leg.role, Role.Leg)
+        self.assertEqual(
+            [self.fillet.run_in.role, self.fillet.arc.role, self.fillet.run_out.role],
+            [Role.RunIn, Role.Arc, Role.RunOut],
+        )
+        for handle, role in ((self.top, "arc"), (self.fillet, "leg"), (self.bind, "leg")):
+            with self.assertRaises(AttributeError, msg=f"{handle!r}.{role}"):
+                getattr(handle, role)
+        ring = circle_split((0 * m, 0 * m), 1 * m, 3, 0 * rad)
+        self.assertEqual(ring.step.piece(2).role, Role.piece(2))
+        with self.assertRaises(StepHandleError) as caught:
+            ring.step.piece(3)
+        self.assertEqual(caught.exception.variant, "role_not_drawn")
+        self.assertEqual(caught.exception.role, Role.piece(3))
+
+    def test_a_loop_the_profile_does_not_have_refuses(self):
+        with self.assertRaises(StepHandleError) as caught:
+            self.doc.step(self.a, 1, self.top)
+        self.assertEqual(caught.exception.variant, "handle_off_program")
+        self.assertEqual((caught.exception.loop_, caught.exception.index), (1, 5))
+
+    def test_a_piece_prints_the_kernels_text(self):
+        wall = self.doc.piece(self.a, 0, self.top.leg)
+        self.assertIn('"Leg"', str(wall))
+        self.assertNotEqual(str(wall), str(self.doc.piece(self.b, 0, self.top.leg)))
 
 
 class TestTheEditDoorsPayload(unittest.TestCase):

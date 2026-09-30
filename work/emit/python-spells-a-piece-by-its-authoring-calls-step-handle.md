@@ -2,10 +2,12 @@
 id: python-spells-a-piece-by-its-authoring-calls-step-handle
 kind: unit
 title: Python spells a profile piece by the step handle its authoring call returned
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: M
+branch: emit/python-step-handles
+closed: 2026-09-29
 ---
 
 ## What
@@ -77,3 +79,31 @@ value-erased prefix shape; `Doc.step(profile, loop, h)` and
 `Doc.piece(profile, loop, h.role)`; typed `StepId` and `Piece`;
 `step_map` is `dict[StepId, StepId]`; the binding lives in editor-core
 (`ProfileProgram::step`, `LoopProgram::shape`). The row is now the build.
+
+## Closed: PR 3481
+
+Built as ruled.
+
+**editor-core** (`src/step_handle.rs`):
+- `LoopProgram::shape()`: the value-erased shape of a loop's program.
+- `AuthoredStep`: the step's index plus the value-erased shape of the program before it.
+- `ProfileProgram::step` and `ProfileProgram::piece`. The author states the loop. They refuse with `OffProgram`, `Unminted`, `StepIds` or `RoleNotDrawn`.
+- `keep_grid`: turns the per-loop keep dicts into the stored grid.
+
+**profile** (`structure.rs`):
+- One `RoleList` per verb.
+- The replay checks every role it draws against that list.
+
+**Python:**
+- `.step` on every chain state.
+- Typed `StepId`, `Role` and `Piece`.
+- Role properties generated from `RoleList::ALL`, with typed stubs.
+- `Doc.step` and `Doc.piece`.
+- `set_program(keep=[...])`, with `keep` required.
+- `step_map` is now a dict.
+
+**Fixed on the way:** the role-list check exposed that fused arrivals emitted by a later binder step were misnamed far from the origin at tight ε. The fix makes the Circle run out structural: the fused verb claims `RunOut` at the emission site. `rides` is now asked only for the Ray case.
+
+**Filed:**
+- `work/edit/a-name-door-admits-a-piece-role-its-steps-verb-never-draws.md`
+- `work/paths/run-out-riding-misreads-...` (the Ray arm)

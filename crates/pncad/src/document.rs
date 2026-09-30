@@ -79,10 +79,18 @@
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
 // arm can name what it caught. `PiecesFault` is the same for
 // `NodeErrorKind::ProfilePieces` and `ProgramRefusal::Pieces`.
+// `AuthoredStep` is how an author who recorded a step reaches its id
+// and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
+// keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
+// what those doors refuse with, and the shape types are what an
+// `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
     Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
     StepIdFault, apply, apply_logged,
+};
+pub use editor_core::{
+    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -275,6 +283,12 @@ pub use editor_core::{
     Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
     save,
 };
+
+// A refusal's two renderings: under its stage word (`Display`), and as
+// the sentence a carrier that names the stage renders
+// ([`Staged::sentence`]); the recourse label, and what an API door
+// given no part resolver says to do.
+pub use editor_core::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 
 // Document identity and content pins.
 // `DocumentId` answers "which part" (authored at construction —

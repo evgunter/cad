@@ -226,10 +226,10 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind,
-    RecipeNodeId, SlotId,
+    ChecksReport, Evaluation, Maintenance, NodeStanding, ParamName, ParseError, ProductError,
+    ProductErrorKind, RecipeNodeId, SlotId,
 };
-use pncad::select::{HitTestError, NameLookupError, NodePickError};
+use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
 use crate::camera::CameraError;
@@ -2229,9 +2229,10 @@ enum BadgeSite {
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
 /// `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
-/// [`ProductError::UnknownNode`] are those same three states seen from
-/// the gather. That count is a MEASUREMENT of another module's enum,
+/// [`ProductErrorKind::RootFailed`], [`ProductErrorKind::RootPoisoned`]
+/// and [`ProductErrorKind::UnknownNode`] — the classes of
+/// [`ProductError::Root`], by the root's standing — are those same three
+/// states seen from the gather. That count is a MEASUREMENT of another module's enum,
 /// so it does not stand on this `match` being exhaustive:
 /// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
 /// is its guard, and a fourth non-`Ok` state reds there. The tree
@@ -2432,54 +2433,23 @@ pub fn index_badge(
     })
 }
 
-/// A pick-index refusal, every standing it carries re-read by
-/// [`crate::tree::standing_as_drawn`]; every other refusal is the
-/// index's, unchanged.
+/// A pick-index refusal, its standing ([`PickIndexError::standing`])
+/// re-read by [`crate::tree::standing_as_drawn`]; every other refusal
+/// is the index's, unchanged.
 fn index_refusal_as_drawn(error: &PickIndexError, evaluation: &Evaluation<f64>) -> PickIndexError {
-    let drawn = |standing| crate::tree::standing_as_drawn(standing, evaluation);
-    match error {
-        PickIndexError::Node { node, error } => PickIndexError::Node {
-            node: *node,
-            error: match error {
-                NodePickError::Standing(standing) => NodePickError::Standing(drawn(*standing)),
-                NodePickError::NotABody { .. }
-                | NodePickError::NoSuchBody { .. }
-                | NodePickError::Tessellate(_)
-                | NodePickError::Index(_) => error.clone(),
-            },
-        },
-        PickIndexError::Names(NameLookupError::Standing(standing)) => {
-            PickIndexError::Names(NameLookupError::Standing(drawn(*standing)))
-        }
-        PickIndexError::Names(NameLookupError::EvaluationOfAnotherDocument(_))
-        | PickIndexError::Ids(_)
-        | PickIndexError::DrawnTwice { .. } => error.clone(),
-    }
+    error
+        .restated(|standing| crate::tree::standing_as_drawn(standing, evaluation))
+        .map_or_else(|| error.clone(), |(_, drawn)| drawn)
 }
 
-/// **The root a pick-index refusal is a consequence of**, when the
-/// refusal is the one a root with no value produces — `None` for a
-/// refusal that is the index's own.
-///
-/// Only [`NodePickError::Standing`] is that: it is how the index says
-/// the root has no `Ok` value in the evaluation. Whether that is
-/// because the root failed, was poisoned, or never ran is the tree's
-/// to read, and [`index_badge`] asks it rather than reading the
-/// standing arm here. A tessellation or indexing refusal of a root
-/// that DID evaluate is news no other surface carries.
+/// **The node a pick-index refusal is a consequence of**, when the
+/// refusal is one a node with no value produces
+/// ([`PickIndexError::standing`]) — `None` for a refusal that is the
+/// index's own. Whether the node failed, was poisoned, or never ran
+/// is the tree's to read, and [`index_badge`] asks it rather than
+/// reading the standing here.
 fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
-    match error {
-        PickIndexError::Node { node, error } => match error {
-            NodePickError::Standing(_) => Some(*node),
-            NodePickError::NotABody { .. }
-            | NodePickError::NoSuchBody { .. }
-            | NodePickError::Tessellate(_)
-            | NodePickError::Index(_) => None,
-        },
-        PickIndexError::Ids(_) | PickIndexError::DrawnTwice { .. } | PickIndexError::Names(_) => {
-            None
-        }
-    }
+    error.standing().map(NodeStanding::node)
 }
 
 /// **What the chrome badges about a camera that cannot be
@@ -2783,7 +2753,7 @@ mod tests {
     use super::*;
 
     use bvh::Aabb;
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{NodeStanding, RecipeNodeId};
     use pncad::prelude::{EntityKind, StableName};
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
@@ -3083,15 +3053,21 @@ mod tests {
         // nothing, so it must not wear the spelling rustdoc gates.)
         for (quiet, site) in [
             (ProductError::NoBodyRoots, BadgeSite::NotAFault),
-            (ProductError::RootFailed { node }, BadgeSite::FeatureTree),
             (
-                ProductError::RootPoisoned {
-                    node,
-                    through: RecipeNodeId(1),
-                },
+                ProductError::Root(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,
             ),
-            (ProductError::UnknownNode { node }, BadgeSite::FeatureTree),
+            (
+                ProductError::Root(NodeStanding::Poisoned {
+                    node,
+                    through: RecipeNodeId(1),
+                }),
+                BadgeSite::FeatureTree,
+            ),
+            (
+                ProductError::Root(NodeStanding::NotEvaluated { node }),
+                BadgeSite::FeatureTree,
+            ),
         ] {
             assert_eq!(
                 badge_site(quiet.kind()),

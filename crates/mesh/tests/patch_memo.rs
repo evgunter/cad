@@ -275,12 +275,10 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
         let mut after = body.clone();
         let faces: Vec<FaceKey> = after.faces().map(|(k, _)| k).collect();
         for fk in faces {
-            let surface = after
-                .get_surface(after.get_face(fk).unwrap().surface)
-                .unwrap()
-                .clone();
+            let face = after.get_face(fk).unwrap();
+            let (surface, sense) = (after.get_surface(face.surface).unwrap().clone(), face.sense);
             after
-                .set_face_surface(fk, FaceSurface::New(surface))
+                .set_face_surface(fk, FaceSurface::New { surface, sense })
                 .expect("the same surface under a new key attaches");
         }
         // The setter drops a face's pcurve rows when it cannot see the
@@ -343,14 +341,12 @@ fn a_rekey_keeps_a_spline_faces_rows_and_drops_an_analytic_faces() {
                 // one) has nothing to carry either way.
                 continue;
             }
-            let surface = body
-                .get_surface(body.get_face(fk).unwrap().surface)
-                .unwrap()
-                .clone();
+            let face = body.get_face(fk).unwrap();
+            let (surface, sense) = (body.get_surface(face.surface).unwrap().clone(), face.sense);
             let spline = matches!(surface, Surface::Nurbs(_) | Surface::Approx(_));
             let mut after = body.clone();
             after
-                .set_face_surface(fk, FaceSurface::New(surface))
+                .set_face_surface(fk, FaceSurface::New { surface, sense })
                 .expect("the same surface under a new key attaches");
             if spline {
                 assert_eq!(
@@ -433,11 +429,14 @@ fn the_planar_lane_reads_neither_the_stored_plane_nor_the_sense() {
     rotated
         .set_face_surface(
             fk,
-            FaceSurface::New(Surface::Plane {
-                origin,
-                normal,
-                u_ref: normal.cross(u_ref),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin,
+                    normal,
+                    u_ref: normal.cross(u_ref),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     assert!(
@@ -479,12 +478,15 @@ fn the_curved_lane_misses_when_its_chart_or_sense_changes_and_nothing_else_does(
     rotated
         .set_face_surface(
             fk,
-            FaceSurface::New(Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref: axis.cross(u_ref),
-            }),
+            FaceSurface::New {
+                surface: Surface::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    u_ref: axis.cross(u_ref),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     assert_eq!(
@@ -604,11 +606,14 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
     rotated
         .set_face_surface(
             cap,
-            FaceSurface::New(Surface::Plane {
-                origin,
-                normal,
-                u_ref: normal.cross(u_ref),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin,
+                    normal,
+                    u_ref: normal.cross(u_ref),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     assert!(
@@ -660,7 +665,10 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     after
         .set_face_surface(
             fk,
-            FaceSurface::New(Surface::Nurbs(std::sync::Arc::new(moved))),
+            FaceSurface::New {
+                surface: Surface::Nurbs(std::sync::Arc::new(moved)),
+                sense: true,
+            },
         )
         .unwrap();
     for (hek, cache) in saved {

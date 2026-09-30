@@ -327,18 +327,24 @@ fn the_margin_is_legible_through_the_public_topo_door() {
     let image = Arc::new(lift2::<Interval>(&fit_image(radius, f0, f1)));
 
     let mut body = Body::<Interval>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph_key = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New(sphere::<Interval>(radius)),
+            topo::FaceSurface::New {
+                surface: sphere::<Interval>(radius),
+                sense: true,
+            },
         )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let pl_key = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New(tilted_plane::<Interval>()),
+            topo::FaceSurface::New {
+                surface: tilted_plane::<Interval>(),
+                sense: true,
+            },
         )
         .unwrap();
     let mid = <Interval as Real>::from_f64(0.5 * (f0 + f1));

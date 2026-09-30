@@ -57,6 +57,7 @@ from pncad import (
     SketchPlane,
     SplitHalf,
     Start,
+    Piece,
     SurfaceKind,
     TubeWindow,
     Sweep,
@@ -744,13 +745,15 @@ for _placed in _import.instances:
     _frame: Frame = _placed.placement  # ty: error
 
 
-# A role-name door mints a name from a NODE and a profile PIECE's
-# text. A name is not a node, a piece is not an index, the piece is
-# not optional, and the end vocabulary is closed: `MeridianEnd` names a
+# A role-name door mints a name from a NODE and a profile `Piece`. A
+# name is not a node, a piece is not an index nor its text, the piece
+# is not optional, and the end vocabulary is closed: `MeridianEnd` names a
 # revolve's ends and a `CapEnd` is an extrude's.
 _names_doc = Doc()
 _names_node: NodeId = _names_doc.sketch_frame()
-_piece: str = _names_doc.pieces(_names_node)[0][0]
+_piece: Piece = _names_doc.pieces(_names_node)[0][0]
+_text: str = str(_piece)
+_from_text: str = band(_names_node, _text)  # ty: error
 _minted: str = band(_names_node, _piece)
 _from_a_name: str = band(_minted, _piece)  # ty: error
 _from_an_index: str = band(_names_node, 0)  # ty: error

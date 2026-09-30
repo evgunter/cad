@@ -358,23 +358,20 @@ fn declare_error_display_names_its_content_not_its_struct() {
             DeclareError::NoFindings,
             vec!["no findings", "records no intent"],
         ),
-        // The wrapping arm forwards the document edit's own refusal,
-        // which already carries its slot and its recourse.
+        // The wrapping arm forwards the document edit's problem and
+        // states its own recourse: the caller passed findings, and the
+        // edit door's "name an entity" is about a node nobody wrote.
         (
-            DeclareError::Edit(EditError::SlotDimensionMismatch {
-                slot: SlotId::Radius,
-                expected: Dimension::Length,
-                found: Dimension::Angle,
-            }),
+            DeclareError::Edit(EditError::DeclareNamesMissingNode { name: face_name() }),
             vec![
                 "the document edit refused",
-                "needs a length expression",
-                "got an angle",
+                "refers to a node that is not live",
+                "Recourse: declare findings inspected from this document as it now stands",
             ],
         ),
         (
             DeclareError::NoMintedId,
-            vec!["minted no node id", "kernel bug"],
+            vec!["minted no node id", geom_core::KERNEL_DEFECT_ENDING],
         ),
     ];
     assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
@@ -1428,9 +1425,9 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     }
 }
 
-/// A predicate flip names the two signs as words: `Sign` has a
-/// `Display`, and a diagnosis's payload-holding arms forward the
-/// payload's own rendering.
+/// A predicate flip names the two signs as words and says what was
+/// decided in words: `Sign` has a `Display`, and the predicate's name
+/// is routing, kept to `Debug`.
 #[test]
 fn a_predicate_flip_names_its_signs_as_words() {
     let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
@@ -1442,12 +1439,34 @@ fn a_predicate_flip_names_its_signs_as_words() {
             to: geom_core::predicate::Sign::Negative,
             source: editor_core::FlipSource::VerdictLog,
         },
-        &["name_frag_side_of", "flipped from positive to negative"],
+        &[
+            "the margin deciding the side of a cut a face lies on flipped from positive to \
+             negative",
+        ],
         // Every `Sign`, not the two this row happens to construct: a
         // rendering that leaked `Zero` would be just as much a dump.
         // `PredicateFlip` is `Diagnosis`'s own identifier, and this row
         // renders that one arm.
-        &[sign_words.as_slice(), &["PredicateFlip"]].concat(),
+        &[
+            sign_words.as_slice(),
+            &["PredicateFlip", "name_frag_side_of"],
+        ]
+        .concat(),
+    );
+    // A predicate with no words says so in the kernel's one phrase for
+    // it, never by its name: the volume backstop, wordless on purpose
+    // (`edit_refusal_recourse::WORDLESS` says why).
+    let unnamed = Diagnosis::PredicateFlip {
+        predicate: "volume_backstop",
+        from: geom_core::predicate::Sign::Zero,
+        to: geom_core::predicate::Sign::Positive,
+        source: editor_core::FlipSource::VerdictLog,
+    }
+    .to_string();
+    assert!(
+        unnamed.starts_with(&format!("the margin of {}", geom_core::UNNAMED_DECISION))
+            && !unnamed.contains("volume_backstop"),
+        "{unnamed}"
     );
 }
 
@@ -1469,15 +1488,20 @@ fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
             },
         },
         &[
-            "name_frag_side_of",
-            "flipped from positive to negative",
+            "the margin deciding the side of a cut a face lies on flipped from positive to \
+             negative",
             &face_name().to_string(),
             "recovered by re-running the pair at diagnosis time",
             "one of the two runs recorded no side verdict at the name's minting node",
         ],
         &[
             sign_words.as_slice(),
-            &["PredicateFlip", "ShadowExec", "FlipSource"],
+            &[
+                "PredicateFlip",
+                "ShadowExec",
+                "FlipSource",
+                "name_frag_side_of",
+            ],
         ]
         .concat(),
     );
@@ -1664,8 +1688,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 to: Sign::Positive,
                 source: editor_core::FlipSource::VerdictLog,
             },
-            "predicate bool_point_in_solid_plane flipped from negative to positive on the \
-             name's derivation path"
+            "the margin deciding which side of a face's plane a point lies on flipped from \
+             negative to positive on the name's derivation path"
                 .to_owned(),
         ),
         (
@@ -1700,8 +1724,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 to: Sign::Positive,
             }),
             format!(
-                "predicate bool_point_in_solid_plane flipped from negative to positive at node \
-                 10{tail}"
+                "the margin deciding which side of a face's plane a point lies on flipped from \
+                 negative to positive at node 10{tail}"
             ),
         ),
         (
@@ -2259,7 +2283,7 @@ fn a_lever_refusal_names_the_instance_and_why() {
     };
     let mut body = topo::Body::<f64>::new();
     let face = body
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap()
         .face;
     assert_f6(
@@ -2409,7 +2433,7 @@ test_utils::f6_variants! {
 fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
     let mut body = topo::Body::<f64>::new();
     let born = body
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs births a solid, shell, face and lone vertex");
     let edge = body
         .mev_line(
@@ -2666,7 +2690,8 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         &also_banned,
     );
     // One clause, two subjects: whatever the sentence says, the two
-    // doors say it in the same words about the same address.
+    // doors say it in the same words about the same address. The edit
+    // door adds its recourse after it.
     for slot in [profile_slot, scalar_slot, component_slot] {
         let at_load = SnapshotError::SlotDimension {
             node,
@@ -2679,7 +2704,17 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
             expected: Dimension::Length,
             found: Dimension::Angle,
         };
-        assert_eq!(at_load.to_string(), format!("node 7: {at_edit}"));
+        let at_load = at_load.to_string();
+        let clause = at_load
+            .strip_prefix("node 7: ")
+            .unwrap_or_else(|| panic!("the load door names the node first: {at_load}"));
+        assert_eq!(at_edit.problem().to_string(), clause);
+        assert_eq!(
+            at_edit.to_string(),
+            format!(
+                "{clause}. Recourse: write it from length literals and parameters declared length"
+            )
+        );
     }
 }
 
@@ -2968,7 +3003,7 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &[
-            "node 4's program step ids",
+            "node 4's program cannot take the step ids given",
             "step id 2 stands for two steps",
         ],
         &["StepIdsRefused", "Repeated"],

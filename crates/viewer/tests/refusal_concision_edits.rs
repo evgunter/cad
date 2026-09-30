@@ -9,7 +9,8 @@
 //! of the number; this is the same number for the edit chain).
 //!
 //! The forwarding arms are rendered over what they forward: every
-//! `MateFault` arm inside `MaintenanceRefused` and `MateRefused`, and
+//! `MateFault` arm inside `MaintenanceRefused` and `MateRefused`, every
+//! `StepIdFault` arm an edit door raises inside `StepIdsRefused`, and
 //! the longest path refusals inside `ProfileProgramRefused` (the
 //! feature tree's rows in `editor-core/tests/refusal_concision_chains.rs`
 //! render every `PathError` arm).
@@ -21,6 +22,7 @@ use editor_core::{
     AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
     DocumentId, EditError, EntityKind, EvalError, ExprPath, MateFault, MeasureNodeFault,
     MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, StableName,
+    StepIdFault,
 };
 use test_utils::refusal::Admission;
 use viewer::session::Refusal;
@@ -135,6 +137,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "SetMembersOnNonList",
             EditError::SetMembersOnNonList { node: n(5) },
+        ),
+        (
+            "SetProgramOnNonProfile",
+            EditError::SetProgramOnNonProfile { node: n(5) },
         ),
         (
             "TooFewMembers",
@@ -312,6 +318,23 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "DeclareNamesMissingNode",
             EditError::DeclareNamesMissingNode { name: name() },
+        ),
+        (
+            "NameStepNeverMinted",
+            EditError::NameStepNeverMinted {
+                name: StableName {
+                    kind: EntityKind::Edge,
+                    node: n(3),
+                    path: vec![editor_core::RoleSeg::RimEdge(
+                        editor_core::CapEnd::End,
+                        editor_core::ProfileEdgeRef::Piece {
+                            step: editor_core::StepId(9),
+                            role: editor_core::PieceRole::Leg,
+                        },
+                    )],
+                },
+                step: editor_core::StepId(9),
+            },
         ),
         (
             "ReadSiteMissingNode",
@@ -492,6 +515,72 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
     ]
+}
+
+/// One witness per arm of a forwarded fault, chained from `first`.
+/// Each `next` matches every arm with no wildcard, so an arm added to
+/// the fault does not compile until it is given a place in the chain —
+/// or a stated reason for having none.
+fn witnesses<T>(first: T, next: fn(&T) -> Option<T>) -> Vec<T> {
+    let mut chain = vec![first];
+    while let Some(following) = chain.last().and_then(next) {
+        chain.push(following);
+    }
+    chain
+}
+
+/// A witness's arm, by its `Debug` identifier: the row's name.
+fn variant(witness: &impl core::fmt::Debug) -> String {
+    format!("{witness:?}")
+        .split(|c: char| !c.is_alphanumeric())
+        .next()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+fn next_root_fault(fault: &RootFault) -> Option<RootFault> {
+    match fault {
+        RootFault::NotLive { .. } => Some(RootFault::Duplicate { root: n(3) }),
+        RootFault::Duplicate { .. } => Some(RootFault::Ancestor {
+            ancestor: n(3),
+            descendant: n(5),
+        }),
+        RootFault::Ancestor { .. } => Some(RootFault::Uncovered { node: n(4) }),
+        RootFault::Uncovered { .. } => None,
+    }
+}
+
+fn next_distribution_fault(fault: &DistributionFault) -> Option<DistributionFault> {
+    match fault {
+        DistributionFault::SigmaNotPositive { .. } => {
+            Some(DistributionFault::NominalOutsideSupport { lo: 1.0, hi: 0.5 })
+        }
+        DistributionFault::NominalOutsideSupport { .. } => None,
+        // No row: no edit door raises it, because `distribution_fault_error`
+        // routes a non-finite offset to `NonFiniteDocParam`, which has
+        // its own.
+        DistributionFault::NonFinite { .. } => None,
+    }
+}
+
+fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
+    use editor_core::StepId;
+    match fault {
+        StepIdFault::Preminted => Some(StepIdFault::LoopCount { loops: 2, given: 1 }),
+        StepIdFault::LoopCount { .. } => Some(StepIdFault::Shape {
+            loop_: 0,
+            authored: 4,
+            given: 3,
+        }),
+        StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles { step: StepId(7) }),
+        StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated { step: StepId(7) }),
+        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides { step: StepId(7) }),
+        StepIdFault::Collides { .. } => None,
+        // No row: no edit door raises it. It is the load door's word,
+        // and an edit that writes a name spelling a step the document
+        // never minted refuses `NameStepNeverMinted`, which has its own.
+        StepIdFault::NotMinted { .. } => None,
+    }
 }
 
 /// The path refusals a program edit forwards whole, at their longest:
@@ -695,6 +784,32 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
             },
         ));
     }
+    // Each states its own recourse, so each is rendered, not only the
+    // representative row's — every arm, from the witness chains below.
+    for fault in witnesses(RootFault::NotLive { root: n(9) }, next_root_fault) {
+        rows.push((
+            format!("Roots({})", variant(&fault)),
+            EditError::Roots(fault),
+        ));
+    }
+    for fault in witnesses(StepIdFault::Preminted, next_step_id_fault) {
+        rows.push((
+            format!("StepIdsRefused({})", variant(&fault)),
+            EditError::StepIdsRefused { node: n(4), fault },
+        ));
+    }
+    for fault in witnesses(
+        DistributionFault::SigmaNotPositive { sigma: 0.0 },
+        next_distribution_fault,
+    ) {
+        rows.push((
+            format!("InvalidDistribution({})", variant(&fault)),
+            EditError::InvalidDistribution {
+                name: param(),
+                fault,
+            },
+        ));
+    }
     for (arm, fault) in mate_faults() {
         rows.push((
             format!("MaintenanceRefused({arm})"),
@@ -734,70 +849,16 @@ const LABELS: &[(&str, &str)] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/edit/edit-refusals-short-of-the-shape-guard.md
-    "Edit/AppearanceNamesMissingNode",
-    "Edit/AppearanceNotSet",
-    "Edit/AppearanceWrongKind",
-    "Edit/AssertionDimension",
-    "Edit/AssertionTarget",
-    "Edit/ContinuousParamCannotBeCount",
-    "Edit/DeclareInputNotDeclare",
-    "Edit/DeclareNamesMissingNode",
-    "Edit/DeleteWouldDangle",
-    "Edit/Dimension",
-    "Edit/DocParamCountHasNoDistribution",
-    "Edit/DocParamCountHasNoUnit",
-    "Edit/DocParamNotDeclared",
-    "Edit/DocParamUnitMismatch",
-    "Edit/DocParamValueKindMismatch",
-    "Edit/DuplicateInput",
-    "Edit/DuplicateWitnessEntry",
+    // work/edit/edit-refusals-short-of-the-shape-guard.md, held for
+    // work/edit/placement-is-spelled-three-ways-node-registry-and-rule.md:
+    // the placement unit reshapes or deletes these arms.
     "Edit/EmptyPlacementList",
-    "Edit/EmptyWitnessBulk",
-    "Edit/EvaluationOfAnotherDocument",
     "Edit/ImproperPlacement",
-    "Edit/InvalidDistribution",
-    "Edit/InvalidTolerance",
     "Edit/MaintenanceUnrecorded",
-    "Edit/MeasureMalformed",
-    "Edit/MetaNonFinite",
-    "Edit/MetaNotSet",
-    "Edit/MetaUnversioned",
-    "Edit/NameUnresolvedInEvaluation",
-    "Edit/NonFiniteAlignment",
-    "Edit/NonFiniteDocParam",
     "Edit/NonFinitePlacement",
-    "Edit/NotStructuralSlot",
-    "Edit/PathOffTree",
-    "Edit/PayloadDocParamDimension",
-    "Edit/PayloadUnknownDocParam",
-    "Edit/PinUnchanged",
     "Edit/PlacementAxis",
     "Edit/PlacementOnNonInstance",
     "Edit/PlacementRuleMismatch",
-    "Edit/ReadSiteMissingNode",
-    "Edit/RebindAppearanceCollision",
-    "Edit/RebindIdentity",
-    "Edit/RebindKindMismatch",
-    "Edit/RebindMetadataCollision",
-    "Edit/RebindNoReferences",
-    "Edit/RebindTargetMissingNode",
-    "Edit/RebindUnknownName",
-    "Edit/RepeatedDesignation",
-    "Edit/Roots",
-    "Edit/SelectionNotCanonical",
-    "Edit/SetMembersOnNonList",
-    "Edit/SlotDimensionMismatch",
-    "Edit/SlotDocParamDimension",
-    "Edit/SlotUnknownDocParam",
-    "Edit/StructuralSlotNeedsStructuralEdit",
-    "Edit/TooFewMembers",
-    "Edit/UnknownNode",
-    "Edit/UnknownSlot",
-    "Edit/UnresolvedInput",
-    "Edit/UpdateOnNonInstance",
-    "Edit/WitnessOnNonSketch",
-    "Edit/WouldCycle",
     // work/msolve/msolve-refusals-short-of-the-shape-guard.md
     "Edit/MaintenanceRefused",
     "Edit/MaintenanceRefused(ClassNotAdmitted)",

@@ -352,7 +352,7 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
     );
     for &f in &bands {
         let sense = body.get_face(f).unwrap().sense;
-        body.set_face_surface_and_sense(f, topo::FaceSurface::Shared(key), sense)
+        body.set_face_surface(f, topo::FaceSurface::Shared { key, sense })
             .expect("the attach door shares a live key");
     }
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();

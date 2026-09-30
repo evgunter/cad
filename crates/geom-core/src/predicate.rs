@@ -1077,6 +1077,12 @@ pub enum SizedPass {
     /// A definitely positive or definitely negative margin: the decision
     /// passes on either side and refuses only at zero.
     NonZero,
+    /// A definitely negative margin.
+    Negative,
+    /// Any definite margin, zero included: the decision refuses only a
+    /// margin it cannot call, and a smaller tolerance calls any nonzero
+    /// one.
+    AnySign,
 }
 
 impl SizedPass {
@@ -1084,8 +1090,8 @@ impl SizedPass {
     #[must_use]
     pub fn passes_zero(self) -> bool {
         match self {
-            Self::Positive | Self::NonZero => false,
-            Self::NonNegative => true,
+            Self::Positive | Self::NonZero | Self::Negative => false,
+            Self::NonNegative | Self::AnySign => true,
         }
     }
 
@@ -1095,7 +1101,8 @@ impl SizedPass {
     fn tightens(self, v: f64) -> bool {
         match self {
             Self::Positive | Self::NonNegative => v > 0.0,
-            Self::NonZero => v != 0.0,
+            Self::NonZero | Self::AnySign => v != 0.0,
+            Self::Negative => v < 0.0,
         }
     }
 
@@ -1728,27 +1735,39 @@ mod tests {
     }
 
     /// Which margins a smaller tolerance decides passing, per pass set:
-    /// a one-sided set tightens positive margins only, the two-sided set
-    /// any nonzero one, and none tightens zero.
+    /// a one-sided set tightens the margins on its side only, the
+    /// two-sided set any nonzero one, and none tightens zero.
     #[test]
     fn each_pass_set_tightens_the_margins_it_accepts() {
-        use SizedPass::{NonNegative, NonZero, Positive};
+        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive};
         let rows = [
+            (AnySign, 5e-9, true),
+            (AnySign, -5e-9, true),
+            (AnySign, 0.0, false),
             (Positive, 5e-9, true),
             (Positive, -5e-9, false),
             (NonNegative, 5e-9, true),
             (NonNegative, -5e-9, false),
             (NonZero, 5e-9, true),
             (NonZero, -5e-9, true),
+            (Negative, -5e-9, true),
+            (Negative, 5e-9, false),
             (Positive, 0.0, false),
             (NonNegative, -0.0, false),
             (NonZero, 0.0, false),
             (NonZero, -0.0, false),
+            (Negative, -0.0, false),
         ];
         for (pass, v, want) in rows {
             assert_eq!(pass.tightens(v), want, "{pass:?} at {v:e}");
         }
-        assert!(!Positive.passes_zero() && !NonZero.passes_zero() && NonNegative.passes_zero());
+        assert!(
+            !Positive.passes_zero()
+                && !NonZero.passes_zero()
+                && !Negative.passes_zero()
+                && NonNegative.passes_zero()
+                && AnySign.passes_zero()
+        );
     }
 
     /// An enclosure is decided below its nearer end's `|m|/K` only when
@@ -1756,7 +1775,7 @@ mod tests {
     /// passing by no tolerance.
     #[test]
     fn an_enclosure_tightens_only_with_both_ends_on_one_side() {
-        use SizedPass::{NonZero, Positive};
+        use SizedPass::{Negative, NonZero, Positive};
         let k = 10.0;
         let rows = [
             (NonZero, 2e-9, 5e-9, Some(2e-10)),
@@ -1766,6 +1785,9 @@ mod tests {
             (Positive, 2e-9, 5e-9, Some(2e-10)),
             (Positive, -5e-9, -2e-9, None),
             (Positive, -2e-9, 3e-9, None),
+            (Negative, -5e-9, -2e-9, Some(2e-10)),
+            (Negative, 2e-9, 5e-9, None),
+            (Negative, -2e-9, 0.0, None),
         ];
         for (pass, lo, hi, want) in rows {
             assert_eq!(

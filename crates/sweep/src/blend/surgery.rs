@@ -747,28 +747,34 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     };
     for (o, fk) in &blend_rows {
         let fk = *fk;
-        body.set_face_surface_and_sense(
+        body.set_face_surface(
             fk,
-            FaceSurface::New(o.link().blend.surface.clone()),
-            band_sense(o.convexity()),
+            FaceSurface::New {
+                surface: o.link().blend.surface.clone(),
+                sense: band_sense(o.convexity()),
+            },
         )
         .map_err(|e| op("blend face surface", e))?;
     }
     for (i, c) in corners.iter().enumerate() {
         let fk = corner_faces[i];
-        body.set_face_surface_and_sense(
+        body.set_face_surface(
             fk,
-            FaceSurface::New(c.surface.clone()),
-            band_sense(c.convexity),
+            FaceSurface::New {
+                surface: c.surface.clone(),
+                sense: band_sense(c.convexity),
+            },
         )
         .map_err(|e| op("corner patch surface", e))?;
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
-        body.set_face_surface_and_sense(
+        body.set_face_surface(
             fk,
-            FaceSurface::New(band_surfaces[i].clone()),
-            rim.chain.first().convexity.blend_sense(),
+            FaceSurface::New {
+                surface: band_surfaces[i].clone(),
+                sense: rim.chain.first().convexity.blend_sense(),
+            },
         )
         .map_err(|e| op("band face surface", e))?;
     }
