@@ -580,7 +580,8 @@ const READERS: [(&str, usize, &str); 11] = [
     (
         "crates/viewer/src/tree.rs",
         8,
-        "the tree row renders a failed node's own error, and a poisoned row its source's",
+        "the tree row renders a failed node's own error and links the node its error names \
+         for repair, and a poisoned row renders its source's",
     ),
     (
         "demos/tour/src/chaintol.rs",
