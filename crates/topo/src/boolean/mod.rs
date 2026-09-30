@@ -2220,34 +2220,36 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
 
 /// **The boolean pipeline through its join**, undeclared and realized:
 /// the two operand clones as the join leaves them, every null edge
-/// killed, before the finish, the zip and the closing mint. Test
+/// killed, before the finish, the zip and the closing mint — the
+/// production sequence itself (`ops::through_the_join`), stopped there.
+/// `None` where the pipeline answers without a join to stop at. Test
 /// vocabulary (`topo::test_support`), for the rows that read the rows
 /// a face carries at that point.
 ///
 /// # Errors
 ///
-/// The reduction's or the join's refusal.
+/// The pipeline's refusal on the way to its join.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn through_the_join(
     op: BooleanOp,
     a: &Body<f64>,
     b: &Body<f64>,
     tol: Tol,
-) -> Result<(Body<f64>, Body<f64>), BooleanError> {
-    let band = Band::linear(tol)?;
-    let mut red = boolean_reduce_declared_strategy(
-        op,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol,
-    )?;
-    red.enter_join_surgery();
-    let connected = join::bool_connect(&mut red, a, b, band, tol);
-    red.leave_join_surgery(connected.is_ok());
-    connected?;
-    Ok((red.a, red.b))
+) -> Result<Option<(Body<f64>, Body<f64>)>, BooleanError> {
+    Ok(
+        match ops::through_the_join(
+            op,
+            a,
+            b,
+            &BooleanDeclarations::none(),
+            SweepStrategy::Realized,
+            true,
+            tol,
+        )? {
+            ops::Joined::Answered(_) => None,
+            ops::Joined::Connected { red, .. } => Some((red.a, red.b)),
+        },
+    )
 }
 
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —

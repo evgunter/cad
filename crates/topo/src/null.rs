@@ -795,11 +795,7 @@ mod tests {
 
     /// The vertex `split_edge` puts on the wall's rim at height `z`,
     /// where the ruling `u` meets it. The split carries the rows.
-    fn rim_vertex_on_the_ruling(
-        body: &mut Body<f64>,
-        u: f64,
-        z: f64,
-    ) -> crate::entity::VertexKey {
+    fn rim_vertex_on_the_ruling(body: &mut Body<f64>, u: f64, z: f64) -> crate::entity::VertexKey {
         use crate::test_support_fixtures::CylFrame;
         let want: geom_core::Point3<f64> = CylFrame::canonical(1.0).at(u, z);
         let (rim, t) = body
@@ -1051,8 +1047,16 @@ mod tests {
                 },
                 "torn on the {side} side"
             );
-            assert_eq!(deep_snapshot(&body), before, "{side}: the body is untouched");
-            assert_eq!(rows(&body), rows_before, "{side}: every row is where it was");
+            assert_eq!(
+                deep_snapshot(&body),
+                before,
+                "{side}: the body is untouched"
+            );
+            assert_eq!(
+                rows(&body),
+                rows_before,
+                "{side}: every row is where it was"
+            );
         }
     }
 

@@ -294,17 +294,18 @@ pub mod test_support {
 
     /// The boolean pipeline through its join: both operand clones with
     /// every null edge killed, before the finish and the closing mint
-    /// (`boolean::through_the_join`).
+    /// (`boolean::through_the_join`). `None` where the pipeline answers
+    /// without a join to stop at.
     ///
     /// # Errors
     ///
-    /// The reduction's or the join's refusal.
+    /// The pipeline's refusal on the way to its join.
     pub fn boolean_through_the_join(
         op: crate::BooleanOp,
         a: &Body<f64>,
         b: &Body<f64>,
         tol: geom_core::Tol,
-    ) -> Result<(Body<f64>, Body<f64>), crate::BooleanError> {
+    ) -> Result<Option<(Body<f64>, Body<f64>)>, crate::BooleanError> {
         crate::boolean::through_the_join(op, a, b, tol)
     }
 

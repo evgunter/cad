@@ -144,7 +144,9 @@ fn an_oblique_split_leaves_the_cut_wall_minted_whole_at_the_join() {
 /// **The boolean.** A plate with the three-arc boss unioned on — its
 /// walls minted cylinder charts — unioned again with a slab across the
 /// boss above the plate: the slab's faces cut every boss wall along a
-/// circle arc, and the walls' pieces leave the join minted whole.
+/// circle arc, and the walls' pieces leave the join minted whole. The
+/// slab is a planar brick, whose chart mints nothing, so it stores no
+/// row for the join to leave half-minted and is not read.
 #[test]
 fn a_slab_across_a_minted_boss_leaves_its_walls_minted_whole_at_the_join() {
     let plate = brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), tol());
@@ -155,9 +157,9 @@ fn a_slab_across_a_minted_boss_leaves_its_walls_minted_whole_at_the_join() {
         .body
         .clone();
     let slab = brick((0.0, 3.0), (0.0, 3.0), (1.0, 1.15), tol());
-    let (a, b) =
-        boolean_through_the_join(BooleanOp::Union, &first, &slab, tol()).expect("the slab joins");
+    let (a, _) = boolean_through_the_join(BooleanOp::Union, &first, &slab, tol())
+        .expect("the pipeline reaches its join")
+        .expect("the slab joins");
     let minted = every_minted_face_is_the_passs(&a, "the bossed plate");
     assert!(minted >= 6, "every cut boss wall is minted: {minted}");
-    every_minted_face_is_the_passs(&b, "the slab");
 }

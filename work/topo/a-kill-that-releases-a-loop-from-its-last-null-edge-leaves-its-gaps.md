@@ -13,8 +13,9 @@ Found by `a-null-edge-that-is-killed-leaves-its-face-half-minted`
 
 That unit made the site mint (`crates/topo/src/pcurves.rs`,
 `StoredRows::remints`, `site_rows`) take a minted face whose only gaps
-are on loops a null edge holds open, and mint whole every loop its
-door leaves running through no null edge. The doors that release a
+are on loops a null edge holds open, or that its door takes the last
+null edge off, and mint whole every loop its door rewires and leaves
+running through no null edge. The doors that release a
 loop that way are the Euler operators that rewire it (`mev`, `mef`,
 `mekr`) and a null edge's first description (`Body::set_edge_curve`).
 The kills do not: `Body::kemr` (`crates/topo/src/euler_ring.rs`),

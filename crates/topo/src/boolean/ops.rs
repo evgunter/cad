@@ -471,107 +471,15 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, tol)?;
-
-    if red.null_pairs.is_empty() {
-        if !red.null_edges.is_empty() {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "null edges without pairs reached the op",
-            });
-        }
-        // M5 S13, the containment-fallback re-cut. Before any vertex
-        // is probed, the curved-EXTENT scan certifies the sphere class
-        // structurally: every closed sphere group's true extent
-        // (center ± r) is consulted against every face of the other
-        // operand — exact structure and certified enclosures, never a
-        // sampled normal. Three outcomes:
-        //
-        // - **no escape**: the boundaries are certified disjoint
-        //   (sphere-involved pairs), so the vertex-probe fallback's
-        //   whole-shell answer is sound — proceed.
-        // - **escape** (a sphere definitely leaves the other solid
-        //   through a plane face — the S12 finding's
-        //   poking-but-not-crossing shape): the operand is RE-CUT —
-        //   the closed group is rigidly re-charted about the escape
-        //   normal (a rotation about its own center: the same point
-        //   set, seams now transverse to the escape planes) and the
-        //   pipeline re-enters once; the ordinary crossing layer then
-        //   finds the section circles and the (Plane, Sphere) germ arm
-        //   joins them exactly.
-        // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
-        //   cylinder-near-sphere, sphere×sphere overlap, tangency,
-        //   boundary-grazing circles, one group escaping through
-        //   NON-PARALLEL faces): typed refusal — the S12 silence
-        //   never re-opens.
-        let recuts = sphere_extent_scan(a, b, band)?;
-        if !recuts.is_empty() {
-            if !recut {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "re-cut sphere operands still produced no crossings",
-                });
-            }
-            let (a2, b2) = apply_recuts(a, b, &recuts, tol)?;
-            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol);
-        }
-        // The curved kinds the extent scan leaves: every torus,
-        // cylinder and cone face's pairs, certified per pair by the
-        // section certificate or refused typed.
-        section_extent_pass(a, b, band)?;
-        return fallback(op, &red, a, b, decls, band, tol);
-    }
-
-    // The declared-REST union door (M5 S1): a declared union whose
-    // join refuses typed may be the boundary-on-boundary REST
-    // frontier — the lane re-examines the UNMUTATED reduction and
-    // either zips the mate or reproduces the original refusal
-    // verbatim. The clones are taken only when the door can open
-    // (declared union), so undeclared and non-union ops pay nothing.
-    // Decided on the reduction, while its contacts still name the
-    // operands' own faces; RAISED only where a body is about to be
-    // returned, so every refusal the pipeline meets first stands
-    // verbatim ([`interior_loop_verdict`]).
-    let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
-    let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
-    let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
-    // The join carves both reduction operands through the Euler
-    // operators; one scope per operand body, and what certifies the
-    // result is `gate` below, over the body they are finished into.
-    // The pair is guardless because the join takes the whole
-    // reduction — `BooleanReduction::enter_join_surgery` carries the
-    // argument — and `red` is a local of this pipeline, so a refusal
-    // on the way drops it.
-    red.enter_join_surgery();
-    let connected = bool_connect(&mut red, a, b, band, tol);
-    red.leave_join_surgery(connected.is_ok());
-    let connected = match connected {
-        Ok(c) => c,
-        Err(
-            err @ (BooleanError::Join(_)
-            | BooleanError::JoinDesync { .. }
-            | BooleanError::CurvedBooleanUnsupported { .. }),
-        ) => match saved {
-            Some((sa, sb)) => {
-                red.a = sa;
-                red.b = sb;
-                return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
-                    Some(result) => {
-                        interior_loops?;
-                        Ok(result)
-                    }
-                    // Not the REST frontier: the original join
-                    // refusal stands, verbatim.
-                    None => Err(err),
-                };
-            }
-            None => return Err(err),
-        },
-        Err(e) => return Err(e),
-    };
-    if connected.completed.is_empty() {
-        return Err(BooleanError::JoinDesync {
-            what: "null pairs joined into no completed polygon",
-        });
-    }
+    let (red, connected, interior_loops) =
+        match through_the_join(op, a, b, decls, strategy, recut, tol)? {
+            Joined::Answered(result) => return Ok(result),
+            Joined::Connected {
+                red,
+                connected,
+                interior_loops,
+            } => (red, connected, interior_loops),
+        };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
@@ -647,6 +555,155 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         contacts,
         naming,
     }))
+}
+
+/// What the pipeline reaches through its join ([`through_the_join`]).
+pub(super) enum Joined<T: Real> {
+    /// The pipeline's answer, reached without a join to finish: the
+    /// no-crossings path (the re-cut or the containment fallback), or
+    /// the declared-REST door taking a refused join.
+    Answered(BooleanResult<T>),
+    /// The join, done: the reduction with both operands as it leaves
+    /// them, every null edge killed, what it completed (never empty),
+    /// and the interior-loop verdict, which the pipeline raises only
+    /// where a body is about to be returned.
+    Connected {
+        /// The reduction, its operands joined.
+        red: BooleanReduction<T>,
+        /// The completed polygons and the fragments the join made.
+        connected: super::join::Connected,
+        /// [`interior_loop_verdict`]'s answer, not yet raised.
+        interior_loops: Result<(), BooleanError>,
+    },
+}
+
+/// **The pipeline through its join**: the reduction, then the
+/// no-crossings path where there is no null pair, and otherwise the
+/// join, with the declared-REST door behind a join that refuses.
+/// [`boolean_op_recut`] finishes what it returns, and the test hook
+/// that stops at the join (`boolean::through_the_join`) reads it, so
+/// the two run one sequence.
+///
+/// # Errors
+///
+/// The reduction's, the no-crossings path's and the join's refusals.
+pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+    strategy: SweepStrategy,
+    recut: bool,
+    tol: Tol,
+) -> Result<Joined<T>, BooleanError> {
+    let band = Band::linear(tol)?;
+    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, tol)?;
+
+    if red.null_pairs.is_empty() {
+        if !red.null_edges.is_empty() {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "null edges without pairs reached the op",
+            });
+        }
+        // M5 S13, the containment-fallback re-cut. Before any vertex
+        // is probed, the curved-EXTENT scan certifies the sphere class
+        // structurally: every closed sphere group's true extent
+        // (center ± r) is consulted against every face of the other
+        // operand — exact structure and certified enclosures, never a
+        // sampled normal. Three outcomes:
+        //
+        // - **no escape**: the boundaries are certified disjoint
+        //   (sphere-involved pairs), so the vertex-probe fallback's
+        //   whole-shell answer is sound — proceed.
+        // - **escape** (a sphere definitely leaves the other solid
+        //   through a plane face — the S12 finding's
+        //   poking-but-not-crossing shape): the operand is RE-CUT —
+        //   the closed group is rigidly re-charted about the escape
+        //   normal (a rotation about its own center: the same point
+        //   set, seams now transverse to the escape planes) and the
+        //   pipeline re-enters once; the ordinary crossing layer then
+        //   finds the section circles and the (Plane, Sphere) germ arm
+        //   joins them exactly.
+        // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
+        //   cylinder-near-sphere, sphere×sphere overlap, tangency,
+        //   boundary-grazing circles, one group escaping through
+        //   NON-PARALLEL faces): typed refusal — the S12 silence
+        //   never re-opens.
+        let recuts = sphere_extent_scan(a, b, band)?;
+        if !recuts.is_empty() {
+            if !recut {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "re-cut sphere operands still produced no crossings",
+                });
+            }
+            let (a2, b2) = apply_recuts(a, b, &recuts, tol)?;
+            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
+                .map(Joined::Answered);
+        }
+        // The curved kinds the extent scan leaves: every torus,
+        // cylinder and cone face's pairs, certified per pair by the
+        // section certificate or refused typed.
+        section_extent_pass(a, b, band)?;
+        return fallback(op, &red, a, b, decls, band, tol).map(Joined::Answered);
+    }
+
+    // The declared-REST union door (M5 S1): a declared union whose
+    // join refuses typed may be the boundary-on-boundary REST
+    // frontier — the lane re-examines the UNMUTATED reduction and
+    // either zips the mate or reproduces the original refusal
+    // verbatim. The clones are taken only when the door can open
+    // (declared union), so undeclared and non-union ops pay nothing.
+    // Decided on the reduction, while its contacts still name the
+    // operands' own faces; RAISED only where a body is about to be
+    // returned, so every refusal the pipeline meets first stands
+    // verbatim ([`interior_loop_verdict`]).
+    let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
+    let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
+    let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
+    // The join carves both reduction operands through the Euler
+    // operators; one scope per operand body, and what certifies the
+    // result is `gate` below, over the body they are finished into.
+    // The pair is guardless because the join takes the whole
+    // reduction — `BooleanReduction::enter_join_surgery` carries the
+    // argument — and `red` is a local of this pipeline, so a refusal
+    // on the way drops it.
+    red.enter_join_surgery();
+    let connected = bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    let connected = match connected {
+        Ok(c) => c,
+        Err(
+            err @ (BooleanError::Join(_)
+            | BooleanError::JoinDesync { .. }
+            | BooleanError::CurvedBooleanUnsupported { .. }),
+        ) => match saved {
+            Some((sa, sb)) => {
+                red.a = sa;
+                red.b = sb;
+                return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
+                    Some(result) => {
+                        interior_loops?;
+                        Ok(Joined::Answered(result))
+                    }
+                    // Not the REST frontier: the original join
+                    // refusal stands, verbatim.
+                    None => Err(err),
+                };
+            }
+            None => return Err(err),
+        },
+        Err(e) => return Err(e),
+    };
+    if connected.completed.is_empty() {
+        return Err(BooleanError::JoinDesync {
+            what: "null pairs joined into no completed polygon",
+        });
+    }
+    Ok(Joined::Connected {
+        red,
+        connected,
+        interior_loops,
+    })
 }
 
 /// **The crossings path's guard for the interior-loop class: the

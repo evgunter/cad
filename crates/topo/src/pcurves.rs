@@ -1656,9 +1656,9 @@ impl<T: Real> StoredRows<T> {
         self.window.is_some()
             && self.loops.iter().all(|(_, cycle)| cycle.is_some())
             && (released
-                || self.gaps.iter().all(|gap| {
-                    matches!(gap, RowGap::Missing { r#loop, .. } if open.contains(r#loop))
-                }))
+                || self.gaps.iter().all(
+                    |gap| matches!(gap, RowGap::Missing { r#loop, .. } if open.contains(r#loop)),
+                ))
     }
 }
 

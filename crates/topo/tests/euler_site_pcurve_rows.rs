@@ -979,8 +979,7 @@ fn a_description_after_an_operator_on_the_half_minted_wall_completes_it() {
 fn a_description_that_leaves_no_null_edge_completes_a_wall_with_another_gap() {
     let (mut body, face, m) = wall();
     let ring = two_half_ring(&mut body, face, m);
-    let topo::LoopBoundary::Cycle { first: on_ring } = body.get_loop(ring).unwrap().boundary
-    else {
+    let topo::LoopBoundary::Cycle { first: on_ring } = body.get_loop(ring).unwrap().boundary else {
         panic!("the ring is a cycle")
     };
     assert!(body.detach_pcurve(on_ring).is_some());
