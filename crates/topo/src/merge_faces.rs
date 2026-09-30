@@ -1089,8 +1089,8 @@ impl EstablishedFact {
 /// | `strut_tip` | `OrbitBroken` |
 /// | `merged_outline_ring` (the survivor's surface) | `StaleGeometry` |
 /// | `loop_winding`, through `merged_outline_ring` | `StaleKey`, `StaleGeometry`, `UnclaimedHalfEdge`, `LoopCycleBroken` |
-/// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
-/// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `OrbitBroken`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
+/// | `ring_move_minting` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C), `LoopCycleBroken`; its site mint's `StaleGeometry`, `PcurveMint` (`Corrupt` alone: a moved loop is left as found on a spline chart) and `Certification` (a `tol` that forms no band) |
+/// | `kef_minting` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `OrbitBroken`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
 /// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `LoopCycleBroken`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `StaleKey`, `StaleGeometry`, `LoopNotCycle`, `LoopNotEmpty`, `LoopCycleBroken`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
 /// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `OrbitBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
@@ -2257,7 +2257,7 @@ impl<T: Decide> Body<T> {
                 );
                 #[cfg(test)]
                 tear_before_ring_move(self, ring);
-                self.ring_move(ring, rep)?;
+                self.ring_move_minting(ring, rep, tol)?;
             }
             // The two facts `kef` could contradict. The drain above is
             // exactly the mutation that invalidates a fact read before
@@ -2277,7 +2277,7 @@ impl<T: Decide> Body<T> {
             );
             #[cfg(test)]
             tear_before_kef(self, dying_he, edge_key, other);
-            self.kef(dying_he)?;
+            self.kef_minting(dying_he, tol)?;
             group.absorbed.push(other);
             group.killed_edges.push(edge_key);
         }

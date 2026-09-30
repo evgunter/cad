@@ -95,7 +95,7 @@ pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueG
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
-    admits, face_frame_seat,
+    admits, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 

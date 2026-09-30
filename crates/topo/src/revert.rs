@@ -188,10 +188,12 @@ use crate::null::CurveGeom;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RevertError {
     /// A link the reversal map follows does not resolve, or resolves to
-    /// an anchor the reversed body could not keep: a vertex's new
-    /// `emanating` that would start elsewhere, or a loop's new `first`
-    /// that lies in another loop. Tier-1-invalid input, surfaced typed
-    /// (D9: never a panic); the variant names the link.
+    /// a start or an anchor the reversed body could not keep: a
+    /// half-edge's new start that is not its mate's start, a vertex's
+    /// new `emanating` that would start elsewhere, or a loop's new
+    /// `first` that lies in another loop or is not the old anchor's
+    /// predecessor. Tier-1-invalid input, surfaced typed (D9: never a
+    /// panic); the variant names the link.
     Corrupt {
         /// Which link.
         link: RevertLink,
@@ -199,8 +201,8 @@ pub enum RevertError {
 }
 
 /// The link of a tier-1-invalid body that [`Body::revert`]'s
-/// precondition pass could not follow, or followed to an anchor the
-/// reversed body could not keep.
+/// precondition pass could not follow, or followed to a start or an
+/// anchor the reversed body could not keep.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RevertLink {
     /// `he`'s derived end (`start` of its `next`) does not resolve.
@@ -208,14 +210,25 @@ pub enum RevertLink {
         /// The half-edge whose `next` chain is broken.
         he: HalfEdgeKey,
     },
-    /// `he`, a vertex's emanating half-edge, has no mate.
+    /// `he`, a half-edge or a vertex's emanating half-edge, has no
+    /// mate: it does not resolve, or its edge does not resolve or does
+    /// not claim it.
     Mate {
-        /// The emanating half-edge.
+        /// The half-edge.
         he: HalfEdgeKey,
+    },
+    /// `he`'s end, which becomes its start once reversed, is not the
+    /// start of `mate`, the other half of its edge, or `mate` does not
+    /// resolve: its `next` or its mate's `start` is foreign.
+    Start {
+        /// The half-edge.
+        he: HalfEdgeKey,
+        /// Its mate.
+        mate: HalfEdgeKey,
     },
     /// `he`, the mate of `vertex`'s emanating half-edge and so its
     /// anchor once reversed, would not start at `vertex`: its end,
-    /// which becomes its start, is another vertex or does not resolve.
+    /// which becomes its start, is another vertex.
     Emanating {
         /// The vertex.
         vertex: VertexKey,
@@ -238,6 +251,15 @@ pub enum RevertLink {
         /// The new anchor.
         he: HalfEdgeKey,
     },
+    /// `he`, the `prev` of the loop's cycle anchor and so its anchor
+    /// once reversed, is not the anchor's predecessor: its `next` is
+    /// another half-edge.
+    LoopPredecessor {
+        /// The loop.
+        r#loop: LoopKey,
+        /// The new anchor.
+        he: HalfEdgeKey,
+    },
 }
 
 impl fmt::Display for RevertError {
@@ -246,7 +268,11 @@ impl fmt::Display for RevertError {
         write!(f, "revert: ")?;
         match link {
             RevertLink::End { he } => write!(f, "half-edge {he:?}'s end does not resolve"),
-            RevertLink::Mate { he } => write!(f, "emanating half-edge {he:?} has no mate"),
+            RevertLink::Mate { he } => write!(f, "half-edge {he:?} has no mate"),
+            RevertLink::Start { he, mate } => write!(
+                f,
+                "half-edge {he:?}'s end, its start once reversed, is not its mate {mate:?}'s start"
+            ),
             RevertLink::Emanating { vertex, he } => write!(
                 f,
                 "vertex {vertex:?}'s new anchor {he:?} (its emanating half-edge's mate) \
@@ -259,6 +285,11 @@ impl fmt::Display for RevertError {
             RevertLink::LoopMember { r#loop, he } => write!(
                 f,
                 "loop {loop:?}'s new anchor {he:?} (its anchor's `prev`) lies in another loop"
+            ),
+            RevertLink::LoopPredecessor { r#loop, he } => write!(
+                f,
+                "loop {loop:?}'s new anchor {he:?} (its anchor's `prev`) is not the anchor's \
+                 predecessor"
             ),
         }?;
         write!(f, " (malformed body)")
@@ -280,13 +311,16 @@ impl<T: Real> Body<T> {
     /// result, and they run in this order, each arena in arena order,
     /// the first failure reported:
     ///
-    /// 1. every half-edge's end resolves (`End`);
+    /// 1. per half-edge: its end resolves (`End`), it has a mate
+    ///    (`Mate`), and its end, its start once reversed, is its mate's
+    ///    start (`Start`);
     /// 2. per vertex with an anchor: its `emanating` has a mate (`Mate`),
     ///    and that mate, its anchor once reversed, ends at the vertex, so
     ///    starts there once reversed (`Emanating`);
     /// 3. per cycle loop: its `first` and that half-edge's `prev` resolve
     ///    (`LoopAnchor`), and that `prev`, its anchor once reversed,
-    ///    claims the loop (`LoopMember`).
+    ///    claims the loop (`LoopMember`) and has `first` as its `next`
+    ///    (`LoopPredecessor`).
     pub fn revert(&self) -> Result<Self, RevertError> {
         // ---- Preconditions (read-only). ----
         // Which surfaces carry their own reversal (`Plane`: the normal
@@ -303,16 +337,25 @@ impl<T: Real> Body<T> {
         // Resolve every half-edge's new start and every vertex's new
         // anchor from the SOURCE before building the result (the map
         // must read pre-reversal adjacency throughout).
+        // Every new start and every new anchor is proven to hold in the
+        // result: a live but foreign `next`, `prev` or `start` would
+        // otherwise carry its fault onto the start or anchor read
+        // through it.
         let mut new_starts = Vec::with_capacity(self.half_edges.len());
         for (he_key, _) in self.half_edges.iter() {
             let end = self.half_edge_end(he_key).ok_or(RevertError::Corrupt {
                 link: RevertLink::End { he: he_key },
             })?;
+            let mate = self.mate(he_key).ok_or(RevertError::Corrupt {
+                link: RevertLink::Mate { he: he_key },
+            })?;
+            if self.get_half_edge(mate).map(|m| m.start) != Some(end) {
+                return Err(RevertError::Corrupt {
+                    link: RevertLink::Start { he: he_key, mate },
+                });
+            }
             new_starts.push((he_key, end));
         }
-        // Every new anchor is proven to hold in the result: a live but
-        // foreign `next` or `prev` would otherwise carry off the anchor
-        // it is read through.
         let mut new_anchors = Vec::new();
         for (vertex_key, vertex) in self.vertices.iter() {
             if let Some(emanating) = vertex.emanating {
@@ -344,10 +387,18 @@ impl<T: Real> Body<T> {
                 },
             };
             let prev = self.get_half_edge(first).ok_or(anchor(first))?.prev;
-            let claimed = self.get_half_edge(prev).ok_or(anchor(prev))?.parent_loop;
-            if claimed != loop_key {
+            let before = self.get_half_edge(prev).ok_or(anchor(prev))?;
+            if before.parent_loop != loop_key {
                 return Err(RevertError::Corrupt {
                     link: RevertLink::LoopMember {
+                        r#loop: loop_key,
+                        he: prev,
+                    },
+                });
+            }
+            if before.next != first {
+                return Err(RevertError::Corrupt {
+                    link: RevertLink::LoopPredecessor {
                         r#loop: loop_key,
                         he: prev,
                     },
@@ -648,11 +699,12 @@ mod tests {
     }
 
     /// **Each refusal cause, typed.** One tear of `declined_cube` per
-    /// [`RevertLink`] variant, placed where no earlier check in
-    /// `revert`'s order fires: the refusal names the link, and its
-    /// `Display` names the keys. `LoopAnchor` is the row above. In a
-    /// debug build a refusal that came after the build would panic at
-    /// its tier-1 postcondition first.
+    /// cause, placed where no earlier check in `revert`'s order fires:
+    /// the refusal names the link, and its `Display` names the keys.
+    /// `LoopAnchor` is the row above. A tear that faults two
+    /// half-edges of the first pass is refused at whichever comes
+    /// first in arena order. In a debug build a refusal that came
+    /// after the build would panic at its tier-1 postcondition first.
     #[test]
     fn revert_refuses_each_corrupt_link_typed() {
         use crate::{EdgeKey, HalfEdgeKey, LoopBoundary};
@@ -662,10 +714,21 @@ mod tests {
         let (v, vertex) = body.vertices().next().unwrap();
         let e = vertex.emanating.unwrap();
         let m = body.mate(e).unwrap();
+        let before_m = |at: HalfEdgeKey| {
+            let order: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+            order.iter().position(|&k| k == at) < order.iter().position(|&k| k == m)
+        };
         let foreign = body
             .half_edges()
             .find(|(_, h)| h.start != v)
             .map(|(k, _)| k)
+            .unwrap();
+        let w = body.get_half_edge(foreign).unwrap().start;
+        let pred = body.get_half_edge(e).unwrap().prev;
+        let unanchored = body
+            .half_edges()
+            .map(|(k, _)| k)
+            .find(|&k| body.vertices().all(|(_, x)| x.emanating != Some(k)))
             .unwrap();
         let (lk, first) = body
             .loops()
@@ -679,6 +742,7 @@ mod tests {
             .find(|(_, h)| h.parent_loop != lk)
             .map(|(k, _)| k)
             .unwrap();
+        let inside = body.get_half_edge(first).unwrap().next;
         let torn = |tear: &dyn Fn(&mut crate::Body<f64>)| {
             let mut torn = body.clone();
             tear(&mut torn);
@@ -691,14 +755,31 @@ mod tests {
                 RevertLink::End { he: e },
             ),
             (
-                "an emanating half-edge on a dead edge",
-                torn(&|b| b.get_half_edge_mut(e).unwrap().edge = EdgeKey::default()),
-                RevertLink::Mate { he: e },
+                "a half-edge on a dead edge",
+                torn(&|b| b.get_half_edge_mut(unanchored).unwrap().edge = EdgeKey::default()),
+                RevertLink::Mate { he: unanchored },
             ),
             (
-                "a foreign `next` at the new vertex anchor",
+                "a dead emanating half-edge",
+                torn(&|b| b.get_vertex_mut(v).unwrap().emanating = Some(dead)),
+                RevertLink::Mate { he: dead },
+            ),
+            (
+                "a foreign `next`",
                 torn(&|b| b.get_half_edge_mut(m).unwrap().next = foreign),
-                RevertLink::Emanating { vertex: v, he: m },
+                RevertLink::Start { he: m, mate: e },
+            ),
+            (
+                "a foreign `start`, read as its predecessor's end and its mate's mate's start",
+                torn(&|b| b.get_half_edge_mut(e).unwrap().start = w),
+                if before_m(pred) {
+                    RevertLink::Start {
+                        he: pred,
+                        mate: body.mate(pred).unwrap(),
+                    }
+                } else {
+                    RevertLink::Start { he: m, mate: e }
+                },
             ),
             (
                 "a dead mate slot",
@@ -711,9 +792,18 @@ mod tests {
                         edge.he_minus = dead;
                     }
                 }),
+                if before_m(e) {
+                    RevertLink::Start { he: e, mate: dead }
+                } else {
+                    RevertLink::Mate { he: m }
+                },
+            ),
+            (
+                "an emanating half-edge that starts elsewhere",
+                torn(&|b| b.get_vertex_mut(v).unwrap().emanating = Some(foreign)),
                 RevertLink::Emanating {
                     vertex: v,
-                    he: dead,
+                    he: body.mate(foreign).unwrap(),
                 },
             ),
             (
@@ -724,6 +814,14 @@ mod tests {
                     he: elsewhere,
                 },
             ),
+            (
+                "a `prev` at the loop anchor naming another member",
+                torn(&|b| b.get_half_edge_mut(first).unwrap().prev = inside),
+                RevertLink::LoopPredecessor {
+                    r#loop: lk,
+                    he: inside,
+                },
+            ),
         ];
         for (cause, torn, link) in rows {
             let err = torn.revert().expect_err(cause);
@@ -731,10 +829,13 @@ mod tests {
             let shown = err.to_string();
             let keys = match link {
                 RevertLink::End { he } | RevertLink::Mate { he } => vec![format!("{he:?}")],
+                RevertLink::Start { he, mate } => vec![format!("{he:?}"), format!("{mate:?}")],
                 RevertLink::Emanating { vertex, he } => {
                     vec![format!("{vertex:?}"), format!("{he:?}")]
                 }
-                RevertLink::LoopAnchor { r#loop, he } | RevertLink::LoopMember { r#loop, he } => {
+                RevertLink::LoopAnchor { r#loop, he }
+                | RevertLink::LoopMember { r#loop, he }
+                | RevertLink::LoopPredecessor { r#loop, he } => {
                     vec![format!("{loop:?}"), format!("{he:?}")]
                 }
             };

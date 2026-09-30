@@ -374,8 +374,8 @@ impl BlendTool {
     /// one gets the same (node, body) narrowing a single selection
     /// gets.
     ///
-    /// This is the value claim; [`BlendTool::mark_segments`] is the
-    /// per-frame path, and `a_held_set_marks_exactly_the_edges_it_names`
+    /// This is the value claim; [`BlendTool::held_edges`] is what the
+    /// per-frame mark reads, and `a_held_set_marks_exactly_the_edges_it_names`
     /// asserts the two agree so they cannot drift.
     pub fn marks(&self) -> Vec<EdgeSelection> {
         let Some(target) = self.target else {
@@ -391,41 +391,14 @@ impl BlendTool {
             .collect()
     }
 
-    /// **The drawn segments of the whole held set**, as the line-list
-    /// pairs a renderer consumes — what the viewport marks while this
-    /// tool is open.
-    ///
-    /// **One pass over the target's drawn edges**, testing set
-    /// membership per drawn edge, rather than one
-    /// `crate::marks::edge_segments` search per held name: the search
-    /// scans the body's whole edge run for each name, so the obvious
-    /// spelling costs `O(E²)` name comparisons every frame on a body
-    /// with `E` edges — fine for a cube, not for a real part. This is
-    /// `O(E log E)` and allocates nothing but the output.
-    ///
-    /// The narrowing is exactly what a single selection gets: scoped
-    /// to the tool's own (node, body), empty for a target this index
-    /// does not draw, and silent about a held name the index has no
-    /// edge for — so the picture shows the live members and nothing
-    /// else.
-    pub fn mark_segments(
-        &self,
-        index: &crate::pickindex::PickIndex,
-        display: &crate::display::DisplayView,
-    ) -> Vec<[f32; 3]> {
-        let Some(target) = self.target else {
-            return Vec::new();
-        };
-        let mut out = Vec::new();
-        for &id in index.edges_in(target.node, target.body) {
-            if index
-                .edge_name_of(id)
-                .is_ok_and(|name| self.edges.contains(name))
-            {
-                out.extend(crate::marks::edge_id_segments(index, display, id));
-            }
-        }
-        out
+    /// **The held set as the marks read it** — its body and its
+    /// names, `None` while nothing is held (the struct's invariant).
+    pub fn held_edges(&self) -> Option<crate::marks::HeldEdges<'_>> {
+        self.target.map(|target| crate::marks::HeldEdges {
+            node: target.node,
+            body: target.body,
+            names: &self.edges,
+        })
     }
 
     /// **Feed one edge pick**: add it, or REMOVE it when it is already
@@ -478,7 +451,7 @@ impl BlendTool {
     ///
     /// So the door's answer is intersected with the names the index
     /// draws for `(node, body)` — the same narrowing a single
-    /// selection and [`BlendTool::mark_segments`] already apply — and
+    /// selection and the held mark (`crate::marks::HeldEdges`) apply — and
     /// the count the panel shows is the set the picture marks, on
     /// every target rather than only on the ones a commit would
     /// accept. This is not a display-tolerance dependency: the mesh

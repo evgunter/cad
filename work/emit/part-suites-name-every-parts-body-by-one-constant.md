@@ -4,7 +4,7 @@ kind: issue
 title: Assembly suites name every part's body by one constant id across part documents
 status: open
 opened: 2026-09-30
-priority: P2
+priority: P1
 cost: M
 parent: sibling-branches-mint-one-node-id-for-different-nodes
 ---

@@ -22,9 +22,10 @@
 //! Plus [`refile_shells`], the raw arena write that files several
 //! shells under one solid, which no operator does.
 //!
-//! Plus two whole-body observations the suites compare by —
-//! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
-//! (key-for-key, field-for-field, provenance-for-provenance).
+//! Plus the whole-body observations the suites compare by —
+//! [`arena_snapshot`] (every arena's length), [`deep_snapshot`]
+//! (key-for-key, field-for-field, provenance-for-provenance, and each
+//! arena's next key) and [`deep_rows`] (the same less the next keys).
 //!
 //! Plus the **operator-built** family — [`ops_holed_box`] and
 //! [`ops_genus2`], the acceptance-test bodies rebuilt in-crate for
@@ -111,8 +112,8 @@ pub(crate) fn plane_surface(
 
 /// All ten arena lengths of a body: the seven topology arenas, held as
 /// the crate's one [`ArenaCounts`], plus the three geometry arenas.
-/// The "body unchanged" snapshot of the atomicity tests, and the delta
-/// base of the operator count checks.
+/// The delta base of the operator count checks. Counts are not a
+/// "body unchanged" observation; [`deep_snapshot`] is.
 ///
 /// The topology half is *not* restated here: an `ArenaSnapshot` is an
 /// [`ArenaCounts`] extended by geometry, and the seven have exactly one
@@ -141,71 +142,131 @@ pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
 }
 
 /// A deep, order-sensitive snapshot of a body, and the crate's one
-/// "body unchanged" observation: one line per arena entry (all ten
-/// arenas, in slot-index order) carrying the entry's key, its full
-/// payload through `Debug` (which prints every field), and, for the
-/// seven topology kinds, the entity's D5 provenance record. Two
-/// snapshots compare equal iff the bodies are key-for-key,
-/// field-for-field and provenance-for-provenance identical.
+/// "body unchanged" observation: one line per row of every table on
+/// [`Body`] (the ten arenas, the seven D5 provenance maps, the pcurve
+/// caches, the null-face records, the three geometry origin maps, and
+/// the field and axis source channels), each in slot-index order,
+/// carrying the row's key and its full payload through `Debug` (which
+/// prints every field). Two snapshots compare equal iff the bodies
+/// are row-for-row and field-for-field identical and every arena would
+/// mint the same next key.
 ///
-/// It reads provenance through live keys, so it cannot see a record
-/// left behind for a dead key (the validator's leak check does), and
-/// it does not walk the side tables: pcurves, null-face records,
-/// geometry origins, field and axis sources.
+/// Every table is walked as a table rather than through live keys, so
+/// a row left behind for a dead key shows like any other. Each arena
+/// also gives one "next key" line: the key its next insert would mint,
+/// which is its free-list head. A key slot minted and freed again
+/// leaves every row as it was, but the last slot freed goes to the
+/// head with its version bumped past any key it held before, so the
+/// line moves (D1: a refused op consumes no key slots).
+///
+/// `Body` is destructured without `..`, so a field this walk does not
+/// read fails to compile here. The one field it skips is the debug
+/// build's surgery depth, which counts the door scopes open on the
+/// body and is not body state (a clone resets it).
 pub(crate) fn deep_snapshot(body: &Body<f64>) -> Vec<String> {
-    let mut lines = Vec::new();
-    for (k, e) in body.solids() {
-        lines.push(format!(
-            "solid {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Solid(k))
-        ));
-    }
-    for (k, e) in body.shells() {
-        lines.push(format!(
-            "shell {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Shell(k))
-        ));
-    }
-    for (k, e) in body.faces() {
-        lines.push(format!(
-            "face {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Face(k))
-        ));
-    }
-    for (k, e) in body.loops() {
-        lines.push(format!(
-            "loop {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Loop(k))
-        ));
-    }
-    for (k, e) in body.half_edges() {
-        lines.push(format!(
-            "half-edge {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::HalfEdge(k))
-        ));
-    }
-    for (k, e) in body.edges() {
-        lines.push(format!(
-            "edge {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Edge(k))
-        ));
-    }
-    for (k, e) in body.vertices() {
-        lines.push(format!(
-            "vertex {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Vertex(k))
-        ));
-    }
-    for (k, e) in body.points() {
-        lines.push(format!("point {k:?}: {e:?}"));
-    }
-    for (k, e) in body.curves() {
-        lines.push(format!("curve {k:?}: {e:?}"));
-    }
-    for (k, e) in body.surfaces() {
-        lines.push(format!("surface {k:?}: {e:?}"));
-    }
+    let (mut lines, next_keys) = snapshot_rows_and_next_keys(body);
+    lines.extend(next_keys);
     lines
+}
+
+/// [`deep_snapshot`] without its next-key lines: the observation for a
+/// make-then-kill round trip, which restores every row and consumes the
+/// key slots it minted.
+pub(crate) fn deep_rows(body: &Body<f64>) -> Vec<String> {
+    snapshot_rows_and_next_keys(body).0
+}
+
+fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
+    fn walk<K: std::fmt::Debug, V: std::fmt::Debug>(
+        lines: &mut Vec<String>,
+        table: &str,
+        rows: impl Iterator<Item = (K, V)>,
+    ) {
+        lines.extend(rows.map(|(k, v)| format!("{table} {k:?}: {v:?}")));
+    }
+    fn walk_arena<K: slotmap::Key, V: Clone + std::fmt::Debug>(
+        lines: &mut Vec<String>,
+        next_keys: &mut Vec<String>,
+        table: &str,
+        arena: &slotmap::SlotMap<K, V>,
+    ) {
+        walk(lines, table, arena.iter());
+        // An insert whose value closure fails reports the key it would
+        // have minted and leaves the arena as it was.
+        let next = arena
+            .clone()
+            .try_insert_with_key(Err::<V, K>)
+            .expect_err("the value closure refuses");
+        next_keys.push(format!("{table} next key: {next:?}"));
+    }
+    let Body {
+        solids,
+        shells,
+        faces,
+        loops,
+        half_edges,
+        edges,
+        vertices,
+        points,
+        curves,
+        surfaces,
+        pcurves,
+        null_faces,
+        solid_provenance,
+        shell_provenance,
+        face_provenance,
+        loop_provenance,
+        half_edge_provenance,
+        edge_provenance,
+        vertex_provenance,
+        point_origins,
+        curve_origins,
+        surface_origins,
+        surface_field_sources,
+        surface_axis_sources,
+        #[cfg(debug_assertions)]
+            surgery: _,
+    } = body;
+    let mut lines = Vec::new();
+    let mut next_keys = Vec::new();
+    let keys = &mut next_keys;
+    walk_arena(&mut lines, keys, "solid", solids);
+    walk_arena(&mut lines, keys, "shell", shells);
+    walk_arena(&mut lines, keys, "face", faces);
+    walk_arena(&mut lines, keys, "loop", loops);
+    walk_arena(&mut lines, keys, "half-edge", half_edges);
+    walk_arena(&mut lines, keys, "edge", edges);
+    walk_arena(&mut lines, keys, "vertex", vertices);
+    walk_arena(&mut lines, keys, "point", points);
+    walk_arena(&mut lines, keys, "curve", curves);
+    walk_arena(&mut lines, keys, "surface", surfaces);
+    walk(&mut lines, "pcurve", pcurves.iter());
+    walk(&mut lines, "null-face", null_faces.iter());
+    walk(&mut lines, "solid-provenance", solid_provenance.iter());
+    walk(&mut lines, "shell-provenance", shell_provenance.iter());
+    walk(&mut lines, "face-provenance", face_provenance.iter());
+    walk(&mut lines, "loop-provenance", loop_provenance.iter());
+    walk(
+        &mut lines,
+        "half-edge-provenance",
+        half_edge_provenance.iter(),
+    );
+    walk(&mut lines, "edge-provenance", edge_provenance.iter());
+    walk(&mut lines, "vertex-provenance", vertex_provenance.iter());
+    walk(&mut lines, "point-origin", point_origins.iter());
+    walk(&mut lines, "curve-origin", curve_origins.iter());
+    walk(&mut lines, "surface-origin", surface_origins.iter());
+    walk(
+        &mut lines,
+        "surface-field-sources",
+        surface_field_sources.iter(),
+    );
+    walk(
+        &mut lines,
+        "surface-axis-source",
+        surface_axis_sources.iter(),
+    );
+    (lines, next_keys)
 }
 
 /// Runs `op` on `body`, asserts it fails with exactly `expected`, and
@@ -1308,10 +1369,33 @@ pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
 mod tests {
     use super::*;
 
+    /// Removes every arena entry `original` does not hold, bumping the
+    /// version of each slot it frees.
+    fn drop_entries_not_in(body: &mut Body<f64>, original: &Body<f64>) {
+        fn keep<K: slotmap::Key, V, W>(
+            arena: &mut slotmap::SlotMap<K, V>,
+            original: &slotmap::SlotMap<K, W>,
+        ) {
+            arena.retain(|k, _| original.contains_key(k));
+        }
+        keep(&mut body.solids, &original.solids);
+        keep(&mut body.shells, &original.shells);
+        keep(&mut body.faces, &original.faces);
+        keep(&mut body.loops, &original.loops);
+        keep(&mut body.half_edges, &original.half_edges);
+        keep(&mut body.edges, &original.edges);
+        keep(&mut body.vertices, &original.vertices);
+        keep(&mut body.points, &original.points);
+        keep(&mut body.curves, &original.curves);
+        keep(&mut body.surfaces, &original.surfaces);
+    }
+
     /// Every record the snapshot claims to walk moves it: a new entry in
     /// each of the ten arenas, then a provenance record for each new
-    /// topology entry. A walk that drops an arena or a provenance lookup
-    /// leaves that row's snapshot unmoved.
+    /// topology entry, and, on its own, the key slot that entry consumes
+    /// once it is removed again. A walk that drops an arena, a
+    /// provenance lookup or an arena's next key leaves that row's
+    /// snapshot unmoved.
     #[test]
     fn deep_snapshot_sees_every_arena_and_provenance_record() {
         let s = mvfs_state();
@@ -1414,6 +1498,20 @@ mod tests {
         ];
 
         for (arena, insert) in &rows {
+            let mut churned = s.body.clone();
+            insert(&mut churned);
+            drop_entries_not_in(&mut churned, &s.body);
+            assert_eq!(
+                arena_snapshot(&churned),
+                arena_snapshot(&s.body),
+                "{arena}: the churn leaves every arena its length"
+            );
+            assert_ne!(
+                deep_snapshot(&churned),
+                before,
+                "{arena}: an entry minted and removed leaves the snapshot unmoved"
+            );
+
             let mut body = s.body.clone();
             let entity = insert(&mut body);
             let with_entry = deep_snapshot(&body);
@@ -1436,6 +1534,105 @@ mod tests {
                 deep_snapshot(&body),
                 with_entry,
                 "{arena}: a provenance record leaves the snapshot unmoved"
+            );
+        }
+    }
+
+    /// Every side table the snapshot claims to walk moves it: one new
+    /// row in each, on a key that table holds no row for. A walk that
+    /// drops a table leaves that row's snapshot unmoved. (The seven
+    /// provenance maps are the arena row's second half.)
+    #[test]
+    fn deep_snapshot_sees_every_side_table_row() {
+        fn fresh<K: slotmap::Key>(taken: impl Fn(K) -> bool) -> K {
+            let mut keys = slotmap::SlotMap::<K, ()>::with_key();
+            std::iter::repeat_with(|| keys.insert(()))
+                .find(|&k| !taken(k))
+                .expect("an unbounded key supply")
+        }
+        let s = mvfs_state();
+        let cache = {
+            let mut sheet = Body::<f64>::new();
+            crate::test_support_fixtures::cyl_wall_sheet(
+                &mut sheet,
+                crate::test_support_fixtures::CylFrame::canonical(1.0),
+                None,
+                (0.0, 1.0),
+                (0.0, 1.0),
+                Tol::witness(),
+            );
+            let (_, cache) = sheet
+                .pcurves
+                .iter()
+                .next()
+                .expect("the wall sheet mints pcurves");
+            cache.clone()
+        };
+        let before = deep_snapshot(&s.body);
+        type Insert<'a> = Box<dyn Fn(&mut Body<f64>) + 'a>;
+        let rows: [(&str, Insert); 7] = [
+            (
+                "pcurves",
+                Box::new(|b| {
+                    let k = fresh(|k| b.pcurves.contains_key(k));
+                    b.pcurves.insert(k, cache.clone());
+                }),
+            ),
+            (
+                "null_faces",
+                Box::new(|b| {
+                    let k = fresh(|k| b.null_faces.contains_key(k));
+                    let pair = crate::null::NullFacePair::Split {
+                        above_loop: s.lone_loop,
+                        below_loop: s.lone_loop,
+                    };
+                    b.null_faces.insert(k, pair);
+                }),
+            ),
+            (
+                "point_origins",
+                Box::new(|b| {
+                    let k = fresh(|k| b.point_origins.contains_key(k));
+                    b.point_origins.insert(k, crate::GeomOrigin::Imported);
+                }),
+            ),
+            (
+                "curve_origins",
+                Box::new(|b| {
+                    let k = fresh(|k| b.curve_origins.contains_key(k));
+                    b.curve_origins.insert(k, crate::GeomOrigin::Imported);
+                }),
+            ),
+            (
+                "surface_origins",
+                Box::new(|b| {
+                    let k = fresh(|k| b.surface_origins.contains_key(k));
+                    b.surface_origins.insert(k, crate::GeomOrigin::Imported);
+                }),
+            ),
+            (
+                "surface_field_sources",
+                Box::new(|b| {
+                    let k = fresh(|k| b.surface_field_sources.contains_key(k));
+                    b.surface_field_sources
+                        .insert(k, crate::param_source::FieldSources::default());
+                }),
+            ),
+            (
+                "surface_axis_sources",
+                Box::new(|b| {
+                    let k = fresh(|k| b.surface_axis_sources.contains_key(k));
+                    b.surface_axis_sources.insert(k, crate::AxisRecord::Cleared);
+                }),
+            ),
+        ];
+        for (table, insert) in &rows {
+            let mut body = s.body.clone();
+            insert(&mut body);
+            assert_ne!(
+                deep_snapshot(&body),
+                before,
+                "{table}: a new row leaves the snapshot unmoved"
             );
         }
     }

@@ -916,3 +916,124 @@ fn stacked_equal_pegs_same_sense_walls() {
         "F: each lower sector meets its upper across the z = 1 rim: {cross:?}"
     );
 }
+
+/// The cycle halves of `f`'s loops, outer first.
+fn face_halves(body: &Body<f64>, f: topo::FaceKey) -> Vec<topo::HalfEdgeKey> {
+    let face = body.get_face(f).unwrap();
+    core::iter::once(face.outer)
+        .chain(face.rings.iter().copied())
+        .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+            topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
+            topo::LoopBoundary::Empty { .. } => None,
+        })
+        .flatten()
+        .collect()
+}
+
+/// `f`'s `(rows stored, rows missing)`.
+fn row_count(body: &Body<f64>, f: topo::FaceKey) -> (usize, usize) {
+    let halves = face_halves(body, f);
+    let stored = halves
+        .iter()
+        .filter(|&&he| body.pcurve(he).is_some())
+        .count();
+    (stored, halves.len() - stored)
+}
+
+/// The merge door on a curved same-key run whose sectors arrive one
+/// never minted, the rest complete, through public doors alone: a wall
+/// re-seated onto a new key and back onto the run's key is left
+/// rowless by the setter's chart change. The door holds a band and
+/// re-mints the staged result, so it merges the run whichever sector
+/// was the rowless one — the survivor or an absorbed sector — and
+/// leaves no face half-minted.
+///
+/// Adopted from the review of the loop-reparenting doors' re-mint
+/// (its `reviewer_c2_merge_door_public_only` probe).
+#[test]
+fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
+    let tol = Tol::witness();
+    let mut rowless_kept = Vec::new();
+    for i in 0..2usize {
+        let mut body = peg_at(0.0, 0.0, 1.0);
+        let walls = walls_at(&body, BORE_R);
+        assert_eq!(walls.len(), 3, "the peg has three wall sectors");
+        let k = body.get_face(walls[0]).unwrap().surface;
+        let described = body.get_surface(k).unwrap().clone();
+        // Walls 0 and 1 are the run; wall 2 goes onto a key of its own.
+        let sense = body.get_face(walls[2]).unwrap().sense;
+        body.set_face_surface(
+            walls[2],
+            FaceSurface::New {
+                surface: described.clone(),
+                sense,
+            },
+        )
+        .unwrap();
+        topo::mint_pcurves(&mut body, tol).unwrap();
+        let sense = body.get_face(walls[i]).unwrap().sense;
+        body.set_face_surface(
+            walls[i],
+            FaceSurface::New {
+                surface: described,
+                sense,
+            },
+        )
+        .unwrap();
+        body.set_face_surface(walls[i], FaceSurface::Shared { key: k, sense })
+            .unwrap();
+        let other = walls[1 - i];
+        assert_eq!(
+            row_count(&body, walls[i]).0,
+            0,
+            "case {i}: wall {i} arrives rowless"
+        );
+        assert_eq!(
+            row_count(&body, other).1,
+            0,
+            "case {i}: the other sector arrives complete"
+        );
+        let outcome = body
+            .merge_coplanar_faces(tol)
+            .unwrap_or_else(|e| panic!("case {i}: the merge door refused: {e:?}"));
+        assert!(
+            outcome.skipped.is_empty(),
+            "case {i}: the run is merged, not recorded as skipped: {:?}",
+            outcome
+                .skipped
+                .iter()
+                .map(|s| &s.reason)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            outcome.groups.len(),
+            1,
+            "case {i}: the two-sector run is one group"
+        );
+        let group = &outcome.groups[0];
+        let run = [walls[i], other];
+        assert!(
+            run.contains(&group.kept)
+                && group.absorbed.len() == 1
+                && run.contains(&group.absorbed[0]),
+            "case {i}: the group is the run: kept {:?}, absorbed {:?}",
+            group.kept,
+            group.absorbed
+        );
+        rowless_kept.push(group.kept == walls[i]);
+        let half_minted: Vec<_> = body
+            .faces()
+            .map(|(f, _)| (f, row_count(&body, f)))
+            .filter(|&(_, (stored, missing))| stored > 0 && missing > 0)
+            .collect();
+        assert!(
+            half_minted.is_empty(),
+            "case {i}: half-minted faces after the merge: {half_minted:?}"
+        );
+    }
+    assert!(
+        rowless_kept.contains(&true) && rowless_kept.contains(&false),
+        "the rowless sector is the survivor in one case and an absorbed sector in the other: \
+         {rowless_kept:?}"
+    );
+}

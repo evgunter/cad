@@ -2,10 +2,11 @@
 id: no-row-holds-that-the-create-pane-offers-the-tools-it-has
 kind: issue
 title: No row holds that the chrome CALLS its tool panels — nine activation buttons across create_ui and properties_ui are reachable only through a ViewerBehavior no test can build
-status: open
+status: dispatched
 opened: 2026-09-22
 priority: P1
 cost: D
+branch: author/tool-census
 ---
 
 
@@ -79,3 +80,11 @@ composed rows are free functions
 `pane::create::tests`, so the SENTENCES are held. What is not held,
 for its two panels and for the seven that shipped before them, is that
 `create_ui` calls them at all.
+
+## Dispatched 2026-09-30 as AUTH-12
+
+`docs/AUTH-12-SPEC.md`, branch `author/tool-census`.
+
+**The premise above is stale.** Since 2026-09-25 (`9c9fb7ba7`), `app.rs`'s `properties_pane_tests` has run whole-app frames that paint `ViewerApp`, open sections and read what was painted. So the unit is a census row over `ToolKind::ALL` in that harness: no new fixture and no lowering of seven panels.
+
+**A duplication is folded in.** `ToolKind::label()` is "the tool's name, for sentences and buttons", yet all nine activation buttons spell their label literally.

@@ -1179,3 +1179,15 @@ Put to a designer pair (byte 119). Both reject the framing "which direction?": t
 - nothing refuses.
 
 A separate question for Ev is whether section chords (Ev's A2 on PR 512) take `Ends`. The probes filed `a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank` (P0; a lane is diagnosing it) and `edge-dir-is-a-chord-so-curved-edge-pieces-misrank` (P1).
+
+## 2026-09-30 — a split's lineage chase crosses halves (PR 3555)
+
+A cylinder split by a plane that crosses its start rim arc twice refused `MissingUpstream` on the extrude. The second crossing splits the first crossing's child, and the middle piece lies in the other half. The split's edge and vertex lanes chased lineage within one half, so the chase stopped at a key the extrude never named.
+
+`emit_topo::chase_split_edge_to_table` now reads each hop from whichever half holds the key. When both halves hold it, a debug assert checks that their records agree. No design choice was involved, and the review confirmed that no existing name moves.
+
+The recipe now refuses `Duplicate`: the split has no multiplicity rule for a twice-crossed edge. That is filed as `a-split-mints-a-twice-crossed-edges-pieces-under-one-name` (P0, design), which the ruling on #3553 covers.
+
+Also filed:
+- `reach/a-split-half-loses-the-lineage-of-a-twice-crossed-edge` (P3): `topo::props` and `mesh::memo` still walk one half.
+- `origin/the-split-edge-lineage-walk-has-four-homes` (P1).

@@ -1810,7 +1810,7 @@ fn slit_zip<T: Decide>(
             ed.he_plus
         }
     };
-    body.kef(fb_half)
+    body.kef_minting(fb_half, tol)
         .map_err(|_| desync("REST lane: run kef refused"))?;
     for &he in run.iter().skip(1) {
         // The shared vertex with the previous (now dead) run edge is
@@ -1917,7 +1917,7 @@ fn slit_zip<T: Decide>(
                 let ring = loop_of(body, ring_half)?;
                 body.mfkrh(ring, FaceSurface::Inherit)
                     .map_err(|_| desync("REST lane: band run mfkrh refused"))?;
-                body.kef(ring_half)
+                body.kef_minting(ring_half, tol)
                     .map_err(|_| desync("REST lane: band run kef refused"))?;
             }
         }
@@ -2016,7 +2016,7 @@ fn zip_folded<T: Decide>(
             report
                 .seam_edges
                 .push(if b_edges.contains_key(e0) { e1 } else { e0 });
-            body.kef(b_half)
+            body.kef_minting(b_half, tol)
                 .map_err(|_| desync("REST lane: final slit kef refused"))?;
             break;
         }
@@ -2074,7 +2074,7 @@ fn zip_folded<T: Decide>(
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
         report.vertex_merges.push((eb, sa));
         report.seam_edges.push(edge_of(body, ha)?);
-        body.kef(hb)
+        body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
     Ok(())
