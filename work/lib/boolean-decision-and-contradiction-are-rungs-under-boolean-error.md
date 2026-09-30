@@ -56,11 +56,15 @@ in `Contradiction`'s doc and the two disposition rows.
 
 ## One more rung (TOPO, PR 3506)
 
-PR 3506 adds `TorusConvention` (`crates/topo/src/face_normal.rs`), the
+PR 3506 adds `TorusConvention` (`crates/geom-brep/src/torus_convention.rs`,
+re-exported as `topo::TorusConvention`), the
 ring-torus convention's half, carried by `BooleanError::DegenerateTorus
-{ convention, .. }` and one rung down by `BooleanDecision::Torus`. Its
-disposition row files it here; carry it with the others. Two further
+{ convention, .. }` and one rung down by `BooleanDecision::Torus`. It
+is declared in `geom_brep`, not beside its carrier, so the payload-rung
+sweep's narrowed shape (payload and carrier in one crate) does not
+count it and it has no disposition row; it is on no curated list all
+the same, so carry it with the others. Two further
 closed types ride under refusals the prelude does not reach as
-payloads: `PlaneRung` (under `CarrierEqError::Escalated` and
-`MergeDecision::DeclaredPlanes`) and `MergeDecision` (under
-`MergeCoplanarError::Escalated`).
+payloads: `PlaneRung` (under `CarrierEqError::Escalated`,
+`MergeDecision::DeclaredPlanes` and `BooleanDecision::Neighbours`) and
+`MergeDecision` (under `MergeCoplanarError::Escalated`).

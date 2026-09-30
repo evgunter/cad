@@ -319,7 +319,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 }
                 Ok(rel) => rel,
                 Err(PlaneEqError::Escalated { rung, diag }) => {
-                    return Err(BooleanError::plane_identity(rung, diag));
+                    return Err(BooleanError::plane_identity(
+                        rung,
+                        super::PlaneDoor::of(declared_rest),
+                        diag,
+                    ));
                 }
                 Err(PlaneEqError::Undeclared { diag, relation }) => {
                     return Err(BooleanError::UndeclaredCoincidence {

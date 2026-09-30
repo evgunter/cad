@@ -25,13 +25,15 @@ ring-torus convention, checked for D4 ¶1 (iv).)
   same label.
 
 The decision is the ring convention's, whose one lever and pass set now
-live on `topo::face_normal::TorusConvention::sized()` (PR 3506); here the
+live on `geom_brep::TorusConvention::Ring.sized()` (PR 3506, in this
+crate: `crates/geom-brep/src/torus_convention.rs`); here the
 lever the user holds is the offset distance, as the offset meters'
 (PR 3347) are.
 
 ## Repair shape
 
-End both arms of the realized ring from one `SizedDecision` whose lever
-is the offset's ("use a smaller offset distance, or offset to the other
+End both arms of the realized ring from one `SizedDecision`, the
+convention's `TorusConvention::Ring` (its subject and `refused()` facts)
+with the offset's lever in place of the radii's ("use a smaller offset distance, or offset to the other
 side"), valued on the band-decided arms (`decide_reported`), and drop the
 `offset_surface` label.

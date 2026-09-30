@@ -1012,7 +1012,11 @@ fn verify_declared_pairs<T: Decide>(
                 });
             }
             Err(PlaneEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(rung, diag));
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    super::PlaneDoor::Declared,
+                    diag,
+                ));
             }
             Err(PlaneEqError::Undeclared { diag, relation }) => {
                 // Unreachable with declared=true; refuse loudly anyway.

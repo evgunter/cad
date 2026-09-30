@@ -77,9 +77,13 @@ pub enum PlaneRung {
     /// and only an unreadable norm escalates.
     Parallel,
     /// Whether the two planes face the same way or opposite ways
-    /// (`bool_plane_orient`). Both definite signs pass and a declaration
-    /// changes neither, so its refusals are a zero or in-band margin
-    /// ([`PLANE_ORIENTATION`]).
+    /// (`bool_plane_orient`). Its margin is the normals' cosine levered
+    /// at the caller's arm, asked only once parallelism has read within
+    /// the zero band at that arm, so `|cos| ≈ 1` and the rung refuses
+    /// only where the arm itself is within the band. Each door ends it
+    /// from what it passes on and what its arm is: the Boolean's
+    /// cross-operand doors from [`PLANE_ORIENTATION`], the merge and the
+    /// maximal-faces gate from their own decisions.
     Orientation,
 }
 
@@ -95,12 +99,17 @@ impl PlaneRung {
     }
 }
 
-/// The orientation rung's decision: its margin is the normals' cosine
-/// levered at the comparison's arm, and it passes on either definite
-/// sign.
+/// The orientation rung's decision at the Boolean's cross-operand
+/// doors, which take either definite sign ([`PlaneRung::Orientation`]).
+/// Its margin is `cos · arm` with `|cos| ≈ 1`, so what it measures is
+/// the arm: at the sector doors (`vtxfac`, `recl`) the corner's shorter
+/// edge, which the corner's own arm rung has already read positive; at
+/// the rest-contact verifications the fixed 1 m arm, which a readable
+/// cosine always decides, so only an unreadable margin refuses there.
 pub const PLANE_ORIENTATION: SizedDecision = SizedDecision {
-    lever: "turn one of the two faces so they clearly face the same way or clearly opposite ways",
-    size: "alignment between the faces",
+    lever: "make the edges at the corner where the two faces meet clearly longer than the \
+            tolerance",
+    size: "length of the corner's shorter edge",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
     at_zero: None,
@@ -346,7 +355,7 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
 
 /// The parallelism rung's refusal of a norm that read definitely
 /// negative: poisoned input, with no margin to report.
-fn unreadable_norm(band: Band) -> PlaneEqError {
+pub(crate) fn unreadable_norm(band: Band) -> PlaneEqError {
     PlaneEqError::Escalated {
         rung: PlaneRung::Parallel,
         diag: Indeterminate {

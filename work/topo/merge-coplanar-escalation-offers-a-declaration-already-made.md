@@ -61,3 +61,18 @@ loop winding (`merge_faces::loop_winding`), which rendered the same
 "plane-identity margin escalated verifying a declared pair" text. PR
 3506 gives it its own decision (`MergeDecision::LoopWinding`); its
 definite sibling is `work/topo/merged-face-role-ambiguity-ends-in-no-recourse.md`.
+
+## Close (PR 3506)
+
+The declared pair's orientation is the merge's own decision
+(`MergeDecision::DeclaredPlanes(PlaneRung::Orientation)`, ending in
+`merge_faces::DECLARED_ORIENTATION`): only a same-facing pair glues, so
+it passes on a positive margin, and `DeclaredOppositeOrientation` is
+its sign-certain arm, with the same lever and no label or face keys.
+Its margin is the normals' cosine at the shared edge's chord, so what
+an undecided margin measures is the chord, and the lever names both
+moves; that the chord is 0 on a closed shared edge is
+`work/topo/merge-orientation-rung-reads-a-closed-shared-edges-chord-as-its-arm.md`.
+The Boolean's cross-operand doors keep `plane_eq::PLANE_ORIENTATION`
+(either sign passes); a declared door's parallelism escalation (an
+unreadable norm) ends as a defect at both the merge and the Boolean.

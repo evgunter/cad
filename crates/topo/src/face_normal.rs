@@ -65,8 +65,8 @@
 //! this module was created under; it is recorded on issue #695 with
 //! the rest of the placement questions.
 
-use geom_brep::OutwardNormal;
-use geom_brep::recourse::{Refused, SizedDecision, SizedPass, StoredDefinite};
+use geom_brep::recourse::Refused;
+use geom_brep::{OutwardNormal, TorusConvention};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -141,74 +141,6 @@ pub(crate) enum NormalDecision {
     /// Whether the point lies on the face's surface, so the surface's
     /// normal can be read there.
     OnSurface,
-}
-
-/// **A half of the ring-torus convention `R > r > 0`** (D3), as a
-/// decision. A torus outside it (no tube, a horn, a spindle) has no
-/// representation, so every arm that refuses one refuses the torus's
-/// own shape and ends in the half's one lever, whether its margin fell
-/// in band or was decided.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(strum::EnumIter))]
-pub enum TorusConvention {
-    /// Whether the tube radius is positive (`torus_tube_positive`).
-    Tube,
-    /// Whether the tube radius is smaller than the ring radius
-    /// (`ring_torus_convention`).
-    Ring,
-}
-
-impl TorusConvention {
-    /// What the half decides, as a clause with no colon or dash of its
-    /// own.
-    #[must_use]
-    pub const fn subject(self) -> &'static str {
-        match self {
-            Self::Tube => "whether a torus's tube radius is positive",
-            Self::Ring => "whether a torus's tube radius is smaller than its ring radius",
-        }
-    }
-
-    /// The half's lever and the size its margin measures, at every door
-    /// that reads it. The lever edits the stored radii, so a definite
-    /// refusal read at rest ends in it too.
-    #[must_use]
-    pub const fn sized(self) -> SizedDecision {
-        let (lever, size) = match self {
-            Self::Tube => (
-                "reshape the torus so its tube is clearly thicker than the tolerance",
-                "tube radius",
-            ),
-            Self::Ring => (
-                "make the tube radius clearly smaller than the ring radius",
-                "difference between the radii",
-            ),
-        };
-        SizedDecision {
-            lever,
-            size,
-            passes: SizedPass::Positive,
-            stored: StoredDefinite::Lever,
-            at_zero: None,
-        }
-    }
-
-    /// The decided refusal as a clause about `whose` torus, with no
-    /// colon or dash of its own.
-    #[must_use]
-    pub fn refused(self, whose: &str, verdict: Refused) -> String {
-        let fact = match (self, verdict) {
-            (Self::Tube, Refused::Zero(_)) => "tube radius is zero at this tolerance",
-            (Self::Tube, Refused::Negative { .. }) => "tube radius is negative",
-            (Self::Ring, Refused::Zero(_)) => {
-                "tube radius equals its ring radius at this tolerance (a horn torus)"
-            }
-            (Self::Ring, Refused::Negative { .. }) => {
-                "tube radius is larger than its ring radius (a spindle torus)"
-            }
-        };
-        format!("{whose} {fact}")
-    }
 }
 
 /// The ring convention's `half`, as `band` decided it: `Ok` where it

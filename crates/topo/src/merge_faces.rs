@@ -47,7 +47,6 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::plane_eq::PLANE_ORIENTATION;
 use crate::boolean::{
     PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
 };
@@ -502,12 +501,6 @@ pub enum MergeCoplanarError {
 
 impl MergeCoplanarError {
     /// The refusal of the plane identity verifying a declared pair.
-    ///
-    /// # Panics
-    ///
-    /// On [`PlaneEqError::Undeclared`], which the declared rung never
-    /// raises: it verifies the pair or contradicts it, and bridges the
-    /// in-band offset that refusal names.
     pub(crate) fn of_declared_refusal(refusal: PlaneEqError) -> Self {
         match refusal {
             PlaneEqError::Contradicted { fact, .. } => Self::DeclarationContradicted { fact },
@@ -515,11 +508,31 @@ impl MergeCoplanarError {
                 decision: MergeDecision::DeclaredPlanes(rung),
                 diag,
             },
-            PlaneEqError::Undeclared { .. } => unreachable!(
-                "merge_coplanar_faces: the declared plane rung raised Undeclared, which it \
-                 never constructs"
-            ),
+            // Unreachable with `declared: true`; refuse loudly anyway.
+            PlaneEqError::Undeclared { diag, .. } => Self::Escalated {
+                decision: MergeDecision::DeclaredOffset,
+                diag,
+            },
         }
+    }
+}
+
+/// What the merge does with the declared plane rung's `verdict` on the
+/// pair `(f1, f2)` meeting at a shared edge: it glues a pair that faces
+/// the same way and refuses every other verdict.
+pub(crate) fn declared_pair_verdict(
+    verdict: Result<PlaneRelation, PlaneEqError>,
+    f1: FaceKey,
+    f2: FaceKey,
+) -> Result<bool, MergeCoplanarError> {
+    match verdict {
+        Ok(PlaneRelation::SameOriented) => Ok(true),
+        Ok(PlaneRelation::SameOpposite) => {
+            Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
+        }
+        // Unreachable through the declared rung; kept typed.
+        Ok(PlaneRelation::Distinct) => Ok(false),
+        Err(refusal) => Err(MergeCoplanarError::of_declared_refusal(refusal)),
     }
 }
 
@@ -530,6 +543,11 @@ pub enum MergeDecision {
     /// declared (`plane_eq`'s declared rung). The declaration is
     /// already there, so no ending offers one.
     DeclaredPlanes(PlaneRung),
+    /// Whether a declared pair's parallel planes lie apart. The declared
+    /// rung contradicts a definite offset and bridges an in-band one, so
+    /// it never escalates this; kept typed for the refusal that would
+    /// be a kernel defect.
+    DeclaredOffset,
     /// Which way a loop of the merged face winds about its normal,
     /// which decides the outline among its loops.
     LoopWinding,
@@ -541,7 +559,11 @@ impl MergeDecision {
     #[must_use]
     pub const fn subject(self) -> &'static str {
         match self {
-            Self::DeclaredPlanes(rung) => rung.subject(),
+            Self::DeclaredPlanes(PlaneRung::Orientation) => {
+                "whether the two declared faces face the same way across the edge they share"
+            }
+            Self::DeclaredPlanes(PlaneRung::Parallel) => PlaneRung::Parallel.subject(),
+            Self::DeclaredOffset => "whether the two declared planes lie apart",
             Self::LoopWinding => "which way a loop of the merged face winds about its normal",
         }
     }
@@ -552,11 +574,12 @@ impl MergeDecision {
         let arm = RefusedArm::Undecided(diag);
         match self {
             Self::DeclaredPlanes(PlaneRung::Orientation) => {
-                PLANE_ORIENTATION.recourse(arm, Reading::Build)
+                DECLARED_ORIENTATION.recourse(arm, Reading::Build)
             }
             // The declared rung bridges in-band parallelism, so what
-            // escalates here is a norm the rung could not read.
-            Self::DeclaredPlanes(PlaneRung::Parallel) => {
+            // escalates here is a norm the rung could not read, as at the
+            // Boolean's declared door (`BooleanDecision::DeclaredParallel`).
+            Self::DeclaredPlanes(PlaneRung::Parallel) | Self::DeclaredOffset => {
                 Unsized::Defect.recourse(arm, Reading::Build)
             }
             Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
@@ -564,12 +587,30 @@ impl MergeDecision {
     }
 }
 
+/// The merge's orientation decision on a declared pair meeting at a
+/// shared edge. Only a pair that faces the same way glues, so it passes
+/// on a positive margin, and [`MergeCoplanarError::DeclaredOppositeOrientation`]
+/// is its sign-certain arm. The margin is the outward normals' cosine
+/// levered at the shared edge's chord, asked once parallelism has read
+/// within the zero band there, so `|cos| ≈ 1` and what an undecided
+/// margin measures is the chord: the lever names both moves a refusal
+/// may need.
+const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
+    lever: "turn one of the two faces so both clearly face the same way, across a shared edge \
+            whose ends lie clearly apart",
+    size: "distance between the ends of the edge the faces share",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
 /// The winding decision: its margin is the loop's signed area over its
-/// length, and either definite sign (a zero one included) answers it.
+/// length. A positive loop is an outline, a negative one a hole, and a
+/// zero one neither, so it passes on either nonzero sign.
 const LOOP_WINDING: SizedDecision = SizedDecision {
     lever: "reshape the merged faces so each loop of the result clearly encloses an area",
     size: "area a loop encloses over its length",
-    passes: SizedPass::AnySign,
+    passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
@@ -649,10 +690,10 @@ impl core::fmt::Display for MergeCoplanarError {
                 fact.fact(),
                 crate::contact::CONTRADICTION_RECOURSE
             ),
-            Self::DeclaredOppositeOrientation { f1, f2 } => write!(
+            Self::DeclaredOppositeOrientation { .. } => write!(
                 f,
-                "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
-                 orientations — unmergeable in a closed solid"
+                "the two declared faces face opposite ways across the edge they share. {}",
+                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain, Reading::Build)
             ),
             Self::DeclaredCarrierUnsupported { pair, kind } => write!(
                 f,
@@ -1947,15 +1988,7 @@ impl<T: Decide> Body<T> {
                 origin: o2,
                 normal: plane_outward_normal(face2, n2).vec(),
             };
-            return match oriented_plane_eq(&p1, &p2, id, arm, band) {
-                Ok(PlaneRelation::SameOriented) => Ok(true),
-                Ok(PlaneRelation::SameOpposite) => {
-                    Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
-                }
-                // Unreachable through the declared rung; kept typed.
-                Ok(PlaneRelation::Distinct) => Ok(false),
-                Err(refusal) => Err(MergeCoplanarError::of_declared_refusal(refusal)),
-            };
+            return declared_pair_verdict(oriented_plane_eq(&p1, &p2, id, arm, band), f1, f2);
         }
         Ok(false)
     }

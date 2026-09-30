@@ -45,3 +45,21 @@ the torus's own shape and ends in the same lever as the in-band arm
 (`BooleanDecision::TorusRing`'s). If it is coverage not built yet, the
 in-band arm is the same gap and should say so rather than offer a
 tolerance.
+
+## Close (PR 3506)
+
+The spindle and horn torus are shapes the kernel never represents
+(D1), so the definite arm refuses the torus's own shape and ends in the
+in-band arm's lever, from one closed type both arms read,
+`geom_brep::TorusConvention` (`crates/geom-brep/src/torus_convention.rs`),
+which tier 3's ring half reads too. The story is told at the pierce
+normal (`face_normal::face_outward_normal_at`, routed by
+`BooleanError::of_pierced_normal`): the pierce lane reaches it for a
+point already placed in a torus face's trim. No public door reaches it
+with a degenerate torus, because that placement reads the convention
+first (`boolean::solid_contain::point_on_torus_in_face`'s
+`require_ring_torus`): through `union`/`subtract` such a torus stops at
+`CurvedPierceUnsupported`'s declare menu or `Containment`'s "the solid
+itself is fine", as on main. Those two front-door stories are filed on
+CONTACT's slate:
+`work/contact/degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine.md`.

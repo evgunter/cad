@@ -6023,9 +6023,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
-    // One fact: a torus outside the ring convention, decided, at the
-    // Boolean's pierce and at rest (`topo::TorusConvention`'s one
-    // story at both).
+    // Overlapping, not one fact: at rest the word is the ring half's
+    // decided refusal alone (a nonpositive tube is
+    // `unrepresentable_surface_datum` there); at the Boolean's pierce
+    // it is either half's (`topo::TorusConvention`).
     ("degenerate_torus", 2),
     // Three, and ALL THREE are one fact: `parse_error_tag`,
     // `persist_error_tag` and `edit_error_tag` each mean "the document

@@ -38,4 +38,7 @@ Carry the verdict that emptied the outline (a zero winding, with its
 decided margin, or several positive ones), end the zero case in the
 winding's `SizedDecision` (`LOOP_WINDING` in `merge_faces.rs`), give the
 several-positive case its own lever, and drop the label from the arms
-that carry it.
+that carry it. `LOOP_WINDING` passes on either nonzero sign
+(`SizedPass::NonZero`, since PR 3506's fix pass), so its zero arm
+already offers the tolerance a nonzero decided margin gives, and a zero
+winding carried to it reads right.

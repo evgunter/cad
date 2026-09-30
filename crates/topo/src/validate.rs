@@ -2241,7 +2241,7 @@ const PLANAR_BOUNDARY: Unsized = Unsized::LastResort;
 
 /// The ring-torus convention `R − r > 0`: a size the user may intend, and
 /// the stored radii are what the lever edits.
-const RING_TORUS: SizedDecision = crate::face_normal::TorusConvention::Ring.sized();
+const RING_TORUS: SizedDecision = geom_brep::TorusConvention::Ring.sized();
 
 /// A hole against its face's outline: the lever of check 9's contact
 /// arms, whose refusals do not carry which of their gaps decided.
@@ -2834,7 +2834,7 @@ impl fmt::Display for ValidationError {
             Self::DegenerateTorus { verdict, .. } => write!(
                 f,
                 "{}. {}",
-                crate::face_normal::TorusConvention::Ring.refused("a torus face's", *verdict),
+                geom_brep::TorusConvention::Ring.refused("a torus face's", *verdict),
                 RING_TORUS.recourse(verdict.arm(), Reading::AtRest)
             ),
             Self::DegenerateTorusEscalated { cause, .. } => write!(

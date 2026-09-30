@@ -90,6 +90,7 @@ mod r2_probes;
 pub(crate) mod recl;
 pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
+pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
     BooleanDecision, Contradiction, CrossingDecision, PlaneRung, SectorRung, TorusConvention,
 };
@@ -1556,18 +1557,21 @@ impl BooleanError {
         }
     }
 
-    /// An escalation of a plane-identity `rung`, routed to the decision
-    /// the rung asks ([`BooleanDecision::of_plane_rung`]).
-    pub(crate) const fn plane_identity(rung: PlaneRung, diag: Indeterminate) -> Self {
+    /// An escalation of a plane-identity `rung` at `door`, routed to the
+    /// decision the rung asks there ([`BooleanDecision::of_plane_rung`]).
+    pub(crate) const fn plane_identity(
+        rung: PlaneRung,
+        door: refusal_routes::PlaneDoor,
+        diag: Indeterminate,
+    ) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::of_plane_rung(rung),
+            decision: BooleanDecision::of_plane_rung(rung, door),
             diag,
         }
     }
 
     /// The refusal of a pierced face's outward normal at a pierce point
-    /// (`face_normal::face_outward_normal_at`), `None` where it gave a
-    /// normal or has no arm for the face's kind.
+    /// (`face_normal::face_outward_normal_at`), in the Boolean's words.
     pub(crate) fn of_pierced_normal(
         refusal: crate::face_normal::NormalAtError,
         operand: Operand,
@@ -2445,9 +2449,9 @@ fn verify_rest_declaration<T: Decide>(
                 margin: diag,
             })
         }
-        Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => {
-            Err(BooleanError::plane_identity(rung, diag))
-        }
+        Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => Err(
+            BooleanError::plane_identity(rung, PlaneDoor::Declared, diag),
+        ),
         // Unreachable with `declared: true`; refuse loudly anyway.
         Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
@@ -2525,7 +2529,11 @@ fn verify_tangent_declaration<T: Decide>(
                 });
             }
             Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(rung, diag));
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    PlaneDoor::Undeclared,
+                    diag,
+                ));
             }
             // Unreachable with `declared: false`; refuse loudly anyway.
             Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {

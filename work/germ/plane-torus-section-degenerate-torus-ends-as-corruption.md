@@ -25,7 +25,8 @@ halves (`pt_tube_guard`, then `geom::ring_torus`):
   is corrupt": a defect ending, no lever.
 
 PR 3506 gave the convention one story at the pierce
-(`topo::face_normal::TorusConvention`, `BooleanError::DegenerateTorus`):
+(`geom_brep::TorusConvention`, `crates/geom-brep/src/torus_convention.rs`,
+read by `BooleanError::DegenerateTorus`):
 both arms name the half's lever ("make the tube radius clearly smaller
 than the ring radius"), the band-decided arms with the tolerance the
 margin gives; tier 3's `ValidationError::DegenerateTorus` reads the same
@@ -34,8 +35,9 @@ neither is the pierce's.
 
 ## Repair shape
 
-Carry which half refused and its verdict (`decide_reported` on the tube
-guard too), and end both arms from `TorusConvention::sized()` at the
-door that reads them (a build, or at rest through `join`'s frames and
+Carry which half refused and its verdict (`geom::torus_tube`, which
+keeps its reporting margin, in place of `pt_tube_guard`), as a
+`geom_brep::TorusConvention` in this crate, and end both arms from its
+`sized()` and `refused()` at the door that reads them (a build, or at rest through `join`'s frames and
 `replace_face`), or say why the section reads only validated bodies and
 end both arms as the defect.
