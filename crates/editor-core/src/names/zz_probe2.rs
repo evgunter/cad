@@ -230,3 +230,42 @@ fn zz_r2_threads() {
     }
     eprintln!("R2 threads: 8 threads x 50 runs agree with the serial answers");
 }
+
+/// The smallest thread stack on which the native routes (64 levels of
+/// Eq, Ord, Hash, then heap) survive a worst-case pair, measured by
+/// re-running this test in a child with a given stack.
+#[test]
+fn zz_r2_native_stack() {
+    if let Ok(size) = std::env::var("ZZ_STACK") {
+        let size: usize = size.parse().unwrap();
+        let which = std::env::var("ZZ_WHICH").unwrap();
+        std::thread::Builder::new()
+            .stack_size(size)
+            .spawn(move || {
+                let (a, b) = (tower(200, 1), tower(200, 2));
+                match which.as_str() {
+                    "eq" => assert!(a != b),
+                    "ord" => assert!(a < b),
+                    _ => {
+                        let _ = sip(&a);
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        return;
+    }
+    let exe = std::env::current_exe().unwrap();
+    for which in ["eq", "ord", "hash"] {
+        for kib in [16usize, 32, 48, 64, 96, 128, 192, 256, 384, 512] {
+            let st = std::process::Command::new(&exe)
+                .args(["--exact", "names::zz_probe2::zz_r2_native_stack", "--test-threads=1"])
+                .env("ZZ_STACK", (kib * 1024).to_string())
+                .env("ZZ_WHICH", which)
+                .output()
+                .unwrap();
+            eprintln!("R2 native stack {which} {kib} KiB: {}", st.status.success());
+        }
+    }
+}
