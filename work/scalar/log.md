@@ -1978,3 +1978,10 @@ scheduled.
   `work/README.md` the program closes without a walk. The steps are to
   re-home the A/B row, delete the directory, and write a doc-ledger
   note. Ev was asked in chat before closing.
+
+**2026-09-30 — the last row closed; SCALAR leaves the tracker.** Ev,
+in chat, on the A/B #230 collision: "it really doesn't matter; can you
+just renumber one of them arbitrarily? then close the program!"
+SYM-11 is renumbered to #245 in `docs/MODEL-AB-LOG.md`, the next free
+number, so nothing else shifts. The plan set no `## Exit criteria`, so
+the program closes without a walk, on the PORT precedent.

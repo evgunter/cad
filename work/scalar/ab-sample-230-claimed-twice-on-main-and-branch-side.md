@@ -2,8 +2,9 @@
 id: ab-sample-230-claimed-twice-on-main-and-branch-side
 kind: issue
 title: A/B sample #230 is claimed twice: SYM-11 on main (prior highest +1) and RING-0 branch-side (main's first-parent order)
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-09-30
 ---
 
 
@@ -45,3 +46,7 @@ branch-side block records carry the number the unit's merge commit
 recorded. SCALAR's B5 record will land with a note naming this row
 and the two readings, leaving its numbers as first-parent order until
 the rule is stated.
+
+## Closed (2026-09-30)
+
+Ev, in chat: "it really doesn't matter; can you just renumber one of them arbitrarily?" SYM-11 is renumbered to #245, the next free number (the highest in use was #244), in its three mentions in `docs/MODEL-AB-LOG.md`; RING-0 keeps #230 and LANE-1 #231. No numbering rule is written: the protocol is suspended.
