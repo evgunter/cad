@@ -140,6 +140,7 @@
 
 mod canon;
 mod check;
+mod jsontext;
 pub mod hexbytes;
 /// The bytes of kernel types, described from above the layering
 /// boundary — see the module's own docs for the rules a new one
@@ -546,9 +547,15 @@ pub fn save(
             .doc;
     }
     let body = SerBody { snapshot, edits };
-    let json = serde_json::to_string_pretty(&body).map_err(|e| PersistError::Serialize {
-        message: e.to_string(),
+    // Written compact inside the JSON door, so a stable name of any
+    // depth writes one level at a time (`names::nest`), then laid out
+    // as `to_string_pretty` lays it out, over a heap stack.
+    let json = crate::names::json_door(|| serde_json::to_string(&body)).map_err(|e| {
+        PersistError::Serialize {
+            message: e.to_string(),
+        }
     })?;
+    let json = jsontext::pretty(&json);
     // The `id:` header line duplicates the snapshot's id (ASM-1 D-6)
     // so a workspace scan reads identity without parsing the body;
     // load verifies the two agree.
@@ -663,7 +670,10 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
     // any other path — so nothing this one leaves can be read as the
     // next one's (`refusal`).
     let frame = refusal::Parse::open();
-    let parsed = serde_json::from_str(body_text);
+    // Inside the JSON door a stable name reads one level at a time
+    // (`names::nest`), so a name deeper than the reader's recursion
+    // limit loads, on any stack; everything else keeps the limit.
+    let parsed = crate::names::json_door(|| serde_json::from_str(body_text));
     let refused = frame.finish();
     parsed.map_err(|e| parse_err(e, refused))
 }
