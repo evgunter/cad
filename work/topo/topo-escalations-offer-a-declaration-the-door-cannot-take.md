@@ -2,12 +2,13 @@
 id: topo-escalations-offer-a-declaration-the-door-cannot-take
 kind: issue
 title: topo: split_edge's in-band interiority forwards the declare menu to the split and blend doors, which take no declaration
-status: review
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: E
 pr: 3493
 branch: topo/route-refusal-subjects
+closed: 2026-09-30
 ---
 
 
@@ -43,6 +44,19 @@ whole:
 
 ## Repair shape
 
+**PR 3493 does not route by `diag.predicate`**, as the paragraph below
+prescribes. D4 ¶1
+(i), ratified in PR 3352, makes the decision a closed type at its site,
+so its recourse is an exhaustive match, never a lookup by predicate
+name. `BooleanError::Escalated` carries a `boolean::BooleanDecision`,
+set where each escalation is wrapped (`SectorFault::Rung` carries its
+`SectorRung`, `NormalAtError::Escalated` and
+`splitting::ConicRootFault` carry which rung escalated), and its
+ending follows from the decision and the verdict through
+`geom_brep::recourse` (`boolean/refusal_routes.rs`).
+`split_edge`'s two interiority arms end through
+`split::SPLIT_PARAM_INTERIOR`, beside the decision.
+
 Render `diag.payload()` with a subject in plain words ("whether the
 crossing lands strictly inside the edge") and a routed recourse. The
 lever that reaches the split's case is the split plane or the geometry.
@@ -69,3 +83,30 @@ A subject routed by `diag.predicate`, as blend does, would let the
 recourse follow the decision. `boolean/mod.rs` has no owner by
 `work.py territory`, and the sector, normal and containment files are
 TOPO's, so the row is here.
+
+## Closed (2026-09-30, PR 3493)
+
+Built to D4 ¶1 (i)–(iv) as Ev ratified them in PR 3352. Each refusal
+PR 3493 touches routes through a closed decision type set at its
+raise, and its ending is an exhaustive match on (decision, verdict):
+- `Contradiction` names the fact that contradicted a declaration.
+- `BooleanDecision` routes the Boolean's escalations.
+- `split_edge`'s `split_param_ending` and `CrossingDecision` live
+  where they are decided.
+
+No predicate-name lookup remains in the routing.
+
+The tolerance arm is offered only on band-decided arms of a
+nonzero-sign-passing decision, valued and conditional. `split_edge`'s
+definite and in-band arms tell one story. `Containment` ends on its
+lever alone until the containment rung is carried (CONTACT's
+`contain-escalation-carries-no-decision`).
+
+The first version routed by predicate name, against D4 (i), and was
+reworked. The single review of the rework found two D4 breaches (the
+split pair's fork, and `Containment`'s valued tolerance on a residual
+rung). The fix pass closed both.
+
+Filed from it:
+- `boolean-coincidence-wrap-sites-name-no-decision`
+- `pierced-torus-convention-arms-tell-two-stories`
