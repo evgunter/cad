@@ -42,3 +42,28 @@ that carry it. `LOOP_WINDING` passes on either nonzero sign
 (`SizedPass::NonZero`, since PR 3506's fix pass), so its zero arm
 already offers the tolerance a nonzero decided margin gives, and a zero
 winding carried to it reads right.
+
+## What holds now (PR 3532)
+
+`merged_outline_ring` reads every loop's decided winding, margin
+included (`Body::planar_loop_winding_decided`, through
+`decide_reported`), and refuses with the verdict that left no unique
+outline:
+
+- several positive windings: `MergedFaceRoleAmbiguous { face, verdict:
+  OutlineVerdict::SeveralPositive { loops } }`, which names the loops
+  and ends "Recourse: reshape the merged faces so their union is one
+  connected region";
+- no positive winding and a zero one: `Escalated { decision:
+  MergeDecision::LoopWinding, diag }` with the zero winding's own
+  margin, so it tells the in-band arm's story through `LOOP_WINDING`
+  and offers the tolerance that margin gives;
+- no positive winding and a loop the kernel cannot wind (NURBS, spiric,
+  null-edge scaffold): `OutlineVerdict::Unread { loop }`, ending in the
+  carriers the winding reads;
+- every loop negative: `OutlineVerdict::AllNegative`, ending in the
+  orientation tier 3 requires.
+
+The `merge_coplanar_faces:` label is gone from this arm. The twelve
+other arms that carry it are filed as
+`merge-coplanar-refusals-open-with-a-stage-label`.

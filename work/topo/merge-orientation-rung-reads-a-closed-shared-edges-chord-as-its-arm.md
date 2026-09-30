@@ -59,3 +59,15 @@ Lever the rung at a length the edge actually spans: the edge's extent
 edge has, not its chord. Then the merge's lever and size noun read the
 extent, and the F7 gate's orientation arm stops refusing coplanar
 neighbours across a circle.
+
+## What moved under it (PR 3532)
+
+`Body::planes_declared_equal` no longer takes the edge key: it takes
+the shared edge's two halves as the adjacency scan resolved them, and
+`edge_chord_len(a, b)` reads the chord between their start vertices,
+announcing a vertex or point that does not resolve. The
+`unwrap_or_else(T::one)` fallback is gone. An extent lever therefore
+has to thread the edge key back in (the scan holds it) and look up the
+edge's curve, announcing a failed lookup the same way
+(`DanglingRef::Geometry(GeomRef::Curve(..))`) rather than falling back
+to a length; nothing else in the merge's half of this fix moved.

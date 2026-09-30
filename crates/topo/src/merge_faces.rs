@@ -43,7 +43,7 @@ use std::collections::BTreeMap;
 use geom::{NetState, Surface};
 use geom_brep::SurfaceKind;
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
-use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
+use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -54,6 +54,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
+use crate::loop_winding::TornLoop;
 use crate::readback::DanglingRef;
 use crate::validate::{ValidationError, validate_closed};
 
@@ -154,6 +155,15 @@ struct HalfEdgeFacts {
     face: FaceKey,
     /// The half-edge's start vertex.
     start: VertexKey,
+}
+
+/// The door's one kind question, asked of every live face
+/// ([`Body::kind_census`]).
+struct KindCensus {
+    /// Each live face's kind.
+    kinds: SecondaryMap<FaceKey, MergeKind>,
+    /// The faces on a placeholder, in face-arena order.
+    placeholders: Vec<FaceKey>,
 }
 
 /// What becomes of one group's INVENTORY refusal — the door's two
@@ -462,14 +472,18 @@ pub enum MergeCoplanarError {
         kind: SurfaceKind,
     },
     /// After absorbing a group, the survivor's loops admit no unique
-    /// positively-wound outline (zero or several positive windings) —
-    /// the outer/ring roles cannot be assigned; refused rather than
-    /// guessed (M5 S1 fix pass: the intra-face `kemr`'s provisional
-    /// ring designation is now RESOLVED by winding, and shapes the
-    /// resolution cannot decide are outside the inventory).
+    /// positively-wound outline, so the outer/ring roles cannot be
+    /// assigned; refused rather than guessed. The intra-face `kemr`
+    /// designates its ring provisionally and the winding resolves it.
+    /// A zero winding that leaves no outline is not this variant: it
+    /// is the winding decision's own band-decided refusal,
+    /// [`MergeCoplanarError::Escalated`] with
+    /// [`MergeDecision::LoopWinding`] and the winding's margin.
     MergedFaceRoleAmbiguous {
         /// The merged survivor face.
         face: FaceKey,
+        /// Why no loop is the unique outline.
+        verdict: OutlineVerdict,
     },
     /// A decision of the merge could not be taken at this tolerance —
     /// typed, never guessed.
@@ -534,6 +548,31 @@ pub(crate) fn declared_pair_verdict(
         Ok(PlaneRelation::Distinct) => Ok(false),
         Err(refusal) => Err(MergeCoplanarError::of_declared_refusal(refusal)),
     }
+}
+
+/// Why a merged face has no unique outline
+/// ([`MergeCoplanarError::MergedFaceRoleAmbiguous`]), each loop's
+/// winding read about the face's outward normal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OutlineVerdict {
+    /// Several loops wind positively: each bounds a region of its own,
+    /// and one face bounds one connected region.
+    SeveralPositive {
+        /// The positively-wound loops, outline slot first.
+        loops: Vec<LoopKey>,
+    },
+    /// No loop winds positively, and this one has no winding the
+    /// kernel reads (it rides a NURBS or spiric edge or a null-edge
+    /// scaffold, or is empty), so it may be the outline and nothing
+    /// here can say.
+    Unread {
+        /// The first such loop, outline slot first.
+        r#loop: LoopKey,
+    },
+    /// Every loop winds negatively: each reads as a hole and none
+    /// bounds the face, so the face's sense disagrees with its
+    /// boundary.
+    AllNegative,
 }
 
 /// Which decision [`MergeCoplanarError::Escalated`] could not take.
@@ -606,7 +645,9 @@ const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
 
 /// The winding decision: its margin is the loop's signed area over its
 /// length. A positive loop is an outline, a negative one a hole, and a
-/// zero one neither, so it passes on either nonzero sign.
+/// zero one neither, so it passes on either nonzero sign. Its zero arm
+/// refuses where the zero winding leaves the merged face no outline
+/// ([`Body::merged_outline_ring`]), with the margin it was decided on.
 const LOOP_WINDING: SizedDecision = SizedDecision {
     lever: "reshape the merged faces so each loop of the result clearly encloses an area",
     size: "area a loop encloses over its length",
@@ -702,11 +743,32 @@ impl core::fmt::Display for MergeCoplanarError {
                  rung is planar and has no {kind} arm; the pair is left unmerged and recorded",
                 kind = kind.name()
             ),
-            Self::MergedFaceRoleAmbiguous { face } => write!(
-                f,
-                "merge_coplanar_faces: merged face {face:?} has no unique positively-wound \
-                 outline among its loops — outer/ring roles cannot be assigned; refused"
-            ),
+            Self::MergedFaceRoleAmbiguous { face, verdict } => match verdict {
+                OutlineVerdict::SeveralPositive { loops } => write!(
+                    f,
+                    "{} loops of the merged face {face:?} each wind counterclockwise about its \
+                     outward normal ({loops:?}), so each bounds a region of its own and one \
+                     face cannot bound them all. Recourse: reshape the merged faces so their \
+                     union is one connected region",
+                    loops.len()
+                ),
+                OutlineVerdict::Unread { r#loop } => write!(
+                    f,
+                    "no loop of the merged face {face:?} winds counterclockwise about its \
+                     outward normal, and loop {loop:?} has no winding the kernel reads (it \
+                     rides a NURBS or spiric edge or a null-edge scaffold, or is empty), so \
+                     which loop is the outline is not known. Recourse: bound the merged faces \
+                     with line, circle or ellipse edges, whose winding the kernel reads"
+                ),
+                OutlineVerdict::AllNegative => write!(
+                    f,
+                    "every loop of the merged face {face:?} winds clockwise about its outward \
+                     normal, so each reads as a hole and none bounds the face; its sense \
+                     disagrees with its boundary. Recourse: orient the faces being merged so \
+                     each outline winds counterclockwise about its outward normal, as tier 3 \
+                     requires at rest"
+                ),
+            },
             Self::Escalated { decision, diag } => write!(
                 f,
                 "{} is undecided: {}. {}",
@@ -1014,7 +1076,8 @@ impl EstablishedFact {
 /// | `edge_halves` | `StaleKey` |
 /// | `get_face` (the dying face) | `StaleKey` |
 /// | `strut_tip` | `OrbitBroken` |
-/// | `loop_winding`, through `merged_outline_ring` | `StaleKey` |
+/// | `merged_outline_ring` (the survivor's surface) | `StaleGeometry` |
+/// | `loop_winding`, through `merged_outline_ring` | `StaleKey`, `StaleGeometry`, `LoopCycleBroken` |
 /// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
 /// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `OrbitBroken`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
 /// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `LoopCycleBroken`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
@@ -1027,11 +1090,13 @@ impl EstablishedFact {
 /// below as they stand.
 ///
 /// The variants the table does not name take the enum's verdict like
-/// any other variant this door does not contradict. One of them this
-/// door does raise, outside `merge_group`: `StaleGeometry`, when the
-/// kind census ([`Body::merge_kind`]) meets a face whose surface key
-/// does not resolve — announced through [`crate::DanglingRef`] before
-/// any group reaches the surgery. The rest belong to operators this
+/// any other variant this door does not contradict. Outside
+/// `merge_group` the door raises `StaleKey` and `StaleGeometry` itself,
+/// through [`crate::DanglingRef`] before any group reaches the
+/// surgery: the kind census ([`Body::merge_kind`]) on a face whose
+/// surface key does not resolve, and the adjacency test
+/// ([`Body::planes_declared_equal`]) on a face, surface, vertex or
+/// point it cannot resolve. The rest belong to operators this
 /// door does not call: the attachment and split gates
 /// (`set_edge_curve`, `split_edge`), the make-side sites (`mev`,
 /// `mef`), `kvfs`, `kfmrh`'s cross-solid form and the
@@ -1447,28 +1512,23 @@ impl<T: Decide> Body<T> {
         // by-product. Taken before the adjacency scan so the record is
         // complete whether or not anything merges, and so a poisoned
         // net refuses before any group forms.
-        let kinds = self.kind_census()?;
+        let KindCensus {
+            kinds,
+            placeholders,
+        } = self.kind_census()?;
         let mut outcome = MergeCoplanarOutcome {
-            placeholders: self
-                .faces()
-                .map(|(k, _)| k)
-                .filter(|&k| kinds.get(k) == Some(&MergeKind::Placeholder))
-                .collect(),
+            placeholders,
             ..MergeCoplanarOutcome::default()
         };
         // ---- Mergeable adjacency (read-only, edge-arena order). ----
-        let mut neighbors: SecondaryMap<FaceKey, Vec<FaceKey>> = SecondaryMap::new();
+        let mut neighbors: BTreeMap<FaceKey, Vec<FaceKey>> = BTreeMap::new();
         let mut any = false;
-        for (edge_key, edge) in self.edges() {
+        for (_, edge) in self.edges() {
             let (hp, hm) = self.edge_halves(edge.he_plus, edge.he_minus)?;
             let (fp, fm) = (hp.face, hm.face);
-            if fp != fm && self.planes_declared_equal(fp, fm, edge_key, declared_ctx.as_ref())? {
-                if let Some(entry) = neighbors.entry(fp) {
-                    entry.or_default().push(fm);
-                }
-                if let Some(entry) = neighbors.entry(fm) {
-                    entry.or_default().push(fp);
-                }
+            if fp != fm && self.planes_declared_equal(hp, hm, declared_ctx.as_ref())? {
+                neighbors.entry(fp).or_default().push(fm);
+                neighbors.entry(fm).or_default().push(fp);
                 any = true;
             }
         }
@@ -1489,7 +1549,7 @@ impl<T: Decide> Body<T> {
         let mut label: SecondaryMap<FaceKey, usize> = SecondaryMap::new();
         let mut groups: Vec<(FaceKey, Vec<FaceKey>)> = Vec::new();
         for (face_key, _) in self.faces() {
-            if !neighbors.contains_key(face_key) || label.contains_key(face_key) {
+            if !neighbors.contains_key(&face_key) || label.contains_key(face_key) {
                 continue;
             }
             let id = groups.len();
@@ -1497,7 +1557,14 @@ impl<T: Decide> Body<T> {
             label.insert(face_key, id);
             let mut pending = vec![face_key];
             while let Some(next) = pending.pop() {
-                for &n in neighbors.get(next).map(Vec::as_slice).unwrap_or(&[]) {
+                let Some(adjacent) = neighbors.get(&next) else {
+                    unreachable!(
+                        "merge_coplanar_faces: face {next:?} was queued from the adjacency map, \
+                         and every face that map lists is one of its keys (each mergeable edge \
+                         enters both of its faces)"
+                    )
+                };
+                for &n in adjacent {
                     if !label.contains_key(n) {
                         label.insert(n, id);
                         rest.push(n);
@@ -1653,18 +1720,26 @@ impl<T: Decide> Body<T> {
     }
 
     /// Every live face's [`MergeKind`], in one pass — the one place
-    /// the door asks the kind question of the arena.
+    /// the door asks the kind question of the arena — with the
+    /// placeholder faces that pass met, in face-arena order.
     ///
     /// # Errors
     ///
     /// [`Body::merge_kind`]'s, for the first face (arena order) that
     /// raises one.
-    fn kind_census(&self) -> Result<SecondaryMap<FaceKey, MergeKind>, MergeCoplanarError> {
-        let mut kinds = SecondaryMap::new();
+    fn kind_census(&self) -> Result<KindCensus, MergeCoplanarError> {
+        let mut census = KindCensus {
+            kinds: SecondaryMap::new(),
+            placeholders: Vec::new(),
+        };
         for (face_key, _) in self.faces() {
-            kinds.insert(face_key, self.merge_kind(face_key)?);
+            let kind = self.merge_kind(face_key)?;
+            if kind == MergeKind::Placeholder {
+                census.placeholders.push(face_key);
+            }
+            census.kinds.insert(face_key, kind);
         }
-        Ok(kinds)
+        Ok(census)
     }
 
     /// **Does `toward` dangle alone at its start vertex** — is that
@@ -1933,20 +2008,43 @@ impl<T: Decide> Body<T> {
     /// opposite-sense pair is not refused, it is simply not a merge
     /// candidate: a slit is legal geometry, and this op has no
     /// standing to reject a body for containing one.
+    ///
+    /// `plus` and `minus` are the shared edge's two halves as the
+    /// adjacency scan resolved them: their faces are the pair, and
+    /// their start vertices are the edge's two ends.
+    ///
+    /// "Not a plane" is an answer (`false`: the declared-pair rung is
+    /// planar); a key that does not resolve is not, because "these
+    /// faces are not one surface" and "this face is gone" would share
+    /// one spelling and the adjacency would drop without a word.
+    ///
+    /// # Errors
+    ///
+    /// [`MergeCoplanarError::Op`] naming a face, surface, vertex or
+    /// point that does not resolve. The door's entry gate refuses
+    /// every such body before the scan
+    /// (`the_entry_gate_refuses_every_tear_the_adjacency_scan_reads`),
+    /// and it is typed rather than `unreachable!` because tier 1 is
+    /// the only proof. Otherwise the declared rung's refusals
+    /// ([`declared_pair_verdict`]).
     fn planes_declared_equal(
         &self,
-        f1: FaceKey,
-        f2: FaceKey,
-        edge: EdgeKey,
+        plus: HalfEdgeFacts,
+        minus: HalfEdgeFacts,
         declared: Option<&DeclaredCtx>,
     ) -> Result<bool, MergeCoplanarError> {
-        let (Some(face1), Some(face2)) = (self.get_face(f1), self.get_face(f2)) else {
-            return Ok(false);
+        let (f1, f2) = (plus.face, minus.face);
+        let face_of = |f: FaceKey| {
+            self.get_face(f)
+                .ok_or(DanglingRef::Entity(EntityId::Face(f)))
         };
+        let (face1, face2) = (face_of(f1)?, face_of(f2)?);
         let (k1, k2) = (face1.surface, face2.surface);
-        let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
-            return Ok(false);
+        let surface_of = |k: SurfaceKey| {
+            self.get_surface(k)
+                .ok_or(DanglingRef::Geometry(GeomRef::Surface(k)))
         };
+        let (s1, s2) = (surface_of(k1)?, surface_of(k2)?);
         // The shared-sense precondition (fn docs): a differing bit
         // makes the two outward normals opposite, so neither hard rung
         // — both of which certify the SURFACE, not the face — may
@@ -2001,7 +2099,7 @@ impl<T: Decide> Body<T> {
             && ctx.eq.same(k1, k2)
         {
             let band = ctx.band;
-            let arm = self.edge_chord_len(edge).unwrap_or_else(T::one);
+            let arm = self.edge_chord_len(plus.start, minus.start)?;
             let id = PlaneIdentity {
                 s1: None,
                 s2: None,
@@ -2024,16 +2122,25 @@ impl<T: Decide> Body<T> {
         Ok(false)
     }
 
-    /// The chord length between an edge's endpoints — the lever arm
-    /// metering the declared-pair verification at that edge.
-    fn edge_chord_len(&self, edge: EdgeKey) -> Option<T> {
-        let e = self.get_edge(edge)?;
-        let pa = *self.get_point(self.get_vertex(self.get_half_edge(e.he_plus)?.start)?.point)?;
-        let pb = *self.get_point(
-            self.get_vertex(self.get_half_edge(e.he_minus)?.start)?
-                .point,
-        )?;
-        Some((pb - pa).norm())
+    /// The chord length between an edge's two ends, `a` and `b` (its
+    /// halves' start vertices) — the lever arm metering the
+    /// declared-pair verification at that edge.
+    ///
+    /// # Errors
+    ///
+    /// The vertex or point that does not resolve: a length is never
+    /// stood in for one it could not read.
+    fn edge_chord_len(&self, a: VertexKey, b: VertexKey) -> Result<T, DanglingRef> {
+        let point = |v: VertexKey| {
+            let key = self
+                .get_vertex(v)
+                .ok_or(DanglingRef::Entity(EntityId::Vertex(v)))?
+                .point;
+            self.get_point(key)
+                .copied()
+                .ok_or(DanglingRef::Geometry(GeomRef::Point(key)))
+        };
+        Ok((point(b)? - point(a)?).norm())
     }
 
     /// Merges one group into `rep`, its survivor (see the
@@ -2217,16 +2324,17 @@ impl<T: Decide> Body<T> {
             // question silently chooses which surgery runs.
             let mut strut = None;
             'scan: for &(edge_key, (he_plus, hp), (he_minus, hm)) in &duplicates {
-                for (toward_free, from_free, free) in
-                    [(he_plus, he_minus, hm.start), (he_minus, he_plus, hp.start)]
-                {
+                for (toward_free, from_free, near, free) in [
+                    (he_plus, he_minus, hp.start, hm.start),
+                    (he_minus, he_plus, hm.start, hp.start),
+                ] {
                     if self.strut_tip(from_free)? {
-                        strut = Some((edge_key, toward_free, free, hp.r#loop));
+                        strut = Some((edge_key, toward_free, near, free, hp.r#loop));
                         break 'scan;
                     }
                 }
             }
-            if let Some((edge_key, toward_free, free, ring)) = strut {
+            if let Some((edge_key, toward_free, near, free, ring)) = strut {
                 // BOTH ends free: the edge is its own loop, a ring of
                 // the survivor holding nothing but itself — the last
                 // edge of a doubled cycle the pruning has taken the
@@ -2235,10 +2343,7 @@ impl<T: Decide> Body<T> {
                 // The ring is never the survivor's outline (an outline
                 // bounds the face's area); if the arena says it is,
                 // the shape is refused before any of the three calls.
-                let other = self
-                    .strut_tip(toward_free)?
-                    .then(|| self.get_half_edge(toward_free).map(|h| h.start))
-                    .flatten();
+                let other = self.strut_tip(toward_free)?.then_some(near);
                 let outline = self
                     .get_face(rep)
                     .ok_or(DanglingRef::Entity(EntityId::Face(rep)))?
@@ -2334,26 +2439,30 @@ impl<T: Decide> Body<T> {
         Ok(group)
     }
 
-    /// [`Body::planar_loop_winding`], in this door's
-    /// error vocabulary: a torn lookup is `StaleKey` naming the loop and
-    /// an in-band margin escalates. `None` is an empty loop or a NURBS
-    /// or spiric carrier. `normal` is the face's OUTWARD normal.
+    /// [`Body::planar_loop_winding_decided`], in this door's error
+    /// vocabulary: a torn walk names the key that did not resolve (or
+    /// the loop whose cycle did not close) and an in-band margin
+    /// escalates. The decided sign keeps its margin, which a zero
+    /// winding's refusal quotes. `None` is an empty loop or a cycle
+    /// with no winding here (a NURBS or spiric carrier, a null-edge
+    /// scaffold). `normal` is the face's OUTWARD normal.
     fn loop_winding(
         &self,
         l: LoopKey,
         normal: geom_core::Vec3<T>,
         band: Band,
-    ) -> Result<Option<geom_core::Sign>, MergeCoplanarError> {
-        let winding = self.planar_loop_winding(l, normal, band).map_err(
-            |crate::loop_winding::TornLoop| MergeCoplanarError::Op {
-                error: EulerOpError::StaleKey {
-                    key: EntityId::Loop(l),
-                },
-            },
-        )?;
+    ) -> Result<Option<Decided>, MergeCoplanarError> {
+        let winding =
+            self.planar_loop_winding_decided(l, normal, band)
+                .map_err(|torn| match torn {
+                    TornLoop::Dangling(what) => MergeCoplanarError::from(what),
+                    TornLoop::CycleBroken => {
+                        MergeCoplanarError::from(EulerOpError::LoopCycleBroken { r#loop: l })
+                    }
+                })?;
         match winding {
             None => Ok(None),
-            Some(Ok(sign)) => Ok(Some(sign)),
+            Some(Ok(decided)) => Ok(Some(decided)),
             Some(Err(diag)) => Err(MergeCoplanarError::Escalated {
                 decision: MergeDecision::LoopWinding,
                 diag,
@@ -2365,13 +2474,25 @@ impl<T: Decide> Body<T> {
     /// winding (doc at the call site): the unique positively-wound
     /// cycle is the outer loop. `Some(i)` means ring `i` must swap into
     /// the outer slot; `None` means the roles are already correct, or
-    /// the survivor is not a planar rung. Zero or multiple positive
-    /// cycles refuse [`MergeCoplanarError::MergedFaceRoleAmbiguous`].
+    /// the survivor is not a plane, which has no winding question here
+    /// (a curved run refuses `PeriodClosure` before any `kemr`, so the
+    /// survivor is a plane at every call).
     ///
-    /// Takes the survivor's resolved data rather than looking it up:
-    /// the caller holds the liveness proof, and a helper that cannot
-    /// look anything up cannot discard a failed lookup. `face` is the
-    /// refusal's payload only — nothing here dereferences it.
+    /// Takes the survivor's resolved face record: the caller holds its
+    /// liveness proof. `face` is the refusal's payload only.
+    ///
+    /// # Errors
+    ///
+    /// When no loop is the unique outline, the verdict that left none:
+    /// [`MergeCoplanarError::MergedFaceRoleAmbiguous`] for several
+    /// positive windings, an unread loop or every loop negative, and
+    /// [`MergeCoplanarError::Escalated`] ([`MergeDecision::LoopWinding`],
+    /// the winding's own margin) for a zero winding, which is the
+    /// winding decision's band-decided refusal and tells its story.
+    /// A surface or loop key that does not resolve is
+    /// [`MergeCoplanarError::Op`] naming it: this pass reads the arena
+    /// after the surgery has mutated it, so the entry gate's proof does
+    /// not reach it.
     fn merged_outline_ring(
         &self,
         face: FaceKey,
@@ -2379,32 +2500,71 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+        let described = self
+            .get_surface(survivor.surface)
+            .ok_or(DanglingRef::Geometry(GeomRef::Surface(survivor.surface)))?;
         // The face's OUTWARD normal (S10): "positively wound" means
         // CCW seen from OUTSIDE the material, so on a reversed face
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
-        let normal = match self.get_surface(survivor.surface) {
-            Some(Surface::Plane { normal, .. }) => plane_outward_normal(survivor, *normal).vec(),
-            // The survivor is a plane at every call: `rings_made` is
-            // non-empty only under a planar contract, since the curved
-            // arm refuses `PeriodClosure` before any `kemr`. This arm
-            // still spells "not a plane" and "unresolved" the same way.
-            _ => return Ok(None),
+        let Surface::Plane { normal, .. } = described else {
+            return Ok(None);
         };
-        let mut positives: Vec<Option<usize>> = Vec::new(); // None = outer
-        if self.loop_winding(survivor.outer, normal, band)? == Some(geom_core::Sign::Positive) {
-            positives.push(None);
-        }
-        for (i, &r) in survivor.rings.iter().enumerate() {
-            if self.loop_winding(r, normal, band)? == Some(geom_core::Sign::Positive) {
-                positives.push(Some(i));
+        let normal = plane_outward_normal(survivor, *normal).vec();
+        // Every loop's verdict, outline slot first (`None`).
+        let mut positive: Vec<(Option<usize>, LoopKey)> = Vec::new();
+        let mut zero = None;
+        let mut unread = None;
+        let slots = core::iter::once((None, survivor.outer)).chain(
+            survivor
+                .rings
+                .iter()
+                .enumerate()
+                .map(|(i, &r)| (Some(i), r)),
+        );
+        for (slot, l) in slots {
+            match self.loop_winding(l, normal, band)? {
+                Some(Decided {
+                    sign: geom_core::Sign::Positive,
+                    ..
+                }) => positive.push((slot, l)),
+                Some(Decided {
+                    sign: geom_core::Sign::Zero,
+                    margin,
+                }) => {
+                    zero.get_or_insert(margin);
+                }
+                Some(Decided {
+                    sign: geom_core::Sign::Negative,
+                    ..
+                }) => {}
+                None => {
+                    unread.get_or_insert(l);
+                }
             }
         }
-        match positives[..] {
-            [None] => Ok(None), // roles already correct
-            [Some(i)] => Ok(Some(i)),
-            _ => Err(MergeCoplanarError::MergedFaceRoleAmbiguous { face }),
-        }
+        let verdict = match (&positive[..], unread, zero) {
+            (&[(slot, _)], _, _) => return Ok(slot),
+            ([_, _, ..], _, _) => OutlineVerdict::SeveralPositive {
+                loops: positive.iter().map(|&(_, l)| l).collect(),
+            },
+            // An unread loop may be the outline, which no tolerance
+            // decides; it is named before a zero winding's offer.
+            ([], Some(r#loop), _) => OutlineVerdict::Unread { r#loop },
+            ([], None, Some(margin)) => {
+                return Err(MergeCoplanarError::Escalated {
+                    decision: MergeDecision::LoopWinding,
+                    diag: Indeterminate {
+                        margin,
+                        band,
+                        predicate: Some("bool_ring_run_winding"),
+                        terminal_sliver: false,
+                    },
+                });
+            }
+            ([], None, None) => OutlineVerdict::AllNegative,
+        };
+        Err(MergeCoplanarError::MergedFaceRoleAmbiguous { face, verdict })
     }
 }
 
@@ -2529,7 +2689,10 @@ mod tests {
     /// the way the door asks it.
     fn contract_of(body: &Body<f64>) -> GroupContract {
         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-        let kinds = body.kind_census().expect("the fixture's faces resolve");
+        let kinds = body
+            .kind_census()
+            .expect("the fixture's faces resolve")
+            .kinds;
         Body::<f64>::group_contract(faces[0], &faces[1..], &kinds)
             .expect("the census holds every face")
     }
@@ -2727,6 +2890,65 @@ mod tests {
         assert!(group.killed_vertices.is_empty(), "{group:?}");
         assert_eq!(body.get_face(group.kept).expect("live").rings.len(), 1);
         assert_eq!(validate_closed(&body), Ok(()));
+    }
+
+    /// **Every lookup the adjacency test makes announces the key it
+    /// could not resolve** — not `false`, which drops a mergeable
+    /// adjacency without a word, and not a unitless `1` standing in
+    /// for the chord that levers the declared rung. Asked of the helper
+    /// directly: the door's entry gate refuses each of these tears
+    /// first (`the_entry_gate_refuses_every_tear_the_adjacency_scan_reads`).
+    /// The first row is the control: the intact pair is declared one
+    /// plane, so each torn row pins its tear and not the fixture.
+    #[test]
+    fn a_torn_adjacency_lookup_is_announced_naming_its_key() {
+        let tol = Tol::witness();
+        type Tear = fn(&mut Body<f64>, HalfEdgeFacts, HalfEdgeFacts) -> Option<DanglingRef>;
+        let rows: [(&str, Tear); 5] = [
+            ("nothing", |_, _, _| None),
+            ("a face", |b, _, hm| {
+                b.faces.remove(hm.face);
+                Some(DanglingRef::Entity(EntityId::Face(hm.face)))
+            }),
+            ("a face's surface", |b, _, hm| {
+                let k = b.get_face(hm.face).expect("live").surface;
+                b.surfaces.remove(k);
+                Some(DanglingRef::Geometry(GeomRef::Surface(k)))
+            }),
+            ("an end vertex", |b, hp, _| {
+                b.vertices.remove(hp.start);
+                Some(DanglingRef::Entity(EntityId::Vertex(hp.start)))
+            }),
+            ("an end point", |b, _, hm| {
+                let p = b.get_vertex(hm.start).expect("live").point;
+                b.points.remove(p);
+                Some(DanglingRef::Geometry(GeomRef::Point(p)))
+            }),
+        ];
+        for (what, tear) in rows {
+            let (mut body, declared) = declared_planar_cube(tol);
+            let mut eq = DeclaredSurfaceEq::default();
+            for &(a, b) in &declared {
+                eq.union(a, b);
+            }
+            let ctx = DeclaredCtx {
+                eq,
+                band: Band::linear(tol).expect("the witness tolerance forms a band"),
+            };
+            let edge = body.edges().next().expect("an edge").1;
+            let (hp, hm) = body
+                .edge_halves(edge.he_plus, edge.he_minus)
+                .expect("the fixture resolves");
+            let want = match tear(&mut body, hp, hm) {
+                None => Ok(true),
+                Some(key) => Err(MergeCoplanarError::from(key)),
+            };
+            assert_eq!(
+                body.planes_declared_equal(hp, hm, Some(&ctx)),
+                want,
+                "tearing {what}"
+            );
+        }
     }
 
     /// **The entry gate refuses every tear the adjacency scan's
@@ -3410,7 +3632,10 @@ mod tests {
             other_kind: MergeKind::Curved,
         });
         let contract = |body: &Body<f64>, a: FaceKey, b: FaceKey| {
-            let kinds = body.kind_census().expect("the fixture's faces resolve");
+            let kinds = body
+                .kind_census()
+                .expect("the fixture's faces resolve")
+                .kinds;
             Body::<f64>::group_contract(a, &[b], &kinds)
         };
         assert_eq!(contract(&body, rep, other), split);
@@ -4047,6 +4272,13 @@ mod winding_arm_tests {
         body.get_half_edge(he).unwrap().edge
     }
 
+    /// A winding's sign, its margin dropped.
+    fn signed(
+        r: Result<Option<Decided>, MergeCoplanarError>,
+    ) -> Result<Option<Sign>, MergeCoplanarError> {
+        r.map(|w| w.map(|d| d.sign))
+    }
+
     fn band(tol: Tol) -> Band {
         Band::linear(tol).unwrap()
     }
@@ -4067,12 +4299,12 @@ mod winding_arm_tests {
             tol,
         );
         assert_eq!(
-            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
+            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
             Ok(Some(Sign::Positive)),
             "the chord triangle winds positively about +z"
         );
         assert_eq!(
-            t.body.loop_winding(t.r#loop, -Vec3::unit_z(), band(tol)),
+            signed(t.body.loop_winding(t.r#loop, -Vec3::unit_z(), band(tol))),
             Ok(Some(Sign::Negative)),
             "and negatively about the opposite normal"
         );
@@ -4144,12 +4376,12 @@ mod winding_arm_tests {
         let disc = body.get_face(e2.face).unwrap().outer;
         let anti = body.get_face(seed.face).unwrap().outer;
         assert_eq!(
-            body.loop_winding(disc, outward, band(tol)),
+            signed(body.loop_winding(disc, outward, band(tol))),
             Ok(Some(Sign::Positive)),
             "the disc's own boundary encloses material about the outward normal"
         );
         assert_eq!(
-            body.loop_winding(anti, outward, band(tol)),
+            signed(body.loop_winding(anti, outward, band(tol))),
             Ok(Some(Sign::Negative)),
             "the same boundary reversed anti-encloses — a ring's signature"
         );
@@ -4188,7 +4420,7 @@ mod winding_arm_tests {
             )
             .unwrap();
         assert_eq!(
-            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
+            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
             Ok(Some(Sign::Positive)),
             "chord 2A = 1 minus the bite the arc takes out of it"
         );
@@ -4210,7 +4442,7 @@ mod winding_arm_tests {
     /// Each escalation is also the winding decision's real raise for the
     /// refusal-shape guard: one recourse, its subject, no stage prefix
     /// and no declaration.
-    fn escalated_margin(r: Result<Option<Sign>, MergeCoplanarError>) -> f64 {
+    fn escalated_margin(r: Result<Option<Decided>, MergeCoplanarError>) -> f64 {
         match r {
             Err(
                 ref err @ MergeCoplanarError::Escalated {
@@ -4440,7 +4672,7 @@ mod winding_arm_tests {
             tol,
         );
         assert_eq!(
-            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
+            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
             Ok(Some(Sign::Positive)),
             "as a chord triangle it is decidable and positive"
         );
@@ -4490,9 +4722,25 @@ mod winding_arm_tests {
             )
             .unwrap();
         assert_eq!(
-            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
+            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
             Ok(None),
             "one fitted carrier and the whole cycle stops being answerable"
+        );
+        // ...and as a merged face's only loop it is named, not taken
+        // for a hole: it may be the outline, and no tolerance says.
+        let face = t.body.get_loop(t.r#loop).unwrap().face;
+        let survivor = t.body.get_face(face).unwrap().clone();
+        let err = t
+            .body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("an unread outline is not assigned");
+        assert_one_story(&err.to_string());
+        assert_eq!(
+            err,
+            MergeCoplanarError::MergedFaceRoleAmbiguous {
+                face,
+                verdict: OutlineVerdict::Unread { r#loop: t.r#loop },
+            }
         );
     }
 
@@ -4603,6 +4851,41 @@ mod winding_arm_tests {
                     "Recourse: reshape the merged faces so their union is one connected region"
                 ),
             "{text}"
+        );
+    }
+
+    /// **Every loop negative ends in the orientation story**: the
+    /// triangle's second face, whose one loop winds clockwise about
+    /// its outward normal, taken as a merged face. Nothing about the
+    /// margin is band-decided, so no tolerance is offered.
+    #[test]
+    fn every_loop_negative_names_the_face_and_offers_no_tolerance() {
+        let tol = Tol::witness();
+        let t = tri(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            tol,
+        );
+        let (face, survivor) = t
+            .body
+            .faces()
+            .find(|(_, f)| f.outer != t.r#loop)
+            .map(|(k, f)| (k, f.clone()))
+            .expect("the triangle's second face");
+        let err = t
+            .body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("a face of holes has no outline");
+        let text = err.to_string();
+        assert_one_story(&text);
+        assert!(!text.contains("tighten"), "{text}");
+        assert_eq!(
+            err,
+            MergeCoplanarError::MergedFaceRoleAmbiguous {
+                face,
+                verdict: OutlineVerdict::AllNegative,
+            }
         );
     }
 }
