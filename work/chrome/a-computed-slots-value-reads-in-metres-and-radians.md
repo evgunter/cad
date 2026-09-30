@@ -56,3 +56,12 @@ What is open is where the preference lives: a document field, which is
 persisted and diffable, or a viewer preference, which is per person
 and not in the recipe. How it interacts with `unparse` is part of the
 same question. That is a design fork.
+
+**A fourth reader since AUTH-8, 2026-09-30: an assertion's verdict.**
+`tree::Asserted` spells both the measured value and the bound through
+`computed_text` in the measure's dimension, so an assertion authored as
+`>= 0.5 mm` reads `>= 0.0005 m`. Here the bound is an authored `Expr`
+that does carry a written unit, unlike the measure, and AUTH-8 still
+did not spell it in that unit: the two numbers of one comparison would
+then read in two notations. The crate-wide preference above moves both
+together.

@@ -2,7 +2,8 @@
 id: an-assertion-row-shows-no-verdict
 kind: issue
 title: an Assertion row shows that it exists and never its verdict
-status: dispatched
+status: review
+branch: author/assertion-verdict
 opened: 2026-09-30
 priority: P0
 cost: M
@@ -13,7 +14,7 @@ refs: [the-gui-shows-no-measure-value-and-no-clearance, measure-assertion-offers
 Found by AUTH-7's sweep for evaluated values the viewer never shows.
 An `Assertion` node's row reads `Assertion` and nothing else:
 `tree::node_kind` (`crates/viewer/src/tree.rs`, ~:385) is the whole
-label, and `tree::reading_of` answers `None` for
+label, and `tree::measured_of` answered `None` for
 `ValuePayload::Assertion`. The verdict the kernel hands back
 (`AssertionVerdict<f64>`, `crates/editor-core/src/measure.rs` ~:740)
 reaches no surface. A document can record "this web is at least
