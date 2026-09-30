@@ -2207,7 +2207,7 @@ mod tests {
             .into_iter()
             .find(|&he| body.mate(he).and_then(|m| body.face_of_half_edge(m)) == Some(kept))
             .unwrap();
-        assert_eq!(out.kef(he).unwrap().killed_face, absorbed);
+        assert_eq!(out.kef(he, Tol::witness()).unwrap().killed_face, absorbed);
         out
     }
 
