@@ -1503,6 +1503,17 @@ impl fmt::Display for IndeterminatePayload<'_> {
         let (zero, escalate) = (self.0.band.zero, self.0.band.escalate);
         let margin = self.0.margin;
         match margin.0 {
+            // A zero verdict of a decision that does not pass at zero,
+            // carried with the margin its band decided.
+            Reading::Value(m) if m.abs() <= zero => {
+                write!(f, "margin {margin:e} lies within the zero band (±{zero:e})")
+            }
+            Reading::Enclosure { lo, hi } if -zero <= lo && hi <= zero => {
+                write!(
+                    f,
+                    "enclosure {margin:e} lies within the zero band (±{zero:e})"
+                )
+            }
             Reading::Value(_) => write!(
                 f,
                 "margin {margin:e} lies inside the ambiguity band ({zero:e}, {escalate:e})"

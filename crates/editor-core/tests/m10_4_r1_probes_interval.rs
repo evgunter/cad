@@ -603,7 +603,8 @@ fn r1_another_documents_verdict_certifies_this_one() {
 #[test]
 fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
     let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::max(a(), MeasureExpr::neg(a())).expect("Scalar lattice max")
+        MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
+            .expect("Scalar lattice max")
     });
     let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {

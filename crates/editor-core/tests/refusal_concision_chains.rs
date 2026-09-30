@@ -2755,9 +2755,9 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, FlipSource, NamingError, ParamBoxError,
-        ParamName, PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId,
-        StableName, TieWitness,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, ParamName,
+        PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
+        TieWitness,
     };
     use geom_core::Sign;
     use payloads::*;
@@ -2904,8 +2904,8 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "name_frag_side_of",
-                source: named("name_frag_side_of"),
+                predicate: "name_frag_order_along",
+                source: named("name_frag_order_along"),
             },
         ),
     ];
@@ -2919,7 +2919,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                         predicate: "side_of_plane",
                         from: Sign::Positive,
                         to: Sign::Negative,
-                        source: FlipSource::VerdictLog,
                     },
                     last_good: None,
                 },
@@ -3263,6 +3262,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("DepthExceeded", PartFault::DepthExceeded),
+        ("NotEntered", PartFault::NotEntered),
     ];
     for (n, fault) in parts {
         rows.push(row(

@@ -74,7 +74,7 @@ fn a_committed_profile_is_drawn_on_the_plane_its_value_carries() {
     let committed = &drawn.drawn[0];
     assert_eq!(committed.loops.len(), 1);
     let square = &committed.loops[0];
-    assert!(square.closed, "a validated loop is closed");
+    assert!(square.end.closes(), "a validated loop is closed");
     // The canonical form starts at the authored vertex and runs
     // counterclockwise, which for this square is the order it was
     // authored in.

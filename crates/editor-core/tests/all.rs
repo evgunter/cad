@@ -96,12 +96,6 @@ mod bool12r2_ec_probe;
 mod bool13_r1_probes;
 #[path = "bool13r2_probes.rs"]
 mod bool13r2_probes;
-#[path = "bool7_shadow_exec.rs"]
-mod bool7_shadow_exec;
-#[path = "bool7r1_probes.rs"]
-mod bool7r1_probes;
-#[path = "bool7r2_probes.rs"]
-mod bool7r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
 #[path = "cascade_delete.rs"]
@@ -194,6 +188,8 @@ mod refusal_concision_chains;
 mod remap_reorders_ids;
 #[path = "resolve_group_membership.rs"]
 mod resolve_group_membership;
+#[path = "resolve_piece_ladder.rs"]
+mod resolve_piece_ladder;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
 #[path = "rv_dm7_probes.rs"]
@@ -291,6 +287,8 @@ mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;
 
+#[path = "expr_nesting_bound.rs"]
+mod expr_nesting_bound;
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
 #[path = "m10_4_stackup_interval.rs"]
@@ -449,6 +447,8 @@ mod node_standing;
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
 mod parallel_node_map_probe;
+#[path = "part_depth_bound.rs"]
+mod part_depth_bound;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -648,6 +648,8 @@ mod emit_seam_junction;
 mod emit_shared_rim_several;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
+#[path = "emit_union_borders.rs"]
+mod emit_union_borders;
 #[path = "emit_union_flush_names.rs"]
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]

@@ -4400,9 +4400,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   presentation layer with no authoring door yet.
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
-///   `Diagnosis`, `UpstreamCause`, `FlipSource`, `ShadowExecRefusal`,
-///   `GroupCutters`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
-///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
+///   `Diagnosis`, `UpstreamCause`, `GroupCutters`, `Implicated`,
+///   `PredicateDivergence`, `DocDiff`, `NodeChange`, `diff_*`,
+///   `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
 ///   briefly as the payloads of a resolution failure and then put them
@@ -4620,7 +4620,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   its profile step ids from, which `Doc::step_mint` answers. The
 ///   doors read it and a consumer never writes it; what a consumer
 ///   holds is the ids themselves (`StepId`), carried.
-const NOT_CARRIED: [&str; 96] = [
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4645,7 +4645,6 @@ const NOT_CARRIED: [&str; 96] = [
     "EvalScalar",
     "FlipEvidence",
     "FlipSet",
-    "FlipSource",
     "FoldConsumption",
     "FragmentGroups",
     "GroupCutters",
@@ -4673,11 +4672,8 @@ const NOT_CARRIED: [&str; 96] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
-    "SHADOW_EXEC_MAX_PAIRS",
     "SectionScalar",
     "SeedScalar",
-    "ShadowExecRefusal",
-    "SideVerdict",
     "StepMint",
     "StructureFlip",
     "SummaryDelta",

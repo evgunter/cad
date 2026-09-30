@@ -123,22 +123,22 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("heat_sink", 0x3f75_2e44_c653_a195, 0xc121_bd20_aa40_3afb),
     (
         "crossing_slots",
-        0x45b0_d3fb_4a80_e28e,
+        0xda43_6c13_abf1_d594,
         0x8699_30d6_d9f4_5832,
     ),
     (
         "nested_islands_105",
-        0x55fb_fae6_e9ea_bbaa,
+        0x744f_c58b_23ea_7a32,
         0xa54b_1d87_1ad6_144e,
     ),
     (
         "nested_islands_106_depth1",
-        0xcfc7_86a6_ce50_f94b,
+        0x0b43_088d_fcfc_dc99,
         0x93de_1cd7_5952_da4f,
     ),
     (
         "nested_islands_106_depth2",
-        0x2a68_0235_6d92_659e,
+        0x3adb_b7f9_21b4_8ace,
         0xa58c_369b_0600_ab56,
     ),
     (

@@ -120,7 +120,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
 
     let plane = r.insert(xy_frame());
 
-    let neg_w = Expr::neg(plen("half_w"));
+    let neg_w = Expr::neg(plen("half_w")).expect("a shallow negation");
     // The chain's own idiom for a tangent arc between two tangent legs:
     // `.tangent()` before the arc and before the leg out of it, the
     // leg out authored as a LENGTH since it rides the inherited

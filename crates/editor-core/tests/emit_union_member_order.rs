@@ -21,9 +21,8 @@
 //!   orders and a later step's cut of a whole seam in others, and no
 //!   name binds a different entity in any two orders;
 //! - two declared-flush members and a bar across both, in both orders
-//!   of the flush pair: the bar's cap fragments carry their `SideOf`
-//!   partners in member-space name order, so each fragment has one
-//!   name.
+//!   of the flush pair: the bar's cap pieces carry their `Borders`
+//!   walls in member space, so each piece has one name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
@@ -435,19 +434,19 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     }
 }
 
-/// **A fragment's `SideOf` partners are in name order whatever the
-/// member order** (the `abys` witness of
+/// **A fragment's `Borders` walls are one spelling whatever the member
+/// order** (the `abys` witness of
 /// `name-ordered-positions-in-a-path-have-no-single-home`).
 ///
 /// `a` and `b` overlap in x and are declared flush; the bar `y` crosses
-/// both, so `y`'s start cap is cut into two fragments told apart by
-/// their side of `a`'s and `b`'s faces. The pair emitter writes the
-/// partners sorted in the FOLD's space, where the first member is the
-/// A side; the collapse has to sort them again in member space. In
-/// `[a, b, y]` and `[b, a, y]` every face fragment carries the same
-/// name and binds the same face.
+/// both, so `y`'s start cap is cut into two pieces told apart by the
+/// walls of `a` and `b` each borders. The pair emitter writes the walls
+/// in the FOLD's space, where the first member is the A side; the
+/// union names them again in member space. In `[a, b, y]` and
+/// `[b, a, y]` every face piece carries the same name and binds the
+/// same face.
 #[test]
-fn a_fragments_side_of_partners_are_one_order_in_every_member_order() {
+fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
     use crate::docm7_union_declare::{declared_union, flush_pairs};
     let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
         .into_iter()
@@ -463,13 +462,13 @@ fn a_fragments_side_of_partners_are_one_order_in_every_member_order() {
             let ev = run(&doc);
             bindings(&ev, u)
                 .into_iter()
-                .filter(|(n, _)| n.contains("SideOf"))
+                .filter(|(n, _)| n.contains("Borders"))
                 .collect()
         })
         .collect();
     assert!(
         !tables[0].is_empty(),
-        "no fragment carries a SideOf, so the row pins nothing"
+        "no fragment carries a Borders, so the row pins nothing"
     );
     assert_eq!(
         tables[0], tables[1],

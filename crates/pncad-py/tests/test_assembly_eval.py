@@ -76,11 +76,14 @@ generated under.
 
 import ast
 import atexit
+import json
 import math
 import operator
 import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -294,15 +297,15 @@ class TestTheResolutionRefusals(CorpusCase):
     `part_epsilon_seam` needs a stored document recording a different
     ε; `part_product` needs a part whose own product is broken for a
     reason other than a failed or poisoned root;
-    `part_root_failure_unrecorded` is
-    a kernel bug no document reaches; `part_reference_cycle` needs an instantiate node
+    `part_root_failure_unrecorded` and `part_not_entered` are
+    kernel bugs no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
     containing its own hash, and with invalid pins `part_pin_mismatch`
     fires first, so hand-crafted bytes do not get there either.
-    `part_depth_exceeded` is left UNCLAIMED: a hand-crafted acyclic
-    chain deep enough might reach it, and this unit did not establish
-    whether it does. Authoring any of these documents is G18b's half.
+    `part_depth_exceeded` is reached by `TestNestingPastTheBound`, with
+    an acyclic chain one document deeper than the bound. Authoring any
+    of the others is G18b's half.
     """
 
     def test_a_pin_that_moved_refuses_rather_than_retargeting(self):
@@ -562,6 +565,141 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         self.assertEqual(last.kind, "extrude")
         self.assertEqual((last.node, last.document), (self.extrude, self.part_ref))
         self.assertIsNone(last.__cause__, "the chain ends at the refusing node")
+
+
+#: The deepest nesting that evaluates: `part_depth_exceeded`'s sentence
+#: names it.
+DEPTH_BOUND = 1024
+
+#: The most causes a raised chain links (`LINKED_LEVELS` in the binding):
+#: deeper levels fold into the last one, one line each.
+LINKED_CAUSES = 256
+
+#: The child process `TestNestingPastTheBound` runs: a chain of
+#: `DEPTH_BOUND + 1` documents over the post, each instantiating the one
+#: below, stored in a `Workspace` and evaluated from the top. In mode
+#: `thread` it evaluates on a `threading.Thread` and prints what the
+#: top instance's refusal chain says, one JSON object; in mode
+#: `uncaught` it lets the refusal reach the interpreter's own
+#: excepthook. A crash prints nothing and dies on a signal.
+_PAST_THE_BOUND = """
+import json, shutil, sys, tempfile, threading
+from pathlib import Path
+
+import bench_scene
+from pncad import DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
+
+levels, mode = int(sys.argv[1]), sys.argv[2]
+directory = Path(tempfile.mkdtemp())
+try:
+    store = Workspace(str(directory))
+    below = bench_scene.post()
+    store.create(below)
+    first = None
+    for level in range(1, levels + 1):
+        doc = Doc(f"pncad-depth-level-{level}")
+        doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+        store.create(doc)
+        first = first or doc
+        below = doc
+    top = Doc("pncad-depth-top")
+    instance = top.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+    if mode == "uncaught":
+        evaluate(top, resolver=store).value(instance)
+    said = {}
+
+    def descend():
+        try:
+            evaluate(top, resolver=store).value(instance)
+        except EvaluationError as refusal:
+            chain = [refusal]
+            while chain[-1].__cause__ is not None:
+                chain.append(chain[-1].__cause__)
+            said["top"] = chain[0].kind
+            said["causes"] = len(chain) - 1
+            said["last"] = chain[-1].kind
+            said["last_lines"] = str(chain[-1]).splitlines()
+            said["in_the_first_level"] = chain[-1].document.id == first.id
+
+    thread = threading.Thread(target=descend)
+    thread.start()
+    thread.join()
+    print(json.dumps(said))
+finally:
+    shutil.rmtree(directory, ignore_errors=True)
+"""
+
+
+class TestNestingPastTheBound(unittest.TestCase):
+    """A chain one document past the bound refuses typed from a
+    `threading.Thread`, rather than killing the interpreter.
+
+    The evaluation runs in a child process because the failure this row
+    guards against is a dead process, which would take the suite with it
+    if it ran here.
+    """
+
+    def past_the_bound(self, mode):
+        return subprocess.run(
+            [sys.executable, "-c", _PAST_THE_BOUND, str(DEPTH_BOUND), mode],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+
+    def test_a_chain_one_past_the_bound_refuses_depth_exceeded_on_a_thread(self):
+        child = self.past_the_bound("thread")
+        self.assertEqual(
+            child.returncode,
+            0,
+            f"the interpreter survives the descent: {child.stderr[-2000:]}",
+        )
+        said = json.loads(child.stdout)
+        self.assertEqual(said["top"], "part_root_failed")
+        self.assertEqual(
+            said["causes"],
+            LINKED_CAUSES,
+            "the chain links as many causes as every interpreter can print",
+        )
+        self.assertEqual(said["last"], "part_depth_exceeded")
+        self.assertTrue(
+            said["in_the_first_level"],
+            "the last cause is raised for the refusing node, in the document "
+            "at the bound, the one instantiating the post",
+        )
+        sentence, *above = said["last_lines"]
+        self.assertIn(f"deeper than {DEPTH_BOUND} documents", sentence)
+        self.assertIn(
+            "Recourse: flatten the assembly so its parts nest fewer documents deep",
+            sentence,
+        )
+        self.assertEqual(
+            len(above) + LINKED_CAUSES,
+            DEPTH_BOUND,
+            "the last cause holds one line for each document it stands for",
+        )
+
+    def test_an_uncaught_refusal_one_past_the_bound_prints_every_level(self):
+        """The interpreter's own excepthook prints the whole refusal: the
+        sentence, and one line per document it was carried up through.
+        CPython 3.11's excepthook recurses once per linked cause and
+        prints nothing past its recursion limit; this row runs on the
+        interpreter the suite runs on."""
+        child = self.past_the_bound("uncaught")
+        self.assertEqual(child.returncode, 1, child.stderr[-2000:])
+        self.assertNotIn("lost sys.stderr", child.stderr)
+        self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
+        self.assertEqual(
+            child.stderr.count("the part's node 0 failed"),
+            DEPTH_BOUND,
+            "one line for the instance and one for each document above the bound",
+        )
+        self.assertTrue(
+            child.stderr.rstrip().splitlines()[-1].startswith("pncad.EvaluationError: node 0 failed"),
+            "the traceback ends at the refusal that was raised",
+        )
 
 
 class TestTheMemoIsObservable(CorpusCase):

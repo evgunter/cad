@@ -24,6 +24,7 @@ use editor_core::{
     unparse,
 };
 use proptest::prelude::*;
+use test_utils::fuzz;
 
 fn no_params() -> BTreeMap<ParamName, Dimension> {
     BTreeMap::new()
@@ -687,33 +688,209 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
     assert_eq!(round_trip(&scalar), "2.0");
 }
 
+/// **A minus sign directly before a number is that literal's own**, so
+/// every literal the constructors admit has a spelling: a negative one
+/// reads back as itself rather than as the negation of its magnitude
+/// one node deeper, and the negation of a non-negative literal writes a
+/// bracket to stay a negation. `i64::MIN` reads too, since its digits
+/// are read with their sign.
 #[test]
-fn a_negative_literal_is_the_one_shape_this_grammar_cannot_spell() {
-    // The grammar has no negative number TOKEN — `-` is always an
-    // operator — so a negative literal's own source text reads back as
-    // the negation of its magnitude: same value, one node deeper.
-    // Pinned rather than papered over (`unparse`'s docs state it).
-    let negative = Expr::literal(-0.025, Dimension::Length).expect("finite length");
-    let text = unparse(&negative);
-    assert_eq!(text, "-0.025 m");
-    let back = rp(&text);
-    assert!(!back.bit_eq(&negative));
-    assert_eq!(
-        ev(&back),
-        ev(&negative),
-        "the two spellings evaluate identically"
+fn a_sign_before_a_number_is_the_literals_own() {
+    let length = |metres: f64| Expr::literal(metres, Dimension::Length).expect("finite length");
+    for (label, e, text) in [
+        ("a negative length", length(-0.025), "-0.025 m"),
+        (
+            "a negated length",
+            Expr::neg(length(0.025)).expect("shallow"),
+            "-(0.025 m)",
+        ),
+        (
+            "a negated negative length",
+            Expr::neg(length(-0.025)).expect("shallow"),
+            "--0.025 m",
+        ),
+        ("a negative count", Expr::count(-7), "-7"),
+        (
+            "a negated count",
+            Expr::neg(Expr::count(7)).expect("shallow"),
+            "-(7)",
+        ),
+        (
+            "the least count",
+            Expr::count(i64::MIN),
+            "-9223372036854775808",
+        ),
+        (
+            "a negative zero",
+            Expr::literal(-0.0, Dimension::Scalar).expect("finite"),
+            "-0.0",
+        ),
+        (
+            "a sign after an operator",
+            Expr::sub(length(0.5), length(-0.25)).expect("same dimension"),
+            "0.5 m - -0.25 m",
+        ),
+    ] {
+        assert_eq!(round_trip(&e), text, "{label}");
+    }
+    assert!(rp("-25 mm").child(0).is_none(), "`-25 mm` is one literal");
+    assert!(
+        rp("-(25 mm)").child(0).is_some(),
+        "`-(25 mm)` negates the literal inside it"
     );
-    // The same for a negative count, and `i64::MIN` refuses outright —
-    // its magnitude is one past `i64::MAX`, the corner
-    // `ParseError::IntegerOverflow`'s docs already record.
-    let count = Expr::count(-7);
-    assert_eq!(unparse(&count), "-7");
-    assert!(!rp("-7").bit_eq(&count));
-    assert_eq!(eval_count::<f64>(&rp("-7"), &ParamEnv::default()), Ok(-7));
-    assert!(matches!(
-        parse_expr(&unparse(&Expr::count(i64::MIN)), &rt_params()),
-        Err(ParseError::IntegerOverflow { .. })
-    ));
+    assert_eq!(ev(&rp("-25 mm")), ev(&rp("-(25 mm)")), "and they agree");
+    assert!(
+        matches!(
+            perr("-9223372036854775809"),
+            ParseError::IntegerOverflow { pos: 1, .. }
+        ),
+        "one past the least count still refuses, at its digits"
+    );
+}
+
+/// A literal of `dim` drawn from `rng`: either sign, zero of either sign
+/// included, in a unit the dimension's table rows offer, or one of the
+/// declared parameters.
+fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Expr {
+    let magnitude = match rng.below(4) {
+        0 => 0.0,
+        1 => rng.range(0.0, 2.0),
+        2 => rng.range(0.0, 1e-3),
+        _ => (rng.range(0.0, 1e4)).round(),
+    };
+    let value = if rng.below(2) == 0 {
+        -magnitude
+    } else {
+        magnitude
+    };
+    let unit = |symbols: &[&str], rng: &mut fuzz::Rng| {
+        quantity::unit_by_symbol(symbols[rng.below(symbols.len())]).expect("a table symbol")
+    };
+    match (dim, rng.below(6)) {
+        (Dimension::Length, 0) => Expr::param(ParamName::from_static("w"), dim),
+        (Dimension::Angle, 0) => Expr::param(ParamName::from_static("a"), dim),
+        (Dimension::Scalar, 0) => Expr::param(ParamName::from_static("s"), dim),
+        (Dimension::Count, 0) => Expr::param(ParamName::from_static("n"), dim),
+        (Dimension::Length, _) => {
+            Expr::literal_with_unit(value, dim, unit(&["m", "mm", "cm", "in"], rng))
+                .expect("a finite length")
+        }
+        (Dimension::Angle, _) => {
+            Expr::literal_with_unit(value, dim, unit(&["rad", "deg", "pi rad"], rng))
+                .expect("a finite angle")
+        }
+        (Dimension::Scalar, _) => Expr::literal(value, dim).expect("a finite scalar"),
+        (Dimension::Count, 1) => Expr::count(if rng.below(2) == 0 {
+            i64::MIN
+        } else {
+            i64::MAX
+        }),
+        (Dimension::Count, _) => {
+            #[allow(clippy::cast_possible_truncation)]
+            let count = value as i64;
+            Expr::count(count)
+        }
+    }
+}
+
+/// An operand of `dim` nesting at most two levels: a leaf, its negation,
+/// or a call over one (`sin` of an angle, `scalar` of a count).
+fn random_atom(rng: &mut fuzz::Rng, dim: Dimension, leaf_only: bool) -> Expr {
+    let pick = if leaf_only { 0 } else { rng.below(4) };
+    match (dim, pick) {
+        (_, 1) => Expr::neg(random_leaf(rng, dim)).expect("shallow"),
+        (Dimension::Scalar, 2) => Expr::sin(random_leaf(rng, Dimension::Angle)).expect("an angle"),
+        (Dimension::Scalar, 3) => {
+            Expr::count_to_scalar(random_leaf(rng, Dimension::Count)).expect("a count")
+        }
+        _ => random_leaf(rng, dim),
+    }
+}
+
+/// A tree of `dim` nesting exactly `levels`: each step puts one operator
+/// over the tree so far and, for a binary one, an operand at most as
+/// deep beside it on either side.
+fn random_tree(rng: &mut fuzz::Rng, dim: Dimension, levels: usize) -> Expr {
+    let mut tree = random_leaf(rng, dim);
+    for step in 1..levels {
+        // An operand nesting two levels only once the tree does.
+        let other = |rng: &mut fuzz::Rng, dim| random_atom(rng, dim, step == 1);
+        let left = rng.below(2) == 0;
+        let pair = |tree: Expr, other: Expr| if left { (tree, other) } else { (other, tree) };
+        tree = match (dim, rng.below(7)) {
+            (_, 0) => Expr::neg(tree),
+            (_, 1) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Expr::add(a, b)
+            }
+            (_, 2) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Expr::sub(a, b)
+            }
+            (_, 3) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Expr::min(a, b)
+            }
+            (_, 4) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Expr::max(a, b)
+            }
+            (Dimension::Count, _) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Expr::mul(a, b)
+            }
+            (_, 5) => {
+                let (a, b) = pair(tree, other(rng, Dimension::Scalar));
+                Expr::mul(a, b)
+            }
+            // The divisor is a scalar, so a tree of another dimension
+            // stays on the left.
+            (Dimension::Scalar, _) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Expr::div(a, b)
+            }
+            (_, _) => Expr::div(tree, other(rng, Dimension::Scalar)),
+        }
+        .unwrap_or_else(|err| panic!("step {step} builds: {err} — {}", fuzz::replay()));
+    }
+    tree
+}
+
+/// **Every tree the constructors admit reads back through its own
+/// text**, up to the nesting bound and on the smallest stack a door runs
+/// on: `parse_expr(unparse(e))` is `e` node for node (so it nests as
+/// deep) and bit for bit, and writes the same text again (so each
+/// literal remembers its unit). The trees draw literals of either sign
+/// and both zeros, at the bottom of the deepest chain and beside it.
+#[test]
+fn every_tree_to_the_bound_reads_back_through_its_text() {
+    const BOUND: usize = 128;
+    test_utils::own_thread::on_the_smallest_stack(|| {
+        let mut rng = fuzz::start("unparse then parse, random trees to the nesting bound");
+        for trial in 0..fuzz::scaled(300) {
+            let dim = [Dimension::Length, Dimension::Scalar, Dimension::Count][rng.below(3)];
+            let levels = if trial % 2 == 0 {
+                BOUND
+            } else {
+                1 + rng.below(BOUND)
+            };
+            let e = random_tree(&mut rng, dim, levels);
+            let text = unparse(&e);
+            let back = parse_expr(&text, &rt_params())
+                .unwrap_or_else(|err| panic!("trial {trial}: {err}\n{text}\n{}", fuzz::replay()));
+            assert!(
+                back.bit_eq(&e),
+                "trial {trial}: {text:?} reads back as another tree — {}",
+                fuzz::replay()
+            );
+            assert_eq!(
+                unparse(&back),
+                text,
+                "trial {trial}: the reading writes other text — {}",
+                fuzz::replay()
+            );
+        }
+    });
 }
 
 proptest! {
