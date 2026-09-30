@@ -692,12 +692,7 @@ impl<K: DrawnKind> PartWindows<K> {
 
     /// Every entity one (node, body) draws, in position order.
     fn in_target(&self, node: RecipeNodeId, body: u32) -> &[K::Id] {
-        let Some(window) = self.window(node, body) else {
-            return &[];
-        };
-        self.entities
-            .get(window.start..window.start + window.len)
-            .unwrap_or_default()
+        self.laid_out(node, body).0
     }
 
     /// Every entity one (node, body) draws beside its name slot, in
@@ -708,11 +703,45 @@ impl<K: DrawnKind> PartWindows<K> {
         node: RecipeNodeId,
         body: u32,
     ) -> impl Iterator<Item = (K::Id, &Result<StableName, UnnamedEntity>)> {
-        let range = self
-            .window(node, body)
-            .map_or(0..0, |window| window.start..window.start + window.len);
-        let names = self.names.get(range).unwrap_or_default();
-        self.in_target(node, body).iter().copied().zip(names)
+        let (entities, names) = self.laid_out(node, body);
+        // One range cut from both lists, so the two are the same length
+        // and the zip drops nothing.
+        entities.iter().copied().zip(names)
+    }
+
+    /// **One (node, body)'s window, cut from the entities and the
+    /// names**: both empty for a body no part draws.
+    ///
+    /// A window that runs past either list is not an answer this
+    /// structure can give. [`Self::push_names`] appends the entities,
+    /// the names and the window in one pass, so every window is a range
+    /// of both. It panics rather than answering an empty run, because
+    /// an empty run here reads downstream as "this body draws no
+    /// edges" — the confidently wrong answer the window exists to
+    /// prevent — and there is no refusal arm to carry it: no caller
+    /// supplied the address.
+    fn laid_out(
+        &self,
+        node: RecipeNodeId,
+        body: u32,
+    ) -> (&[K::Id], &[Result<StableName, UnnamedEntity>]) {
+        let Some(window) = self.window(node, body) else {
+            return (&[], &[]);
+        };
+        let range = window.start..window.start + window.len;
+        match (
+            self.entities.get(range.clone()),
+            self.names.get(range.clone()),
+        ) {
+            (Some(entities), Some(names)) => (entities, names),
+            _ => unreachable!(
+                "the window of body {body} of node {} is {range:?}, past the {} entities or the \
+                 {} names laid out with it",
+                node.0,
+                self.entities.len(),
+                self.names.len()
+            ),
+        }
     }
 
     /// Every entity one NODE draws, across all its output bodies.
@@ -2492,6 +2521,21 @@ mod tests {
             "and the window refuses it"
         );
         assert_eq!(windows.name_in(RecipeNodeId(1), 1, 0), Ok(&name(200)));
+    }
+
+    /// **A window that runs past the names it was laid out with is a
+    /// broken structure, and says so** rather than answering that the
+    /// body draws nothing — which the edge-name walk would read as a
+    /// body with no edges and no refusal.
+    #[test]
+    #[should_panic(expected = "past the 2 entities or the 1 names laid out with it")]
+    fn a_window_past_its_names_is_not_an_empty_body() {
+        let mut windows = PartWindows::<Edges>::new();
+        windows
+            .push_names(RecipeNodeId(1), 0, run(1, 2))
+            .expect("the part");
+        windows.names.pop();
+        let _ = windows.named_in(RecipeNodeId(1), 0).count();
     }
 
     /// One drawn body is one part. A second claiming the same address
