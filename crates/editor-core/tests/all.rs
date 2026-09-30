@@ -291,6 +291,8 @@ mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;
 
+#[path = "expr_nesting_bound.rs"]
+mod expr_nesting_bound;
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
 #[path = "m10_4_stackup_interval.rs"]

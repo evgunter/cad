@@ -177,7 +177,7 @@ fn rest_pair_verdict<T: Decide>(
             steer: fit_steer(fact),
             diag,
         }),
-        Err(CarrierEqError::Escalated(diag)) => Err(ContactRefusal::Escalated { diag }),
+        Err(CarrierEqError::Escalated { diag, .. }) => Err(ContactRefusal::Escalated { diag }),
         Err(CarrierEqError::Undeclared { diag, .. }) => Err(ContactRefusal::Undeclared { diag }),
     }
 }

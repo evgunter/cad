@@ -382,10 +382,12 @@ impl MeasureExpr {
             .map_err(|err| measure_dimension_err(py, &err))
     }
 
-    /// Negation — any dimension, and total.
+    /// Negation — any dimension; only the nesting bound refuses it.
     #[staticmethod]
-    fn neg(a: &Self) -> Self {
-        Self(d::MeasureExpr::neg(a.0.clone()))
+    fn neg(py: Python<'_>, a: &Self) -> PyResult<Self> {
+        d::MeasureExpr::neg(a.0.clone())
+            .map(Self)
+            .map_err(|err| measure_dimension_err(py, &err))
     }
 
     /// Product; the F1 rule, at least one operand dimensionless.
