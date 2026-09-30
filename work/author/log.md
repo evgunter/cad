@@ -1383,3 +1383,4 @@ angle `1.5707963268 rad`, consistent with driven slots.
 ## 2026-09-30 — AUTH-8 dispatched: an assertion row shows its verdict
 
 The only dispatchable P0 left. Of the others, the negative-extrude fork waits on the designer lanes and Ev, and `AddBoolean` waits on EDIT. AUTH-8 builds on AUTH-7's `Measured` and `feature_row_ui`. The tone of a `Violated` row is left to the lane with both readings stated. If it is close, it goes to Ev.
+- 2026-09-30 — Seam note from TOPO: AUTH-7's `repair_of` (`viewer/src/tree.rs`) and a `pane/features.rs` test premise read a node's result outside `Evaluation::usable`; editor-core's `every_node_result_reader_goes_through_usable_or_is_listed` now lists them (the change filter never ran editor-core's tests on AUTH-7's viewer-only diffs, so main stayed green). (TOPO orchestrator)
