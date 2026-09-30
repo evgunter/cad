@@ -3019,3 +3019,38 @@ Tier SINGLE, full. The brief names the PR 2527 ruling and asks the
 reviewer to re-run the measurement. It dispatches when PR 3495's
 reviewer or PR 3493's fix pass frees a target: 7.5 GB is free, too
 little for a fresh sweep build beside two live lanes.
+
+## PR 3493's fix pass delivered; three items close on the branch. PR 3500's review out (2026-09-30)
+
+The fix pass took 427,304 tokens, 216 tools and 78 min (harness).
+Head `10f158c3ae` passed `gate ok` on run 36651577359.
+
+The orchestrator read the diff:
+- **MAJOR-1:** `split_edge` decides through `decide_reported`, and
+  both arms end in one `split_param_ending`. The valued tolerance
+  appears on the Zero arm only (band-decided, Positive-pass), and the
+  pairing row runs on three real raises.
+- **MAJOR-2:** `Containment` takes the fallback, its lever alone. The
+  pass set depends on the caller (the carrier rung is a residual at
+  `wall_crossing` but passes every sign elsewhere), so the carriage
+  went to CONTACT's row. The residual rung is rowed on a real raise.
+- **Pass sets and helpers:**
+  - `SizedPass::AnySign` is sound: it passes zero and tightens any
+    nonzero margin.
+  - `ArcSpan` becomes a defect, since certification decides the same
+    margin at the same band.
+  - The split decision's words moved to `split.rs`, and `face_normal`
+    has its own `NormalDecision`.
+  - There is one `CONTRADICTION_RECOURSE`.
+  - The census is compiler-derived (`strum` was already a dependency),
+    and subjects are pinned as literals. Both of the reviewer's
+    surviving mutants are now dead.
+- **Filed:** the ~55 `coincidence` wrap sites, and a pierced-torus
+  (iv) fork found by the sibling sweep.
+
+The two CHROME items and `split-param-not-interior-offers-the-declare-menu`
+close on the branch. Merge once CI on `c649c29a9e` is green. Single
+tier, so no DR row.
+
+PR 3500's single full reviewer is dispatched on frozen `223c63054e`,
+on the freed warm target.
