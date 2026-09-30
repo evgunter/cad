@@ -2,7 +2,8 @@
 id: a-stable-name-nests-one-level-per-copy-and-every-walk-over-it-recurses
 kind: issue
 title: editor-core: a StableName nests one NameRef per pattern copy, part instance or merge, and its drop, Debug and descent walks recurse without bound
-status: open
+status: review
+branch: edit/name-nesting-stack-safe
 opened: 2026-09-30
 priority: P1
 cost: M
@@ -78,3 +79,44 @@ typed where a name is minted); `name_and_path` rendering the path
 without `Debug`. A row that evaluates a chain of patterns deeper than
 the smallest stack allows today, drops the evaluation and renders a
 name, on the wasm32 build's stack.
+
+## Built (2026-09-30)
+
+No bound: every walk over a name, and over a selector pattern, is
+stack-safe at any depth (`crates/editor-core/src/names/nest.rs`).
+
+- `StableName`'s `Drop`, `Clone`, `Debug`, `PartialEq`, `Hash`, `Ord`
+  and serde impls are hand-written and give the derived answers. `Drop`
+  moves the path of every name it is the last holder of onto its own
+  stack. The others run the derived impls one level at a time, the
+  names a level holds answering shallowly, and visit those names from
+  a heap stack in declaration order (`RoleSeg::each_name`). `Eq`, `Ord`
+  and `Hash` recurse natively for 64 levels first, since that
+  allocates nothing.
+- JSON: inside a door (`names::json_door`: save, load, the canonical
+  bytes, `StableName::to_json` / `from_json`, Python's name text) a
+  name writes and reads one level at a time. It reads through a raw
+  slice of its text (serde_json's `raw_value` feature), so a name
+  deeper than the reader's recursion limit loads, in linear time. Save
+  writes compact and lays it out as `to_string_pretty` does, and the
+  canonical bytes sort keys over the compact text
+  (`persist/jsontext.rs`). Both are byte for byte what they were.
+- Walks: `seam_through`, `face_descends_from`,
+  `constituents_through_wrappers`, `fold_descent`, `walk_names`,
+  `member_faces` and the content key's `feed_stable_name` keep their
+  own stacks. So do the union's `collapse` / `orient` / `seam_line`,
+  and every rewrite through `SegRewrite` (split/inline re-map,
+  `piece_steps`, the union's member-edge citing), via `Carry::Descend`.
+- `NamePat`: `Drop`, `Clone`, `PartialEq`, `Debug` and `matches` walk
+  from their own stack.
+
+Premises checked: on `origin/main` a bare name 42 levels deep does not
+read back through serde_json. A document holding a fillet selection
+1 000 pattern copies deep saves, and its own load door refuses it
+(`Parse`, "recursion limit exceeded"). Python's name text refuses at 50
+copies. The union collapse and the split's re-map also recursed once per
+level, which the row did not list.
+
+Filed: `work/edit/a-rank-rewrite-can-ask-the-rewriter-for-a-name-inside-another-documents-part.md`,
+`work/edit/a-name-through-a-non-json-serializer-recurses-once-per-level.md`,
+`work/lib/a-python-pattern-builder-copies-the-whole-pattern-per-wrap.md`.
