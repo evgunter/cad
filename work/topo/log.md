@@ -4299,3 +4299,12 @@ The orchestrator read the diff and accepted it. The row closes at
 (P3, E). Two lanes in a row hit eight dead-code errors in
 `loop_reparenting_pcurve_rows.rs` with debug assertions off; CI does
 not lint that config.
+
+Dispatched on the walk target: `deep-snapshot-cannot-see-a-consumed-key-slot`,
+bundled with `refusal-rows-that-count-instead-of-snapshot` (branch
+`topo/snapshot-key-slots`).
+- The snapshot gains a per-arena next-key line (D1: "consumes no key
+  slots"), and the two count-only refusal rows move to the snapshot.
+- As with the side tables, the lane measures which rows newly red, and
+  defers any fix that lies in a live lane's files.
+- `null.rs`'s part waits for PR 3531.
