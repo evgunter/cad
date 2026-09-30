@@ -35,8 +35,12 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
     // no edge and the node fails later at operand lookup.
     let mut indegree: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut dependents: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
-    let position: BTreeMap<RecipeNodeId, usize> =
-        doc.order().iter().enumerate().map(|(at, &id)| (id, at)).collect();
+    let position: BTreeMap<RecipeNodeId, usize> = doc
+        .order()
+        .iter()
+        .enumerate()
+        .map(|(at, &id)| (id, at))
+        .collect();
     for &id in doc.order() {
         let Some(node) = doc.node(id) else {
             continue; // doc.order() lists live nodes; defensive skip
