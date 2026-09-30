@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-21
 priority: P3
 cost: E
-refs: [H5]
 ---
 
 ## What

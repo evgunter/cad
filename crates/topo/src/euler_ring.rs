@@ -1638,7 +1638,7 @@ impl<T: Decide> Body<T> {
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) =
             self.mint_halves(edge, (u, target_loop), (w, target_loop), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         (curve, edge, he_plus, he_minus)
     }
 
