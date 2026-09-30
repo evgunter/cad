@@ -1561,3 +1561,7 @@ Designer pair on `the-boolean-door-evaluates-its-boolean-twice` (byte on `analys
 **Filed off the question:**
 - ZIP: `a-boolean-reports-one-undeclared-contact-per-refusal`.
 - VSEAM `ui-thread-work-after-the-index-seam`: evidence for `session::probe` as a fourth frame-thread evaluation.
+
+## 2026-09-30 — AUTH-15 dispatched: accept a part's updated version from the viewer
+
+Everything P0–P2 on this slate is with Ev (#3551, #3571, #3587), blocked on another program's row, or a design row. So the next unit is the P3 door `viewer-has-no-door-to-accept-a-parts-updated-version`: a refusal whose recourse the GUI cannot take, which is this program's charter exactly. The offer must live in the existing refuse-then-offer homes (the AUTH-9 lesson). Review tier: one FULL review.
