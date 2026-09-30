@@ -3843,3 +3843,44 @@ walk target. The claims it tests:
 - render each outline verdict and test the unread-over-zero
   precedence;
 - run the mutants.
+
+## PR 3532's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of PR 3532 at `5e07bfe8e0` took 300,399 tokens,
+152 tools and 2,174 s. It found 0 MAJOR, 7 MINOR and 4 NOTE, on a
+green gate (run 36697184288).
+
+**Confirmed by execution:**
+- The entry gate covers every tear, the boolean stage by
+  construction.
+- `outermost_survivor`'s new refusal ran 4,136 times with no
+  over-refusal.
+- The zero arm's tolerance is valued and conditional, and appears
+  only there.
+
+**Ruled for the fix pass:**
+- **MINOR-1.** The unread-over-zero precedence rests on a false
+  premise. A tighter tolerance decides the zero ring, and an unread
+  loop already counts as not-positive. It is inverted and pinned; the
+  reviewer's M9 survived.
+- **MINOR-2.** `TornLoop::CycleBroken` splits into a stale link and a
+  walk that fails to close. Every key gets a row.
+- **MINOR-3.** `loop_winding.rs`'s `he_plus == he` reads an unclaimed
+  half-edge silently. That is the default the PR fixed in
+  `outermost_survivor`, re-minted in the function it rewrote. The fix
+  refuses through one mate helper (three ladders today). Siblings
+  outside the fence are filed as one class row.
+- **MINOR-4.** The surface arm has a same-call proof (`kind_census`),
+  so it takes row 0. The face, vertex and point arms stay typed. Their
+  classification is stated as "unreachable at the door, proven only by
+  the whole-body gate". The addendum has no row for that state, so the
+  gap is filed as a question and DESIGN.md is not edited.
+- **MINOR-5.** `boolean/reduce.rs`'s twin `edge_chord_len` still
+  substitutes 1 m. PIN's row is updated; `boolean/` is not touched
+  while PR 3513 is open.
+- **MINOR-6 and MINOR-7.** An `Empty` loop is not-positive. What is
+  left of `Unread` gets an `Unsupported*` name (D2 row 2).
+- **Notes.** A stale comment; the #628 provenance; the undisclosed
+  crossing into guard's gate register; the hand-built-fixture caveat.
+
+The fix pass is out on the walk target.
