@@ -550,9 +550,9 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
         .iter()
         .map(|&at| cut.loops[0].points[at])
         .collect();
-    // Up to the `continue_to` and not through it: a provisional close
-    // after it IS the undeclared seam, so the prefix that replays is
-    // the one before it.
+    // Through the `continue_to`: the provisional close after it is the
+    // seam, which the preview spells declared, as the lattice does, so
+    // the drawn tip is where the refused close leaves from.
     assert_eq!(
         before,
         [
@@ -560,9 +560,10 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
             [0.01, 0.0],
             [0.01, 0.01],
             [0.0, 0.01],
-            [0.0, 0.005]
+            [0.0, 0.005],
+            [0.0, 0.0]
         ],
-        "the vertices of the steps before the `continue_to`"
+        "the vertices of every step before the refused close"
     );
 
     let mut session = session(tol);

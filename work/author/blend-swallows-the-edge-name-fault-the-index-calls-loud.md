@@ -2,10 +2,11 @@
 id: blend-swallows-the-edge-name-fault-the-index-calls-loud
 kind: issue
 title: The blend tool swallows every EdgeNameFault, including the arm the index calls loud
-status: open
+status: dispatched
 opened: 2026-09-22
 priority: P2
 cost: D
+branch: author/edge-name-fault
 ---
 
 
@@ -63,3 +64,5 @@ now `marks::HeldEdges::segments` (`crates/viewer/src/marks.rs`), which
 the blend tool feeds through `BlendTool::held_edges`. The collapse is
 unchanged — `index.edge_name_of(id).is_ok_and(...)` — so the row's
 first bullet now lands on VGEOM's `marks.rs` as well as this slate.
+
+Dispatched 2026-09-30 as **AUTH-14** (`docs/AUTH-14-SPEC.md`, branch `author/edge-name-fault`).

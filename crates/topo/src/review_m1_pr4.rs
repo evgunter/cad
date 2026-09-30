@@ -1339,7 +1339,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
 #[test]
 fn seqgen_generates_every_op_kind_and_every_site_shape() {
     let tol = Tol::witness();
-    use crate::seqgen::{Door, OpChoice, apply, choose_op};
+    use crate::seqgen::{Door, OpChoice, apply, choose_op, shell_components};
     use std::collections::BTreeSet;
     use test_utils::fuzz;
     let expected: BTreeSet<&'static str> = [
@@ -1366,6 +1366,7 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "mfkrh",
         "mfkrh_minting",
         "movefac",
+        "movefac_three_or_more",
         "ring_move",
         "ring_move_minting",
         "split_edge",
@@ -1451,7 +1452,16 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::KfmrhFuse(.., Door::Minting) => "kfmrh_fuse_minting",
                 OpChoice::Mfkrh(_, Door::KeysOnly) => "mfkrh",
                 OpChoice::Mfkrh(_, Door::Minting) => "mfkrh_minting",
-                OpChoice::Movefac(_) => "movefac",
+                // Split by component count: a shell of three or more
+                // is the site that drives `movefac`'s minting loop
+                // past its first shell.
+                OpChoice::Movefac(shell) => {
+                    if shell_components(&body, shell) > 2 {
+                        "movefac_three_or_more"
+                    } else {
+                        "movefac"
+                    }
+                }
                 OpChoice::Kev(_) => "kev",
                 OpChoice::Kef(_, Door::KeysOnly) => "kef",
                 OpChoice::Kef(_, Door::Minting) => "kef_minting",
