@@ -3568,3 +3568,38 @@ and 77 min (harness); archived privately.
 - **Also:** the docs, and two test-hygiene items.
 
 The fix pass runs on the lane's warm target.
+
+## PR 3508's fix pass delivered; the item closes on the branch (2026-09-30)
+
+The fix pass took 372,302 tokens, 205 tools and 1 h 56 m (harness).
+Head `99136e5946` passed `gate ok` on run 36683752428.
+
+The orchestrator read the diff:
+- **One predicate.** `StoredRows::remints(open, released)` serves both
+  doors. A door that released the face's last null edge re-mints it
+  whole, whatever else it misses. That restores PR 3500's description
+  behaviour, and the join's `mef` uses the same rule.
+- **One helper.** `held_open` is shared by `open_loops`, the
+  rewired-loop check and the spline arm. It fails loud with
+  `SiteRowRefusal::Corrupt` on an unresolved key.
+- **The hook.** `ops::through_the_join` is production's sequence, and
+  the test hook calls it.
+- **Mutants.** All nine are red. The every-loop-walks clause now has
+  its row.
+
+**The bounds allowlist.** The lane raised `boolean/ops.rs`'s pin in
+`bounds-allowlist.sh` from 14 to 15, for `through_the_join<T: Decide
++ Bounds + AtRestPolicy>`, and asked whether that needs Ev. Ruled: no.
+- The gate pins each ratified file by count.
+- `ops.rs` is licensed by the 2026-07-29 driver amendment (M5 PR 8)
+  for the boolean-sweep seam.
+- `through_the_join` is that seam split out of `boolean_op_recut` with
+  the same bound. It is the existing ratification counted once more,
+  not a new construct.
+
+**Filed:** REST's `undo_struts` `kev` re-anchor. It leaves 23 of 48
+faces a period off the pass, and it is the branch, not the band.
+Filed P3 on topo, naming TANG and ZIP.
+
+The item closes on the branch. Merge after CI on `a7810682f0`. Single
+tier, no DR row.
