@@ -7,7 +7,11 @@
 //! is for neither.
 #![allow(clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to!["crates/profile/src/seg.rs", "crates/profile/src/lib.rs"];
+test_utils::gated_to![
+    "crates/profile/src/seg.rs",
+    "crates/profile/src/lib.rs",
+    "crates/profile/tests/common/",
+];
 
 use crate::common::{profile, tol};
 use geom_core::Point2;
@@ -34,7 +38,10 @@ fn a_lowered_table_arc_near_the_resolution_scale_is_never_inconsistent() {
     for _ in 0..test_utils::fuzz::scaled(2000) {
         let m = unit * rng.range(0.02, 4.0);
         let p0 = Point2::new(m * rng.range(-1.0, 1.0), m * rng.range(-1.0, 1.0));
-        let (l, d) = (m * rng.range(1e-4, 0.5), rng.range(0.0, core::f64::consts::TAU));
+        let (l, d) = (
+            m * rng.range(1e-4, 0.5),
+            rng.range(0.0, core::f64::consts::TAU),
+        );
         let p1 = Point2::new(p0.x + l * d.cos(), p0.y + l * d.sin());
         let b = rng.range(0.05, 2.0) * if rng.unit() < 0.5 { -1.0 } else { 1.0 };
         if let Err(ProfileError::InconsistentArc { check, .. }) = validate(p0, p1, b) {

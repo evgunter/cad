@@ -370,5 +370,9 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
                 .is_some(),
         )
     };
-    assert_eq!(at(&r.doc), (true, true), "the extrude builds at f64 and at Interval");
+    assert_eq!(
+        at(&r.doc),
+        (true, true),
+        "the extrude builds at f64 and at Interval"
+    );
 }

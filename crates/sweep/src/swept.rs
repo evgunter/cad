@@ -830,7 +830,12 @@ mod tests {
                     let profile::Segment::Arc(arc) = closed.loop_.segments()[0] else {
                         panic!("the first segment is the authored arc");
                     };
-                    (a.map(lit), e.map(lit), (arc.map(lit), lit(1.0)), Sign::Positive)
+                    (
+                        a.map(lit),
+                        e.map(lit),
+                        (arc.map(lit), lit(1.0)),
+                        Sign::Positive,
+                    )
                 }
             };
             let (arc, b) = b;
@@ -894,7 +899,11 @@ mod tests {
             "no decision rests on a registered identity: {counts:?}"
         );
         assert_eq!(rim, Some(Sign::Zero), "the rim, numerically: {counts:?}");
-        assert_eq!(end, [Some(Sign::Zero); 3], "the far end, numerically: {counts:?}");
+        assert_eq!(
+            end,
+            [Some(Sign::Zero); 3],
+            "the far end, numerically: {counts:?}"
+        );
     }
 
     /// **The placed rim chains through the sketch rim to the radius, and
@@ -910,8 +919,10 @@ mod tests {
     /// alone cannot decide it over that box.
     #[test]
     fn the_placed_rim_chains_through_the_sketch_rim_to_the_radius() {
-        let ([rim, inside, end @ ..], counts) =
-            placed_arc_readings(quarter_turn_placement([2.0, 3.0, 5.0]), Carrier::Constructed);
+        let ([rim, inside, end @ ..], counts) = placed_arc_readings(
+            quarter_turn_placement([2.0, 3.0, 5.0]),
+            Carrier::Constructed,
+        );
         assert_eq!(rim, Some(Sign::Zero), "the placed rim: {counts:?}");
         assert_eq!(
             inside,

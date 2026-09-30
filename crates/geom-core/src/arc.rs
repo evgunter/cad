@@ -255,7 +255,10 @@ mod tests {
         let on = arc.centre + Vec2::new(0.6, 0.8) * arc.radius;
         let off = arc.centre + Vec2::new(0.6, 0.8) * (arc.radius * 1.25);
         let (end_on, end_off) = (arc.carrier_end(on), arc.carrier_end(off));
-        assert!(end_on.distance(end_off) < 1e-15, "{end_on:?} vs {end_off:?}");
+        assert!(
+            end_on.distance(end_off) < 1e-15,
+            "{end_on:?} vs {end_off:?}"
+        );
         assert!(
             end_on.distance(arc.landing(on)) < 1e-15,
             "on the carrier: {end_on:?} vs {:?}",
