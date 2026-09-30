@@ -18,7 +18,7 @@ one sitting, which is what the cut was for.
 | P0 | `add-profile-placement-on-picked-face-frame` | H | Nothing in the viewer can mint a Datum::FaceFrame, so a profile still cannot be placed on a picked face |
 | P0 | `addboolean-doc-names-a-vocabulary-that-does-not-exist` | D | SessionOp::AddBoolean's doc promises a declaration vocabulary that no DocEdit provides |
 | P0 | `parameter-row-field-has-no-text-door` | D | A parameter row's value field is a bare DragValue — no parser, no unit authoring, no no-op guard |
-| P0 | `path-preview-draws-nothing-for-a-refused-step` | D | viewer: the add-profile path preview draws nothing once any authored step refuses, so the author cannot see what to fix |
+| P0 | `path-preview-draws-nothing-for-a-refused-step` | M | viewer: the add-profile path preview draws nothing once any authored step refuses, so the author cannot see what to fix |
 | P0 | `the-gui-shows-no-measure-value-and-no-clearance` | D | the GUI shows a measure's existence and never its value |
 | P0 | `viewer-cannot-author-a-duplicate-node` | D | viewer: a 'duplicate' node reachable from the UI (Ev's request) |
 | P0 | `viewer-cannot-author-a-part-node` | D | The viewer has no AddPart op, so a Part { Instance(i) } node — the road to a nested copy the mate tool now admits — is reachable only from a file or the Python API |
