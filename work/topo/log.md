@@ -3509,3 +3509,30 @@ ambient env read in the probe, and the spent-graft `kef` count.
 
 Tier SINGLE, full. The reviewer is on the lane's warm target, and its
 brief names D1's atomic contract and D4 (i).
+
+## PR 3516 merged; the coincidence-routing unit delivered as PR 3513, its single review out (2026-09-30)
+
+The state sync (PR 3516) merged.
+
+PR 3513 is green at `adcf403f45`. The implementer took 546,186 tokens,
+296 tools and 85 min (harness).
+- **The helper.** `BooleanError::coincidence` now takes a required
+  `Coincide` (14 variants).
+- **Sites.** 40 sites stay `Coincidence`; 18 of those are filed as
+  unsettleable (the declared doors, join matching, self-checks).
+  Eight re-route to new decisions: `LeverArm`, `Radius`, `WallRoots`,
+  `TorusRoots` and `PierceCurvature`. Each is a typed rung carried from
+  its raiser, with a pass set derived from the deciding code.
+- **F7.** F7's same-operand case becomes its own kind,
+  `CoplanarNeighbours`, ending in `NEIGHBOUR_LEVER`. As a result,
+  editor-core's `refusal_menu` no longer lifts F7 into a candidate
+  declaration; the review checks that change.
+- **`RestZipUnsupported`.** It loses its stage label and the declare
+  menu.
+- **`CurvedPierceUnsupported`.** It keeps "declare" on the claim that
+  the declared-cover rung takes a declaration; the review checks that
+  claim.
+- **Filed:** four rows. Seam notes went on 13 programs' logs.
+
+Tier SINGLE, full. The reviewer builds on the lane's warm target. Disk
+is at 4.8 GB free.
