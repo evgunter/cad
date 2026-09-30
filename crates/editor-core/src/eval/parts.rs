@@ -16,18 +16,19 @@
 //! evaluation ran at). Each answers a different question, and unifying
 //! any two would answer one of them wrongly.
 //!
-//! The cache is LAZY: a memo-hit instantiate node never asks, so a
-//! re-evaluation that changed nothing across the seam does no
-//! cross-document work at all.
+//! The top-level cache is LAZY: a memo-hit instantiate node never
+//! asks, so a re-evaluation that changed nothing across the seam does
+//! no cross-document work at all.
 //!
 //! # The descent runs on the heap
 //!
 //! Below the top, the descent is bottom-up on an explicit stack
 //! (`PartCache::resolve_and_evaluate`): a referenced document is
-//! evaluated once the parts it instantiates are, and its cache starts
-//! with their rows. So how deep an assembly nests costs heap, never
-//! the thread's stack, and every depth either evaluates or refuses
-//! typed on whatever thread the evaluation runs on.
+//! evaluated once every part it instantiates has its row, and its cache
+//! starts with those rows. So one nested evaluation is on the thread's
+//! stack at a time, how deep an assembly nests costs heap and never
+//! stack, and every depth either evaluates or refuses typed on whatever
+//! thread the evaluation runs on.
 //!
 //! # Cycles are decided, not waited out
 //!
@@ -46,8 +47,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use geom_core::Decide;
 use topo::Body;
 
-use crate::ident::DocRef;
 use crate::ProfileDoc;
+use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
@@ -479,21 +480,20 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
     /// The descent below `doc_ref`, run BOTTOM-UP on an explicit stack.
     ///
     /// Every document on the way down is resolved and entered before
-    /// any is evaluated, and each is evaluated only once every part it
+    /// any is evaluated, and each is evaluated once every part it
     /// instantiates has its row, which its evaluation then finds in its
-    /// own cache (a [`Reached`]) instead of descending for. So one
-    /// nested evaluation is on the thread's stack at a time however
-    /// deep the assembly nests, and [`MAX_DEPTH`] is the one bound on
-    /// nesting: a descent that recursed through the evaluator would run
-    /// out of stack hundreds of documents short of it and kill the
-    /// process instead of refusing.
+    /// own cache (a [`Reached`]) instead of descending for. So the
+    /// thread's stack holds one nested evaluation however deep the
+    /// assembly nests, and [`MAX_DEPTH`] is the one bound on nesting.
     ///
-    /// A document's rows are exactly the references its evaluation asks
-    /// for — its `InstantiatePart` nodes', which its mate solve reaches
-    /// through too — each decided against that document's own chain. So
-    /// every row is the one a descent at the ask would produce: the same
-    /// cycle and depth decisions, the same sharing within a document
-    /// and none across two.
+    /// A document's rows are the references its `InstantiatePart`
+    /// nodes name — every reference its evaluation can ask for, its
+    /// mate solve's included — each decided against that document's own
+    /// chain. So every row is the one a descent at the ask would
+    /// produce: the same cycle and depth decisions, the same sharing
+    /// within a document and none across two. Below the top a part is
+    /// evaluated whether or not its instance asks, which only an
+    /// instance whose placement refused declines to do.
     fn resolve_and_evaluate(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
         let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
         let mut path = self.chain.to_vec();
