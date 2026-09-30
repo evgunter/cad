@@ -118,8 +118,13 @@ spade = "2.15.1"
 # default float parse takes a fast path that is not correctly rounded
 # (the PR 6 property tests caught last-ulp drift on e.g.
 # 0x3fefffffffffffff); the feature switches to full-precision parsing.
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = { version = "1.0.140", features = ["float_roundtrip"] }
+# raw_value is LOAD-BEARING for the JSON doors' stable names: a name
+# nests one whole name per derivation level, and the doors read and write
+# it one level at a time through a raw slice of its text
+# (`editor-core`'s `names::nest`), which is how a name deeper than the
+# reader's recursion limit of 128 loads, on any stack.
+serde ={ version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.140", features = ["float_roundtrip", "raw_value"] }
 # ASM-1 (spec D-2): content pins are SHA-256 over the canonical
 # semantic bytes — the pin IS version identity (ASSEMBLY-DESIGN A4),
 # so collision resistance is required; the in-process memo's FNV

@@ -1910,7 +1910,8 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     );
     let shown = editor_core::FaceName::new(StableName {
         kind: EntityKind::Vertex,
-        ..edge_name.clone()
+        node: edge_name.node,
+        path: edge_name.path.clone(),
     })
     .expect_err("a vertex is not a face name")
     .to_string();

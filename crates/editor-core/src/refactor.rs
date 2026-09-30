@@ -1115,7 +1115,7 @@ fn remap_derivation(
         path: path.to_vec(),
     }
     .rewrite_path(&mut Remapping(map, steps))?;
-    Ok((to, rewritten.path))
+    Ok((to, rewritten.into_path()))
 }
 
 /// **The split re-map as a [`SegRewrite`]**: every carried name is

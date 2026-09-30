@@ -3090,10 +3090,8 @@ mod tests {
             member(3, face(5, 1), &[]),
             &[],
         );
-        let vertex = |on: StableName, cutter: StableName| StableName {
-            kind: EntityKind::Vertex,
-            ..seam(EntityKind::Vertex, on, cutter, &[])
-        };
+        let vertex =
+            |on: StableName, cutter: StableName| seam(EntityKind::Vertex, on, cutter, &[]);
         let mut piece = line.clone();
         piece.path.push(rank(1, 2));
         let cutter = |seg| member(4, face(6, seg), &[]);

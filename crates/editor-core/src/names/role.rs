@@ -125,6 +125,11 @@ impl NameRef {
         &self.0.name
     }
 
+    /// The name, mutably, when this handle is its only holder.
+    pub(super) fn get_mut(&mut self) -> Option<&mut StableName> {
+        Arc::get_mut(&mut self.0).map(|held| &mut held.name)
+    }
+
     /// Records this name's `position` in the `epoch` walk, unless it
     /// already carries a stamp.
     ///
@@ -268,7 +273,10 @@ impl core::hash::Hash for NameRef {
 
 impl Ord for NameRef {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        // An answer the handle settles itself is recorded for a name
+        // walk comparing the level that holds it (`nest::settled`).
         if Arc::ptr_eq(&self.0, &other.0) {
+            super::nest::settled(core::cmp::Ordering::Equal);
             return core::cmp::Ordering::Equal;
         }
         // Both fields are read here — the stamp as the O(1) cache of
@@ -286,7 +294,9 @@ impl Ord for NameRef {
         // structural order. A zero stamp has epoch 0, which no walk
         // ever uses, so this arm cannot fire on an unstamped pair.
         if a != 0 && (a >> 32) == (b >> 32) {
-            return (a as u32).cmp(&(b as u32));
+            let order = (a as u32).cmp(&(b as u32));
+            super::nest::settled(order);
+            return order;
         }
         name.cmp(other_name)
     }
@@ -501,10 +511,12 @@ impl<'de> serde::Deserialize<'de> for FaceName {
 /// N1's stable name: a derivation path — the minting node plus an
 /// op-typed role path. Float-free and arena-key-free by construction;
 /// serialization is structural (F3, PR 6).
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-#[serde(deny_unknown_fields)]
+///
+/// A name nests whole names inside its segments, as deep as its
+/// derivation runs, so its `Drop`, `Clone`, `Debug`, `PartialEq`,
+/// `Hash`, `Ord` and serde impls are written by hand, one level at a
+/// time (`names::nest`): each is the derived impl's answer, and none
+/// recurses on the nesting.
 pub struct StableName {
     /// The entity kind this name denotes (N1's `K`, runtime-tagged —
     /// module docs).

@@ -1480,7 +1480,7 @@ fn orient(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingErr
         // space, so a `FromA`/`FromB` argument is always an earlier
         // step's row: descended THROUGH, carrying its own
         // discriminators out with it.
-        RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => orient(node, inner)?.path,
+        RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => orient(node, inner)?.into_path(),
         // A seam: one line, each side collapsed, with any `Fragment`
         // tail after it.
         //
@@ -2261,7 +2261,7 @@ mod tests {
         let other = seam(member_cap(g.union, 3), member_cap(g.union, 4));
         let run = |k| {
             let one = g.named(g.piece(k), None);
-            let mut path = one.path;
+            let mut path = one.into_path();
             path.push(other.clone());
             vertex(g.union, path)
         };

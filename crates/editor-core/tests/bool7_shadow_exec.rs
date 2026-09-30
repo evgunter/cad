@@ -1429,11 +1429,13 @@ fn the_group_is_read_by_kind_and_minting_node_not_by_path_alone() {
     let decoys = [
         StableName {
             kind: EntityKind::Face,
-            ..h.base.clone()
+            node: h.base.node,
+            path: h.base.path.clone(),
         },
         StableName {
+            kind: h.base.kind,
             node: other_node,
-            ..h.base.clone()
+            path: h.base.path.clone(),
         },
     ];
     for decoy in decoys {

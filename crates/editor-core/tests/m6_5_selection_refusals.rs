@@ -187,9 +187,10 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
             node: Node::fillet(
                 BODY,
                 len(0.125),
-                vec![StableName {
-                    node: RecipeNodeId(99),
-                    ..rim(&doc, BODY, 0)
+                vec![{
+                    let mut elsewhere = rim(&doc, BODY, 0);
+                    elsewhere.node = RecipeNodeId(99);
+                    elsewhere
                 }],
             ),
         },

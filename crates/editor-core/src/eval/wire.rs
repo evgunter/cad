@@ -4849,6 +4849,12 @@ mod route_tests {
         }
     }
 
+    /// `name`, minted by `node` instead.
+    fn renode(node: RecipeNodeId, mut name: StableName) -> StableName {
+        name.node = node;
+        name
+    }
+
     /// The rewrite touches ONE shape: an ACCUMULATION-side member face
     /// that is no row and sits in a merged row's set goes to that row.
     /// A face the accumulation still holds, and a face no row holds or
@@ -4863,14 +4869,14 @@ mod route_tests {
         let f = |m, e| member_face(union, m, e);
         // Step 2's row: the merge of step 1's `{m0, m1}` with `m2`,
         // flat, minted in the union's space.
-        let wide = StableName {
-            node: union,
-            ..merged(vec![
+        let wide = renode(
+            union,
+            merged(vec![
                 f(ms[0], CapEnd::Start),
                 f(ms[1], CapEnd::Start),
                 f(ms[2], CapEnd::Start),
-            ])
-        };
+            ]),
+        );
         let mut acc = NameTable::new();
         acc.insert(wide.clone(), face_ref(key)).unwrap();
         acc.insert(
@@ -4917,10 +4923,10 @@ mod route_tests {
     fn the_joining_members_side_never_looks_through() {
         let (_doc, union, ms) = doc_with_members(4);
         let f = |m, e| member_face(union, m, e);
-        let row = StableName {
-            node: union,
-            ..merged(vec![f(ms[0], CapEnd::Start), f(ms[3], CapEnd::Start)])
-        };
+        let row = renode(
+            union,
+            merged(vec![f(ms[0], CapEnd::Start), f(ms[3], CapEnd::Start)]),
+        );
         let mut acc = NameTable::new();
         acc.insert(row, face_ref(a_face_key())).unwrap();
         let p = routed(
@@ -4941,20 +4947,20 @@ mod route_tests {
         let f = |m, e| member_face(union, m, e);
         let mut acc = NameTable::new();
         acc.insert(
-            StableName {
-                node: union,
-                ..merged(vec![f(ms[0], CapEnd::Start), f(ms[1], CapEnd::Start)])
-            },
+            renode(
+                union,
+                merged(vec![f(ms[0], CapEnd::Start), f(ms[1], CapEnd::Start)]),
+            ),
             face_ref(key),
         )
         .unwrap();
         // A second entity for the second row: the table refuses two
         // names on one entity, and the shape under test is two rows.
         acc.insert(
-            StableName {
-                node: union,
-                ..merged(vec![f(ms[0], CapEnd::Start), f(ms[2], CapEnd::Start)])
-            },
+            renode(
+                union,
+                merged(vec![f(ms[0], CapEnd::Start), f(ms[2], CapEnd::Start)]),
+            ),
             EntityRef {
                 body: 1,
                 key: EntityKey::Face(key),
@@ -5036,10 +5042,7 @@ mod route_tests {
             (Operand::A, named.clone()),
             (Operand::B, f(ms[3], CapEnd::End)),
         );
-        let merged_u = |set| StableName {
-            node: union,
-            ..merged(set)
-        };
+        let merged_u = |set| renode(union, merged(set));
         let cases = [
             (
                 "split, both fragments rows",
@@ -5096,11 +5099,8 @@ mod route_tests {
             (Operand::A, named.clone()),
             (Operand::B, f(ms[3], CapEnd::End)),
         );
-        let merged_u = |set| StableName {
-            node: union,
-            ..merged(set)
-        };
-        let inner = || merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]);
+        let merged_u = |set| renode(union, merged(set));
+        let inner =|| merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]);
         let cases = [
             (
                 "every fragment of the name merged later",
@@ -5140,10 +5140,7 @@ mod route_tests {
             (Operand::A, named.clone()),
             (Operand::B, f(ms[3], CapEnd::End)),
         );
-        let elsewhere = StableName {
-            node: ms[1],
-            ..named
-        };
+        let elsewhere = renode(ms[1], named);
         let acc = table_of(vec![fragment(elsewhere.clone(), 0), fragment(elsewhere, 1)]);
         let out = look_through_fold(std::slice::from_ref(&pair), &acc);
         assert_eq!(out.unwrap(), vec![pair]);
@@ -5160,10 +5157,7 @@ mod route_tests {
         let acc = table_of(vec![
             fragment(named.clone(), 0),
             fragment(
-                StableName {
-                    node: union,
-                    ..merged(vec![named.clone(), f(ms[1], CapEnd::End)])
-                },
+                renode(union, merged(vec![named.clone(), f(ms[1], CapEnd::End)])),
                 0,
             ),
         ]);

@@ -311,8 +311,7 @@ pub(crate) fn rewritten<E>(
 
 /// The ordering half: every position in order, the ranks untouched.
 fn order(mut name: StableName, seams: Seams) -> StableName {
-    name.path = name
-        .path
+    name.path = core::mem::take(&mut name.path)
         .into_iter()
         .map(|seg| segment(seg, seams))
         .collect();
@@ -435,10 +434,9 @@ mod tests {
     }
 
     fn edge(node: u64, member: u64) -> StableName {
-        StableName {
-            kind: EntityKind::Edge,
-            ..face(node, member)
-        }
+        let mut edge = face(node, member);
+        edge.kind = EntityKind::Edge;
+        edge
     }
 
     fn name(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
