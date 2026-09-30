@@ -1898,11 +1898,10 @@ fn orient<'s>(
             // the minting node's space (N3), so they stay in this union's
             // space, each collapsed by this same rule.
             //
-            // The pair emitter mints `Merged` for a DECLARED contact's
-            // merge groups, and a union carries a declaration channel of
-            // its own (`Node::Union`'s `declare` input), so a step whose
-            // bucket holds a coincident pair produces these rows and a
-            // union's published table carries them.
+            // The pair emitter mints `Merged` for the kernel's merge
+            // groups — faces that share a recipe source, or a declared
+            // coincidence, which a union carries through its own
+            // `declare` input — so a fold step's table carries these rows.
             //
             // The constituent set is FLAT (N3): a constituent is never
             // itself a bare merged face. The mint (`emit_topo`'s
@@ -1912,11 +1911,12 @@ fn orient<'s>(
             // emission bug it is, never flattened. A fragment of a merged
             // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
             //
-            // The canonical form makes the constituent SET the name, the
-            // form the pair emitter's mint gives it too (review R8): two
-            // merge groups collapsing to ONE constituent set collide
-            // LOUDLY at insert (`DuplicateName` → typed `NamingError`),
-            // never silently aliasing two faces onto one name.
+            // The canonical form makes the constituent SET the name, as
+            // the pair emitter's mint does (it tells two faces of one
+            // set apart by a `Fragment` tail): two rows collapsing to
+            // one name collide LOUDLY at insert (`DuplicateName` →
+            // typed `NamingError`), never silently aliasing two faces
+            // onto one name.
             RoleSeg::Merged(constituents) => {
                 let mut set = Vec::with_capacity(constituents.len());
                 for c in constituents {

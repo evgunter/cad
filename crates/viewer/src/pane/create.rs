@@ -11,7 +11,7 @@ use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
-use crate::combine::{DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
+use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
@@ -19,13 +19,15 @@ use crate::forms::{
     split_half_label,
 };
 use crate::frame::{self, Tone};
+use crate::generation::Generation;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::render_number;
 use crate::seats::{Seats, seat_line};
 use crate::session::{
-    FaceFrameFault, FaceSelection, ProfilePlane, Selection, SessionOp, Standing, face_frame_seat,
+    DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp,
+    Standing, face_frame_seat,
 };
 use crate::sketch;
 use crate::theme::Theme;
@@ -151,6 +153,50 @@ pub(crate) fn duplicate_note() -> String {
 /// (`crate::pane::headless`).
 pub(crate) fn seats_row(ui: &mut egui::Ui, seats: &Seats, theme: &Theme) {
     crate::widgets::message_toned(ui, seat_line(seats), theme, Tone::Advisory);
+}
+
+/// **The offer to declare a refused contact, in the boolean tool** —
+/// its question, one line per pair accepting it declares, and the two
+/// answers: `Declare` queues [`DeclareOffer::accept`], `Decline` drops
+/// the offer and queues nothing.
+///
+/// Drawn only while the offer stands ([`DeclareOffer::is_for`]); one
+/// an edit, the picks or the operation moved past is dropped unshown. A
+/// free function over the `Ui` so a headless row can click it
+/// (`crate::pane::headless`).
+pub(crate) fn declare_offer_rows(
+    ui: &mut egui::Ui,
+    held: &mut Option<DeclareOffer>,
+    (now, op, tool): (Generation, BooleanOp, BooleanTool),
+    ops: &mut Vec<SessionOp>,
+    theme: &Theme,
+) {
+    let Some(offer) = held.as_ref() else {
+        return;
+    };
+    if !offer.is_for(now, op, tool.a(), tool.b()) {
+        *held = None;
+        return;
+    }
+    crate::widgets::message_toned(ui, Refusal::declare_question(offer), theme, Tone::Advisory);
+    for finding in offer.findings() {
+        crate::widgets::message_toned(
+            ui,
+            Refusal::declare_pair_wording(finding),
+            theme,
+            Tone::Advisory,
+        );
+    }
+    let mut declined = false;
+    ui.horizontal(|ui| {
+        if ui.button("Declare").clicked() {
+            ops.push(offer.accept());
+        }
+        declined = ui.button("Decline").clicked();
+    });
+    if declined {
+        *held = None;
+    }
 }
 
 /// **The mate tool's held picks, drawn** — [`MateToolState::line`],
@@ -1284,6 +1330,13 @@ impl ViewerBehavior<'_> {
         self.tool_commit_row(ui, "Commit boolean", ToolKind::Boolean, |drafts| {
             Ok(tool.op(drafts.boolean_op)?)
         });
+        declare_offer_rows(
+            ui,
+            &mut self.drafts.declare_offer,
+            (self.session.generation(), self.drafts.boolean_op, tool),
+            self.ops,
+            &self.theme,
+        );
     }
 
     /// The split tool's panel: a body pick, a datum-plane pick, and
@@ -2479,5 +2532,240 @@ mod tone_tests {
             find(&painted, "choose a shape to add").ink,
             Some(voices.weak)
         );
+    }
+}
+
+/// **The declared union, driven through the boolean panel**: the
+/// flush boss-on-a-face union from its refusal to one undo, and the
+/// panel's two other answers. Each row performs the op the panel
+/// QUEUED, so what is asserted is what a click reaches. The rows that
+/// never touch the panel are `tests/combine_ops.rs`'s.
+#[cfg(test)]
+mod declared_union {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use pncad::document::{BooleanOp, Node, RecipeNodeId};
+    use pncad::geom_core::Tol;
+    use pncad::prelude::{CapEnd, RoleSeg};
+    use pncad::select::ContactClass;
+
+    use super::declare_offer_rows;
+    use crate::combine::BooleanTool;
+    use crate::frame;
+    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use crate::session::{DeclareOffer, DocSession, ProfilePlane, Refusal, SessionOp};
+    use crate::test_support::{
+        boss_on_block, boss_on_block_union_volume, evaluated_insert, evaluated_volume,
+    };
+    use crate::theme::Theme;
+    use crate::tree;
+
+    /// The boss scene in a session, landed.
+    fn scene(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+        let (doc, block, boss) = boss_on_block("declared-union", tol);
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        (session, block, boss)
+    }
+
+    /// The boolean tool holding `a` then `b`.
+    fn holding(session: &DocSession, a: RecipeNodeId, b: RecipeNodeId) -> BooleanTool {
+        let mut tool = BooleanTool::new();
+        tool.pick(session.committed_doc(), a);
+        tool.pick(session.committed_doc(), b);
+        tool
+    }
+
+    /// The union the tool holds, performed: its refusal and the offer
+    /// the frame loop reads off it.
+    fn refused_union(session: &mut DocSession, tool: BooleanTool) -> (Refusal, DeclareOffer) {
+        let op = tool.op(BooleanOp::Union).expect("both operands are picked");
+        let refusal = session.perform(op).refusal.expect("the union refuses");
+        let offer = frame::declare_offer(Some(&refusal))
+            .unwrap_or_else(|| panic!("an offer from the refusal: {refusal}"));
+        (refusal, offer)
+    }
+
+    /// **The panel over `offer`** at the session's generation, with
+    /// the tool open on `op`, after clicking `click` if one is given:
+    /// what it painted, the offer it leaves held, and the ops it queued.
+    fn panel(
+        session: &DocSession,
+        offer: DeclareOffer,
+        (op, tool): (BooleanOp, BooleanTool),
+        click: Option<&str>,
+    ) -> (String, Option<DeclareOffer>, Vec<SessionOp>) {
+        let mut held = Some(offer);
+        let mut ops = Vec::new();
+        let draw = |ui: &mut eframe::egui::Ui| {
+            declare_offer_rows(
+                ui,
+                &mut held,
+                (session.generation(), op, tool),
+                &mut ops,
+                &Theme::DEFAULT,
+            );
+        };
+        let painted = match click {
+            Some(target) => painted_after_clicking(target, draw),
+            None => painted_text(draw),
+        };
+        (painted, held, ops)
+    }
+
+    /// **Refusal → offer → Declare → one undo**, as the panel drives
+    /// it. Red if the flush union commits instead of refusing; if the
+    /// status line says anything but the kernel's own sentence; if the
+    /// offer is not the kernel's pair at the two picks, `Rest` as found;
+    /// if the panel paints anything else; if Declare queues anything but
+    /// the offer; if accepting lands other than one `Declare` and one
+    /// union naming it in one history step; if the union is not block
+    /// plus boss; or if one undo does not return the document the union
+    /// was refused on.
+    #[test]
+    fn a_flush_union_is_declared_through_its_refusals_offer_as_one_undo() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = scene(tol);
+        let before = session.committed_doc().clone();
+        let steps = session.history().len();
+        let tool = holding(&session, block, boss);
+
+        let (refusal, offer) = refused_union(&mut session, tool);
+        let plain = Node::Boolean {
+            op: BooleanOp::Union,
+            a: block,
+            b: boss,
+            declare: None,
+        };
+        let (eval, union) = evaluated_insert(&before, plain, tol);
+        let kernel = tree::own_error(union, &eval).expect("the plain union fails");
+        assert_eq!(
+            refusal.to_string(),
+            kernel.kind.to_string(),
+            "the status line says the kernel's refusal, whole"
+        );
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "a refused union commits nothing"
+        );
+        assert_eq!(session.history().len(), steps, "and records no step");
+        let [finding] = offer.findings() else {
+            panic!("one refusal reports one pair: {:?}", offer.findings());
+        };
+        assert_eq!(
+            (finding.pair.0.at, finding.pair.1.at),
+            (block, boss),
+            "each side is sited at the operand that holds it"
+        );
+        assert_eq!(
+            (&finding.pair.0.name.path, &finding.pair.1.name.path),
+            (
+                &vec![RoleSeg::Cap(CapEnd::End)],
+                &vec![RoleSeg::Cap(CapEnd::Start)]
+            ),
+            "the block's top cap against the boss's bottom cap"
+        );
+        assert_eq!(finding.class, ContactClass::Rest);
+
+        let op = (BooleanOp::Union, tool);
+        let (painted, _, _) = panel(&session, offer.clone(), op, None);
+        assert_eq!(
+            painted,
+            format!(
+                "declare this contact and commit the boolean?\n\
+                 a face of {} against a face of {} — {} contact\n\
+                 Declare\nDecline",
+                tree::node_number(block),
+                tree::node_number(boss),
+                ContactClass::Rest.name()
+            )
+        );
+
+        let (_, held, ops) = panel(&session, offer.clone(), op, Some("Declare"));
+        assert_eq!(
+            held.as_ref(),
+            Some(&offer),
+            "accepting leaves the offer to the landing"
+        );
+        let [accept] = <[SessionOp; 1]>::try_from(ops).expect("Declare queues one op");
+        let outcome = session.perform(accept);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let [declare, union] = outcome.minted[..] else {
+            panic!("a Declare and a union: {:?}", outcome.minted);
+        };
+        assert_eq!(session.history().len(), steps + 1, "one action, one step");
+        let doc = session.committed_doc();
+        assert!(matches!(
+            doc.node(declare),
+            Some(Node::Declare { pairs }) if pairs[..] == [(finding.pair.clone(), ContactClass::Rest)]
+        ));
+        assert!(matches!(
+            doc.node(union),
+            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare: Some(d) })
+                if (*a, *b, *d) == (block, boss, declare)
+        ));
+        session.pump();
+        let got = evaluated_volume(session.evaluation().expect("landed"), union, tol);
+        let want = boss_on_block_union_volume();
+        assert!(
+            ((got - want) / want).abs() < 1e-9,
+            "the union is block plus boss: {got} vs {want}"
+        );
+
+        let undone = session.perform(SessionOp::Undo);
+        assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "one undo takes the Declare and the union together"
+        );
+    }
+
+    /// **Declining changes nothing.** Red if Decline queues an op or
+    /// leaves the offer held.
+    #[test]
+    fn declining_the_offer_drops_it_and_queues_nothing() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = scene(tol);
+        let tool = holding(&session, block, boss);
+        let (_, offer) = refused_union(&mut session, tool);
+        let (_, held, ops) = panel(&session, offer, (BooleanOp::Union, tool), Some("Decline"));
+        assert_eq!(held, None, "the offer is dropped");
+        assert!(ops.is_empty(), "and nothing is queued: {ops:?}");
+    }
+
+    /// **An offer is dropped unshown once the picks, the operation or
+    /// the document move past it**: its pairs are sited at operands the
+    /// tool no longer holds, it would commit an operation nobody chose,
+    /// or it was found on a document a commit would no longer edit. Red
+    /// if the panel draws any of the three, or keeps it.
+    #[test]
+    fn an_offer_the_picks_the_op_or_an_edit_moved_past_is_dropped_unshown() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = scene(tol);
+        let tool = holding(&session, block, boss);
+        let (_, offer) = refused_union(&mut session, tool);
+        let (painted, held, _) = panel(&session, offer.clone(), (BooleanOp::Union, tool), None);
+        assert!(!painted.is_empty(), "the premise: a live offer is drawn");
+        assert!(held.is_some(), "and kept");
+
+        let swapped = holding(&session, boss, block);
+        for (what, op) in [
+            ("other picks", (BooleanOp::Union, swapped)),
+            ("another operation", (BooleanOp::Subtract, tool)),
+        ] {
+            let (painted, held, _) = panel(&session, offer.clone(), op, None);
+            assert_eq!(painted, "", "{what}: nothing is drawn");
+            assert_eq!(held, None, "{what}: the offer is dropped");
+        }
+
+        let edited = session.perform(SessionOp::AddDatum {
+            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+        });
+        assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
+        let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, tool), None);
+        assert_eq!(painted, "", "an edit since: nothing is drawn");
+        assert_eq!(held, None, "an edit since: the offer is dropped");
     }
 }

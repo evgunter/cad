@@ -1396,3 +1396,45 @@ The cause is deliberate policy, not a gap. The 2026-09-28 CI-latency cut removed
 ## 2026-09-30 — AUTH-9 dispatched: the AddBoolean row was unblocked eleven days ago
 
 `plan.md` parked `addboolean-doc-names-a-vocabulary-that-does-not-exist` behind EDIT, and I kept reporting it as blocked. When I checked, the dependency (`work/edit/a-declared-union-has-no-one-pass-authoring-path`) had closed on 2026-09-19 via #2809, with a one-pass declared union ruled by Ev. The row was dispatchable the whole time. **Blocked-on claims get re-checked against the blocker's status every time I name one**, not carried forward from the plan.
+
+## 2026-09-30 — AUTH-9 MERGED (`8bc49ad7`): a union that declares its contact
+
+Nine units closed. The flush boss-on-a-face union is now a refusal with a Declare offer. Accepting commits `Declare` + union as one action and one undo.
+
+**The trap fired a ninth time, one level up.** This time it was not a number or a sentence but a mechanism: a second refuse-then-offer beside `creation_offer`/`offer_wording`, with its own wording home, reader and staleness rule, and OFFER's P1 row (which names this exact case) was not told. The style review caught it; the fix pass moved it into the existing homes and put the evidence on OFFER's row. The staleness rules stay two, on purpose: a name to create doesn't depend on the document, a declaration does.
+
+**Fix pass reached the evaluator, so I read it before merging.** `probe::evaluate_with` became `evalseam::evaluate_beside`, with one `EvalOptions` spelling. The range probe now resolves through the seam's resolver instead of `None`, and both it and the judge prime only under the same resolver (`memo_under`). I checked that `same_resolver`'s pointer compare means something: `resolver_seam()` returns the session's one directory `Arc` or the one shared `NoFile::seam()`. `node_standing::` census on the head: 7 pass.
+
+**For Ev, separately:** `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added` (design). A union made flush by a later edit, or by a repaired ancestor, has no recourse but delete and re-add. The correctness review reads that as DM6's own reopening trigger. Filed without `needs_ev`.
+
+## 2026-09-30 — AUTH-10 dispatched: a held face pick is drawn; negative-extrude designers out
+
+**The P0 fork went to the designer pair** (`docs/prompts/designer.md`), dispatched together with one problem statement and no candidate answers. The blinding byte is on `analysis/design-fork/author-negative-extrude-2026-09-30`. The `[ev]` PR follows once the two reports are reconciled.
+
+**AUTH-10** takes the P1 `held-face-pick-is-invisible-in-the-viewport`, the add-datum form's latched face pick that nothing draws. The mate tool's held faces look undrawn as well, so the unit covers the class, not the one site. Review tier: correctness + style, as for every unit so far. The change reaches the viewport's marks, and possibly the shader, both shared ground.
+
+Not taken yet, with reasons:
+- `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
+- `no-row-holds-that-the-create-pane-offers-the-tools-it-has` is a harness-or-refactor choice across seven panels in a five-program file, and wants its own sitting.
+
+## 2026-09-30 — negative-extrude fork: the designers converged; `[ev]` PR opened
+
+Two designers, one problem statement, no candidate answers (byte 92 on `analysis/design-fork/author-negative-extrude-2026-09-30`).
+
+**First reports disagreed.** A: extrude distance becomes a positive depth, plus a structural `side`, refused in the kernel door. B: keep the signed distance and have the range probe ask "same build?" over the decision logs.
+
+**Round 1** gave each the other's report and asked each to settle the claim the other's case rested on. Both ran fixtures.
+- **A downstream reference to the end cap follows the flip silently: true.** A boss on the block's `Cap(End)` rebuilds below the plane at −10 mm, and nothing fails. The decision diff is `extrusion_normal_component` ×1 and `side_planes_cosurface` ×4.
+- **"Ordinary edits flip no decisions": false.**
+  - `plate_param`: 78 of 138 small literal edits (down to 1e-7 relative) flip a decision without failing, e.g. `bool_join_nearest` Zero→nonzero at the boss height and a `point_in_loop_arm` count.
+  - Corpus: 4 of 29 documents diff under their own recorded bump.
+  - A same-build oracle would therefore collapse ranges to a point on most documents with a boolean.
+
+B moved to A's answer and withdrew its oracle. A kept its answer and adopted B's idea of naming the refusal at a bracket's invalid end. A converged recommendation, not a crossover. The `[ev]` PR (#3551) carries both reports' `For Ev` sections verbatim as A and B; fork-log row 22.
+
+**Filed off the question**, not waiting on Ev:
+- CHROME: `the-range-panels-open-sentence-claims-values-it-never-sampled` (the Open sentence claims more than was sampled; a bracket's invalid end could name what refused).
+- Corrected the vacuity row's two stale citations of this row (it lives in `work/author/`, not `work/chrome/`).
+- Corrected `plan.md`'s `E` price for it (it is `M`, design).
+
+**Measured, not filed; seam note on EDIT (owner of `editor-core/src/range.rs`):** `plate_param`'s nominal sits exactly on `bool_join_nearest` Zero verdicts. That is probably authored coincident geometry, and would bear on the certified range's "certifies nothing on the corpus" table.
