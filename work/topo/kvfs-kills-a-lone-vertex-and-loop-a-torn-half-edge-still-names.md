@@ -7,6 +7,8 @@ opened: 2026-09-30
 priority: P3
 cost: E
 refs: [kill-ops-loop-anchor-on-an-unproven-next-step]
+pr: 3511
+branch: topo/walk-proofs
 ---
 
 

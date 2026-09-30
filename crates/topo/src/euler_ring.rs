@@ -3363,25 +3363,38 @@ mod tests {
 
     #[test]
     fn mekr_refuses_a_ring_walked_through_another_loop() {
-        // The anchor probe's `mekr` counterexample on the genus-2 body
-        // (`review_d18::kill_anchors_on_torn_bodies`, seed 171, two
-        // `next` tears): the ring's walk is diverted through another
-        // loop and back, so the ring's move carries that loop's anchor
-        // into the target. Unchecked, that loop is left anchored in the
-        // target, and the join returns `Ok`.
-        let mut body = crate::fixtures::ops_genus2(Tol::witness());
-        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
-        body.get_half_edge_mut(halves[24]).unwrap().next = halves[52];
-        body.get_half_edge_mut(halves[52]).unwrap().next = halves[27];
-        let (target, ring) = (halves[16], halves[24]);
-        let ring_loop = body.get_half_edge(ring).unwrap().parent_loop;
+        // The diverted walk of `mef-and-mekr-move-a-walked-run-they-never-
+        // prove-is-the-loops`, on the holed box's hole rim: two `next`
+        // tears route the ring's first step through a side face's first
+        // two members and back (`next(r) := first(l3)`,
+        // `next(next(first(l3))) := next(r)`). The walk keeps every ring
+        // member, so the ring's move carries that loop's anchor into the
+        // target. Unchecked, that loop is left anchored in the target,
+        // and the join returns `Ok`.
+        let t = crate::fixtures::ops_holed_box(Tol::witness());
+        let mut body = t.body;
+        let top = body.get_face(t.seed.face).unwrap().clone();
+        let first_of = |body: &Body<f64>, l: LoopKey| match body.get_loop(l).unwrap().boundary {
+            LoopBoundary::Cycle { first } => first,
+            LoopBoundary::Empty { .. } => panic!("a cycle"),
+        };
+        let (target, ring) = (first_of(&body, top.outer), first_of(&body, top.rings[0]));
+        let ring_loop = top.rings[0];
+        let l3 = body.get_face(t.box_mefs[0].face).unwrap().outer;
+        let f = first_of(&body, l3);
+        let (after_ring, after_f) = (
+            body.get_half_edge(ring).unwrap().next,
+            body.get_half_edge(f).unwrap().next,
+        );
+        body.get_half_edge_mut(ring).unwrap().next = f;
+        body.get_half_edge_mut(after_f).unwrap().next = after_ring;
         let walk = body.loop_cycle(ring).unwrap();
         assert!(
-            body.loops().any(|(l, data)| {
-                l != ring_loop
-                    && matches!(data.boundary, LoopBoundary::Cycle { first } if walk.contains(&first))
-            }),
-            "the ring's walk takes another loop's anchor"
+            walk.contains(&f)
+                && body
+                    .half_edges()
+                    .all(|(x, data)| data.parent_loop != ring_loop || walk.contains(&x)),
+            "the ring's walk takes another loop's anchor, and misses no ring member"
         );
         let torn = EulerOpError::LoopCycleBroken { r#loop: ring_loop };
         assert_make_refuses(&mut body, &torn, |b| {

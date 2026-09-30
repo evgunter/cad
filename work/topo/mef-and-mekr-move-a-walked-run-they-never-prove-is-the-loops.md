@@ -4,6 +4,8 @@ kind: issue
 title: mef's chord run and mekr's ring walk are re-parented without proving they claim the walked loop: a walk diverted through a third loop moves that loop's anchor out of it through Ok
 status: open
 opened: 2026-09-29
+pr: 3511
+branch: topo/walk-proofs
 ---
 
 
