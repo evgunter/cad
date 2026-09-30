@@ -2,7 +2,8 @@
 id: an-expression-nested-deep-enough-kills-the-process
 kind: issue
 title: editor-core: parse_expr, eval and the drop of an Expr recurse once per nesting level with no bound, so a deep expression kills the process
-status: review
+status: closed
+closed: 2026-09-30
 opened: 2026-09-30
 pr: 3510
 branch: edit/expr-nesting-bound
