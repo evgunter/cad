@@ -36,6 +36,16 @@ inside dated prose that the report's own "standing class" note says to
 treat as a reading rather than a live claim, and deciding which of
 those to re-word is an editorial call about this report.
 
+## A sibling, filed the same day on another slate
+
+`work/ciw/ci-prose-and-pins-outlive-the-latency-cut.md` is the same
+class — prose and pins that outlived `49d5b2aee` — found by the
+2026-09-28 tracker sweep and filed on ciw's slate because the paths it
+names are ciw's. These five are in instr's document, so they are here;
+whoever takes either should read the other. Discipline's "grep that
+program's directory first" would not have found it, because a sibling
+instance of one class can sit on a different program's slate.
+
 ## Home
 
 INSTR — `docs/K-REPORT.md` is instr's territory

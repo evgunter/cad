@@ -104,11 +104,19 @@ Nightly run 36561506133. CI cut `49d5b2aee`. Baseline constants at
 are artefacts of where the row lived
 
 **Last green execution: run 36449836735, job `k-lint (gate, dev-probe)`
-(job id 109022798206), 2026-09-28T16:16:28Z**, on the merge ref of
-`vnews/one-seat-line` head `b34a34cbd` against main at `cc2a4b7ed`.
-It read 3,789,703 samples and flagged nothing. The next execution of
-the row anywhere is the failing nightly, 2026-09-29T11:24:07Z — a gap
-of **19 h 08 m**, which is one nightly cycle.
+(job id 109022798206), which RAN 2026-09-28T16:23:27Z–16:30:32Z** (the
+run was created at 16:16:28Z; dating an instrument by when it executed
+means the job's own timestamps, and it is still the last such job by
+either). It read 3,789,703 samples and flagged nothing. The next
+execution of the row anywhere is the failing nightly's job
+109383464088, 2026-09-29T11:24:53Z–11:32:02Z — a gap of **18 h 54 m**
+between executions, one nightly cycle.
+
+The job ran on the merge ref of `vnews/one-seat-line` head `b34a34cbd`
+against main at `cc2a4b7ed`, so it is a reading of main plus one PR.
+That PR is kernel-neutral: `git diff --name-only cc2a4b7ed...b34a34cbd`
+is 17 files under `crates/viewer/**` and `work/**` and nothing else, so
+the sweep it produced is main's sweep.
 
 Two premises above are true but do not carry the weight put on them:
 
@@ -145,8 +153,21 @@ Rule 1 fires on **every** row whose outcome is `invalid`, with no
 threshold in the way (`tools/k-lint/src/lib.rs`, `lint_sample`'s
 `"invalid" => reasons.push(Reason::Invalid)`). The last-green sweep
 flagged rule 1 zero times over 3,789,703 samples, so **that sweep
-contained no `invalid` row anywhere**. The nine are therefore rows the
-old sweep did not record — not margins that existed in both.
+contained no `invalid` row anywhere**.
+
+That alone does not finish the question the spec's step 2 asks. It
+excludes the nine having been recorded as `invalid` before; it does not
+by itself exclude the same nine samples having existed DECIDED and
+turned poison since, which would be a distribution change and a
+regression. What excludes that is the mechanism, not the counts: the
+NaN is `SpanLocate::enclosure_hull`'s deliberate poison, minted by
+`chart_edge` at a point scalar and propagated by `Real::min`/`max` per
+`real.rs`'s NaN policy, so the margin is NaN for ANY face whose outer
+loop has a non-straight edge on a periodic chart, at every eps and on
+every sweep. A sample of this predicate on such a face cannot have been
+decided; it can only have been absent. So the nine are rows the old
+sweep did not record. Full derivation, with the call sites:
+`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`.
 
 ### 3. The nine and the eight, by predicate and site
 
@@ -174,10 +195,9 @@ that only enter rule 2's window once `band_zero` reaches 1e-12.
 
 ### 4. The PR 3418 hypothesis is wrong
 
-It predicted newly-VISIBLE margins, i.e. more recorded samples with no
-geometry moving. Against it:
+It predicted newly-VISIBLE margins, i.e. samples that were always taken
+but not recorded. Against it:
 
-- the sample count FELL by 2,496 per row;
 - `Probe`'s `Decide::sign_within` records an `Invalid` sample on
   exactly the condition it recorded before — `Err(e) if
   e.margin.is_invalid()` — and the margin it records is still the raw
@@ -198,6 +218,26 @@ not exist at the comparison point: minted at `987e97789`
 (2026-09-29T02:07:58Z), in the same PR that rewrote
 `demos/tour/src/lily.rs`.
 
+**The sample count is NOT a ground against the hypothesis, and an
+earlier draft of this section used it as one.** "The population fell by
+2,496 per row" says nothing about nine additions inside a net change of
+that size over 1.26 M rows; the two are entirely consistent. The three
+grounds above are what carry.
+
+**What the file sweep behind those grounds could not match.** It asked
+which files PR 3418 touches, against the files the SPAN margin is built
+from. Reading the mechanism first made the arm a second entry point:
+`u_arm` comes from `chart_u_arm`, whose non-azimuth kinds read
+`geom_brep::chart_stretch_sup` in
+`crates/geom-brep/src/pcurve_cache.rs` — a file PR 3418 DOES touch, and
+which a sweep scoped to `crates/topo` would have missed. Checked: its
+edits there are `FittedMagnitude`/`PcurveCertifyError` doc prose, the
+`certified_clearance` field's type (`f64` to `MarginDiag`), a
+`MarginKind::Invalid` link spelling and two test bodies;
+`chart_stretch_sup` and `chart_stretch_sup_v` are untouched. The
+conclusion stands, now with the entry point that nearly escaped it
+named.
+
 ### 5. Recourse: NEITHER — stop and report
 
 - **The nine are rule 1, and rule 1 has no recourse.** It carries no
@@ -206,7 +246,11 @@ not exist at the comparison point: minted at `987e97789`
   `EPS_COUPLED_FLOOR_RATIO`, none of which rule 1 reads), and the lint
   records that nothing offers its demotion because demoting it would
   demote the ERROR-DESIGN E6 re-open trigger. A poisoned margin is
-  "a defect wherever it appears" in the lint's own words. Filed:
+  "a defect wherever it appears" in the lint's own words — and here it
+  is a STRUCTURAL poison at the recording scalar rather than geometry
+  that moved, so it will reappear on every future sweep of these three
+  shapes until someone rules on which of the row's three readings
+  holds. Filed:
   `work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`.
 - **The eight are a new family's lower tail.** Rule 2's zero-side arm
   compares `|m|` against `band_zero / PROXIMITY_FACTOR` and reads no
@@ -229,6 +273,14 @@ step carries `--gate-rule-1-only`'s recorded justification; it now says
 further places, in instr's territory:
 `work/instr/k-report-still-names-ci-yml-for-the-k-lint-row.md`.
 
+One more false sentence, found by chasing the NaN and fixed here rather
+than filed: `SpanLocate::enclosure_hull`'s doc
+(`crates/geom-core/src/spline/locate.rs`) claimed point scalars "never
+reach it by construction (single span)". `chart_edge` reaches it at a
+point scalar on both of its arms, so the claim was false on this tree
+and is a premise other code may cite. The file is double-claimed by
+`nurbs` and `props`, so correcting it is not a crossing.
+
 ### 7. What this leaves red
 
 `k-lint (dev-probe)` stays red on the nightly until the chart row is
@@ -250,7 +302,14 @@ A local sweep at today's tip was started twice under
 `local-scripts/with-build-slot.sh` and abandoned: the first was reaped at
 the harness's background limit two hours in, the second was still queued
 behind another lane when the hosted reading above superseded it. No local
-sweep was taken at the comparison point either — the hosted job logs at
-both ends carry the sample counts and the per-rule counts, and rule 1's
-zero at the comparison point settles the population question without a
-CSV.
+sweep was taken at the comparison point either.
+
+**What that costs, stated where the claim is made rather than after
+it.** The two hosted job logs carry the sample counts and the per-rule
+counts, which is what §2's table is. They do NOT carry per-predicate
+populations, so no reading here counts `chart_bound_outer_span`'s rows
+at either end. §2 therefore does not rest on the counts for the
+population question — it rests on the mechanism, which says a sample of
+this predicate on such a face cannot have been decided. The counts
+would have made that a second, independent check; they were not taken,
+and this is the sentence that says so.

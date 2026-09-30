@@ -21,19 +21,41 @@ From nightly run 36561506133 (head `aae5716bf`), job `k-lint
 (dev-probe)`, the 1e-12 row (`band_zero = 1e-12`, so the rule's
 threshold is 1e-14):
 
-| shape | |m| (m) | count |
+| shape | \|m\| (m) | count |
 | --- | --- | --: |
 | `demo/lily_walls` | 3.14912307142162e-13 | 2 |
 | `demo/lily_walls` | 8.272757261396428e-14 | 2 |
 | `demo/lily_walls` | 6.680730726416532e-14 | 2 |
 | `demo/lily_walls` | 1.9291935961799184e-14 | 2 |
 
-The margins themselves are eps-INDEPENDENT — four distinct values,
-each recorded twice — so they are a fixed geometric quantity that only
-crowds the coincidence band once eps is tight enough. At 1e-9 and 1e-6
-the same margins sit far below `band_zero / 10^2` and rule 2 is
-silent, which is why the failing run's rule-2 count is 8 at 1e-12 and
-0 at the other two rows.
+At 1e-9 and 1e-6 the same margins sit far below `band_zero / 10^2` and
+rule 2 is silent, which is why the failing run's rule-2 count is 8 at
+1e-12 and 0 at the other two rows.
+
+## The margin is eps-independent BY CONSTRUCTION, not by observation
+
+Four distinct values each recorded twice at all three rows is the
+observation; the source is the argument, and it is the input a rule-4
+decision turns on. `circle_torus_roots` builds
+
+```rust
+let slack = radius * (charge / slope + rounding / sin_spread);
+```
+
+from `radius`, the tilt `charge`, the residual's along-carrier `slope`
+and `sin_spread` — all geometry — plus `rounding`, which is
+`NOISE_ULPS * f64::EPSILON * 0.5` scaled by the contour/offset/radius
+combination. `f64::EPSILON` is machine epsilon, not the tolerance.
+**Nothing on this path reads `Tol` or the ambient eps**: every `Tol`
+and `eps` occurrence in `crates/topo/src/boolean/circle_torus.rs` is
+inside `mod tests`. The band the margin is classified against moves
+with eps; the margin does not.
+
+That matters for the ruling below in one direction: rule 4 is
+calibrated for a statistic whose whole operating range SCALES with eps
+(`props_quad_converged` records `1024*eps - width`), and this one does
+not, so rule 4 as the M7 addendum derives it is not the shape that
+fits here.
 
 ## This is a population change, not a distribution one
 
@@ -53,14 +75,14 @@ row.
 ## What has to be decided
 
 Whether a root slack at 10^-14 m that the lane classifies `zero` is a
-real fragility statement at 1e-12 (rule 2 doing its job on a lane that
-should be metered or refused differently), or whether this family
-belongs under a calibrated rule of its own the way
-`props_quad_converged` does (`EPS_COUPLED_PREDICATES` and rule 4,
-`docs/K-REPORT.md`'s M7 addendum). Membership of that allow-list is
-explicit and never inferred, so nothing happens to this family until
-someone rules on it. Until then the `k-lint (dev-probe)` nightly row
-is red on these eight.
+real fragility statement at 1e-12 — rule 2 doing its job on a lane
+whose slack should be metered or refused differently — or whether this
+family needs a rule of its own. It is not `EPS_COUPLED_PREDICATES`
+material as that list is derived today: membership there is explicit
+and never inferred, and the section above says why rule 4's calibration
+does not fit an eps-independent margin. Nothing happens to this family
+until someone rules on it, and until then the `k-lint (dev-probe)`
+nightly row is red on these eight.
 
 ## Home
 
