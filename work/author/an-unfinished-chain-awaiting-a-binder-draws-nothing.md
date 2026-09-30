@@ -5,7 +5,6 @@ title: viewer: an unfinished path whose tip awaits a binder (a radius arrival, a
 status: review
 priority: P1
 cost: M
-design: true
 refs: [path-preview-draws-nothing-for-a-refused-step]
 opened: 2026-09-29
 branch: author/binder-prefix
