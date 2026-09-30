@@ -12,8 +12,9 @@
 //! (`Selection::seat_node`). Everything before the commit is tool
 //! state; the document transition is one [`SessionOp`], committed
 //! through the session's ordinary commit door as one action — one
-//! `DocEdit::InsertNode` for every tool but the duplicate tool, whose
-//! op inserts a pattern and its two projections as one undo.
+//! `DocEdit::InsertNode` for every tool but two: the duplicate tool's
+//! op inserts a pattern and its two projections, and a boolean that
+//! declares contacts inserts its `Declare` first, each as one undo.
 //!
 //! The seat vocabulary, the pick rule, the survival step and the
 //! id-reuse hazard it does not cover (issue #1384) are all
@@ -23,15 +24,16 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, Doc, Evaluation, Expr, Node, NodeStanding, PartSelect, PatternKind, ProfileProgram,
-    RecipeNodeId,
+    BooleanOp, Doc, Evaluation, Expr, Node, NodeErrorKind, NodeStanding, PartSelect, PatternKind,
+    ProfileProgram, RecipeNodeId,
 };
 use pncad::geom_core::{Tol, Vec3};
-use pncad::select::SplitHalf;
+use pncad::select::{FlushFinding, SplitHalf};
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
 use crate::session::refuse::one_body;
 use crate::session::{PartSelectSpec, PatternRuleSpec, SessionOp};
+use crate::tree;
 use crate::vocab::vocabulary;
 
 /// **The boolean tool**: two sequential body picks and one operation
@@ -91,7 +93,9 @@ impl BooleanTool {
     }
 
     /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door.
+    /// boolean node through the ordinary commit door, declaring no
+    /// contact. A contact the door refuses is declared through the
+    /// offer its refusal makes ([`DeclareOffer::accept`]).
     ///
     /// # Errors
     ///
@@ -103,7 +107,164 @@ impl BooleanTool {
             op,
             a: self.seats.require(0)?,
             b: self.seats.require(1)?,
+            declare: Vec::new(),
         })
+    }
+}
+
+/// **A boolean the session door evaluated and did not commit, because
+/// it refused a contact nobody declared** — the payload of
+/// [`crate::session::Refusal::UndeclaredContact`], and the one source
+/// of the offer to declare that contact.
+///
+/// It holds the attempt — the operation, its two operands, the findings
+/// it already declared — beside the kernel's refusal as the kernel
+/// raised it, so the sentence a person reads is the kernel's own and the
+/// offer declares exactly the pair that sentence is about.
+#[derive(Debug)]
+pub struct UndeclaredContact {
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    declared: Vec<FlushFinding>,
+    /// Always the kernel's `NodeErrorKind::UndeclaredContact`: the one
+    /// constructor admits nothing else.
+    refused: NodeErrorKind,
+}
+
+impl UndeclaredContact {
+    /// **What the boolean `op` of `a` and `b`, evaluated as `node` in
+    /// `eval` with `declared` already declared, refused** — `None` when
+    /// the node evaluated, or failed for any reason but an undeclared
+    /// contact of its own.
+    ///
+    /// A POISONED node is `None` too: its root cause is an ancestor's,
+    /// and a finding sited at that ancestor's operands declares nothing
+    /// on this boolean.
+    pub fn read(
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        op: BooleanOp,
+        [a, b]: [RecipeNodeId; 2],
+        declared: Vec<FlushFinding>,
+    ) -> Option<Self> {
+        let error = eval.node_error(node).filter(|error| error.node == node)?;
+        let NodeErrorKind::UndeclaredContact {
+            finding,
+            merged,
+            diag,
+        } = &error.kind
+        else {
+            return None;
+        };
+        Some(Self {
+            op,
+            a,
+            b,
+            declared,
+            refused: NodeErrorKind::UndeclaredContact {
+                finding: finding.clone(),
+                merged: merged.clone(),
+                diag: *diag,
+            },
+        })
+    }
+
+    /// The finding the kernel refused: the pair and the class a
+    /// declaration of it asserts.
+    pub fn finding(&self) -> &FlushFinding {
+        let NodeErrorKind::UndeclaredContact { finding, .. } = &self.refused else {
+            unreachable!("`UndeclaredContact::read` admits only an undeclared contact")
+        };
+        finding
+    }
+
+    /// **The offer this refusal makes**: the same boolean again,
+    /// declaring what the attempt declared and the finding it refused.
+    pub fn offer(&self) -> DeclareOffer {
+        DeclareOffer {
+            op: self.op,
+            a: self.a,
+            b: self.b,
+            findings: self
+                .declared
+                .iter()
+                .chain([self.finding()])
+                .cloned()
+                .collect(),
+        }
+    }
+}
+
+impl core::fmt::Display for UndeclaredContact {
+    /// The kernel's sentence, framed by what was not committed.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "the boolean was not committed: {}", self.refused)
+    }
+}
+
+/// **The offer an undeclared-contact refusal makes** — a value, so the
+/// panel shows every pair accepting it declares before anything is
+/// committed.
+///
+/// The class of each pair is the finding's, confirmed rather than
+/// chosen: the author accepts the contact the kernel detected, and a
+/// class it did not detect is not on offer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DeclareOffer {
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    findings: Vec<FlushFinding>,
+}
+
+impl DeclareOffer {
+    /// Every finding accepting the offer declares, in the order the
+    /// refusals reported them.
+    pub fn findings(&self) -> &[FlushFinding] {
+        &self.findings
+    }
+
+    /// **Whether the offer is about what the tool now holds** — the same
+    /// operation over the same two picks. An offer about anything else
+    /// is stale: its pairs are sited at operands no longer picked.
+    pub fn is_for(&self, op: BooleanOp, a: Option<RecipeNodeId>, b: Option<RecipeNodeId>) -> bool {
+        self.op == op && a == Some(self.a) && b == Some(self.b)
+    }
+
+    /// **Accepting the offer**: the boolean again, declaring every
+    /// finding — one action at the session door, so one undo.
+    pub fn accept(&self) -> SessionOp {
+        SessionOp::AddBoolean {
+            op: self.op,
+            a: self.a,
+            b: self.b,
+            declare: self.findings.clone(),
+        }
+    }
+
+    /// The offer's question, in the tool panel.
+    pub fn question(&self) -> String {
+        let what = match self.findings.len() {
+            1 => "this contact",
+            _ => "these contacts",
+        };
+        format!("declare {what} and commit the boolean?")
+    }
+
+    /// **One pair, as the panel names it**: each side's operand through
+    /// the chrome's one spelling of a node, and the class the
+    /// declaration asserts. The face within each operand has no prose
+    /// name (`work/author/face-pick-cannot-name-which-face.md`), so the
+    /// line says "a face of" rather than inventing one.
+    pub fn pair_line(finding: &FlushFinding) -> String {
+        let (one, other) = &finding.pair;
+        format!(
+            "a face of {} against a face of {} — {} contact",
+            tree::node_number(one.at),
+            tree::node_number(other.at),
+            finding.class.name()
+        )
     }
 }
 

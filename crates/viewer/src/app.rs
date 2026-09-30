@@ -1232,6 +1232,9 @@ impl ViewerApp {
             self.drafts.new_param_dimension = None;
             self.drafts.new_param_offer = Some(name.clone());
         }
+        if let Some(offer) = refusal.as_ref().and_then(Refusal::declare_offer) {
+            self.drafts.declare_offer = Some((self.session.history().current(), offer));
+        }
         self.apply_status(verdict);
     }
 

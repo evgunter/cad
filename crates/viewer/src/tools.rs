@@ -3,8 +3,8 @@
 //! Every modal tool here holds picks in tool state and commits exactly
 //! one ACTION — one history state, one undo (G1's preview-vs-commit
 //! rule; the mate tool set the shape and the creation tools took it).
-//! For every tool but the duplicate tool that action is one `DocEdit`;
-//! the duplicate tool's is three, recorded as one. They all consume the SAME
+//! For most tools that action is one `DocEdit`; the duplicate tool's is
+//! three and a declaring boolean's two, each recorded as one. They all consume the SAME
 //! selection stream, which is what makes the one-at-a-time rule a rule
 //! rather than a preference: with two open, one click fills a seat in
 //! each, and the picks a user believes they are making are not the

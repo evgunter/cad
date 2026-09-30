@@ -65,7 +65,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{FlushFinding, Resolution, RunCtx, declare_node, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
@@ -1424,7 +1424,7 @@ impl DocSession {
                 axis,
                 angle,
             } => self.add_revolve(profile, axis, angle),
-            SessionOp::AddBoolean { op, a, b } => self.add_boolean(op, a, b),
+            SessionOp::AddBoolean { op, a, b, declare } => self.add_boolean(op, a, b, declare),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
                 input,
@@ -2364,9 +2364,16 @@ impl DocSession {
         })
     }
 
-    /// Insert one regularized boolean of two existing bodies
+    /// Insert one regularized boolean of two existing bodies, and the
+    /// declaration of the contacts it names
     /// ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> OpOutcome {
+    fn add_boolean(
+        &mut self,
+        op: BooleanOp,
+        a: RecipeNodeId,
+        b: RecipeNodeId,
+        declare: Vec<FlushFinding>,
+    ) -> OpOutcome {
         for seat in [a, b] {
             if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
@@ -2380,14 +2387,41 @@ impl DocSession {
         // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        self.commit(DocEdit::InsertNode {
-            node: Node::Boolean {
-                op,
-                a,
-                b,
-                declare: None,
-            },
-        })
+        //
+        // `declare_node` refuses only an empty slice, which is the
+        // declare-nothing case.
+        let declaration = declare_node(&declare).ok();
+        let boolean = |declare| DocEdit::InsertNode {
+            node: Node::Boolean { op, a, b, declare },
+        };
+        let staged = self.stage_run(|minted| match (minted, &declaration) {
+            ([], None) => Some(boolean(None)),
+            ([], Some(node)) => Some(DocEdit::InsertNode { node: node.clone() }),
+            ([Some(declared)], Some(_)) => Some(boolean(Some(*declared))),
+            _ => None,
+        });
+        let staged = match staged {
+            Ok(staged) => staged,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        let Some(Some(node)) = staged.minted.last().copied() else {
+            unreachable!("the run ends on the boolean's `InsertNode`")
+        };
+        // Judged before it is recorded: the one recourse to a contact
+        // refusal is a declaration in the same action, which cannot be
+        // added to a committed node. The landed run is the memo, so
+        // only what this run added is computed.
+        let judged = probe::evaluate_with(
+            &staged.doc,
+            self.evaluation(),
+            &Some(self.resolver_seam()),
+            self.tol,
+        );
+        if let Some(refused) = combine::UndeclaredContact::read(&judged, node, op, [a, b], declare)
+        {
+            return OpOutcome::refused(Refusal::UndeclaredContact(Box::new(refused)));
+        }
+        self.record_run(staged)
     }
 
     /// Insert one split of an existing body by an existing datum plane
@@ -2749,7 +2783,19 @@ impl DocSession {
     }
 
     /// The same door again, for an action whose later edits name the
-    /// ids its earlier ones MINTED.
+    /// ids its earlier ones MINTED: [`Self::stage_run`], then
+    /// [`Self::record_run`].
+    fn commit_run<F>(&mut self, next: F) -> OpOutcome
+    where
+        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
+    {
+        match self.stage_run(next) {
+            Ok(staged) => self.record_run(staged),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
+    }
+
+    /// **An action's edits, applied and not yet recorded.**
     ///
     /// `next` is handed what each edit so far minted, in order — an
     /// `InsertNode`'s new id, `None` for every edit that creates no
@@ -2759,12 +2805,12 @@ impl DocSession {
     /// with a fixed list ([`Self::commit_action`]) ignores it.
     ///
     /// **All or nothing**: each edit is applied to the value the last
-    /// one produced and nothing is recorded until every one has
-    /// succeeded, so a refusal anywhere leaves the session on the
-    /// document it started from. That is purity doing the work — no
-    /// rollback exists to be got wrong. The whole run is one history
-    /// state, so one user action is one undo.
-    fn commit_run<F>(&mut self, mut next: F) -> OpOutcome
+    /// one produced and nothing is recorded until [`Self::record_run`]
+    /// takes the result, so a refusal anywhere — or a caller that
+    /// drops the staged run — leaves the session on the document it
+    /// started from. That is purity doing the work — no rollback
+    /// exists to be got wrong.
+    fn stage_run<F>(&self, mut next: F) -> Result<StagedRun, Refusal>
     where
         F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
     {
@@ -2797,12 +2843,29 @@ impl DocSession {
                     net.push(&applied);
                     produced = Some(applied.doc);
                 }
-                Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
+                Err(error) => return Err(Refusal::Edit(Box::new(error))),
             }
         }
         let Some(doc) = produced else {
             unreachable!("an action commits at least one edit")
         };
+        Ok(StagedRun {
+            doc,
+            logged,
+            net,
+            minted,
+        })
+    }
+
+    /// **A staged run, recorded**: the whole run is one history state,
+    /// so one user action is one undo.
+    fn record_run(&mut self, staged: StagedRun) -> OpOutcome {
+        let StagedRun {
+            doc,
+            logged,
+            net,
+            minted,
+        } = staged;
         let committed = logged.iter().map(|entry| entry.edit.clone()).collect();
         // Net over the action: a row an earlier edit reported can be
         // made moot by a later one ([`MaintenanceNet`]).
@@ -2850,6 +2913,19 @@ impl DocSession {
             resolver: Some(self.resolver_seam()),
         });
     }
+}
+
+/// An action's edits applied in order and not yet recorded
+/// ([`DocSession::stage_run`]).
+struct StagedRun {
+    /// The document the last edit produced.
+    doc: Doc<ProfileProgram>,
+    /// Each edit with the maintenance it performed, for the history.
+    logged: Vec<LoggedEdit<ProfileProgram>>,
+    /// The maintenance, netted over the whole action.
+    net: MaintenanceNet,
+    /// What each edit minted, in the order the edits applied.
+    minted: Vec<Option<RecipeNodeId>>,
 }
 
 /// Whether a document is assembly-shaped — one of the two conditions

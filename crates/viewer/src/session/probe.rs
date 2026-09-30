@@ -264,15 +264,17 @@ fn probe_edit(
 /// One evaluation of one document, outside the seam.
 ///
 /// **The seam is for the PICTURE**; this is for a question asked about
-/// a document nobody is going to look at (a range probe's candidate).
+/// a document nobody is going to look at (a range probe's candidate, a
+/// boolean the session door has not yet committed).
 /// Routing it through the seam would cancel the run the viewport is
 /// waiting for — the seam's ruled cancel-and-restart policy — which is
 /// exactly the wrong trade for a query the user asked for BESIDE the
 /// picture rather than instead of it.
 ///
 /// A fresh `CancelToken` per call, never set: these runs are bounded by
-/// the probe's sample cap, and nothing exists to cancel them from.
-fn evaluate_with(
+/// the probe's sample cap or are one run each, and nothing exists to
+/// cancel them from.
+pub(crate) fn evaluate_with(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<f64>>,
     resolver: &Option<Arc<dyn PartResolver>>,

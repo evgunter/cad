@@ -314,6 +314,14 @@ pub enum Refusal {
     /// A duplicate could not be placed — its input's landed value is
     /// not one body with a width ([`combine::DuplicateFault`]).
     Duplicate(combine::DuplicateFault),
+    /// The boolean the door evaluated refused a contact nobody
+    /// declared, so it was not committed
+    /// ([`combine::UndeclaredContact`]): the kernel's refusal and the
+    /// attempt it answered, which is what makes the offer to declare
+    /// it ([`Refusal::declare_offer`]).
+    ///
+    /// Boxed for [`Refusal::Edit`]'s reason.
+    UndeclaredContact(Box<combine::UndeclaredContact>),
     /// `apply` refused the edit — the door's own sentence, forwarded.
     ///
     /// **Layer 3 adds a frame and never a second opinion.** Every
@@ -440,8 +448,40 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
+            | Self::UndeclaredContact(_)
             | Self::Edit(_)
             | Self::Dimension(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo { .. }
+            | Self::Display(_)
+            | Self::SlotUnit(_)
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
+            | Self::ProfileEditStale { .. } => None,
+        }
+    }
+
+    /// **The offer to declare the contact a boolean refused** — `Some`
+    /// exactly for [`Refusal::UndeclaredContact`], and the one reading
+    /// the frame loop hands the tool panel.
+    pub fn declare_offer(&self) -> Option<combine::DeclareOffer> {
+        match self {
+            Self::UndeclaredContact(refused) => Some(refused.offer()),
+            Self::DrivenByExpression { .. }
+            | Self::NoSuchSlot { .. }
+            | Self::NoSuchParam(_)
+            | Self::ParamNotANumber { .. }
+            | Self::ParamExists { .. }
+            | Self::EmptyName
+            | Self::WrongNodeKind { .. }
+            | Self::Duplicate(_)
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::Parse(_)
             | Self::NoGesture
             | Self::GestureInFlight
             | Self::WrongGesture
@@ -481,6 +521,7 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
+            | Self::UndeclaredContact(_)
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -715,6 +756,7 @@ impl core::fmt::Display for Refusal {
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
             Self::Duplicate(fault) => write!(f, "{fault}"),
+            Self::UndeclaredContact(refused) => write!(f, "{refused}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error}"),

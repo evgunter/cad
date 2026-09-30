@@ -118,10 +118,10 @@ fn a_two_body_union_authors_evaluates_saves_and_reloads() {
             op: BooleanOp::Union,
             a,
             b,
+            declare: Vec::new(),
         },
     );
-    // `declare: None` is the door's authored value, not a default the
-    // op could have carried differently.
+    // An op declaring nothing authors `declare: None`.
     assert!(matches!(
         session.committed_doc().node(union),
         Some(Node::Boolean {
@@ -177,6 +177,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
             op: BooleanOp::Subtract,
             a,
             b,
+            declare: Vec::new(),
         },
     );
     let b_minus_a = session_insert(
@@ -185,6 +186,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
             op: BooleanOp::Subtract,
             a: b,
             b: a,
+            declare: Vec::new(),
         },
     );
     let first = body_volume(&mut session, a_minus_b, tol);
@@ -204,6 +206,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
             op: BooleanOp::Intersect,
             a,
             b,
+            declare: Vec::new(),
         },
     );
     assert_volume(&mut session, meet, OVERLAP, tol);
@@ -244,6 +247,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
                 op: BooleanOp::Union,
                 a: x,
                 b: y,
+                declare: Vec::new(),
             });
             assert!(
                 matches!(
@@ -264,6 +268,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         op: BooleanOp::Subtract,
         a,
         b: a,
+        declare: Vec::new(),
     });
     let Some(Refusal::Edit(ref error)) = refused.refusal else {
         panic!(
@@ -298,6 +303,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         op: BooleanOp::Subtract,
         a: profile,
         b: profile,
+        declare: Vec::new(),
     });
     assert!(
         matches!(
@@ -421,6 +427,7 @@ fn several_bodies_are_not_one_body_at_a_seat() {
                 op: BooleanOp::Union,
                 a: wrong,
                 b: body,
+                declare: Vec::new(),
             },
             SessionOp::AddTransform {
                 input: wrong,
@@ -667,6 +674,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
             op: BooleanOp::Union,
             a: part,
             b: fused,
+            declare: Vec::new(),
         },
     );
     let va = A[0] * A[1] * A[2];
@@ -943,6 +951,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             op: BooleanOp::Union,
             a: body,
             b: other,
+            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: body,
@@ -998,11 +1007,13 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             op: BooleanOp::Union,
             a: plane,
             b: body,
+            declare: Vec::new(),
         },
         SessionOp::AddBoolean {
             op: BooleanOp::Subtract,
             a: body,
             b: body,
+            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: plane,
@@ -1157,7 +1168,8 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
             op: BooleanOp::Subtract,
             a: first,
             b: second,
-        }) if first == a && second == b
+            declare,
+        }) if first == a && second == b && declare.is_empty()
     ));
 
     // Deleting the SECOND operand's node empties that seat and leaves
@@ -1445,6 +1457,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                 op: BooleanOp::Union,
                 a: filled(Seat::OperandA),
                 b: filled(Seat::OperandB),
+                declare: Vec::new(),
             },
             Seat::SplitTarget | Seat::SplitPlane => SessionOp::AddSplit {
                 target: filled(Seat::SplitTarget),
@@ -1759,6 +1772,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
                 op: BooleanOp::Union,
                 a: RecipeNodeId(1),
                 b: RecipeNodeId(2),
+                declare: Vec::new(),
             },
         ),
         (

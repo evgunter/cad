@@ -24,7 +24,7 @@ use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 use pncad::select::SplitHalf;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::PatternOutputChoice;
+use crate::combine::{DeclareOffer, PatternOutputChoice};
 use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::seats::SeatError;
@@ -220,6 +220,11 @@ pub(crate) struct Drafts {
     pub(crate) revolve_angle: f64,
     /// The boolean tool's operation choice.
     pub(crate) boolean_op: BooleanOp,
+    /// The offer an undeclared-contact refusal made
+    /// ([`crate::session::Refusal::declare_offer`]), with the history
+    /// state it was refused on: shown in the boolean tool while both
+    /// still hold ([`crate::pane::create::declare_offer_rows`]).
+    pub(crate) declare_offer: Option<(HistoryId, DeclareOffer)>,
     /// The transform tool's translation, metres.
     pub(crate) transform_translation: [f64; 3],
     /// Its rotation axis (unitless).
@@ -640,6 +645,7 @@ impl Default for Drafts {
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
             boolean_op: BooleanOp::Union,
+            declare_offer: None,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,

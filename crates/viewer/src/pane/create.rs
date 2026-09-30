@@ -11,7 +11,9 @@ use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
-use crate::combine::{DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
+use crate::combine::{
+    BooleanTool, DUPLICATE_GAP, DeclareOffer, PatternOutputChoice, STEP_DIRECTION,
+};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
@@ -19,6 +21,7 @@ use crate::forms::{
     split_half_label,
 };
 use crate::frame::{self, Tone};
+use crate::history::HistoryId;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
@@ -151,6 +154,46 @@ pub(crate) fn duplicate_note() -> String {
 /// (`crate::pane::headless`).
 pub(crate) fn seats_row(ui: &mut egui::Ui, seats: &Seats, theme: &Theme) {
     crate::widgets::message_toned(ui, seat_line(seats), theme, Tone::Advisory);
+}
+
+/// **The offer to declare a refused contact, in the boolean tool** —
+/// its question, one line per pair accepting it declares, and the two
+/// answers: `Declare` queues [`DeclareOffer::accept`], `Decline` drops
+/// the offer and queues nothing.
+///
+/// Drawn only while the document is the one the offer was refused on
+/// and the tool holds what it is about ([`DeclareOffer::is_for`]); an
+/// offer an edit, the picks or the operation moved past is dropped
+/// unshown. A free function over the `Ui` so a headless row can click
+/// it (`crate::pane::headless`).
+pub(crate) fn declare_offer_rows(
+    ui: &mut egui::Ui,
+    held: &mut Option<(HistoryId, DeclareOffer)>,
+    (now, op, tool): (HistoryId, BooleanOp, BooleanTool),
+    ops: &mut Vec<SessionOp>,
+    theme: &Theme,
+) {
+    let Some((at, offer)) = held.as_ref() else {
+        return;
+    };
+    if *at != now || !offer.is_for(op, tool.a(), tool.b()) {
+        *held = None;
+        return;
+    }
+    crate::widgets::message_toned(ui, offer.question(), theme, Tone::Advisory);
+    for finding in offer.findings() {
+        crate::widgets::message_toned(ui, DeclareOffer::pair_line(finding), theme, Tone::Advisory);
+    }
+    let mut declined = false;
+    ui.horizontal(|ui| {
+        if ui.button("Declare").clicked() {
+            ops.push(offer.accept());
+        }
+        declined = ui.button("Decline").clicked();
+    });
+    if declined {
+        *held = None;
+    }
 }
 
 /// **The mate tool's held picks, drawn** — [`MateToolState::line`],
@@ -1284,6 +1327,17 @@ impl ViewerBehavior<'_> {
         self.tool_commit_row(ui, "Commit boolean", ToolKind::Boolean, |drafts| {
             Ok(tool.op(drafts.boolean_op)?)
         });
+        declare_offer_rows(
+            ui,
+            &mut self.drafts.declare_offer,
+            (
+                self.session.history().current(),
+                self.drafts.boolean_op,
+                tool,
+            ),
+            self.ops,
+            &self.theme,
+        );
     }
 
     /// The split tool's panel: a body pick, a datum-plane pick, and
@@ -2478,6 +2532,573 @@ mod tone_tests {
         assert_eq!(
             find(&painted, "choose a shape to add").ink,
             Some(voices.weak)
+        );
+    }
+}
+
+/// **The declared union, driven through the boolean panel**: the
+/// flush boss-on-a-face union from its refusal to one undo, and the
+/// rows either side of it. Each row performs the op the panel
+/// QUEUED, so what is asserted is what a click reaches.
+#[cfg(test)]
+mod declared_union {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use pncad::document::{
+        BooleanOp, BooleanValue, CancelToken, Doc, EvalOptions, Node, ProfileProgram, RecipeNodeId,
+        ValuePayload, evaluate,
+    };
+    use pncad::geom_core::Tol;
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+    use pncad::select::ContactClass;
+
+    use super::declare_offer_rows;
+    use crate::combine::{BooleanTool, DeclareOffer};
+    use crate::history::HistoryId;
+    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use crate::session::{
+        DatumSpec, DocSession, FaceSelection, ProfilePlane, ProfileShape, Refusal, SessionOp,
+        face_frame_seat,
+    };
+    use crate::sketch::{Notation, loop_program};
+    use crate::test_support::{ang, inserted, len};
+    use crate::theme::Theme;
+    use crate::tree;
+
+    /// The block: 40 × 20 × 10 mm, centred on the world origin.
+    const BLOCK: [f64; 3] = [0.04, 0.02, 0.01];
+    /// The boss: a 5 mm-radius disc drawn on the block's top cap,
+    /// extruded 4 mm up.
+    const BOSS_RADIUS: f64 = 0.005;
+    const BOSS_HEIGHT: f64 = 0.004;
+
+    /// Perform `op`, which must commit; pump; answer what it minted.
+    fn committed(session: &mut DocSession, op: SessionOp) -> Vec<RecipeNodeId> {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+        outcome.minted
+    }
+
+    /// One node minted by `op`.
+    fn one(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+        let minted = committed(session, op);
+        *minted.last().expect("the op minted a node")
+    }
+
+    /// A profile of `shape` on `plane`, extruded by `depth`.
+    fn solid(
+        session: &mut DocSession,
+        plane: ProfilePlane,
+        shape: &ProfileShape,
+        depth: f64,
+    ) -> RecipeNodeId {
+        let loops = vec![loop_program(shape, Notation::CANONICAL).expect("a finite shape")];
+        let profile = one(session, SessionOp::AddProfile { plane, loops });
+        one(
+            session,
+            SessionOp::AddExtrude {
+                profile,
+                distance: len(depth),
+            },
+        )
+    }
+
+    /// The block, on a fresh world xy frame.
+    fn block(session: &mut DocSession) -> RecipeNodeId {
+        let [width, height, depth] = BLOCK;
+        solid(
+            session,
+            ProfilePlane::NewXy,
+            &ProfileShape::Rectangle { width, height },
+            depth,
+        )
+    }
+
+    /// A frame read off `block`'s top cap, the way the add-datum
+    /// form reads one off a picked face.
+    fn top_frame(session: &mut DocSession, block: RecipeNodeId) -> RecipeNodeId {
+        let picked = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: block,
+            body: 0,
+        };
+        let (at, face) = face_frame_seat(session.landed_pair(), Some(&picked))
+            .expect("the top cap is planar and resolves");
+        one(
+            session,
+            SessionOp::AddDatum {
+                datum: DatumSpec::FaceFrame {
+                    at,
+                    face,
+                    spin: ang(0.0),
+                },
+            },
+        )
+    }
+
+    /// The block and a boss drawn on its top cap — FLUSH with the
+    /// block there by construction.
+    fn block_and_boss(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+        let mut session = DocSession::inline(Doc::empty_derived("declared-union", tol), tol);
+        let block = block(&mut session);
+        let frame = top_frame(&mut session, block);
+        let boss = solid(
+            &mut session,
+            ProfilePlane::Existing(frame),
+            &ProfileShape::Circle {
+                centre: [0.0, 0.0],
+                radius: BOSS_RADIUS,
+            },
+            BOSS_HEIGHT,
+        );
+        (session, block, boss)
+    }
+
+    /// The boolean tool holding `a` then `b`.
+    fn holding(session: &DocSession, a: RecipeNodeId, b: RecipeNodeId) -> BooleanTool {
+        let mut tool = BooleanTool::new();
+        tool.pick(session.committed_doc(), a);
+        tool.pick(session.committed_doc(), b);
+        tool
+    }
+
+    /// The union the tool holds, performed: the offer its refusal
+    /// made. Panics if the union did not refuse with one.
+    fn refused_union(session: &mut DocSession, tool: BooleanTool) -> DeclareOffer {
+        offer_of(&refusal_of(session, tool))
+    }
+
+    /// The union the tool holds, performed: its refusal.
+    fn refusal_of(session: &mut DocSession, tool: BooleanTool) -> Refusal {
+        let op = tool.op(BooleanOp::Union).expect("both operands are picked");
+        session.perform(op).refusal.expect("the union refuses")
+    }
+
+    /// The offer `refusal` makes. Panics if it makes none.
+    fn offer_of(refusal: &Refusal) -> DeclareOffer {
+        refusal
+            .declare_offer()
+            .unwrap_or_else(|| panic!("an undeclared-contact refusal: {refusal}"))
+    }
+
+    /// What the kernel says about the union of `a` and `b` declaring
+    /// nothing, evaluated on its own: the sentence the refusal forwards.
+    fn kernel_sentence(
+        doc: &Doc<ProfileProgram>,
+        a: RecipeNodeId,
+        b: RecipeNodeId,
+        tol: Tol,
+    ) -> String {
+        let (doc, union) = inserted(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a,
+                b,
+                declare: None,
+            },
+            tol,
+        );
+        let eval = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        eval.node_error(union)
+            .expect("the plain union fails")
+            .kind
+            .to_string()
+    }
+
+    /// What the panel does with `offer`, held at the session's current
+    /// state, once `target` is clicked: the offer it leaves held, and
+    /// the ops it queued.
+    fn clicked(
+        target: &str,
+        session: &DocSession,
+        offer: DeclareOffer,
+        tool: BooleanTool,
+    ) -> (Option<DeclareOffer>, Vec<SessionOp>) {
+        let now = session.history().current();
+        let mut held = Some((now, offer));
+        let mut ops = Vec::new();
+        painted_after_clicking(target, |ui| {
+            declare_offer_rows(
+                ui,
+                &mut held,
+                (now, BooleanOp::Union, tool),
+                &mut ops,
+                &Theme::DEFAULT,
+            );
+        });
+        (held.map(|(_, offer)| offer), ops)
+    }
+
+    /// What the panel paints for `held` at the session's current state
+    /// with `tool` open, and the offer it leaves held.
+    fn painted_offer(
+        session: &DocSession,
+        mut held: Option<(HistoryId, DeclareOffer)>,
+        tool: BooleanTool,
+    ) -> (String, Option<(HistoryId, DeclareOffer)>) {
+        let now = session.history().current();
+        let painted = painted_text(|ui| {
+            declare_offer_rows(
+                ui,
+                &mut held,
+                (now, BooleanOp::Union, tool),
+                &mut Vec::new(),
+                &Theme::DEFAULT,
+            );
+        });
+        (painted, held)
+    }
+
+    /// A body node's volume in the landed run.
+    fn volume(session: &DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
+        let eval = session.evaluation().expect("the inline seam landed");
+        let value = eval
+            .value(node)
+            .unwrap_or_else(|| panic!("the node has no value: {:?}", eval.node_error(node)));
+        let body = match &value.payload {
+            ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+                body
+            }
+            other => panic!("expected a body, got {other:?}"),
+        };
+        pncad::topo::mass_properties(body, tol)
+            .expect("mass properties")
+            .volume
+    }
+
+    /// **Refusal → offer → Declare → one undo**, as the panel drives
+    /// it. Red if the flush union commits instead of refusing; if the
+    /// offer is not the kernel's pair at the two picks, `Rest` as
+    /// found; if the panel says anything else; if Declare queues
+    /// anything but the offer; if accepting lands other than one
+    /// `Declare` and one union naming it in one history step; if the
+    /// union does not evaluate to block plus boss; or if one undo
+    /// does not return the document the union was refused on.
+    #[test]
+    fn a_flush_union_is_declared_through_its_refusals_offer_as_one_undo() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = block_and_boss(tol);
+        let before = session.committed_doc().clone();
+        let steps = session.history().len();
+        let tool = holding(&session, block, boss);
+
+        let refusal = refusal_of(&mut session, tool);
+        assert_eq!(
+            refusal.to_string(),
+            format!(
+                "the boolean was not committed: {}",
+                kernel_sentence(&before, block, boss, tol)
+            ),
+            "the status line says the kernel's refusal, framed"
+        );
+        let offer = offer_of(&refusal);
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "a refused union commits nothing"
+        );
+        assert_eq!(session.history().len(), steps, "and records no step");
+        let [finding] = offer.findings() else {
+            panic!("one refusal reports one pair: {:?}", offer.findings());
+        };
+        assert_eq!(
+            (finding.pair.0.at, finding.pair.1.at),
+            (block, boss),
+            "each side is sited at the operand that holds it"
+        );
+        assert_eq!(
+            (&finding.pair.0.name.path, &finding.pair.1.name.path),
+            (
+                &vec![RoleSeg::Cap(CapEnd::End)],
+                &vec![RoleSeg::Cap(CapEnd::Start)]
+            ),
+            "the block's top cap against the boss's bottom cap"
+        );
+        assert_eq!(finding.class, ContactClass::Rest);
+
+        let at = session.history().current();
+        let (painted, _) = painted_offer(&session, Some((at, offer.clone())), tool);
+        assert_eq!(
+            painted,
+            format!(
+                "declare this contact and commit the boolean?\n\
+                 a face of {} against a face of {} — {} contact\n\
+                 Declare\nDecline",
+                tree::node_number(block),
+                tree::node_number(boss),
+                ContactClass::Rest.name()
+            )
+        );
+
+        let (held, ops) = clicked("Declare", &session, offer.clone(), tool);
+        assert_eq!(
+            held.as_ref(),
+            Some(&offer),
+            "accepting leaves the offer to the landing"
+        );
+        let [accept] = <[SessionOp; 1]>::try_from(ops).expect("Declare queues one op");
+        let outcome = session.perform(accept);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let [declare, union] = outcome.minted[..] else {
+            panic!("a Declare and a union: {:?}", outcome.minted);
+        };
+        assert_eq!(session.history().len(), steps + 1, "one action, one step");
+        let doc = session.committed_doc();
+        assert!(matches!(
+            doc.node(declare),
+            Some(Node::Declare { pairs }) if pairs[..] == [(finding.pair.clone(), ContactClass::Rest)]
+        ));
+        assert!(matches!(
+            doc.node(union),
+            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare: Some(d) })
+                if (*a, *b, *d) == (block, boss, declare)
+        ));
+        session.pump();
+        let [width, height, depth] = BLOCK;
+        let want = width * height * depth
+            + core::f64::consts::PI * BOSS_RADIUS * BOSS_RADIUS * BOSS_HEIGHT;
+        let got = volume(&session, union, tol);
+        assert!(
+            ((got - want) / want).abs() < 1e-9,
+            "the union is block plus boss: {got} vs {want}"
+        );
+
+        let undone = session.perform(SessionOp::Undo);
+        assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "one undo takes the Declare and the union together"
+        );
+    }
+
+    /// **Declining changes nothing.** Red if Decline queues an op or
+    /// leaves the offer held.
+    #[test]
+    fn declining_the_offer_drops_it_and_queues_nothing() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = block_and_boss(tol);
+        let tool = holding(&session, block, boss);
+        let offer = refused_union(&mut session, tool);
+        let (held, ops) = clicked("Decline", &session, offer, tool);
+        assert_eq!(held, None, "the offer is dropped");
+        assert!(ops.is_empty(), "and nothing is queued: {ops:?}");
+    }
+
+    /// **An offer is dropped unshown once the picks or the document
+    /// move past it**: its pairs are sited at operands the tool no
+    /// longer holds, or were found on a document that is no longer the
+    /// one a commit would edit. Red if the panel draws either, or keeps
+    /// it.
+    #[test]
+    fn an_offer_the_picks_or_an_edit_moved_past_is_dropped_unshown() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = block_and_boss(tol);
+        let tool = holding(&session, block, boss);
+        let offer = refused_union(&mut session, tool);
+        let at = session.history().current();
+        let (painted, held) = painted_offer(&session, Some((at, offer.clone())), tool);
+        assert!(!painted.is_empty(), "the premise: a live offer is drawn");
+        assert!(held.is_some(), "and kept");
+
+        let swapped = holding(&session, boss, block);
+        let (painted, held) = painted_offer(&session, Some((at, offer.clone())), swapped);
+        assert_eq!(painted, "", "other picks: nothing is drawn");
+        assert_eq!(held, None, "and the offer is dropped");
+
+        one(
+            &mut session,
+            SessionOp::AddDatum {
+                datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+            },
+        );
+        let (painted, held) = painted_offer(&session, Some((at, offer)), tool);
+        assert_eq!(painted, "", "an edit since: nothing is drawn");
+        assert_eq!(held, None, "and the offer is dropped");
+    }
+
+    /// **A boolean poisoned by an upstream contact refusal commits, and
+    /// offers nothing**: the finding it would carry is sited at the
+    /// UPSTREAM union's operands, so declaring it here would declare
+    /// nothing about this node. The upstream union is written straight
+    /// into the document, the one way a refusing union reaches it. Red
+    /// if the door lifts the ancestor's refusal into an offer.
+    #[test]
+    fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
+        let tol = Tol::witness();
+        let (session, block, boss) = block_and_boss(tol);
+        let (doc, upstream) = inserted(
+            session.committed_doc(),
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: block,
+                b: boss,
+                declare: None,
+            },
+            tol,
+        );
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let tool = holding(&session, upstream, boss);
+        let outcome = session.perform(tool.op(BooleanOp::Union).expect("both picked"));
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        assert_eq!(outcome.minted.len(), 1, "one insert: {:?}", outcome.minted);
+    }
+
+    /// **A union with no flush contact lands as it always did**: one
+    /// insert, `declare: None`, and no `Declare` anywhere. Red if the
+    /// door refuses it, or declares something nobody accepted.
+    #[test]
+    fn a_union_with_no_flush_contact_lands_with_no_declaration() {
+        let tol = Tol::witness();
+        let mut session = DocSession::inline(Doc::empty_derived("plain-union", tol), tol);
+        let block = block(&mut session);
+        let raw = solid(
+            &mut session,
+            ProfilePlane::NewXy,
+            &ProfileShape::Rectangle {
+                width: 0.02,
+                height: 0.01,
+            },
+            0.006,
+        );
+        // Placed to overlap the block with no face of one coplanar
+        // with a face of the other.
+        let placed = one(
+            &mut session,
+            SessionOp::AddTransform {
+                input: raw,
+                translation: [0.015, 0.002, 0.002].map(len),
+                rotation_axis: [0.0, 0.0, 1.0].map(crate::test_support::scl),
+                rotation_angle: ang(0.0),
+            },
+        );
+        let tool = holding(&session, block, placed);
+        let outcome = session.perform(tool.op(BooleanOp::Union).expect("both picked"));
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let [union] = outcome.minted[..] else {
+            panic!("one insert: {:?}", outcome.minted);
+        };
+        let doc = session.committed_doc();
+        assert!(matches!(
+            doc.node(union),
+            Some(Node::Boolean { declare: None, .. })
+        ));
+        assert!(
+            !doc.order()
+                .iter()
+                .any(|id| matches!(doc.node(*id), Some(Node::<ProfileProgram>::Declare { .. }))),
+            "no Declare was authored"
+        );
+        session.pump();
+        assert!(volume(&session, union, tol) > 0.0, "and it evaluates");
+    }
+
+    /// **Two flush contacts are offered one refusal at a time, and
+    /// land together.** The block here has a channel cut across its
+    /// top, so its top is TWO faces, and the boss bridges the
+    /// channel resting on both: the first refusal offers one pair,
+    /// and accepting it is refused again with that pair still
+    /// declared and the second added. Red if the second offer drops
+    /// the first pair, or if accepting both lands anything but one
+    /// `Declare` of both and one union.
+    #[test]
+    fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
+        let tol = Tol::witness();
+        let mut session = DocSession::inline(Doc::empty_derived("two-contacts", tol), tol);
+        let block = block(&mut session);
+        let frame = top_frame(&mut session, block);
+        // The channel: 10 mm wide, through the block's whole depth
+        // and 5 mm into its top, with no face coplanar with one of
+        // the block's.
+        let raw = solid(
+            &mut session,
+            ProfilePlane::NewXy,
+            &ProfileShape::Rectangle {
+                width: 0.01,
+                height: 0.04,
+            },
+            0.01,
+        );
+        let channel = one(
+            &mut session,
+            SessionOp::AddTransform {
+                input: raw,
+                translation: [0.0, 0.0, 0.005].map(len),
+                rotation_axis: [0.0, 0.0, 1.0].map(crate::test_support::scl),
+                rotation_angle: ang(0.0),
+            },
+        );
+        let channelled = one(
+            &mut session,
+            SessionOp::AddBoolean {
+                op: BooleanOp::Subtract,
+                a: block,
+                b: channel,
+                declare: Vec::new(),
+            },
+        );
+        let boss = solid(
+            &mut session,
+            ProfilePlane::Existing(frame),
+            &ProfileShape::Rectangle {
+                width: 0.03,
+                height: 0.01,
+            },
+            BOSS_HEIGHT,
+        );
+        let before = session.committed_doc().clone();
+        let steps = session.history().len();
+        let tool = holding(&session, channelled, boss);
+        let first = refused_union(&mut session, tool);
+        assert_eq!(first.findings().len(), 1, "{:?}", first.findings());
+        let refusal = session
+            .perform(first.accept())
+            .refusal
+            .expect("the second contact refuses");
+        let second = refusal
+            .declare_offer()
+            .unwrap_or_else(|| panic!("an undeclared-contact refusal: {refusal}"));
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "a refused acceptance commits nothing"
+        );
+        let [kept, added] = second.findings() else {
+            panic!("the first pair and the second: {:?}", second.findings());
+        };
+        assert_eq!(
+            kept,
+            &first.findings()[0],
+            "the first pair is still declared"
+        );
+        assert_ne!(kept.pair, added.pair, "and the second is another pair");
+        assert!(second.question().starts_with("declare these contacts"));
+        let outcome = session.perform(second.accept());
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let [declare, union] = outcome.minted[..] else {
+            panic!("a Declare and a union: {:?}", outcome.minted);
+        };
+        assert_eq!(session.history().len(), steps + 1, "one action, one step");
+        assert!(matches!(
+            session.committed_doc().node(declare),
+            Some(Node::Declare { pairs }) if pairs.len() == 2
+        ));
+        session.pump();
+        assert!(
+            volume(&session, union, tol) > 0.0,
+            "and the union evaluates"
         );
     }
 }
