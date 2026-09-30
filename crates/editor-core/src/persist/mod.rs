@@ -145,7 +145,6 @@ pub mod hexbytes;
 /// boundary — see the module's own docs for the rules a new one
 /// follows.
 pub(crate) mod kernel_wire;
-/// The load door's nesting limit and the reader that holds a body to it.
 pub(crate) mod nesting;
 pub(crate) mod pairs;
 /// The refusal channel. `pub(crate)` for its `record` alone: the
