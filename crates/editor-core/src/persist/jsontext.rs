@@ -268,29 +268,81 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+    use std::collections::BTreeMap;
 
-    /// Both passes against serde_json's own writers, over a value that
-    /// has every shape they lay out: nesting, empty containers, keys
-    /// out of order, escapes in keys and strings, and numbers.
+    /// A value with every shape the passes lay out: nesting, empty
+    /// containers, fields out of name order, escapes in keys and
+    /// strings, numbers and literals.
+    #[derive(serde::Serialize)]
+    struct Written {
+        z: (Vec<f64>, Vec<()>, BTreeMap<String, bool>, Inner),
+        id: &'static str,
+        a: Option<u8>,
+    }
+
+    #[derive(serde::Serialize)]
+    struct Inner {
+        y: Vec<Vec<Inner>>,
+        b: BTreeMap<String, String>,
+    }
+
+    /// [`Written`] with its fields, and [`Inner`]'s, in name order and
+    /// no `id`: what the canonical bytes of a `Written` must be.
+    #[derive(serde::Serialize)]
+    struct Sorted {
+        a: Option<u8>,
+        z: (Vec<f64>, Vec<()>, BTreeMap<String, bool>, InnerSorted),
+    }
+
+    #[derive(serde::Serialize)]
+    struct InnerSorted {
+        b: BTreeMap<String, String>,
+        y: Vec<Vec<InnerSorted>>,
+    }
+
     #[test]
     fn both_passes_write_what_serde_json_writes() {
-        let text = r#"{"z":[1,-2.5e-7,{},[],{"b\"q":"x\u0001y","a":[[{"id":0}]],"é":true}],"id":"k","a":null}"#;
-        let value: serde_json::Value = serde_json::from_str(text).unwrap();
-        let compact =
-            serde_json::to_string(&serde_json::from_str::<serde_json::Value>(text).unwrap())
-                .unwrap();
-        // Laid out from the value's own compact text, since serde_json
-        // re-sorts the keys it read; the layout is what is compared.
+        let keyed = || BTreeMap::from([("b\"q".to_owned(), "x\u{1}y\u{e9}".to_owned())]);
+        let written = Written {
+            z: (
+                vec![1.0, -2.5e-7],
+                Vec::new(),
+                BTreeMap::new(),
+                Inner {
+                    y: vec![vec![Inner {
+                        y: Vec::new(),
+                        b: keyed(),
+                    }]],
+                    b: BTreeMap::new(),
+                },
+            ),
+            id: "k",
+            a: None,
+        };
+        let sorted = Sorted {
+            a: None,
+            z: (
+                vec![1.0, -2.5e-7],
+                Vec::new(),
+                BTreeMap::new(),
+                InnerSorted {
+                    b: BTreeMap::new(),
+                    y: vec![vec![InnerSorted {
+                        b: keyed(),
+                        y: Vec::new(),
+                    }]],
+                },
+            ),
+        };
+        let compact = serde_json::to_string(&written).unwrap();
         assert_eq!(
             pretty(&compact),
-            serde_json::to_string_pretty(&value).unwrap(),
+            serde_json::to_string_pretty(&written).unwrap(),
             "pretty"
         );
-        let mut stripped = value.clone();
-        stripped.as_object_mut().unwrap().remove("id");
         assert_eq!(
-            canonical(text).unwrap(),
-            serde_json::to_string(&stripped).unwrap(),
+            canonical(&compact).unwrap(),
+            serde_json::to_string(&sorted).unwrap(),
             "canonical"
         );
     }
