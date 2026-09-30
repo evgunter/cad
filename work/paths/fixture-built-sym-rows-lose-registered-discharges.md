@@ -16,15 +16,15 @@ proves an arc's endpoint facts registers them (`profile::lower_arc`
 through `Arc2::register_endpoints`), and the sweep registers only
 rigidity (`sweep::swept::register_rigidity`,
 `register_placed_carrier_end`). A `Sym` row whose profile is written
-through the fixture door therefore has no 2-D rim or landing to chain
+through the fixture door therefore has no 2-D rim or carrier end to chain
 the placed carrier through, and the discharges the sweep used to
 register unconditionally are gone.
 
 **The instance.** `crates/sweep/tests/sym11_far_placement_rows.rs`,
 the certified lane's stadium (`stadium_extrude`, built with
-`test_support::bulge_loop`): built → `MappedSource` at `(1e-6, 1e9)`
-and `(1e-9, 1e6)`, and `Surface1Residual` → `EndpointStart` at the five
-cells that refused already. Every one is a typed refusal; no cell
+`test_support::bulge_loop`): built → `EndpointEnd` at `(1e-6, 1e9)` and
+`MappedSource` at `(1e-9, 1e6)`, and `Surface1Residual` →
+`EndpointStart` at the five cells that refused already. Every one is a typed refusal; no cell
 contradicts and none answers wrongly. The row asserts the refusals.
 
 **Why neither obvious repair is in 5a.**

@@ -4321,6 +4321,9 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";
 
+/// A loft section of loops the path lattice constructed (the replay's).
+type ConstructedSection = sweep::Section<profile::ConstructedLoop<f64>>;
+
 /// One section of a loft, taken from the RECIPE's own `f64`
 /// description rather than from the evaluated `T` payload.
 ///
@@ -4334,14 +4337,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<
-    (
-        sweep::Section<profile::ConstructedLoop<f64>>,
-        Affine3<f64>,
-        super::ProfilePieces,
-    ),
-    NodeErrorKind,
-> {
+) -> Result<(ConstructedSection, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
