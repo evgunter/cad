@@ -404,10 +404,11 @@ struct Level<'a>(&'a StableName);
 
 impl fmt::Debug for Level<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let StableName { kind, node, path } = self.0;
         f.debug_struct("StableName")
-            .field("kind", &self.0.kind)
-            .field("node", &self.0.node)
-            .field("path", &self.0.path)
+            .field("kind", kind)
+            .field("node", node)
+            .field("path", path)
             .finish()
     }
 }
@@ -519,9 +520,20 @@ impl PartialEq for StableName {
         if shallow(Walk::Eq, Family::Name) {
             return true;
         }
+        // Every field is bound, so a field added to the name is an E0027
+        // here until equality says what it does with it.
+        let same = |a: &StableName, b: &StableName| {
+            let StableName { kind, node, path } = a;
+            let StableName {
+                kind: b_kind,
+                node: b_node,
+                path: b_path,
+            } = b;
+            kind == b_kind && node == b_node && path == b_path
+        };
         #[cfg(test)]
         if tests::recursing() {
-            return self.kind == other.kind && self.node == other.node && self.path == other.path;
+            return same(self, other);
         }
         let _shallow = Shallow::enter(Walk::Eq, Family::Name);
         let mut pairs = vec![(self, other)];
@@ -531,7 +543,7 @@ impl PartialEq for StableName {
             }
             // Held names compare equal here; equal levels hold equally
             // many, which are then compared pairwise.
-            if a.kind != b.kind || a.node != b.node || a.path != b.path {
+            if !same(a, b) {
                 return false;
             }
             pairs.extend(a.held().into_iter().zip(b.held()));

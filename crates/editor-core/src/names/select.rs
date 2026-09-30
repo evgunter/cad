@@ -707,7 +707,14 @@ impl PartialEq for NamePat {
         let _shallow = Shallow::enter(Walk::Eq, Family::Pattern);
         let mut pairs = vec![(self, other)];
         while let Some((a, b)) = pairs.pop() {
-            if a.kind != b.kind || a.node != b.node || a.path != b.path {
+            // Held patterns compare equal here, and are compared next.
+            let NamePat { kind, node, path } = a;
+            let NamePat {
+                kind: b_kind,
+                node: b_node,
+                path: b_path,
+            } = b;
+            if kind != b_kind || node != b_node || path != b_path {
                 return false;
             }
             pairs.extend(a.held().into_iter().zip(b.held()));
@@ -723,10 +730,11 @@ struct PatLevel<'a>(&'a NamePat);
 
 impl core::fmt::Debug for PatLevel<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let NamePat { kind, node, path } = self.0;
         f.debug_struct("NamePat")
-            .field("kind", &self.0.kind)
-            .field("node", &self.0.node)
-            .field("path", &self.0.path)
+            .field("kind", kind)
+            .field("node", node)
+            .field("path", path)
             .finish()
     }
 }
