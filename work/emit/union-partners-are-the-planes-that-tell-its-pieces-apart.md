@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-29
 priority: P1
 cost: H
-needs_ev: true
 ---
 
 
@@ -79,3 +78,18 @@ The only open difference between them is mechanism, not semantics:
   geometry only for islands and pinch vertices.
 
 The `[ev]` PR carries both.
+
+## Ruled (2026-09-30, #3454)
+
+Ev took the `Borders` semantics: a boolean's split-face piece is named
+by the divider walls it borders (N2).
+
+The obstacle mechanism will be chosen by measurement:
+- how often islands and pinches occur;
+- whether the face-path variant differs from planar obstacles;
+- whether the cross-fold record join is order-free.
+
+Ev leans toward the kernel-record mechanism, with low confidence.
+
+The row is now the build, after that prototype. #3241 is rebuilt on
+`Borders`.
