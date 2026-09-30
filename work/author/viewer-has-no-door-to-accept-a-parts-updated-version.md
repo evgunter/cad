@@ -54,7 +54,13 @@ Dispatched 2026-09-30 as **AUTH-15** (`docs/AUTH-15-SPEC.md`, branch `author/acc
   the row (`TreeRow::version_offer`). The Features pane draws
   `Refusal::version_question` and an **Accept updated version** button
   under the failure line. Every other failure, and every healthy row,
-  offers nothing.
+  offers nothing. While a run is outstanding (`busy()`),
+  `DocSession::tree_rows` withholds every offer, so an accept whose own
+  run has not landed is not offered again.
+  - The button label is `VersionOffer::LABEL`, pinned by a row to the
+    name `PIN_MISMATCH_RECOURSE` quotes.
+  - It shows only after the assembly is (re)opened: see
+    `work/offer/document-seam-no-in-session-change-detection.md`.
 - **Calls.**
   - Every site of the part, not the one instance, because the kernel's
     door is that one.
@@ -63,8 +69,11 @@ Dispatched 2026-09-30 as **AUTH-15** (`docs/AUTH-15-SPEC.md`, branch `author/acc
   - With nothing newer, or no file, the store's refusal is said as-is.
 - Rows: `tests/instance_authoring.rs`
   (`a_pin_mismatched_instance_offers_the_accept_and_accepting_is_one_undo`,
-  `accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal`),
-  `frame::tests::only_a_pin_that_no_longer_holds_offers_the_accept`,
+  `accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal`,
+  `the_accept_reads_the_committed_document_before_its_run_lands`),
+  `frame::tests::only_a_pin_that_no_longer_holds_offers_the_accept` (a
+  census over every `PartFault` arm),
+  `session::refuse::version_offer::the_accept_button_is_the_edit_the_pin_mismatch_recourse_quotes`,
   and `pane::features::tests::a_pin_mismatched_instance_row_draws_the_accept_and_its_button_is_the_offer`.
 - The OFFER row `a-refusal-offers-no-action-in-the-viewer` carries this
   instance's evidence and the sweep's residue (the tolerance lever).

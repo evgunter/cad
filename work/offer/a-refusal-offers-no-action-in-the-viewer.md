@@ -79,11 +79,14 @@ the reader, and `session::VersionOffer` beside `DeclareOffer` for the
 value. Two things differ, and an OFFER unit inherits both:
 
 - **Nothing holds it.** The offer is read off the landed run when the
-  tree's rows are built (`TreeRow::version_offer`), so it stands exactly
-  as long as the FAILED badge it is drawn under. There is no `drafts`
-  field and no staleness rule. The store can still move between the
-  landing and the click. The op therefore mints the pin at the commit,
-  and a store that has nothing newer refuses in its own words.
+  tree's rows are built (`TreeRow::version_offer`), so there is no
+  `drafts` field. It still needs one staleness rule: the landed run can
+  be older than the committed document. That is true right after an
+  accept, before its run lands, when the old row would offer the same
+  accept again. So `DocSession::tree_rows` withholds every offer while
+  `busy()`. The store can also move between the landing and the click.
+  The op therefore mints the pin at the commit, and a store that has
+  nothing newer refuses in its own words.
 - **The recourse is doubled again**, as in the Boolean case. The badge
   prints `PIN_MISMATCH_RECOURSE`, and directly under it is the
   button that records the edit that sentence quotes by name.
@@ -108,3 +111,23 @@ only by refusals of those same edits, and of the split refactor, and no
 viewer door raises any of those. What the grep cannot see is a recourse
 naming the act in other words. The 40 recourse constants and `Recourse`
 literals were read by eye for that, and none names a door beyond these.
+
+**The general offer type this row is missing** (named by AUTH-15's
+review, as evidence rather than a fix). There are now three offers in
+three shapes:
+
+- a bare `ParamName` (`frame::creation_offer`, held in
+  `drafts.new_param_offer`);
+- `DeclareOffer { accept(), is_for(..) }`;
+- `VersionOffer { accept() }`.
+
+They have three question composers (`Refusal::offer_wording`,
+`::declare_question`, `::version_question`) and two drawers
+(`pane::create::declare_offer_rows`, `pane::features`'
+`version_offer_lines`); the parameter offer draws only its sentence.
+Their button labels are three associated consts (`VersionOffer::LABEL`,
+`DeclareOffer::ACCEPT_LABEL` and `DECLINE_LABEL`). The type they share
+is an `Offer { question, label, accept() -> SessionOp, stands(now) }`
+with one drawer. Each of the three answers `stands` in its own way: the
+name field, the generation plus the tool's picks, and the session not
+being `busy()`.

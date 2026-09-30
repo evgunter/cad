@@ -43,7 +43,10 @@ dimension left as your pick.
 In the Features pane, an instance whose part file has changed since it
 was placed fails on its pin, and its row offers **Accept updated
 version**: every instance of that part moves onto the version on disk,
-as one undoable edit.
+as one undoable edit. **Reopen the assembly to see a change made while
+it is open**: results are kept per reference, not per file, so an open
+session does not notice that a part's file changed, and neither the
+failure nor the offer appears until the assembly is opened again.
 
 ## Troubleshooting
 
